@@ -1,9 +1,17 @@
 import { ArrowLeft, Check, Download, FileArchive, HardDrive, HardHat, Laptop, ShieldAlert, ShieldCheck, WifiOff } from 'lucide-react';
-import Link from 'next/link';
+import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
   title: 'Télécharger HelviChantier pour Windows',
-  description: 'Téléchargez le véritable installateur Windows .exe de HelviChantier.',
+  description: 'Téléchargez le véritable installateur Windows .exe multisectoriel de HelviChantier.',
+  openGraph: {
+    title: 'Télécharger HelviChantier pour Windows',
+    description: 'Installateur Windows x64, données métier locales et questionnaire obligatoire au premier lancement.',
+  },
+  twitter: {
+    title: 'Télécharger HelviChantier pour Windows',
+    description: 'Installateur Windows x64, données métier locales et questionnaire obligatoire au premier lancement.',
+  },
 };
 
 const installerPath = '/downloads/HelviChantier_1.0.0_x64-setup.exe';
@@ -12,20 +20,21 @@ export default function DownloadPage() {
   return (
     <main className="min-h-screen bg-[#f4f2ed] text-[#17231d]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 lg:px-8">
-        <Link href="/" className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#efaa3c]"><HardHat className="size-5" /></span><span className="font-semibold tracking-[-.03em]">HelviChantier</span></Link>
-        <Link href="/" className="flex items-center gap-2 text-sm text-[#637068]"><ArrowLeft className="size-4" /> Retour au site</Link>
+        <a href="/" className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#efaa3c]"><HardHat className="size-5" /></span><span className="font-semibold tracking-[-.03em]">HelviChantier</span></a>
+        <a href="/" className="flex items-center gap-2 text-sm text-[#637068]"><ArrowLeft className="size-4" /> Retour au site</a>
       </header>
 
       <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-20 pt-14 lg:grid-cols-[.9fr_1.1fr] lg:items-center lg:px-8 lg:pt-24">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9b651e]">Application Windows 64 bits</p>
           <h1 className="mt-4 text-5xl font-semibold leading-[1.02] tracking-[-.055em] sm:text-6xl">Un vrai logiciel.<br /><span className="text-[#b86b16]">Un vrai installateur.</span></h1>
-          <p className="mt-6 max-w-lg text-lg leading-8 text-[#67716a]">Téléchargez le fichier `.exe`, installez HelviChantier puis renseignez votre entreprise. La première base contient exactement zéro client, zéro chantier et zéro montant.</p>
-          <a href={installerPath} download className="mt-8 inline-flex h-13 items-center justify-center gap-3 rounded-full bg-[#e79b2f] px-7 text-sm font-semibold text-[#173d2c] shadow-[0_12px_35px_rgba(176,103,20,.2)] hover:bg-[#efac49]"><Download className="size-5" /> Télécharger HelviChantier 1.0.0</a>
-          <div className="mt-5 space-y-1 text-xs leading-5 text-[#7f8781]"><p>Format : installateur Windows `.exe` · application x64 · 3,41 Mio</p><p>Compatibilité : Windows 10 et Windows 11</p><p>SHA-256 : <code className="break-all">DD20E40D0312FEEE293EB7451B6A6B5DE244620903186A9297C11943FE082B04</code> · <a className="underline underline-offset-2" href={`${installerPath}.sha256.txt`}>fichier de contrôle</a></p><p>Tarif de la licence : 50 CHF par mois, hors TVA le cas échéant</p></div>
+          <p className="mt-6 max-w-lg text-lg leading-8 text-[#67716a]">Téléchargez le fichier `.exe`, installez HelviChantier puis renseignez votre entreprise et son activité. La première base contient exactement zéro client, zéro projet, zéro chantier et zéro montant.</p>
+          <div className="mt-8 max-w-md"><PurchaseButton /></div>
+          <a href={installerPath} download className="mt-4 inline-flex h-13 items-center justify-center gap-3 rounded-full border border-[#b8b3a8] bg-white px-7 text-sm font-semibold text-[#173d2c] hover:bg-[#fffdf8]"><Download className="size-5" /> Télécharger HelviChantier 1.0.0</a>
+          <div className="mt-5 space-y-1 text-xs leading-5 text-[#7f8781]"><p>Format : installateur Windows `.exe` · application x64 · 2,05 Mio</p><p>Compatibilité : Windows 10 et Windows 11</p><p>SHA-256 : <code className="break-all">D8079645E30A53314FC5FBE662CD5EBBE3778A9AD729DDB16A3A24DE5C78EBF6</code> · <a className="underline underline-offset-2" href={`${installerPath}.sha256.txt`}>fichier de contrôle</a></p><p>Tarif encaissé par Stripe : 50 CHF par mois</p></div>
           <div className="mt-5 flex max-w-xl items-start gap-3 rounded-2xl border border-[#d8aa67] bg-[#fff6e8] p-4 text-sm leading-6 text-[#76501e]">
             <ShieldAlert className="mt-0.5 size-5 shrink-0" />
-            <p><strong>Version de validation non signée.</strong> La signature d’éditeur Windows est en cours : SmartScreen ou la politique de sécurité de votre entreprise peut avertir ou bloquer cet installateur.</p>
+            <p><strong>Signature Windows en attente.</strong> La licence applicative est vérifiée cryptographiquement, mais cette version n’a pas encore de signature d’éditeur Authenticode : SmartScreen peut avertir ou bloquer l’installateur.</p>
           </div>
         </div>
 
@@ -36,7 +45,7 @@ export default function DownloadPage() {
             { icon: WifiOff, title: 'Fonctionnement hors ligne', text: 'La gestion métier ne dépend pas d’Internet.' },
             { icon: FileArchive, title: 'Sauvegarde exportable', text: 'Créez et restaurez un fichier de sauvegarde local.' },
           ].map(({ icon: Icon, title, text }) => <div key={title} className="rounded-2xl bg-white/8 p-4"><Icon className="size-5 text-[#efaa3c]" /><h2 className="mt-4 text-sm font-semibold">{title}</h2><p className="mt-2 text-xs leading-5 text-white/55">{text}</p></div>)}</div>
-          <div className="mt-6 rounded-2xl border border-white/10 p-5"><div className="flex items-center gap-3"><ShieldCheck className="size-5 text-[#efaa3c]" /><h2 className="font-semibold">Ce qui se passe au premier lancement</h2></div><ul className="mt-4 space-y-3 text-sm text-white/65">{['Choix entre créer l’entreprise ou restaurer une sauvegarde', 'Questionnaire identité, facturation, temps et sauvegarde', 'Taux de TVA et retenues saisis par le client', 'Tableau de bord vide jusqu’à la première vraie saisie'].map((item) => <li key={item} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-[#efaa3c]" /> {item}</li>)}</ul></div>
+          <div className="mt-6 rounded-2xl border border-white/10 p-5"><div className="flex items-center gap-3"><ShieldCheck className="size-5 text-[#efaa3c]" /><h2 className="font-semibold">Ce qui se passe au premier lancement</h2></div><ul className="mt-4 space-y-3 text-sm text-white/65">{['Identifiant d’installation local affiché pour l’activation', 'Jeton Stripe signé et lié à un seul PC', 'Choix entre créer l’entreprise ou restaurer une sauvegarde', 'Choix obligatoire du secteur, de la division NOGA 2025 et de l’activité précise', 'Questionnaire identité, facturation, temps, paie et sauvegarde', 'Tableau de bord vide jusqu’à la première vraie saisie'].map((item) => <li key={item} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-[#efaa3c]" /> {item}</li>)}</ul></div>
         </div>
       </section>
 

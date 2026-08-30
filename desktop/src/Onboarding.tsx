@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,9 +20,10 @@ import {
   Users,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
-import type { AppSettings, PayrollRate } from './types';
+import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
 import { createId } from './utils';
 import { Button, ErrorPanel, Field } from './ui';
+import { projectTerminology } from './terminology';
 
 const steps = [
   { label: 'Départ', icon: HardHat },
@@ -43,9 +44,11 @@ const initialSettings: AppSettings = {
     phone: '',
     website: '',
     uidNumber: '',
+    vatNumber: '',
     vatRegistered: false,
     address: { street: '', postalCode: '', city: '', canton: '', country: '' },
   },
+  business: { nogaSection: '', nogaDivision: '', activityDescription: '', nogaDetailedCode: '' },
   billing: {
     currency: 'CHF',
     iban: '',
@@ -61,7 +64,7 @@ const initialSettings: AppSettings = {
     vatRatesBp: [],
     defaultFooter: '',
   },
-  work: { workWeekHours: 0, dailyHours: 0, roundingMinutes: 0, breakMinutes: 0, costCategories: [] },
+  work: { workWeekHours: 0, dailyHours: 0, roundingMinutes: -1, breakMinutes: -1, costCategories: [] },
   payroll: {
     enabled: false,
     fiduciaryValidated: false,
@@ -107,11 +110,24 @@ export function Onboarding({
   const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [nogaCatalog, setNogaCatalog] = useState<NogaCatalog | null>(null);
+  const [nogaError, setNogaError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void desktopApi.getNogaCatalog()
+      .then((catalog) => { if (active) setNogaCatalog(catalog); })
+      .catch((reason) => { if (active) setNogaError(reason instanceof Error ? reason.message : 'Le catalogue NOGA 2025 local n’a pas pu être chargé.'); });
+    return () => { active = false; };
+  }, []);
 
   const stepValid = useMemo(() => {
     if (step === 1) {
       const org = settings.organization;
-      return Boolean(org.legalName && org.contactName && org.email && org.address.street && org.address.postalCode && org.address.city && org.address.canton && org.address.country);
+      const business = settings.business;
+      const detailedCodeValid = !business.nogaDetailedCode || ((business.nogaDetailedCode.length === 3 || business.nogaDetailedCode.length === 4 || business.nogaDetailedCode.length === 6) && /^\d+$/.test(business.nogaDetailedCode) && business.nogaDetailedCode.startsWith(business.nogaDivision));
+      const catalogSelectionValid = Boolean(nogaCatalog?.sections.find((section) => section.code === business.nogaSection)?.divisions.some((division) => division.code === business.nogaDivision));
+      return Boolean(org.legalName && org.contactName && org.email && org.address.street && org.address.postalCode && org.address.city && org.address.canton && org.address.country && (!org.vatRegistered || org.vatNumber.trim()) && catalogSelectionValid && business.activityDescription.trim() && detailedCodeValid);
     }
     if (step === 2) {
       const billing = settings.billing;
@@ -129,7 +145,7 @@ export function Onboarding({
           (!settings.organization.vatRegistered || billing.vatRatesBp.length > 0),
       );
     }
-    if (step === 3) return settings.work.workWeekHours > 0 && settings.work.dailyHours > 0 && categoriesText.split(',').some((value) => value.trim());
+    if (step === 3) return settings.work.workWeekHours > 0 && settings.work.dailyHours > 0 && settings.work.roundingMinutes >= 0 && settings.work.breakMinutes >= 0 && categoriesText.split(',').some((value) => value.trim());
     if (step === 4 && settings.payroll.enabled) {
       return Boolean(settings.payroll.avsFund && settings.payroll.accidentInsurer && settings.payroll.payrollCanton);
     }
@@ -137,7 +153,7 @@ export function Onboarding({
       return privacyConfirmed && settings.backup.recoveryConfirmed && Boolean(settings.backup.folder);
     }
     return true;
-  }, [categoriesText, privacyConfirmed, settings, step]);
+  }, [categoriesText, nogaCatalog, privacyConfirmed, settings, step]);
 
   function next() {
     setError('');
@@ -220,7 +236,7 @@ export function Onboarding({
           {step === 0 ? (
             <SetupIntro onCreate={() => setStep(1)} onRestore={() => void restore()} busy={busy} />
           ) : null}
-          {step === 1 ? <IdentityStep settings={settings} setSettings={setSettings} /> : null}
+          {step === 1 ? <IdentityStep settings={settings} setSettings={setSettings} catalog={nogaCatalog} catalogError={nogaError} /> : null}
           {step === 2 ? <BillingStep settings={settings} setSettings={setSettings} vatText={vatText} setVatText={setVatText} /> : null}
           {step === 3 ? <WorkStep settings={settings} setSettings={setSettings} categoriesText={categoriesText} setCategoriesText={setCategoriesText} /> : null}
           {step === 4 ? (
@@ -261,7 +277,7 @@ function StepHeader({ eyebrow, title, text }: { eyebrow: string; title: string; 
 function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRestore: () => void; busy: boolean }) {
   return (
     <div>
-      <StepHeader eyebrow="Bienvenue" title="Votre gestion de chantier commence ici." text="Aucun client, montant ou document fictif ne sera créé. Vous partez uniquement de vos propres informations." />
+      <StepHeader eyebrow="Bienvenue" title="Votre gestion d’activité commence ici." text="Aucun client, montant ou document fictif ne sera créé. Vous partez uniquement de vos propres informations." />
       <div className="setup-choice-grid">
         <button className="setup-choice setup-choice--primary" onClick={onCreate} disabled={busy}>
           <span><BriefcaseBusiness size={25} /></span><div><strong>Créer mon entreprise</strong><p>Configurer l’identité, la facturation, le temps, la paie et les sauvegardes.</p></div><ArrowRight size={20} />
@@ -271,7 +287,7 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
         </button>
       </div>
       <div className="local-facts">
-        <div><DatabaseIcon /><strong>Base locale sur ce PC</strong><span>Aucun hébergement de vos chantiers</span></div>
+        <div><DatabaseIcon /><strong>Base locale sur ce PC</strong><span>Aucun hébergement de vos données métier</span></div>
         <div><FileArchive /><strong>Sauvegardes portables</strong><span>Vous gardez la maîtrise des fichiers</span></div>
         <div><ShieldCheck /><strong>Droits Windows</strong><span>Accès selon les droits de votre session</span></div>
       </div>
@@ -279,10 +295,13 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
   );
 }
 
-function IdentityStep({ settings, setSettings }: { settings: AppSettings; setSettings: (value: AppSettings | ((current: AppSettings) => AppSettings)) => void }) {
+function IdentityStep({ settings, setSettings, catalog, catalogError }: { settings: AppSettings; setSettings: (value: AppSettings | ((current: AppSettings) => AppSettings)) => void; catalog: NogaCatalog | null; catalogError: string }) {
   const org = settings.organization;
+  const business = settings.business;
   const patch = (value: Partial<typeof org>) => setSettings((current) => setDeep(current, 'organization', value));
   const patchAddress = (value: Partial<typeof org.address>) => patch({ address: { ...org.address, ...value } });
+  const patchBusiness = (value: Partial<typeof business>) => setSettings((current) => setDeep(current, 'business', value));
+  const selectedSection = catalog?.sections.find((section) => section.code === business.nogaSection);
   return (
     <div>
       <StepHeader eyebrow="Étape 1 sur 5" title="Identité de l’entreprise" text="Ces informations apparaîtront sur vos devis, factures et documents de salaire." />
@@ -292,14 +311,23 @@ function IdentityStep({ settings, setSettings }: { settings: AppSettings; setSet
         <Field label="Responsable" required><input value={org.contactName} onChange={(e) => patch({ contactName: e.target.value })} /></Field>
         <Field label="E-mail" required><input type="email" value={org.email} onChange={(e) => patch({ email: e.target.value })} /></Field>
         <Field label="Téléphone"><input value={org.phone} onChange={(e) => patch({ phone: e.target.value })} /></Field>
-        <Field label="Rue et numéro" required wide><textarea rows={2} value={org.address.street} onChange={(e) => patchAddress({ street: e.target.value })} /></Field>
+        <Field label="Rue / case postale" required wide><input value={org.address.street} onChange={(e) => patchAddress({ street: e.target.value })} /></Field>
+        <Field label="Numéro de bâtiment"><input value={org.address.buildingNumber ?? ''} onChange={(e) => patchAddress({ buildingNumber: e.target.value })} /></Field>
         <Field label="NPA" required><input value={org.address.postalCode} onChange={(e) => patchAddress({ postalCode: e.target.value })} /></Field>
         <Field label="Localité" required><input value={org.address.city} onChange={(e) => patchAddress({ city: e.target.value })} /></Field>
         <Field label="Canton" required><input value={org.address.canton} onChange={(e) => patchAddress({ canton: e.target.value })} /></Field>
-        <Field label="Pays" required><input value={org.address.country} onChange={(e) => patchAddress({ country: e.target.value })} /></Field>
+        <Field label="Pays (code ISO, 2 lettres)" required><input value={org.address.country} minLength={2} maxLength={2} onChange={(e) => patchAddress({ country: e.target.value.toUpperCase() })} /></Field>
         <Field label="IDE / UID"><input value={org.uidNumber} onChange={(e) => patch({ uidNumber: e.target.value })} /></Field>
+        {org.vatRegistered ? <Field label="Numéro TVA" required><input value={org.vatNumber} onChange={(e) => patch({ vatNumber: e.target.value })} required /></Field> : null}
         <Field label="Site internet"><input type="url" value={org.website} onChange={(e) => patch({ website: e.target.value })} /></Field>
         <label className="check-card field--wide"><input type="checkbox" checked={org.vatRegistered} onChange={(e) => patch({ vatRegistered: e.target.checked })} /><span><strong>Entreprise assujettie à la TVA</strong><small>Les taux seront saisis explicitement à l’étape suivante.</small></span></label>
+        <div className="setup-subsection field--wide"><strong>Secteur d’activité · NOGA 2025</strong><p>La section et la division déterminent uniquement les libellés de navigation. Elles ne créent aucune donnée métier.</p></div>
+        <Field label="Section NOGA 2025" required wide><select value={business.nogaSection} onChange={(e) => patchBusiness({ nogaSection: e.target.value as NogaSectionCode | '', nogaDivision: '', nogaDetailedCode: '' })} required disabled={!catalog}><option value="">{catalog ? 'Choisir parmi les 22 sections officielles' : 'Chargement du catalogue officiel…'}</option>{catalog?.sections.map((section) => <option key={section.code} value={section.code}>{section.code} · {section.label}</option>)}</select></Field>
+        <Field label="Division NOGA 2025" required wide><select value={business.nogaDivision} onChange={(e) => patchBusiness({ nogaDivision: e.target.value, nogaDetailedCode: '' })} required disabled={!selectedSection}><option value="">{selectedSection ? 'Choisir la division officielle' : 'Choisissez d’abord une section'}</option>{selectedSection?.divisions.map((division) => <option key={division.code} value={division.code}>{division.code} · {division.label}</option>)}</select></Field>
+        <Field label="Activité précise" hint="Décrivez votre activité réelle; ce texte reste local." required wide><textarea rows={3} maxLength={2000} value={business.activityDescription} onChange={(e) => patchBusiness({ activityDescription: e.target.value })} required /></Field>
+        <Field label="Code NOGA détaillé" hint="Facultatif : code numérique à 3, 4 ou 6 chiffres commençant par la division choisie." wide><input inputMode="numeric" pattern={business.nogaDivision ? `${business.nogaDivision}(?:\\d|\\d{2}|\\d{4})` : '\\d{3}|\\d{4}|\\d{6}'} value={business.nogaDetailedCode} onChange={(e) => patchBusiness({ nogaDetailedCode: e.target.value.replace(/\D/g, '').slice(0, 6) })} /></Field>
+        {catalogError ? <div className="field--wide"><ErrorPanel message={catalogError} /></div> : null}
+        <p className="source-note field--wide">Source : <a href={catalog?.source || 'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025'} target="_blank" rel="noreferrer">Office fédéral de la statistique · KUBB NOGA 2025</a>{catalog?.version ? ` · version ${catalog.version}` : ''}</p>
       </div>
     </div>
   );
@@ -339,6 +367,7 @@ function BillingStep({ settings, setSettings, vatText, setVatText }: { settings:
 
 function WorkStep({ settings, setSettings, categoriesText, setCategoriesText }: { settings: AppSettings; setSettings: (value: AppSettings | ((current: AppSettings) => AppSettings)) => void; categoriesText: string; setCategoriesText: (value: string) => void }) {
   const work = settings.work;
+  const terminology = projectTerminology(settings.business.nogaSection);
   const patch = (value: Partial<typeof work>) => setSettings((current) => setDeep(current, 'work', value));
   return (
     <div>
@@ -346,11 +375,11 @@ function WorkStep({ settings, setSettings, categoriesText, setCategoriesText }: 
       <div className="form-grid setup-form">
         <Field label="Heures par semaine" required><input type="number" min="0.01" step="0.01" value={work.workWeekHours || ''} onChange={(e) => patch({ workWeekHours: e.target.valueAsNumber || 0 })} autoFocus /></Field>
         <Field label="Heures par journée" required><input type="number" min="0.01" step="0.01" value={work.dailyHours || ''} onChange={(e) => patch({ dailyHours: e.target.valueAsNumber || 0 })} /></Field>
-        <Field label="Arrondi des pointages"><select value={work.roundingMinutes} onChange={(e) => patch({ roundingMinutes: Number(e.target.value) })}><option value="0">Aucun arrondi</option><option value="1">À la minute</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option></select></Field>
-        <Field label="Pause habituelle (minutes)"><input type="number" min="0" value={work.breakMinutes || ''} onChange={(e) => patch({ breakMinutes: e.target.valueAsNumber || 0 })} /></Field>
+        <Field label="Arrondi des pointages" required><select value={work.roundingMinutes < 0 ? '' : work.roundingMinutes} onChange={(e) => patch({ roundingMinutes: Number(e.target.value) })} required><option value="">Choisir la règle</option><option value="0">Aucun arrondi</option><option value="1">À la minute</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option></select></Field>
+        <Field label="Pause habituelle (minutes)" required><input type="number" min="0" value={work.breakMinutes < 0 ? '' : work.breakMinutes} onChange={(e) => patch({ breakMinutes: Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : -1 })} required /></Field>
         <Field label="Catégories de dépenses" hint="Séparez chaque catégorie par une virgule." required wide><textarea rows={3} value={categoriesText} onChange={(e) => { setCategoriesText(e.target.value); patch({ costCategories: e.target.value.split(',').map((item) => item.trim()).filter(Boolean) }); }} /></Field>
       </div>
-      <div className="definition-grid"><div><strong>Durée prévue</strong><span>Dates et heures planifiées sur le chantier</span></div><div><strong>Durée réelle</strong><span>Dates réelles et heures effectivement saisies</span></div><div><strong>Rentabilité</strong><span>Facturé net moins coûts horaires et dépenses nettes</span></div></div>
+      <div className="definition-grid"><div><strong>Durée prévue</strong><span>Dates et heures planifiées sur le {terminology.singular}</span></div><div><strong>Durée réelle</strong><span>Dates réelles et heures effectivement saisies</span></div><div><strong>Rentabilité</strong><span>Facturé net moins coûts horaires et dépenses nettes</span></div></div>
     </div>
   );
 }
@@ -396,7 +425,7 @@ function BackupStep({ settings, setSettings, privacyConfirmed, setPrivacyConfirm
   return (
     <div>
       <StepHeader eyebrow="Étape 5 sur 5" title="Sauvegarde et confidentialité" text="La base active reste sur ce PC. Une sauvegarde externe protège votre entreprise d’une panne ou d’un vol." />
-      <div className="privacy-banner"><DatabaseIcon size={24} /><div><strong>Données métier locales</strong><p>Clients, chantiers, montants, heures, pièces jointes et salaires ne sont pas envoyés au service d’abonnement.</p></div></div>
+      <div className="privacy-banner"><DatabaseIcon size={24} /><div><strong>Données métier locales</strong><p>Clients, chantiers ou projets, montants, heures, pièces jointes et salaires ne sont pas envoyés au service d’abonnement.</p></div></div>
       <div className="form-grid setup-form"><Field label="Dossier pour les sauvegardes manuelles" hint="Une sauvegarde ne sera créée que lorsque vous utiliserez le bouton Sauvegarder." required wide><div className="path-picker"><input readOnly value={backup.folder} /><Button type="button" variant="secondary" onClick={() => void chooseFolder()}><FolderOpen size={16} /> Choisir</Button></div></Field></div>
       <div className="confirmation-checks"><label><input type="checkbox" checked={privacyConfirmed} onChange={(e) => setPrivacyConfirmed(e.target.checked)} /><span>J’ai compris que mes données métier restent locales et que je suis responsable de leur sauvegarde.</span></label><label><input type="checkbox" checked={backup.recoveryConfirmed} onChange={(e) => patch({ recoveryConfirmed: e.target.checked })} /><span>Je conserverai au moins une sauvegarde récente dans un emplacement distinct et sûr.</span></label></div>
     </div>
@@ -408,8 +437,8 @@ function ConfirmationStep({ settings }: { settings: AppSettings }) {
   return (
     <div>
       <StepHeader eyebrow="Prêt à démarrer" title="Vérifiez votre configuration" text="Seules les informations ci-dessous seront créées. Toutes les listes métier commenceront vides." />
-      <div className="review-grid"><ReviewCard title="Entreprise" rows={[["Raison sociale", org.legalName], ["Responsable", org.contactName], ["Adresse", `${org.address.street}, ${org.address.postalCode} ${org.address.city}`], ["TVA", org.vatRegistered ? 'Assujettie' : 'Non assujettie']]} /><ReviewCard title="Facturation" rows={[["Compte", settings.billing.iban], ["Numérotation devis", `${settings.billing.quotePrefix} · prochain ${settings.billing.nextQuoteNumber}`], ["Numérotation factures", `${settings.billing.invoicePrefix} · prochain ${settings.billing.nextInvoiceNumber}`], ["Délais", `${settings.billing.paymentTermsDays} jours · devis ${settings.billing.quoteValidityDays} jours`]]} /><ReviewCard title="Temps & paie" rows={[["Semaine", `${settings.work.workWeekHours} heures`], ["Catégories", settings.work.costCategories.join(', ')], ["Paie", settings.payroll.enabled ? settings.payroll.fiduciaryValidated ? 'Activée · configuration contrôlée' : 'Activée · validation requise' : 'Désactivée']]} /><ReviewCard title="Données" rows={[["Stockage", 'Uniquement sur cet ordinateur'], ["Sauvegarde", 'Manuelle, à votre initiative'], ["Dossier", settings.backup.folder]]} /></div>
-      <div className="zero-data"><Check size={19} /><div><strong>Démarrage propre confirmé</strong><p>0 client · 0 chantier · 0 devis · 0 facture · 0 salarié · 0 montant simulé</p></div></div>
+      <div className="review-grid"><ReviewCard title="Entreprise" rows={[["Raison sociale", org.legalName], ["Responsable", org.contactName], ["Adresse", `${org.address.street}, ${org.address.postalCode} ${org.address.city}`], ["TVA", org.vatRegistered ? 'Assujettie' : 'Non assujettie']]} /><ReviewCard title="Activité" rows={[["Section NOGA", settings.business.nogaSection], ["Division NOGA", settings.business.nogaDivision], ["Activité précise", settings.business.activityDescription], ["Code détaillé", settings.business.nogaDetailedCode || 'Non renseigné']]} /><ReviewCard title="Facturation" rows={[["Compte", settings.billing.iban], ["Numérotation devis", `${settings.billing.quotePrefix} · prochain ${settings.billing.nextQuoteNumber}`], ["Numérotation factures", `${settings.billing.invoicePrefix} · prochain ${settings.billing.nextInvoiceNumber}`], ["Délais", `${settings.billing.paymentTermsDays} jours · devis ${settings.billing.quoteValidityDays} jours`]]} /><ReviewCard title="Temps & paie" rows={[["Semaine", `${settings.work.workWeekHours} heures`], ["Catégories", settings.work.costCategories.join(', ')], ["Paie", settings.payroll.enabled ? settings.payroll.fiduciaryValidated ? 'Activée · configuration contrôlée' : 'Activée · validation requise' : 'Désactivée']]} /><ReviewCard title="Données" rows={[["Stockage", 'Uniquement sur cet ordinateur'], ["Sauvegarde", 'Manuelle, à votre initiative'], ["Dossier", settings.backup.folder]]} /></div>
+      <div className="zero-data"><Check size={19} /><div><strong>Démarrage propre confirmé</strong><p>0 client · 0 chantier ou projet · 0 devis · 0 facture · 0 salarié · 0 montant simulé</p></div></div>
     </div>
   );
 }

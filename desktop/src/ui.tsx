@@ -166,6 +166,7 @@ const statusLabels: Record<string, string> = {
   locked: 'Verrouillé',
   incomplete: 'Incomplet',
   validated: 'Validé',
+  posted: 'Comptabilisé',
 };
 
 export function StatusBadge({ status }: { status: string }) {
@@ -203,4 +204,3 @@ export function submitForm(handler: (form: FormData) => void | Promise<void>) {
     void handler(new FormData(event.currentTarget));
   };
 }
-

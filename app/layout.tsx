@@ -12,23 +12,28 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+const metadataBase = configuredSiteUrl ? new URL(configuredSiteUrl) : undefined;
+const socialImage = metadataBase ? new URL('/og.png', metadataBase).toString() : undefined;
+
 export const metadata: Metadata = {
-  title: 'HelviChantier — Gestion de chantier en Suisse',
-  description: 'La véritable application Windows locale pour vos devis, factures, heures, dépenses et chantiers.',
+  ...(metadataBase ? { metadataBase } : {}),
+  title: 'HelviChantier — Gestion d’entreprise multisectorielle en Suisse',
+  description: 'L’application Windows locale pour piloter projets, chantiers, devis, factures, heures, salaires et comptabilité dans tous les secteurs NOGA 2025.',
   applicationName: 'HelviChantier',
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',
     locale: 'fr_CH',
-    title: 'HelviChantier — Chaque chantier. Chaque franc. Enfin clair.',
-    description: 'Le logiciel Windows suisse pour gérer devis, factures, heures, dépenses et rentabilité, avec les données sur votre PC.',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'HelviChantier' }],
+    title: 'HelviChantier — Chaque activité. Chaque franc. Enfin clair.',
+    description: 'Le logiciel Windows suisse multisectoriel pour gérer projets, chantiers, devis, factures, salaires et comptabilité avec les données sur votre PC.',
+    ...(socialImage ? { images: [{ url: socialImage, width: 1200, height: 630, alt: 'HelviChantier' }] } : {}),
   },
   twitter: {
     card: 'summary_large_image',
     title: 'HelviChantier',
-    description: 'Chaque chantier. Chaque franc. Enfin clair.',
-    images: ['/og.png'],
+    description: 'Chaque activité. Chaque franc. Enfin clair.',
+    ...(socialImage ? { images: [socialImage] } : {}),
   },
 };
 

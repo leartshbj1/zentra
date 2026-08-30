@@ -53,6 +53,36 @@ body {
   background: #f6f4ef;
 }
 
+.qr-payment-section {
+  border-top: 0.5pt dashed #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.qr-receipt {
+  border-right-width: 0.5pt;
+}
+
+.qr-cut-horizontal,
+.qr-cut-vertical {
+  position: absolute;
+  z-index: 1;
+  background: #fff;
+  padding: 0 1mm;
+  color: #000;
+  font: 9pt/1 Arial, Helvetica, sans-serif;
+}
+
+.qr-cut-horizontal {
+  left: 2mm;
+  top: -4.5pt;
+}
+
+.qr-cut-vertical {
+  left: 62mm;
+  top: 2mm;
+  transform: translateX(-50%) rotate(90deg);
+}
+
 :root {
   --background: oklch(0.972 0.011 90);
   --foreground: oklch(0.245 0.035 150);
@@ -131,5 +161,69 @@ body {
   }
   html {
     @apply font-sans;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .invoice-sheet,
+  .invoice-sheet * {
+    visibility: visible;
+  }
+
+  .invoice-sheet {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 210mm !important;
+    max-width: none !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+  }
+
+  .invoice-main {
+    box-sizing: border-box;
+    height: 192mm !important;
+    overflow: hidden !important;
+  }
+
+  .qr-payment-section {
+    box-sizing: border-box;
+    display: grid !important;
+    grid-template-columns: 62mm 148mm !important;
+    width: 210mm !important;
+    height: 105mm !important;
+    min-height: 105mm !important;
+    break-inside: avoid;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  .qr-payment-content {
+    grid-template-columns: 56mm 1fr !important;
+  }
+
+  .invoice-main table {
+    min-width: 0 !important;
+  }
+
+  .demo-notice {
+    display: none !important;
+  }
+
+  .print-hidden {
+    display: none !important;
   }
 }

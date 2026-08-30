@@ -19,9 +19,19 @@ use serde_json::{json, Map, Number, Value};
 use uuid::Uuid;
 
 use crate::{
+    accounting::{post_expense_if_enabled, post_invoice_if_enabled, post_payment_if_enabled},
+    audit::{append_audit, verify_audit_chain},
     error::{AppError, AppResult},
-    models::{AppStateInfo, DeleteResult, OnboardingInput, RecordPaymentInput, TimerInput},
-    schema::{SCHEMA_SQL, SCHEMA_VERSION},
+    installation::load_or_create,
+    models::{
+        AppStateInfo, ConvertQuoteInput, DeleteResult, OnboardingInput, RecordPaymentInput,
+        SaveDocumentWithItemsInput, TimerInput,
+    },
+    noga::validate_activity_profile,
+    payroll::{import_explicit_settings_rates, take_explicit_settings_rates},
+    reminders::cancel_settled_reminders,
+    schema::{MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, SCHEMA_SQL, SCHEMA_VERSION},
+    swiss_qr::normalize_and_validate_iban,
 };
 
 #[cfg(test)]
@@ -34,8 +44,29 @@ pub struct LocalStore {
     pub(crate) attachments_dir: PathBuf,
     pub(crate) backups_dir: PathBuf,
     pub(crate) exports_dir: PathBuf,
+    pub(crate) installation_id: String,
     operation_lock: Arc<Mutex<()>>,
 }
+
+type ActivityStateRow = (
+    i64,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+type SettingsValidationRow = (
+    i64,
+    i64,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 impl LocalStore {
     pub fn initialize(data_dir: PathBuf) -> AppResult<Self> {
@@ -47,12 +78,14 @@ impl LocalStore {
         fs::create_dir_all(&backups_dir)?;
         fs::create_dir_all(&exports_dir)?;
 
+        let installation_id = load_or_create(&data_dir)?;
         let store = Self {
             database_path: data_dir.join("helvichantier.sqlite3"),
             data_dir,
             attachments_dir,
             backups_dir,
             exports_dir,
+            installation_id,
             operation_lock: Arc::new(Mutex::new(())),
         };
         store.migrate()?;
@@ -75,30 +108,70 @@ impl LocalStore {
     }
 
     pub fn migrate(&self) -> AppResult<()> {
-        let connection = self.connect()?;
+        let mut connection = self.connect()?;
         let current: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if current > SCHEMA_VERSION {
             return Err(AppError::Validation(format!(
                 "La base locale utilise une version plus récente ({current}) que cette application ({SCHEMA_VERSION})."
             )));
         }
-        connection.execute_batch(SCHEMA_SQL)?;
+        if current == SCHEMA_VERSION {
+            return Ok(());
+        }
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        match current {
+            0 => transaction.execute_batch(SCHEMA_SQL)?,
+            1 => {
+                transaction.execute_batch(MIGRATION_V2_SQL)?;
+                transaction.execute_batch(MIGRATION_V3_SQL)?;
+                transaction.execute_batch(MIGRATION_V4_SQL)?;
+            }
+            2 => {
+                transaction.execute_batch(MIGRATION_V3_SQL)?;
+                transaction.execute_batch(MIGRATION_V4_SQL)?;
+            }
+            3 => transaction.execute_batch(MIGRATION_V4_SQL)?,
+            _ => {
+                return Err(AppError::Validation(format!(
+                    "Migration locale non prise en charge depuis la version {current}."
+                )))
+            }
+        }
+        transaction.commit()?;
         Ok(())
     }
 
     pub fn app_state(&self, app_version: &str) -> AppResult<AppStateInfo> {
         let connection = self.connect()?;
-        let onboarding_completed = connection
+        let settings: Option<ActivityStateRow> = connection
             .query_row(
-                "SELECT onboarding_completed FROM settings WHERE id = 1",
+                "SELECT onboarding_completed,noga_section,noga_division,activity_description,noga_detailed_code FROM settings WHERE id=1",
                 [],
-                |row| row.get::<_, i64>(0),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
             )
-            .optional()?
-            .unwrap_or(0)
-            == 1;
+            .optional()?;
+        let onboarding_completed = settings.as_ref().is_some_and(|row| row.0 == 1);
+        let activity_profile_required = match settings.as_ref() {
+            None => true,
+            Some(row) => validate_activity_profile(
+                row.1.as_deref().unwrap_or(""),
+                row.2.as_deref().unwrap_or(""),
+                row.3.as_deref().unwrap_or(""),
+                row.4.as_deref(),
+            )
+            .is_err(),
+        };
         Ok(AppStateInfo {
             onboarding_completed,
+            activity_profile_required,
             data_dir: self.data_dir.to_string_lossy().into_owned(),
             database_path: self.database_path.to_string_lossy().into_owned(),
             app_version: app_version.to_owned(),
@@ -127,8 +200,41 @@ impl LocalStore {
     ) -> AppResult<AppStateInfo> {
         let company_name = required_text(&input.company_name, "company_name", 200)?;
         let currency = normalized_code(&input.currency, "currency", 3, "CHF")?;
+        let noga_section = input.noga_section.trim().to_uppercase();
+        let noga_division = input.noga_division.trim().to_owned();
+        let activity_description =
+            required_text(&input.activity_description, "activity_description", 2_000)?;
+        let noga_detailed_code = clean_optional(input.noga_detailed_code.clone(), 6);
+        validate_activity_profile(
+            &noga_section,
+            &noga_division,
+            &activity_description,
+            noga_detailed_code.as_deref(),
+        )?;
         let quote_prefix = normalized_prefix(&input.quote_prefix, "D")?;
         let invoice_prefix = normalized_prefix(&input.invoice_prefix, "F")?;
+        let mut extra_value = parsed_json_object(input.extra_settings_json.clone())?;
+        let billing = extra_value.get("billing").and_then(Value::as_object);
+        let credit_note_prefix_raw = input
+            .credit_note_prefix
+            .as_deref()
+            .filter(|v| !v.trim().is_empty())
+            .or_else(|| {
+                billing
+                    .and_then(|v| v.get("creditNotePrefix"))
+                    .and_then(Value::as_str)
+            })
+            .unwrap_or("A");
+        let credit_note_prefix = normalized_prefix(credit_note_prefix_raw, "A")?;
+        let quote_start_number =
+            explicit_start_number(input.quote_start_number, billing, "nextQuoteNumber")?;
+        let invoice_start_number =
+            explicit_start_number(input.invoice_start_number, billing, "nextInvoiceNumber")?;
+        let credit_note_start_number = explicit_start_number(
+            input.credit_note_start_number,
+            billing,
+            "nextCreditNoteNumber",
+        )?;
         let default_vat_bp = match (input.vat_registered, input.default_vat_bp) {
             (true, Some(value)) if (1..=10_000).contains(&value) => value,
             (true, _) => {
@@ -144,6 +250,12 @@ impl LocalStore {
                 ))
             }
         };
+        validate_vat_identifier(
+            input.vat_registered,
+            input.uid_number.as_deref(),
+            input.vat_number.as_deref(),
+        )?;
+        let iban = normalize_and_validate_iban(input.iban.as_deref().unwrap_or(""))?;
         if !(0..=365).contains(&input.payment_terms_days) {
             return Err(AppError::Validation(
                 "payment_terms_days doit être compris entre 0 et 365.".into(),
@@ -159,20 +271,24 @@ impl LocalStore {
                 "default_hourly_rate_cents ne peut pas être négatif.".into(),
             ));
         }
-        let extra_settings_json = normalize_json_object(input.extra_settings_json)?;
+        let settings_rates_to_import = take_explicit_settings_rates(&mut extra_value);
+        let extra_settings_json = serde_json::to_string(&extra_value)?;
         let now = now_iso();
         let mut connection = self.connect()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         transaction.execute(
             r#"INSERT INTO settings (
                 id,onboarding_completed,company_name,legal_form,owner_name,email,phone,
-                address_line1,address_line2,postal_code,city,canton,country,uid_number,
-                vat_number,vat_registered,default_vat_bp,iban,bank_name,currency,
-                quote_prefix,invoice_prefix,payment_terms_days,quote_validity_days,
+                address_line1,address_line2,postal_code,city,canton,country,noga_section,
+                noga_division,activity_description,noga_detailed_code,uid_number,vat_number,
+                vat_registered,default_vat_bp,iban,bank_name,currency,
+                quote_prefix,invoice_prefix,credit_note_prefix,quote_start_number,
+                invoice_start_number,credit_note_start_number,payment_terms_days,quote_validity_days,
                 default_hourly_rate_cents,logo_path,extra_settings_json,created_at,updated_at
               ) VALUES (
                 1,1,?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,
-                ?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27
+                ?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,
+                ?32,?33,?34,?35
               )
               ON CONFLICT(id) DO UPDATE SET
                 onboarding_completed=1,company_name=excluded.company_name,
@@ -180,10 +296,17 @@ impl LocalStore {
                 email=excluded.email,phone=excluded.phone,address_line1=excluded.address_line1,
                 address_line2=excluded.address_line2,postal_code=excluded.postal_code,
                 city=excluded.city,canton=excluded.canton,country=excluded.country,
+                noga_section=excluded.noga_section,noga_division=excluded.noga_division,
+                activity_description=excluded.activity_description,
+                noga_detailed_code=excluded.noga_detailed_code,
                 uid_number=excluded.uid_number,vat_number=excluded.vat_number,
                 vat_registered=excluded.vat_registered,default_vat_bp=excluded.default_vat_bp,
                 iban=excluded.iban,bank_name=excluded.bank_name,currency=excluded.currency,
                 quote_prefix=excluded.quote_prefix,invoice_prefix=excluded.invoice_prefix,
+                credit_note_prefix=excluded.credit_note_prefix,
+                quote_start_number=excluded.quote_start_number,
+                invoice_start_number=excluded.invoice_start_number,
+                credit_note_start_number=excluded.credit_note_start_number,
                 payment_terms_days=excluded.payment_terms_days,
                 quote_validity_days=excluded.quote_validity_days,
                 default_hourly_rate_cents=excluded.default_hourly_rate_cents,
@@ -201,15 +324,23 @@ impl LocalStore {
                 clean_optional(input.city, 120),
                 clean_optional(input.canton, 80),
                 clean_optional(input.country, 2).unwrap_or_else(|| "CH".into()),
+                noga_section,
+                noga_division,
+                activity_description,
+                noga_detailed_code,
                 clean_optional(input.uid_number, 80),
                 clean_optional(input.vat_number, 80),
                 bool_to_i64(input.vat_registered),
                 default_vat_bp,
-                clean_optional(input.iban, 80),
+                iban,
                 clean_optional(input.bank_name, 160),
                 currency,
                 quote_prefix,
                 invoice_prefix,
+                credit_note_prefix,
+                quote_start_number,
+                invoice_start_number,
+                credit_note_start_number,
                 input.payment_terms_days,
                 input.quote_validity_days,
                 input.default_hourly_rate_cents,
@@ -219,6 +350,9 @@ impl LocalStore {
                 now,
             ],
         )?;
+        if let Some(rates) = settings_rates_to_import.as_ref() {
+            import_explicit_settings_rates(&transaction, rates)?;
+        }
         transaction.commit()?;
         self.app_state(app_version)
     }
@@ -255,6 +389,11 @@ impl LocalStore {
         let invoice_items = query_all(
             &connection,
             "SELECT * FROM invoice_items ORDER BY invoice_id, position, created_at",
+            [],
+        )?;
+        let invoice_qr_bills = query_all(
+            &connection,
+            "SELECT * FROM invoice_qr_bills ORDER BY created_at,invoice_id",
             [],
         )?;
         let employees = query_all(
@@ -294,6 +433,67 @@ impl LocalStore {
         )?;
         let active_timer =
             query_optional(&connection, "SELECT * FROM active_timers WHERE id = 1", [])?;
+        let accounts = query_all(&connection, "SELECT * FROM accounts ORDER BY code", [])?;
+        let accounting_settings = query_optional(
+            &connection,
+            "SELECT * FROM accounting_settings WHERE id=1",
+            [],
+        )?;
+        let accounting_periods = query_all(
+            &connection,
+            "SELECT * FROM accounting_periods ORDER BY date_from",
+            [],
+        )?;
+        let journal_entries = query_all(
+            &connection,
+            "SELECT * FROM journal_entries ORDER BY entry_date,number",
+            [],
+        )?;
+        let journal_lines = query_all(
+            &connection,
+            "SELECT * FROM journal_lines ORDER BY journal_entry_id,rowid",
+            [],
+        )?;
+        let reminder_settings = query_optional(
+            &connection,
+            "SELECT * FROM reminder_settings WHERE id=1",
+            [],
+        )?;
+        let reminder_templates = query_all(
+            &connection,
+            "SELECT * FROM reminder_templates ORDER BY level",
+            [],
+        )?;
+        let reminders = query_all(
+            &connection,
+            "SELECT * FROM reminders ORDER BY scheduled_date,level",
+            [],
+        )?;
+        let reminder_history = query_all(
+            &connection,
+            "SELECT * FROM reminder_history ORDER BY occurred_at,rowid",
+            [],
+        )?;
+        let payroll_contribution_definitions = query_all(
+            &connection,
+            "SELECT * FROM payroll_contribution_definitions ORDER BY code,effective_from",
+            [],
+        )?;
+        let payslip_contributions = query_all(
+            &connection,
+            "SELECT * FROM payslip_contributions ORDER BY payslip_id,rowid",
+            [],
+        )?;
+        let quote_conversions = query_all(
+            &connection,
+            "SELECT * FROM quote_conversions ORDER BY created_at",
+            [],
+        )?;
+        let audit_log = query_all(
+            &connection,
+            "SELECT * FROM audit_log ORDER BY occurred_at,rowid",
+            [],
+        )?;
 
         Ok(json!({
             "settings": settings,
@@ -303,6 +503,7 @@ impl LocalStore {
             "quote_items": quote_items,
             "invoices": invoices,
             "invoice_items": invoice_items,
+            "invoice_qr_bills": invoice_qr_bills,
             "employees": employees,
             "time_entries": time_entries,
             "expenses": expenses,
@@ -311,6 +512,19 @@ impl LocalStore {
             "payments": payments,
             "attachments": attachments,
             "active_timer": active_timer,
+            "accounts":accounts,
+            "accounting_settings":accounting_settings,
+            "accounting_periods":accounting_periods,
+            "journal_entries":journal_entries,
+            "journal_lines":journal_lines,
+            "reminder_settings":reminder_settings,
+            "reminder_templates":reminder_templates,
+            "reminders":reminders,
+            "reminder_history":reminder_history,
+            "payroll_contribution_definitions":payroll_contribution_definitions,
+            "payslip_contributions":payslip_contributions,
+            "quote_conversions":quote_conversions,
+            "audit_log":audit_log,
         }))
     }
 
@@ -360,9 +574,162 @@ impl LocalStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         transaction.execute(&sql, params_from_iter(values))?;
         recompute_after_change(&transaction, entity, &object, None)?;
+        if entity == "expenses" {
+            post_expense_if_enabled(&transaction, &id)?;
+        }
         let record = query_record_tx(&transaction, spec.table, &id)?;
+        append_audit(&transaction, "create", entity, &id, &record)?;
         transaction.commit()?;
         Ok(record)
+    }
+
+    pub fn save_document_with_items(&self, input: SaveDocumentWithItemsInput) -> AppResult<Value> {
+        let (entity, item_entity, parent_column) = match input.entity.as_str() {
+            "quotes" => ("quotes", "quote_items", "quote_id"),
+            "invoices" => ("invoices", "invoice_items", "invoice_id"),
+            _ => {
+                return Err(AppError::Validation(
+                    "entity doit être quotes ou invoices.".into(),
+                ))
+            }
+        };
+        if input.items.is_empty() {
+            return Err(AppError::Validation(
+                "Le document doit contenir au moins une ligne.".into(),
+            ));
+        }
+        let document_spec = entity_spec(entity)?;
+        let item_spec = entity_spec(item_entity)?;
+        let mut document_data = value_object(input.data)?;
+        document_data.remove("id");
+        strip_readonly_fields(entity, &mut document_data);
+        validate_keys(&document_data, document_spec.fields)?;
+
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (document_id, previous) = match input.id.filter(|value| !value.trim().is_empty()) {
+            Some(id) => {
+                let previous = query_record_tx(&transaction, document_spec.table, &id)?;
+                ensure_record_mutable(&transaction, entity, &previous)?;
+                normalize_record_patch(entity, &mut document_data, &previous)?;
+                if !document_data.is_empty() {
+                    let mut assignments = Vec::new();
+                    let mut values = Vec::new();
+                    for field in document_spec.fields {
+                        if let Some(value) = document_data.get(*field) {
+                            assignments.push(format!("{field}=?"));
+                            values.push(json_to_sql(value)?);
+                        }
+                    }
+                    assignments.push("updated_at=?".into());
+                    values.push(SqlValue::Text(now_iso()));
+                    values.push(SqlValue::Text(id.clone()));
+                    transaction.execute(
+                        &format!(
+                            "UPDATE {} SET {} WHERE id=?",
+                            document_spec.table,
+                            assignments.join(",")
+                        ),
+                        params_from_iter(values),
+                    )?;
+                }
+                (id, previous)
+            }
+            None => {
+                normalize_record(entity, &mut document_data, true)?;
+                validate_required(&document_data, document_spec.required)?;
+                let id = Uuid::new_v4().to_string();
+                let now = now_iso();
+                let mut columns = vec!["id".to_owned()];
+                let mut values = vec![SqlValue::Text(id.clone())];
+                for field in document_spec.fields {
+                    if let Some(value) = document_data.get(*field) {
+                        columns.push((*field).to_owned());
+                        values.push(json_to_sql(value)?);
+                    }
+                }
+                columns.extend(["created_at".to_owned(), "updated_at".to_owned()]);
+                values.extend([SqlValue::Text(now.clone()), SqlValue::Text(now)]);
+                transaction.execute(
+                    &format!(
+                        "INSERT INTO {} ({}) VALUES ({})",
+                        document_spec.table,
+                        columns.join(","),
+                        vec!["?"; columns.len()].join(",")
+                    ),
+                    params_from_iter(values),
+                )?;
+                (id, Value::Null)
+            }
+        };
+
+        transaction.execute(
+            &format!("DELETE FROM {} WHERE {parent_column}=?", item_spec.table),
+            params![document_id],
+        )?;
+        for (position, item) in input.items.into_iter().enumerate() {
+            let mut item_data = value_object(item)?;
+            let item_id = item_data
+                .remove("id")
+                .and_then(|value| value.as_str().map(ToOwned::to_owned))
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| Uuid::new_v4().to_string());
+            strip_readonly_fields(item_entity, &mut item_data);
+            item_data.insert(parent_column.into(), json!(document_id));
+            item_data.insert("position".into(), json!(position));
+            validate_keys(&item_data, item_spec.fields)?;
+            normalize_record(item_entity, &mut item_data, true)?;
+            validate_required(&item_data, item_spec.required)?;
+            let now = now_iso();
+            let mut columns = vec!["id".to_owned()];
+            let mut values = vec![SqlValue::Text(item_id)];
+            for field in item_spec.fields {
+                if let Some(value) = item_data.get(*field) {
+                    columns.push((*field).to_owned());
+                    values.push(json_to_sql(value)?);
+                }
+            }
+            columns.extend(["created_at".to_owned(), "updated_at".to_owned()]);
+            values.extend([SqlValue::Text(now.clone()), SqlValue::Text(now)]);
+            transaction.execute(
+                &format!(
+                    "INSERT INTO {} ({}) VALUES ({})",
+                    item_spec.table,
+                    columns.join(","),
+                    vec!["?"; columns.len()].join(",")
+                ),
+                params_from_iter(values),
+            )?;
+        }
+        if entity == "quotes" {
+            recompute_quote(&transaction, &document_id)?;
+        } else {
+            recompute_invoice(&transaction, &document_id)?;
+        }
+        let document = query_record_tx(&transaction, document_spec.table, &document_id)?;
+        let items = query_all(
+            &transaction,
+            &format!(
+                "SELECT * FROM {} WHERE {parent_column}=? ORDER BY position,rowid",
+                item_spec.table
+            ),
+            params![document_id],
+        )?;
+        let result = json!({"document":document,"items":items});
+        append_audit(
+            &transaction,
+            if previous.is_null() {
+                "create"
+            } else {
+                "update"
+            },
+            "document_atomic",
+            &document_id,
+            &json!({"entity":entity,"before":previous,"after":result.clone()}),
+        )?;
+        transaction.commit()?;
+        Ok(result)
     }
 
     pub fn update_record(&self, entity: &str, id: &str, data: Value) -> AppResult<Value> {
@@ -378,6 +745,7 @@ impl LocalStore {
         validate_keys(&object, spec.fields)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let previous = query_record_tx(&transaction, spec.table, id)?;
+        ensure_record_mutable(&transaction, entity, &previous)?;
         normalize_record_patch(entity, &mut object, &previous)?;
         if object.is_empty() {
             return Err(AppError::Validation("Aucun champ à modifier.".into()));
@@ -403,6 +771,13 @@ impl LocalStore {
         }
         recompute_after_change(&transaction, entity, &object, Some(&previous))?;
         let record = query_record_tx(&transaction, spec.table, id)?;
+        append_audit(
+            &transaction,
+            "update",
+            entity,
+            id,
+            &json!({"before":previous,"after":record.clone()}),
+        )?;
         transaction.commit()?;
         Ok(record)
     }
@@ -413,6 +788,7 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let previous = query_record_tx(&transaction, spec.table, id)?;
+        ensure_record_mutable(&transaction, entity, &previous)?;
         let deleted = transaction.execute(
             &format!("DELETE FROM {} WHERE id = ?", spec.table),
             params![id],
@@ -421,6 +797,7 @@ impl LocalStore {
             return Err(AppError::NotFound(format!("{entity}/{id}")));
         }
         recompute_after_delete(&transaction, entity, &previous)?;
+        append_audit(&transaction, "delete", entity, id, &previous)?;
         transaction.commit()?;
 
         if entity == "attachments" {
@@ -447,6 +824,10 @@ impl LocalStore {
             "city",
             "canton",
             "country",
+            "noga_section",
+            "noga_division",
+            "activity_description",
+            "noga_detailed_code",
             "uid_number",
             "vat_number",
             "vat_registered",
@@ -456,6 +837,10 @@ impl LocalStore {
             "currency",
             "quote_prefix",
             "invoice_prefix",
+            "credit_note_prefix",
+            "quote_start_number",
+            "invoice_start_number",
+            "credit_note_start_number",
             "payment_terms_days",
             "quote_validity_days",
             "default_hourly_rate_cents",
@@ -464,6 +849,15 @@ impl LocalStore {
         ];
         let mut object = value_object(data)?;
         validate_keys(&object, FIELDS)?;
+        let settings_rates_to_import =
+            if let Some(extra) = object.get("extra_settings_json").cloned() {
+                let mut normalized_extra = parsed_json_object(Some(extra))?;
+                let rates = take_explicit_settings_rates(&mut normalized_extra);
+                object.insert("extra_settings_json".into(), normalized_extra);
+                rates
+            } else {
+                None
+            };
         normalize_settings_patch(&mut object)?;
         if object.is_empty() {
             return Err(AppError::Validation("Aucun réglage à modifier.".into()));
@@ -472,10 +866,32 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (current_vat_registered, current_vat_bp): (i64, i64) = transaction.query_row(
-            "SELECT vat_registered, default_vat_bp FROM settings WHERE id = 1",
+        let (
+            current_vat_registered,
+            current_vat_bp,
+            current_uid,
+            current_vat_number,
+            current_noga_section,
+            current_noga_division,
+            current_activity_description,
+            current_noga_detailed_code,
+            current_iban,
+        ): SettingsValidationRow = transaction.query_row(
+            "SELECT vat_registered,default_vat_bp,uid_number,vat_number,noga_section,noga_division,activity_description,noga_detailed_code,iban FROM settings WHERE id=1",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                    row.get(8)?,
+                ))
+            },
         )?;
         let vat_registered = object
             .get("vat_registered")
@@ -487,6 +903,41 @@ impl LocalStore {
             .and_then(Value::as_i64)
             .unwrap_or(current_vat_bp);
         validate_vat_configuration(vat_registered == 1, vat_bp)?;
+        let effective_text = |field: &str, current: Option<String>| match object.get(field) {
+            Some(Value::Null) => None,
+            Some(Value::String(value)) => Some(value.clone()),
+            Some(_) => None,
+            None => current,
+        };
+        let uid_number = effective_text("uid_number", current_uid);
+        let vat_number = effective_text("vat_number", current_vat_number);
+        validate_vat_identifier(
+            vat_registered == 1,
+            uid_number.as_deref(),
+            vat_number.as_deref(),
+        )?;
+        let noga_section = effective_text("noga_section", current_noga_section)
+            .unwrap_or_default()
+            .trim()
+            .to_uppercase();
+        let noga_division = effective_text("noga_division", current_noga_division)
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
+        let activity_description =
+            effective_text("activity_description", current_activity_description)
+                .unwrap_or_default()
+                .trim()
+                .to_owned();
+        let noga_detailed_code = effective_text("noga_detailed_code", current_noga_detailed_code);
+        validate_activity_profile(
+            &noga_section,
+            &noga_division,
+            &activity_description,
+            noga_detailed_code.as_deref(),
+        )?;
+        let effective_iban = effective_text("iban", current_iban).unwrap_or_default();
+        normalize_and_validate_iban(&effective_iban)?;
         let mut assignments = Vec::new();
         let mut values = Vec::new();
         for field in FIELDS {
@@ -504,8 +955,12 @@ impl LocalStore {
         {
             return Err(AppError::OnboardingRequired);
         }
+        if let Some(rates) = settings_rates_to_import.as_ref() {
+            import_explicit_settings_rates(&transaction, rates)?;
+        }
         let record = query_optional_tx(&transaction, "SELECT * FROM settings WHERE id = 1", [])?
             .ok_or(AppError::OnboardingRequired)?;
+        append_audit(&transaction, "update", "settings", "1", &record)?;
         transaction.commit()?;
         Ok(record)
     }
@@ -519,6 +974,15 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let existing = query_record_tx(&transaction, "quotes", id)?;
+        if existing
+            .get("number")
+            .and_then(Value::as_str)
+            .is_some_and(|v| !v.is_empty())
+        {
+            transaction.commit()?;
+            return Ok(existing);
+        }
         let date = normalized_date(issue_date.as_deref().unwrap_or(&today()), "issue_date")?;
         let quote_validity_days: i64 = transaction.query_row(
             "SELECT quote_validity_days FROM settings WHERE id = 1",
@@ -530,11 +994,29 @@ impl LocalStore {
             _ => add_days(&date, quote_validity_days)?,
         };
         let number = assign_document_number(&transaction, "quotes", id, "quote", &date)?;
+        let item_count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM quote_items WHERE quote_id=?",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if item_count == 0 {
+            return Err(AppError::Validation(
+                "Le devis doit contenir au moins une ligne avant émission.".into(),
+            ));
+        }
+        let snapshot = build_document_snapshot(
+            &transaction,
+            "quotes",
+            "quote_items",
+            id,
+            &json!({"number":number.clone(),"issue_date":date.clone(),"valid_until":valid.clone()}),
+        )?;
         transaction.execute(
-            "UPDATE quotes SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emis' ELSE status END, issue_date = ?, valid_until = ?, updated_at = ? WHERE id = ?",
-            params![number, date, valid, now_iso(), id],
+            "UPDATE quotes SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emis' ELSE status END, issue_date = ?, valid_until = ?, snapshot_json=?, updated_at = ? WHERE id = ?",
+            params![number, date, valid, serde_json::to_string(&snapshot)?, now_iso(), id],
         )?;
         let record = query_record_tx(&transaction, "quotes", id)?;
+        append_audit(&transaction, "issue", "quote", id, &record)?;
         transaction.commit()?;
         Ok(record)
     }
@@ -548,24 +1030,350 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let existing = query_record_tx(&transaction, "invoices", id)?;
+        if existing
+            .get("number")
+            .and_then(Value::as_str)
+            .is_some_and(|v| !v.is_empty())
+        {
+            transaction.commit()?;
+            return Ok(existing);
+        }
         let date = normalized_date(issue_date.as_deref().unwrap_or(&today()), "issue_date")?;
         let payment_terms_days: i64 = transaction.query_row(
             "SELECT payment_terms_days FROM settings WHERE id = 1",
             [],
             |row| row.get(0),
         )?;
+        let invoice_type = existing
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("standard");
+        if !matches!(invoice_type, "avoir" | "credit_note") {
+            let issuer_iban: Option<String> =
+                transaction
+                    .query_row("SELECT iban FROM settings WHERE id=1", [], |row| row.get(0))?;
+            normalize_and_validate_iban(issuer_iban.as_deref().unwrap_or(""))?;
+        }
         let due = match due_date {
             Some(value) if !value.trim().is_empty() => normalized_date(&value, "due_date")?,
+            _ if invoice_type == "avoir" => date.clone(),
             _ => add_days(&date, payment_terms_days)?,
         };
-        let number = assign_document_number(&transaction, "invoices", id, "invoice", &date)?;
+        let service_from = existing
+            .get("service_date_from")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| {
+                AppError::Validation("service_date_from est obligatoire avant émission.".into())
+            })?
+            .to_owned();
+        normalized_date(&service_from, "service_date_from")?;
+        let service_to = existing
+            .get("service_date_to")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .unwrap_or(&service_from)
+            .to_owned();
+        normalized_date(&service_to, "service_date_to")?;
+        if service_to < service_from {
+            return Err(AppError::Validation(
+                "service_date_to précède service_date_from.".into(),
+            ));
+        }
+        let item_count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM invoice_items WHERE invoice_id=?",
+            params![id],
+            |r| r.get(0),
+        )?;
+        if item_count == 0 {
+            return Err(AppError::Validation(
+                "La facture doit contenir au moins une ligne avant émission.".into(),
+            ));
+        }
+        let original_invoice_id = existing
+            .get("original_invoice_id")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .map(ToOwned::to_owned);
+        let mut original_credit_limit = None;
+        if invoice_type == "avoir" {
+            let original = original_invoice_id.as_deref().ok_or_else(|| {
+                AppError::Validation(
+                    "original_invoice_id est obligatoire pour émettre un avoir.".into(),
+                )
+            })?;
+            let original_document: Option<(
+                Option<String>,
+                Option<String>,
+                String,
+                i64,
+            )> = transaction
+                .query_row(
+                    "SELECT client_id,project_id,currency,total_cents FROM invoices WHERE id=? AND type<>'avoir' AND number IS NOT NULL AND status<>'annulee'",
+                    params![original],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .optional()?;
+            let (original_client, original_project, original_currency, original_total) =
+                original_document.ok_or_else(|| {
+                    AppError::Validation(
+                        "L'avoir doit référencer une facture originale émise et non annulée."
+                            .into(),
+                    )
+                })?;
+            let credit_client = existing
+                .get("client_id")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            let credit_project = existing
+                .get("project_id")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            let credit_currency = existing
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if credit_client != original_client
+                || credit_project != original_project
+                || credit_currency != original_currency
+            {
+                return Err(AppError::Validation(
+                    "L'avoir doit conserver le client, le chantier et la devise de la facture originale."
+                        .into(),
+                ));
+            }
+            if original_total <= 0 {
+                return Err(AppError::Validation(
+                    "Le total de la facture originale doit être positif.".into(),
+                ));
+            }
+            original_credit_limit = Some((original.to_owned(), original_total));
+            transaction.execute("UPDATE invoice_items SET unit_price_cents=-ABS(unit_price_cents) WHERE invoice_id=?",params![id])?;
+            recompute_all_invoice_lines(&transaction, id)?;
+            recompute_invoice(&transaction, id)?;
+        } else {
+            let negative:bool=transaction.query_row("SELECT EXISTS(SELECT 1 FROM invoice_items WHERE invoice_id=? AND (unit_price_cents<0 OR line_total_cents<0))",params![id],|r|r.get(0))?;
+            if negative {
+                return Err(AppError::Validation(
+                    "Les montants négatifs sont réservés aux avoirs.".into(),
+                ));
+            }
+        }
+        let totals: (i64, i64, i64) = transaction.query_row(
+            "SELECT subtotal_cents,vat_cents,total_cents FROM invoices WHERE id=?",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?;
+        if (invoice_type == "avoir" && (totals.0 >= 0 || totals.1 > 0 || totals.2 >= 0))
+            || (invoice_type != "avoir" && (totals.0 < 0 || totals.1 < 0 || totals.2 <= 0))
+        {
+            return Err(AppError::Validation(
+                "Le signe des montants ne correspond pas au type de document.".into(),
+            ));
+        }
+        if let Some((original, original_total)) = original_credit_limit {
+            let already_credited: i64 = transaction.query_row(
+                "SELECT COALESCE(SUM(-total_cents),0) FROM invoices WHERE type='avoir' AND original_invoice_id=? AND number IS NOT NULL AND id<>?",
+                params![original, id],
+                |row| row.get(0),
+            )?;
+            let requested_credit = totals.2.checked_neg().ok_or_else(|| {
+                AppError::Validation("Le montant de l'avoir dépasse la capacité locale.".into())
+            })?;
+            if already_credited.saturating_add(requested_credit) > original_total {
+                return Err(AppError::Validation(
+                    "Le cumul des avoirs ne peut pas dépasser le total de la facture originale."
+                        .into(),
+                ));
+            }
+        }
+        let number_type = if invoice_type == "avoir" {
+            "credit_note"
+        } else {
+            "invoice"
+        };
+        let number = assign_document_number(&transaction, "invoices", id, number_type, &date)?;
+        let qr_frozen_at = now_iso();
         transaction.execute(
-            "UPDATE invoices SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emise' ELSE status END, issue_date = ?, due_date = ?, updated_at = ? WHERE id = ?",
-            params![number, date, due, now_iso(), id],
+            "UPDATE invoice_qr_bills SET frozen_at=COALESCE(frozen_at,?),updated_at=? WHERE invoice_id=?",
+            params![qr_frozen_at, qr_frozen_at, id],
+        )?;
+        let snapshot = build_document_snapshot(
+            &transaction,
+            "invoices",
+            "invoice_items",
+            id,
+            &json!({"number":number.clone(),"issue_date":date.clone(),"due_date":due.clone(),"service_date_from":service_from.clone(),"service_date_to":service_to.clone()}),
+        )?;
+        transaction.execute(
+            "UPDATE invoices SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emise' ELSE status END, issue_date = ?, due_date = ?,service_date_from=?,service_date_to=?,snapshot_json=?, updated_at = ? WHERE id = ?",
+            params![number, date, due,service_from,service_to,serde_json::to_string(&snapshot)?, now_iso(), id],
         )?;
         let record = query_record_tx(&transaction, "invoices", id)?;
+        let journal = post_invoice_if_enabled(&transaction, id)?;
+        if let Some(original) = original_invoice_id.as_deref() {
+            cancel_settled_reminders(&transaction, original)?;
+        }
+        append_audit(
+            &transaction,
+            "issue",
+            if invoice_type == "avoir" {
+                "credit_note"
+            } else {
+                "invoice"
+            },
+            id,
+            &json!({"document":record.clone(),"journal":journal}),
+        )?;
         transaction.commit()?;
         Ok(record)
+    }
+
+    pub fn update_quote_status(&self, id: &str, status: &str) -> AppResult<Value> {
+        let normalized = match status {
+            "accepted" | "accepte" => "accepte",
+            "refused" | "refuse" => "refuse",
+            "expired" | "expire" => "expire",
+            _ => {
+                return Err(AppError::Validation(
+                    "status doit être accepted, refused ou expired.".into(),
+                ))
+            }
+        };
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let previous = query_record_tx(&transaction, "quotes", id)?;
+        if previous.get("number").and_then(Value::as_str).is_none() {
+            return Err(AppError::Validation(
+                "Le devis doit être émis avant de recevoir une décision.".into(),
+            ));
+        }
+        let current = previous.get("status").and_then(Value::as_str).unwrap_or("");
+        if current == normalized {
+            transaction.commit()?;
+            return Ok(previous);
+        }
+        if current != "emis" {
+            return Err(AppError::Validation(format!(
+                "Transition de statut interdite depuis {current}."
+            )));
+        }
+        transaction.execute(
+            "UPDATE quotes SET status=?,updated_at=? WHERE id=?",
+            params![normalized, now_iso(), id],
+        )?;
+        let record = query_record_tx(&transaction, "quotes", id)?;
+        append_audit(
+            &transaction,
+            "status",
+            "quote",
+            id,
+            &json!({"from":current,"to":normalized}),
+        )?;
+        transaction.commit()?;
+        Ok(record)
+    }
+
+    pub fn convert_quote_to_invoice(&self, input: ConvertQuoteInput) -> AppResult<Value> {
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let quote = query_record_tx(&transaction, "quotes", &input.quote_id)?;
+        if quote["status"] != "accepte" {
+            return Err(AppError::Validation(
+                "Seul un devis accepté peut être converti en facture.".into(),
+            ));
+        }
+        let existing: Option<String> = transaction
+            .query_row(
+                "SELECT invoice_id FROM quote_conversions WHERE quote_id=?",
+                params![input.quote_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if existing.is_some() {
+            return Err(AppError::Validation(format!(
+                "Ce devis a déjà été converti en facture {}.",
+                existing.unwrap_or_default()
+            )));
+        }
+        let issue_date = input
+            .issue_date
+            .as_deref()
+            .map(|v| normalized_date(v, "issue_date"))
+            .transpose()?;
+        let due_date = input
+            .due_date
+            .as_deref()
+            .map(|v| normalized_date(v, "due_date"))
+            .transpose()?;
+        let service_from = input
+            .service_date_from
+            .as_deref()
+            .map(|v| normalized_date(v, "service_date_from"))
+            .transpose()?;
+        let service_to = input
+            .service_date_to
+            .as_deref()
+            .map(|v| normalized_date(v, "service_date_to"))
+            .transpose()?;
+        if let (Some(from), Some(to)) = (&service_from, &service_to) {
+            if to < from {
+                return Err(AppError::Validation(
+                    "service_date_to précède service_date_from.".into(),
+                ));
+            }
+        }
+        let invoice_id = Uuid::new_v4().to_string();
+        let now = now_iso();
+        let title = input
+            .title
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| quote["title"].as_str().unwrap_or("Facture").to_owned());
+        transaction.execute("INSERT INTO invoices(id,client_id,project_id,quote_id,title,type,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,terms,created_at,updated_at) VALUES(?,?,?,?,?,'standard','brouillon',?,?,?,?,?,?,?,?,?)",params![invoice_id,quote["client_id"].as_str(),quote["project_id"].as_str(),input.quote_id,title,issue_date,due_date,service_from,service_to,quote["currency"].as_str(),quote["notes"].as_str(),quote["terms"].as_str(),now,now])?;
+        let mut statement=transaction.prepare("SELECT position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents FROM quote_items WHERE quote_id=? ORDER BY position,rowid")?;
+        let items = statement
+            .query_map(params![input.quote_id], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, f64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, i64>(5)?,
+                    r.get::<_, i64>(6)?,
+                    r.get::<_, i64>(7)?,
+                    r.get::<_, i64>(8)?,
+                    r.get::<_, i64>(9)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+        if items.is_empty() {
+            return Err(AppError::Validation(
+                "Le devis accepté ne contient aucune ligne.".into(),
+            ));
+        }
+        for item in items {
+            transaction.execute("INSERT INTO invoice_items(id,invoice_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.0,item.1,item.2,item.3,item.4,item.5,item.6,item.7,item.8,item.9,now,now])?;
+        }
+        recompute_invoice(&transaction, &invoice_id)?;
+        transaction.execute(
+            "INSERT INTO quote_conversions(quote_id,invoice_id,created_at) VALUES(?,?,?)",
+            params![input.quote_id, invoice_id, now],
+        )?;
+        let invoice = query_record_tx(&transaction, "invoices", &invoice_id)?;
+        let invoice_items = query_all(
+            &transaction,
+            "SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY position,rowid",
+            params![invoice_id],
+        )?;
+        let result = json!({"quote":quote,"invoice":invoice,"invoice_items":invoice_items});
+        append_audit(&transaction, "convert", "quote", &input.quote_id, &result)?;
+        transaction.commit()?;
+        Ok(result)
     }
 
     pub fn record_payment(&self, input: RecordPaymentInput) -> AppResult<Value> {
@@ -578,14 +1386,25 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (total_cents, paid_cents): (i64, i64) = transaction
-            .query_row(
-                "SELECT total_cents, paid_cents FROM invoices WHERE id = ?",
-                params![input.invoice_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?
-            .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
+        let (total_cents, paid_cents, invoice_type, number): (i64, i64, String, Option<String>) =
+            transaction
+                .query_row(
+                    "SELECT total_cents, paid_cents,type,number FROM invoices WHERE id = ?",
+                    params![input.invoice_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
+        if invoice_type == "avoir" {
+            return Err(AppError::Validation(
+                "Un avoir ne peut recevoir aucun encaissement.".into(),
+            ));
+        }
+        if number.is_none() {
+            return Err(AppError::Validation(
+                "La facture doit être émise avant tout paiement.".into(),
+            ));
+        }
         if total_cents <= 0 {
             return Err(AppError::Validation(
                 "Cette facture ne possède aucun montant payable.".into(),
@@ -614,6 +1433,15 @@ impl LocalStore {
         )?;
         refresh_invoice_payment_state(&transaction, &input.invoice_id)?;
         let record = query_record_tx(&transaction, "payments", &id)?;
+        let journal = post_payment_if_enabled(&transaction, &id)?;
+        cancel_settled_reminders(&transaction, &input.invoice_id)?;
+        append_audit(
+            &transaction,
+            "record",
+            "payment",
+            &id,
+            &json!({"payment":record.clone(),"journal":journal}),
+        )?;
         transaction.commit()?;
         Ok(record)
     }
@@ -685,7 +1513,37 @@ impl LocalStore {
             .signed_duration_since(started.with_timezone(&Utc))
             .num_seconds()
             .max(0);
-        let minutes = ((elapsed_seconds + 59) / 60).max(1);
+        let elapsed_minutes = ((elapsed_seconds + 59) / 60).max(1);
+        let extra_settings_json: String = transaction.query_row(
+            "SELECT extra_settings_json FROM settings WHERE id=1",
+            [],
+            |row| row.get(0),
+        )?;
+        let work_settings: Value = serde_json::from_str(&extra_settings_json)?;
+        let rounding_minutes = work_settings
+            .pointer("/work/roundingMinutes")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let configured_break = work_settings
+            .pointer("/work/breakMinutes")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        if !(0..=1_440).contains(&rounding_minutes) || !(0..=1_440).contains(&configured_break) {
+            return Err(AppError::Validation(
+                "Les règles locales d'arrondi et de pause doivent être comprises entre 0 et 1440 minutes."
+                    .into(),
+            ));
+        }
+        let break_minutes = configured_break.min(elapsed_minutes.saturating_sub(1));
+        let worked_minutes = elapsed_minutes - break_minutes;
+        let minutes = if rounding_minutes > 1 {
+            worked_minutes
+                .saturating_add(rounding_minutes - 1)
+                .saturating_div(rounding_minutes)
+                .saturating_mul(rounding_minutes)
+        } else {
+            worked_minutes
+        };
         let id = Uuid::new_v4().to_string();
         let now = ended.to_rfc3339();
         transaction.execute(
@@ -698,7 +1556,7 @@ impl LocalStore {
                 started_at,
                 now,
                 minutes,
-                0,
+                break_minutes,
                 timer.get("billable").and_then(Value::as_bool).map(bool_to_i64).unwrap_or(1),
                 timer.get("billing_rate_cents").and_then(Value::as_i64).unwrap_or(0),
                 timer.get("cost_rate_cents").and_then(Value::as_i64).unwrap_or(0),
@@ -809,6 +1667,28 @@ impl LocalStore {
     pub fn open_data_folder(&self) -> AppResult<String> {
         open_path(&self.data_dir)?;
         Ok(self.data_dir.to_string_lossy().into_owned())
+    }
+
+    pub fn list_audit_log(
+        &self,
+        entity_type: Option<String>,
+        entity_id: Option<String>,
+    ) -> AppResult<Value> {
+        let connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let rows=match (entity_type,entity_id){
+            (Some(kind),Some(id))=>query_all(&connection,"SELECT * FROM audit_log WHERE entity_type=? AND entity_id=? ORDER BY occurred_at,rowid",params![kind,id])?,
+            (Some(kind),None)=>query_all(&connection,"SELECT * FROM audit_log WHERE entity_type=? ORDER BY occurred_at,rowid",params![kind])?,
+            (None,Some(id))=>query_all(&connection,"SELECT * FROM audit_log WHERE entity_id=? ORDER BY occurred_at,rowid",params![id])?,
+            (None,None)=>query_all(&connection,"SELECT * FROM audit_log ORDER BY occurred_at,rowid",[])?,
+        };
+        Ok(Value::Array(rows))
+    }
+
+    pub fn verify_audit_log(&self) -> AppResult<Value> {
+        let connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        verify_audit_chain(&connection)
     }
 
     #[cfg(test)]
@@ -933,11 +1813,14 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "client_id",
                 "project_id",
                 "quote_id",
+                "original_invoice_id",
                 "title",
                 "type",
                 "status",
                 "issue_date",
                 "due_date",
+                "service_date_from",
+                "service_date_to",
                 "currency",
                 "notes",
                 "terms",
@@ -1074,6 +1957,27 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
     Ok(spec)
 }
 
+fn ensure_record_mutable(
+    transaction: &Transaction<'_>,
+    entity: &str,
+    record: &Value,
+) -> AppResult<()> {
+    let locked=match entity {
+        "quotes"|"invoices"=>record.get("number").and_then(Value::as_str).is_some_and(|v|!v.is_empty()),
+        "payments"=>true,
+        "quote_items"=>record.get("quote_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL FROM quotes WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
+        "invoice_items"=>record.get("invoice_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL FROM invoices WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
+        "payslips"=>record.get("status").and_then(Value::as_str).is_some_and(|v|matches!(v,"comptabilise"|"paye")),
+        "payslip_items"=>record.get("payslip_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT status IN ('comptabilise','paye') FROM payslips WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
+        "expenses"=>record.get("id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='expense' AND source_id=?)",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
+        _=>false,
+    };
+    if locked {
+        return Err(AppError::Validation("Cet enregistrement financier est immuable. Utilisez un avoir ou une écriture d'extourne.".into()));
+    }
+    Ok(())
+}
+
 fn value_object(data: Value) -> AppResult<Map<String, Value>> {
     data.as_object()
         .cloned()
@@ -1110,6 +2014,7 @@ fn strip_readonly_fields(entity: &str, object: &mut Map<String, Value>) {
     let fields: &[&str] = match entity {
         "quotes" => &[
             "number",
+            "snapshot_json",
             "subtotal_cents",
             "discount_cents",
             "vat_cents",
@@ -1117,6 +2022,7 @@ fn strip_readonly_fields(entity: &str, object: &mut Map<String, Value>) {
         ],
         "invoices" => &[
             "number",
+            "snapshot_json",
             "subtotal_cents",
             "discount_cents",
             "vat_cents",
@@ -1183,7 +2089,7 @@ fn normalize_record(
                 object.insert("total_cents".into(), json!(net.saturating_add(vat)));
             }
         }
-        "payslips" => {
+        "payslips" if !object.contains_key("net_cents") => {
             let gross = object
                 .get("gross_cents")
                 .and_then(Value::as_i64)
@@ -1192,10 +2098,9 @@ fn normalize_record(
                 .get("deductions_cents")
                 .and_then(Value::as_i64)
                 .unwrap_or(0);
-            if !object.contains_key("net_cents") {
-                object.insert("net_cents".into(), json!(gross.saturating_sub(deductions)));
-            }
+            object.insert("net_cents".into(), json!(gross.saturating_sub(deductions)));
         }
+        "payslips" => {}
         "payslip_items" => {
             if let Some(kind) = object.get_mut("kind") {
                 let normalized = match kind.as_str().unwrap_or_default() {
@@ -1229,17 +2134,17 @@ fn normalize_record(
                 }
             }
         }
-        "time_entries" => {
+        "time_entries"
             if object
                 .get("minutes")
                 .and_then(Value::as_i64)
-                .is_some_and(|value| value < 0)
-            {
-                return Err(AppError::Validation(
-                    "minutes ne peut pas être négatif.".into(),
-                ));
-            }
+                .is_some_and(|value| value < 0) =>
+        {
+            return Err(AppError::Validation(
+                "minutes ne peut pas être négatif.".into(),
+            ));
         }
+        "time_entries" => {}
         _ => {}
     }
     Ok(())
@@ -1283,21 +2188,22 @@ fn normalize_record_patch(
                 object.insert("total_cents".into(), json!(total));
             }
         }
-        "payslips" => {
-            if object.contains_key("gross_cents") || object.contains_key("deductions_cents") {
-                let net = merged
-                    .get("gross_cents")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(0)
-                    .saturating_sub(
-                        merged
-                            .get("deductions_cents")
-                            .and_then(Value::as_i64)
-                            .unwrap_or(0),
-                    );
-                object.insert("net_cents".into(), json!(net));
-            }
+        "payslips"
+            if object.contains_key("gross_cents") || object.contains_key("deductions_cents") =>
+        {
+            let net = merged
+                .get("gross_cents")
+                .and_then(Value::as_i64)
+                .unwrap_or(0)
+                .saturating_sub(
+                    merged
+                        .get("deductions_cents")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(0),
+                );
+            object.insert("net_cents".into(), json!(net));
         }
+        "payslips" => {}
         _ => {}
     }
     Ok(())
@@ -1328,13 +2234,43 @@ fn normalize_line_item(object: &mut Map<String, Value>) -> AppResult<()> {
         ));
     }
     let base = (quantity * unit_price as f64).round() as i64;
-    let discount = ((base as i128 * discount_bp as i128 + 5_000) / 10_000) as i64;
+    let discount = round_basis_points(base, discount_bp);
     let net = base.saturating_sub(discount);
-    let vat = ((net as i128 * vat_bp as i128 + 5_000) / 10_000) as i64;
+    let vat = round_basis_points(net, vat_bp);
     object.insert("quantity".into(), json!(quantity));
     object.insert("line_net_cents".into(), json!(net));
     object.insert("line_vat_cents".into(), json!(vat));
     object.insert("line_total_cents".into(), json!(net.saturating_add(vat)));
+    Ok(())
+}
+
+fn round_basis_points(value: i64, basis_points: i64) -> i64 {
+    let sign = if value < 0 { -1_i128 } else { 1_i128 };
+    let absolute = (value as i128).abs();
+    (sign * ((absolute * basis_points as i128 + 5_000) / 10_000)) as i64
+}
+
+fn recompute_all_invoice_lines(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
+    let mut statement=transaction.prepare("SELECT id,quantity,unit_price_cents,discount_bp,vat_bp FROM invoice_items WHERE invoice_id=?")?;
+    let rows = statement
+        .query_map(params![invoice_id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, f64>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, i64>(4)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+    for (id, quantity, price, discount_bp, vat_bp) in rows {
+        let base = (quantity * price as f64).round() as i64;
+        let discount = round_basis_points(base, discount_bp);
+        let net = base - discount;
+        let vat = round_basis_points(net, vat_bp);
+        transaction.execute("UPDATE invoice_items SET line_net_cents=?,line_vat_cents=?,line_total_cents=?,updated_at=? WHERE id=?",params![net,vat,net+vat,now_iso(),id])?;
+    }
     Ok(())
 }
 
@@ -1350,11 +2286,41 @@ fn normalize_settings_patch(object: &mut Map<String, Value>) -> AppResult<()> {
             "CHF",
         )?);
     }
+    if let Some(value) = object.get_mut("iban") {
+        let iban = value.as_str().ok_or_else(|| {
+            AppError::Validation("iban doit être une chaîne de caractères.".into())
+        })?;
+        *value = Value::String(normalize_and_validate_iban(iban)?);
+    }
+    if let Some(value) = object.get_mut("noga_section") {
+        let section = value.as_str().ok_or_else(|| {
+            AppError::Validation("noga_section doit être une chaîne de caractères.".into())
+        })?;
+        *value = Value::String(section.trim().to_uppercase());
+    }
+    for field in [
+        "noga_division",
+        "activity_description",
+        "noga_detailed_code",
+    ] {
+        if let Some(value) = object.get_mut(field) {
+            if value.is_null() && field == "noga_detailed_code" {
+                continue;
+            }
+            let text = value.as_str().ok_or_else(|| {
+                AppError::Validation(format!("{field} doit être une chaîne de caractères."))
+            })?;
+            *value = Value::String(text.trim().to_owned());
+        }
+    }
     if let Some(value) = object.get_mut("quote_prefix") {
         *value = Value::String(normalized_prefix(value.as_str().unwrap_or("D"), "D")?);
     }
     if let Some(value) = object.get_mut("invoice_prefix") {
         *value = Value::String(normalized_prefix(value.as_str().unwrap_or("F"), "F")?);
+    }
+    if let Some(value) = object.get_mut("credit_note_prefix") {
+        *value = Value::String(normalized_prefix(value.as_str().unwrap_or("A"), "A")?);
     }
     if let Some(value) = object.get_mut("vat_registered") {
         let normalized = match value {
@@ -1391,6 +2357,21 @@ fn normalize_settings_patch(object: &mut Map<String, Value>) -> AppResult<()> {
             )));
         }
     }
+    for field in [
+        "quote_start_number",
+        "invoice_start_number",
+        "credit_note_start_number",
+    ] {
+        if object
+            .get(field)
+            .and_then(Value::as_i64)
+            .is_some_and(|value| value <= 0)
+        {
+            return Err(AppError::Validation(format!(
+                "{field} doit être strictement positif."
+            )));
+        }
+    }
     if object
         .get("default_hourly_rate_cents")
         .and_then(Value::as_i64)
@@ -1419,6 +2400,25 @@ fn validate_vat_configuration(vat_registered: bool, vat_bp: i64) -> AppResult<()
             "Le taux de TVA doit être 0 pour une entreprise non assujettie.".into(),
         )),
     }
+}
+
+fn validate_vat_identifier(
+    vat_registered: bool,
+    uid_number: Option<&str>,
+    vat_number: Option<&str>,
+) -> AppResult<()> {
+    if vat_registered
+        && ![uid_number, vat_number]
+            .into_iter()
+            .flatten()
+            .any(|value| !value.trim().is_empty())
+    {
+        return Err(AppError::Validation(
+            "uid_number ou vat_number est obligatoire pour une entreprise assujettie à la TVA."
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 fn recompute_after_change(
@@ -1581,15 +2581,20 @@ fn assign_document_number(
     let year: i64 = issue_date[..4]
         .parse()
         .map_err(|_| AppError::Validation("Année d'émission invalide.".into()))?;
-    let prefix_column = if document_type == "quote" {
-        "quote_prefix"
-    } else {
-        "invoice_prefix"
+    let (prefix_column, start_column) = match document_type {
+        "quote" => ("quote_prefix", "quote_start_number"),
+        "invoice" => ("invoice_prefix", "invoice_start_number"),
+        "credit_note" => ("credit_note_prefix", "credit_note_start_number"),
+        _ => {
+            return Err(AppError::Validation(
+                "Type de séquence documentaire invalide.".into(),
+            ))
+        }
     };
-    let prefix: String = transaction.query_row(
-        &format!("SELECT {prefix_column} FROM settings WHERE id = 1"),
+    let (prefix, start): (String, i64) = transaction.query_row(
+        &format!("SELECT {prefix_column},{start_column} FROM settings WHERE id = 1"),
         [],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let current: Option<i64> = transaction
         .query_row(
@@ -1598,7 +2603,7 @@ fn assign_document_number(
             |row| row.get(0),
         )
         .optional()?;
-    let next = current.unwrap_or(1);
+    let next = current.unwrap_or(start);
     transaction.execute(
         "INSERT INTO number_sequences (document_type,year,next_value) VALUES (?,?,?) ON CONFLICT(document_type,year) DO UPDATE SET next_value=excluded.next_value",
         params![document_type, year, next + 1],
@@ -1622,6 +2627,79 @@ fn query_record_tx(transaction: &Transaction<'_>, table: &str, id: &str) -> AppR
         params![id],
     )?
     .ok_or_else(|| AppError::NotFound(format!("{table}/{id}")))
+}
+
+fn build_document_snapshot(
+    transaction: &Transaction<'_>,
+    table: &str,
+    items_table: &str,
+    id: &str,
+    overrides: &Value,
+) -> AppResult<Value> {
+    let mut document = query_record_tx(transaction, table, id)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| AppError::Validation("Document invalide.".into()))?;
+    if let Some(values) = overrides.as_object() {
+        for (key, value) in values {
+            document.insert(key.clone(), value.clone());
+        }
+    }
+    let settings=enrich_issuer_snapshot(query_optional_tx(transaction,"SELECT company_name,legal_form,owner_name,email,phone,address_line1,address_line2,postal_code,city,canton,country,uid_number,vat_number,vat_registered,iban,bank_name,currency,logo_path,extra_settings_json,noga_section,noga_division,activity_description,noga_detailed_code FROM settings WHERE id=1",[])?.ok_or(AppError::OnboardingRequired)?)?;
+    let client = if let Some(client_id) = document.get("client_id").and_then(Value::as_str) {
+        query_optional_tx(
+            transaction,
+            "SELECT * FROM clients WHERE id=?",
+            params![client_id],
+        )?
+        .unwrap_or(Value::Null)
+    } else {
+        Value::Null
+    };
+    let parent_column = if table == "quotes" {
+        "quote_id"
+    } else {
+        "invoice_id"
+    };
+    let items = query_all(
+        transaction,
+        &format!("SELECT * FROM {items_table} WHERE {parent_column}=? ORDER BY position,rowid"),
+        params![id],
+    )?;
+    let qr_bill = if table == "invoices" {
+        query_optional_tx(
+            transaction,
+            "SELECT invoice_id,input_json,payload,reference_type,is_qr_iban,character_count,byte_count,frozen_at,created_at,updated_at FROM invoice_qr_bills WHERE invoice_id=?",
+            params![id],
+        )?
+        .unwrap_or(Value::Null)
+    } else {
+        Value::Null
+    };
+    Ok(
+        json!({"schema":"helvichantier.document_snapshot.v1","captured_at":now_iso(),"issuer":settings,"customer":client,"document":Value::Object(document),"items":items,"qr_bill":qr_bill}),
+    )
+}
+
+pub(crate) fn enrich_issuer_snapshot(mut issuer: Value) -> AppResult<Value> {
+    let extra = issuer
+        .get("extra_settings_json")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(serde_json::from_str::<Value>)
+        .transpose()?
+        .unwrap_or_else(|| json!({}));
+    let building_number = extra
+        .pointer("/organization/address/buildingNumber")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_owned();
+    issuer
+        .as_object_mut()
+        .ok_or_else(|| AppError::Validation("Snapshot émetteur invalide.".into()))?
+        .insert("building_number".into(), Value::String(building_number));
+    Ok(issuer)
 }
 
 pub(crate) fn query_all<P: rusqlite::Params>(
@@ -1681,10 +2759,19 @@ fn row_to_json(row: &Row<'_>) -> rusqlite::Result<Value> {
     Ok(Value::Object(object))
 }
 
+pub(crate) fn row_to_json_public(row: &Row<'_>) -> rusqlite::Result<Value> {
+    row_to_json(row)
+}
+
 fn is_boolean_column(name: &str) -> bool {
     matches!(
         name,
-        "onboarding_completed" | "vat_registered" | "billable" | "reimbursable"
+        "onboarding_completed"
+            | "vat_registered"
+            | "billable"
+            | "reimbursable"
+            | "active"
+            | "enabled"
     )
 }
 
@@ -1713,6 +2800,10 @@ fn json_to_sql(value: &Value) -> AppResult<SqlValue> {
 }
 
 fn normalize_json_object(value: Option<Value>) -> AppResult<String> {
+    Ok(serde_json::to_string(&parsed_json_object(value)?)?)
+}
+
+fn parsed_json_object(value: Option<Value>) -> AppResult<Value> {
     let value = match value {
         None | Some(Value::Null) => Value::Object(Map::new()),
         Some(Value::Object(object)) => Value::Object(object),
@@ -1728,7 +2819,23 @@ fn normalize_json_object(value: Option<Value>) -> AppResult<String> {
             "extra_settings_json doit contenir un objet JSON.".into(),
         ));
     }
-    Ok(serde_json::to_string(&value)?)
+    Ok(value)
+}
+
+fn explicit_start_number(
+    explicit: Option<i64>,
+    billing: Option<&Map<String, Value>>,
+    key: &str,
+) -> AppResult<i64> {
+    let value = explicit
+        .or_else(|| billing.and_then(|v| v.get(key)).and_then(Value::as_i64))
+        .unwrap_or(1);
+    if value <= 0 {
+        return Err(AppError::Validation(format!(
+            "{key} doit être strictement positif."
+        )));
+    }
+    Ok(value)
 }
 
 fn required_text(value: &str, field: &str, max: usize) -> AppResult<String> {

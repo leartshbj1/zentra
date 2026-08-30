@@ -6,11 +6,41 @@ use tauri::{AppHandle, State};
 use crate::{
     database::LocalStore,
     error::command_error,
-    models::{AppStateInfo, DeleteResult, OnboardingInput, RecordPaymentInput, TimerInput},
+    models::{
+        AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
+        ApplyPayrollInput, CalculatePayrollInput, ContributionDefinitionInput, ConvertQuoteInput,
+        DeleteResult, LedgerInput, ManualJournalInput, MarkReminderInput, OnboardingInput,
+        PeriodFilter, PostPayslipInput, RecordPaymentInput, ReminderActionInput, ReminderFilter,
+        ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
+        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SwissQrBillInput,
+        SwissQrPayload, SwissQrValidation, TimerInput,
+    },
+    swiss_qr,
 };
 
 fn app_version(app: &AppHandle) -> String {
     app.package_info().version.to_string()
+}
+
+fn require_write(state: &State<'_, LocalStore>) -> Result<(), String> {
+    state.require_write_access().map_err(command_error)
+}
+
+#[tauri::command]
+pub fn get_noga_catalog() -> Value {
+    crate::noga::catalog_json()
+}
+
+#[tauri::command]
+pub fn get_license_state(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_license_state().map_err(command_error)
+}
+
+#[tauri::command]
+pub fn install_license_token(state: State<'_, LocalStore>, token: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.install_license_token(&token).map_err(command_error)
 }
 
 #[tauri::command]
@@ -26,6 +56,13 @@ pub fn complete_onboarding(
     input: OnboardingInput,
 ) -> Result<AppStateInfo, String> {
     let _guard = state.lock().map_err(command_error)?;
+    if state
+        .app_state(&app_version(&app))
+        .map_err(command_error)?
+        .onboarding_completed
+    {
+        require_write(&state)?;
+    }
     state
         .complete_onboarding(input, &app_version(&app))
         .map_err(command_error)
@@ -44,6 +81,7 @@ pub fn create_record(
     data: Value,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.create_record(&entity, data).map_err(command_error)
 }
 
@@ -55,6 +93,7 @@ pub fn update_record(
     data: Value,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state
         .update_record(&entity, &id, data)
         .map_err(command_error)
@@ -67,13 +106,25 @@ pub fn delete_record(
     id: String,
 ) -> Result<DeleteResult, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.delete_record(&entity, &id).map_err(command_error)
 }
 
 #[tauri::command]
 pub fn update_settings(state: State<'_, LocalStore>, data: Value) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.update_settings(data).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_document_with_items(
+    state: State<'_, LocalStore>,
+    input: SaveDocumentWithItemsInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_document_with_items(input).map_err(command_error)
 }
 
 #[tauri::command]
@@ -84,6 +135,7 @@ pub fn issue_quote(
     valid_until: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state
         .issue_quote(&id, issue_date, valid_until)
         .map_err(command_error)
@@ -97,9 +149,376 @@ pub fn issue_invoice(
     due_date: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state
         .issue_invoice(&id, issue_date, due_date)
         .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn update_quote_status(
+    state: State<'_, LocalStore>,
+    id: String,
+    status: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .update_quote_status(&id, &status)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn convert_quote_to_invoice(
+    state: State<'_, LocalStore>,
+    input: ConvertQuoteInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.convert_quote_to_invoice(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn list_accounts(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_accounts().map_err(command_error)
+}
+#[tauri::command]
+pub fn upsert_account(state: State<'_, LocalStore>, input: AccountInput) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.upsert_account(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn delete_account(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.delete_account(&id).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_accounting_settings(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_accounting_settings().map_err(command_error)
+}
+#[tauri::command]
+pub fn configure_accounting(
+    state: State<'_, LocalStore>,
+    input: AccountingSettingsInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.configure_accounting(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn list_accounting_periods(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_accounting_periods().map_err(command_error)
+}
+#[tauri::command]
+pub fn upsert_accounting_period(
+    state: State<'_, LocalStore>,
+    input: AccountingPeriodInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.upsert_accounting_period(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn close_accounting_period(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.close_accounting_period(&id).map_err(command_error)
+}
+#[tauri::command]
+pub fn post_manual_journal_entry(
+    state: State<'_, LocalStore>,
+    input: ManualJournalInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .post_manual_journal_entry(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn reverse_journal_entry(
+    state: State<'_, LocalStore>,
+    id: String,
+    entry_date: String,
+    description: Option<String>,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .reverse_journal_entry(&id, &entry_date, description)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn get_accounting_dashboard(
+    state: State<'_, LocalStore>,
+    filter: PeriodFilter,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .get_accounting_dashboard(filter)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn get_journal(state: State<'_, LocalStore>, filter: PeriodFilter) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_journal(filter).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_ledger(state: State<'_, LocalStore>, input: LedgerInput) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_ledger(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_trial_balance(
+    state: State<'_, LocalStore>,
+    filter: PeriodFilter,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_trial_balance(filter).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_balance_sheet(
+    state: State<'_, LocalStore>,
+    as_of: Option<String>,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_balance_sheet(as_of).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_income_statement(
+    state: State<'_, LocalStore>,
+    filter: PeriodFilter,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_income_statement(filter).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn get_reminder_settings(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_reminder_settings().map_err(command_error)
+}
+#[tauri::command]
+pub fn update_reminder_settings(
+    state: State<'_, LocalStore>,
+    input: ReminderSettingsInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.update_reminder_settings(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn list_reminder_templates(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_reminder_templates().map_err(command_error)
+}
+#[tauri::command]
+pub fn upsert_reminder_template(
+    state: State<'_, LocalStore>,
+    input: ReminderTemplateInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.upsert_reminder_template(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn delete_reminder_template(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.delete_reminder_template(&id).map_err(command_error)
+}
+#[tauri::command]
+pub fn generate_due_reminders(
+    state: State<'_, LocalStore>,
+    as_of: Option<String>,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.generate_due_reminders(as_of).map_err(command_error)
+}
+#[tauri::command]
+pub fn list_reminders(
+    state: State<'_, LocalStore>,
+    filter: ReminderFilter,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_reminders(filter).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_reminder_history(
+    state: State<'_, LocalStore>,
+    reminder_id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .get_reminder_history(&reminder_id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn mark_reminder(
+    state: State<'_, LocalStore>,
+    input: MarkReminderInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.mark_reminder(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn record_reminder_action(
+    state: State<'_, LocalStore>,
+    input: ReminderActionInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_reminder_action(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn get_payroll_regulatory_profiles(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .get_payroll_regulatory_profiles()
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn list_payroll_contribution_definitions(
+    state: State<'_, LocalStore>,
+    as_of: Option<String>,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .list_payroll_contribution_definitions(as_of)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn get_payslip_contributions(
+    state: State<'_, LocalStore>,
+    payslip_id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .get_payslip_contributions(&payslip_id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn upsert_payroll_contribution_definition(
+    state: State<'_, LocalStore>,
+    input: ContributionDefinitionInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .upsert_payroll_contribution_definition(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn delete_payroll_contribution_definition(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .delete_payroll_contribution_definition(&id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn calculate_payroll_contributions(
+    state: State<'_, LocalStore>,
+    input: CalculatePayrollInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .calculate_payroll_contributions(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn apply_payroll_contributions(
+    state: State<'_, LocalStore>,
+    input: ApplyPayrollInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .apply_payroll_contributions(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn save_payslip_with_contributions(
+    state: State<'_, LocalStore>,
+    input: SavePayslipWithContributionsInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .save_payslip_with_contributions(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn post_payslip(
+    state: State<'_, LocalStore>,
+    input: PostPayslipInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.post_payslip(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn validate_swiss_qr_bill(input: SwissQrBillInput) -> SwissQrValidation {
+    swiss_qr::validate(input)
+}
+#[tauri::command]
+pub fn generate_swiss_qr_payload(input: SwissQrBillInput) -> Result<SwissQrPayload, String> {
+    swiss_qr::generate(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn get_invoice_qr_bill(
+    state: State<'_, LocalStore>,
+    invoice_id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .get_invoice_qr_bill(&invoice_id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn save_invoice_qr_bill(
+    state: State<'_, LocalStore>,
+    input: SaveInvoiceQrBillInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_invoice_qr_bill(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn generate_qrr_reference(base: String) -> Result<String, String> {
+    swiss_qr::generate_qrr(&base).map_err(command_error)
+}
+#[tauri::command]
+pub fn generate_scor_reference(body: String) -> Result<String, String> {
+    swiss_qr::generate_scor(&body).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn list_audit_log(
+    state: State<'_, LocalStore>,
+    entity_type: Option<String>,
+    entity_id: Option<String>,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .list_audit_log(entity_type, entity_id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn verify_audit_log(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.verify_audit_log().map_err(command_error)
 }
 
 #[tauri::command]
@@ -108,24 +527,28 @@ pub fn record_payment(
     input: RecordPaymentInput,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.record_payment(input).map_err(command_error)
 }
 
 #[tauri::command]
 pub fn start_timer(state: State<'_, LocalStore>, input: TimerInput) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.start_timer(input).map_err(command_error)
 }
 
 #[tauri::command]
 pub fn stop_timer(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.stop_timer().map_err(command_error)
 }
 
 #[tauri::command]
 pub fn cancel_timer(state: State<'_, LocalStore>) -> Result<DeleteResult, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.cancel_timer().map_err(command_error)
 }
 
@@ -154,6 +577,7 @@ pub fn restore_backup(
     source: String,
 ) -> Result<AppStateInfo, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state
         .restore_backup(&source, &app_version(&app))
         .map_err(command_error)?;
@@ -175,6 +599,7 @@ pub fn export_json(
 #[tauri::command]
 pub fn add_attachment(state: State<'_, LocalStore>, input: Value) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
     state.add_attachment(input).map_err(command_error)
 }
 

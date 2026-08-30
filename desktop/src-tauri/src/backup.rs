@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use rusqlite::{backup::Backup, Connection};
+use rusqlite::{backup::Backup, params, Connection, OptionalExtension};
 use uuid::Uuid;
 use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
@@ -21,6 +21,19 @@ const BACKUP_FORMAT: &str = "helvichantier-backup";
 const BACKUP_FORMAT_VERSION: u32 = 1;
 const DATABASE_ENTRY: &str = "database.sqlite3";
 const ATTACHMENTS_PREFIX: &str = "attachments/";
+
+struct PreservedLicense {
+    token: String,
+    license_id: String,
+    customer_name: Option<String>,
+    plan: String,
+    price_chf_cents: i64,
+    issued_at: String,
+    valid_from: String,
+    valid_until: String,
+    verified_at: String,
+    last_seen_date: String,
+}
 
 impl LocalStore {
     pub fn create_backup(
@@ -68,6 +81,7 @@ impl LocalStore {
             ));
         }
 
+        let preserved_license = self.preserved_license()?;
         let extraction = tempfile::Builder::new()
             .prefix("restore-")
             .tempdir_in(&self.data_dir)?;
@@ -85,6 +99,7 @@ impl LocalStore {
 
         self.install_restored_data(&extracted_database, &extracted_attachments)?;
         self.migrate()?;
+        self.restore_local_license(preserved_license.as_ref())?;
         validate_database(&self.database_path)?;
         Ok(())
     }
@@ -165,7 +180,56 @@ impl LocalStore {
         let backup = Backup::new(&source, &mut target)?;
         backup.run_to_completion(16, Duration::from_millis(20), None)?;
         drop(backup);
+        target.execute("DELETE FROM license_state", [])?;
         target.execute_batch("PRAGMA journal_mode=DELETE;")?;
+        Ok(())
+    }
+
+    fn preserved_license(&self) -> AppResult<Option<PreservedLicense>> {
+        let connection = self.connect()?;
+        connection
+            .query_row(
+                "SELECT token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date FROM license_state WHERE id=1",
+                [],
+                |row| {
+                    Ok(PreservedLicense {
+                        token: row.get(0)?,
+                        license_id: row.get(1)?,
+                        customer_name: row.get(2)?,
+                        plan: row.get(3)?,
+                        price_chf_cents: row.get(4)?,
+                        issued_at: row.get(5)?,
+                        valid_from: row.get(6)?,
+                        valid_until: row.get(7)?,
+                        verified_at: row.get(8)?,
+                        last_seen_date: row.get(9)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    fn restore_local_license(&self, preserved: Option<&PreservedLicense>) -> AppResult<()> {
+        let connection = self.connect()?;
+        connection.execute("DELETE FROM license_state", [])?;
+        if let Some(license) = preserved {
+            connection.execute(
+                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date) VALUES(1,?,?,?,?,?,?,?,?,?,?)",
+                params![
+                    license.token,
+                    license.license_id,
+                    license.customer_name,
+                    license.plan,
+                    license.price_chf_cents,
+                    license.issued_at,
+                    license.valid_from,
+                    license.valid_until,
+                    license.verified_at,
+                    license.last_seen_date,
+                ],
+            )?;
+        }
         Ok(())
     }
 
@@ -448,4 +512,81 @@ fn remove_sqlite_sidecars(database_path: &Path) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn seed_license(store: &LocalStore, license_id: &str) {
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date) VALUES(1,?,?,?,?,?,?,?,?,?,?)",
+                params![
+                    format!("token-{license_id}"),
+                    license_id,
+                    "Entreprise test",
+                    "helvichantier-monthly-50-chf",
+                    5_000,
+                    "2026-08-30T00:00:00Z",
+                    "2026-08-30",
+                    "2026-09-30",
+                    "2026-08-30T00:00:00Z",
+                    "2026-08-30",
+                ],
+            )
+            .unwrap();
+    }
+
+    fn stored_license_id(store: &LocalStore) -> Option<String> {
+        store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT license_id FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap()
+    }
+
+    #[test]
+    fn database_snapshot_excludes_the_license() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        seed_license(&store, "lic-local-only");
+        let snapshot = temporary.path().join("snapshot.sqlite3");
+
+        store.snapshot_database(&snapshot).unwrap();
+
+        let snapshot_connection = Connection::open(snapshot).unwrap();
+        let snapshot_count: i64 = snapshot_connection
+            .query_row("SELECT COUNT(*) FROM license_state", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(snapshot_count, 0);
+        assert_eq!(stored_license_id(&store).as_deref(), Some("lic-local-only"));
+    }
+
+    #[test]
+    fn restore_keeps_the_destination_machine_license() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
+        seed_license(&source, "lic-source-must-not-travel");
+        let archive = temporary.path().join("source.hchantier");
+        source.create_backup_at(&archive, "1.0.0").unwrap();
+
+        let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
+        seed_license(&destination, "lic-destination");
+        destination
+            .restore_backup(archive.to_str().unwrap(), "1.0.0")
+            .unwrap();
+
+        assert_eq!(
+            stored_license_id(&destination).as_deref(),
+            Some("lic-destination")
+        );
+    }
 }

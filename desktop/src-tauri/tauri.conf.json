@@ -30,8 +30,8 @@
     "active": true,
     "targets": ["nsis"],
     "publisher": "HelviChantier",
-    "shortDescription": "Gestion de chantier, devis, facturation et salaires",
-    "longDescription": "HelviChantier centralise localement les clients, chantiers, devis, factures, heures, dépenses, employés et fiches de salaire.",
+    "shortDescription": "Gestion d’entreprise multisectorielle, locale et suisse",
+    "longDescription": "HelviChantier adapte localement la gestion des clients, projets, dossiers et chantiers au secteur NOGA choisi, avec devis, factures, heures, dépenses, salaires et comptabilité.",
     "category": "Business",
     "copyright": "Copyright © 2026 HelviChantier",
     "windows": {
