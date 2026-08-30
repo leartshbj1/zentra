@@ -38,6 +38,7 @@ next-env.d.ts
 /outputs/
 /work/
 /secrets/
+*.tsbuildinfo
 
 # desktop build artifacts and local application data
 /desktop/dist/
