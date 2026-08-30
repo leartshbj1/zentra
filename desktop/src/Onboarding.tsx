@@ -21,7 +21,7 @@ import {
 import { desktopApi } from './bridge';
 import { BrandMark } from './BrandMark';
 import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
-import { createId } from './utils';
+import { createId, errorMessage } from './utils';
 import { Button, ErrorPanel, Field } from './ui';
 import { projectTerminology } from './terminology';
 
@@ -117,7 +117,7 @@ export function Onboarding({
     let active = true;
     void desktopApi.getNogaCatalog()
       .then((catalog) => { if (active) setNogaCatalog(catalog); })
-      .catch((reason) => { if (active) setNogaError(reason instanceof Error ? reason.message : 'Le catalogue NOGA 2025 local n’a pas pu être chargé.'); });
+      .catch((reason) => { if (active) setNogaError(errorMessage(reason, 'Le catalogue NOGA 2025 local n’a pas pu être chargé.')); });
     return () => { active = false; };
   }, []);
 
@@ -173,7 +173,7 @@ export function Onboarding({
       setBusy(true);
       await onRestore(path);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'La restauration n’a pas pu être lancée.');
+      setError(errorMessage(reason, 'La restauration n’a pas pu être lancée.'));
     } finally {
       setBusy(false);
     }
@@ -185,7 +185,7 @@ export function Onboarding({
     try {
       await onComplete(settings);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'La configuration n’a pas pu être enregistrée.');
+      setError(errorMessage(reason, 'La configuration n’a pas pu être enregistrée.'));
     } finally {
       setBusy(false);
     }

@@ -7,6 +7,7 @@ import { Onboarding } from './Onboarding';
 import { WorkspaceApp } from './WorkspaceApp';
 import type { AppSettings, LicenseState, Workspace } from './types';
 import { Button, ErrorPanel } from './ui';
+import { errorMessage, normalizeLicenseToken } from './utils';
 
 export function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -22,7 +23,7 @@ export function App() {
       setWorkspace(nextWorkspace);
       setLicense(nextLicense);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'L’espace local n’a pas pu être ouvert.');
+      setError(errorMessage(reason, 'L’espace local n’a pas pu être ouvert.'));
     } finally {
       setLoading(false);
     }
@@ -81,14 +82,14 @@ function LicenseActivation({ license, onInstall }: { license: LicenseState; onIn
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setError('');
-    try { await onInstall(token.trim()); setToken(''); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Le jeton de licence n’a pas pu être vérifié localement.'); }
+    try { await onInstall(normalizeLicenseToken(token)); setToken(''); }
+    catch (reason) { setError(errorMessage(reason, 'Le jeton de licence n’a pas pu être vérifié localement.')); }
     finally { setBusy(false); }
   }
   const identity = <div className="license-banner__identity"><span>Installation</span><code>{license.installationId || 'indisponible'}</code>{license.installationId ? <Button type="button" variant="ghost" size="icon" title="Copier l’identifiant" onClick={() => void navigator.clipboard.writeText(license.installationId)}><Copy size={14} /></Button> : null}</div>;
   if (!license.enforcementConfigured) {
     return <aside className="license-banner" role="status"><div className="license-banner__summary"><span><ShieldCheck size={18} /></span><div><strong>{licenseLabels.not_configured}</strong><small>Cette indication doit uniquement apparaître pendant le développement.</small></div></div>{identity}<p>{license.reason}</p></aside>;
   }
-  const form = <form onSubmit={submit}>{identity}<label><span>Jeton signé obtenu après le paiement Stripe</span><textarea value={token} onChange={(event) => setToken(event.target.value)} rows={2} required /></label>{error ? <small className="license-banner__error">{error}</small> : null}<Button type="submit" size="small" disabled={busy || !token.trim()}>{busy ? <LoaderCircle className="spin" size={15} /> : <KeyRound size={15} />}{busy ? 'Vérification…' : 'Installer le jeton'}</Button></form>;
+  const form = <form onSubmit={submit}>{identity}<label><span>Jeton signé obtenu après le paiement Stripe</span><textarea value={token} onChange={(event) => setToken(event.target.value)} rows={2} required /></label>{error ? <small className="license-banner__error">{error}</small> : null}<Button type="submit" size="small" disabled={busy || !normalizeLicenseToken(token)}>{busy ? <LoaderCircle className="spin" size={15} /> : <KeyRound size={15} />}{busy ? 'Vérification…' : 'Installer le jeton'}</Button></form>;
   return <aside className={`license-banner ${license.readOnly ? 'license-banner--warning' : ''}`} role="status"><div className="license-banner__summary"><span>{license.readOnly ? <KeyRound size={18} /> : <ShieldCheck size={18} />}</span><div><strong>{licenseLabels[license.status]}</strong><small>{license.readOnly ? 'Application en lecture seule; sauvegarde et export restent disponibles.' : `${license.customerName || 'Licence vérifiée'} · valable jusqu’au ${license.validUntil}`}</small></div></div>{license.readOnly ? form : <details><summary>Licence et identifiant d’installation</summary>{form}</details>}<p>{license.reason || `Plan 50 CHF / mois · jeton signé et lié à ce PC`}</p></aside>;
 }

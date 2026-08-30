@@ -317,4 +317,38 @@ mod tests {
         assert_eq!(count, 1);
         assert!(!store.app_state("1.0.0").unwrap().onboarding_completed);
     }
+
+    #[test]
+    fn token_for_another_installation_reports_the_specific_error() {
+        let signing = SigningKey::from_bytes(&[13_u8; 32]);
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let payload = LicenseTokenPayload {
+            token_version: TOKEN_VERSION,
+            license_id: "lic-wrong-installation".into(),
+            installation_id: "7cd7fbdc-50f2-4a48-8214-42b5f6e67f35".into(),
+            jti: "43f547b6-75d3-4aa5-8725-1f1181d1ab57".into(),
+            kid: LICENSE_KEY_ID.into(),
+            customer_name: Some("Client local".into()),
+            plan: LICENSE_PLAN.into(),
+            price_chf_cents: LICENSE_PRICE_CHF_CENTS,
+            issued_at: "2026-01-01T00:00:00Z".into(),
+            valid_from: "2026-01-01".into(),
+            valid_until: "2026-12-31".into(),
+        };
+        assert_ne!(payload.installation_id, store.installation_id);
+        let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+        let token = format!(
+            "{encoded}.{}",
+            URL_SAFE_NO_PAD.encode(signing.sign(encoded.as_bytes()).to_bytes())
+        );
+
+        let error = store
+            .install_license_token_with_key(&token, &signing.verifying_key().to_bytes())
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Champ invalide : Ce jeton appartient à une autre installation Windows."
+        );
+    }
 }

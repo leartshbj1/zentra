@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Archive, CheckCircle2, Clock3, FileText, MessageSquareWarning, Plus, Printer, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { Reminder, ReminderHistory, ReminderSettings, ReminderTemplate, Workspace } from './types';
-import { formatDate, formatMoney, todayIso } from './utils';
+import { errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { Button, EmptyState, ErrorPanel, Field, SectionHeading, StatusBadge, submitForm } from './ui';
 
 type Tab = 'due' | 'templates' | 'history' | 'settings';
@@ -24,7 +24,7 @@ export function RemindersScreen({ workspace }: { workspace: Workspace }) {
   async function run(action: () => Promise<void>, success?: string) {
     setBusy(true); setError(''); setNotice('');
     try { await action(); if (success) setNotice(success); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'L’action de relance locale a échoué.'); }
+    catch (reason) { setError(errorMessage(reason, 'L’action de relance locale a échoué.')); }
     finally { setBusy(false); }
   }
 

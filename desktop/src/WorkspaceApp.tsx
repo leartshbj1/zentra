@@ -100,6 +100,7 @@ import {
   centsFromInput,
   createId,
   documentTotals,
+  errorMessage,
   formatDate,
   formatDateTime,
   formatMinutes,
@@ -192,7 +193,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
     void desktopApi.getReminderSettings().then(async (reminderSettings) => {
       if (reminderSettings.enabled) await desktopApi.generateDueReminders(todayIso());
     }).catch((reason) => {
-      if (active) setNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'Le contrôle automatique local des échéances a échoué.' });
+      if (active) setNotice({ tone: 'error', text: errorMessage(reason, 'Le contrôle automatique local des échéances a échoué.') });
     });
     return () => { active = false; };
   }, [readOnly]);
@@ -210,7 +211,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      setNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'L’action locale a échoué.' });
+      setNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
       return false;
     } finally {
       setBusy(false);
@@ -410,14 +411,14 @@ function SettingsScreen({ workspace, busy, setBusy, onWorkspace, onNotice }: { w
   async function execute(action: () => Promise<Workspace>, success: string) {
     setBusy(true); onNotice(null);
     try { const next = await action(); onWorkspace(next); setSettings(next.settings!); onNotice({ tone: 'success', text: success }); }
-    catch (reason) { onNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'L’action locale a échoué.' }); }
+    catch (reason) { onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') }); }
     finally { setBusy(false); }
   }
 
   async function backup() {
     setBusy(true); onNotice(null);
     try { const result = await desktopApi.createBackup(settings.backup.folder || undefined); onWorkspace(result.workspace); onNotice({ tone: 'success', text: `Sauvegarde créée : ${result.path}` }); }
-    catch (reason) { onNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'La sauvegarde n’a pas pu être créée.' }); }
+    catch (reason) { onNotice({ tone: 'error', text: errorMessage(reason, 'La sauvegarde n’a pas pu être créée.') }); }
     finally { setBusy(false); }
   }
 
@@ -430,7 +431,7 @@ function SettingsScreen({ workspace, busy, setBusy, onWorkspace, onNotice }: { w
   async function exportJson() {
     setBusy(true); onNotice(null);
     try { const { path } = await desktopApi.exportData('json'); onNotice({ tone: 'success', text: `Export créé : ${path}` }); }
-    catch (reason) { onNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'L’export n’a pas pu être créé.' }); }
+    catch (reason) { onNotice({ tone: 'error', text: errorMessage(reason, 'L’export n’a pas pu être créé.') }); }
     finally { setBusy(false); }
   }
 
@@ -461,7 +462,7 @@ function SettingsScreen({ workspace, busy, setBusy, onWorkspace, onNotice }: { w
         await desktopApi.upsertPayrollContributionDefinition({ ...definition, id: current?.id, liabilityAccountId: current?.liabilityAccountId ?? '', expenseAccountId: current?.expenseAccountId ?? '' });
       }
       onNotice({ tone: 'success', text: 'Le profil CH-2026 a été installé explicitement. Les cotisations dépendantes du client restent à configurer.' });
-    } catch (reason) { onNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'Le profil réglementaire n’a pas pu être installé.' }); }
+    } catch (reason) { onNotice({ tone: 'error', text: errorMessage(reason, 'Le profil réglementaire n’a pas pu être installé.') }); }
     finally { setBusy(false); }
   }
 
@@ -639,7 +640,7 @@ function QrPrintForm({ invoice, workspace, close, onReady }: { invoice: Invoice;
     let active = true;
     void desktopApi.getInvoiceQrBill(invoice.id)
       .then((value) => { if (active) setStored(value); })
-      .catch((reason) => { if (active) setErrors([reason instanceof Error ? reason.message : 'La QR-facture figée n’a pas pu être relue.']); })
+      .catch((reason) => { if (active) setErrors([errorMessage(reason, 'La QR-facture figée n’a pas pu être relue.')]); })
       .finally(() => { if (active) setLoadingStored(false); });
     return () => { active = false; };
   }, [initialStored, invoice.id]);
@@ -673,7 +674,7 @@ function QrPrintForm({ invoice, workspace, close, onReady }: { invoice: Invoice;
       const saved = await desktopApi.saveInvoiceQrBill(invoice.id, validation.normalized);
       setStored(saved);
       onReady(invoice, saved);
-    } catch (reason) { setErrors([reason instanceof Error ? reason.message : 'La QR-facture n’a pas pu être enregistrée.']); }
+    } catch (reason) { setErrors([errorMessage(reason, 'La QR-facture n’a pas pu être enregistrée.')]); }
     finally { setBusy(false); }
   })}>{capacityError ? <div className="qr-validation qr-validation--error"><strong>Impression bloquée</strong><p>{capacityError}</p></div> : null}<div className="qr-preflight"><section><span>CRÉANCIER DU SNAPSHOT</span><strong>{settings.billing.accountHolder || settings.organization.legalName}</strong><p>{settings.organization.address.street} {settings.organization.address.buildingNumber}<br />{settings.organization.address.postalCode} {settings.organization.address.city} · {settings.organization.address.country || 'Pays manquant'}</p></section><section><span>DÉBITEUR DU SNAPSHOT</span><strong>{client?.company || client?.name || 'Client introuvable'}</strong><p>{client?.addressLine1 || 'Rue manquante'} {client?.buildingNumber}<br />{client?.postalCode || 'NPA manquant'} {client?.city || 'Localité manquante'} · {client?.country || 'Pays manquant'}</p></section><section><span>MONTANT FIGÉ</span><strong>{formatMoney(amountCents)}</strong><p>{settings.billing.iban || 'IBAN manquant'}</p></section></div><div className="form-grid"><Field label="Type de référence" required><select value={referenceType} onChange={(event) => setReferenceType(event.target.value as SwissQrBillInput['referenceType'] | '')} required disabled={Boolean(capacityError)}><option value="">Choisir selon votre IBAN</option><option value="QRR">QRR · référence QR 27 chiffres</option><option value="SCOR">SCOR · Creditor Reference ISO 11649</option><option value="NON">NON · sans référence structurée</option></select></Field>{referenceType !== '' && referenceType !== 'NON' ? <Field label={referenceType === 'QRR' ? 'Référence QR (27 chiffres)' : 'Creditor Reference (RF…)'} required><input name="reference" required /></Field> : null}<Field label="Message non structuré" wide hint="La longueur est contrôlée selon la norme SIX."><textarea name="message" rows={3} /></Field><Field label="Informations de facture structurées" wide hint="Facultatif; ne renseignez que si votre format est conforme."><input name="billInformation" /></Field></div>{errors.length ? <div className="qr-validation qr-validation--error"><strong>Enregistrement bloqué</strong>{errors.map((error) => <p key={error}>{error}</p>)}</div> : null}{warnings.length ? <div className="qr-validation"><strong>Avertissements</strong>{warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}<div className="info-strip"><LockKeyhole size={17} /><span>Après validation, le payload SPC sera figé et réutilisé à l’identique; aucune donnée QR ne sera régénérée librement.</span></div><FormActions onCancel={close} busy={busy || Boolean(capacityError)} submitLabel="Valider, figer et ouvrir l’aperçu" /></form></Modal>;
 }
@@ -705,7 +706,7 @@ function PayslipPrintSheet({ payslip, workspace, onClose }: { payslip: Payslip; 
     let active = true;
     void desktopApi.getPayslipContributions(payslip.id)
       .then((rows) => { if (active) setContributions(rows); })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Les cotisations figées n’ont pas pu être chargées.'); });
+      .catch((reason) => { if (active) setError(errorMessage(reason, 'Les cotisations figées n’ont pas pu être chargées.')); });
     return () => { active = false; };
   }, [frozen, payslip.id]);
 

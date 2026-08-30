@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Archive, CheckCircle2, Plus, ShieldCheck } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { PayrollCalculation, PayrollContributionDefinition, PayrollContributionSelection, Payslip, PayslipLine, Workspace } from './types';
-import { createId, formatMoney, payslipTotals } from './utils';
+import { createId, errorMessage, formatMoney, payslipTotals } from './utils';
 import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean) => Promise<boolean>;
@@ -42,7 +42,7 @@ export function DetailedPayslipForm({ item, workspace, busy, close, act }: { ite
     }).catch((reason) => {
       if (!active) return;
       setExistingBlocked(Boolean(item));
-      setLocalError(reason instanceof Error ? reason.message : 'Les cotisations de la fiche n’ont pas pu être chargées.');
+      setLocalError(errorMessage(reason, 'Les cotisations de la fiche n’ont pas pu être chargées.'));
     }).finally(() => { if (active) setLoadingRates(false); });
     return () => { active = false; };
   }, [item, period]);
@@ -98,7 +98,7 @@ export function DetailedPayslipForm({ item, workspace, busy, close, act }: { ite
       if ((definition.basisKind !== 'gross' && selected.basisCents === undefined) || (definition.annualCeilingCents && selected.yearToDateBasisCents === undefined)) { setLocalError(`Complétez la base${definition.annualCeilingCents ? ' et le cumul annuel' : ''} pour ${definition.label}.`); return; }
     }
     try { setCalculation(await desktopApi.calculatePayrollContributions({ period, grossCents: totals.earnings, items: selectedItems })); }
-    catch (reason) { setLocalError(reason instanceof Error ? reason.message : 'Le calcul local des cotisations a échoué.'); }
+    catch (reason) { setLocalError(errorMessage(reason, 'Le calcul local des cotisations a échoué.')); }
   }
 
   return <Modal title={item ? 'Modifier la fiche détaillée' : 'Nouvelle fiche de salaire'} description="Gains, bases, taux, plafonds et parts sont visibles. Aucune retenue n’est estimée." onClose={close} wide><form onSubmit={submitForm(async (form) => {

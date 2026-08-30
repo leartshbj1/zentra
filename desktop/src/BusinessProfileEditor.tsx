@@ -3,6 +3,7 @@ import { BriefcaseBusiness, ExternalLink, LoaderCircle, ShieldCheck } from 'luci
 import { desktopApi } from './bridge';
 import type { AppSettings, BusinessProfile, NogaCatalog, NogaSectionCode, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
+import { errorMessage } from './utils';
 
 type EditorProps = {
   profile: BusinessProfile;
@@ -18,7 +19,7 @@ export function BusinessProfileFields({ profile, onChange, disabled = false }: E
     let active = true;
     void desktopApi.getNogaCatalog()
       .then((next) => { if (active) setCatalog(next); })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Le catalogue NOGA 2025 local n’a pas pu être chargé.'); });
+      .catch((reason) => { if (active) setError(errorMessage(reason, 'Le catalogue NOGA 2025 local n’a pas pu être chargé.')); });
     return () => { active = false; };
   }, []);
 
@@ -53,7 +54,7 @@ export function BusinessProfileGate({ workspace, onSaved }: { workspace: Workspa
     if (!validProfile(profile)) { setError('Choisissez une section et une division officielles, puis décrivez précisément votre activité.'); return; }
     setBusy(true); setError('');
     try { onSaved(await desktopApi.saveSettings({ ...workspace.settings!, business: { ...profile, activityDescription: profile.activityDescription.trim() } })); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Le profil d’activité n’a pas pu être enregistré localement.'); }
+    catch (reason) { setError(errorMessage(reason, 'Le profil d’activité n’a pas pu être enregistré localement.')); }
     finally { setBusy(false); }
   }
 

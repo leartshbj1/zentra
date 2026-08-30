@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Archive, CheckCircle2, Plus, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { Account, PayrollContributionDefinition } from './types';
-import { centsFromInput } from './utils';
+import { centsFromInput, errorMessage } from './utils';
 import { Button, EmptyState, ErrorPanel, Field, SectionHeading, StatusBadge, submitForm } from './ui';
 
 const categoryLabels: Record<PayrollContributionDefinition['category'], string> = {
@@ -25,7 +25,7 @@ export function PayrollContributionsPanel() {
   async function run(action: () => Promise<void>, success?: string) {
     setBusy(true); setError(''); setNotice('');
     try { await action(); if (success) setNotice(success); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'La cotisation n’a pas pu être enregistrée.'); }
+    catch (reason) { setError(errorMessage(reason, 'La cotisation n’a pas pu être enregistrée.')); }
     finally { setBusy(false); }
   }
 

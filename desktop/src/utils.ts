@@ -1,5 +1,19 @@
 import type { DocumentLine, Invoice, Payment, Payslip, Project, Quote, TimeEntry } from './types';
 
+export function errorMessage(reason: unknown, fallback: string): string {
+  if (typeof reason === 'string' && reason.trim()) return reason.trim();
+  if (reason instanceof Error && reason.message.trim()) return reason.message.trim();
+  if (reason && typeof reason === 'object' && 'message' in reason) {
+    const message = (reason as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message.trim();
+  }
+  return fallback;
+}
+
+export function normalizeLicenseToken(value: string): string {
+  return value.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '');
+}
+
 export function formatMoney(cents: number | null | undefined): string {
   return new Intl.NumberFormat('fr-CH', {
     style: 'currency',
