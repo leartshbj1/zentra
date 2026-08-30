@@ -12,7 +12,8 @@ use crate::{
     error::{AppError, AppResult},
     models::{
         ApplyPayrollInput, CalculatePayrollInput, ContributionDefinitionInput,
-        ContributionSelectionInput, PostPayslipInput, SavePayslipWithContributionsInput,
+        ContributionSelectionInput, OnboardingIssue, PostPayslipInput,
+        SavePayslipWithContributionsInput,
     },
 };
 
@@ -37,6 +38,19 @@ struct Definition {
     effective_to: Option<String>,
 }
 
+#[derive(Debug)]
+struct PreparedSettingsRate {
+    id: String,
+    code: String,
+    label: String,
+    side: &'static str,
+    rate_bp: i64,
+    annual_ceiling_cents: Option<i64>,
+    source: String,
+    effective_from: String,
+    active: bool,
+}
+
 /// Extrait les anciennes listes de taux du questionnaire et les neutralise dans
 /// les réglages persistés. Le retour est importé une seule fois dans le moteur.
 pub(crate) fn take_explicit_settings_rates(extra_settings: &mut Value) -> Option<Value> {
@@ -58,21 +72,28 @@ pub(crate) fn take_explicit_settings_rates(extra_settings: &mut Value) -> Option
     Some(json!({"payroll":original}))
 }
 
-/// Importe uniquement les taux explicitement présents dans le questionnaire.
-/// `ON CONFLICT DO NOTHING` protège toute définition déjà personnalisée. Les
-/// identifiants déterministes empêchent les doublons en cas de reprise après erreur.
-pub(crate) fn import_explicit_settings_rates(
-    transaction: &Transaction<'_>,
+fn onboarding_rate_issue(field: String, label: &str, message: String) -> OnboardingIssue {
+    OnboardingIssue {
+        step: 4,
+        field,
+        label: label.into(),
+        message,
+    }
+}
+
+fn prepare_explicit_settings_rates(
     extra_settings: &Value,
-) -> AppResult<()> {
+) -> Result<Vec<PreparedSettingsRate>, Vec<OnboardingIssue>> {
     let Some(payroll) = extra_settings.get("payroll").and_then(Value::as_object) else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let enabled = payroll
         .get("enabled")
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let mut external_keys = HashSet::new();
+    let mut prepared = Vec::new();
+    let mut issues = Vec::new();
     for (field, side, code_side) in [
         ("employeeRates", "employee", "E"),
         ("employerRates", "employer", "R"),
@@ -81,75 +102,162 @@ pub(crate) fn import_explicit_settings_rates(
             None | Some(Value::Null) => &[][..],
             Some(Value::Array(rates)) => rates.as_slice(),
             Some(_) => {
-                return Err(AppError::Validation(format!(
-                    "payroll.{field} doit être une liste de taux explicites."
-                )))
+                issues.push(onboarding_rate_issue(
+                    format!("payroll.{field}"),
+                    "Les taux de paie",
+                    format!("payroll.{field} doit être une liste de taux explicites."),
+                ));
+                continue;
             }
         };
-        for rate in rates {
-            let object = rate.as_object().ok_or_else(|| {
-                AppError::Validation(format!("Chaque entrée payroll.{field} doit être un objet."))
-            })?;
-            let external_id = required_rate_text(object.get("id"), "id", 500)?;
-            let external_key = format!("{side}:{external_id}");
-            if !external_keys.insert(external_key.clone()) {
-                return Err(AppError::Validation(format!(
-                    "Le taux {external_id} est présent plusieurs fois dans payroll.{field}."
-                )));
+        for (index, rate) in rates.iter().enumerate() {
+            let Some(object) = rate.as_object() else {
+                issues.push(onboarding_rate_issue(
+                    format!("payroll.{field}.{index}"),
+                    "Le taux de paie",
+                    format!("Chaque entrée payroll.{field} doit être un objet."),
+                ));
+                continue;
+            };
+            let raw_id = object.get("id").and_then(Value::as_str).unwrap_or("");
+            let external_id = raw_id.trim();
+            let path_key = if external_id.is_empty() {
+                index.to_string()
+            } else {
+                external_id.to_owned()
+            };
+            let path = format!("payroll.{field}.{path_key}");
+            let issue_count = issues.len();
+            if external_id.is_empty() || external_id.chars().count() > 500 {
+                issues.push(onboarding_rate_issue(
+                    format!("{path}.id"),
+                    "L’identifiant du taux",
+                    "L’identifiant du taux est obligatoire et limité à 500 caractères.".into(),
+                ));
             }
-            let label = required_rate_text(object.get("label"), "label", 200)?;
-            let rate_bp = object
-                .get("rateBp")
-                .and_then(Value::as_i64)
-                .filter(|value| (1..=10_000).contains(value))
-                .ok_or_else(|| {
-                    AppError::Validation(format!(
-                        "Le taux {label} doit fournir rateBp entre 1 et 10000."
-                    ))
-                })?;
-            let effective_from =
-                required_rate_text(object.get("effectiveFrom"), "effectiveFrom", 10)?;
-            validate_date(&effective_from, "payroll rate effectiveFrom")?;
+            let external_key = format!("{side}:{external_id}");
+            if !external_id.is_empty() && !external_keys.insert(external_key.clone()) {
+                issues.push(onboarding_rate_issue(
+                    format!("{path}.id"),
+                    "L’identifiant du taux",
+                    format!(
+                        "Le taux {external_id} est présent plusieurs fois dans payroll.{field}."
+                    ),
+                ));
+            }
+            let label = object
+                .get("label")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .unwrap_or("");
+            if label.is_empty() || label.chars().count() > 200 {
+                issues.push(onboarding_rate_issue(
+                    format!("{path}.label"),
+                    "Le libellé du taux",
+                    "Le libellé du taux est obligatoire et limité à 200 caractères.".into(),
+                ));
+            }
+            let rate_bp = object.get("rateBp").and_then(Value::as_i64);
+            if !rate_bp.is_some_and(|value| (1..=10_000).contains(&value)) {
+                issues.push(onboarding_rate_issue(
+                    format!("{path}.rateBp"),
+                    "Le taux",
+                    "Le taux doit être compris entre 0,01 % et 100 %.".into(),
+                ));
+            }
+            let effective_from = object
+                .get("effectiveFrom")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .unwrap_or("");
+            if effective_from.is_empty()
+                || effective_from.chars().count() > 10
+                || validate_date(effective_from, "payroll rate effectiveFrom").is_err()
+            {
+                issues.push(onboarding_rate_issue(
+                    format!("{path}.effectiveFrom"),
+                    "La date d’effet",
+                    "La date d’effet doit être une date valide au format AAAA-MM-JJ.".into(),
+                ));
+            }
             let annual_ceiling_cents = match object.get("annualCeilingCents") {
                 None | Some(Value::Null) => None,
-                Some(value) => {
-                    Some(value.as_i64().filter(|amount| *amount > 0).ok_or_else(|| {
-                        AppError::Validation(format!(
-                            "annualCeilingCents doit être positif pour le taux {label}."
-                        ))
-                    })?)
-                }
+                Some(value) => match value.as_i64().filter(|amount| *amount > 0) {
+                    Some(amount) => Some(amount),
+                    None => {
+                        issues.push(onboarding_rate_issue(
+                            format!("{path}.annualCeilingCents"),
+                            "Le plafond annuel",
+                            "Le plafond annuel doit être un montant positif.".into(),
+                        ));
+                        None
+                    }
+                },
             };
+            if issues.len() != issue_count {
+                continue;
+            }
             let source = object
                 .get("sourceUrl")
                 .and_then(Value::as_str)
                 .or_else(|| object.get("sourceLabel").and_then(Value::as_str))
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
-                .unwrap_or(SETTINGS_RATE_SOURCE);
+                .unwrap_or(SETTINGS_RATE_SOURCE)
+                .to_owned();
             let mut hasher = Sha256::new();
             hasher.update(external_key.as_bytes());
             let hash = format!("{:x}", hasher.finalize());
-            let id = format!("{SETTINGS_RATE_ID_PREFIX}{side}-{}", &hash[..32]);
-            let code = format!("SET_{code_side}_{}", hash.to_uppercase());
-            let now = now_iso();
-            transaction.execute(
-                "INSERT INTO payroll_contribution_definitions(id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active,liability_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,'other',?,'rate',?,NULL,?,'gross',?,?,NULL,?,NULL,NULL,?,?) ON CONFLICT DO NOTHING",
-                params![id,code,label,side,rate_bp,annual_ceiling_cents,source,effective_from,enabled as i64,now,now],
-            )?;
+            prepared.push(PreparedSettingsRate {
+                id: format!("{SETTINGS_RATE_ID_PREFIX}{side}-{}", &hash[..32]),
+                code: format!("SET_{code_side}_{}", hash.to_uppercase()),
+                label: label.to_owned(),
+                side,
+                rate_bp: rate_bp.expect("validated rate"),
+                annual_ceiling_cents,
+                source,
+                effective_from: effective_from.to_owned(),
+                active: enabled,
+            });
         }
     }
-    Ok(())
+    if issues.is_empty() {
+        Ok(prepared)
+    } else {
+        Err(issues)
+    }
 }
 
-fn required_rate_text(value: Option<&Value>, field: &str, max: usize) -> AppResult<String> {
-    let text = value.and_then(Value::as_str).map(str::trim).unwrap_or("");
-    if text.is_empty() || text.chars().count() > max {
-        return Err(AppError::Validation(format!(
-            "Le champ payroll rate {field} est obligatoire et limité à {max} caractères."
-        )));
+pub(crate) fn explicit_settings_rate_issues(extra_settings: &Value) -> Vec<OnboardingIssue> {
+    prepare_explicit_settings_rates(extra_settings)
+        .err()
+        .unwrap_or_default()
+}
+
+/// Importe uniquement les taux explicitement présents dans le questionnaire.
+/// `ON CONFLICT DO NOTHING` protège toute définition déjà personnalisée. Les
+/// identifiants déterministes empêchent les doublons en cas de reprise après erreur.
+pub(crate) fn import_explicit_settings_rates(
+    transaction: &Transaction<'_>,
+    extra_settings: &Value,
+) -> AppResult<()> {
+    let rates = prepare_explicit_settings_rates(extra_settings).map_err(|issues| {
+        AppError::Validation(
+            issues
+                .into_iter()
+                .map(|issue| issue.message)
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+    })?;
+    for rate in rates {
+        let now = now_iso();
+        transaction.execute(
+            "INSERT INTO payroll_contribution_definitions(id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active,liability_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,'other',?,'rate',?,NULL,?,'gross',?,?,NULL,?,NULL,NULL,?,?) ON CONFLICT DO NOTHING",
+            params![rate.id,rate.code,rate.label,rate.side,rate.rate_bp,rate.annual_ceiling_cents,rate.source,rate.effective_from,rate.active as i64,now,now],
+        )?;
     }
-    Ok(text.to_owned())
+    Ok(())
 }
 
 impl LocalStore {

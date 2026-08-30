@@ -8,9 +8,10 @@ use crate::{
     error::command_error,
     models::{
         AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
-        ApplyPayrollInput, CalculatePayrollInput, ContributionDefinitionInput, ConvertQuoteInput,
-        DeleteResult, LedgerInput, ManualJournalInput, MarkReminderInput, OnboardingInput,
-        PeriodFilter, PostPayslipInput, RecordPaymentInput, ReminderActionInput, ReminderFilter,
+        ApplyPayrollInput, CalculatePayrollInput, CompleteOnboardingResult,
+        ContributionDefinitionInput, ConvertQuoteInput, DeleteResult, LedgerInput,
+        ManualJournalInput, MarkReminderInput, OnboardingInput, OnboardingValidation, PeriodFilter,
+        PostPayslipInput, RecordPaymentInput, ReminderActionInput, ReminderFilter,
         ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
         SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SwissQrBillInput,
         SwissQrPayload, SwissQrValidation, TimerInput,
@@ -50,11 +51,20 @@ pub fn get_app_state(state: State<'_, LocalStore>, app: AppHandle) -> Result<App
 }
 
 #[tauri::command]
+pub fn validate_onboarding(
+    state: State<'_, LocalStore>,
+    input: OnboardingInput,
+) -> Result<OnboardingValidation, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    Ok(state.validate_onboarding(input))
+}
+
+#[tauri::command]
 pub fn complete_onboarding(
     state: State<'_, LocalStore>,
     app: AppHandle,
     input: OnboardingInput,
-) -> Result<AppStateInfo, String> {
+) -> Result<CompleteOnboardingResult, String> {
     let _guard = state.lock().map_err(command_error)?;
     if state
         .app_state(&app_version(&app))

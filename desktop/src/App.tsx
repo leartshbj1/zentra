@@ -62,7 +62,11 @@ export function App() {
       />
     ) : workspace.activityProfileRequired || activityProfileMissing ? <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} /> : <WorkspaceApp workspace={workspace} setWorkspace={setWorkspace} readOnly={license?.readOnly ?? false} />;
 
-  return <>{content}{license ? <LicenseActivation license={license} onInstall={async (token) => { const next = await desktopApi.installLicenseToken(token); setLicense(next); setWorkspace(await desktopApi.loadWorkspace()); }} /> : null}</>;
+  const licenseNeedsAttention = Boolean(
+    license && (license.status !== 'valid' || license.readOnly),
+  );
+
+  return <>{content}{license && licenseNeedsAttention ? <LicenseActivation license={license} onInstall={async (token) => { const next = await desktopApi.installLicenseToken(token); setLicense(next); setWorkspace(await desktopApi.loadWorkspace()); }} /> : null}</>;
 }
 
 const licenseLabels: Record<LicenseState['status'], string> = {

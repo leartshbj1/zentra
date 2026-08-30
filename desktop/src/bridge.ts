@@ -54,6 +54,8 @@ import type {
 
 type RawRecord = Record<string, unknown>;
 type AppState = { onboarding_completed: boolean; activity_profile_required?: boolean; data_dir: string; database_path: string; app_version: string };
+export type OnboardingValidationIssue = { step: number; field: string; label: string; message: string };
+export type OnboardingValidationResult = { valid: boolean; issues: OnboardingValidationIssue[] };
 type RawWorkspace = {
   settings?: RawRecord | null;
   clients?: RawRecord[];
@@ -76,6 +78,31 @@ const stringValue = (value: unknown): string => (typeof value === 'string' ? val
 const numberValue = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 const boolValue = (value: unknown): boolean => value === true || value === 1 || value === '1';
 const recordValue = (value: unknown): RawRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as RawRecord : {};
+
+function appStateFromRaw(value: unknown): AppState {
+  const row = recordValue(value);
+  return {
+    onboarding_completed: boolValue(row.onboarding_completed ?? row.onboardingCompleted),
+    activity_profile_required: boolValue(row.activity_profile_required ?? row.activityProfileRequired),
+    data_dir: stringValue(row.data_dir ?? row.dataDir),
+    database_path: stringValue(row.database_path ?? row.databasePath),
+    app_version: stringValue(row.app_version ?? row.appVersion),
+  };
+}
+
+function onboardingValidationFromRaw(value: unknown): OnboardingValidationResult {
+  const row = recordValue(value);
+  const issues = (Array.isArray(row.issues) ? row.issues : []).map((value): OnboardingValidationIssue => {
+    const issue = recordValue(value);
+    return {
+      step: Math.max(0, Math.trunc(numberValue(issue.step))),
+      field: stringValue(issue.field).trim(),
+      label: stringValue(issue.label).trim(),
+      message: stringValue(issue.message).trim(),
+    };
+  });
+  return { valid: boolValue(row.valid) && issues.length === 0, issues };
+}
 
 function parsedSnapshot(value: unknown): RawRecord | null {
   if (typeof value !== 'string' || !value.trim()) return null;
@@ -297,7 +324,7 @@ function emptyWorkspace(): Workspace {
 }
 
 async function loadWorkspace(): Promise<Workspace> {
-  const appState = await invoke<AppState>('get_app_state');
+  const appState = appStateFromRaw(await invoke<RawRecord>('get_app_state'));
   if (!appState.onboarding_completed) return emptyWorkspace();
   return normalizeWorkspace(await invoke<RawWorkspace>('get_workspace'), appState);
 }
@@ -438,9 +465,30 @@ export const desktopApi = {
   },
   async getLicenseState(): Promise<LicenseState> { return licenseStateFromRaw(await invoke<RawRecord>('get_license_state')); },
   async installLicenseToken(token: string): Promise<LicenseState> { return licenseStateFromRaw(await invoke<RawRecord>('install_license_token', { token })); },
+  async validateOnboarding(settings: OnboardingPayload): Promise<OnboardingValidationResult> {
+    return onboardingValidationFromRaw(await invoke<RawRecord>('validate_onboarding', { input: settingsToBackend(settings) }));
+  },
   async completeOnboarding(settings: OnboardingPayload) {
-    await invoke<AppState>('complete_onboarding', { input: settingsToBackend(settings) });
-    return loadWorkspace();
+    let response: RawRecord;
+    try {
+      response = recordValue(await invoke<RawRecord>('complete_onboarding', { input: settingsToBackend(settings) }));
+    } catch (reason) {
+      try {
+        const recovered = await loadWorkspace();
+        if (recovered.onboardingCompleted) return recovered;
+      } catch {
+        // Preserve the original completion error when recovery also fails.
+      }
+      throw reason;
+    }
+    const appState = appStateFromRaw(response.app_state ?? response.appState);
+    const workspace = recordValue(response.workspace);
+    if (!appState.onboarding_completed || !Object.keys(workspace).length) {
+      const recovered = await loadWorkspace();
+      if (recovered.onboardingCompleted) return recovered;
+      throw new Error('La finalisation locale a renvoyé une réponse incomplète. Aucune donnée partielle n’a été conservée.');
+    }
+    return normalizeWorkspace(workspace as RawWorkspace, appState);
   },
   async saveSettings(settings: AppSettings) { await invoke('update_settings', { data: settingsToBackend(settings) }); return loadWorkspace(); },
   async createEntity<T extends Record<string, unknown>>(entity: EntityKind, data: T) { await createRecord(entityToBackend[entity], toBackendData(data)); return loadWorkspace(); },

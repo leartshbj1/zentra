@@ -28,7 +28,7 @@ export const metadata = {
   },
 };
 
-const installerPath = '/downloads/Elyko_1.1.2_x64-setup.exe';
+const installerPath = '/downloads/Elyko_1.1.4_x64-setup.exe';
 
 export default function DownloadPage() {
   return (
@@ -73,17 +73,18 @@ export default function DownloadPage() {
             download
             className="mt-4 inline-flex min-h-13 w-full items-center justify-center gap-3 rounded-full border border-[#b8b3a8] bg-white px-5 py-3 text-center text-sm font-semibold text-[#173d2c] hover:bg-[#fffdf8] sm:w-auto sm:px-7"
           >
-            <Download className="size-5 shrink-0" /> Télécharger Elyko 1.1.2
+            <Download className="size-5 shrink-0" /> Télécharger Elyko
           </a>
           <div className="mt-5 space-y-1 text-xs leading-5 text-[#59675f]">
             <p>
-              Format : installateur Windows `.exe` · application x64 · 2,11 Mio
+              Version 1.1.4 · installateur Windows `.exe` · application x64 ·
+              2,12 Mio
             </p>
             <p>Compatibilité : Windows 10 et Windows 11</p>
             <p>
               SHA-256 :{' '}
               <code className="break-all">
-                1C9BE172C0471B0F5DAAE5197346DACC27447CED7E06F1D883AA8DD910146C33
+                ABDB5E9D52BF26DE942670BFC9519DB7AA87C8F98098C106E84531973AE8CBDD
               </code>{' '}
               ·{' '}
               <a

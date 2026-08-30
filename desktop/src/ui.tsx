@@ -21,23 +21,25 @@ export function Button({
 export function Field({
   label,
   hint,
+  error,
   required,
   wide,
   children,
 }: {
   label: string;
   hint?: string;
+  error?: string;
   required?: boolean;
   wide?: boolean;
   children: ReactNode;
 }) {
   return (
-    <label className={`field ${wide ? 'field--wide' : ''}`}>
+    <label className={`field ${wide ? 'field--wide' : ''} ${error ? 'field--error' : ''}`}>
       <span className="field__label">
         {label} {required ? <em>obligatoire</em> : null}
       </span>
       {children}
-      {hint ? <span className="field__hint">{hint}</span> : null}
+      {error ? <span className="field__error" role="alert">{error}</span> : hint ? <span className="field__hint">{hint}</span> : null}
     </label>
   );
 }
@@ -181,12 +183,20 @@ export function DangerZone({ label, onArchive }: { label: string; onArchive: () 
   );
 }
 
-export function ErrorPanel({ message, onRetry }: { message: string; onRetry?: () => void }) {
+export function ErrorPanel({
+  message,
+  onRetry,
+  title = 'Action impossible',
+}: {
+  message: string;
+  onRetry?: () => void;
+  title?: string;
+}) {
   return (
     <div className="error-panel" role="alert">
       <AlertTriangle size={22} />
       <div>
-        <strong>Action impossible</strong>
+        <strong>{title}</strong>
         <p>{message}</p>
       </div>
       {onRetry ? (

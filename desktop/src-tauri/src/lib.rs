@@ -33,6 +33,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_state,
             get_noga_catalog,
+            validate_onboarding,
             complete_onboarding,
             get_workspace,
             create_record,
@@ -359,8 +360,12 @@ mod tests {
         let state = store
             .complete_onboarding(test_onboarding(), "1.0.0")
             .expect("complete onboarding");
-        assert!(state.onboarding_completed);
-        assert!(!state.activity_profile_required);
+        assert!(state.app_state.onboarding_completed);
+        assert!(!state.app_state.activity_profile_required);
+        assert_eq!(
+            state.workspace["settings"]["company_name"],
+            "Entreprise de test"
+        );
 
         let connection = store.connect().expect("database connection");
         let company_name: Option<String> = connection
@@ -397,6 +402,235 @@ mod tests {
                 .expect("known table");
             assert_eq!(count, 0, "onboarding must not seed {table}");
         }
+    }
+
+    #[test]
+    fn onboarding_preflight_is_read_only_and_matches_the_atomic_commit() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        let mut input = test_onboarding();
+        input.extra_settings_json = Some(serde_json::Value::String(
+            json!({
+                "organization": {
+                    "website": "https://example.invalid",
+                    "address": {"buildingNumber": "17B"}
+                },
+                "billing": {
+                    "accountHolder": "Entreprise de test",
+                    "creditNotePrefix": "A",
+                    "nextQuoteNumber": 1,
+                    "nextInvoiceNumber": 1,
+                    "nextCreditNoteNumber": 1,
+                    "quoteValidityDays": 30,
+                    "vatRatesBp": [],
+                    "defaultFooter": ""
+                },
+                "work": {
+                    "workWeekHours": 42,
+                    "dailyHours": 8.4,
+                    "roundingMinutes": 5,
+                    "breakMinutes": 30,
+                    "costCategories": ["Matériaux"]
+                },
+                "payroll": {
+                    "enabled": false,
+                    "fiduciaryValidated": false,
+                    "avsFund": "",
+                    "accidentInsurer": "",
+                    "pensionFund": "",
+                    "dailyAllowanceInsurer": "",
+                    "familyAllowanceFund": "",
+                    "payrollCanton": "",
+                    "employeeRates": [],
+                    "employerRates": []
+                },
+                "backup": {
+                    "automatic": false,
+                    "folder": "C:\\sauvegardes",
+                    "frequency": "manual",
+                    "retentionDaily": 0,
+                    "retentionWeekly": 0,
+                    "retentionMonthly": 0,
+                    "recoveryConfirmed": true
+                }
+            })
+            .to_string(),
+        ));
+
+        let validation = store.validate_onboarding(input.clone());
+        assert!(
+            validation.valid,
+            "unexpected issues: {:?}",
+            validation.issues
+        );
+        assert!(validation.issues.is_empty());
+        let settings_before: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(settings_before, 0, "preflight must not write settings");
+
+        let completed = store
+            .complete_onboarding(input, "1.0.0")
+            .expect("atomic onboarding commit");
+        assert!(completed.app_state.onboarding_completed);
+        assert!(!completed.app_state.activity_profile_required);
+        assert_eq!(completed.app_state.app_version, "1.0.0");
+        assert_eq!(
+            completed.workspace["settings"]["company_name"],
+            "Entreprise de test"
+        );
+        assert!(completed.workspace["clients"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(completed.workspace["projects"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let serialized = serde_json::to_value(completed).expect("serializable completion result");
+        assert_eq!(serialized["app_state"]["onboarding_completed"], true);
+        assert_eq!(
+            serialized["workspace"]["settings"]["company_name"],
+            "Entreprise de test"
+        );
+    }
+
+    #[test]
+    fn onboarding_preflight_reports_the_observed_invalid_iban_without_writing() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        let mut input = test_onboarding();
+        input.iban = Some("CH6534632536263W".into());
+
+        let validation = store.validate_onboarding(input.clone());
+        assert!(!validation.valid);
+        let issue = validation
+            .issues
+            .iter()
+            .find(|issue| issue.field == "billing.iban")
+            .expect("structured IBAN issue");
+        assert_eq!(issue.step, 2);
+        assert_eq!(issue.label, "L’IBAN");
+        assert!(issue.message.contains("IBAN CH ou LI"));
+
+        let error = store
+            .complete_onboarding(input, "1.0.0")
+            .expect_err("the same validation must block the commit");
+        assert!(error.to_string().contains("IBAN CH ou LI"));
+        let settings_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(settings_count, 0);
+    }
+
+    #[test]
+    fn onboarding_preflight_collects_stale_vat_and_payroll_issues() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        let mut input = test_onboarding();
+        input.vat_registered = false;
+        input.default_vat_bp = Some(810);
+        input.payment_terms_days = 0;
+        input.quote_validity_days = 366;
+        input.extra_settings_json = Some(json!({
+            "payroll": {
+                "enabled": false,
+                "employeeRates": [{
+                    "id": "",
+                    "label": "",
+                    "rateBp": 0,
+                    "annualCeilingCents": 0,
+                    "effectiveFrom": ""
+                }, {
+                    "id": "taux-duplique",
+                    "label": "Taux valide",
+                    "rateBp": 100,
+                    "effectiveFrom": "2026-01-01"
+                }, {
+                    "id": "taux-duplique",
+                    "label": "x".repeat(201),
+                    "rateBp": 100,
+                    "annualCeilingCents": -1,
+                    "effectiveFrom": "2026-01-01"
+                }],
+                "employerRates": []
+            }
+        }));
+
+        let validation = store.validate_onboarding(input.clone());
+        assert!(!validation.valid);
+        for field in [
+            "billing.vatRatesBp",
+            "billing.paymentTermsDays",
+            "billing.quoteValidityDays",
+            "payroll.employeeRates.0.id",
+            "payroll.employeeRates.0.label",
+            "payroll.employeeRates.0.rateBp",
+            "payroll.employeeRates.0.annualCeilingCents",
+            "payroll.employeeRates.0.effectiveFrom",
+            "payroll.employeeRates.taux-duplique.id",
+            "payroll.employeeRates.taux-duplique.label",
+            "payroll.employeeRates.taux-duplique.annualCeilingCents",
+        ] {
+            assert!(
+                validation.issues.iter().any(|issue| issue.field == field),
+                "missing structured issue for {field}: {:?}",
+                validation.issues
+            );
+        }
+        assert!(validation
+            .issues
+            .iter()
+            .all(|issue| !issue.label.is_empty() && !issue.message.is_empty()));
+
+        assert!(store.complete_onboarding(input, "1.0.0").is_err());
+        let empty_counts: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM settings),(SELECT COUNT(*) FROM payroll_contribution_definitions)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(empty_counts, (0, 0));
+    }
+
+    #[test]
+    fn onboarding_rolls_back_when_the_completion_snapshot_cannot_be_built() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        store
+            .connect()
+            .unwrap()
+            .execute("DROP TABLE clients", [])
+            .expect("break the snapshot query after onboarding writes");
+
+        assert!(store
+            .complete_onboarding(test_onboarding(), "1.0.0")
+            .is_err());
+        let persisted_counts: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM settings),(SELECT COUNT(*) FROM number_sequences)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            persisted_counts,
+            (0, 0),
+            "settings and sequences must roll back if the returned workspace cannot be built"
+        );
     }
 
     #[test]

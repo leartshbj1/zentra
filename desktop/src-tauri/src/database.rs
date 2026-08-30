@@ -24,11 +24,14 @@ use crate::{
     error::{AppError, AppResult},
     installation::load_or_create,
     models::{
-        AppStateInfo, ConvertQuoteInput, DeleteResult, OnboardingInput, RecordPaymentInput,
-        SaveDocumentWithItemsInput, TimerInput,
+        AppStateInfo, CompleteOnboardingResult, ConvertQuoteInput, DeleteResult, OnboardingInput,
+        OnboardingIssue, OnboardingValidation, RecordPaymentInput, SaveDocumentWithItemsInput,
+        TimerInput,
     },
     noga::validate_activity_profile,
-    payroll::{import_explicit_settings_rates, take_explicit_settings_rates},
+    payroll::{
+        explicit_settings_rate_issues, import_explicit_settings_rates, take_explicit_settings_rates,
+    },
     reminders::cancel_settled_reminders,
     schema::{MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, SCHEMA_SQL, SCHEMA_VERSION},
     swiss_qr::normalize_and_validate_iban,
@@ -67,6 +70,306 @@ type SettingsValidationRow = (
     Option<String>,
     Option<String>,
 );
+
+#[derive(Debug)]
+struct PreparedOnboarding {
+    input: OnboardingInput,
+    company_name: String,
+    currency: String,
+    noga_section: String,
+    noga_division: String,
+    activity_description: String,
+    noga_detailed_code: Option<String>,
+    quote_prefix: String,
+    invoice_prefix: String,
+    credit_note_prefix: String,
+    quote_start_number: i64,
+    invoice_start_number: i64,
+    credit_note_start_number: i64,
+    default_vat_bp: i64,
+    iban: String,
+    settings_rates_to_import: Option<Value>,
+    extra_settings_json: String,
+}
+
+fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
+    OnboardingIssue {
+        step,
+        field: field.into(),
+        label: label.into(),
+        message,
+    }
+}
+
+fn validation_message(error: AppError) -> String {
+    match error {
+        AppError::Validation(message) => message,
+        other => other.to_string(),
+    }
+}
+
+fn prepare_onboarding(input: OnboardingInput) -> Result<PreparedOnboarding, Vec<OnboardingIssue>> {
+    let mut issues = Vec::new();
+    let company_name = match required_text(&input.company_name, "company_name", 200) {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                1,
+                "organization.legalName",
+                "La raison sociale",
+                validation_message(error),
+            ));
+            input.company_name.trim().to_owned()
+        }
+    };
+    let currency = match normalized_code(&input.currency, "currency", 3, "CHF") {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.currency",
+                "La devise",
+                validation_message(error),
+            ));
+            "CHF".into()
+        }
+    };
+    let noga_section = input.noga_section.trim().to_uppercase();
+    let noga_division = input.noga_division.trim().to_owned();
+    let activity_description = input.activity_description.trim().to_owned();
+    let noga_detailed_code = input
+        .noga_detailed_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    if let Err(error) = validate_activity_profile(
+        &noga_section,
+        &noga_division,
+        &activity_description,
+        noga_detailed_code.as_deref(),
+    ) {
+        let message = validation_message(error);
+        let (field, label) = if message.contains("noga_section") {
+            ("business.nogaSection", "La section NOGA")
+        } else if message.contains("noga_division") || message.contains("division NOGA") {
+            ("business.nogaDivision", "La division NOGA")
+        } else if message.contains("activity_description") {
+            ("business.activityDescription", "L’activité précise")
+        } else {
+            ("business.nogaDetailedCode", "Le code NOGA détaillé")
+        };
+        issues.push(onboarding_issue(1, field, label, message));
+    }
+    let quote_prefix = match normalized_prefix(&input.quote_prefix, "D") {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.quotePrefix",
+                "Le préfixe des devis",
+                validation_message(error),
+            ));
+            "D".into()
+        }
+    };
+    let invoice_prefix = match normalized_prefix(&input.invoice_prefix, "F") {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.invoicePrefix",
+                "Le préfixe des factures",
+                validation_message(error),
+            ));
+            "F".into()
+        }
+    };
+    let mut extra_value = match parsed_json_object(input.extra_settings_json.clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                5,
+                "backup.folder",
+                "La configuration locale",
+                validation_message(error),
+            ));
+            json!({})
+        }
+    };
+    let billing = extra_value
+        .get("billing")
+        .and_then(Value::as_object)
+        .cloned();
+    let credit_note_prefix_raw = input
+        .credit_note_prefix
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            billing
+                .as_ref()
+                .and_then(|value| value.get("creditNotePrefix"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or("A");
+    let credit_note_prefix = match normalized_prefix(credit_note_prefix_raw, "A") {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.creditNotePrefix",
+                "Le préfixe des avoirs",
+                validation_message(error),
+            ));
+            "A".into()
+        }
+    };
+    let start_number = |explicit, key, field, label, issues: &mut Vec<OnboardingIssue>| {
+        match explicit_start_number(explicit, billing.as_ref(), key) {
+            Ok(value) => value,
+            Err(error) => {
+                issues.push(onboarding_issue(2, field, label, validation_message(error)));
+                1
+            }
+        }
+    };
+    let quote_start_number = start_number(
+        input.quote_start_number,
+        "nextQuoteNumber",
+        "billing.nextQuoteNumber",
+        "Le prochain numéro de devis",
+        &mut issues,
+    );
+    let invoice_start_number = start_number(
+        input.invoice_start_number,
+        "nextInvoiceNumber",
+        "billing.nextInvoiceNumber",
+        "Le prochain numéro de facture",
+        &mut issues,
+    );
+    let credit_note_start_number = start_number(
+        input.credit_note_start_number,
+        "nextCreditNoteNumber",
+        "billing.nextCreditNoteNumber",
+        "Le prochain numéro d’avoir",
+        &mut issues,
+    );
+    let default_vat_bp = match (input.vat_registered, input.default_vat_bp) {
+        (true, Some(value)) if (1..=10_000).contains(&value) => value,
+        (true, _) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.vatRatesBp",
+                "Les taux de TVA",
+                "Un taux de TVA explicite est obligatoire pour une entreprise assujettie.".into(),
+            ));
+            0
+        }
+        (false, None | Some(0)) => 0,
+        (false, Some(_)) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.vatRatesBp",
+                "Les taux de TVA",
+                "Le taux de TVA doit être 0 pour une entreprise non assujettie.".into(),
+            ));
+            0
+        }
+    };
+    if let Err(error) = validate_vat_identifier(
+        input.vat_registered,
+        input.uid_number.as_deref(),
+        input.vat_number.as_deref(),
+    ) {
+        issues.push(onboarding_issue(
+            1,
+            "organization.vatIdentifier",
+            "L’identifiant TVA",
+            validation_message(error),
+        ));
+    }
+    let iban = match normalize_and_validate_iban(input.iban.as_deref().unwrap_or("")) {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                2,
+                "billing.iban",
+                "L’IBAN",
+                validation_message(error),
+            ));
+            input
+                .iban
+                .as_deref()
+                .unwrap_or("")
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect::<String>()
+                .to_uppercase()
+        }
+    };
+    if !(1..=365).contains(&input.payment_terms_days) {
+        issues.push(onboarding_issue(
+            2,
+            "billing.paymentTermsDays",
+            "Le délai de paiement",
+            "Le délai de paiement doit être compris entre 1 et 365 jours.".into(),
+        ));
+    }
+    if !(1..=365).contains(&input.quote_validity_days) {
+        issues.push(onboarding_issue(
+            2,
+            "billing.quoteValidityDays",
+            "La validité des devis",
+            "La validité des devis doit être comprise entre 1 et 365 jours.".into(),
+        ));
+    }
+    if input.default_hourly_rate_cents < 0 {
+        issues.push(onboarding_issue(
+            3,
+            "work.defaultHourlyRateCents",
+            "Le coût horaire par défaut",
+            "default_hourly_rate_cents ne peut pas être négatif.".into(),
+        ));
+    }
+    let settings_rates_to_import = take_explicit_settings_rates(&mut extra_value);
+    if let Some(rates) = settings_rates_to_import.as_ref() {
+        issues.extend(explicit_settings_rate_issues(rates));
+    }
+    let extra_settings_json = match serde_json::to_string(&extra_value) {
+        Ok(value) => value,
+        Err(error) => {
+            issues.push(onboarding_issue(
+                5,
+                "backup.folder",
+                "La configuration locale",
+                error.to_string(),
+            ));
+            "{}".into()
+        }
+    };
+    if !issues.is_empty() {
+        return Err(issues);
+    }
+    Ok(PreparedOnboarding {
+        input,
+        company_name,
+        currency,
+        noga_section,
+        noga_division,
+        activity_description,
+        noga_detailed_code,
+        quote_prefix,
+        invoice_prefix,
+        credit_note_prefix,
+        quote_start_number,
+        invoice_start_number,
+        credit_note_start_number,
+        default_vat_bp,
+        iban,
+        settings_rates_to_import,
+        extra_settings_json,
+    })
+}
 
 impl LocalStore {
     pub fn initialize(data_dir: PathBuf) -> AppResult<Self> {
@@ -193,86 +496,52 @@ impl LocalStore {
         Ok(())
     }
 
+    pub fn validate_onboarding(&self, input: OnboardingInput) -> OnboardingValidation {
+        match prepare_onboarding(input) {
+            Ok(_) => OnboardingValidation {
+                valid: true,
+                issues: Vec::new(),
+            },
+            Err(issues) => OnboardingValidation {
+                valid: false,
+                issues,
+            },
+        }
+    }
+
     pub fn complete_onboarding(
         &self,
         input: OnboardingInput,
         app_version: &str,
-    ) -> AppResult<AppStateInfo> {
-        let company_name = required_text(&input.company_name, "company_name", 200)?;
-        let currency = normalized_code(&input.currency, "currency", 3, "CHF")?;
-        let noga_section = input.noga_section.trim().to_uppercase();
-        let noga_division = input.noga_division.trim().to_owned();
-        let activity_description =
-            required_text(&input.activity_description, "activity_description", 2_000)?;
-        let noga_detailed_code = clean_optional(input.noga_detailed_code.clone(), 6);
-        validate_activity_profile(
-            &noga_section,
-            &noga_division,
-            &activity_description,
-            noga_detailed_code.as_deref(),
-        )?;
-        let quote_prefix = normalized_prefix(&input.quote_prefix, "D")?;
-        let invoice_prefix = normalized_prefix(&input.invoice_prefix, "F")?;
-        let mut extra_value = parsed_json_object(input.extra_settings_json.clone())?;
-        let billing = extra_value.get("billing").and_then(Value::as_object);
-        let credit_note_prefix_raw = input
-            .credit_note_prefix
-            .as_deref()
-            .filter(|v| !v.trim().is_empty())
-            .or_else(|| {
-                billing
-                    .and_then(|v| v.get("creditNotePrefix"))
-                    .and_then(Value::as_str)
-            })
-            .unwrap_or("A");
-        let credit_note_prefix = normalized_prefix(credit_note_prefix_raw, "A")?;
-        let quote_start_number =
-            explicit_start_number(input.quote_start_number, billing, "nextQuoteNumber")?;
-        let invoice_start_number =
-            explicit_start_number(input.invoice_start_number, billing, "nextInvoiceNumber")?;
-        let credit_note_start_number = explicit_start_number(
-            input.credit_note_start_number,
-            billing,
-            "nextCreditNoteNumber",
-        )?;
-        let default_vat_bp = match (input.vat_registered, input.default_vat_bp) {
-            (true, Some(value)) if (1..=10_000).contains(&value) => value,
-            (true, _) => {
-                return Err(AppError::Validation(
-                    "Un taux de TVA explicite est obligatoire pour une entreprise assujettie."
-                        .into(),
-                ))
-            }
-            (false, None | Some(0)) => 0,
-            (false, Some(_)) => {
-                return Err(AppError::Validation(
-                    "Le taux de TVA doit être 0 pour une entreprise non assujettie.".into(),
-                ))
-            }
-        };
-        validate_vat_identifier(
-            input.vat_registered,
-            input.uid_number.as_deref(),
-            input.vat_number.as_deref(),
-        )?;
-        let iban = normalize_and_validate_iban(input.iban.as_deref().unwrap_or(""))?;
-        if !(0..=365).contains(&input.payment_terms_days) {
-            return Err(AppError::Validation(
-                "payment_terms_days doit être compris entre 0 et 365.".into(),
-            ));
-        }
-        if !(0..=365).contains(&input.quote_validity_days) {
-            return Err(AppError::Validation(
-                "quote_validity_days doit être compris entre 0 et 365.".into(),
-            ));
-        }
-        if input.default_hourly_rate_cents < 0 {
-            return Err(AppError::Validation(
-                "default_hourly_rate_cents ne peut pas être négatif.".into(),
-            ));
-        }
-        let settings_rates_to_import = take_explicit_settings_rates(&mut extra_value);
-        let extra_settings_json = serde_json::to_string(&extra_value)?;
+    ) -> AppResult<CompleteOnboardingResult> {
+        let prepared = prepare_onboarding(input).map_err(|issues| {
+            AppError::Validation(
+                issues
+                    .into_iter()
+                    .map(|issue| issue.message)
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+        })?;
+        let PreparedOnboarding {
+            input,
+            company_name,
+            currency,
+            noga_section,
+            noga_division,
+            activity_description,
+            noga_detailed_code,
+            quote_prefix,
+            invoice_prefix,
+            credit_note_prefix,
+            quote_start_number,
+            invoice_start_number,
+            credit_note_start_number,
+            default_vat_bp,
+            iban,
+            settings_rates_to_import,
+            extra_settings_json,
+        } = prepared;
         let now = now_iso();
         let mut connection = self.connect()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -353,144 +622,156 @@ impl LocalStore {
         if let Some(rates) = settings_rates_to_import.as_ref() {
             import_explicit_settings_rates(&transaction, rates)?;
         }
+        let workspace = self.workspace_from_connection(&transaction)?;
+        let app_state = AppStateInfo {
+            onboarding_completed: true,
+            activity_profile_required: false,
+            data_dir: self.data_dir.to_string_lossy().into_owned(),
+            database_path: self.database_path.to_string_lossy().into_owned(),
+            app_version: app_version.to_owned(),
+        };
         transaction.commit()?;
-        self.app_state(app_version)
+        Ok(CompleteOnboardingResult {
+            app_state,
+            workspace,
+        })
     }
 
     pub fn get_workspace(&self) -> AppResult<Value> {
         let connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let settings = query_optional(&connection, "SELECT * FROM settings WHERE id = 1", [])?;
+        self.workspace_from_connection(&connection)
+    }
+
+    fn workspace_from_connection(&self, connection: &Connection) -> AppResult<Value> {
+        self.require_onboarding(connection)?;
+        let settings = query_optional(connection, "SELECT * FROM settings WHERE id = 1", [])?;
         let clients = query_all(
-            &connection,
+            connection,
             "SELECT * FROM clients ORDER BY name, created_at",
             [],
         )?;
         let projects = query_all(
-            &connection,
+            connection,
             "SELECT * FROM projects ORDER BY CASE status WHEN 'en_cours' THEN 0 WHEN 'planifie' THEN 1 ELSE 2 END, COALESCE(planned_start_date, created_at) DESC",
             [],
         )?;
         let quotes = query_all(
-            &connection,
+            connection,
             "SELECT * FROM quotes ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
             [],
         )?;
         let quote_items = query_all(
-            &connection,
+            connection,
             "SELECT * FROM quote_items ORDER BY quote_id, position, created_at",
             [],
         )?;
         let invoices = query_all(
-            &connection,
+            connection,
             "SELECT * FROM invoices ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
             [],
         )?;
         let invoice_items = query_all(
-            &connection,
+            connection,
             "SELECT * FROM invoice_items ORDER BY invoice_id, position, created_at",
             [],
         )?;
         let invoice_qr_bills = query_all(
-            &connection,
+            connection,
             "SELECT * FROM invoice_qr_bills ORDER BY created_at,invoice_id",
             [],
         )?;
         let employees = query_all(
-            &connection,
+            connection,
             "SELECT * FROM employees ORDER BY name, created_at",
             [],
         )?;
         let time_entries = query_all(
-            &connection,
+            connection,
             "SELECT * FROM time_entries ORDER BY date DESC, created_at DESC",
             [],
         )?;
         let expenses = query_all(
-            &connection,
+            connection,
             "SELECT * FROM expenses ORDER BY date DESC, created_at DESC",
             [],
         )?;
         let payslips = query_all(
-            &connection,
+            connection,
             "SELECT * FROM payslips ORDER BY period DESC, created_at DESC",
             [],
         )?;
         let payslip_items = query_all(
-            &connection,
+            connection,
             "SELECT * FROM payslip_items ORDER BY payslip_id, position, created_at",
             [],
         )?;
         let payments = query_all(
-            &connection,
+            connection,
             "SELECT * FROM payments ORDER BY date DESC, created_at DESC",
             [],
         )?;
         let attachments = query_all(
-            &connection,
+            connection,
             "SELECT * FROM attachments ORDER BY created_at DESC",
             [],
         )?;
         let active_timer =
-            query_optional(&connection, "SELECT * FROM active_timers WHERE id = 1", [])?;
-        let accounts = query_all(&connection, "SELECT * FROM accounts ORDER BY code", [])?;
+            query_optional(connection, "SELECT * FROM active_timers WHERE id = 1", [])?;
+        let accounts = query_all(connection, "SELECT * FROM accounts ORDER BY code", [])?;
         let accounting_settings = query_optional(
-            &connection,
+            connection,
             "SELECT * FROM accounting_settings WHERE id=1",
             [],
         )?;
         let accounting_periods = query_all(
-            &connection,
+            connection,
             "SELECT * FROM accounting_periods ORDER BY date_from",
             [],
         )?;
         let journal_entries = query_all(
-            &connection,
+            connection,
             "SELECT * FROM journal_entries ORDER BY entry_date,number",
             [],
         )?;
         let journal_lines = query_all(
-            &connection,
+            connection,
             "SELECT * FROM journal_lines ORDER BY journal_entry_id,rowid",
             [],
         )?;
-        let reminder_settings = query_optional(
-            &connection,
-            "SELECT * FROM reminder_settings WHERE id=1",
-            [],
-        )?;
+        let reminder_settings =
+            query_optional(connection, "SELECT * FROM reminder_settings WHERE id=1", [])?;
         let reminder_templates = query_all(
-            &connection,
+            connection,
             "SELECT * FROM reminder_templates ORDER BY level",
             [],
         )?;
         let reminders = query_all(
-            &connection,
+            connection,
             "SELECT * FROM reminders ORDER BY scheduled_date,level",
             [],
         )?;
         let reminder_history = query_all(
-            &connection,
+            connection,
             "SELECT * FROM reminder_history ORDER BY occurred_at,rowid",
             [],
         )?;
         let payroll_contribution_definitions = query_all(
-            &connection,
+            connection,
             "SELECT * FROM payroll_contribution_definitions ORDER BY code,effective_from",
             [],
         )?;
         let payslip_contributions = query_all(
-            &connection,
+            connection,
             "SELECT * FROM payslip_contributions ORDER BY payslip_id,rowid",
             [],
         )?;
         let quote_conversions = query_all(
-            &connection,
+            connection,
             "SELECT * FROM quote_conversions ORDER BY created_at",
             [],
         )?;
         let audit_log = query_all(
-            &connection,
+            connection,
             "SELECT * FROM audit_log ORDER BY occurred_at,rowid",
             [],
         )?;

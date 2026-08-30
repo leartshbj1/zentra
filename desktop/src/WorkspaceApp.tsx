@@ -248,10 +248,9 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
       <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
         <div className="sidebar__brand"><BrandMark size={36} /><div><strong>Elyko</strong><small>Gestion locale</small></div><Button variant="ghost" size="icon" className="sidebar__close" onClick={() => setMenuOpen(false)}><X size={18} /></Button></div>
         <nav className="sidebar__nav">
-          {navigation.map((item, index) => { const Icon = item.id === 'projects' && terminology.icon === 'hard-hat' ? HardHat : item.icon; const label = item.id === 'projects' ? `${terminology.moduleLabel} · ${terminology.pluralTitle}` : item.label; return <div key={item.id}>{item.group ? <p>{item.group}</p> : null}<button className={view === item.id ? 'is-active' : ''} onClick={() => { setView(item.id); setSearch(''); setMenuOpen(false); }}><Icon size={17} /><span>{label}</span>{item.id === 'invoices' && overdue.length ? <em>{overdue.length}</em> : null}</button>{index === 2 ? <div className="sidebar__divider" /> : null}</div>; })}
+          {navigation.map((item, index) => { const Icon = item.id === 'projects' && terminology.icon === 'hard-hat' ? HardHat : item.icon; const label = item.id === 'projects' ? `${terminology.moduleLabel} · ${terminology.pluralTitle}` : item.label; return <div key={item.id}>{item.group ? <p>{item.group}</p> : null}<button aria-current={view === item.id ? 'page' : undefined} className={view === item.id ? 'is-active' : ''} onClick={() => { setView(item.id); setSearch(''); setMenuOpen(false); }}><Icon size={17} /><span>{label}</span>{item.id === 'invoices' && overdue.length ? <em>{overdue.length}</em> : null}</button>{index === 2 ? <div className="sidebar__divider" /> : null}</div>; })}
         </nav>
         <div className="sidebar__local"><ShieldCheck size={17} /><div><strong>Données locales</strong><span>Sur cet ordinateur</span></div><i /></div>
-        <div className="sidebar__plan"><span>Abonnement</span><strong>50 CHF <small>/ mois</small></strong><p>Vos données restent accessibles et exportables.</p></div>
       </aside>
 
       <main className="app-main">
@@ -265,7 +264,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
         <div className="page-header"><div>{view === 'projects' ? <small className="module-kicker">Module Chantiers / projets</small> : null}<p>{title[1]}</p></div><div className="page-header__actions">{view === 'dashboard' ? <Button variant="secondary" onClick={() => setModal({ type: 'timer' })}><Play size={16} /> Démarrer un pointage</Button> : null}{view !== 'settings' && view !== 'reports' && view !== 'dashboard' ? <CreateButton view={view} onClick={setModal} terminology={terminology} /> : null}</div></div>
         {notice ? <div className={`notice notice--${notice.tone}`}><span>{notice.tone === 'success' ? <CheckCircle2 size={18} /> : <ShieldCheck size={18} />}{notice.text}</span><button onClick={() => setNotice(null)}><X size={15} /></button></div> : null}
 
-        <section className="page-content">
+        <section className="page-content" key={view}>
           {view === 'dashboard' ? <Dashboard workspace={workspace} onNavigate={setView} onCreate={setModal} /> : null}
           {view === 'projects' ? <ProjectsScreen workspace={workspace} query={search} onEdit={(item) => setModal({ type: 'project', item })} onCreate={() => setModal({ type: 'project' })} onArchive={(item) => void archive('projects', item.id, item.name)} /> : null}
           {view === 'clients' ? <ClientsScreen workspace={workspace} query={search} onEdit={(item) => setModal({ type: 'client', item })} onCreate={() => setModal({ type: 'client' })} onArchive={(item) => void archive('clients', item.id, item.company || item.name)} /> : null}

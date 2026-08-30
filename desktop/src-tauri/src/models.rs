@@ -10,6 +10,26 @@ pub struct AppStateInfo {
     pub app_version: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OnboardingIssue {
+    pub step: u8,
+    pub field: String,
+    pub label: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OnboardingValidation {
+    pub valid: bool,
+    pub issues: Vec<OnboardingIssue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompleteOnboardingResult {
+    pub app_state: AppStateInfo,
+    pub workspace: Value,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnboardingInput {
     pub company_name: String,
