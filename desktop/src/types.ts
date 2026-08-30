@@ -328,6 +328,7 @@ export type Expense = {
   date: string;
   supplier: string;
   category: string;
+  reference: string;
   netCents: number;
   vatCents: number;
   totalCents: number;

@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "db:generate": "drizzle-kit generate",
-    "lint": "oxlint app lib components/ui/button.tsx",
+    "lint": "oxlint app lib components/purchase-button.tsx components/license-delivery.tsx components/scroll-experience.tsx components/ui/button.tsx",
     "format": "oxfmt"
   },
   "dependencies": {

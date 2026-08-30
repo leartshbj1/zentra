@@ -183,7 +183,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           href="/telecharger"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#e7a33a] px-4 text-sm font-semibold text-[#173d2c]"
         >
-          <Download className="size-4" /> Télécharger le .exe
+          <Download className="size-4" /> Télécharger Elyko
         </a>
         <button
           type="button"

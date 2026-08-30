@@ -160,23 +160,26 @@ export default function Home() {
               'h-11 rounded-full bg-[#173d2c] px-4 text-white hover:bg-[#24563f] sm:px-5',
             )}
           >
-            Télécharger <FileDown className="size-4" />
+            Télécharger Elyko <FileDown className="size-4" />
           </a>
         </div>
         <nav
-          className="horizontal-rail mx-auto flex max-w-7xl snap-x gap-1 overflow-x-auto px-4 pb-2 md:hidden"
+          className="mx-auto grid max-w-7xl grid-cols-4 gap-1 px-4 pb-2 md:hidden"
           aria-label="Navigation mobile"
         >
           {[
             ['#fonctionnalites', 'Fonctions'],
             ['#secteurs', 'Secteurs'],
-            ['#confidentialite', 'Données locales'],
+            ['#confidentialite', 'Données'],
             ['#tarif', 'Tarif'],
           ].map(([href, label]) => (
             <a
               key={href}
               href={href}
-              className="flex min-h-11 shrink-0 snap-start items-center rounded-full border border-[#d8d3c8] bg-white/75 px-4 text-xs font-semibold text-[#405047]"
+              aria-label={
+                href === '#confidentialite' ? 'Données locales' : undefined
+              }
+              className="flex min-h-11 min-w-0 items-center justify-center rounded-full border border-[#d8d3c8] bg-white/75 px-1 text-center text-[11px] font-semibold text-[#405047]"
             >
               {label}
             </a>
@@ -214,7 +217,7 @@ export default function Home() {
                 'h-12 rounded-full bg-[#e79b2f] px-6 text-[#1f281f] shadow-[0_10px_30px_rgba(201,117,21,.2)] hover:bg-[#f1aa42]',
               )}
             >
-              Télécharger le .exe <ArrowRight className="size-4" />
+              Télécharger Elyko <ArrowRight className="size-4" />
             </a>
             <a
               href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Elyko"
@@ -238,7 +241,10 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="relative">
+        <span className="sr-only">
+          Aperçu statique du questionnaire de premier démarrage dans Elyko
+        </span>
+        <div className="relative" aria-hidden="true">
           <div className="absolute -inset-16 -z-10 rounded-full bg-[#e6c988]/35 blur-3xl" />
           <div className="hero-float overflow-hidden rounded-[28px] border border-black/10 bg-[#fffdf8] shadow-[0_35px_90px_rgba(35,45,38,.16)]">
             <div className="flex items-center justify-between border-b border-[#e6e2d8] px-5 py-4">
@@ -693,7 +699,7 @@ export default function Home() {
                 <h3 className="mt-6 text-2xl font-semibold tracking-tight">
                   Une vraie application `.exe`.
                 </h3>
-                <p className="mt-4 text-sm leading-6 text-white/55">
+                <p className="mt-4 text-sm leading-6 text-white/75">
                   Payez sur la page sécurisée Stripe, téléchargez l’installateur
                   puis liez la licence signée à votre PC. Vos données métier ne
                   quittent pas l’ordinateur.
@@ -705,8 +711,7 @@ export default function Home() {
                   href="/telecharger"
                   className="flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 text-center text-sm font-semibold leading-5 text-white"
                 >
-                  Télécharger pour Windows{' '}
-                  <FileDown className="size-4 shrink-0" />
+                  Télécharger Elyko <FileDown className="size-4 shrink-0" />
                 </a>
                 <a
                   href="mailto:leartshabija@gmail.com?subject=Activer%20Elyko"
@@ -799,7 +804,7 @@ export default function Home() {
               href="/telecharger"
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
             >
-              Télécharger le .exe <ArrowRight className="size-4" />
+              Télécharger Elyko <ArrowRight className="size-4" />
             </a>
             <a
               href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Elyko"

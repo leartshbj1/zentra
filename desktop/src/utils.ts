@@ -64,6 +64,35 @@ export function invoicePaid(invoiceId: string, payments: Payment[]): number {
     .reduce((total, payment) => total + payment.amountCents, 0);
 }
 
+export function invoiceCredited(invoiceId: string, invoices: Invoice[]): number {
+  return invoices
+    .filter(
+      (invoice) =>
+        invoice.type === 'credit_note' &&
+        invoice.originalInvoiceId === invoiceId &&
+        invoice.status !== 'draft' &&
+        invoice.status !== 'cancelled',
+    )
+    .reduce(
+      (total, invoice) =>
+        total + Math.max(0, -documentTotals(invoice.lines).totalCents),
+      0,
+    );
+}
+
+export function invoiceOpenBalance(
+  invoice: Invoice,
+  invoices: Invoice[],
+  payments: Payment[],
+): number {
+  return Math.max(
+    0,
+    documentTotals(invoice.lines).totalCents -
+      invoicePaid(invoice.id, payments) -
+      invoiceCredited(invoice.id, invoices),
+  );
+}
+
 export function payslipTotals(payslip: Payslip) {
   const earnings = payslip.lines
     .filter((line) => line.kind === 'earning')
@@ -136,4 +165,3 @@ export function searchText(values: Array<string | null | undefined>, query: stri
 export function countDocuments(quotes: Quote[], invoices: Invoice[]): number {
   return quotes.length + invoices.length;
 }
-

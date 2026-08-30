@@ -639,10 +639,10 @@ fn calculate(
                 def.code
             )));
         }
-        let mut basis = match selection.basis_cents {
-            Some(v) => v,
-            None if matches!(def.basis_kind.as_str(), "gross" | "ahv_salary") => gross,
-            None => {
+        let mut basis = match (def.basis_kind.as_str(), selection.basis_cents) {
+            ("gross", _) => gross,
+            (_, Some(value)) => value,
+            (_, None) => {
                 return Err(AppError::Validation(format!(
                     "basis_cents doit être explicite pour {}.",
                     def.code

@@ -1139,6 +1139,45 @@ mod tests {
             .unwrap();
         assert_eq!(credit["number"], "NC-2026-0030");
         assert_eq!(credit["total_cents"], -2500);
+        let original_status: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(original_status, "emise");
+        let excessive_payment = store.record_payment(RecordPaymentInput {
+            invoice_id: invoice_id.clone(),
+            amount_cents: 7501,
+            date: Some("2026-03-03".into()),
+            method: Some("bank".into()),
+            reference: None,
+            notes: None,
+        });
+        assert!(excessive_payment.unwrap_err().to_string().contains("solde"));
+        store
+            .record_payment(RecordPaymentInput {
+                invoice_id: invoice_id.clone(),
+                amount_cents: 7500,
+                date: Some("2026-03-03".into()),
+                method: Some("bank".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let settled: (i64, String) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT paid_cents,status FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(settled, (7500, "payee".into()));
         let other_client_id = value_id(
             &store
                 .create_record("clients", json!({"name":"Autre client"}))
@@ -1519,7 +1558,7 @@ mod tests {
         assert!(missing.is_err());
         let selection = ContributionSelectionInput {
             definition_id: definition_id.clone(),
-            basis_cents: None,
+            basis_cents: Some(500000),
             year_to_date_basis_cents: Some(14_700_000),
         };
         let calculated = store
@@ -1561,6 +1600,85 @@ mod tests {
             frozen[0]["source"],
             "https://www.bsv.admin.ch/fr/cotisations-apercu"
         );
+    }
+
+    #[test]
+    fn gross_payroll_basis_always_tracks_current_gross() {
+        let (_temporary, store) = initialized_store();
+        let gross_definition = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "GROSS_SYNC".into(),
+                label: "Base brute synchronisée".into(),
+                category: "other".into(),
+                side: "employee".into(),
+                calculation_kind: "rate".into(),
+                rate_bp: Some(500),
+                fixed_amount_cents: None,
+                annual_ceiling_cents: None,
+                basis_kind: "gross".into(),
+                source: "Test local".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: None,
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        let custom_definition = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "CUSTOM_BASE".into(),
+                label: "Base personnalisée".into(),
+                category: "other".into(),
+                side: "employer".into(),
+                calculation_kind: "rate".into(),
+                rate_bp: Some(700),
+                fixed_amount_cents: None,
+                annual_ceiling_cents: None,
+                basis_kind: "custom".into(),
+                source: "Test local".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: None,
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        let gross_id = value_id(&gross_definition);
+        let custom_id = value_id(&custom_definition);
+        let selections = vec![
+            ContributionSelectionInput {
+                definition_id: gross_id,
+                basis_cents: Some(400_000),
+                year_to_date_basis_cents: None,
+            },
+            ContributionSelectionInput {
+                definition_id: custom_id,
+                basis_cents: Some(400_000),
+                year_to_date_basis_cents: None,
+            },
+        ];
+        let first = store
+            .calculate_payroll_contributions(CalculatePayrollInput {
+                period: "2026-08".into(),
+                gross_cents: 500_000,
+                items: selections.clone(),
+            })
+            .unwrap();
+        assert_eq!(first["items"][0]["basis_cents"], 500_000);
+        assert_eq!(first["items"][0]["amount_cents"], 25_000);
+        assert_eq!(first["items"][1]["basis_cents"], 400_000);
+        assert_eq!(first["items"][1]["amount_cents"], 28_000);
+        let second = store
+            .calculate_payroll_contributions(CalculatePayrollInput {
+                period: "2026-08".into(),
+                gross_cents: 700_000,
+                items: selections,
+            })
+            .unwrap();
+        assert_eq!(second["items"][0]["basis_cents"], 700_000);
+        assert_eq!(second["items"][0]["amount_cents"], 35_000);
     }
 
     #[test]

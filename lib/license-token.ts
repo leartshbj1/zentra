@@ -1,7 +1,14 @@
 import { database, stripeConfiguration } from '@/lib/runtime';
-import { base64Url, fromBase64Url, LICENSE_PLAN, LICENSE_PRICE_CHF_CENTS, PublicError } from '@/lib/stripe';
+import {
+  base64Url,
+  fromBase64Url,
+  LICENSE_PLAN,
+  LICENSE_PRICE_CHF_CENTS,
+  PublicError,
+} from '@/lib/stripe';
 
-const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INSTALLATION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type LicensePayload = {
   token_version: 2;
@@ -23,10 +30,22 @@ function isoDate(seconds: number) {
 
 async function signPayload(payload: LicensePayload) {
   const { signingKey } = stripeConfiguration();
-  if (!signingKey) throw new PublicError('La signature des licences n’est pas configurée.', 503);
-  const key = await crypto.subtle.importKey('pkcs8', fromBase64Url(signingKey), { name: 'Ed25519' }, false, ['sign']);
+  if (!signingKey)
+    throw new PublicError(
+      'La signature des licences n’est pas configurée.',
+      503,
+    );
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    fromBase64Url(signingKey),
+    { name: 'Ed25519' },
+    false,
+    ['sign'],
+  );
   const encoded = base64Url(new TextEncoder().encode(JSON.stringify(payload)));
-  const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', key, new TextEncoder().encode(encoded)));
+  const signature = new Uint8Array(
+    await crypto.subtle.sign('Ed25519', key, new TextEncoder().encode(encoded)),
+  );
   return `${encoded}.${base64Url(signature)}`;
 }
 
@@ -36,15 +55,23 @@ export async function issueLicense(input: {
   customerName: string | null;
   periodEnd: number;
 }) {
-  if (!INSTALLATION_ID.test(input.installationId)) throw new PublicError('Identifiant d’installation invalide. Recopiez celui affiché dans l’application.');
+  if (!INSTALLATION_ID.test(input.installationId))
+    throw new PublicError(
+      'Identifiant d’installation invalide. Recopiez celui affiché dans l’application.',
+    );
   const db = database();
   const now = Math.floor(Date.now() / 1000);
   const existing = await db
-    .prepare('SELECT license_id,installation_id FROM license_activations WHERE subscription_id=? LIMIT 1')
+    .prepare(
+      'SELECT license_id,installation_id FROM license_activations WHERE subscription_id=? LIMIT 1',
+    )
     .bind(input.subscriptionId)
     .first<{ license_id: string; installation_id: string }>();
   if (existing && existing.installation_id !== input.installationId) {
-    throw new PublicError('Cette licence est déjà liée à une autre installation. Contactez le support pour transférer la licence.', 409);
+    throw new PublicError(
+      'Cette licence est déjà liée à une autre installation. Contactez le support pour transférer la licence.',
+      409,
+    );
   }
   const licenseId = existing?.license_id ?? `lic_${crypto.randomUUID()}`;
   await db
@@ -64,6 +91,29 @@ export async function issueLicense(input: {
     issued_at: new Date().toISOString(),
     valid_from: isoDate(now - 86_400),
     valid_until: isoDate(input.periodEnd + 3 * 86_400),
+  };
+  return { token: await signPayload(payload), payload };
+}
+
+export async function issueOwnerTestLicense(installationId: string) {
+  if (!INSTALLATION_ID.test(installationId)) {
+    throw new PublicError(
+      'Identifiant d’installation invalide. Recopiez celui affiché dans l’application.',
+    );
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const payload: LicensePayload = {
+    token_version: 2,
+    license_id: `lic_owner_${crypto.randomUUID()}`,
+    installation_id: installationId,
+    jti: crypto.randomUUID(),
+    kid: 'hc-prod-v1',
+    customer_name: 'Propriétaire Elyko · essai privé',
+    plan: LICENSE_PLAN,
+    price_chf_cents: LICENSE_PRICE_CHF_CENTS,
+    issued_at: new Date().toISOString(),
+    valid_from: isoDate(now - 86_400),
+    valid_until: isoDate(now + 7 * 86_400),
   };
   return { token: await signPayload(payload), payload };
 }

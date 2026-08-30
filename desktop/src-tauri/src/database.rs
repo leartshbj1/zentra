@@ -1213,6 +1213,7 @@ impl LocalStore {
         let record = query_record_tx(&transaction, "invoices", id)?;
         let journal = post_invoice_if_enabled(&transaction, id)?;
         if let Some(original) = original_invoice_id.as_deref() {
+            refresh_invoice_payment_state(&transaction, original)?;
             cancel_settled_reminders(&transaction, original)?;
         }
         append_audit(
@@ -1386,12 +1387,17 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (total_cents, paid_cents, invoice_type, number): (i64, i64, String, Option<String>) =
-            transaction
+        let (total_cents, paid_cents, credited_cents, invoice_type, number): (
+            i64,
+            i64,
+            i64,
+            String,
+            Option<String>,
+        ) = transaction
                 .query_row(
-                    "SELECT total_cents, paid_cents,type,number FROM invoices WHERE id = ?",
+                    "SELECT i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.number FROM invoices i WHERE i.id = ?",
                     params![input.invoice_id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
                 )
                 .optional()?
                 .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
@@ -1410,7 +1416,11 @@ impl LocalStore {
                 "Cette facture ne possède aucun montant payable.".into(),
             ));
         }
-        if paid_cents.saturating_add(input.amount_cents) > total_cents {
+        if paid_cents
+            .saturating_add(credited_cents)
+            .saturating_add(input.amount_cents)
+            > total_cents
+        {
             return Err(AppError::Validation(
                 "Le paiement dépasse le solde restant de la facture.".into(),
             ));
@@ -2548,14 +2558,15 @@ fn recompute_payslip(transaction: &Transaction<'_>, payslip_id: &str) -> AppResu
 }
 
 fn refresh_invoice_payment_state(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
-    let paid: i64 = transaction.query_row(
-        "SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE invoice_id = ?",
+    let (paid, credited): (i64, i64) = transaction.query_row(
+        "SELECT COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0) FROM invoices i WHERE i.id=?",
         params![invoice_id],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
+    let settled = paid.saturating_add(credited);
     transaction.execute(
         "UPDATE invoices SET paid_cents=?, status=CASE WHEN status='annulee' THEN status WHEN ? >= total_cents AND total_cents > 0 THEN 'payee' WHEN ? > 0 THEN 'partiellement_payee' WHEN number IS NOT NULL THEN 'emise' ELSE 'brouillon' END, updated_at=? WHERE id=?",
-        params![paid, paid, paid, now_iso(), invoice_id],
+        params![paid, settled, paid, now_iso(), invoice_id],
     )?;
     Ok(())
 }

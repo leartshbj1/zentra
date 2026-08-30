@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleAlert,
   FileText,
@@ -200,6 +193,7 @@ function buildSpcPayload(input: {
 }
 
 function Field({
+  id,
   label,
   value,
   onChange,
@@ -209,6 +203,7 @@ function Field({
   invalid = false,
   maxLength,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -218,7 +213,6 @@ function Field({
   invalid?: boolean;
   maxLength?: number;
 }) {
-  const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   return (
     <label
@@ -252,11 +246,13 @@ function Field({
 }
 
 function PartyFields({
+  idPrefix,
   title,
   party,
   onChange,
   showUid,
 }: {
+  idPrefix: string;
   title: string;
   party: Party;
   onChange: (party: Party) => void;
@@ -269,6 +265,7 @@ function PartyFields({
       <legend className="px-2 text-sm font-semibold">{title}</legend>
       <div className="mt-2 grid gap-4 sm:grid-cols-2">
         <Field
+          id={`${idPrefix}-name`}
           label="Nom légal"
           value={party.name}
           onChange={(value) => set('name', value)}
@@ -278,6 +275,7 @@ function PartyFields({
         />
         {showUid ? (
           <Field
+            id={`${idPrefix}-uid`}
             label="IDE / numéro TVA"
             value={party.uid}
             onChange={(value) => set('uid', value)}
@@ -287,18 +285,21 @@ function PartyFields({
           />
         ) : null}
         <Field
+          id={`${idPrefix}-street`}
           label="Rue"
           value={party.street}
           onChange={(value) => set('street', value)}
           maxLength={70}
         />
         <Field
+          id={`${idPrefix}-building`}
           label="Numéro"
           value={party.building}
           onChange={(value) => set('building', value)}
           maxLength={16}
         />
         <Field
+          id={`${idPrefix}-postal-code`}
           label="NPA"
           value={party.postalCode}
           onChange={(value) => set('postalCode', value)}
@@ -307,6 +308,7 @@ function PartyFields({
           maxLength={16}
         />
         <Field
+          id={`${idPrefix}-city`}
           label="Localité"
           value={party.city}
           onChange={(value) => set('city', value)}
@@ -315,6 +317,7 @@ function PartyFields({
           maxLength={35}
         />
         <Field
+          id={`${idPrefix}-country`}
           label="Pays (ISO, 2 lettres)"
           value={party.country}
           onChange={(value) => set('country', value.toUpperCase().slice(0, 2))}
@@ -631,18 +634,25 @@ export function InvoiceDemo() {
         </div>
         <div className="mt-6 space-y-5">
           <PartyFields
+            idPrefix="supplier"
             title="Émetteur"
             party={supplier}
             onChange={setSupplier}
             showUid
           />
-          <PartyFields title="Client" party={customer} onChange={setCustomer} />
+          <PartyFields
+            idPrefix="customer"
+            title="Client"
+            party={customer}
+            onChange={setCustomer}
+          />
           <fieldset className="min-w-0 rounded-2xl border border-[#ddd8cd] p-4 sm:p-5">
             <legend className="px-2 text-sm font-semibold">
               Document et paiement
             </legend>
             <div className="mt-2 grid gap-4 sm:grid-cols-2">
               <Field
+                id="invoice-number"
                 label="Numéro de facture"
                 value={invoice.number}
                 onChange={(value) => updateInvoice('number', value)}
@@ -651,6 +661,7 @@ export function InvoiceDemo() {
                 maxLength={40}
               />
               <Field
+                id="invoice-issue-date"
                 label="Date d’émission"
                 type="date"
                 value={invoice.issueDate}
@@ -659,6 +670,7 @@ export function InvoiceDemo() {
                 invalid={!invoice.issueDate}
               />
               <Field
+                id="invoice-service-period"
                 label="Date / période de prestation"
                 value={invoice.servicePeriod}
                 onChange={(value) => updateInvoice('servicePeriod', value)}
@@ -667,6 +679,7 @@ export function InvoiceDemo() {
                 maxLength={60}
               />
               <Field
+                id="invoice-due-date"
                 label="Échéance"
                 type="date"
                 value={invoice.dueDate}
@@ -681,6 +694,7 @@ export function InvoiceDemo() {
               />
               <div className="sm:col-span-2">
                 <Field
+                  id="invoice-iban"
                   label="IBAN de paiement"
                   value={invoice.iban}
                   onChange={(value) => updateInvoice('iban', value)}
@@ -731,6 +745,7 @@ export function InvoiceDemo() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="sm:col-span-2">
                       <Field
+                        id={`${line.id}-description`}
                         label="Description"
                         value={line.description}
                         onChange={(value) =>
@@ -742,6 +757,7 @@ export function InvoiceDemo() {
                       />
                     </div>
                     <Field
+                      id={`${line.id}-quantity`}
                       label="Quantité"
                       type="number"
                       value={line.quantity}
@@ -755,12 +771,14 @@ export function InvoiceDemo() {
                       }
                     />
                     <Field
+                      id={`${line.id}-unit`}
                       label="Unité"
                       value={line.unit}
                       onChange={(value) => updateLine(line.id, 'unit', value)}
                       maxLength={16}
                     />
                     <Field
+                      id={`${line.id}-unit-price`}
                       label="Prix unitaire CHF"
                       type="number"
                       value={line.unitPrice}
@@ -774,6 +792,7 @@ export function InvoiceDemo() {
                       }
                     />
                     <Field
+                      id={`${line.id}-vat-rate`}
                       label="TVA %"
                       type="number"
                       value={line.vatRate}

@@ -49,6 +49,26 @@ export function DetailedPayslipForm({ item, workspace, busy, close, act }: { ite
 
   const selectedItems = useMemo<PayrollContributionSelection[]>(() => Object.entries(selections).map(([definitionId, values]) => ({ definitionId, ...values })), [selections]);
 
+  useEffect(() => {
+    const grossDefinitionIds = new Set(
+      definitions
+        .filter((definition) => definition.basisKind === 'gross')
+        .map((definition) => definition.id),
+    );
+    if (!grossDefinitionIds.size) return;
+    setSelections((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const id of grossDefinitionIds) {
+        if (next[id] && next[id].basisCents !== totals.earnings) {
+          next[id] = { ...next[id], basisCents: totals.earnings };
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [definitions, totals.earnings]);
+
   function addLine(kind: PayslipLine['kind']) { setLines((current) => [...current, { id: createId(), label: '', kind, amountCents: 0 }]); setCalculation(null); }
   function updateLine(id: string, patch: Partial<PayslipLine>) { setLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line)); setCalculation(null); }
 
@@ -60,7 +80,14 @@ export function DetailedPayslipForm({ item, workspace, busy, close, act }: { ite
     });
   }
 
-  function patchSelection(id: string, patch: SelectionDraft) { setCalculation(null); setSelections((current) => ({ ...current, [id]: { ...current[id], ...patch } })); }
+  function patchSelection(id: string, patch: SelectionDraft) {
+    if (
+      definitions.find((definition) => definition.id === id)?.basisKind === 'gross' &&
+      Object.prototype.hasOwnProperty.call(patch, 'basisCents')
+    ) return;
+    setCalculation(null);
+    setSelections((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+  }
 
   async function calculate() {
     setLocalError('');
