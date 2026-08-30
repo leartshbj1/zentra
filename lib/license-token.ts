@@ -94,26 +94,3 @@ export async function issueLicense(input: {
   };
   return { token: await signPayload(payload), payload };
 }
-
-export async function issueOwnerTestLicense(installationId: string) {
-  if (!INSTALLATION_ID.test(installationId)) {
-    throw new PublicError(
-      'Identifiant d’installation invalide. Recopiez celui affiché dans l’application.',
-    );
-  }
-  const now = Math.floor(Date.now() / 1000);
-  const payload: LicensePayload = {
-    token_version: 2,
-    license_id: `lic_owner_${crypto.randomUUID()}`,
-    installation_id: installationId,
-    jti: crypto.randomUUID(),
-    kid: 'hc-prod-v1',
-    customer_name: 'Propriétaire Elyko · essai privé',
-    plan: LICENSE_PLAN,
-    price_chf_cents: LICENSE_PRICE_CHF_CENTS,
-    issued_at: new Date().toISOString(),
-    valid_from: isoDate(now - 86_400),
-    valid_until: isoDate(now + 7 * 86_400),
-  };
-  return { token: await signPayload(payload), payload };
-}
