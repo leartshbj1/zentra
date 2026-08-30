@@ -1,13 +1,13 @@
 {
   "name": "elyko-desktop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Application Windows locale de gestion d’entreprise multisectorielle Elyko",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build:web": "tsc --noEmit && vite build",
-    "build": "pnpm build:web && tauri build --bundles nsis",
+    "build": "pnpm build:web && tauri build --target x86_64-pc-windows-gnu --bundles nsis",
     "tauri": "tauri"
   },
   "dependencies": {

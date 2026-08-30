@@ -6,19 +6,32 @@ import { cn } from '@/lib/utils';
 
 type CheckoutStatus = { ready?: boolean; error?: string };
 
-export function PurchaseButton({ className, compact = false }: { className?: string; compact?: boolean }) {
+export function PurchaseButton({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const [ready, setReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    fetch('/api/stripe/status', { cache: 'no-store', credentials: 'same-origin' })
-      .then(async (response) => ({ response, body: (await response.json()) as CheckoutStatus }))
+    fetch('/api/stripe/status', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
+      .then(async (response) => ({
+        response,
+        body: (await response.json()) as CheckoutStatus,
+      }))
       .then(({ response, body }) => {
         if (!active) return;
         setReady(response.ok && body.ready === true);
-        if (!response.ok) setError('Le statut du paiement n’est pas disponible.');
+        if (!response.ok)
+          setError('Le statut du paiement n’est pas disponible.');
       })
       .catch(() => {
         if (active) {
@@ -42,10 +55,17 @@ export function PurchaseButton({ className, compact = false }: { className?: str
         body: '{}',
       });
       const body = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok || !body.url) throw new Error(body.error || 'Stripe n’a pas retourné de page de paiement.');
+      if (!response.ok || !body.url)
+        throw new Error(
+          body.error || 'Stripe n’a pas retourné de page de paiement.',
+        );
       window.location.assign(body.url);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Le paiement Stripe n’a pas pu démarrer.');
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Le paiement Stripe n’a pas pu démarrer.',
+      );
       setBusy(false);
     }
   }
@@ -68,16 +88,23 @@ export function PurchaseButton({ className, compact = false }: { className?: str
         onClick={() => void checkout()}
         disabled={busy || ready !== true}
         className={cn(
-          'flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#efaa3c] px-5 text-sm font-semibold text-[#173d2c] transition hover:bg-[#f4b857] disabled:cursor-not-allowed disabled:opacity-65',
+          'flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#efaa3c] px-5 py-3 text-center text-sm font-semibold leading-5 text-[#173d2c] transition-colors hover:bg-[#f4b857] disabled:cursor-not-allowed disabled:opacity-65',
           className,
         )}
       >
-        {busy || ready === null ? <LoaderCircle className="size-4 animate-spin" /> : ready ? <CreditCard className="size-4" /> : <ShieldCheck className="size-4" />}
+        {busy || ready === null ? (
+          <LoaderCircle className="size-4 animate-spin" />
+        ) : ready ? (
+          <CreditCard className="size-4" />
+        ) : (
+          <ShieldCheck className="size-4" />
+        )}
         {label}
       </button>
       {(error || unavailable) && (
         <output className="mt-2 block text-center text-xs leading-5 text-current opacity-70">
-          {error || 'Le site est publié, mais le compte marchand doit encore recevoir ses clés Stripe avant d’accepter un paiement.'}
+          {error ||
+            'Le site est publié, mais le compte marchand doit encore recevoir ses clés Stripe avant d’accepter un paiement.'}
         </output>
       )}
     </div>
