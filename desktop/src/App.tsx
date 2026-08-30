@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Copy, HardHat, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { Copy, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { BrandMark } from './BrandMark';
 import { desktopApi } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
 import { Onboarding } from './Onboarding';
@@ -34,8 +35,8 @@ export function App() {
   if (loading) {
     return (
       <main className="splash-screen">
-        <div className="splash-logo"><HardHat size={28} /></div>
-        <h1>HelviChantier</h1>
+        <div className="splash-logo"><BrandMark size={58} /></div>
+        <h1>Elyko</h1>
         <p>Ouverture de votre espace local sécurisé…</p>
         <LoaderCircle className="spin" size={22} />
       </main>
@@ -45,7 +46,7 @@ export function App() {
   if (error || !workspace) {
     return (
       <main className="fatal-screen">
-        <div className="splash-logo"><HardHat size={28} /></div>
+        <div className="splash-logo"><BrandMark size={58} /></div>
         <ErrorPanel message={error || 'Aucune donnée locale n’a été retournée.'} />
         <Button onClick={() => void load()}>Réessayer</Button>
       </main>

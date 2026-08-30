@@ -492,7 +492,7 @@ export const desktopApi = {
   async startTimer(data: Record<string, unknown>) { await invoke('start_timer', { input: toBackendData(data) }); return loadWorkspace(); },
   async stopTimer() { await invoke('stop_timer'); return loadWorkspace(); },
   async createBackup(destination?: string) { const path = await invoke<string>('create_backup', { destination }); return { workspace: await loadWorkspace(), path }; },
-  chooseRestoreFile: () => chooseFile({ multiple: false, directory: false, title: 'Choisir une sauvegarde HelviChantier', filters: [{ name: 'Sauvegarde HelviChantier', extensions: ['hchantier'] }] }),
+  chooseRestoreFile: () => chooseFile({ multiple: false, directory: false, title: 'Choisir une sauvegarde Elyko', filters: [{ name: 'Sauvegarde Elyko', extensions: ['elyko', 'hchantier'] }] }),
   async restoreBackup(source: string) { await invoke<AppState>('restore_backup', { source }); return loadWorkspace(); },
   async exportData(format: 'json' | 'csv') { if (format !== 'json') throw new Error('L’export CSV sera disponible depuis chaque liste.'); return { path: await invoke<string>('export_json', {}) }; },
   async printDocument(entity: 'quotes' | 'invoices' | 'payslips', id: string) { window.print(); return { entity, id }; },

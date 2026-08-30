@@ -1,4 +1,4 @@
-# Matrice de conformité suisse — HelviChantier
+# Matrice de conformité suisse — Elyko
 
 Cette matrice sert de base de recette. Elle ne remplace ni une certification Swissdec, ni la validation d’une fiduciaire, ni le contrôle du PDF QR par le portail SIX.
 

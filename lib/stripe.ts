@@ -119,7 +119,7 @@ export async function createCheckoutSession(origin: string, claimHash: string) {
       ['line_items[0][price_data][currency]', 'chf'],
       ['line_items[0][price_data][unit_amount]', String(LICENSE_PRICE_CHF_CENTS)],
       ['line_items[0][price_data][recurring][interval]', 'month'],
-      ['line_items[0][price_data][product_data][name]', 'HelviChantier'],
+      ['line_items[0][price_data][product_data][name]', 'Elyko'],
       ['line_items[0][price_data][product_data][description]', 'Licence Windows multisectorielle · données métier locales'],
       ['metadata[plan]', LICENSE_PLAN],
       ['metadata[activation_claim_hash]', claimHash],
@@ -164,7 +164,7 @@ export function validatePaidSubscription(session: StripeCheckoutSession, subscri
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') throw new PublicError('Le premier paiement n’est pas confirmé.', 402);
   if (!['active', 'trialing'].includes(subscription.status)) throw new PublicError('L’abonnement Stripe n’est pas actif.', 402);
   if (session.metadata?.plan !== LICENSE_PLAN || subscription.metadata?.plan !== LICENSE_PLAN) {
-    throw new PublicError('Cet abonnement ne correspond pas au produit HelviChantier.', 403);
+    throw new PublicError('Cet abonnement ne correspond pas au produit Elyko.', 403);
   }
   const item = subscription.items.data[0];
   if (
@@ -173,7 +173,7 @@ export function validatePaidSubscription(session: StripeCheckoutSession, subscri
     item.price.unit_amount !== LICENSE_PRICE_CHF_CENTS ||
     item.price.recurring?.interval !== 'month'
   ) {
-    throw new PublicError('L’abonnement ne correspond pas au plan HelviChantier à 50 CHF/mois.', 403);
+    throw new PublicError('L’abonnement ne correspond pas au plan Elyko à 50 CHF/mois.', 403);
   }
   if (!item.current_period_end) throw new PublicError('La période de licence Stripe est absente.', 502);
   return item;

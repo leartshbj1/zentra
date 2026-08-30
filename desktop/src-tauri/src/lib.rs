@@ -102,7 +102,7 @@ pub fn run() {
             open_data_folder,
         ])
         .run(tauri::generate_context!())
-        .expect("HelviChantier n'a pas pu démarrer");
+        .expect("Elyko n'a pas pu démarrer");
 }
 
 #[cfg(test)]
@@ -865,7 +865,7 @@ mod tests {
             .create_record("clients", json!({"name": "Client à sauvegarder"}))
             .expect("create client");
         let client_id = value_id(&client);
-        let backup_path = temporary.path().join("recette.hchantier");
+        let backup_path = temporary.path().join("recette.elyko");
         store
             .create_backup(Some(backup_path.to_string_lossy().into_owned()), "1.0.0")
             .expect("create backup");
@@ -1008,7 +1008,7 @@ mod tests {
         );
         assert!(trigger_rejects_update.is_err());
 
-        let backup_path = temporary.path().join("qr-frozen.hchantier");
+        let backup_path = temporary.path().join("qr-frozen.elyko");
         store
             .create_backup(Some(backup_path.to_string_lossy().into_owned()), "1.0.0")
             .unwrap();

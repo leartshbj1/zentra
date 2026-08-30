@@ -18,7 +18,7 @@ use crate::{
 
 const CH_2026_SOURCE: &str = "https://www.bsv.admin.ch/fr/cotisations-apercu";
 const SETTINGS_RATE_ID_PREFIX: &str = "settings-rate-";
-const SETTINGS_RATE_SOURCE: &str = "Questionnaire local HelviChantier (saisie client)";
+const SETTINGS_RATE_SOURCE: &str = "Questionnaire local Elyko (saisie client)";
 
 #[derive(Debug)]
 struct Definition {

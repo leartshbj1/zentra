@@ -10,7 +10,6 @@ import {
   Database,
   FileArchive,
   FolderOpen,
-  HardHat,
   LoaderCircle,
   LockKeyhole,
   Plus,
@@ -20,13 +19,14 @@ import {
   Users,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { BrandMark } from './BrandMark';
 import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
 import { createId } from './utils';
 import { Button, ErrorPanel, Field } from './ui';
 import { projectTerminology } from './terminology';
 
 const steps = [
-  { label: 'Départ', icon: HardHat },
+  { label: 'Départ', icon: BriefcaseBusiness },
   { label: 'Entreprise', icon: Building2 },
   { label: 'Facturation', icon: Banknote },
   { label: 'Temps & coûts', icon: Clock3 },
@@ -212,8 +212,8 @@ export function Onboarding({
     <div className="onboarding">
       <aside className="onboarding__rail">
         <div className="onboarding__brand">
-          <span><HardHat size={21} /></span>
-          <div><strong>HelviChantier</strong><small>Application Windows</small></div>
+          <BrandMark size={38} />
+          <div><strong>Elyko</strong><small>Application Windows</small></div>
         </div>
         <div className="onboarding__promise">
           <LockKeyhole size={22} />
@@ -283,7 +283,7 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
           <span><BriefcaseBusiness size={25} /></span><div><strong>Créer mon entreprise</strong><p>Configurer l’identité, la facturation, le temps, la paie et les sauvegardes.</p></div><ArrowRight size={20} />
         </button>
         <button className="setup-choice" onClick={onRestore} disabled={busy}>
-          <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>Reprendre une archive HelviChantier provenant d’un autre ordinateur.</p></div><FolderOpen size={20} />
+          <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>Reprendre une archive Elyko ou une ancienne sauvegarde .hchantier provenant d’un autre ordinateur.</p></div><FolderOpen size={20} />
         </button>
       </div>
       <div className="local-facts">
@@ -344,7 +344,7 @@ function BillingStep({ settings, setSettings, vatText, setVatText }: { settings:
   }
   return (
     <div>
-      <StepHeader eyebrow="Étape 2 sur 5" title="Facturation suisse" text="Vous décidez des numéros, délais et taux. HelviChantier n’invente aucune règle comptable." />
+      <StepHeader eyebrow="Étape 2 sur 5" title="Facturation suisse" text="Vous décidez des numéros, délais et taux. Elyko n’invente aucune règle comptable." />
       <div className="form-grid setup-form">
         <Field label="IBAN ou QR-IBAN" required wide><input value={billing.iban} onChange={(e) => patch({ iban: e.target.value })} autoFocus /></Field>
         <Field label="Titulaire du compte" required wide><input value={billing.accountHolder} onChange={(e) => patch({ accountHolder: e.target.value })} /></Field>

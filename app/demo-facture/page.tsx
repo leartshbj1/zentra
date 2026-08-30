@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
-import { ArrowLeft, HardHat } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { InvoiceDemo } from './invoice-demo';
 
 export const metadata: Metadata = {
-  title: 'Créer une facture suisse — démonstration HelviChantier',
+  title: 'Créer une facture suisse — démonstration Elyko',
   description:
     'Saisissez vos propres informations, calculez la TVA et imprimez une facture avec aperçu QR sans envoyer vos données.',
   openGraph: {
-    title: 'Créer une facture suisse — démonstration HelviChantier',
+    title: 'Créer une facture suisse — démonstration Elyko',
     description: 'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
   },
   twitter: {
-    title: 'Créer une facture suisse — démonstration HelviChantier',
+    title: 'Créer une facture suisse — démonstration Elyko',
     description: 'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
   },
 };
@@ -22,9 +23,9 @@ export default function InvoiceDemoPage() {
       <header className="print-hidden mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
         <a href="/" className="flex items-center gap-2.5">
           <span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#efaa3c]">
-            <HardHat className="size-5" />
+            <BrandMark className="size-9" />
           </span>
-          <span className="font-semibold tracking-[-.03em]">HelviChantier</span>
+          <span className="font-semibold tracking-[-.03em]">Elyko</span>
         </a>
         <a href="/" className="flex items-center gap-2 text-sm text-[#637068]">
           <ArrowLeft className="size-4" /> Retour au site

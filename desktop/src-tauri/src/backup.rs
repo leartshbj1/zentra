@@ -42,7 +42,7 @@ impl LocalStore {
         app_version: &str,
     ) -> AppResult<String> {
         let destination =
-            self.resolve_output_path(destination, &self.backups_dir, "sauvegarde", "hchantier")?;
+            self.resolve_output_path(destination, &self.backups_dir, "sauvegarde", "elyko")?;
         self.create_backup_at(&destination, app_version)?;
         Ok(destination.to_string_lossy().into_owned())
     }
@@ -75,9 +75,11 @@ impl LocalStore {
             .extension()
             .and_then(|value| value.to_str())
             .unwrap_or_default();
-        if !extension.eq_ignore_ascii_case("hchantier") {
+        if !extension.eq_ignore_ascii_case("elyko") && !extension.eq_ignore_ascii_case("hchantier")
+        {
             return Err(AppError::Validation(
-                "La restauration exige un fichier .hchantier.".into(),
+                "La restauration exige un fichier .elyko ou une ancienne sauvegarde .hchantier."
+                    .into(),
             ));
         }
 
@@ -92,8 +94,7 @@ impl LocalStore {
         validate_database(&extracted_database)?;
 
         if self.database_path.is_file() {
-            let safety_path =
-                unique_default_path(&self.backups_dir, "avant-restauration", "hchantier");
+            let safety_path = unique_default_path(&self.backups_dir, "avant-restauration", "elyko");
             self.create_backup_at(&safety_path, app_version)?;
         }
 
@@ -135,7 +136,7 @@ impl LocalStore {
             destination
                 .extension()
                 .and_then(|value| value.to_str())
-                .unwrap_or("hchantier"),
+                .unwrap_or("elyko"),
             Uuid::new_v4()
         ));
         let archive_file = create_new_file(&temporary_archive)?;
@@ -403,7 +404,7 @@ fn validate_database(path: &Path) -> AppResult<()> {
         connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if user_version > SCHEMA_VERSION {
         return Err(AppError::Validation(format!(
-            "La sauvegarde nécessite une version plus récente de HelviChantier ({user_version})."
+            "La sauvegarde nécessite une version plus récente d’Elyko ({user_version})."
         )));
     }
     let settings_table: bool = connection.query_row(
@@ -413,7 +414,7 @@ fn validate_database(path: &Path) -> AppResult<()> {
     )?;
     if !settings_table {
         return Err(AppError::Validation(
-            "La sauvegarde ne contient pas le schéma HelviChantier.".into(),
+            "La sauvegarde ne contient pas le schéma Elyko attendu.".into(),
         ));
     }
     let foreign_key_errors: i64 =
@@ -465,12 +466,12 @@ fn ensure_safe_relative(path: &Path) -> AppResult<()> {
 
 fn unique_default_path(directory: &Path, label: &str, extension: &str) -> PathBuf {
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let preferred = directory.join(format!("HelviChantier-{label}-{timestamp}.{extension}"));
+    let preferred = directory.join(format!("Elyko-{label}-{timestamp}.{extension}"));
     if !preferred.exists() {
         return preferred;
     }
     directory.join(format!(
-        "HelviChantier-{label}-{timestamp}-{}.{}",
+        "Elyko-{label}-{timestamp}-{}.{}",
         Uuid::new_v4(),
         extension
     ))

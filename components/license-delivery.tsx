@@ -73,7 +73,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
       </div>
       {!token ? (
         <form onSubmit={activate} className="mt-7">
-          <label className="block text-sm font-semibold" htmlFor="installation-id">Identifiant d’installation affiché dans HelviChantier</label>
+          <label className="block text-sm font-semibold" htmlFor="installation-id">Identifiant d’installation affiché dans Elyko</label>
           <input id="installation-id" value={installationId} onChange={(event) => setInstallationId(event.target.value)} placeholder="xxxxxxxx-xxxx-4xxx-xxxx-xxxxxxxxxxxx" autoComplete="off" spellCheck={false} required className="mt-2 h-12 w-full rounded-xl border border-[#d9d4c9] bg-[#fffdf9] px-4 font-mono text-sm outline-none ring-[#d69a40] focus:ring-2" />
           <p className="mt-2 text-xs leading-5 text-[#788078]">Installez et ouvrez l’application, puis recopiez l’identifiant du bandeau « Activation requise ». Aucune facture, fiche de salaire ni donnée de chantier n’est envoyée.</p>
           <button disabled={busy || !installationId.trim()} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <KeyRound className="size-4" />}{busy ? 'Création de la licence…' : 'Créer ma licence signée'}</button>
@@ -83,7 +83,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           <h3 className="font-semibold">Jeton prêt{validUntil ? ` · valable jusqu’au ${validUntil}` : ''}</h3>
           <textarea readOnly value={token} rows={4} className="mt-3 w-full resize-none rounded-xl border border-[#cad8cd] bg-white p-3 font-mono text-xs leading-5" aria-label="Jeton de licence signé" />
           <button type="button" onClick={() => void copyToken()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-[#173d2c] px-4 text-sm font-semibold text-white">{copied ? <Check className="size-4" /> : <Copy className="size-4" />}{copied ? 'Copié' : 'Copier le jeton'}</button>
-          <p className="mt-3 text-xs leading-5 text-[#617067]">Collez ce jeton dans HelviChantier. La signature est vérifiée localement, sans transmettre vos données métier.</p>
+          <p className="mt-3 text-xs leading-5 text-[#617067]">Collez ce jeton dans Elyko. La signature est vérifiée localement, sans transmettre vos données métier.</p>
         </div>
       )}
       {error && <p className="mt-4 rounded-xl bg-[#fff1ed] p-3 text-sm text-[#8b3f2e]" role="alert">{error}</p>}

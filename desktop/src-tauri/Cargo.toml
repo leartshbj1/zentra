@@ -1,8 +1,8 @@
 [package]
 name = "helvichantier"
-version = "1.0.0"
-description = "HelviChantier - gestion de chantier locale pour Windows"
-authors = ["HelviChantier"]
+version = "1.1.0"
+description = "Elyko - gestion d’entreprise locale et multisectorielle pour Windows"
+authors = ["Elyko"]
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -11,7 +11,7 @@ name = "helvichantier_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "HelviChantier"
+name = "Elyko"
 path = "src/main.rs"
 
 [build-dependencies]

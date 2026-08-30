@@ -170,9 +170,7 @@ pub fn validate(input: SwissQrBillInput) -> SwissQrValidation {
                 errors.push("Une référence QRR exige un QR-IBAN (QR-IID 30000 à 31999).".into());
             }
             if normalized.currency != "CHF" {
-                errors.push(
-                    "Le profil QR QRR d'HelviChantier prend uniquement en charge le CHF.".into(),
-                );
+                errors.push("Le profil QR QRR d'Elyko prend uniquement en charge le CHF.".into());
             }
             if !validate_qrr(&normalized.reference) {
                 errors.push("La référence QRR doit contenir 27 chiffres, ne pas être nulle et réussir le modulo 10 récursif.".into());

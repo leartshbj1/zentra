@@ -18,20 +18,20 @@ const socialImage = metadataBase ? new URL('/og.png', metadataBase).toString() :
 
 export const metadata: Metadata = {
   ...(metadataBase ? { metadataBase } : {}),
-  title: 'HelviChantier — Gestion d’entreprise multisectorielle en Suisse',
+  title: 'Elyko — Gestion d’entreprise multisectorielle en Suisse',
   description: 'L’application Windows locale pour piloter projets, chantiers, devis, factures, heures, salaires et comptabilité dans tous les secteurs NOGA 2025.',
-  applicationName: 'HelviChantier',
+  applicationName: 'Elyko',
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',
     locale: 'fr_CH',
-    title: 'HelviChantier — Chaque activité. Chaque franc. Enfin clair.',
+    title: 'Elyko — Chaque activité. Chaque franc. Enfin clair.',
     description: 'Le logiciel Windows suisse multisectoriel pour gérer projets, chantiers, devis, factures, salaires et comptabilité avec les données sur votre PC.',
-    ...(socialImage ? { images: [{ url: socialImage, width: 1200, height: 630, alt: 'HelviChantier' }] } : {}),
+    ...(socialImage ? { images: [{ url: socialImage, width: 1200, height: 630, alt: 'Elyko' }] } : {}),
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HelviChantier',
+    title: 'Elyko',
     description: 'Chaque activité. Chaque franc. Enfin clair.',
     ...(socialImage ? { images: [socialImage] } : {}),
   },

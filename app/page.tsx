@@ -12,7 +12,6 @@ import {
   FileDown,
   FolderKanban,
   HardDrive,
-  HardHat,
   Laptop,
   LockKeyhole,
   QrCode,
@@ -24,6 +23,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
+import { BrandMark } from '@/components/brand-mark';
 import { PurchaseButton } from '@/components/purchase-button';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +40,7 @@ const localPromises = [
   { icon: Database, title: 'Base locale', text: 'Clients, montants, heures et salaires sont enregistrés dans une base SQLite sur votre ordinateur.' },
   { icon: WifiOff, title: 'Travail hors ligne', text: 'Les fonctions métier continuent de fonctionner sans connexion Internet.' },
   { icon: HardDrive, title: 'Sauvegarde maîtrisée', text: 'Vous choisissez où créer votre sauvegarde et pouvez la restaurer sur un autre PC.' },
-  { icon: LockKeyhole, title: 'Aucun espace cloud métier', text: 'L’application n’envoie pas vos données d’entreprise vers un serveur HelviChantier.' },
+  { icon: LockKeyhole, title: 'Aucun espace cloud métier', text: 'L’application n’envoie pas vos données d’entreprise vers un serveur Elyko.' },
 ];
 
 const sectors = [
@@ -58,9 +58,9 @@ export default function Home() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#f6f4ef] text-[#18221d]">
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
-        <a href="#accueil" className="flex items-center gap-2.5" aria-label="HelviChantier, accueil">
-          <span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#f6b94a] shadow-sm"><HardHat className="size-5" /></span>
-          <span className="font-semibold tracking-[-0.03em]">HelviChantier</span>
+        <a href="#accueil" className="flex items-center gap-2.5" aria-label="Elyko, accueil">
+          <BrandMark className="size-9 shadow-sm" />
+          <span className="font-semibold tracking-[-0.03em]">Elyko</span>
         </a>
         <nav className="hidden items-center gap-7 text-sm text-[#5c655f] md:flex" aria-label="Navigation principale">
           <a href="#fonctionnalites" className="transition hover:text-[#173d2c]">Fonctionnalités</a>
@@ -89,7 +89,7 @@ export default function Home() {
             <a href="/telecharger" className={cn(buttonVariants({ size: 'lg' }), 'h-12 rounded-full bg-[#e79b2f] px-6 text-[#1f281f] shadow-[0_10px_30px_rgba(201,117,21,.2)] hover:bg-[#f1aa42]')}>
               Télécharger le .exe <ArrowRight className="size-4" />
             </a>
-            <a href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20HelviChantier" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-12 rounded-full border-[#cfcabf] bg-white/60 px-6')}>
+            <a href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Elyko" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-12 rounded-full border-[#cfcabf] bg-white/60 px-6')}>
               Demander une offre
             </a>
           </div>
@@ -106,7 +106,7 @@ export default function Home() {
             </div>
             <div className="grid min-h-[490px] grid-cols-[74px_1fr] sm:grid-cols-[170px_1fr]">
               <aside className="border-r border-[#e9e5dc] bg-[#173d2c] p-3 text-white sm:p-5">
-                <div className="mb-8 grid size-10 place-items-center rounded-xl bg-[#f4b54c] text-[#173d2c]"><HardHat className="size-5" /></div>
+                <BrandMark className="mb-8 size-10" />
                 {['Activité', 'Entreprise', 'Facturation', 'Projets', 'Salaires', 'Sauvegarde'].map((item, index) => (
                   <div key={item} className={cn('mb-2 rounded-lg px-2.5 py-2 text-xs', index === 0 ? 'bg-white/12 text-white' : 'text-white/45')}>
                     <span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{item}</span>
@@ -145,7 +145,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
             <div><p className="text-xs font-semibold uppercase tracking-[.13em] text-[#efaa3c]">Vos données vous appartiennent</p><h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">Pas de faux cloud caché derrière une icône.</h2></div>
-            <p className="max-w-2xl text-lg leading-8 text-white/60 lg:justify-self-end">HelviChantier installe le logiciel et sa base sur l’ordinateur du client. La gestion quotidienne ne dépend pas d’un navigateur ni d’une connexion permanente.</p>
+            <p className="max-w-2xl text-lg leading-8 text-white/60 lg:justify-self-end">Elyko installe le logiciel et sa base sur l’ordinateur du client. La gestion quotidienne ne dépend pas d’un navigateur ni d’une connexion permanente.</p>
           </div>
           <div className="mt-14 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{localPromises.map(({ icon: Icon, title, text }) => <div key={title} className="rounded-2xl border border-white/10 bg-white/7 p-6"><Icon className="size-5 text-[#efaa3c]" /><h3 className="mt-5 font-semibold">{title}</h3><p className="mt-3 text-sm leading-6 text-white/55">{text}</p></div>)}</div>
         </div>
@@ -166,7 +166,7 @@ export default function Home() {
           </div>
           <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[
             { icon: QrCode, title: 'QR-facture suisse', text: 'Adresses structurées, IBAN ou QR-IBAN, référence contrôlée et section paiement imprimable.' },
-            { icon: BellRing, title: 'Relances maîtrisées', text: 'Niveaux, délais, frais éventuels, modèles et historique sans serveur HelviChantier.' },
+            { icon: BellRing, title: 'Relances maîtrisées', text: 'Niveaux, délais, frais éventuels, modèles et historique sans serveur Elyko.' },
             { icon: BookOpenCheck, title: 'Partie double', text: 'Journal, grand livre, balance, bilan et résultat issus d’écritures toujours équilibrées.' },
             { icon: WalletCards, title: 'Paie détaillée', text: 'Toutes les bases et cotisations employé/employeur restent visibles, modifiables et contrôlables.' },
           ].map(({ icon: Icon, title, text }) => <div key={title} className="rounded-2xl border border-[#ddd8cd] bg-white/65 p-6"><Icon className="size-5 text-[#b86b16]" /><h3 className="mt-5 font-semibold">{title}</h3><p className="mt-3 text-sm leading-6 text-[#717a73]">{text}</p></div>)}</div>
@@ -200,10 +200,10 @@ export default function Home() {
 
       <section id="tarif" className="px-5 py-24 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <div className="text-center"><p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">Un prix simple</p><h2 className="mt-4 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Tout HelviChantier. 50 CHF par mois.</h2><p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#6e7770]">Une licence Windows pour gérer l’activité, avec les mises à jour de l’application. Les données métier restent chez le client.</p></div>
+          <div className="text-center"><p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">Un prix simple</p><h2 className="mt-4 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Tout Elyko. 50 CHF par mois.</h2><p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#6e7770]">Une licence Windows pour gérer l’activité, avec les mises à jour de l’application. Les données métier restent chez le client.</p></div>
           <div className="mt-12 grid overflow-hidden rounded-[28px] border border-[#d9d4c9] bg-white shadow-[0_25px_70px_rgba(29,45,35,.1)] md:grid-cols-[1.1fr_.9fr]">
             <div className="p-7 sm:p-10"><div className="flex items-end gap-2"><span className="text-5xl font-semibold tracking-[-.05em]">50 CHF</span><span className="pb-1 text-sm text-[#767f78]">/ mois</span></div><p className="mt-3 text-sm text-[#747d76]">Montant mensuel fixé côté serveur et encaissé sur la page sécurisée Stripe.</p><div className="mt-8 grid gap-3 sm:grid-cols-2">{['Application Windows complète', '22 secteurs NOGA 2025', 'Données métier locales', 'Projets, chantiers & clients', 'Devis & factures', 'Paiements & échéances', 'Temps & dépenses', 'Rentabilité par dossier', 'Salaires préparatoires', 'Comptabilité locale', 'Sauvegarde & restauration', 'Mises à jour incluses'].map((item) => <div key={item} className="flex items-center gap-2 text-sm"><Check className="size-4 text-[#3f7454]" />{item}</div>)}</div></div>
-            <div className="flex flex-col justify-between bg-[#173d2c] p-7 text-white sm:p-10"><div><Laptop className="size-7 text-[#efaa3c]" /><h3 className="mt-6 text-2xl font-semibold tracking-tight">Une vraie application `.exe`.</h3><p className="mt-4 text-sm leading-6 text-white/55">Payez sur la page sécurisée Stripe, téléchargez l’installateur puis liez la licence signée à votre PC. Vos données métier ne quittent pas l’ordinateur.</p></div><div className="mt-9 space-y-3"><PurchaseButton compact /><a href="/telecharger" className="flex h-12 items-center justify-center gap-2 rounded-full border border-white/15 px-5 text-sm font-semibold text-white">Télécharger pour Windows <FileDown className="size-4" /></a><a href="mailto:leartshabija@gmail.com?subject=Activer%20HelviChantier" className="flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-semibold text-white">Contacter le service commercial</a></div></div>
+            <div className="flex flex-col justify-between bg-[#173d2c] p-7 text-white sm:p-10"><div><Laptop className="size-7 text-[#efaa3c]" /><h3 className="mt-6 text-2xl font-semibold tracking-tight">Une vraie application `.exe`.</h3><p className="mt-4 text-sm leading-6 text-white/55">Payez sur la page sécurisée Stripe, téléchargez l’installateur puis liez la licence signée à votre PC. Vos données métier ne quittent pas l’ordinateur.</p></div><div className="mt-9 space-y-3"><PurchaseButton compact /><a href="/telecharger" className="flex h-12 items-center justify-center gap-2 rounded-full border border-white/15 px-5 text-sm font-semibold text-white">Télécharger pour Windows <FileDown className="size-4" /></a><a href="mailto:leartshabija@gmail.com?subject=Activer%20Elyko" className="flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-semibold text-white">Contacter le service commercial</a></div></div>
           </div>
         </div>
       </section>
@@ -222,9 +222,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="px-5 py-24 lg:px-8"><div className="mx-auto max-w-7xl overflow-hidden rounded-[30px] bg-[#e7a33a] px-6 py-14 text-[#183d2c] sm:px-12 lg:flex lg:items-center lg:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.13em]">Prêt à travailler avec vos vrais chiffres&nbsp;?</p><h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em]">Installez HelviChantier sur votre PC Windows.</h2></div><div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0"><a href="/telecharger" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white">Télécharger le .exe <ArrowRight className="size-4" /></a><a href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20HelviChantier" className="inline-flex h-12 items-center justify-center rounded-full border border-[#173d2c]/20 px-6 text-sm font-semibold">Demander une offre</a></div></div></section>
+      <section className="px-5 py-24 lg:px-8"><div className="mx-auto max-w-7xl overflow-hidden rounded-[30px] bg-[#e7a33a] px-6 py-14 text-[#183d2c] sm:px-12 lg:flex lg:items-center lg:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.13em]">Prêt à travailler avec vos vrais chiffres&nbsp;?</p><h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em]">Installez Elyko sur votre PC Windows.</h2></div><div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0"><a href="/telecharger" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white">Télécharger le .exe <ArrowRight className="size-4" /></a><a href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Elyko" className="inline-flex h-12 items-center justify-center rounded-full border border-[#173d2c]/20 px-6 text-sm font-semibold">Demander une offre</a></div></div></section>
 
-      <footer className="border-t border-[#ddd8cd] px-5 py-8 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs text-[#778078] sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-lg bg-[#173d2c] text-[#efaa3c]"><HardHat className="size-4" /></span><strong className="text-[#27382e]">HelviChantier</strong><span>· Gestion d’entreprise multisectorielle suisse sur Windows</span></div><div className="flex flex-wrap gap-5"><a href="mailto:leartshabija@gmail.com">leartshabija@gmail.com</a><span>© 2026</span></div></div></footer>
+      <footer className="border-t border-[#ddd8cd] px-5 py-8 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs text-[#778078] sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><BrandMark className="size-7" /><strong className="text-[#27382e]">Elyko</strong><span>· Gestion d’entreprise multisectorielle suisse sur Windows</span></div><div className="flex flex-wrap gap-5"><a href="mailto:leartshabija@gmail.com">leartshabija@gmail.com</a><span>© 2026</span></div></div></footer>
     </main>
   );
 }

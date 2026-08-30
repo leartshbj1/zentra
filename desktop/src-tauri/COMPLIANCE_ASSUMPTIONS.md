@@ -56,7 +56,7 @@ Sources primaires : [OFAS, aperçu des cotisations](https://www.bsv.admin.ch/fr/
   la facture est un brouillon, puis il est figé dans la base et dans le snapshot
   documentaire à l'émission. Une facture émise issue d'une ancienne version et
   dépourvue de QR peut recevoir une première valeur, ensuite figée et auditée.
-- Le profil QRR d'HelviChantier est volontairement limité au CHF. Le backend
+- Le profil QRR d’Elyko est volontairement limité au CHF. Le backend
   produit le payload SPC 2.3 mais pas le QR
   graphique/PDF; l'UI doit encoder en mode binaire, correction `M`, taille
   imprimée 46 x 46 mm avec la croix suisse officielle.

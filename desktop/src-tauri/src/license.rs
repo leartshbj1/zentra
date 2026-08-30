@@ -188,7 +188,7 @@ fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
     }
     if payload.plan != LICENSE_PLAN || payload.price_chf_cents != LICENSE_PRICE_CHF_CENTS {
         return Err(AppError::Validation(
-            "Le jeton ne correspond pas au plan HelviChantier à 50 CHF/mois.".into(),
+            "Le jeton ne correspond pas au plan Elyko à 50 CHF/mois.".into(),
         ));
     }
     let installation_id = uuid::Uuid::parse_str(&payload.installation_id)

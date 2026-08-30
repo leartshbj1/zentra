@@ -8,7 +8,7 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("Données JSON invalides : {0}")]
     Json(#[from] serde_json::Error),
-    #[error("Archive HelviChantier invalide : {0}")]
+    #[error("Archive Elyko invalide : {0}")]
     Archive(#[from] zip::result::ZipError),
     #[error("Champ invalide : {0}")]
     Validation(String),

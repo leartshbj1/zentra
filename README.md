@@ -1,6 +1,6 @@
-# HelviChantier
+# Elyko
 
-HelviChantier réunit deux produits dans ce dépôt :
+Elyko réunit deux produits dans ce dépôt :
 
 - une véritable application Windows x64 basée sur Tauri, React et SQLite ;
 - un site commercial avec téléchargement direct de l’installateur.
@@ -12,8 +12,8 @@ HelviChantier réunit deux produits dans ce dépôt :
 - Questionnaire obligatoire au premier lancement, avec section et division NOGA 2025 puis description précise de l’activité.
 - Interface multisectorielle : le vocabulaire du module projets / dossiers / chantiers s’adapte au domaine choisi.
 - Devis, factures, paiements, projets et chantiers, heures, dépenses, rentabilité, employés, fiches de salaire et comptabilité en partie double.
-- Sauvegarde/restauration locale au format `.hchantier` et export JSON.
-- Aucun envoi de données métier à un serveur HelviChantier.
+- Sauvegarde/restauration locale au format `.elyko`, import compatible avec l’ancien format `.hchantier`, et export JSON.
+- Aucun envoi de données métier à un serveur Elyko.
 
 ## Paiement et licence
 
@@ -44,4 +44,4 @@ La release embarque la clé publique versionnée dans `desktop/src-tauri/license
 
 ## Livraison Windows
 
-La version de validation `1.0.0` est disponible dans `public/downloads`. Avant une diffusion commerciale générale, signer l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+La version de validation `1.1.0` est disponible dans `public/downloads`. Avant une diffusion commerciale générale, signer l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
