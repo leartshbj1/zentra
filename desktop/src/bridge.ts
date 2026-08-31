@@ -55,6 +55,7 @@ import type {
   StatementRow,
   StatementScope,
   StoredSwissQrBill,
+  Supplier,
   SwissQrBillInput,
   SwissQrPayload,
   SwissQrValidation,
@@ -63,6 +64,7 @@ import type {
   TrialBalanceRow,
   Workspace,
 } from './types';
+import { expensePaymentStatusFromRaw } from './purchases';
 
 type RawRecord = Record<string, unknown>;
 type AppState = { onboarding_completed: boolean; activity_profile_required?: boolean; data_dir: string; database_path: string; app_version: string };
@@ -72,6 +74,7 @@ type RawWorkspace = {
   settings?: RawRecord | null;
   clients?: RawRecord[];
   catalog_items?: RawRecord[];
+  suppliers?: RawRecord[];
   projects?: RawRecord[];
   quotes?: RawRecord[];
   quote_items?: RawRecord[];
@@ -401,6 +404,25 @@ function catalogItemFromRaw(row: RawRecord): CatalogItem {
   };
 }
 
+function supplierFromRaw(row: RawRecord): Supplier {
+  return {
+    id: stringValue(row.id),
+    name: stringValue(row.name),
+    contactName: stringValue(row.contact_name),
+    email: stringValue(row.email),
+    phone: stringValue(row.phone),
+    address: stringValue(row.address),
+    uidNumber: stringValue(row.uid_number),
+    iban: stringValue(row.iban),
+    currency: stringValue(row.currency) || 'CHF',
+    paymentTermsDays: numberValue(row.payment_terms_days),
+    notes: stringValue(row.notes),
+    archivedAt: stringValue(row.archived_at) || null,
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
 function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
   const extra = parseExtra(row);
   return { companyName: stringValue(row.company_name), legalForm: stringValue(row.legal_form), ownerName: stringValue(row.owner_name), email: stringValue(row.email), phone: stringValue(row.phone), addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), buildingNumber: stringValue(row.building_number) || extra.organization?.address?.buildingNumber || '', postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country), uidNumber: stringValue(row.uid_number), vatNumber: stringValue(row.vat_number), vatRegistered: boolValue(row.vat_registered), iban: stringValue(row.iban), bankName: stringValue(row.bank_name), currency: stringValue(row.currency) || 'CHF', logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) };
@@ -460,6 +482,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     uidNumber: '', notes: stringValue(row.notes),
   }));
   const catalogItems = (raw.catalog_items ?? []).map(catalogItemFromRaw);
+  const suppliers = (raw.suppliers ?? []).map(supplierFromRaw);
   const projects: Project[] = (raw.projects ?? []).map((row) => ({
     id: stringValue(row.id), clientId: stringValue(row.client_id), name: stringValue(row.name),
     address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton)].filter(Boolean).join('\n'),
@@ -485,7 +508,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     birthDate: stringValue(row.birth_date), avsNumber: stringValue(row.social_security_number), employmentStart: stringValue(row.employment_start_date), employmentEnd: stringValue(row.employment_end_date), referenceAgeDate: stringValue(row.reference_age_date), avsAllowanceWaived: row.avs_allowance_waived === null || row.avs_allowance_waived === undefined ? null : boolValue(row.avs_allowance_waived), employmentRate: numberValue(row.employment_rate), contractualWeeklyMinutes: row.contractual_weekly_minutes === null || row.contractual_weekly_minutes === undefined ? null : numberValue(row.contractual_weekly_minutes), acOpeningYear: row.ac_opening_year === null || row.ac_opening_year === undefined ? null : numberValue(row.ac_opening_year), acOpeningBasisCents: row.ac_opening_basis_cents === null || row.ac_opening_basis_cents === undefined ? null : numberValue(row.ac_opening_basis_cents), salaryMode: numberValue(row.monthly_salary_cents) > 0 ? 'monthly' : 'hourly', grossSalaryCents: numberValue(row.monthly_salary_cents), hourlyCostCents: numberValue(row.hourly_rate_cents), iban: stringValue(row.iban), active: stringValue(row.status) !== 'inactif', notes: stringValue(row.notes),
   }));
   const timeEntries: TimeEntry[] = (raw.time_entries ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id), employeeId: stringValue(row.employee_id), date: stringValue(row.date), minutes: numberValue(row.minutes), breakMinutes: numberValue(row.break_minutes), billable: boolValue(row.billable), billingRateCents: numberValue(row.billing_rate_cents), hourlyCostCents: numberValue(row.cost_rate_cents), note: stringValue(row.note), status: ({ approuve: 'approved', verrouille: 'locked' } as Record<string, TimeEntry['status']>)[stringValue(row.status)] ?? 'entered', createdAt: stringValue(row.created_at) }));
-  const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id), date: stringValue(row.date), supplier: stringValue(row.supplier), category: stringValue(row.category), reference: stringValue(row.reference), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents), reimbursable: boolValue(row.reimbursable), note: stringValue(row.note) }));
+  const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id) || null, supplierId: stringValue(row.supplier_id) || null, date: stringValue(row.date), dueDate: stringValue(row.due_date) || null, supplier: stringValue(row.supplier), category: stringValue(row.category), reference: stringValue(row.reference), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents), paymentStatus: expensePaymentStatusFromRaw(row.payment_status), paidAt: stringValue(row.paid_at) || null, reimbursable: boolValue(row.reimbursable), note: stringValue(row.note) }));
   const payslips: Payslip[] = (raw.payslips ?? []).map((row) => ({
     id: stringValue(row.id), employeeId: stringValue(row.employee_id), period: stringValue(row.period), status: ({ brouillon: 'draft', a_controler: 'incomplete', valide: 'validated', comptabilise: 'posted', paye: 'paid' } as Record<string, Payslip['status']>)[stringValue(row.status)] ?? 'incomplete',
     lines: payslipItems.filter((item) => stringValue(item.payslip_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: payslipLineKindFromRaw(item.kind), amountCents: numberValue(item.amount_cents), postingAccountId: stringValue(item.posting_account_id), expenseAccountId: stringValue(item.expense_account_id) })), paymentDate: stringValue(row.payment_date), paymentReference: stringValue(row.payment_reference), paymentJournalEntryId: stringValue(row.payment_journal_entry_id), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: payslipSnapshotFromRaw(row.snapshot_json, appState.data_dir),
@@ -495,14 +518,14 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const payments: Payment[] = (raw.payments ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), date: stringValue(row.date), amountCents: numberValue(row.amount_cents), method: stringValue(row.method), reference: stringValue(row.reference) }));
   const timer = raw.active_timer;
   return {
-    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings, appState.data_dir), clients, catalogItems, projects, quotes, invoices, payments, employees, timeEntries,
+    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings, appState.data_dir), clients, catalogItems, suppliers, projects, quotes, invoices, payments, employees, timeEntries,
     activeTimer: timer ? { projectId: stringValue(timer.project_id), employeeId: stringValue(timer.employee_id), startedAt: stringValue(timer.started_at), note: stringValue(timer.note), billable: boolValue(timer.billable), billingRateCents: numberValue(timer.billing_rate_cents), hourlyCostCents: numberValue(timer.cost_rate_cents) } : null,
     expenses, payslips, payrollImports, employeePayrollTemplates, backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
   };
 }
 
 function emptyWorkspace(): Workspace {
-  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], catalogItems: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], payrollImports: [], employeePayrollTemplates: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
+  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], catalogItems: [], suppliers: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], payrollImports: [], employeePayrollTemplates: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
 }
 
 async function loadWorkspace(): Promise<Workspace> {
@@ -524,7 +547,14 @@ function settingsToBackend(settings: AppSettings): RawRecord {
   };
 }
 
-const entityToBackend: Record<EntityKind, string> = { clients: 'clients', catalogItems: 'catalog_items', projects: 'projects', quotes: 'quotes', invoices: 'invoices', employees: 'employees', timeEntries: 'time_entries', expenses: 'expenses', payslips: 'payslips' };
+const entityToBackend: Record<EntityKind, string> = { clients: 'clients', catalogItems: 'catalog_items', suppliers: 'suppliers', projects: 'projects', quotes: 'quotes', invoices: 'invoices', employees: 'employees', timeEntries: 'time_entries', expenses: 'expenses', payslips: 'payslips' };
+export function archiveEntityMutation(entity: EntityKind, id: string, archivedAt = new Date().toISOString()) {
+  const backendEntity = entityToBackend[entity];
+  if (entity === 'catalogItems' || entity === 'suppliers') {
+    return { command: 'update_record' as const, args: { entity: backendEntity, id, data: { archived_at: archivedAt } } };
+  }
+  return { command: 'delete_record' as const, args: { entity: backendEntity, id } };
+}
 const statusToBackend: Record<string, string> = { planned: 'planifie', in_progress: 'en_cours', paused: 'en_pause', completed: 'termine', closed: 'cloture', draft: 'brouillon', issued: 'emis', accepted: 'accepte', refused: 'refuse', expired: 'expire', partially_paid: 'partiellement_payee', paid: 'payee', cancelled: 'annulee', entered: 'saisi', approved: 'approuve', locked: 'verrouille', incomplete: 'a_controler', validated: 'valide' };
 const snakeKey = (key: string): string => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 function toBackendData(data: Record<string, unknown>): RawRecord {
@@ -750,7 +780,7 @@ export const desktopApi = {
   async stageCompanyLogo(sourcePath: string) { return invoke<string>('stage_company_logo', { sourcePath }); },
   async createEntity<T extends Record<string, unknown>>(entity: EntityKind, data: T) { await createRecord(entityToBackend[entity], toBackendData(data)); return loadWorkspace(); },
   async updateEntity<T extends Record<string, unknown>>(entity: EntityKind, id: string, data: T) { await invoke('update_record', { entity: entityToBackend[entity], id, data: toBackendData(data) }); return loadWorkspace(); },
-  async archiveEntity(entity: EntityKind, id: string) { await invoke('delete_record', { entity: entityToBackend[entity], id }); return loadWorkspace(); },
+  async archiveEntity(entity: EntityKind, id: string) { const mutation = archiveEntityMutation(entity, id); await invoke(mutation.command, mutation.args); return loadWorkspace(); },
   saveDocument,
   async issueDocument(entity: 'quotes' | 'invoices', id: string, issueDate?: string, dueDate?: string) {
     if (entity === 'quotes') await invoke('issue_quote', { id, issueDate, validUntil: dueDate });

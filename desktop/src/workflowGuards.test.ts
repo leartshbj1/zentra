@@ -9,7 +9,7 @@ describe('prérequis des actions de création', () => {
     expect(creationBlockReason('projects', empty)).toBe('Ajoutez d’abord un client.');
     expect(creationBlockReason('quotes', empty)).toBe('Ajoutez d’abord un client.');
     expect(creationBlockReason('time', empty)).toBe('Ajoutez d’abord un projet non clôturé et un collaborateur actif.');
-    expect(creationBlockReason('expenses', empty)).toBe('Ajoutez d’abord un projet.');
+    expect(creationBlockReason('expenses', empty)).toBe('Ajoutez d’abord une catégorie de coûts dans Paramètres.');
   });
 
   it('autorise les parcours complets et bloque un second chronomètre', () => {
@@ -23,6 +23,10 @@ describe('prérequis des actions de création', () => {
   it('détecte une configuration de dépenses sans catégorie', () => {
     expect(creationBlockReason('expenses', { ...ready, costCategories: 0 }))
       .toBe('Ajoutez d’abord une catégorie de coûts dans Paramètres.');
+  });
+
+  it('autorise un achat sans projet quand une catégorie existe', () => {
+    expect(creationBlockReason('expenses', { ...ready, projects: 0 })).toBe('');
   });
 
   it('refuse le temps si tous les projets sont clôturés ou tous les collaborateurs inactifs', () => {

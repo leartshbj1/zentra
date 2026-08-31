@@ -3,6 +3,7 @@ export type Identifier = string;
 export type EntityKind =
   | 'clients'
   | 'catalogItems'
+  | 'suppliers'
   | 'projects'
   | 'quotes'
   | 'invoices'
@@ -355,18 +356,39 @@ export type ActiveTimer = {
 
 export type Expense = {
   id: Identifier;
-  projectId: Identifier;
+  projectId: Identifier | null;
+  supplierId?: Identifier | null;
   date: string;
+  dueDate?: string | null;
   supplier: string;
   category: string;
   reference: string;
   netCents: number;
   vatCents: number;
   totalCents: number;
+  paymentStatus: 'pending' | 'paid';
+  paidAt?: string | null;
   reimbursable?: boolean;
   note: string;
   receiptPath?: string;
   archivedAt?: string | null;
+};
+
+export type Supplier = {
+  id: Identifier;
+  name: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  uidNumber: string;
+  iban: string;
+  currency: string;
+  paymentTermsDays: number;
+  notes: string;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type PayslipLine = {
@@ -510,6 +532,7 @@ export type Workspace = {
   settings: AppSettings | null;
   clients: Client[];
   catalogItems: CatalogItem[];
+  suppliers: Supplier[];
   projects: Project[];
   quotes: Quote[];
   invoices: Invoice[];

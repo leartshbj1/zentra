@@ -17,7 +17,6 @@ export function creationBlockReason(view: CreationView, prerequisites: Workspace
     if (prerequisites.activeEmployees === 0) return 'Ajoutez d’abord un collaborateur actif.';
   }
   if (view === 'expenses') {
-    if (prerequisites.projects === 0) return 'Ajoutez d’abord un projet.';
     if (prerequisites.costCategories === 0) return 'Ajoutez d’abord une catégorie de coûts dans Paramètres.';
   }
   return '';

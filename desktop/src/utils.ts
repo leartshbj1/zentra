@@ -150,7 +150,7 @@ export function projectFinancials(
   invoices: Invoice[],
   payments: Payment[],
   entries: TimeEntry[],
-  expenses: { projectId: string; netCents: number }[],
+  expenses: { projectId?: string | null; netCents: number }[],
 ) {
   const issued = invoices.filter(
     (invoice) => invoice.projectId === project.id && invoice.status !== 'draft' && invoice.status !== 'cancelled',
