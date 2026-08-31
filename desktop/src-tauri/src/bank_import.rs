@@ -1901,7 +1901,7 @@ mod tests {
     }
 
     #[test]
-    fn reconciled_054_book_snapshot_is_frozen_when_the_053_arrives() {
+    fn booked_054_waits_for_053_then_becomes_confirmable_and_is_frozen() {
         let (temporary, store) = store();
         store
             .associate_bank_account(AssociateBankAccountInput {
@@ -1923,22 +1923,36 @@ mod tests {
             false,
             true,
         );
-        let notification_import = store
+        store
             .import_camt_file(&write_xml(
                 temporary.path(),
                 "notification-book.xml",
                 &notification,
             ))
             .unwrap();
-        let ready = store.get_bank_workspace().unwrap();
-        assert_eq!(ready["movements"][0]["suggestion"]["confirmable"], true);
-        let movement_id = ready["movements"][0]["id"].as_str().unwrap().to_owned();
-        store
+        let waiting = store.get_bank_workspace().unwrap();
+        assert_eq!(waiting["movements"][0]["suggestion"]["kind"], "review");
+        assert_eq!(waiting["movements"][0]["suggestion"]["confirmable"], false);
+        assert!(waiting["movements"][0]["suggestion"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("camt.053 définitif"));
+        let movement_id = waiting["movements"][0]["id"].as_str().unwrap().to_owned();
+        assert!(store
             .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
                 movement_id: movement_id.clone(),
-                invoice_id,
+                invoice_id: invoice_id.clone(),
             })
-            .unwrap();
+            .is_err());
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM payments", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
 
         let statement = fixture(
             "053",
@@ -1954,11 +1968,40 @@ mod tests {
         )
         .replace("2026-08-31", "2026-09-02")
         .replace("2026-08-30", "2026-09-01");
+        let final_import = store
+            .import_camt_file(&write_xml(
+                temporary.path(),
+                "final-statement.xml",
+                &statement,
+            ))
+            .unwrap();
+        assert_eq!(final_import["imported_count"], 1);
+        let ready = store.get_bank_workspace().unwrap();
+        assert_eq!(ready["movements"].as_array().unwrap().len(), 1);
+        assert_eq!(ready["movements"][0]["id"], movement_id);
+        assert_eq!(ready["movements"][0]["booking_date"], "2026-09-02");
+        assert_eq!(ready["movements"][0]["reference_level"], "D");
+        assert_eq!(
+            ready["movements"][0]["suggestion"]["kind"],
+            "automatic_exact"
+        );
+        assert_eq!(ready["movements"][0]["suggestion"]["confirmable"], true);
+        store
+            .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                movement_id: movement_id.clone(),
+                invoice_id,
+            })
+            .unwrap();
+
+        let late_statement = statement
+            .replace("<MsgId>MSG</MsgId>", "<MsgId>LATE</MsgId>")
+            .replace("2026-09-02", "2026-09-04")
+            .replace("2026-09-01", "2026-09-03");
         let ignored = store
             .import_camt_file(&write_xml(
                 temporary.path(),
-                "statement-after-payment.xml",
-                &statement,
+                "late-statement.xml",
+                &late_statement,
             ))
             .unwrap();
         assert_eq!(ignored["imported_count"], 0);
@@ -1984,10 +2027,10 @@ mod tests {
             )
             .unwrap();
         assert_eq!(snapshot.0, 1);
-        assert_eq!(snapshot.1, notification_import["import"]["id"]);
-        assert_eq!(snapshot.2.as_deref(), Some("2026-08-31"));
-        assert_eq!(snapshot.3.as_deref(), Some("C"));
-        assert!(snapshot.4.is_none());
+        assert_eq!(snapshot.1, final_import["import"]["id"]);
+        assert_eq!(snapshot.2.as_deref(), Some("2026-09-02"));
+        assert_eq!(snapshot.3.as_deref(), Some("D"));
+        assert!(snapshot.4.is_some());
         let payment_date: String = connection
             .query_row(
                 "SELECT p.date FROM payments p JOIN bank_reconciliations r ON r.payment_id=p.id WHERE r.movement_id=?",
@@ -1995,7 +2038,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(payment_date, "2026-08-31");
+        assert_eq!(payment_date, "2026-09-02");
     }
 
     #[test]
@@ -2872,6 +2915,22 @@ fn account_link_source(
     Ok(if explicit { "explicit" } else { "unlinked" })
 }
 
+fn booked_message_type(
+    connection: &rusqlite::Connection,
+    movement: &Value,
+) -> AppResult<Option<String>> {
+    let Some(import_id) = movement_field(movement, "booked_import_id") else {
+        return Ok(None);
+    };
+    Ok(connection
+        .query_row(
+            "SELECT message_type FROM bank_imports WHERE id=?",
+            params![import_id],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
 fn candidate_json(
     invoice: &InvoiceCandidate,
     movement_amount: i64,
@@ -2924,6 +2983,8 @@ fn suggestion_for_movement(
         .and_then(Value::as_i64)
         .unwrap_or(0);
     let booked = movement_field(movement, "status") == Some("BOOK");
+    let booked_message_type = booked_message_type(connection, movement)?;
+    let final_statement = booked_message_type.as_deref() == Some("camt.053");
     let credit = movement_field(movement, "credit_debit") == Some("CRDT");
     let reversal = movement
         .get("reversal")
@@ -2938,6 +2999,7 @@ fn suggestion_for_movement(
     let link_source = account_link_source(connection, account_id, account_currency)?;
     let account_linked = link_source != "unlinked";
     let base_eligible = booked
+        && final_statement
         && credit
         && !reversal
         && account_linked
@@ -2987,6 +3049,8 @@ fn suggestion_for_movement(
                 };
                 let reason = if !booked {
                     "Le mouvement PDNG doit devenir BOOK avant rapprochement."
+                } else if !final_statement {
+                    "Importez le relevé camt.053 définitif avant de confirmer ce mouvement."
                 } else if !credit {
                     "Un débit ne peut pas encaisser une facture client."
                 } else if reversal {
@@ -3024,7 +3088,7 @@ fn suggestion_for_movement(
                 .any(|candidate| candidate["confirmable"].as_bool() == Some(true));
             return Ok(json!({
                 "kind":"review",
-                "reason":"La même référence QR est liée à plusieurs factures : choisissez explicitement.",
+                "reason":if booked && !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else { "La même référence QR est liée à plusieurs factures : choisissez explicitement." },
                 "confirmable":confirmable,
                 "invoice_id":Value::Null,
                 "invoice_number":Value::Null,
@@ -3059,7 +3123,7 @@ fn suggestion_for_movement(
     if matches!(reference_type, "QRR" | "SCOR") && !structured_valid {
         return Ok(json!({
             "kind":"review",
-            "reason":"La référence structurée ne passe pas le contrôle QRR/SCOR; aucune facture ne peut être confirmée depuis cette référence.",
+            "reason":if booked && !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else { "La référence structurée ne passe pas le contrôle QRR/SCOR; aucune facture ne peut être confirmée depuis cette référence." },
             "confirmable":false,
             "invoice_id":Value::Null,
             "invoice_number":Value::Null,
@@ -3069,7 +3133,7 @@ fn suggestion_for_movement(
     if reference_type == "CONFLICT" {
         return Ok(json!({
             "kind":"review",
-            "reason":"Plusieurs références structurées se contredisent dans cette écriture groupée.",
+            "reason":if booked && !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else { "Plusieurs références structurées se contredisent dans cette écriture groupée." },
             "confirmable":false,
             "invoice_id":Value::Null,
             "invoice_number":Value::Null,
@@ -3106,8 +3170,8 @@ fn suggestion_for_movement(
             .iter()
             .any(|candidate| candidate["confirmable"].as_bool() == Some(true));
         return Ok(json!({
-            "kind":if single_transaction { "manual" } else { "review" },
-            "reason": if !booked { "Mouvement en attente (PDNG) : aucune confirmation possible." } else if !credit { "Débit bancaire : aucun encaissement client possible." } else if reversal { "Extourne bancaire détectée : elle reste visible mais ne peut pas encaisser une facture." } else if !has_bank_date { "Le mouvement BOOK ne contient aucune date bancaire utilisable." } else if !single_transaction { "Écriture collective : les candidats restent informatifs et ne sont pas confirmables." } else if !has_stable_dedup_key { "Aucun identifiant bancaire stable : rapprochement bloqué pour éviter un double encaissement." } else if !account_linked { "Compte bancaire non associé : vérifiez-le avant toute confirmation." } else if !account_currency_matches { "Devise du mouvement différente de celle du compte : gestion FX requise." } else if structured_valid { "Référence structurée valide mais inconnue : choisissez explicitement une facture ouverte compatible." } else { "Choisissez explicitement une facture ouverte compatible." },
+            "kind":if booked && !final_statement { "review" } else if single_transaction { "manual" } else { "review" },
+            "reason": if !booked { "Mouvement en attente (PDNG) : aucune confirmation possible." } else if !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else if !credit { "Débit bancaire : aucun encaissement client possible." } else if reversal { "Extourne bancaire détectée : elle reste visible mais ne peut pas encaisser une facture." } else if !has_bank_date { "Le mouvement BOOK ne contient aucune date bancaire utilisable." } else if !single_transaction { "Écriture collective : les candidats restent informatifs et ne sont pas confirmables." } else if !has_stable_dedup_key { "Aucun identifiant bancaire stable : rapprochement bloqué pour éviter un double encaissement." } else if !account_linked { "Compte bancaire non associé : vérifiez-le avant toute confirmation." } else if !account_currency_matches { "Devise du mouvement différente de celle du compte : gestion FX requise." } else if structured_valid { "Référence structurée valide mais inconnue : choisissez explicitement une facture ouverte compatible." } else { "Choisissez explicitement une facture ouverte compatible." },
             "confirmable":confirmable,
             "invoice_id": if manual_matches.len()==1 { json!(manual_matches[0].0.id) } else { Value::Null },
             "invoice_number": if manual_matches.len()==1 { json!(manual_matches[0].0.number) } else { Value::Null },
@@ -3116,6 +3180,8 @@ fn suggestion_for_movement(
     }
     let reason = if !booked {
         "Mouvement en attente (PDNG)."
+    } else if !final_statement {
+        "Importez le relevé camt.053 définitif avant de confirmer ce mouvement."
     } else if !credit {
         "Débit bancaire : aucun encaissement client proposé."
     } else if reversal {
