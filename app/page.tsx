@@ -276,7 +276,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
-                Nouveau dans Elyko 1.2.0
+                Nouveau dans Elyko 1.3.0
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                 Vos anciennes fiches deviennent une base de travail.

@@ -4,7 +4,7 @@ import { CheckCircle2, Download, RotateCw } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-export const installerPath = '/downloads/Elyko_1.2.0_x64-setup.exe';
+export const installerPath = '/downloads/Elyko_1.3.0_x64-setup.exe';
 
 export function DownloadButton({
   compact = false,
@@ -44,7 +44,7 @@ export function DownloadButton({
                 Elyko est en cours de téléchargement
               </p>
               <p className="mt-1 text-xs leading-5 text-[#587161]">
-                Ouvrez <strong>Elyko_1.2.0_x64-setup.exe</strong> depuis vos
+                Ouvrez <strong>Elyko_1.3.0_x64-setup.exe</strong> depuis vos
                 téléchargements, puis suivez l’assistant d’installation.
               </p>
               <a

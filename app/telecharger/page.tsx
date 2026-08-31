@@ -22,18 +22,18 @@ import { DownloadButton, installerPath } from '@/components/download-button';
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: 'Elyko pour Windows — Télécharger la version 1.2.0',
+  title: 'Elyko pour Windows — Télécharger la version 1.3.0',
   description:
     'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR, projets, salaires et comptabilité avec vos données sur votre PC.',
   openGraph: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.2.0 disponible.',
+      'Toute votre gestion d’entreprise dans une application Windows. Version 1.3.0 disponible.',
   },
   twitter: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.2.0 disponible.',
+      'Toute votre gestion d’entreprise dans une application Windows. Version 1.3.0 disponible.',
   },
 };
 
@@ -98,7 +98,7 @@ export default function DownloadPage() {
         <div data-reveal="left">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
             <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-            Elyko pour Windows · version 1.2.0
+            Elyko pour Windows · version 1.3.0
           </div>
           <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
             Toute votre entreprise,
@@ -126,7 +126,7 @@ export default function DownloadPage() {
               <Laptop className="size-3.5" /> Windows 10/11
             </span>
             <span>64 bits</span>
-            <span>6,81 Mio</span>
+            <span>7,64 Mio</span>
             <span>50 CHF / mois</span>
           </div>
           <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
@@ -192,7 +192,7 @@ export default function DownloadPage() {
                 </p>
                 <div className="mt-7 space-y-4 text-[11px]">
                   {[
-                    ['Version', '1.2.0'],
+                    ['Version', '1.3.0'],
                     ['Architecture', 'Windows x64'],
                     ['Emplacement', 'Applications de l’utilisateur'],
                     ['Données métier', 'Stockage local'],
@@ -397,18 +397,18 @@ export default function DownloadPage() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-              Version 1.2.0
+              Version 1.3.0
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-              Import de salaires local et fiches PDF professionnelles.
+              Paie mieux contrôlée et mises à jour signées.
             </h2>
             <div className="mt-7 space-y-3">
               {[
+                'Démarrage avancé, logo d’entreprise et reprise fiable de la configuration',
                 'Import groupé de fiches PDF et image, sans envoi vers Elyko',
-                'Lecture du texte puis assistance SmolVLM locale et facultative',
-                'Comparaison humaine obligatoire avant toute création',
-                'Création des collaborateurs, modèles et fiches « à contrôler »',
-                'PDF de salaire détaillé avec bases, taux, retenues et charges',
+                'Contrôles de paie suisse 2026 rejoués localement avant validation',
+                'PDF de salaire paginé avec bases, taux, retenues, charges et paiement',
+                'Mises à jour intégrées vérifiées par signature Tauri/Ed25519',
               ].map((item) => (
                 <div
                   key={item}
@@ -458,13 +458,13 @@ export default function DownloadPage() {
               </summary>
               <div className="space-y-4 border-t border-[#e5e1d8] px-5 py-5 text-xs leading-6 text-[#5f6c64]">
                 <p>
-                  <strong>Fichier :</strong> Elyko_1.2.0_x64-setup.exe · 6,81
+                  <strong>Fichier :</strong> Elyko_1.3.0_x64-setup.exe · 7,64
                   Mio · Windows x64
                 </p>
                 <p>
                   <strong>SHA-256 :</strong>{' '}
                   <code className="break-all">
-                    A9E6F1722DCFE80AB0E49B1642855E07EA3CCC9E46196CBBCC714AFED006C43D
+                    8137216CC4B026706CE9EF160A25D169F00F0715EFA4DEDCD3E1649FDC56630E
                   </code>{' '}
                   ·{' '}
                   <a
@@ -477,11 +477,12 @@ export default function DownloadPage() {
                 <div className="flex items-start gap-3 rounded-xl bg-[#edf4ee] p-4 text-[#315e48]">
                   <RefreshCcw className="mt-0.5 size-4 shrink-0" />
                   <p>
-                    <strong>Mises à jour intégrées.</strong> Le canal sécurisé est
-                    conçu pour rester désactivé tant qu’une clé publique et un
-                    manifeste HTTPS ne sont pas configurés par l’éditeur. Dans
-                    la version 1.2.0 disponible ici, installez les nouvelles
-                    versions manuellement depuis ce site.
+                    <strong>Mises à jour intégrées et signées.</strong> La version
+                    1.3.0 embarque la clé publique Elyko et vérifie la signature
+                    de chaque futur installateur avant de proposer son
+                    installation. Si vous utilisez encore Elyko 1.2.0,
+                    installez 1.3.0 manuellement une dernière fois depuis cette
+                    page.
                   </p>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">
