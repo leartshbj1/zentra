@@ -1,9 +1,10 @@
-pub const SCHEMA_VERSION: i64 = 10;
+pub const SCHEMA_VERSION: i64 = 11;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
     "clients",
     "catalog_items",
+    "suppliers",
     "projects",
     "quotes",
     "quote_items",
@@ -111,6 +112,23 @@ CREATE TABLE IF NOT EXISTS catalog_items (
   track_stock INTEGER NOT NULL DEFAULT 0 CHECK (track_stock IN (0, 1)),
   stock_quantity_milli INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity_milli >= 0),
   reorder_level_milli INTEGER NOT NULL DEFAULT 0 CHECK (reorder_level_milli >= 0),
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS suppliers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  contact_name TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  uid_number TEXT,
+  iban TEXT,
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency = 'CHF'),
+  payment_terms_days INTEGER NOT NULL DEFAULT 30 CHECK (payment_terms_days >= 0),
+  notes TEXT,
   archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -276,18 +294,23 @@ CREATE TABLE IF NOT EXISTS time_entries (
 CREATE TABLE IF NOT EXISTS expenses (
   id TEXT PRIMARY KEY,
   project_id TEXT REFERENCES projects(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  supplier_id TEXT REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
   date TEXT NOT NULL,
+  due_date TEXT,
   supplier TEXT,
   category TEXT,
   reference TEXT,
-  currency TEXT NOT NULL DEFAULT 'CHF',
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency = 'CHF'),
   net_cents INTEGER NOT NULL DEFAULT 0,
   vat_cents INTEGER NOT NULL DEFAULT 0,
   total_cents INTEGER NOT NULL DEFAULT 0,
+  payment_status TEXT NOT NULL DEFAULT 'paid' CHECK (payment_status IN ('pending', 'paid')),
+  paid_at TEXT,
   reimbursable INTEGER NOT NULL DEFAULT 0 CHECK (reimbursable IN (0, 1)),
   note TEXT,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  CHECK (payment_status <> 'pending' OR (due_date IS NOT NULL AND due_date <> '' AND paid_at IS NULL))
 );
 
 CREATE TABLE IF NOT EXISTS payslips (
@@ -625,6 +648,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_number ON employees(employee_num
 CREATE INDEX IF NOT EXISTS idx_catalog_items_name ON catalog_items(name COLLATE NOCASE, created_at);
 CREATE INDEX IF NOT EXISTS idx_catalog_items_sku ON catalog_items(sku COLLATE NOCASE) WHERE sku IS NOT NULL AND sku <> '';
 CREATE INDEX IF NOT EXISTS idx_catalog_items_archived ON catalog_items(archived_at, kind, name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name COLLATE NOCASE, created_at);
+CREATE INDEX IF NOT EXISTS idx_suppliers_archived ON suppliers(archived_at, name COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_quotes_client ON quotes(client_id);
@@ -640,6 +665,8 @@ CREATE INDEX IF NOT EXISTS idx_invoice_items_catalog ON invoice_items(catalog_it
 CREATE INDEX IF NOT EXISTS idx_time_project_date ON time_entries(project_id, date);
 CREATE INDEX IF NOT EXISTS idx_time_employee_date ON time_entries(employee_id, date);
 CREATE INDEX IF NOT EXISTS idx_expenses_project_date ON expenses(project_id, date);
+CREATE INDEX IF NOT EXISTS idx_expenses_supplier_date ON expenses(supplier_id, date DESC) WHERE supplier_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_expenses_payment_due ON expenses(payment_status, due_date) WHERE payment_status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_payslips_employee_period ON payslips(employee_id, period);
 CREATE INDEX IF NOT EXISTS idx_payments_invoice_date ON payments(invoice_id, date);
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
@@ -718,6 +745,14 @@ CREATE TRIGGER IF NOT EXISTS posted_expenses_no_update
 BEFORE UPDATE ON expenses WHEN EXISTS(SELECT 1 FROM journal_entries WHERE source_type='expense' AND source_id=OLD.id) BEGIN SELECT RAISE(ABORT, 'posted expense is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS posted_expenses_no_delete
 BEFORE DELETE ON expenses WHEN EXISTS(SELECT 1 FROM journal_entries WHERE source_type='expense' AND source_id=OLD.id) BEGIN SELECT RAISE(ABORT, 'posted expense is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS expenses_payment_state_insert_guard
+BEFORE INSERT ON expenses
+WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment date'); END;
+CREATE TRIGGER IF NOT EXISTS expenses_payment_state_update_guard
+BEFORE UPDATE OF payment_status,paid_at,due_date ON expenses
+WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment date'); END;
 CREATE TRIGGER IF NOT EXISTS payslips_posted_no_delete
 BEFORE DELETE ON payslips WHEN OLD.status IN ('comptabilise','paye') BEGIN SELECT RAISE(ABORT, 'posted payslip is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payslips_posted_no_update
@@ -754,7 +789,7 @@ BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
 BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
 
-PRAGMA user_version = 10;
+PRAGMA user_version = 11;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -1004,4 +1039,29 @@ CREATE INDEX IF NOT EXISTS idx_catalog_items_name ON catalog_items(name COLLATE 
 CREATE INDEX IF NOT EXISTS idx_catalog_items_sku ON catalog_items(sku COLLATE NOCASE) WHERE sku IS NOT NULL AND sku <> '';
 CREATE INDEX IF NOT EXISTS idx_catalog_items_archived ON catalog_items(archived_at, kind, name COLLATE NOCASE);
 PRAGMA user_version=10;
+"#;
+
+/// Ajoute les fournisseurs et le suivi du règlement des achats sans transformer
+/// les dépenses historiques : elles conservent leur libellé fournisseur et sont
+/// migrées avec le statut `paid`, identique à leur comportement antérieur.
+pub const MIGRATION_V11_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS suppliers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  contact_name TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  uid_number TEXT,
+  iban TEXT,
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency = 'CHF'),
+  payment_terms_days INTEGER NOT NULL DEFAULT 30 CHECK (payment_terms_days >= 0),
+  notes TEXT,
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name COLLATE NOCASE, created_at);
+CREATE INDEX IF NOT EXISTS idx_suppliers_archived ON suppliers(archived_at, name COLLATE NOCASE);
+PRAGMA user_version=11;
 "#;

@@ -735,7 +735,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 10;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 11;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -867,7 +867,7 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
-            .replace("PRAGMA user_version = 10;", "PRAGMA user_version = 9;");
+            .replace("PRAGMA user_version = 11;", "PRAGMA user_version = 9;");
         assert!(!legacy_schema.contains("catalog_items"));
         assert!(!legacy_schema.contains("catalog_item_id"));
 
@@ -904,6 +904,119 @@ mod tests {
         );
         assert_eq!(workspace["quote_items"][0]["line_net_cents"], 14_000);
         assert_eq!(workspace["quote_items"][0]["catalog_item_id"], json!(null));
+    }
+
+    #[test]
+    fn v11_migration_preserves_v10_expenses_as_paid_without_seeding_suppliers() {
+        let temporary = tempfile::tempdir().unwrap();
+        let data_dir = temporary.path().join("pre-suppliers-v10-profile");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let database_path = data_dir.join("helvichantier.sqlite3");
+        let suppliers_table = r#"CREATE TABLE IF NOT EXISTS suppliers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  contact_name TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  uid_number TEXT,
+  iban TEXT,
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency = 'CHF'),
+  payment_terms_days INTEGER NOT NULL DEFAULT 30 CHECK (payment_terms_days >= 0),
+  notes TEXT,
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+"#;
+        let current_expenses_table = r#"CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES projects(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  supplier_id TEXT REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  date TEXT NOT NULL,
+  due_date TEXT,
+  supplier TEXT,
+  category TEXT,
+  reference TEXT,
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency = 'CHF'),
+  net_cents INTEGER NOT NULL DEFAULT 0,
+  vat_cents INTEGER NOT NULL DEFAULT 0,
+  total_cents INTEGER NOT NULL DEFAULT 0,
+  payment_status TEXT NOT NULL DEFAULT 'paid' CHECK (payment_status IN ('pending', 'paid')),
+  paid_at TEXT,
+  reimbursable INTEGER NOT NULL DEFAULT 0 CHECK (reimbursable IN (0, 1)),
+  note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (payment_status <> 'pending' OR (due_date IS NOT NULL AND due_date <> '' AND paid_at IS NULL))
+);
+"#;
+        let legacy_expenses_table = r#"CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES projects(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  date TEXT NOT NULL,
+  supplier TEXT,
+  category TEXT,
+  reference TEXT,
+  currency TEXT NOT NULL DEFAULT 'CHF',
+  net_cents INTEGER NOT NULL DEFAULT 0,
+  vat_cents INTEGER NOT NULL DEFAULT 0,
+  total_cents INTEGER NOT NULL DEFAULT 0,
+  reimbursable INTEGER NOT NULL DEFAULT 0 CHECK (reimbursable IN (0, 1)),
+  note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+"#;
+        let payment_guards = r#"CREATE TRIGGER IF NOT EXISTS expenses_payment_state_insert_guard
+BEFORE INSERT ON expenses
+WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment date'); END;
+CREATE TRIGGER IF NOT EXISTS expenses_payment_state_update_guard
+BEFORE UPDATE OF payment_status,paid_at,due_date ON expenses
+WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment date'); END;
+"#;
+        let legacy_schema = SCHEMA_SQL
+            .replace(suppliers_table, "")
+            .replace(current_expenses_table, legacy_expenses_table)
+            .replace(payment_guards, "")
+            .lines()
+            .filter(|line| {
+                !line.contains("idx_suppliers_")
+                    && !line.contains("idx_expenses_supplier_date")
+                    && !line.contains("idx_expenses_payment_due")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace("PRAGMA user_version = 11;", "PRAGMA user_version = 10;");
+        assert!(!legacy_schema.contains("CREATE TABLE IF NOT EXISTS suppliers"));
+        assert!(!legacy_schema.contains("supplier_id"));
+        assert!(!legacy_schema.contains("payment_status"));
+
+        let connection = rusqlite::Connection::open(&database_path).unwrap();
+        connection.execute_batch(&legacy_schema).unwrap();
+        connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at) VALUES(1,1,'Entreprise v10','F','43','Entreprise historique','2026-01-01','2026-01-01')",[]).unwrap();
+        connection.execute("INSERT INTO expenses(id,date,supplier,currency,net_cents,vat_cents,total_cents,reimbursable,note,created_at,updated_at) VALUES('expense-v10','2026-08-01','Fournisseur historique','CHF',10000,810,10810,0,'Dépense conservée','2026-08-01','2026-08-01')",[]).unwrap();
+        drop(connection);
+
+        let store = LocalStore::initialize(data_dir).unwrap();
+        let connection = store.connect().unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let workspace = store.get_workspace().unwrap();
+        assert!(workspace["suppliers"].as_array().unwrap().is_empty());
+        let expense = &workspace["expenses"][0];
+        assert_eq!(expense["id"], "expense-v10");
+        assert_eq!(expense["supplier"], "Fournisseur historique");
+        assert_eq!(expense["total_cents"], 10_810);
+        assert_eq!(expense["payment_status"], "paid");
+        assert_eq!(expense["supplier_id"], json!(null));
+        assert_eq!(expense["due_date"], json!(null));
+        assert_eq!(expense["paid_at"], json!(null));
     }
 
     #[test]
@@ -1746,6 +1859,222 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM invoices", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn suppliers_and_pending_expenses_preserve_the_supplier_snapshot() {
+        let (_temporary, store) = initialized_store();
+        assert!(store
+            .create_record("suppliers", json!({"name":"  "}))
+            .is_err());
+        assert!(store
+            .create_record(
+                "suppliers",
+                json!({"name":"Devise invalide","currency":"EUR"}),
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("CHF"));
+        assert!(store
+            .create_record(
+                "suppliers",
+                json!({"name":"Délai invalide","payment_terms_days":-1}),
+            )
+            .is_err());
+        assert!(store
+            .create_record(
+                "suppliers",
+                json!({"name":"IBAN invalide","iban":"CH00 INVALID"}),
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("IBAN CH ou LI"));
+
+        let supplier = store
+            .create_record(
+                "suppliers",
+                json!({
+                    "name":"Matériaux Léman SA",
+                    "contact_name":"Service achats",
+                    "email":"achats@example.invalid",
+                    "phone":"+41 21 000 00 00",
+                    "address":"Rue du Test 4, 1000 Lausanne",
+                    "uid_number":"CHE-000.000.000",
+                    "iban":"CH44 3199 9123 0008 8901 2",
+                    "currency":"chf",
+                    "payment_terms_days":30,
+                    "notes":"Fournisseur principal"
+                }),
+            )
+            .unwrap();
+        let supplier_id = value_id(&supplier);
+        assert_eq!(supplier["currency"], "CHF");
+        assert_eq!(supplier["iban"], "CH4431999123000889012");
+
+        for invalid in [
+            json!({
+                "date":"2026-09-01",
+                "supplier_id":supplier_id,
+                "payment_status":"pending",
+                "net_cents":100,
+                "vat_cents":0
+            }),
+            json!({
+                "date":"2026-09-01",
+                "due_date":"2026-09-30",
+                "supplier_id":supplier_id,
+                "payment_status":"pending",
+                "paid_at":"2026-09-10",
+                "net_cents":100,
+                "vat_cents":0
+            }),
+            json!({
+                "date":"2026-09-01",
+                "due_date":"2026-08-31",
+                "supplier_id":supplier_id,
+                "payment_status":"pending",
+                "net_cents":100,
+                "vat_cents":0
+            }),
+            json!({
+                "date":"2026-09-01",
+                "currency":"EUR",
+                "net_cents":100,
+                "vat_cents":0
+            }),
+        ] {
+            assert!(store.create_record("expenses", invalid).is_err());
+        }
+
+        let expense = store
+            .create_record(
+                "expenses",
+                json!({
+                    "supplier_id":supplier_id,
+                    "date":"2026-09-01",
+                    "due_date":"2026-09-30",
+                    "category":"Matériaux",
+                    "reference":"ACH-2026-001",
+                    "currency":"CHF",
+                    "net_cents":10_000,
+                    "vat_cents":810,
+                    "payment_status":"pending"
+                }),
+            )
+            .unwrap();
+        let expense_id = value_id(&expense);
+        assert_eq!(expense["project_id"], json!(null));
+        assert_eq!(expense["supplier_id"], supplier_id);
+        assert_eq!(expense["supplier"], "Matériaux Léman SA");
+        assert_eq!(expense["total_cents"], 10_810);
+        assert_eq!(expense["payment_status"], "pending");
+        assert_eq!(expense["paid_at"], json!(null));
+
+        let archived_at = "2026-09-05T08:30:00Z";
+        store
+            .update_record(
+                "suppliers",
+                &supplier_id,
+                json!({
+                    "name":"Matériaux Léman Romandie SA",
+                    "archived_at":archived_at
+                }),
+            )
+            .unwrap();
+        let workspace = store.get_workspace().unwrap();
+        assert_eq!(
+            workspace["suppliers"][0]["name"],
+            "Matériaux Léman Romandie SA"
+        );
+        assert_eq!(workspace["suppliers"][0]["archived_at"], archived_at);
+        assert_eq!(workspace["expenses"][0]["supplier"], "Matériaux Léman SA");
+        assert!(store.delete_record("suppliers", &supplier_id).is_err());
+
+        let paid = store
+            .update_record(
+                "expenses",
+                &expense_id,
+                json!({"payment_status":"paid","paid_at":"2026-09-20"}),
+            )
+            .unwrap();
+        assert_eq!(paid["payment_status"], "paid");
+        assert_eq!(paid["paid_at"], "2026-09-20");
+        assert_eq!(paid["supplier"], "Matériaux Léman SA");
+    }
+
+    #[test]
+    fn pending_expense_posts_exactly_once_when_marked_paid() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let pending = store
+            .create_record(
+                "expenses",
+                json!({
+                    "date":"2026-10-01",
+                    "due_date":"2026-10-31",
+                    "supplier":"Fournisseur à payer",
+                    "currency":"CHF",
+                    "net_cents":10_000,
+                    "vat_cents":810,
+                    "payment_status":"pending"
+                }),
+            )
+            .unwrap();
+        let expense_id = value_id(&pending);
+        let connection = store.connect().unwrap();
+        let entries_before: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE source_type='expense' AND source_id=?",
+                rusqlite::params![expense_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(entries_before, 0);
+        let bank_credit_before: i64 = connection
+            .query_row(
+                "SELECT COALESCE(SUM(jl.credit_cents),0) FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE je.source_type='expense' AND je.source_id=? AND jl.account_id=?",
+                rusqlite::params![expense_id, accounts["bank"]],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(bank_credit_before, 0);
+        drop(connection);
+
+        store
+            .update_record(
+                "expenses",
+                &expense_id,
+                json!({"payment_status":"paid","paid_at":"2026-10-20"}),
+            )
+            .unwrap();
+        let connection = store.connect().unwrap();
+        let (entries_after, bank_credit_after, entry_date): (i64, i64, String) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM journal_entries WHERE source_type='expense' AND source_id=?1),
+                   (SELECT COALESCE(SUM(jl.credit_cents),0) FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE je.source_type='expense' AND je.source_id=?1 AND jl.account_id=?2),
+                   (SELECT entry_date FROM journal_entries WHERE source_type='expense' AND source_id=?1)",
+                rusqlite::params![expense_id, accounts["bank"]],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(entries_after, 1);
+        assert_eq!(bank_credit_after, 10_810);
+        assert_eq!(entry_date, "2026-10-20");
+        drop(connection);
+        assert!(store
+            .update_record("expenses", &expense_id, json!({"note":"Tentative double"}))
+            .is_err());
+        let final_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE source_type='expense' AND source_id=?",
+                rusqlite::params![expense_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(final_count, 1);
     }
 
     #[test]

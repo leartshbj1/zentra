@@ -694,15 +694,16 @@ pub(crate) fn post_expense_if_enabled(
     let Some(map) = accounting_map(tx)? else {
         return Ok(None);
     };
-    let (date, net, vat, total, currency, project): (
+    let (date, net, vat, total, currency, project, payment_status): (
         String,
         i64,
         i64,
         i64,
         String,
         Option<String>,
+        String,
     ) = tx.query_row(
-        "SELECT date,net_cents,vat_cents,total_cents,currency,project_id FROM expenses WHERE id=?",
+        "SELECT COALESCE(paid_at,date),net_cents,vat_cents,total_cents,currency,project_id,payment_status FROM expenses WHERE id=?",
         params![expense_id],
         |r| {
             Ok((
@@ -712,9 +713,13 @@ pub(crate) fn post_expense_if_enabled(
                 r.get(3)?,
                 r.get(4)?,
                 r.get(5)?,
+                r.get(6)?,
             ))
         },
     )?;
+    if payment_status != "paid" {
+        return Ok(None);
+    }
     if total <= 0 || net < 0 || vat < 0 || net + vat != total {
         return Err(AppError::Validation(
             "La dépense doit avoir des montants positifs cohérents.".into(),

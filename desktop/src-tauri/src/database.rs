@@ -34,9 +34,9 @@ use crate::{
     },
     reminders::cancel_settled_reminders,
     schema::{
-        MIGRATION_V10_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
-        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
-        SCHEMA_VERSION,
+        MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL,
+        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
+        SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -223,6 +223,46 @@ fn migrate_v10(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction.execute_batch(
         "CREATE INDEX IF NOT EXISTS idx_quote_items_catalog ON quote_items(catalog_item_id) WHERE catalog_item_id IS NOT NULL;
          CREATE INDEX IF NOT EXISTS idx_invoice_items_catalog ON invoice_items(catalog_item_id) WHERE catalog_item_id IS NOT NULL;",
+    )?;
+    Ok(())
+}
+
+fn migrate_v11(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V11_SQL)?;
+    let mut statement = transaction.prepare("PRAGMA table_info(expenses)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    for (column, definition) in [
+        (
+            "supplier_id",
+            "supplier_id TEXT REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        ),
+        ("due_date", "due_date TEXT"),
+        (
+            "payment_status",
+            "payment_status TEXT NOT NULL DEFAULT 'paid' CHECK (payment_status IN ('pending', 'paid'))",
+        ),
+        ("paid_at", "paid_at TEXT"),
+    ] {
+        if !columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE expenses ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+    transaction.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_expenses_supplier_date ON expenses(supplier_id, date DESC) WHERE supplier_id IS NOT NULL;
+         CREATE INDEX IF NOT EXISTS idx_expenses_payment_due ON expenses(payment_status, due_date) WHERE payment_status = 'pending';
+         CREATE TRIGGER IF NOT EXISTS expenses_payment_state_insert_guard
+           BEFORE INSERT ON expenses
+           WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
+           BEGIN SELECT RAISE(ABORT,'pending expense requires a due date and no payment date'); END;
+         CREATE TRIGGER IF NOT EXISTS expenses_payment_state_update_guard
+           BEFORE UPDATE OF payment_status,paid_at,due_date ON expenses
+           WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
+           BEGIN SELECT RAISE(ABORT,'pending expense requires a due date and no payment date'); END;",
     )?;
     Ok(())
 }
@@ -569,6 +609,7 @@ impl LocalStore {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             2 => {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
@@ -579,6 +620,7 @@ impl LocalStore {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             3 => {
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
@@ -588,6 +630,7 @@ impl LocalStore {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             4 => {
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
@@ -596,6 +639,7 @@ impl LocalStore {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             5 => {
                 migrate_v6(&transaction)?;
@@ -603,23 +647,31 @@ impl LocalStore {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             6 => {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             7 => {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
             8 => {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
             }
-            9 => migrate_v10(&transaction)?,
+            9 => {
+                migrate_v10(&transaction)?;
+                migrate_v11(&transaction)?;
+            }
+            10 => migrate_v11(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -841,6 +893,11 @@ impl LocalStore {
             "SELECT * FROM catalog_items ORDER BY CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END, name COLLATE NOCASE, created_at",
             [],
         )?;
+        let suppliers = query_all(
+            connection,
+            "SELECT * FROM suppliers ORDER BY CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END, name COLLATE NOCASE, created_at",
+            [],
+        )?;
         let projects = query_all(
             connection,
             "SELECT * FROM projects ORDER BY CASE status WHEN 'en_cours' THEN 0 WHEN 'planifie' THEN 1 ELSE 2 END, COALESCE(planned_start_date, created_at) DESC",
@@ -981,6 +1038,7 @@ impl LocalStore {
             "settings": settings,
             "clients": clients,
             "catalog_items": catalog_items,
+            "suppliers": suppliers,
             "projects": projects,
             "quotes": quotes,
             "quote_items": quote_items,
@@ -1026,6 +1084,9 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let mut object = value_object(data)?;
+        if entity == "expenses" {
+            enrich_expense_supplier_snapshot(&connection, &mut object)?;
+        }
         strip_readonly_fields(entity, &mut object);
         validate_keys(&object, spec.fields)?;
         normalize_record(entity, &mut object, true)?;
@@ -1079,7 +1140,13 @@ impl LocalStore {
         }
         transaction.execute(&sql, params_from_iter(values))?;
         recompute_after_change(&transaction, entity, &object, None)?;
-        if entity == "expenses" {
+        if entity == "expenses"
+            && object
+                .get("payment_status")
+                .and_then(Value::as_str)
+                .unwrap_or("paid")
+                == "paid"
+        {
             post_expense_if_enabled(&transaction, &id)?;
         }
         let record = query_record_tx(&transaction, spec.table, &id)?;
@@ -1246,6 +1313,9 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let mut object = value_object(data)?;
         object.remove("id");
+        if entity == "expenses" {
+            enrich_expense_supplier_snapshot(&connection, &mut object)?;
+        }
         strip_readonly_fields(entity, &mut object);
         validate_keys(&object, spec.fields)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -1275,6 +1345,12 @@ impl LocalStore {
             return Err(AppError::NotFound(format!("{entity}/{id}")));
         }
         recompute_after_change(&transaction, entity, &object, Some(&previous))?;
+        if entity == "expenses"
+            && previous.get("payment_status").and_then(Value::as_str) == Some("pending")
+            && object.get("payment_status").and_then(Value::as_str) == Some("paid")
+        {
+            post_expense_if_enabled(&transaction, id)?;
+        }
         let record = query_record_tx(&transaction, spec.table, id)?;
         append_audit(
             &transaction,
@@ -2327,6 +2403,23 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
             ],
             required: &["kind", "name"],
         },
+        "suppliers" => EntitySpec {
+            table: "suppliers",
+            fields: &[
+                "name",
+                "contact_name",
+                "email",
+                "phone",
+                "address",
+                "uid_number",
+                "iban",
+                "currency",
+                "payment_terms_days",
+                "notes",
+                "archived_at",
+            ],
+            required: &["name"],
+        },
         "projects" => EntitySpec {
             table: "projects",
             fields: &[
@@ -2475,7 +2568,9 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
             table: "expenses",
             fields: &[
                 "project_id",
+                "supplier_id",
                 "date",
+                "due_date",
                 "supplier",
                 "category",
                 "reference",
@@ -2483,6 +2578,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "net_cents",
                 "vat_cents",
                 "total_cents",
+                "payment_status",
+                "paid_at",
                 "reimbursable",
                 "note",
             ],
@@ -2575,6 +2672,41 @@ fn value_object(data: Value) -> AppResult<Map<String, Value>> {
         .ok_or_else(|| AppError::Validation("Les données doivent être un objet JSON.".into()))
 }
 
+fn enrich_expense_supplier_snapshot(
+    connection: &Connection,
+    object: &mut Map<String, Value>,
+) -> AppResult<()> {
+    let supplier_id = match object.get("supplier_id").cloned() {
+        Some(Value::String(value)) if value.trim().is_empty() => {
+            object.insert("supplier_id".into(), Value::Null);
+            return Ok(());
+        }
+        Some(Value::String(value)) => value,
+        Some(Value::Null) | None => return Ok(()),
+        Some(_) => {
+            return Err(AppError::Validation(
+                "supplier_id doit être un identifiant texte ou null.".into(),
+            ));
+        }
+    };
+    let supplier_name: String = connection
+        .query_row(
+            "SELECT name FROM suppliers WHERE id=?",
+            params![supplier_id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("suppliers/{supplier_id}")))?;
+    let snapshot_missing = object
+        .get("supplier")
+        .and_then(Value::as_str)
+        .is_none_or(|value| value.trim().is_empty());
+    if snapshot_missing {
+        object.insert("supplier".into(), Value::String(supplier_name));
+    }
+    Ok(())
+}
+
 fn validate_keys(object: &Map<String, Value>, allowed: &[&str]) -> AppResult<()> {
     let allowed: HashSet<&str> = allowed.iter().copied().collect();
     for key in object.keys() {
@@ -2655,6 +2787,7 @@ fn normalize_record(
     }
     match entity {
         "catalog_items" => normalize_catalog_item(object)?,
+        "suppliers" => normalize_supplier(object)?,
         "quote_items" | "invoice_items" => normalize_line_item(object)?,
         "invoices" => {
             if let Some(invoice_type) = object.get_mut("type") {
@@ -2674,13 +2807,7 @@ fn normalize_record(
                 *invoice_type = Value::String(normalized.into());
             }
         }
-        "expenses" => {
-            let net = object.get("net_cents").and_then(Value::as_i64).unwrap_or(0);
-            let vat = object.get("vat_cents").and_then(Value::as_i64).unwrap_or(0);
-            if !object.contains_key("total_cents") {
-                object.insert("total_cents".into(), json!(net.saturating_add(vat)));
-            }
-        }
+        "expenses" => normalize_expense(object)?,
         "employees" => {
             let parsed_date = |field: &str| -> AppResult<Option<NaiveDate>> {
                 let Some(value) = object
@@ -2973,6 +3100,201 @@ fn normalize_catalog_item(object: &mut Map<String, Value>) -> AppResult<()> {
     Ok(())
 }
 
+fn normalize_supplier(object: &mut Map<String, Value>) -> AppResult<()> {
+    if let Some(name) = object.get("name") {
+        let Some(name) = name.as_str() else {
+            return Err(AppError::Validation("name doit être du texte.".into()));
+        };
+        if name.is_empty() || name.chars().count() > 200 {
+            return Err(AppError::Validation(
+                "name doit contenir entre 1 et 200 caractères.".into(),
+            ));
+        }
+    }
+    for (field, maximum) in [
+        ("contact_name", 200),
+        ("email", 254),
+        ("phone", 80),
+        ("address", 1_000),
+        ("uid_number", 80),
+        ("notes", 10_000),
+    ] {
+        match object.get(field).cloned() {
+            Some(Value::String(value)) if value.is_empty() => {
+                object.insert(field.into(), Value::Null);
+            }
+            Some(Value::String(value)) if value.chars().count() <= maximum => {}
+            Some(Value::String(_)) => {
+                return Err(AppError::Validation(format!(
+                    "{field} ne peut pas dépasser {maximum} caractères."
+                )));
+            }
+            Some(Value::Null) | None => {}
+            Some(_) => {
+                return Err(AppError::Validation(format!(
+                    "{field} doit être du texte ou null."
+                )));
+            }
+        }
+    }
+    if object
+        .get("currency")
+        .and_then(Value::as_str)
+        .is_some_and(|currency| currency != "CHF")
+    {
+        return Err(AppError::Validation(
+            "La devise d’un fournisseur doit être CHF.".into(),
+        ));
+    }
+    if object
+        .get("payment_terms_days")
+        .is_some_and(|value| !value.as_i64().is_some_and(|number| number >= 0))
+    {
+        return Err(AppError::Validation(
+            "payment_terms_days doit être un nombre entier positif ou nul.".into(),
+        ));
+    }
+    match object.get("iban").cloned() {
+        Some(Value::String(value)) if value.is_empty() => {
+            object.insert("iban".into(), Value::Null);
+        }
+        Some(Value::String(value)) => {
+            object.insert(
+                "iban".into(),
+                Value::String(normalize_and_validate_iban(&value)?),
+            );
+        }
+        Some(Value::Null) | None => {}
+        Some(_) => {
+            return Err(AppError::Validation(
+                "iban doit être un IBAN CH ou LI ou null.".into(),
+            ));
+        }
+    }
+    match object.get("archived_at").cloned() {
+        Some(Value::String(value)) if value.is_empty() => {
+            object.insert("archived_at".into(), Value::Null);
+        }
+        Some(Value::String(value)) => {
+            DateTime::parse_from_rfc3339(&value).map_err(|_| {
+                AppError::Validation("archived_at doit être une date/heure ISO 8601 valide.".into())
+            })?;
+        }
+        Some(Value::Null) | None => {}
+        Some(_) => {
+            return Err(AppError::Validation(
+                "archived_at doit être une date/heure ISO 8601 ou null.".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn normalize_expense(object: &mut Map<String, Value>) -> AppResult<()> {
+    if object
+        .get("currency")
+        .and_then(Value::as_str)
+        .is_some_and(|currency| currency != "CHF")
+    {
+        return Err(AppError::Validation(
+            "La devise d’une dépense doit être CHF.".into(),
+        ));
+    }
+    for field in ["date", "due_date", "paid_at"] {
+        match object.get(field).cloned() {
+            Some(Value::String(value)) if value.is_empty() && field != "date" => {
+                object.insert(field.into(), Value::Null);
+            }
+            Some(Value::String(value)) => {
+                object.insert(field.into(), Value::String(normalized_date(&value, field)?));
+            }
+            Some(Value::Null) | None if field != "date" => {}
+            None => {}
+            Some(_) => {
+                return Err(AppError::Validation(format!(
+                    "{field} doit être une date AAAA-MM-JJ{}.",
+                    if field == "date" { "" } else { " ou null" }
+                )));
+            }
+        }
+    }
+    if let (Some(date), Some(due_date)) = (
+        object.get("date").and_then(Value::as_str),
+        object.get("due_date").and_then(Value::as_str),
+    ) {
+        if due_date < date {
+            return Err(AppError::Validation(
+                "due_date ne peut pas précéder la date de la dépense.".into(),
+            ));
+        }
+    }
+    let payment_status = match object.get("payment_status") {
+        Some(Value::String(value)) if matches!(value.as_str(), "pending" | "paid") => {
+            value.as_str()
+        }
+        None => "paid",
+        _ => {
+            return Err(AppError::Validation(
+                "payment_status doit être pending ou paid.".into(),
+            ));
+        }
+    };
+    if payment_status == "pending" {
+        if !object
+            .get("due_date")
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty())
+        {
+            return Err(AppError::Validation(
+                "due_date est obligatoire pour une dépense en attente.".into(),
+            ));
+        }
+        if object.get("paid_at").is_some_and(|value| !value.is_null()) {
+            return Err(AppError::Validation(
+                "paid_at doit être null pour une dépense en attente.".into(),
+            ));
+        }
+    }
+    if let Some(value) = object.get("supplier") {
+        if !value.is_null()
+            && !value
+                .as_str()
+                .is_some_and(|supplier| supplier.chars().count() <= 500)
+        {
+            return Err(AppError::Validation(
+                "supplier doit être du texte de 500 caractères maximum ou null.".into(),
+            ));
+        }
+    }
+    for field in ["net_cents", "vat_cents", "total_cents"] {
+        if object
+            .get(field)
+            .is_some_and(|value| !value.as_i64().is_some_and(|amount| amount >= 0))
+        {
+            return Err(AppError::Validation(format!(
+                "{field} doit être un montant entier positif ou nul."
+            )));
+        }
+    }
+    let net = object.get("net_cents").and_then(Value::as_i64).unwrap_or(0);
+    let vat = object.get("vat_cents").and_then(Value::as_i64).unwrap_or(0);
+    let expected_total = net.checked_add(vat).ok_or_else(|| {
+        AppError::Validation("Les montants de la dépense sont trop élevés.".into())
+    })?;
+    match object.get("total_cents").and_then(Value::as_i64) {
+        Some(total) if total != expected_total => {
+            return Err(AppError::Validation(
+                "total_cents doit être égal à net_cents + vat_cents.".into(),
+            ));
+        }
+        Some(_) => {}
+        None => {
+            object.insert("total_cents".into(), json!(expected_total));
+        }
+    }
+    Ok(())
+}
+
 fn normalize_record_patch(
     entity: &str,
     object: &mut Map<String, Value>,
@@ -2985,6 +3307,19 @@ fn normalize_record_patch(
         .ok_or_else(|| AppError::Validation("L'enregistrement existant est invalide.".into()))?;
     for (key, value) in object.iter() {
         merged.insert(key.clone(), value.clone());
+    }
+    if entity == "expenses"
+        && (object.contains_key("net_cents") || object.contains_key("vat_cents"))
+        && !object.contains_key("total_cents")
+    {
+        if let (Some(net), Some(vat)) = (
+            merged.get("net_cents").and_then(Value::as_i64),
+            merged.get("vat_cents").and_then(Value::as_i64),
+        ) {
+            if let Some(total) = net.checked_add(vat) {
+                merged.insert("total_cents".into(), json!(total));
+            }
+        }
     }
     normalize_record(entity, &mut merged, false)?;
 
