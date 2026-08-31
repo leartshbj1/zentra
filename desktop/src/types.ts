@@ -391,6 +391,114 @@ export type Supplier = {
   updatedAt: string;
 };
 
+export type BankSuggestionKind = 'automatic_exact' | 'automatic_partial' | 'manual' | 'review' | 'none';
+
+export type BankReconciliationCandidate = {
+  invoiceId: Identifier;
+  invoiceNumber: string;
+  remainingCents: number;
+  amountRelation: string;
+  reason: string;
+  confirmable: boolean;
+};
+
+export type BankReconciliationSuggestion = {
+  kind: BankSuggestionKind;
+  invoiceId: Identifier | null;
+  invoiceNumber: string | null;
+  reason: string;
+  confirmable: boolean;
+  candidates: BankReconciliationCandidate[];
+};
+
+export type BankReconciliation = {
+  id: Identifier;
+  movementId: Identifier;
+  invoiceId: Identifier;
+  paymentId: Identifier;
+  amountCents: number;
+  confirmedAt: string;
+  createdAt: string;
+};
+
+export type BankMovement = {
+  id: Identifier;
+  importId: Identifier;
+  accountId: string;
+  accountCurrency: string;
+  amountCents: number;
+  currency: string;
+  creditDebit: string;
+  status: string;
+  reversal: boolean;
+  bookingDate: string;
+  valueDate: string;
+  accountServicerRef: string;
+  endToEndId: string;
+  transactionId: string;
+  referenceType: string;
+  referenceLevel: string;
+  reference: string;
+  unstructured: string;
+  counterpartyName: string;
+  strongKey: string;
+  createdAt: string;
+  reconciliation: BankReconciliation | null;
+  suggestion: BankReconciliationSuggestion;
+};
+
+export type BankImport = {
+  id: Identifier;
+  sourceName: string;
+  fileSha256: string;
+  fileSize: number;
+  messageType: string;
+  namespaceVersion: string;
+  accountId: string;
+  accountCurrency: string;
+  entryCount: number;
+  ignoredCount: number;
+  createdAt: string;
+};
+
+export type BankAccountLink = {
+  accountId: string;
+  currency: string;
+  linked: boolean;
+  linkSource: 'settings_iban' | 'explicit' | 'unlinked';
+  movementCount: number;
+};
+
+export type BankWorkspace = {
+  summary: {
+    importCount: number;
+    movementCount: number;
+    unreconciledCount: number;
+    pendingCount: number;
+    bookedCreditCount: number;
+  };
+  accounts: BankAccountLink[];
+  imports: BankImport[];
+  movements: BankMovement[];
+  reconciliations: BankReconciliation[];
+};
+
+export type CamtImportResult = {
+  duplicate: boolean;
+  import: BankImport;
+  importedCount: number;
+  skippedDuplicateCount: number;
+  ignoredCount: number;
+  warnings: string[];
+};
+
+export type BankReconciliationResult = {
+  movement: BankMovement;
+  reconciliation: BankReconciliation;
+  payment: Payment;
+  invoice: Pick<Invoice, 'id' | 'number' | 'status'>;
+};
+
 export type PayslipLine = {
   id: Identifier;
   label: string;

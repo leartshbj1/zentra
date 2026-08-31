@@ -7,6 +7,8 @@ import type {
   AccountingSettings,
   AppSettings,
   BalanceSheetReport,
+  BankReconciliationResult,
+  BankWorkspace,
   CalculatedPayrollContribution,
   CatalogItem,
   Client,
@@ -64,6 +66,13 @@ import type {
   TrialBalanceRow,
   Workspace,
 } from './types';
+import {
+  bankAccountAssociationPayload,
+  bankConfirmationPayload,
+  bankReconciliationResultFromRaw,
+  bankWorkspaceFromRaw,
+  camtImportResultFromRaw,
+} from './bank';
 import { expensePaymentStatusFromRaw } from './purchases';
 
 type RawRecord = Record<string, unknown>;
@@ -827,6 +836,14 @@ export const desktopApi = {
   async startTimer(data: Record<string, unknown>) { await invoke('start_timer', { input: toBackendData(data) }); return loadWorkspace(); },
   async stopTimer() { await invoke('stop_timer'); return loadWorkspace(); },
   async createBackup(destination?: string) { const path = await invoke<string>('create_backup', { destination }); return { workspace: await loadWorkspace(), path }; },
+  chooseCamtFile: () => chooseFile({ multiple: false, directory: false, title: 'Importer un relevé bancaire CAMT', filters: [{ name: 'Relevé bancaire ISO 20022', extensions: ['xml'] }] }),
+  async importCamtFile(path: string) { return camtImportResultFromRaw(await invoke<RawRecord>('import_camt_file', { path })); },
+  async getBankWorkspace(): Promise<BankWorkspace> { return bankWorkspaceFromRaw(await invoke<RawRecord>('get_bank_workspace')); },
+  async associateBankAccount(accountId: string, currency: string): Promise<void> { await invoke('associate_bank_account', bankAccountAssociationPayload(accountId, currency)); },
+  async dissociateBankAccount(accountId: string, currency: string): Promise<void> { await invoke('dissociate_bank_account', bankAccountAssociationPayload(accountId, currency)); },
+  async confirmBankReconciliation(movementId: string, invoiceId: string): Promise<BankReconciliationResult> {
+    return bankReconciliationResultFromRaw(await invoke<RawRecord>('confirm_bank_reconciliation', bankConfirmationPayload(movementId, invoiceId)));
+  },
   chooseRestoreFile: () => chooseFile({ multiple: false, directory: false, title: 'Choisir une sauvegarde Elyko', filters: [{ name: 'Sauvegarde Elyko', extensions: ['elyko', 'hchantier'] }] }),
   async restoreBackup(source: string) { await invoke<AppState>('restore_backup', { source }); return loadWorkspace(); },
   async exportData(format: 'json' | 'csv') { if (format !== 'json') throw new Error('L’export CSV sera disponible depuis chaque liste.'); return { path: await invoke<string>('export_json', {}) }; },

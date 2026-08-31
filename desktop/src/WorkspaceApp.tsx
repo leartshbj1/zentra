@@ -63,6 +63,7 @@ import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
 import { CatalogItemForm, CatalogScreen } from './CatalogScreen';
 import { ExpenseForm, PurchasesScreen, SupplierForm } from './PurchasesScreen';
+import { BankScreen } from './BankScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { PayrollImportWizard } from './PayrollImportWizard';
@@ -163,6 +164,7 @@ const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard;
   { id: 'time', label: 'Temps', icon: Clock3 },
   { id: 'team', label: 'Équipe & salaires', icon: Users },
   { id: 'expenses', label: 'Achats & fournisseurs', icon: WalletCards },
+  { id: 'bank', label: 'Banque', icon: Banknote },
   { id: 'reports', label: 'Rapports', icon: BarChart3, group: 'Pilotage' },
   { id: 'accounting', label: 'Comptabilité', icon: Landmark },
   { id: 'settings', label: 'Paramètres', icon: Settings },
@@ -179,6 +181,7 @@ const viewTitles: Record<View, [string, string]> = {
   time: ['Temps', 'Pointage réel et heures par chantier'],
   team: ['Équipe & salaires', 'Collaborateurs et fiches sans retenue estimée'],
   expenses: ['Achats & fournisseurs', 'Échéances, dépenses payées et annuaire local'],
+  bank: ['Banque', 'Import CAMT local et rapprochements confirmés'],
   reports: ['Rapports', 'Rentabilité calculée à partir de vos saisies'],
   accounting: ['Comptabilité', 'Partie double, journaux et états financiers locaux'],
   settings: ['Paramètres', 'Entreprise, confidentialité et portabilité'],
@@ -375,6 +378,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
           {view === 'time' ? <TimeScreen workspace={workspace} query={search} onCreate={() => setModal({ type: 'time' })} onEdit={(item) => setModal({ type: 'time', item })} onTimer={() => setModal({ type: 'timer' })} onArchive={(item) => void archive('timeEntries', item.id, `Pointage du ${formatDate(item.date)}`)} /> : null}
           {view === 'team' ? <TeamScreen workspace={workspace} query={search} onCreateEmployee={() => setModal({ type: 'employee' })} onEditEmployee={(item) => setModal({ type: 'employee', item })} onCreatePayslip={() => setModal({ type: 'payslip' })} onImportPayslips={() => setModal({ type: 'payrollImport' })} onEditPayslip={(item) => setModal({ type: 'payslip', item })} onPostPayslip={(item) => void postPayslip(item)} onPayPayslip={(item) => setModal({ type: 'payslipPayment', payslip: item })} onPrint={(item) => setPrintTarget({ entity: 'payslips', value: item })} onArchiveEmployee={(item) => void archive('employees', item.id, item.name)} onArchivePayslip={(item) => void archive('payslips', item.id, `Fiche ${item.period}`)} /> : null}
           {view === 'expenses' ? <PurchasesScreen workspace={workspace} query={search} onQueryChange={setSearch} busy={busy} onCreateExpense={() => setModal({ type: 'expense' })} onEditExpense={(item) => setModal({ type: 'expense', item })} onArchiveExpense={(item) => void archive('expenses', item.id, item.supplier || item.reference)} onMarkPaid={(item) => void markExpensePaid(item)} onCreateSupplier={() => setModal({ type: 'supplier' })} onEditSupplier={(item) => setModal({ type: 'supplier', item })} onArchiveSupplier={(item) => void archiveSupplier(item)} onRestoreSupplier={(item) => void restoreSupplier(item)} /> : null}
+          {view === 'bank' ? <BankScreen workspace={workspace} readOnly={readOnly} onWorkspaceChange={(next) => setWorkspace(next)} /> : null}
           {view === 'reports' ? <ReportsScreen workspace={workspace} /> : null}
           {view === 'accounting' ? <AccountingScreen workspace={workspace} /> : null}
           {view === 'settings' ? <SettingsScreen workspace={workspace} busy={busy} setBusy={setBusy} onWorkspace={setWorkspace} onNotice={setNotice} /> : null}

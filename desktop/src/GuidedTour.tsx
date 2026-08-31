@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { Button } from './ui';
 
-export type TourView = 'dashboard' | 'projects' | 'clients' | 'catalog' | 'quotes' | 'invoices' | 'reminders' | 'time' | 'team' | 'expenses' | 'reports' | 'accounting' | 'settings';
+export type TourView = 'dashboard' | 'projects' | 'clients' | 'catalog' | 'quotes' | 'invoices' | 'reminders' | 'time' | 'team' | 'expenses' | 'bank' | 'reports' | 'accounting' | 'settings';
 
 const TOUR_STORAGE_KEY = 'elyko-guided-tour-v2';
 
@@ -14,6 +14,7 @@ const steps: Array<{ view: TourView; eyebrow: string; title: string; text: strin
   { view: 'quotes', eyebrow: 'Vente', title: 'Du devis à la facture en un clic', text: 'Émettez le devis, marquez-le accepté puis convertissez-le. Elyko empêche les doubles conversions et fige les documents émis.', target: '.page-header' },
   { view: 'invoices', eyebrow: 'Encaissements', title: 'Factures, QR-facture et comptabilité', text: 'Enregistrez un paiement réel : le solde de la facture et l’écriture de banque sont mis à jour ensemble lorsque la comptabilité est activée.', target: '.page-header' },
   { view: 'team', eyebrow: 'Paie locale', title: 'Importez puis contrôlez les fiches', text: 'La couche texte et SmolVLM fonctionnent sur ce PC. Elyko signale les incohérences; vous restez la personne qui confirme chaque montant.', target: '.payroll-panel' },
+  { view: 'bank', eyebrow: 'Banque locale', title: 'Importez un CAMT, puis confirmez', text: 'Elyko lit le relevé XML sur ce PC et propose des factures. Associez explicitement le compte et confirmez chaque rapprochement : rien ne part à la banque.', target: '.bank-hero' },
   { view: 'accounting', eyebrow: 'Comptabilité', title: 'Journal, grand livre et états financiers', text: 'Les écritures validées sont immuables. Une correction passe par une extourne traçable, avec balance et rapports recalculés.', target: '.page-header' },
   { view: 'settings', eyebrow: 'Sécurité', title: 'Configurez, sauvegardez et mettez à jour', text: 'Ajoutez votre logo, contrôlez les cotisations avec votre fiduciaire, choisissez vos sauvegardes et vérifiez les mises à jour signées.', target: '.page-header' },
 ];
