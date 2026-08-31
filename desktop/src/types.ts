@@ -2,6 +2,7 @@ export type Identifier = string;
 
 export type EntityKind =
   | 'clients'
+  | 'catalogItems'
   | 'projects'
   | 'quotes'
   | 'invoices'
@@ -152,12 +153,32 @@ export type Project = {
   archivedAt?: string | null;
 };
 
+export type CatalogItem = {
+  id: Identifier;
+  kind: 'product' | 'service';
+  sku?: string | null;
+  name: string;
+  description: string;
+  unit: string;
+  salesPriceCents: number;
+  purchaseCostCents: number;
+  vatBp: number;
+  trackStock: boolean;
+  stockQuantityMilli: number;
+  reorderLevelMilli: number;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DocumentLine = {
   id: Identifier;
+  catalogItemId?: Identifier | null;
   description: string;
   quantity: number;
   unit: string;
   unitPriceCents: number;
+  discountBp?: number;
   vatRateBp: number;
 };
 
@@ -488,6 +509,7 @@ export type Workspace = {
   activityProfileRequired: boolean;
   settings: AppSettings | null;
   clients: Client[];
+  catalogItems: CatalogItem[];
   projects: Project[];
   quotes: Quote[];
   invoices: Invoice[];

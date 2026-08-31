@@ -31,6 +31,7 @@ import {
   Menu,
   MessageSquareWarning,
   MoreHorizontal,
+  Package,
   Pause,
   Pencil,
   Play,
@@ -60,6 +61,7 @@ import { RemindersScreen } from './RemindersScreen';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
+import { CatalogItemForm, CatalogScreen } from './CatalogScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { PayrollImportWizard } from './PayrollImportWizard';
@@ -70,6 +72,7 @@ import type {
   AppSettings,
   BalanceSheetReport,
   Client,
+  CatalogItem,
   DocumentLine,
   Employee,
   EntityKind,
@@ -106,6 +109,7 @@ import {
   centsFromInput,
   createId,
   documentTotals,
+  documentLineTotals,
   errorMessage,
   formatDate,
   formatDateTime,
@@ -128,6 +132,7 @@ import { creationBlockReason, timerBlockReason, type WorkspacePrerequisites } fr
 type View = TourView;
 type ModalState =
   | { type: 'client'; item?: Client }
+  | { type: 'catalogItem'; item?: CatalogItem }
   | { type: 'project'; item?: Project }
   | { type: 'document'; entity: 'quotes' | 'invoices'; item?: Quote | Invoice; quoteSource?: Quote }
   | { type: 'time'; item?: TimeEntry }
@@ -148,6 +153,7 @@ const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard;
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { id: 'projects', label: 'Chantiers / projets', icon: FolderKanban },
   { id: 'clients', label: 'Clients', icon: UserRound },
+  { id: 'catalog', label: 'Produits & services', icon: Package },
   { id: 'quotes', label: 'Devis', icon: FileCheck2, group: 'Gestion' },
   { id: 'invoices', label: 'Factures', icon: Receipt },
   { id: 'reminders', label: 'Relances', icon: MessageSquareWarning },
@@ -163,6 +169,7 @@ const viewTitles: Record<View, [string, string]> = {
   dashboard: ['Tableau de bord', 'Votre activité réelle, sans données de démonstration'],
   projects: ['Chantiers', 'Budget, durée, temps et rentabilité par chantier'],
   clients: ['Clients', 'Coordonnées et historique des travaux'],
+  catalog: ['Produits & services', 'Références réutilisables pour vos devis et factures'],
   quotes: ['Devis', 'Offres, lignes détaillées et conversion en facture'],
   invoices: ['Factures', 'Émission, encaissements et soldes ouverts'],
   reminders: ['Relances', 'Échéances, niveaux et historique des actions locales'],
@@ -287,6 +294,15 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
     await act(() => desktopApi.archiveEntity(entity, id), `${label} a été supprimé.`, false);
   }
 
+  async function archiveCatalogItem(item: CatalogItem) {
+    if (!window.confirm(`Archiver « ${item.name} » ? La référence restera dans l’historique, mais ne sera plus proposée dans les nouveaux documents.`)) return;
+    await act(() => desktopApi.archiveEntity('catalogItems', item.id), `${item.name} a été archivé.`, false);
+  }
+
+  async function restoreCatalogItem(item: CatalogItem) {
+    await act(() => desktopApi.updateEntity('catalogItems', item.id, { archivedAt: null }), `${item.name} est de nouveau disponible.`, false);
+  }
+
   const overdue = workspace.invoices.filter((invoice) => invoice.type !== 'credit_note' && ['issued', 'partially_paid'].includes(invoice.status) && invoice.dueDate && invoice.dueDate < todayIso());
   const title: [string, string] = view === 'projects'
     ? [terminology.pluralTitle, `Budget, durée, temps et rentabilité par ${terminology.singular}`]
@@ -295,7 +311,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
       : viewTitles[view];
   const timerProject = workspace.projects.find((project) => project.id === workspace.activeTimer?.projectId);
   const timerEmployee = workspace.employees.find((employee) => employee.id === workspace.activeTimer?.employeeId);
-  const searchableView = ['projects', 'clients', 'quotes', 'invoices', 'time', 'team', 'expenses'].includes(view);
+  const searchableView = ['projects', 'clients', 'catalog', 'quotes', 'invoices', 'time', 'team', 'expenses'].includes(view);
   const prerequisites: WorkspacePrerequisites = {
     clients: workspace.clients.length,
     projects: workspace.projects.length,
@@ -330,6 +346,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
           {view === 'dashboard' ? <Dashboard workspace={workspace} onNavigate={setView} onCreate={setModal} /> : null}
           {view === 'projects' ? <ProjectsScreen workspace={workspace} query={search} onEdit={(item) => setModal({ type: 'project', item })} onCreate={() => setModal({ type: 'project' })} onArchive={(item) => void archive('projects', item.id, item.name)} /> : null}
           {view === 'clients' ? <ClientsScreen workspace={workspace} query={search} onEdit={(item) => setModal({ type: 'client', item })} onCreate={() => setModal({ type: 'client' })} onArchive={(item) => void archive('clients', item.id, item.company || item.name)} /> : null}
+          {view === 'catalog' ? <CatalogScreen items={workspace.catalogItems} query={search} onQueryChange={setSearch} onCreate={() => setModal({ type: 'catalogItem' })} onEdit={(item) => setModal({ type: 'catalogItem', item })} onArchive={(item) => void archiveCatalogItem(item)} onRestore={(item) => void restoreCatalogItem(item)} /> : null}
           {view === 'quotes' ? <DocumentsScreen entity="quotes" workspace={workspace} query={search} busy={busy} onEdit={(item) => setModal({ type: 'document', entity: 'quotes', item })} onCreate={() => setModal({ type: 'document', entity: 'quotes' })} onIssue={(item) => void act(() => desktopApi.issueDocument('quotes', item.id, item.issueDate, item.validUntil), 'Le devis a été émis et numéroté.', false)} onStatus={(item, status) => void act(() => desktopApi.updateQuoteStatus(item.id, status), status === 'accepted' ? 'Le devis a été marqué accepté. Vous pouvez maintenant créer sa facture en un clic.' : status === 'refused' ? 'Le devis a été marqué refusé.' : 'Le devis a été marqué expiré.', false)} onConvert={(item) => void convertAcceptedQuote(item)} onPrint={(item) => setPrintTarget({ entity: 'quotes', value: item })} onArchive={(item) => void archive('quotes', item.id, item.title)} /> : null}
           {view === 'invoices' ? <DocumentsScreen entity="invoices" workspace={workspace} query={search} busy={busy} onEdit={(item) => setModal({ type: 'document', entity: 'invoices', item })} onCreate={() => setModal({ type: 'document', entity: 'invoices' })} onIssue={issueInvoice} onPayment={(item) => setModal({ type: 'payment', invoice: item })} onPrint={(item) => item.type === 'credit_note' ? setPrintTarget({ entity: 'invoices', value: item }) : setModal({ type: 'qrPrint', invoice: item })} onArchive={(item) => void archive('invoices', item.id, item.title)} /> : null}
           {view === 'reminders' ? <RemindersScreen workspace={workspace} /> : null}
@@ -351,7 +368,7 @@ export function WorkspaceApp({ workspace, setWorkspace, readOnly = false }: { wo
 
 function CreateButton({ view, onClick, terminology, prerequisites }: { view: View; onClick: Dispatch<SetStateAction<ModalState>>; terminology: ReturnType<typeof projectTerminology>; prerequisites: WorkspacePrerequisites }) {
   const map: Partial<Record<View, [string, ModalState]>> = {
-    projects: [`Nouveau ${terminology.singular}`, { type: 'project' }], clients: ['Nouveau client', { type: 'client' }], quotes: ['Nouveau devis', { type: 'document', entity: 'quotes' }], invoices: ['Nouvelle facture', { type: 'document', entity: 'invoices' }], time: ['Saisir des heures', { type: 'time' }], team: ['Nouveau collaborateur', { type: 'employee' }], expenses: ['Nouvelle dépense', { type: 'expense' }],
+    projects: [`Nouveau ${terminology.singular}`, { type: 'project' }], clients: ['Nouveau client', { type: 'client' }], catalog: ['Nouvelle référence', { type: 'catalogItem' }], quotes: ['Nouveau devis', { type: 'document', entity: 'quotes' }], invoices: ['Nouvelle facture', { type: 'document', entity: 'invoices' }], time: ['Saisir des heures', { type: 'time' }], team: ['Nouveau collaborateur', { type: 'employee' }], expenses: ['Nouvelle dépense', { type: 'expense' }],
   };
   const current = map[view];
   const blockReason = current ? creationBlockReason(view as Parameters<typeof creationBlockReason>[0], prerequisites) : '';
@@ -594,6 +611,7 @@ function SettingsScreen({ workspace, busy, setBusy, onWorkspace, onNotice }: { w
 
 function WorkspaceModal({ state, workspace, busy, close, act, onOpenAccounting, onQrReady }: { state: Exclude<ModalState, null>; workspace: Workspace; busy: boolean; close: () => void; act: (action: () => Promise<Workspace>, message: string, close?: boolean) => Promise<boolean>; onOpenAccounting: () => void; onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void }) {
   if (state.type === 'client') return <ClientForm item={state.item} busy={busy} close={close} act={act} />;
+  if (state.type === 'catalogItem') return <CatalogItemForm item={state.item} settings={workspace.settings!} busy={busy} close={close} act={act} />;
   if (state.type === 'project') return <ProjectForm item={state.item} workspace={workspace} busy={busy} close={close} act={act} />;
   if (state.type === 'document') return <DocumentEditor entity={state.entity} item={state.item} quoteSource={state.quoteSource} workspace={workspace} busy={busy} close={close} act={act} />;
   if (state.type === 'time') return <TimeForm item={state.item} workspace={workspace} busy={busy} close={close} act={act} />;
@@ -812,7 +830,7 @@ function PrintSheet({ target, workspace, onClose }: { target: Exclude<PrintTarge
   const totals = documentTotals(document.lines);
   const isQuote = true;
   const due = document.validUntil;
-  return <div className="print-preview"><div className="print-preview__toolbar"><strong>Aperçu d’impression</strong><span>Vérifiez les informations avant impression.</span><Button variant="secondary" onClick={() => window.print()}><Printer size={16} /> Imprimer</Button><Button variant="ghost" size="icon" onClick={onClose}><X size={18} /></Button></div><article className="print-sheet"><PrintHeader settings={settings} title={isQuote ? 'DEVIS' : 'FACTURE'} number={document.number} /><div className="print-meta"><div><span>Émis le</span><strong>{formatDate(document.issueDate)}</strong></div><div><span>{isQuote ? 'Valable jusqu’au' : 'Échéance'}</span><strong>{formatDate(due)}</strong></div></div><section className="print-recipient"><span>DESTINATAIRE</span><strong>{client?.company || client?.name || '—'}</strong><p>{client?.address || '—'}<br />{client?.email || ''}</p></section><h2 className="print-title">{document.title}</h2><table className="print-table"><thead><tr><th>Description</th><th>Qté</th><th>Unité</th><th>Prix unitaire</th><th>TVA</th><th>Total net</th></tr></thead><tbody>{document.lines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.quantity.toLocaleString('fr-CH')}</td><td>{line.unit}</td><td>{formatMoney(line.unitPriceCents)}</td><td>{settings.organization.vatRegistered ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %` : '—'}</td><td>{formatMoney(Math.round(line.quantity * line.unitPriceCents))}</td></tr>)}</tbody></table><div className="print-totals"><div><span>Sous-total net</span><strong>{formatMoney(totals.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(totals.vatCents)}</strong></div><div className="print-totals__grand"><span>Total TTC</span><strong>{formatMoney(totals.totalCents)}</strong></div></div><footer className="print-footer"><p>{document.notes}</p><p><strong>IBAN</strong> · {settings.billing.iban}<br />{settings.billing.defaultFooter}</p></footer></article></div>;
+  return <div className="print-preview"><div className="print-preview__toolbar"><strong>Aperçu d’impression</strong><span>Vérifiez les informations avant impression.</span><Button variant="secondary" onClick={() => window.print()}><Printer size={16} /> Imprimer</Button><Button variant="ghost" size="icon" onClick={onClose}><X size={18} /></Button></div><article className="print-sheet"><PrintHeader settings={settings} title={isQuote ? 'DEVIS' : 'FACTURE'} number={document.number} /><div className="print-meta"><div><span>Émis le</span><strong>{formatDate(document.issueDate)}</strong></div><div><span>{isQuote ? 'Valable jusqu’au' : 'Échéance'}</span><strong>{formatDate(due)}</strong></div></div><section className="print-recipient"><span>DESTINATAIRE</span><strong>{client?.company || client?.name || '—'}</strong><p>{client?.address || '—'}<br />{client?.email || ''}</p></section><h2 className="print-title">{document.title}</h2><table className="print-table"><thead><tr><th>Description</th><th>Qté</th><th>Unité</th><th>Prix unitaire</th><th>Remise</th><th>TVA</th><th>Total net</th></tr></thead><tbody>{document.lines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.quantity.toLocaleString('fr-CH')}</td><td>{line.unit}</td><td>{formatMoney(line.unitPriceCents)}</td><td>{line.discountBp ? `${(line.discountBp / 100).toLocaleString('fr-CH')} %` : '—'}</td><td>{settings.organization.vatRegistered ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %` : '—'}</td><td>{formatMoney(documentLineTotals(line).netCents)}</td></tr>)}</tbody></table><div className="print-totals"><div><span>Sous-total avant remise</span><strong>{formatMoney(totals.subtotalCents)}</strong></div>{totals.discountCents ? <div><span>Remises</span><strong>− {formatMoney(totals.discountCents)}</strong></div> : null}<div><span>Total net</span><strong>{formatMoney(totals.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(totals.vatCents)}</strong></div><div className="print-totals__grand"><span>Total TTC</span><strong>{formatMoney(totals.totalCents)}</strong></div></div><footer className="print-footer"><p>{document.notes}</p><p><strong>IBAN</strong> · {settings.billing.iban}<br />{settings.billing.defaultFooter}</p></footer></article></div>;
 }
 
 function PayslipPrintSheet({ payslip, workspace, onClose }: { payslip: Payslip; workspace: Workspace; onClose: () => void }) {
@@ -889,10 +907,11 @@ function PrintHeader({ settings, title, number }: { settings: AppSettings; title
 function vatBreakdown(lines: DocumentLine[]) {
   const groups = new Map<number, { rateBp: number; baseCents: number; vatCents: number }>();
   for (const line of lines) {
-    const baseCents = Math.round(line.quantity * line.unitPriceCents);
+    const totals = documentLineTotals(line);
+    const baseCents = totals.netCents;
     const current = groups.get(line.vatRateBp) ?? { rateBp: line.vatRateBp, baseCents: 0, vatCents: 0 };
     current.baseCents += baseCents;
-    current.vatCents += Math.round(baseCents * line.vatRateBp / 10_000);
+    current.vatCents += totals.vatCents;
     groups.set(line.vatRateBp, current);
   }
   return [...groups.values()].sort((a, b) => a.rateBp - b.rateBp);
@@ -908,7 +927,7 @@ function InvoicePrintSheet({ invoice: sourceInvoice, qr, workspace, onClose }: {
   const vatGroups = vatBreakdown(invoice.lines);
   const servicePeriod = invoice.serviceDateFrom === invoice.serviceDateTo ? formatDate(invoice.serviceDateFrom) : `${formatDate(invoice.serviceDateFrom)} → ${formatDate(invoice.serviceDateTo)}`;
   const capacityError = invoicePrintCapacityError(sourceInvoice);
-  return <div className="print-preview"><div className="print-preview__toolbar"><strong>Aperçu d’impression</strong><span>{capacityError || (sourceInvoice.snapshot ? `Document figé le ${formatDateTime(sourceInvoice.snapshot.capturedAt)}` : qr ? 'QR-facture validée localement.' : invoice.type === 'credit_note' ? 'Avoir sans section de paiement.' : 'Facture sans section QR.')}</span><Button variant="secondary" disabled={Boolean(capacityError)} onClick={() => window.print()}><Printer size={16} /> Imprimer</Button><Button variant="ghost" size="icon" onClick={onClose}><X size={18} /></Button></div>{capacityError ? <ErrorPanel message={capacityError} /> : null}<article className={`print-sheet ${qr ? 'print-sheet--qr' : ''}`}><div className="print-invoice-body"><PrintHeader settings={settings} title={invoice.type === 'credit_note' ? 'AVOIR' : 'FACTURE'} number={invoice.number} /><div className="print-meta"><div><span>Émis le</span><strong>{formatDate(invoice.issueDate)}</strong></div><div><span>Prestation</span><strong>{servicePeriod}</strong></div>{invoice.type !== 'credit_note' ? <div><span>Échéance</span><strong>{formatDate(invoice.dueDate)}</strong></div> : <div><span>Facture corrigée</span><strong>{original?.number || '—'}</strong></div>}</div><section className="print-recipient"><span>DESTINATAIRE</span><strong>{client?.company || client?.name || '—'}</strong><p>{client?.address || '—'}<br />{client?.email || ''}</p></section><h2 className="print-title">{invoice.title}</h2><table className="print-table"><thead><tr><th>Description</th><th>Qté</th><th>Unité</th><th>Prix unitaire</th><th>TVA</th><th>Total net</th></tr></thead><tbody>{invoice.lines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.quantity.toLocaleString('fr-CH')}</td><td>{line.unit}</td><td>{formatMoney(line.unitPriceCents)}</td><td>{settings.organization.vatRegistered ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %` : 'Sans TVA'}</td><td>{formatMoney(Math.round(line.quantity * line.unitPriceCents))}</td></tr>)}</tbody></table><div className="print-totals"><div><span>Sous-total net</span><strong>{formatMoney(totals.netCents)}</strong></div>{settings.organization.vatRegistered ? vatGroups.map((group) => <div key={group.rateBp}><span>TVA {(group.rateBp / 100).toLocaleString('fr-CH')} % sur {formatMoney(group.baseCents)}</span><strong>{formatMoney(group.vatCents)}</strong></div>) : <div><span>TVA</span><strong>Non assujetti</strong></div>}<div className="print-totals__grand"><span>{invoice.type === 'credit_note' ? 'Total de l’avoir' : 'Total TTC'}</span><strong>{formatMoney(totals.totalCents)}</strong></div></div><footer className="print-footer"><p>{invoice.notes}</p><p>{invoice.type === 'credit_note' ? 'Cet avoir réduit la créance; aucun paiement ne doit être enregistré.' : settings.billing.defaultFooter}</p></footer></div>{qr ? <SwissQrPaymentSection input={qr.input} payload={qr} /> : null}</article></div>;
+  return <div className="print-preview"><div className="print-preview__toolbar"><strong>Aperçu d’impression</strong><span>{capacityError || (sourceInvoice.snapshot ? `Document figé le ${formatDateTime(sourceInvoice.snapshot.capturedAt)}` : qr ? 'QR-facture validée localement.' : invoice.type === 'credit_note' ? 'Avoir sans section de paiement.' : 'Facture sans section QR.')}</span><Button variant="secondary" disabled={Boolean(capacityError)} onClick={() => window.print()}><Printer size={16} /> Imprimer</Button><Button variant="ghost" size="icon" onClick={onClose}><X size={18} /></Button></div>{capacityError ? <ErrorPanel message={capacityError} /> : null}<article className={`print-sheet ${qr ? 'print-sheet--qr' : ''}`}><div className="print-invoice-body"><PrintHeader settings={settings} title={invoice.type === 'credit_note' ? 'AVOIR' : 'FACTURE'} number={invoice.number} /><div className="print-meta"><div><span>Émis le</span><strong>{formatDate(invoice.issueDate)}</strong></div><div><span>Prestation</span><strong>{servicePeriod}</strong></div>{invoice.type !== 'credit_note' ? <div><span>Échéance</span><strong>{formatDate(invoice.dueDate)}</strong></div> : <div><span>Facture corrigée</span><strong>{original?.number || '—'}</strong></div>}</div><section className="print-recipient"><span>DESTINATAIRE</span><strong>{client?.company || client?.name || '—'}</strong><p>{client?.address || '—'}<br />{client?.email || ''}</p></section><h2 className="print-title">{invoice.title}</h2><table className="print-table"><thead><tr><th>Description</th><th>Qté</th><th>Unité</th><th>Prix unitaire</th><th>Remise</th><th>TVA</th><th>Total net</th></tr></thead><tbody>{invoice.lines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.quantity.toLocaleString('fr-CH')}</td><td>{line.unit}</td><td>{formatMoney(line.unitPriceCents)}</td><td>{line.discountBp ? `${(line.discountBp / 100).toLocaleString('fr-CH')} %` : '—'}</td><td>{settings.organization.vatRegistered ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %` : 'Sans TVA'}</td><td>{formatMoney(documentLineTotals(line).netCents)}</td></tr>)}</tbody></table><div className="print-totals"><div><span>Sous-total avant remise</span><strong>{formatMoney(totals.subtotalCents)}</strong></div>{totals.discountCents ? <div><span>Remises</span><strong>− {formatMoney(totals.discountCents)}</strong></div> : null}<div><span>Total net</span><strong>{formatMoney(totals.netCents)}</strong></div>{settings.organization.vatRegistered ? vatGroups.map((group) => <div key={group.rateBp}><span>TVA {(group.rateBp / 100).toLocaleString('fr-CH')} % sur {formatMoney(group.baseCents)}</span><strong>{formatMoney(group.vatCents)}</strong></div>) : <div><span>TVA</span><strong>Non assujetti</strong></div>}<div className="print-totals__grand"><span>{invoice.type === 'credit_note' ? 'Total de l’avoir' : 'Total TTC'}</span><strong>{formatMoney(totals.totalCents)}</strong></div></div><footer className="print-footer"><p>{invoice.notes}</p><p>{invoice.type === 'credit_note' ? 'Cet avoir réduit la créance; aucun paiement ne doit être enregistré.' : settings.billing.defaultFooter}</p></footer></div>{qr ? <SwissQrPaymentSection input={qr.input} payload={qr} /> : null}</article></div>;
 }
 
 function SwissQrPaymentSection({ input, payload }: { input: SwissQrBillInput; payload: SwissQrPayload }) {

@@ -1,4 +1,4 @@
-export type CreationView = 'projects' | 'quotes' | 'invoices' | 'time' | 'team' | 'expenses';
+export type CreationView = 'projects' | 'catalog' | 'quotes' | 'invoices' | 'time' | 'team' | 'expenses';
 
 export type WorkspacePrerequisites = {
   clients: number;

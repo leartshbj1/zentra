@@ -8,6 +8,7 @@ import type {
   AppSettings,
   BalanceSheetReport,
   CalculatedPayrollContribution,
+  CatalogItem,
   Client,
   DocumentLine,
   Employee,
@@ -70,6 +71,7 @@ export type OnboardingValidationResult = { valid: boolean; issues: OnboardingVal
 type RawWorkspace = {
   settings?: RawRecord | null;
   clients?: RawRecord[];
+  catalog_items?: RawRecord[];
   projects?: RawRecord[];
   quotes?: RawRecord[];
   quote_items?: RawRecord[];
@@ -376,7 +378,27 @@ const invoiceStatusFromRaw = (value: unknown): Invoice['status'] => {
 };
 
 function lineFromRaw(row: RawRecord): DocumentLine {
-  return { id: stringValue(row.id), description: stringValue(row.description), quantity: numberValue(row.quantity), unit: stringValue(row.unit), unitPriceCents: numberValue(row.unit_price_cents), vatRateBp: numberValue(row.vat_bp) };
+  return { id: stringValue(row.id), catalogItemId: stringValue(row.catalog_item_id) || null, description: stringValue(row.description), quantity: numberValue(row.quantity), unit: stringValue(row.unit), unitPriceCents: numberValue(row.unit_price_cents), discountBp: numberValue(row.discount_bp), vatRateBp: numberValue(row.vat_bp) };
+}
+
+function catalogItemFromRaw(row: RawRecord): CatalogItem {
+  return {
+    id: stringValue(row.id),
+    kind: stringValue(row.kind) === 'product' ? 'product' : 'service',
+    sku: stringValue(row.sku) || null,
+    name: stringValue(row.name),
+    description: stringValue(row.description),
+    unit: stringValue(row.unit),
+    salesPriceCents: numberValue(row.sales_price_cents),
+    purchaseCostCents: numberValue(row.purchase_cost_cents),
+    vatBp: numberValue(row.vat_bp),
+    trackStock: boolValue(row.track_stock),
+    stockQuantityMilli: numberValue(row.stock_quantity_milli),
+    reorderLevelMilli: numberValue(row.reorder_level_milli),
+    archivedAt: stringValue(row.archived_at) || null,
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
 }
 
 function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
@@ -437,6 +459,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), buildingNumber: stringValue(row.address_line2), postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country),
     uidNumber: '', notes: stringValue(row.notes),
   }));
+  const catalogItems = (raw.catalog_items ?? []).map(catalogItemFromRaw);
   const projects: Project[] = (raw.projects ?? []).map((row) => ({
     id: stringValue(row.id), clientId: stringValue(row.client_id), name: stringValue(row.name),
     address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton)].filter(Boolean).join('\n'),
@@ -472,14 +495,14 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const payments: Payment[] = (raw.payments ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), date: stringValue(row.date), amountCents: numberValue(row.amount_cents), method: stringValue(row.method), reference: stringValue(row.reference) }));
   const timer = raw.active_timer;
   return {
-    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings, appState.data_dir), clients, projects, quotes, invoices, payments, employees, timeEntries,
+    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings, appState.data_dir), clients, catalogItems, projects, quotes, invoices, payments, employees, timeEntries,
     activeTimer: timer ? { projectId: stringValue(timer.project_id), employeeId: stringValue(timer.employee_id), startedAt: stringValue(timer.started_at), note: stringValue(timer.note), billable: boolValue(timer.billable), billingRateCents: numberValue(timer.billing_rate_cents), hourlyCostCents: numberValue(timer.cost_rate_cents) } : null,
     expenses, payslips, payrollImports, employeePayrollTemplates, backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
   };
 }
 
 function emptyWorkspace(): Workspace {
-  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], payrollImports: [], employeePayrollTemplates: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
+  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], catalogItems: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], payrollImports: [], employeePayrollTemplates: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
 }
 
 async function loadWorkspace(): Promise<Workspace> {
@@ -501,7 +524,7 @@ function settingsToBackend(settings: AppSettings): RawRecord {
   };
 }
 
-const entityToBackend: Record<EntityKind, string> = { clients: 'clients', projects: 'projects', quotes: 'quotes', invoices: 'invoices', employees: 'employees', timeEntries: 'time_entries', expenses: 'expenses', payslips: 'payslips' };
+const entityToBackend: Record<EntityKind, string> = { clients: 'clients', catalogItems: 'catalog_items', projects: 'projects', quotes: 'quotes', invoices: 'invoices', employees: 'employees', timeEntries: 'time_entries', expenses: 'expenses', payslips: 'payslips' };
 const statusToBackend: Record<string, string> = { planned: 'planifie', in_progress: 'en_cours', paused: 'en_pause', completed: 'termine', closed: 'cloture', draft: 'brouillon', issued: 'emis', accepted: 'accepte', refused: 'refuse', expired: 'expire', partially_paid: 'partiellement_payee', paid: 'payee', cancelled: 'annulee', entered: 'saisi', approved: 'approuve', locked: 'verrouille', incomplete: 'a_controler', validated: 'valide' };
 const snakeKey = (key: string): string => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 function toBackendData(data: Record<string, unknown>): RawRecord {
@@ -515,7 +538,7 @@ async function saveDocument(entity: 'quotes' | 'invoices', data: Record<string, 
     entity,
     id: existing?.id ?? null,
     data: toBackendData(data),
-    items: lines.map((line) => ({ id: previousLines.some((previous) => previous.id === line.id) ? line.id : null, description: line.description, quantity: line.quantity, unit: line.unit, unit_price_cents: line.unitPriceCents, discount_bp: 0, vat_bp: line.vatRateBp })),
+    items: lines.map((line) => ({ id: previousLines.some((previous) => previous.id === line.id) ? line.id : null, catalog_item_id: line.catalogItemId || null, description: line.description, quantity: line.quantity, unit: line.unit, unit_price_cents: line.unitPriceCents, discount_bp: line.discountBp ?? 0, vat_bp: line.vatRateBp })),
   } });
   return loadWorkspace();
 }

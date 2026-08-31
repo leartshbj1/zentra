@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { Button } from './ui';
 
-export type TourView = 'dashboard' | 'projects' | 'clients' | 'quotes' | 'invoices' | 'reminders' | 'time' | 'team' | 'expenses' | 'reports' | 'accounting' | 'settings';
+export type TourView = 'dashboard' | 'projects' | 'clients' | 'catalog' | 'quotes' | 'invoices' | 'reminders' | 'time' | 'team' | 'expenses' | 'reports' | 'accounting' | 'settings';
 
 const TOUR_STORAGE_KEY = 'elyko-guided-tour-v2';
 

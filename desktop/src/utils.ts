@@ -63,13 +63,35 @@ export function numberFromInput(value: FormDataEntryValue | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function roundBasisPoints(value: number, basisPoints: number): number {
+  if (!value) return 0;
+  const normalizedBasisPoints = Math.max(0, Math.min(10_000, Math.trunc(basisPoints)));
+  const rounded = Math.floor((Math.abs(value) * normalizedBasisPoints + 5_000) / 10_000);
+  return value < 0 ? -rounded : rounded;
+}
+
+export function documentLineTotals(line: DocumentLine) {
+  const rawSubtotal = line.quantity * line.unitPriceCents;
+  const subtotalCents = rawSubtotal < 0 ? -Math.round(-rawSubtotal) : Math.round(rawSubtotal);
+  const discountCents = roundBasisPoints(subtotalCents, line.discountBp ?? 0);
+  const netCents = subtotalCents - discountCents;
+  const vatCents = roundBasisPoints(netCents, line.vatRateBp);
+  return { subtotalCents, discountCents, netCents, vatCents, totalCents: netCents + vatCents };
+}
+
 export function documentTotals(lines: DocumentLine[]) {
-  const netCents = lines.reduce((total, line) => total + Math.round(line.quantity * line.unitPriceCents), 0);
-  const vatCents = lines.reduce(
-    (total, line) => total + Math.round((line.quantity * line.unitPriceCents * line.vatRateBp) / 10_000),
-    0,
+  return lines.reduce(
+    (totals, line) => {
+      const current = documentLineTotals(line);
+      totals.subtotalCents += current.subtotalCents;
+      totals.discountCents += current.discountCents;
+      totals.netCents += current.netCents;
+      totals.vatCents += current.vatCents;
+      totals.totalCents += current.totalCents;
+      return totals;
+    },
+    { subtotalCents: 0, discountCents: 0, netCents: 0, vatCents: 0, totalCents: 0 },
   );
-  return { netCents, vatCents, totalCents: netCents + vatCents };
 }
 
 export function invoicePaid(invoiceId: string, payments: Payment[]): number {

@@ -13,7 +13,7 @@ describe('prérequis des actions de création', () => {
   });
 
   it('autorise les parcours complets et bloque un second chronomètre', () => {
-    for (const view of ['projects', 'quotes', 'invoices', 'time', 'team', 'expenses'] as const) {
+    for (const view of ['projects', 'catalog', 'quotes', 'invoices', 'time', 'team', 'expenses'] as const) {
       expect(creationBlockReason(view, ready)).toBe('');
     }
     expect(timerBlockReason(ready, false)).toBe('');
