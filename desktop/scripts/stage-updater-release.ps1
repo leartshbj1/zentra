@@ -148,7 +148,7 @@ try {
 } catch {
     throw "ELYKO_UPDATER_PUBLIC_KEY n’est pas un document Minisign encodé en base64 standard."
 }
-if ($publicKeyDocument -notmatch '(?im)^untrusted comment:\s*minisign public key\s*$' -or $publicKeyDocument -match '(?i)private key') {
+if ($publicKeyDocument -notmatch '(?im)^untrusted comment:\s*minisign public key(?:\s*:\s*[0-9a-f]{16})?\s*$' -or $publicKeyDocument -match '(?i)private key') {
     throw 'ELYKO_UPDATER_PUBLIC_KEY ne contient pas une clé publique Minisign reconnue.'
 }
 

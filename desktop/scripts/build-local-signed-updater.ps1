@@ -49,7 +49,7 @@ try {
     } catch {
         throw "La clé publique Tauri n’est pas en base64 standard."
     }
-    if ($publicKeyDocument -notmatch '(?im)^untrusted comment:\s*minisign public key') {
+    if ($publicKeyDocument -notmatch '(?im)^untrusted comment:\s*minisign public key(?:\s*:\s*[0-9a-f]{16})?\s*$') {
         throw "La clé publique Tauri décodée n’est pas un document Minisign reconnu."
     }
 
