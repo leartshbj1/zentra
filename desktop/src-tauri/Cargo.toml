@@ -28,6 +28,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 lopdf = "0.38"
 minisign-verify = "0.2"
 pdf-extract = "0.10"
+quick-xml = "0.41"
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream", "system-proxy"] }
 rusqlite = { version = "0.32", features = ["backup", "bundled"] }

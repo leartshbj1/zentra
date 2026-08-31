@@ -8,15 +8,15 @@ use crate::{
     error::command_error,
     models::{
         AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
-        ApplyPayrollInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
-        CompleteOnboardingResult, ConfirmPayrollImportInput, ContributionDefinitionInput,
-        ConvertQuoteInput, DeleteResult, GeneratePayslipPdfInput, LedgerInput, ManualJournalInput,
-        MarkReminderInput, OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter,
-        PostPayslipInput, RecordPaymentInput, ReminderActionInput, ReminderFilter,
-        ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
-        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, StagePayrollDocumentsInput,
-        SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
-        UpdatePayrollImportDraftInput,
+        ApplyPayrollInput, AssociateBankAccountInput, CalculateEmployeePayrollInput,
+        CalculatePayrollInput, CompleteOnboardingResult, ConfirmBankReconciliationInput,
+        ConfirmPayrollImportInput, ContributionDefinitionInput, ConvertQuoteInput, DeleteResult,
+        GeneratePayslipPdfInput, LedgerInput, ManualJournalInput, MarkReminderInput,
+        OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter, PostPayslipInput,
+        RecordPaymentInput, ReminderActionInput, ReminderFilter, ReminderSettingsInput,
+        ReminderTemplateInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
+        SavePayslipWithContributionsInput, StagePayrollDocumentsInput, SwissQrBillInput,
+        SwissQrPayload, SwissQrValidation, TimerInput, UpdatePayrollImportDraftInput,
     },
     swiss_qr,
 };
@@ -84,6 +84,51 @@ pub fn complete_onboarding(
 pub fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.get_workspace().map_err(command_error)
+}
+
+#[tauri::command]
+pub fn import_camt_file(state: State<'_, LocalStore>, path: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.import_camt_file(&path).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn get_bank_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_bank_workspace().map_err(command_error)
+}
+
+#[tauri::command]
+pub fn associate_bank_account(
+    state: State<'_, LocalStore>,
+    input: AssociateBankAccountInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.associate_bank_account(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn dissociate_bank_account(
+    state: State<'_, LocalStore>,
+    input: AssociateBankAccountInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.dissociate_bank_account(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn confirm_bank_reconciliation(
+    state: State<'_, LocalStore>,
+    input: ConfirmBankReconciliationInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .confirm_bank_reconciliation(input)
+        .map_err(command_error)
 }
 
 #[tauri::command]

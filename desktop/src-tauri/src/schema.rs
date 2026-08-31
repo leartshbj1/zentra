@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 11;
+pub const SCHEMA_VERSION: i64 = 12;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -16,6 +16,11 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "payslips",
     "payslip_items",
     "payments",
+    "bank_imports",
+    "bank_movements",
+    "bank_movement_keys",
+    "bank_reconciliations",
+    "bank_account_links",
     "invoice_qr_bills",
     "attachments",
     "active_timers",
@@ -357,6 +362,81 @@ CREATE TABLE IF NOT EXISTS payments (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS bank_imports (
+  id TEXT PRIMARY KEY,
+  source_name TEXT NOT NULL,
+  file_sha256 TEXT NOT NULL UNIQUE,
+  file_size INTEGER NOT NULL CHECK (file_size > 0 AND file_size <= 10485760),
+  message_type TEXT NOT NULL CHECK (message_type IN ('camt.053','camt.054')),
+  namespace_version TEXT NOT NULL CHECK (namespace_version IN ('001.04','001.08')),
+  account_id TEXT,
+  account_currency TEXT,
+  entry_count INTEGER NOT NULL DEFAULT 0 CHECK (entry_count >= 0),
+  imported_count INTEGER NOT NULL DEFAULT 0 CHECK (imported_count >= 0),
+  ignored_count INTEGER NOT NULL DEFAULT 0 CHECK (ignored_count >= 0),
+  warnings_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bank_movements (
+  id TEXT PRIMARY KEY,
+  import_id TEXT NOT NULL REFERENCES bank_imports(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  booked_import_id TEXT REFERENCES bank_imports(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  entry_sequence INTEGER NOT NULL CHECK (entry_sequence > 0),
+  account_id TEXT NOT NULL,
+  account_currency TEXT NOT NULL,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+  currency TEXT NOT NULL,
+  credit_debit TEXT NOT NULL CHECK (credit_debit IN ('CRDT','DBIT')),
+  status TEXT NOT NULL CHECK (status IN ('BOOK','PDNG')),
+  reversal INTEGER NOT NULL DEFAULT 0 CHECK (reversal IN (0,1)),
+  booking_date TEXT,
+  value_date TEXT,
+  account_servicer_ref TEXT,
+  reference_level TEXT CHECK (reference_level IN ('D','C')),
+  end_to_end_id TEXT,
+  transaction_id TEXT,
+  reference_type TEXT NOT NULL DEFAULT 'NON' CHECK (reference_type IN ('QRR','SCOR','NON','CONFLICT')),
+  reference TEXT,
+  unstructured TEXT,
+  counterparty_name TEXT,
+  strong_key TEXT UNIQUE,
+  details_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  enriched_at TEXT,
+  UNIQUE(import_id, entry_sequence)
+);
+
+CREATE TABLE IF NOT EXISTS bank_reconciliations (
+  id TEXT PRIMARY KEY,
+  movement_id TEXT NOT NULL UNIQUE REFERENCES bank_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  invoice_id TEXT NOT NULL REFERENCES invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  payment_id TEXT NOT NULL UNIQUE REFERENCES payments(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+  confirmed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bank_movement_keys (
+  strong_key TEXT PRIMARY KEY,
+  movement_id TEXT NOT NULL REFERENCES bank_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  account_id TEXT NOT NULL,
+  reference_level TEXT NOT NULL CHECK (reference_level IN ('D','C','T','E')),
+  account_servicer_ref TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bank_account_links (
+  account_id TEXT PRIMARY KEY,
+  currency TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+  confirmed_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((active=1 AND revoked_at IS NULL) OR (active=0 AND revoked_at IS NOT NULL))
+);
+
 CREATE TABLE IF NOT EXISTS invoice_qr_bills (
   invoice_id TEXT PRIMARY KEY REFERENCES invoices(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   input_json TEXT NOT NULL,
@@ -669,6 +749,12 @@ CREATE INDEX IF NOT EXISTS idx_expenses_supplier_date ON expenses(supplier_id, d
 CREATE INDEX IF NOT EXISTS idx_expenses_payment_due ON expenses(payment_status, due_date) WHERE payment_status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_payslips_employee_period ON payslips(employee_id, period);
 CREATE INDEX IF NOT EXISTS idx_payments_invoice_date ON payments(invoice_id, date);
+CREATE INDEX IF NOT EXISTS idx_bank_imports_created ON bank_imports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bank_movements_review ON bank_movements(status, credit_debit, reversal, booking_date DESC);
+CREATE INDEX IF NOT EXISTS idx_bank_movements_import ON bank_movements(import_id, entry_sequence);
+CREATE INDEX IF NOT EXISTS idx_bank_movements_booked_import ON bank_movements(booked_import_id, entry_sequence) WHERE booked_import_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bank_movement_keys_movement ON bank_movement_keys(movement_id, reference_level);
+CREATE INDEX IF NOT EXISTS idx_bank_reconciliations_invoice ON bank_reconciliations(invoice_id, confirmed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(entry_date, number);
@@ -733,6 +819,59 @@ CREATE TRIGGER IF NOT EXISTS payments_no_update
 BEFORE UPDATE ON payments BEGIN SELECT RAISE(ABORT, 'payments are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payments_no_delete
 BEFORE DELETE ON payments BEGIN SELECT RAISE(ABORT, 'payments are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_imports_no_update
+BEFORE UPDATE ON bank_imports BEGIN SELECT RAISE(ABORT, 'bank imports are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_imports_no_delete
+BEFORE DELETE ON bank_imports BEGIN SELECT RAISE(ABORT, 'bank imports are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movements_guarded_update
+BEFORE UPDATE ON bank_movements WHEN NOT (
+  ((OLD.status='PDNG' AND NEW.status='BOOK'
+      AND OLD.booked_import_id IS NULL AND NEW.booked_import_id IS NOT NULL)
+   OR (OLD.status='BOOK' AND NEW.status='BOOK'
+      AND OLD.booked_import_id IS NOT NULL AND NEW.booked_import_id IS NOT NULL
+      AND OLD.booked_import_id IS NOT NEW.booked_import_id
+      AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=OLD.booked_import_id AND source.message_type='camt.054')
+      AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=NEW.booked_import_id AND source.message_type='camt.053')))
+  AND OLD.id IS NEW.id AND OLD.import_id IS NEW.import_id
+  AND OLD.entry_sequence IS NEW.entry_sequence AND OLD.account_id IS NEW.account_id
+  AND OLD.account_currency IS NEW.account_currency AND OLD.amount_cents IS NEW.amount_cents
+  AND OLD.currency IS NEW.currency AND OLD.credit_debit IS NEW.credit_debit
+  AND OLD.reversal IS NEW.reversal
+  AND (OLD.account_servicer_ref IS NEW.account_servicer_ref
+    OR OLD.account_servicer_ref IS NULL OR TRIM(OLD.account_servicer_ref)=''
+    OR (OLD.reference_level='C' AND NEW.reference_level='D'))
+  AND (OLD.reference_level IS NEW.reference_level OR OLD.reference_level IS NULL
+    OR (OLD.reference_level='C' AND NEW.reference_level='D'))
+  AND (OLD.end_to_end_id IS NEW.end_to_end_id OR OLD.end_to_end_id IS NULL OR TRIM(OLD.end_to_end_id)='')
+  AND (OLD.transaction_id IS NEW.transaction_id OR OLD.transaction_id IS NULL OR TRIM(OLD.transaction_id)='')
+  AND (OLD.reference_type IS NEW.reference_type OR (OLD.reference_type='NON' AND (OLD.reference IS NULL OR TRIM(OLD.reference)='')))
+  AND (OLD.reference IS NEW.reference OR OLD.reference IS NULL OR TRIM(OLD.reference)='')
+  AND (OLD.unstructured IS NEW.unstructured OR OLD.unstructured IS NULL OR TRIM(OLD.unstructured)='')
+  AND (OLD.counterparty_name IS NEW.counterparty_name OR OLD.counterparty_name IS NULL OR TRIM(OLD.counterparty_name)='')
+  AND OLD.strong_key IS NEW.strong_key
+  AND OLD.created_at IS NEW.created_at
+  AND (OLD.booking_date IS NULL OR NEW.booking_date IS NOT NULL)
+  AND (OLD.value_date IS NULL OR NEW.value_date IS NOT NULL)
+  AND NEW.enriched_at IS NOT NULL
+) BEGIN SELECT RAISE(ABORT, 'bank movements may only receive a controlled CAMT lifecycle enrichment'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movements_no_delete
+BEFORE DELETE ON bank_movements BEGIN SELECT RAISE(ABORT, 'bank movements are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movement_keys_no_update
+BEFORE UPDATE ON bank_movement_keys BEGIN SELECT RAISE(ABORT, 'bank movement keys are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movement_keys_no_delete
+BEFORE DELETE ON bank_movement_keys BEGIN SELECT RAISE(ABORT, 'bank movement keys are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_reconciliations_no_update
+BEFORE UPDATE ON bank_reconciliations BEGIN SELECT RAISE(ABORT, 'bank reconciliations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_reconciliations_no_delete
+BEFORE DELETE ON bank_reconciliations BEGIN SELECT RAISE(ABORT, 'bank reconciliations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_account_links_guarded_update
+BEFORE UPDATE ON bank_account_links WHEN NOT (
+  OLD.account_id IS NEW.account_id AND OLD.created_at IS NEW.created_at
+  AND ((OLD.active=1 AND NEW.active=0 AND NEW.currency IS OLD.currency AND NEW.confirmed_at IS OLD.confirmed_at AND NEW.revoked_at IS NOT NULL)
+    OR (OLD.active=0 AND NEW.active=1 AND NEW.revoked_at IS NULL AND NEW.confirmed_at IS NOT NULL))
+) BEGIN SELECT RAISE(ABORT, 'bank account links require an explicit association or revocation'); END;
+CREATE TRIGGER IF NOT EXISTS bank_account_links_no_delete
+BEFORE DELETE ON bank_account_links BEGIN SELECT RAISE(ABORT, 'bank account links cannot be deleted'); END;
 CREATE TRIGGER IF NOT EXISTS invoice_qr_bills_frozen_no_update
 BEFORE UPDATE ON invoice_qr_bills
 WHEN OLD.frozen_at IS NOT NULL OR EXISTS(SELECT 1 FROM invoices WHERE id=OLD.invoice_id AND number IS NOT NULL)
@@ -789,7 +928,7 @@ BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
 BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
 
-PRAGMA user_version = 11;
+PRAGMA user_version = 12;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -1064,4 +1203,130 @@ CREATE TABLE IF NOT EXISTS suppliers (
 CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name COLLATE NOCASE, created_at);
 CREATE INDEX IF NOT EXISTS idx_suppliers_archived ON suppliers(archived_at, name COLLATE NOCASE);
 PRAGMA user_version=11;
+"#;
+
+/// Ajoute l'import bancaire ISO 20022 strictement local. Elyko conserve
+/// l'empreinte du fichier et les mouvements structurés immuables, mais ne copie
+/// pas le XML original ; seul un rapprochement confirmé peut créer un paiement.
+pub const MIGRATION_V12_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS bank_imports (
+  id TEXT PRIMARY KEY,
+  source_name TEXT NOT NULL,
+  file_sha256 TEXT NOT NULL UNIQUE,
+  file_size INTEGER NOT NULL CHECK (file_size > 0 AND file_size <= 10485760),
+  message_type TEXT NOT NULL CHECK (message_type IN ('camt.053','camt.054')),
+  namespace_version TEXT NOT NULL CHECK (namespace_version IN ('001.04','001.08')),
+  account_id TEXT,
+  account_currency TEXT,
+  entry_count INTEGER NOT NULL DEFAULT 0 CHECK (entry_count >= 0),
+  imported_count INTEGER NOT NULL DEFAULT 0 CHECK (imported_count >= 0),
+  ignored_count INTEGER NOT NULL DEFAULT 0 CHECK (ignored_count >= 0),
+  warnings_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bank_movements (
+  id TEXT PRIMARY KEY,
+  import_id TEXT NOT NULL REFERENCES bank_imports(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  booked_import_id TEXT REFERENCES bank_imports(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  entry_sequence INTEGER NOT NULL CHECK (entry_sequence > 0),
+  account_id TEXT NOT NULL,
+  account_currency TEXT NOT NULL,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+  currency TEXT NOT NULL,
+  credit_debit TEXT NOT NULL CHECK (credit_debit IN ('CRDT','DBIT')),
+  status TEXT NOT NULL CHECK (status IN ('BOOK','PDNG')),
+  reversal INTEGER NOT NULL DEFAULT 0 CHECK (reversal IN (0,1)),
+  booking_date TEXT,
+  value_date TEXT,
+  account_servicer_ref TEXT,
+  reference_level TEXT CHECK (reference_level IN ('D','C')),
+  end_to_end_id TEXT,
+  transaction_id TEXT,
+  reference_type TEXT NOT NULL DEFAULT 'NON' CHECK (reference_type IN ('QRR','SCOR','NON','CONFLICT')),
+  reference TEXT,
+  unstructured TEXT,
+  counterparty_name TEXT,
+  strong_key TEXT UNIQUE,
+  details_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  enriched_at TEXT,
+  UNIQUE(import_id, entry_sequence)
+);
+CREATE TABLE IF NOT EXISTS bank_reconciliations (
+  id TEXT PRIMARY KEY,
+  movement_id TEXT NOT NULL UNIQUE REFERENCES bank_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  invoice_id TEXT NOT NULL REFERENCES invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  payment_id TEXT NOT NULL UNIQUE REFERENCES payments(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+  confirmed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bank_movement_keys (
+  strong_key TEXT PRIMARY KEY,
+  movement_id TEXT NOT NULL REFERENCES bank_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  account_id TEXT NOT NULL,
+  reference_level TEXT NOT NULL CHECK (reference_level IN ('D','C','T','E')),
+  account_servicer_ref TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bank_account_links (
+  account_id TEXT PRIMARY KEY,
+  currency TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+  confirmed_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((active=1 AND revoked_at IS NULL) OR (active=0 AND revoked_at IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_bank_imports_created ON bank_imports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bank_movements_review ON bank_movements(status, credit_debit, reversal, booking_date DESC);
+CREATE INDEX IF NOT EXISTS idx_bank_movements_import ON bank_movements(import_id, entry_sequence);
+CREATE INDEX IF NOT EXISTS idx_bank_movements_booked_import ON bank_movements(booked_import_id, entry_sequence) WHERE booked_import_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bank_movement_keys_movement ON bank_movement_keys(movement_id, reference_level);
+CREATE INDEX IF NOT EXISTS idx_bank_reconciliations_invoice ON bank_reconciliations(invoice_id, confirmed_at DESC);
+CREATE TRIGGER IF NOT EXISTS bank_imports_no_update BEFORE UPDATE ON bank_imports BEGIN SELECT RAISE(ABORT,'bank imports are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_imports_no_delete BEFORE DELETE ON bank_imports BEGIN SELECT RAISE(ABORT,'bank imports are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movements_guarded_update BEFORE UPDATE ON bank_movements WHEN NOT (
+  ((OLD.status='PDNG' AND NEW.status='BOOK'
+      AND OLD.booked_import_id IS NULL AND NEW.booked_import_id IS NOT NULL)
+   OR (OLD.status='BOOK' AND NEW.status='BOOK'
+      AND OLD.booked_import_id IS NOT NULL AND NEW.booked_import_id IS NOT NULL
+      AND OLD.booked_import_id IS NOT NEW.booked_import_id
+      AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=OLD.booked_import_id AND source.message_type='camt.054')
+      AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=NEW.booked_import_id AND source.message_type='camt.053')))
+  AND OLD.id IS NEW.id AND OLD.import_id IS NEW.import_id
+  AND OLD.entry_sequence IS NEW.entry_sequence AND OLD.account_id IS NEW.account_id
+  AND OLD.account_currency IS NEW.account_currency AND OLD.amount_cents IS NEW.amount_cents
+  AND OLD.currency IS NEW.currency AND OLD.credit_debit IS NEW.credit_debit
+  AND OLD.reversal IS NEW.reversal
+  AND (OLD.account_servicer_ref IS NEW.account_servicer_ref
+    OR OLD.account_servicer_ref IS NULL OR TRIM(OLD.account_servicer_ref)=''
+    OR (OLD.reference_level='C' AND NEW.reference_level='D'))
+  AND (OLD.reference_level IS NEW.reference_level OR OLD.reference_level IS NULL
+    OR (OLD.reference_level='C' AND NEW.reference_level='D'))
+  AND (OLD.end_to_end_id IS NEW.end_to_end_id OR OLD.end_to_end_id IS NULL OR TRIM(OLD.end_to_end_id)='')
+  AND (OLD.transaction_id IS NEW.transaction_id OR OLD.transaction_id IS NULL OR TRIM(OLD.transaction_id)='')
+  AND (OLD.reference_type IS NEW.reference_type OR (OLD.reference_type='NON' AND (OLD.reference IS NULL OR TRIM(OLD.reference)='')))
+  AND (OLD.reference IS NEW.reference OR OLD.reference IS NULL OR TRIM(OLD.reference)='')
+  AND (OLD.unstructured IS NEW.unstructured OR OLD.unstructured IS NULL OR TRIM(OLD.unstructured)='')
+  AND (OLD.counterparty_name IS NEW.counterparty_name OR OLD.counterparty_name IS NULL OR TRIM(OLD.counterparty_name)='')
+  AND OLD.strong_key IS NEW.strong_key
+  AND OLD.created_at IS NEW.created_at
+  AND (OLD.booking_date IS NULL OR NEW.booking_date IS NOT NULL)
+  AND (OLD.value_date IS NULL OR NEW.value_date IS NOT NULL)
+  AND NEW.enriched_at IS NOT NULL
+) BEGIN SELECT RAISE(ABORT,'bank movements may only receive a controlled CAMT lifecycle enrichment'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movements_no_delete BEFORE DELETE ON bank_movements BEGIN SELECT RAISE(ABORT,'bank movements are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movement_keys_no_update BEFORE UPDATE ON bank_movement_keys BEGIN SELECT RAISE(ABORT,'bank movement keys are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movement_keys_no_delete BEFORE DELETE ON bank_movement_keys BEGIN SELECT RAISE(ABORT,'bank movement keys are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_reconciliations_no_update BEFORE UPDATE ON bank_reconciliations BEGIN SELECT RAISE(ABORT,'bank reconciliations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_reconciliations_no_delete BEFORE DELETE ON bank_reconciliations BEGIN SELECT RAISE(ABORT,'bank reconciliations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_account_links_guarded_update BEFORE UPDATE ON bank_account_links WHEN NOT (
+  OLD.account_id IS NEW.account_id AND OLD.created_at IS NEW.created_at
+  AND ((OLD.active=1 AND NEW.active=0 AND NEW.currency IS OLD.currency AND NEW.confirmed_at IS OLD.confirmed_at AND NEW.revoked_at IS NOT NULL)
+    OR (OLD.active=0 AND NEW.active=1 AND NEW.revoked_at IS NULL AND NEW.confirmed_at IS NOT NULL))
+) BEGIN SELECT RAISE(ABORT,'bank account links require an explicit association or revocation'); END;
+CREATE TRIGGER IF NOT EXISTS bank_account_links_no_delete BEFORE DELETE ON bank_account_links BEGIN SELECT RAISE(ABORT,'bank account links cannot be deleted'); END;
+PRAGMA user_version=12;
 "#;

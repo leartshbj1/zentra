@@ -420,7 +420,7 @@ fn mod97_alphanumeric(value: &str) -> Option<i64> {
     }
     Some(remainder)
 }
-fn validate_qrr(value: &str) -> bool {
+pub(crate) fn validate_qrr(value: &str) -> bool {
     if value.len() != 27
         || value.bytes().all(|b| b == b'0')
         || !value.bytes().all(|b| b.is_ascii_digit())
@@ -434,7 +434,7 @@ fn validate_qrr(value: &str) -> bool {
     }
     report == 0
 }
-fn validate_scor(value: &str) -> bool {
+pub(crate) fn validate_scor(value: &str) -> bool {
     value.len() >= 5
         && value.len() <= 25
         && value.starts_with("RF")

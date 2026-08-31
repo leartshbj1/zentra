@@ -1535,6 +1535,7 @@ dependencies = [
  "minisign-verify",
  "pdf-extract",
  "pretty_assertions",
+ "quick-xml",
  "regex",
  "reqwest",
  "rusqlite",

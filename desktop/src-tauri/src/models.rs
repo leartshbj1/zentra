@@ -153,6 +153,18 @@ pub struct RecordPaymentInput {
     pub notes: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmBankReconciliationInput {
+    pub movement_id: String,
+    pub invoice_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssociateBankAccountInput {
+    pub account_id: String,
+    pub currency: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DeleteResult {
     pub deleted: bool,

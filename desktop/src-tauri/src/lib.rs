@@ -3,6 +3,7 @@ mod accounting_closure;
 mod app_updater;
 mod audit;
 mod backup;
+mod bank_import;
 mod branding;
 mod commands;
 mod database;
@@ -49,6 +50,11 @@ pub fn run() {
             validate_onboarding,
             complete_onboarding,
             get_workspace,
+            import_camt_file,
+            get_bank_workspace,
+            associate_bank_account,
+            dissociate_bank_account,
+            confirm_bank_reconciliation,
             create_record,
             update_record,
             delete_record,
@@ -735,7 +741,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 11;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 12;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -867,7 +873,7 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
-            .replace("PRAGMA user_version = 11;", "PRAGMA user_version = 9;");
+            .replace("PRAGMA user_version = 12;", "PRAGMA user_version = 9;");
         assert!(!legacy_schema.contains("catalog_items"));
         assert!(!legacy_schema.contains("catalog_item_id"));
 
@@ -990,7 +996,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             })
             .collect::<Vec<_>>()
             .join("\n")
-            .replace("PRAGMA user_version = 11;", "PRAGMA user_version = 10;");
+            .replace("PRAGMA user_version = 12;", "PRAGMA user_version = 10;");
         assert!(!legacy_schema.contains("CREATE TABLE IF NOT EXISTS suppliers"));
         assert!(!legacy_schema.contains("supplier_id"));
         assert!(!legacy_schema.contains("payment_status"));

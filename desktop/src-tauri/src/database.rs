@@ -34,9 +34,9 @@ use crate::{
     },
     reminders::cancel_settled_reminders,
     schema::{
-        MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL,
-        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
-        SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V12_SQL, MIGRATION_V2_SQL,
+        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
+        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -264,6 +264,11 @@ fn migrate_v11(transaction: &Transaction<'_>) -> AppResult<()> {
            WHEN NEW.payment_status='pending' AND (NEW.due_date IS NULL OR TRIM(NEW.due_date)='' OR NEW.paid_at IS NOT NULL)
            BEGIN SELECT RAISE(ABORT,'pending expense requires a due date and no payment date'); END;",
     )?;
+    Ok(())
+}
+
+fn migrate_v12(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V12_SQL)?;
     Ok(())
 }
 
@@ -610,6 +615,7 @@ impl LocalStore {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             2 => {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
@@ -621,6 +627,7 @@ impl LocalStore {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             3 => {
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
@@ -631,6 +638,7 @@ impl LocalStore {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             4 => {
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
@@ -640,6 +648,7 @@ impl LocalStore {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             5 => {
                 migrate_v6(&transaction)?;
@@ -648,6 +657,7 @@ impl LocalStore {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             6 => {
                 migrate_v7(&transaction)?;
@@ -655,23 +665,31 @@ impl LocalStore {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             7 => {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             8 => {
                 migrate_v9(&transaction)?;
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
             9 => {
                 migrate_v10(&transaction)?;
                 migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
             }
-            10 => migrate_v11(&transaction)?,
+            10 => {
+                migrate_v11(&transaction)?;
+                migrate_v12(&transaction)?;
+            }
+            11 => migrate_v12(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -958,6 +976,31 @@ impl LocalStore {
             "SELECT * FROM payments ORDER BY date DESC, created_at DESC",
             [],
         )?;
+        let bank_imports = query_all(
+            connection,
+            "SELECT * FROM bank_imports ORDER BY created_at DESC,rowid DESC",
+            [],
+        )?;
+        let bank_movements = query_all(
+            connection,
+            "SELECT * FROM bank_movements ORDER BY COALESCE(booking_date,value_date,created_at) DESC,entry_sequence",
+            [],
+        )?;
+        let bank_reconciliations = query_all(
+            connection,
+            "SELECT * FROM bank_reconciliations ORDER BY confirmed_at DESC,rowid DESC",
+            [],
+        )?;
+        let bank_movement_keys = query_all(
+            connection,
+            "SELECT * FROM bank_movement_keys ORDER BY movement_id,reference_level",
+            [],
+        )?;
+        let bank_account_links = query_all(
+            connection,
+            "SELECT * FROM bank_account_links ORDER BY account_id",
+            [],
+        )?;
         let attachments = query_all(
             connection,
             "SELECT * FROM attachments ORDER BY created_at DESC",
@@ -1051,6 +1094,11 @@ impl LocalStore {
             "payslips": payslips,
             "payslip_items": payslip_items,
             "payments": payments,
+            "bank_imports":bank_imports,
+            "bank_movements":bank_movements,
+            "bank_reconciliations":bank_reconciliations,
+            "bank_movement_keys":bank_movement_keys,
+            "bank_account_links":bank_account_links,
             "attachments": attachments,
             "active_timer": active_timer,
             "accounts":accounts,
@@ -1960,122 +2008,10 @@ impl LocalStore {
     }
 
     pub fn record_payment(&self, input: RecordPaymentInput) -> AppResult<Value> {
-        if input.amount_cents <= 0 {
-            return Err(AppError::Validation(
-                "Le montant du paiement doit être supérieur à zéro.".into(),
-            ));
-        }
-        let date = normalized_date(input.date.as_deref().unwrap_or(&today()), "date")?;
-        let method = clean_optional(input.method, 80);
-        let reference = clean_optional(input.reference, 160);
-        let notes = clean_optional(input.notes, 5000);
-        let requested_id = input
-            .request_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(|value| {
-                Uuid::parse_str(value)
-                    .map(|parsed| parsed.to_string())
-                    .map_err(|_| {
-                        AppError::Validation(
-                        "request_id doit être un UUID valide pour sécuriser la reprise du paiement."
-                            .into(),
-                    )
-                    })
-            })
-            .transpose()?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if let Some(request_id) = requested_id.as_deref() {
-            if let Some(existing) = query_optional_tx(
-                &transaction,
-                "SELECT * FROM payments WHERE id=?",
-                params![request_id],
-            )? {
-                let same_request = existing["invoice_id"].as_str()
-                    == Some(input.invoice_id.as_str())
-                    && existing["date"].as_str() == Some(date.as_str())
-                    && existing["amount_cents"].as_i64() == Some(input.amount_cents)
-                    && existing["method"].as_str() == method.as_deref()
-                    && existing["reference"].as_str() == reference.as_deref()
-                    && existing["notes"].as_str() == notes.as_deref();
-                if same_request {
-                    transaction.commit()?;
-                    return Ok(existing);
-                }
-                return Err(AppError::Validation(
-                    "Cet identifiant de reprise correspond déjà à un autre paiement. Rechargez la facture avant de réessayer."
-                        .into(),
-                ));
-            }
-        }
-        let (total_cents, paid_cents, credited_cents, invoice_type, number): (
-            i64,
-            i64,
-            i64,
-            String,
-            Option<String>,
-        ) = transaction
-                .query_row(
-                    "SELECT i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.number FROM invoices i WHERE i.id = ?",
-                    params![input.invoice_id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
-                )
-                .optional()?
-                .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
-        if invoice_type == "avoir" {
-            return Err(AppError::Validation(
-                "Un avoir ne peut recevoir aucun encaissement.".into(),
-            ));
-        }
-        if number.is_none() {
-            return Err(AppError::Validation(
-                "La facture doit être émise avant tout paiement.".into(),
-            ));
-        }
-        if total_cents <= 0 {
-            return Err(AppError::Validation(
-                "Cette facture ne possède aucun montant payable.".into(),
-            ));
-        }
-        if paid_cents
-            .saturating_add(credited_cents)
-            .saturating_add(input.amount_cents)
-            > total_cents
-        {
-            return Err(AppError::Validation(
-                "Le paiement dépasse le solde restant de la facture.".into(),
-            ));
-        }
-        let id = requested_id.unwrap_or_else(|| Uuid::new_v4().to_string());
-        let now = now_iso();
-        transaction.execute(
-            "INSERT INTO payments (id,invoice_id,date,amount_cents,method,reference,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            params![
-                id,
-                input.invoice_id,
-                date,
-                input.amount_cents,
-                method,
-                reference,
-                notes,
-                now,
-                now,
-            ],
-        )?;
-        refresh_invoice_payment_state(&transaction, &input.invoice_id)?;
-        let record = query_record_tx(&transaction, "payments", &id)?;
-        let journal = post_payment_if_enabled(&transaction, &id)?;
-        cancel_settled_reminders(&transaction, &input.invoice_id)?;
-        append_audit(
-            &transaction,
-            "record",
-            "payment",
-            &id,
-            &json!({"payment":record.clone(),"journal":journal}),
-        )?;
+        let record = record_payment_in_transaction(&transaction, input)?;
         transaction.commit()?;
         Ok(record)
     }
@@ -3705,7 +3641,131 @@ fn recompute_payslip(transaction: &Transaction<'_>, payslip_id: &str) -> AppResu
     Ok(())
 }
 
-fn refresh_invoice_payment_state(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
+/// Noyau transactionnel unique des encaissements. Les imports bancaires
+/// l'appellent dans la même transaction que leur rapprochement afin qu'un
+/// paiement, son écriture comptable et le lien CAMT réussissent ou échouent ensemble.
+pub(crate) fn record_payment_in_transaction(
+    transaction: &Transaction<'_>,
+    input: RecordPaymentInput,
+) -> AppResult<Value> {
+    if input.amount_cents <= 0 {
+        return Err(AppError::Validation(
+            "Le montant du paiement doit être supérieur à zéro.".into(),
+        ));
+    }
+    let date = normalized_date(input.date.as_deref().unwrap_or(&today()), "date")?;
+    let method = clean_optional(input.method, 80);
+    let reference = clean_optional(input.reference, 160);
+    let notes = clean_optional(input.notes, 5000);
+    let requested_id = input
+        .request_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            Uuid::parse_str(value)
+                .map(|parsed| parsed.to_string())
+                .map_err(|_| {
+                    AppError::Validation(
+                        "request_id doit être un UUID valide pour sécuriser la reprise du paiement."
+                            .into(),
+                    )
+                })
+        })
+        .transpose()?;
+    if let Some(request_id) = requested_id.as_deref() {
+        if let Some(existing) = query_optional_tx(
+            transaction,
+            "SELECT * FROM payments WHERE id=?",
+            params![request_id],
+        )? {
+            let same_request = existing["invoice_id"].as_str() == Some(input.invoice_id.as_str())
+                && existing["date"].as_str() == Some(date.as_str())
+                && existing["amount_cents"].as_i64() == Some(input.amount_cents)
+                && existing["method"].as_str() == method.as_deref()
+                && existing["reference"].as_str() == reference.as_deref()
+                && existing["notes"].as_str() == notes.as_deref();
+            if same_request {
+                return Ok(existing);
+            }
+            return Err(AppError::Validation(
+                "Cet identifiant de reprise correspond déjà à un autre paiement. Rechargez la facture avant de réessayer."
+                    .into(),
+            ));
+        }
+    }
+    let (total_cents, paid_cents, credited_cents, invoice_type, number): (
+        i64,
+        i64,
+        i64,
+        String,
+        Option<String>,
+    ) = transaction
+        .query_row(
+            "SELECT i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.number FROM invoices i WHERE i.id = ?",
+            params![input.invoice_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
+    if invoice_type == "avoir" {
+        return Err(AppError::Validation(
+            "Un avoir ne peut recevoir aucun encaissement.".into(),
+        ));
+    }
+    if number.is_none() {
+        return Err(AppError::Validation(
+            "La facture doit être émise avant tout paiement.".into(),
+        ));
+    }
+    if total_cents <= 0 {
+        return Err(AppError::Validation(
+            "Cette facture ne possède aucun montant payable.".into(),
+        ));
+    }
+    if paid_cents
+        .saturating_add(credited_cents)
+        .saturating_add(input.amount_cents)
+        > total_cents
+    {
+        return Err(AppError::Validation(
+            "Le paiement dépasse le solde restant de la facture.".into(),
+        ));
+    }
+    let id = requested_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let now = now_iso();
+    transaction.execute(
+        "INSERT INTO payments (id,invoice_id,date,amount_cents,method,reference,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        params![
+            id,
+            input.invoice_id,
+            date,
+            input.amount_cents,
+            method,
+            reference,
+            notes,
+            now,
+            now,
+        ],
+    )?;
+    refresh_invoice_payment_state(transaction, &input.invoice_id)?;
+    let record = query_record_tx(transaction, "payments", &id)?;
+    let journal = post_payment_if_enabled(transaction, &id)?;
+    cancel_settled_reminders(transaction, &input.invoice_id)?;
+    append_audit(
+        transaction,
+        "record",
+        "payment",
+        &id,
+        &json!({"payment":record.clone(),"journal":journal}),
+    )?;
+    Ok(record)
+}
+
+pub(crate) fn refresh_invoice_payment_state(
+    transaction: &Transaction<'_>,
+    invoice_id: &str,
+) -> AppResult<()> {
     let (paid, credited): (i64, i64) = transaction.query_row(
         "SELECT COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0) FROM invoices i WHERE i.id=?",
         params![invoice_id],
@@ -3779,7 +3839,11 @@ fn query_record(connection: &Connection, table: &str, id: &str) -> AppResult<Val
     .ok_or_else(|| AppError::NotFound(format!("{table}/{id}")))
 }
 
-fn query_record_tx(transaction: &Transaction<'_>, table: &str, id: &str) -> AppResult<Value> {
+pub(crate) fn query_record_tx(
+    transaction: &Transaction<'_>,
+    table: &str,
+    id: &str,
+) -> AppResult<Value> {
     query_optional_tx(
         transaction,
         &format!("SELECT * FROM {table} WHERE id = ?"),
@@ -3931,6 +3995,7 @@ fn is_boolean_column(name: &str) -> bool {
             | "reimbursable"
             | "track_stock"
             | "active"
+            | "reversal"
             | "enabled"
     )
 }
