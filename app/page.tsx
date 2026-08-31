@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { BrandMark } from '@/components/brand-mark';
+import { HeroDashboard } from '@/components/hero-dashboard';
+import { ProductShowcase } from '@/components/product-showcase';
 import { PurchaseButton } from '@/components/purchase-button';
 import { cn } from '@/lib/utils';
 
@@ -126,16 +128,10 @@ export default function Home() {
             aria-label="Navigation principale"
           >
             <a
-              href="#fonctionnalites"
+              href="#logiciel"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Fonctionnalités
-            </a>
-            <a
-              href="#secteurs"
-              className="transition-colors hover:text-[#173d2c]"
-            >
-              Secteurs
+              Voir le logiciel
             </a>
             <a
               href="#confidentialite"
@@ -163,51 +159,27 @@ export default function Home() {
             Télécharger Elyko <FileDown className="size-4" />
           </a>
         </div>
-        <nav
-          className="mx-auto grid max-w-7xl grid-cols-4 gap-1 px-4 pb-2 md:hidden"
-          aria-label="Navigation mobile"
-        >
-          {[
-            ['#fonctionnalites', 'Fonctions'],
-            ['#secteurs', 'Secteurs'],
-            ['#confidentialite', 'Données'],
-            ['#tarif', 'Tarif'],
-          ].map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              aria-label={
-                href === '#confidentialite' ? 'Données locales' : undefined
-              }
-              className="flex min-h-11 min-w-0 items-center justify-center rounded-full border border-[#d8d3c8] bg-white/75 px-1 text-center text-[11px] font-semibold text-[#405047]"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
       </header>
 
       <section
         id="accueil"
-        className="mx-auto grid w-full max-w-7xl gap-10 px-5 pb-16 pt-10 sm:gap-12 sm:pb-20 sm:pt-14 lg:grid-cols-[.9fr_1.1fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-20"
+        className="mx-auto grid w-full max-w-7xl gap-10 px-5 pb-16 pt-9 sm:gap-12 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-16"
       >
         <div className="relative z-10">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[.13em] text-[#46604f]">
-            <span className="size-1.5 rounded-full bg-[#e79b2f]" /> Application
-            Windows · données locales
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f]">
+            <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
+            Elyko 1.1.4 · Windows 10/11
           </div>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
-            Chaque activité.
+            Toute votre entreprise.
             <br />
-            <span className="text-[#b86b16]">Chaque franc.</span>
-            <br />
-            Enfin clair.
+            <span className="text-[#b86b16]">Une seule vue.</span>
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
-            Une vraie application Windows pour piloter votre entreprise, quel
-            que soit son domaine, avec une section projets et chantiers, des
-            devis, factures, heures, dépenses, salaires et comptes. Vos données
-            restent sur votre PC.
+            Devis, factures QR, projets et chantiers, heures, salaires et
+            comptabilité&nbsp;: Elyko centralise votre gestion dans une
+            application Windows, tandis que vos données métier restent sur votre
+            PC.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -220,109 +192,72 @@ export default function Home() {
               Télécharger Elyko <ArrowRight className="size-4" />
             </a>
             <a
-              href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Elyko"
+              href="#logiciel"
               className={cn(
                 buttonVariants({ variant: 'outline', size: 'lg' }),
-                'h-12 rounded-full border-[#cfcabf] bg-white/60 px-6',
+                'hidden h-12 rounded-full border-[#cfcabf] bg-white/60 px-6 sm:inline-flex',
               )}
             >
-              Demander une offre
+              Voir Elyko en action
             </a>
           </div>
           <a
             href="/demo-facture"
-            className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#315e48] underline decoration-[#d59a47] underline-offset-4"
+            className="mt-4 hidden min-h-11 items-center gap-2 text-sm font-semibold text-[#315e48] underline decoration-[#d59a47] underline-offset-4 sm:inline-flex"
           >
             Essayer le générateur de facture interactif{' '}
             <ArrowRight className="size-4" />
           </a>
           <p className="mt-3 text-sm text-[#5f6962]">
-            Windows 10/11 64 bits · 50 CHF / mois · sauvegardes exportables
+            50 CHF / mois · données locales · sauvegardes exportables
           </p>
+          <div className="mt-6 grid max-w-xl grid-cols-4 gap-1.5 text-[11px] font-medium text-[#4f5e55] sm:mt-7 sm:gap-2">
+            {[
+              ['22', 'secteurs NOGA'],
+              ['1 clic', 'devis → facture'],
+              ['QR', 'facture suisse'],
+              ['100 %', 'données locales'],
+            ].map(([value, label]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-[#ddd9cf] bg-white/55 px-2 py-2.5 sm:px-3"
+              >
+                <strong className="block text-sm text-[#254333]">
+                  {value}
+                </strong>
+                <span className="mt-0.5 block text-[8px] leading-3 text-[#748078] sm:text-[9px]">
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
+        <HeroDashboard />
+      </section>
 
-        <span className="sr-only">
-          Aperçu statique du questionnaire de premier démarrage dans Elyko
-        </span>
-        <div className="relative" aria-hidden="true">
-          <div className="absolute -inset-16 -z-10 rounded-full bg-[#e6c988]/35 blur-3xl" />
-          <div className="hero-float overflow-hidden rounded-[28px] border border-black/10 bg-[#fffdf8] shadow-[0_35px_90px_rgba(35,45,38,.16)]">
-            <div className="flex items-center justify-between border-b border-[#e6e2d8] px-5 py-4">
-              <div className="flex items-center gap-2">
-                <span className="size-2.5 rounded-full bg-[#ef7f64]" />
-                <span className="size-2.5 rounded-full bg-[#efbd55]" />
-                <span className="size-2.5 rounded-full bg-[#78b17f]" />
-              </div>
-              <span className="rounded-full bg-[#eef2ed] px-3 py-1 text-[11px] font-medium text-[#4b5a50]">
-                Premier démarrage
-              </span>
+      <section
+        id="logiciel"
+        className="border-y border-[#d9ded9] bg-[#eef2ef] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
+                Explorez l’interface
+              </p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
+                Voyez exactement comment Elyko travaille.
+              </h2>
             </div>
-            <div className="grid min-h-[430px] grid-cols-1 sm:min-h-[490px] sm:grid-cols-[170px_1fr]">
-              <aside className="hidden border-r border-[#e9e5dc] bg-[#173d2c] p-5 text-white sm:block">
-                <BrandMark className="mb-8 size-10" />
-                {[
-                  'Activité',
-                  'Entreprise',
-                  'Facturation',
-                  'Projets',
-                  'Salaires',
-                  'Sauvegarde',
-                ].map((item, index) => (
-                  <div
-                    key={item}
-                    className={cn(
-                      'mb-2 rounded-lg px-2.5 py-2 text-xs',
-                      index === 0 ? 'bg-white/12 text-white' : 'text-white/45',
-                    )}
-                  >
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </aside>
-              <div className="min-w-0 p-5 sm:p-7">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-medium text-[#647068] sm:text-[11px]">
-                  <span>QUESTIONNAIRE DE CONFIGURATION</span>
-                  <span>1 / 6</span>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#e8e5dd]">
-                  <div className="h-full w-1/6 rounded-full bg-[#e79b2f]" />
-                </div>
-                <h2 className="mt-8 text-2xl font-semibold tracking-tight">
-                  Quel est votre domaine d’activité&nbsp;?
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[#5f6962]">
-                  Choisissez la section et la division NOGA 2025, puis précisez
-                  votre métier. Aucune donnée d’exemple n’est créée.
-                </p>
-                <div className="mt-7 grid gap-4 sm:grid-cols-2">
-                  {[
-                    'Section économique *',
-                    'Division NOGA *',
-                    'Activité précise *',
-                    'Code NOGA détaillé (facultatif)',
-                  ].map((label, index) => (
-                    <div
-                      key={label}
-                      className={index === 2 ? 'sm:col-span-2' : ''}
-                    >
-                      <span className="text-[11px] font-medium text-[#606a63]">
-                        {label}
-                      </span>
-                      <span className="mt-1.5 block h-10 rounded-xl border border-[#dedbd2] bg-white" />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-7 flex flex-col items-stretch gap-4 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
-                  <span className="flex items-center gap-2 text-xs text-[#45634f]">
-                    <ShieldCheck className="size-4 shrink-0" /> Enregistré
-                    uniquement sur ce PC
-                  </span>
-                  <span className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#173d2c] px-5 text-xs font-semibold text-white">
-                    Continuer
-                  </span>
-                </div>
-              </div>
-            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#66736b] lg:justify-self-end">
+              Passez du pilotage aux documents, aux projets, aux salaires et à
+              la comptabilité. Chaque écran ci-dessous présente un flux concret
+              de l’application.
+            </p>
+          </div>
+          <div className="mt-10 sm:mt-14">
+            <ProductShowcase />
           </div>
         </div>
       </section>
@@ -360,24 +295,32 @@ export default function Home() {
               </a>
             </div>
           </div>
-          <p className="mt-8 text-xs font-semibold uppercase tracking-[.11em] text-[#6b746e] sm:hidden">
-            Balayez pour explorer les 22 secteurs →
-          </p>
-          <div className="horizontal-rail -mx-5 mt-4 grid auto-cols-[minmax(240px,82vw)] grid-flow-col grid-rows-2 gap-2 overflow-x-auto px-5 pb-2 snap-x snap-mandatory sm:mx-0 sm:mt-12 sm:grid-flow-row sm:grid-cols-2 sm:grid-rows-none sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
-            {sectors.map(([code, label]) => (
-              <div
-                key={code}
-                className="interactive-card flex min-h-16 snap-start items-center gap-3 rounded-xl border border-[#e1ddd3] bg-white p-3.5"
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#e7efe9] text-sm font-bold text-[#315d47]">
-                  {code}
+          <details className="sector-details group mt-10 overflow-hidden rounded-[24px] border border-[#ddd8cd] bg-white sm:mt-12">
+            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold text-[#294536] sm:px-6">
+              <span className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-xl bg-[#e7efe9] text-sm font-bold text-[#315d47]">
+                  22
                 </span>
-                <span className="text-sm leading-5 text-[#46554c]">
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
+                Voir tous les secteurs NOGA pris en charge
+              </span>
+              <Plus className="size-5 shrink-0 transition-transform duration-200 group-open:rotate-45" />
+            </summary>
+            <div className="grid gap-2 border-t border-[#e5e1d8] bg-[#faf9f5] p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+              {sectors.map(([code, label]) => (
+                <div
+                  key={code}
+                  className="interactive-card flex min-h-16 items-center gap-3 rounded-xl border border-[#e1ddd3] bg-white p-3.5"
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#e7efe9] text-sm font-bold text-[#315d47]">
+                    {code}
+                  </span>
+                  <span className="text-sm leading-5 text-[#46554c]">
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
           <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#f2eee5] p-5 text-sm leading-6 text-[#667068]">
             <BriefcaseBusiness className="mt-0.5 size-5 shrink-0 text-[#b86b16]" />
             <p>
@@ -401,12 +344,12 @@ export default function Home() {
                 Vos données vous appartiennent
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                Pas de faux cloud caché derrière une icône.
+                Vos données restent là où vous les travaillez.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-white/60 lg:justify-self-end">
-              Elyko installe le logiciel et sa base sur l’ordinateur du client.
-              La gestion quotidienne ne dépend pas d’un navigateur ni d’une
+              Elyko installe l’application et sa base sur votre ordinateur. La
+              gestion quotidienne ne dépend pas d’un navigateur ni d’une
               connexion permanente.
             </p>
           </div>
@@ -437,7 +380,7 @@ export default function Home() {
                 Du devis au bilan
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                Un vrai outil de gestion, pas une vitrine vide.
+                Tout le cycle de gestion dans le même espace.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
@@ -656,7 +599,7 @@ export default function Home() {
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#5f6962]">
               Une licence Windows pour gérer l’activité, avec les mises à jour
-              de l’application. Les données métier restent chez le client.
+              de l’application. Les données métier restent sur votre ordinateur.
             </p>
           </div>
           <div className="mt-12 grid overflow-hidden rounded-[28px] border border-[#d9d4c9] bg-white shadow-[0_25px_70px_rgba(29,45,35,.1)] md:grid-cols-[1.1fr_.9fr]">
@@ -697,10 +640,10 @@ export default function Home() {
               <div>
                 <Laptop className="size-7 text-[#efaa3c]" />
                 <h3 className="mt-6 text-2xl font-semibold tracking-tight">
-                  Une vraie application `.exe`.
+                  L’application Elyko pour Windows.
                 </h3>
                 <p className="mt-4 text-sm leading-6 text-white/75">
-                  Payez sur la page sécurisée Stripe, téléchargez l’installateur
+                  Téléchargez Elyko, souscrivez sur la page sécurisée Stripe
                   puis liez la licence signée à votre PC. Vos données métier ne
                   quittent pas l’ordinateur.
                 </p>
@@ -751,8 +694,8 @@ export default function Home() {
           <div className="divide-y divide-[#ddd8cd]">
             {[
               [
-                'Est-ce réellement un programme Windows ?',
-                'Oui. Le téléchargement fournit un installateur .exe pour Windows 10 et Windows 11 64 bits. L’application fonctionne dans sa propre fenêtre, sans dépendre d’un onglet de navigateur.',
+                'Sur quels appareils Elyko fonctionne-t-il ?',
+                'Elyko est disponible pour Windows 10 et Windows 11 64 bits. L’application fonctionne dans sa propre fenêtre et la gestion quotidienne ne dépend pas d’un onglet de navigateur.',
               ],
               [
                 'Où sont enregistrées mes données ?',

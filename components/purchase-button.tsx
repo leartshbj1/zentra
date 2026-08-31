@@ -31,12 +31,12 @@ export function PurchaseButton({
         if (!active) return;
         setReady(response.ok && body.ready === true);
         if (!response.ok)
-          setError('Le statut du paiement n’est pas disponible.');
+          setError('Le paiement est momentanément indisponible.');
       })
       .catch(() => {
         if (active) {
           setReady(false);
-          setError('Le statut du paiement n’est pas disponible.');
+          setError('Le paiement est momentanément indisponible.');
         }
       });
     return () => {
@@ -76,7 +76,7 @@ export function PurchaseButton({
     : ready === null
       ? 'Vérification de Stripe…'
       : unavailable
-        ? 'Paiement Stripe en configuration'
+        ? 'Paiement temporairement indisponible'
         : compact
           ? 'S’abonner avec Stripe'
           : 'Acheter la licence · 50 CHF/mois';
@@ -104,7 +104,7 @@ export function PurchaseButton({
       {(error || unavailable) && (
         <output className="mt-2 block text-center text-xs leading-5 text-current opacity-70">
           {error ||
-            'Le site est publié, mais le compte marchand doit encore recevoir ses clés Stripe avant d’accepter un paiement.'}
+            'Réessayez dans quelques instants ou contactez-nous pour activer votre licence.'}
         </output>
       )}
     </div>

@@ -112,6 +112,41 @@ html {
   display: none;
 }
 
+summary::-webkit-details-marker {
+  display: none;
+}
+
+.hero-orbit {
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgb(40 94 65 / 12%);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.hero-orbit-one {
+  width: 340px;
+  height: 340px;
+  right: -70px;
+  top: -70px;
+}
+
+.hero-orbit-two {
+  width: 220px;
+  height: 220px;
+  left: -55px;
+  bottom: -55px;
+  border-color: rgb(202 136 47 / 18%);
+}
+
+.showcase-panel {
+  min-height: 340px;
+}
+
+.installer-progress {
+  background-size: 200% 100%;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .interactive-card {
     transition:
@@ -136,6 +171,78 @@ html {
     animation: hero-float 7s ease-in-out infinite;
   }
 
+  .hero-product-window {
+    animation:
+      window-arrive 760ms cubic-bezier(0.22, 1, 0.36, 1) both,
+      product-breathe 8s ease-in-out 1s infinite;
+    transform-origin: 60% 70%;
+  }
+
+  .hero-proof-chip,
+  .installer-chip {
+    animation: chip-arrive 620ms cubic-bezier(0.22, 1, 0.36, 1) 420ms both;
+  }
+
+  .hero-stat {
+    animation: card-arrive 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .hero-chart-bar,
+  .showcase-bar {
+    transform: scaleY(0);
+    transform-origin: bottom;
+    animation: bar-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .hero-progress-bar,
+  .project-progress {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: progress-grow 780ms cubic-bezier(0.22, 1, 0.36, 1) 320ms forwards;
+  }
+
+  .showcase-panel {
+    animation: panel-arrive 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .showcase-tab-progress {
+    animation: tab-progress 6.2s linear both;
+  }
+
+  .workflow-line {
+    transform: scaleY(0);
+    transform-origin: top;
+    animation: line-draw 420ms ease-out forwards;
+  }
+
+  .local-pulse {
+    animation: local-pulse 2.4s ease-out infinite;
+  }
+
+  .hero-orbit-one {
+    animation: orbit-drift 11s ease-in-out infinite;
+  }
+
+  .hero-orbit-two {
+    animation: orbit-drift 9s ease-in-out -3s infinite reverse;
+  }
+
+  .installer-window {
+    animation: window-arrive 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .installer-progress {
+    animation: installer-shimmer 2.8s ease-in-out infinite;
+  }
+
+  .download-confirmation {
+    animation: confirmation-arrive 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .sector-details[open] > div {
+    animation: details-arrive 300ms ease-out both;
+  }
+
   @keyframes hero-float {
     0%,
     100% {
@@ -143,6 +250,141 @@ html {
     }
     50% {
       transform: translateY(-6px);
+    }
+  }
+
+  @keyframes window-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes product-breathe {
+    0%,
+    100% {
+      box-shadow: 0 38px 100px rgb(16 43 30 / 22%);
+    }
+    50% {
+      box-shadow: 0 44px 110px rgb(16 43 30 / 27%);
+    }
+  }
+
+  @keyframes chip-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes card-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes bar-rise {
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes progress-grow {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes panel-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+      filter: blur(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes tab-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes line-draw {
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes local-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgb(91 198 127 / 45%);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 6px rgb(91 198 127 / 0%);
+    }
+  }
+
+  @keyframes orbit-drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+    }
+    50% {
+      transform: translate3d(-10px, 8px, 0) rotate(6deg);
+    }
+  }
+
+  @keyframes installer-shimmer {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  @keyframes confirmation-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes details-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 }

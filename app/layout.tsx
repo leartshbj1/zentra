@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'fr_CH',
-    title: 'Elyko — Chaque activité. Chaque franc. Enfin clair.',
+    title: 'Elyko — Toute votre entreprise, dans une seule application',
     description:
       'Le logiciel Windows suisse multisectoriel pour gérer projets, chantiers, devis, factures, salaires et comptabilité avec les données sur votre PC.',
     ...(socialImage
@@ -43,7 +43,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Elyko',
-    description: 'Chaque activité. Chaque franc. Enfin clair.',
+    description:
+      'Devis, factures QR, projets, salaires et comptabilité dans une application Windows.',
     ...(socialImage ? { images: [socialImage] } : {}),
   },
 };
