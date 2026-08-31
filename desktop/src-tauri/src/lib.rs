@@ -152,7 +152,7 @@ mod tests {
             SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SwissQrBillInput,
             SwissQrParty,
         },
-        schema::{BUSINESS_TABLES, SCHEMA_SQL},
+        schema::{BUSINESS_TABLES, SCHEMA_SQL, SCHEMA_VERSION},
     };
 
     fn test_onboarding() -> OnboardingInput {
@@ -735,7 +735,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 9;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 10;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -801,7 +801,7 @@ mod tests {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 9);
+        assert_eq!(version, SCHEMA_VERSION);
         let qr_table: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='invoice_qr_bills'",
@@ -826,6 +826,84 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn v10_migration_adds_an_empty_catalog_and_preserves_legacy_lines() {
+        let temporary = tempfile::tempdir().unwrap();
+        let data_dir = temporary.path().join("pre-catalog-v9-profile");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let database_path = data_dir.join("helvichantier.sqlite3");
+        let catalog_table = r#"CREATE TABLE IF NOT EXISTS catalog_items (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('product', 'service')),
+  sku TEXT,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  unit TEXT NOT NULL DEFAULT 'unité',
+  sales_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (sales_price_cents >= 0),
+  purchase_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK (purchase_cost_cents >= 0),
+  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
+  track_stock INTEGER NOT NULL DEFAULT 0 CHECK (track_stock IN (0, 1)),
+  stock_quantity_milli INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity_milli >= 0),
+  reorder_level_milli INTEGER NOT NULL DEFAULT 0 CHECK (reorder_level_milli >= 0),
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+"#;
+        let legacy_schema = SCHEMA_SQL
+            .replace(catalog_table, "")
+            .replace(
+                "  catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,\n",
+                "",
+            )
+            .lines()
+            .filter(|line| {
+                !line.contains("idx_catalog_items_")
+                    && !line.contains("idx_quote_items_catalog")
+                    && !line.contains("idx_invoice_items_catalog")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace("PRAGMA user_version = 10;", "PRAGMA user_version = 9;");
+        assert!(!legacy_schema.contains("catalog_items"));
+        assert!(!legacy_schema.contains("catalog_item_id"));
+
+        let connection = rusqlite::Connection::open(&database_path).unwrap();
+        connection.execute_batch(&legacy_schema).unwrap();
+        connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at) VALUES(1,1,'Entreprise v9','F','43','Entreprise historique','2026-01-01','2026-01-01')",[]).unwrap();
+        connection.execute("INSERT INTO quotes(id,title,status,currency,created_at,updated_at) VALUES('quote-v9','Devis conservé','brouillon','CHF','2026-01-01','2026-01-01')",[]).unwrap();
+        connection.execute("INSERT INTO quote_items(id,quote_id,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES('line-v9','quote-v9','Ligne historique',2,'heure',8000,1250,0,14000,0,14000,'2026-01-01','2026-01-01')",[]).unwrap();
+        drop(connection);
+
+        let store = LocalStore::initialize(data_dir).unwrap();
+        let connection = store.connect().unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        for table in ["quote_items", "invoice_items"] {
+            let has_catalog_reference: bool = connection
+                .query_row(
+                    &format!(
+                        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('{table}') WHERE name='catalog_item_id')"
+                    ),
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(has_catalog_reference, "missing catalog_item_id on {table}");
+        }
+        let workspace = store.get_workspace().unwrap();
+        assert!(workspace["catalog_items"].as_array().unwrap().is_empty());
+        assert_eq!(
+            workspace["quote_items"][0]["description"],
+            "Ligne historique"
+        );
+        assert_eq!(workspace["quote_items"][0]["line_net_cents"], 14_000);
+        assert_eq!(workspace["quote_items"][0]["catalog_item_id"], json!(null));
     }
 
     #[test]
@@ -1546,6 +1624,41 @@ mod tests {
     #[test]
     fn accepted_quote_conversion_is_atomic_and_unique() {
         let (_temporary, store) = initialized_store();
+        let catalog_item = store
+            .create_record(
+                "catalog_items",
+                json!({
+                    "kind":"product",
+                    "sku":"MAT-001",
+                    "name":"Matériel catalogue",
+                    "description":"Description d'origine",
+                    "unit":"heure",
+                    "sales_price_cents":8_000,
+                    "purchase_cost_cents":3_500,
+                    "vat_bp":0,
+                    "track_stock":true,
+                    "stock_quantity_milli":12_500,
+                    "reorder_level_milli":2_000
+                }),
+            )
+            .unwrap();
+        let catalog_item_id = value_id(&catalog_item);
+        assert_eq!(catalog_item["track_stock"], true);
+        assert_eq!(catalog_item["stock_quantity_milli"], 12_500);
+        assert!(store
+            .create_record(
+                "catalog_items",
+                json!({"kind":"other","name":"Article invalide"}),
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("product ou service"));
+        assert!(store
+            .create_record(
+                "catalog_items",
+                json!({"kind":"service","name":"Prix invalide","sales_price_cents":-1}),
+            )
+            .is_err());
         let client_id = value_id(
             &store
                 .create_record("clients", json!({"name":"Client conversion"}))
@@ -1559,7 +1672,39 @@ mod tests {
                 )
                 .unwrap(),
         );
-        store.create_record("quote_items",json!({"quote_id":quote_id,"description":"Lot accepté","quantity":2,"unit":"heure","unit_price_cents":8000,"vat_bp":0})).unwrap();
+        store.create_record("quote_items",json!({"quote_id":quote_id,"catalog_item_id":catalog_item_id,"description":"Lot accepté","quantity":2,"unit":"heure","unit_price_cents":8000,"discount_bp":1250,"vat_bp":0})).unwrap();
+        let archived_at = "2026-03-15T12:30:00Z";
+        let archived_catalog_item = store
+            .update_record(
+                "catalog_items",
+                &catalog_item_id,
+                json!({
+                    "name":"Matériel catalogue renommé",
+                    "sales_price_cents":9_500,
+                    "archived_at":archived_at
+                }),
+            )
+            .unwrap();
+        assert_eq!(archived_catalog_item["archived_at"], archived_at);
+        let workspace = store.get_workspace().unwrap();
+        assert_eq!(
+            workspace["catalog_items"][0]["name"],
+            "Matériel catalogue renommé"
+        );
+        assert_eq!(
+            workspace["quote_items"][0]["catalog_item_id"],
+            catalog_item_id
+        );
+        assert_eq!(workspace["quote_items"][0]["description"], "Lot accepté");
+        assert_eq!(workspace["quote_items"][0]["unit_price_cents"], 8_000);
+        assert_eq!(workspace["quote_items"][0]["discount_bp"], 1_250);
+        assert_eq!(workspace["quote_items"][0]["line_net_cents"], 14_000);
+        assert!(
+            store
+                .delete_record("catalog_items", &catalog_item_id)
+                .is_err(),
+            "un article utilisé doit être archivé, jamais supprimé au détriment de ses références"
+        );
         store
             .issue_quote(
                 &quote_id,
@@ -1586,6 +1731,14 @@ mod tests {
         let converted = store.convert_quote_to_invoice(input.clone()).unwrap();
         assert_eq!(converted["invoice"]["quote_id"], quote_id);
         assert_eq!(converted["invoice_items"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            converted["invoice_items"][0]["catalog_item_id"],
+            catalog_item_id
+        );
+        assert_eq!(converted["invoice_items"][0]["description"], "Lot accepté");
+        assert_eq!(converted["invoice_items"][0]["unit_price_cents"], 8_000);
+        assert_eq!(converted["invoice_items"][0]["discount_bp"], 1_250);
+        assert_eq!(converted["invoice_items"][0]["line_net_cents"], 14_000);
         assert!(store.convert_quote_to_invoice(input).is_err());
         let count: i64 = store
             .connect()

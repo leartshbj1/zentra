@@ -34,8 +34,9 @@ use crate::{
     },
     reminders::cancel_settled_reminders,
     schema::{
-        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
-        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V10_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
+        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
+        SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -202,6 +203,27 @@ fn migrate_v9(transaction: &Transaction<'_>) -> AppResult<()> {
         }
     }
     transaction.execute_batch(MIGRATION_V9_SQL)?;
+    Ok(())
+}
+
+fn migrate_v10(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V10_SQL)?;
+    for table in ["quote_items", "invoice_items"] {
+        let mut statement = transaction.prepare(&format!("PRAGMA table_info({table})"))?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        drop(statement);
+        if !columns.contains("catalog_item_id") {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT;"
+            ))?;
+        }
+    }
+    transaction.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_quote_items_catalog ON quote_items(catalog_item_id) WHERE catalog_item_id IS NOT NULL;
+         CREATE INDEX IF NOT EXISTS idx_invoice_items_catalog ON invoice_items(catalog_item_id) WHERE catalog_item_id IS NOT NULL;",
+    )?;
     Ok(())
 }
 
@@ -546,6 +568,7 @@ impl LocalStore {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
             2 => {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
@@ -555,6 +578,7 @@ impl LocalStore {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
             3 => {
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
@@ -563,6 +587,7 @@ impl LocalStore {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
             4 => {
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
@@ -570,23 +595,31 @@ impl LocalStore {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
             5 => {
                 migrate_v6(&transaction)?;
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
             6 => {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
             7 => {
                 migrate_v8(&transaction)?;
                 migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
             }
-            8 => migrate_v9(&transaction)?,
+            8 => {
+                migrate_v9(&transaction)?;
+                migrate_v10(&transaction)?;
+            }
+            9 => migrate_v10(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -803,6 +836,11 @@ impl LocalStore {
             "SELECT * FROM clients ORDER BY name, created_at",
             [],
         )?;
+        let catalog_items = query_all(
+            connection,
+            "SELECT * FROM catalog_items ORDER BY CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END, name COLLATE NOCASE, created_at",
+            [],
+        )?;
         let projects = query_all(
             connection,
             "SELECT * FROM projects ORDER BY CASE status WHEN 'en_cours' THEN 0 WHEN 'planifie' THEN 1 ELSE 2 END, COALESCE(planned_start_date, created_at) DESC",
@@ -942,6 +980,7 @@ impl LocalStore {
         Ok(json!({
             "settings": settings,
             "clients": clients,
+            "catalog_items": catalog_items,
             "projects": projects,
             "quotes": quotes,
             "quote_items": quote_items,
@@ -1800,20 +1839,21 @@ impl LocalStore {
             .filter(|v| !v.trim().is_empty())
             .unwrap_or_else(|| quote["title"].as_str().unwrap_or("Facture").to_owned());
         transaction.execute("INSERT INTO invoices(id,client_id,project_id,quote_id,title,type,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,terms,created_at,updated_at) VALUES(?,?,?,?,?,'standard','brouillon',?,?,?,?,?,?,?,?,?)",params![invoice_id,quote["client_id"].as_str(),quote["project_id"].as_str(),input.quote_id,title,issue_date,due_date,service_from,service_to,quote["currency"].as_str(),quote["notes"].as_str(),quote["terms"].as_str(),now,now])?;
-        let mut statement=transaction.prepare("SELECT position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents FROM quote_items WHERE quote_id=? ORDER BY position,rowid")?;
+        let mut statement=transaction.prepare("SELECT position,catalog_item_id,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents FROM quote_items WHERE quote_id=? ORDER BY position,rowid")?;
         let items = statement
             .query_map(params![input.quote_id], |r| {
                 Ok((
                     r.get::<_, i64>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, f64>(2)?,
-                    r.get::<_, String>(3)?,
-                    r.get::<_, i64>(4)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, f64>(3)?,
+                    r.get::<_, String>(4)?,
                     r.get::<_, i64>(5)?,
                     r.get::<_, i64>(6)?,
                     r.get::<_, i64>(7)?,
                     r.get::<_, i64>(8)?,
                     r.get::<_, i64>(9)?,
+                    r.get::<_, i64>(10)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -1824,7 +1864,7 @@ impl LocalStore {
             ));
         }
         for item in items {
-            transaction.execute("INSERT INTO invoice_items(id,invoice_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.0,item.1,item.2,item.3,item.4,item.5,item.6,item.7,item.8,item.9,now,now])?;
+            transaction.execute("INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.1,item.0,item.2,item.3,item.4,item.5,item.6,item.7,item.8,item.9,item.10,now,now])?;
         }
         recompute_invoice(&transaction, &invoice_id)?;
         transaction.execute(
@@ -2269,6 +2309,24 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
             ],
             required: &["name"],
         },
+        "catalog_items" => EntitySpec {
+            table: "catalog_items",
+            fields: &[
+                "kind",
+                "sku",
+                "name",
+                "description",
+                "unit",
+                "sales_price_cents",
+                "purchase_cost_cents",
+                "vat_bp",
+                "track_stock",
+                "stock_quantity_milli",
+                "reorder_level_milli",
+                "archived_at",
+            ],
+            required: &["kind", "name"],
+        },
         "projects" => EntitySpec {
             table: "projects",
             fields: &[
@@ -2312,6 +2370,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
             table: "quote_items",
             fields: &[
                 "quote_id",
+                "catalog_item_id",
                 "position",
                 "description",
                 "quantity",
@@ -2349,6 +2408,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
             table: "invoice_items",
             fields: &[
                 "invoice_id",
+                "catalog_item_id",
                 "position",
                 "description",
                 "quantity",
@@ -2594,6 +2654,7 @@ fn normalize_record(
         *currency = Value::String(normalized_code(value, "currency", 3, "CHF")?);
     }
     match entity {
+        "catalog_items" => normalize_catalog_item(object)?,
         "quote_items" | "invoice_items" => normalize_line_item(object)?,
         "invoices" => {
             if let Some(invoice_type) = object.get_mut("type") {
@@ -2779,6 +2840,135 @@ fn normalize_record(
         }
         "time_entries" => {}
         _ => {}
+    }
+    Ok(())
+}
+
+fn normalize_catalog_item(object: &mut Map<String, Value>) -> AppResult<()> {
+    if let Some(kind) = object.get("kind") {
+        if !kind
+            .as_str()
+            .is_some_and(|value| matches!(value, "product" | "service"))
+        {
+            return Err(AppError::Validation(
+                "kind doit être product ou service.".into(),
+            ));
+        }
+    }
+
+    if let Some(name) = object.get("name") {
+        let Some(name) = name.as_str() else {
+            return Err(AppError::Validation("name doit être du texte.".into()));
+        };
+        if name.is_empty() || name.chars().count() > 200 {
+            return Err(AppError::Validation(
+                "name doit contenir entre 1 et 200 caractères.".into(),
+            ));
+        }
+    }
+
+    match object.get("sku").cloned() {
+        Some(Value::Null) | None => {}
+        Some(Value::String(value)) if value.is_empty() => {
+            object.insert("sku".into(), Value::Null);
+        }
+        Some(Value::String(value)) if value.chars().count() <= 80 => {}
+        Some(Value::String(_)) => {
+            return Err(AppError::Validation(
+                "sku ne peut pas dépasser 80 caractères.".into(),
+            ));
+        }
+        Some(_) => return Err(AppError::Validation("sku doit être du texte.".into())),
+    }
+
+    match object.get("description").cloned() {
+        Some(Value::Null) => {
+            object.insert("description".into(), Value::String(String::new()));
+        }
+        Some(Value::String(value)) if value.chars().count() <= 10_000 => {}
+        Some(Value::String(_)) => {
+            return Err(AppError::Validation(
+                "description ne peut pas dépasser 10000 caractères.".into(),
+            ));
+        }
+        Some(_) => {
+            return Err(AppError::Validation(
+                "description doit être du texte.".into(),
+            ));
+        }
+        None => {}
+    }
+
+    match object.get("unit").cloned() {
+        Some(Value::Null) => {
+            object.insert("unit".into(), Value::String("unité".into()));
+        }
+        Some(Value::String(value)) if value.is_empty() => {
+            object.insert("unit".into(), Value::String("unité".into()));
+        }
+        Some(Value::String(value)) if value.chars().count() <= 40 => {}
+        Some(Value::String(_)) => {
+            return Err(AppError::Validation(
+                "unit ne peut pas dépasser 40 caractères.".into(),
+            ));
+        }
+        Some(_) => return Err(AppError::Validation("unit doit être du texte.".into())),
+        None => {}
+    }
+
+    for (field, maximum) in [
+        ("sales_price_cents", i64::MAX),
+        ("purchase_cost_cents", i64::MAX),
+        ("vat_bp", 10_000),
+        ("stock_quantity_milli", i64::MAX),
+        ("reorder_level_milli", i64::MAX),
+    ] {
+        if object.get(field).is_some_and(|value| {
+            !value
+                .as_i64()
+                .is_some_and(|number| (0..=maximum).contains(&number))
+        }) {
+            return Err(AppError::Validation(format!(
+                "{field} doit être un nombre entier positif ou nul{}.",
+                if field == "vat_bp" {
+                    " inférieur ou égal à 10000"
+                } else {
+                    ""
+                }
+            )));
+        }
+    }
+
+    if let Some(value) = object.get("track_stock").cloned() {
+        let normalized = match value {
+            Value::Bool(value) => value,
+            Value::Number(value) if value.as_i64().is_some_and(|flag| matches!(flag, 0 | 1)) => {
+                value.as_i64() == Some(1)
+            }
+            _ => {
+                return Err(AppError::Validation(
+                    "track_stock doit être oui ou non.".into(),
+                ));
+            }
+        };
+        object.insert("track_stock".into(), Value::Bool(normalized));
+    }
+
+    match object.get("archived_at").cloned() {
+        Some(Value::String(value)) if value.is_empty() => {
+            object.insert("archived_at".into(), Value::Null);
+        }
+        Some(Value::String(value)) => {
+            DateTime::parse_from_rfc3339(&value).map_err(|_| {
+                AppError::Validation("archived_at doit être une date/heure ISO 8601 valide.".into())
+            })?;
+        }
+        Some(Value::Null) | None => {}
+        Some(_) => {
+            return Err(AppError::Validation(
+                "archived_at doit être une date/heure ISO 8601 ou null.".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -3404,6 +3594,7 @@ fn is_boolean_column(name: &str) -> bool {
             | "vat_registered"
             | "billable"
             | "reimbursable"
+            | "track_stock"
             | "active"
             | "enabled"
     )

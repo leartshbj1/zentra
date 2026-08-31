@@ -1,8 +1,9 @@
-pub const SCHEMA_VERSION: i64 = 9;
+pub const SCHEMA_VERSION: i64 = 10;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
     "clients",
+    "catalog_items",
     "projects",
     "quotes",
     "quote_items",
@@ -97,6 +98,24 @@ CREATE TABLE IF NOT EXISTS clients (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('product', 'service')),
+  sku TEXT,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  unit TEXT NOT NULL DEFAULT 'unité',
+  sales_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (sales_price_cents >= 0),
+  purchase_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK (purchase_cost_cents >= 0),
+  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
+  track_stock INTEGER NOT NULL DEFAULT 0 CHECK (track_stock IN (0, 1)),
+  stock_quantity_milli INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity_milli >= 0),
+  reorder_level_milli INTEGER NOT NULL DEFAULT 0 CHECK (reorder_level_milli >= 0),
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   client_id TEXT REFERENCES clients(id) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -145,6 +164,7 @@ CREATE TABLE IF NOT EXISTS quotes (
 CREATE TABLE IF NOT EXISTS quote_items (
   id TEXT PRIMARY KEY,
   quote_id TEXT NOT NULL REFERENCES quotes(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
   position INTEGER NOT NULL DEFAULT 0,
   description TEXT NOT NULL,
   quantity REAL NOT NULL DEFAULT 1 CHECK (quantity >= 0),
@@ -189,6 +209,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 CREATE TABLE IF NOT EXISTS invoice_items (
   id TEXT PRIMARY KEY,
   invoice_id TEXT NOT NULL REFERENCES invoices(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
   position INTEGER NOT NULL DEFAULT 0,
   description TEXT NOT NULL,
   quantity REAL NOT NULL DEFAULT 1 CHECK (quantity >= 0),
@@ -601,16 +622,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_code ON projects(code) WHERE code
 CREATE UNIQUE INDEX IF NOT EXISTS idx_quotes_number ON quotes(number) WHERE number IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number) WHERE number IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_number ON employees(employee_number) WHERE employee_number IS NOT NULL AND employee_number <> '';
+CREATE INDEX IF NOT EXISTS idx_catalog_items_name ON catalog_items(name COLLATE NOCASE, created_at);
+CREATE INDEX IF NOT EXISTS idx_catalog_items_sku ON catalog_items(sku COLLATE NOCASE) WHERE sku IS NOT NULL AND sku <> '';
+CREATE INDEX IF NOT EXISTS idx_catalog_items_archived ON catalog_items(archived_at, kind, name COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_quotes_client ON quotes(client_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_project ON quotes(project_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
 CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id, position);
+CREATE INDEX IF NOT EXISTS idx_quote_items_catalog ON quote_items(catalog_item_id) WHERE catalog_item_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_project ON invoices(project_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id, position);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_catalog ON invoice_items(catalog_item_id) WHERE catalog_item_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_time_project_date ON time_entries(project_id, date);
 CREATE INDEX IF NOT EXISTS idx_time_employee_date ON time_entries(employee_id, date);
 CREATE INDEX IF NOT EXISTS idx_expenses_project_date ON expenses(project_id, date);
@@ -728,7 +754,7 @@ BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
 BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
 
-PRAGMA user_version = 9;
+PRAGMA user_version = 10;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -951,4 +977,31 @@ BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
 BEGIN SELECT RAISE(ABORT,'AC opening year and basis must be confirmed together'); END;
 PRAGMA user_version=9;
+"#;
+
+/// Ajoute un catalogue local sans créer d'article de démonstration. Les références
+/// facultatives sur les lignes servent uniquement à tracer la saisie : les valeurs
+/// financières restent copiées dans chaque document et ne dépendent jamais du catalogue.
+pub const MIGRATION_V10_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('product', 'service')),
+  sku TEXT,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  unit TEXT NOT NULL DEFAULT 'unité',
+  sales_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (sales_price_cents >= 0),
+  purchase_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK (purchase_cost_cents >= 0),
+  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
+  track_stock INTEGER NOT NULL DEFAULT 0 CHECK (track_stock IN (0, 1)),
+  stock_quantity_milli INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity_milli >= 0),
+  reorder_level_milli INTEGER NOT NULL DEFAULT 0 CHECK (reorder_level_milli >= 0),
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_items_name ON catalog_items(name COLLATE NOCASE, created_at);
+CREATE INDEX IF NOT EXISTS idx_catalog_items_sku ON catalog_items(sku COLLATE NOCASE) WHERE sku IS NOT NULL AND sku <> '';
+CREATE INDEX IF NOT EXISTS idx_catalog_items_archived ON catalog_items(archived_at, kind, name COLLATE NOCASE);
+PRAGMA user_version=10;
 "#;
