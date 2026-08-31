@@ -51,15 +51,31 @@ foreach ($artifact in @($paths.Application, $paths.Installer, $paths.Signature, 
     Remove-ElykoExactBuildArtifact -Path $artifact -ReleaseRoot $paths.ReleaseRoot
 }
 
+$updaterTemplatePath = Join-Path $desktopRoot 'src-tauri\tauri.updater.conf.json'
+$updaterTemplate = Get-Content -Raw -LiteralPath $updaterTemplatePath | ConvertFrom-Json
+if ($updaterTemplate.plugins.updater.pubkey -ne 'INJECTED_BY_ELYKO_UPDATER_PUBLIC_KEY_AT_BUILD_TIME') {
+    throw 'Le modèle de configuration updater ne contient pas le marqueur de clé publique attendu.'
+}
+$updaterTemplate.plugins.updater.pubkey = $publicKey.Trim()
+$generatedUpdaterConfig = Join-Path $desktopRoot "src-tauri\tauri.updater.generated-$([Guid]::NewGuid().ToString('N')).conf.json"
+[IO.File]::WriteAllText(
+    $generatedUpdaterConfig,
+    ($updaterTemplate | ConvertTo-Json -Depth 12),
+    [Text.UTF8Encoding]::new($false)
+)
+
 $buildStartedAt = [DateTimeOffset]::UtcNow
 Push-Location $desktopRoot
 try {
-    & pnpm exec tauri build --target $paths.Target --bundles nsis --config src-tauri/tauri.updater.conf.json
+    & pnpm exec tauri build --target $paths.Target --bundles nsis --config $generatedUpdaterConfig
     if ($LASTEXITCODE -ne 0) {
         throw "Le build Tauri updater a échoué avec le code $LASTEXITCODE."
     }
 } finally {
     Pop-Location
+    if (Test-Path -LiteralPath $generatedUpdaterConfig -PathType Leaf) {
+        Remove-Item -LiteralPath $generatedUpdaterConfig -Force
+    }
 }
 
 $provenance = Write-ElykoUpdaterBuildProvenance `
