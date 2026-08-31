@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Clock3,
+  Copy,
   FileCode2,
   FileUp,
   History,
@@ -12,6 +13,8 @@ import {
   Link2,
   LoaderCircle,
   RefreshCw,
+  Receipt,
+  Search,
   ShieldCheck,
   Unlink,
 } from 'lucide-react';
@@ -19,6 +22,7 @@ import { desktopApi } from './bridge';
 import {
   canConfirmBankReconciliation,
   candidateForInvoice,
+  filterBankCandidates,
   filterBankMovements,
   importCamtFromLocalDialog,
   initialInvoiceChoice,
@@ -62,6 +66,11 @@ function referenceLabel(type: string): string {
   return ({ QRR: 'Référence QR', SCOR: 'Référence créancier', CONFLICT: 'Références contradictoires', NON: 'Communication libre' } as Record<string, string>)[type] ?? 'Référence bancaire';
 }
 
+function shortSha256(value: string): string {
+  if (value.length <= 22) return value;
+  return `${value.slice(0, 14)}…${value.slice(-8)}`;
+}
+
 function movementBlockReason(movement: BankMovement, account: BankAccountLink | undefined, invoiceId: string): string {
   if (!account?.linked) return 'Associez d’abord ce compte à votre entreprise.';
   if (movement.status === 'PDNG') return 'Ce mouvement est encore en attente auprès de la banque.';
@@ -76,6 +85,39 @@ function movementBlockReason(movement: BankMovement, account: BankAccountLink | 
   return '';
 }
 
+function BankCandidatePicker({
+  movement,
+  workspace,
+  selectedInvoiceId,
+  query,
+  onQueryChange,
+  onSelect,
+}: {
+  movement: BankMovement;
+  workspace: Workspace;
+  selectedInvoiceId: string;
+  query: string;
+  onQueryChange: (value: string) => void;
+  onSelect: (invoiceId: string) => void;
+}) {
+  const candidates = filterBankCandidates(movement, workspace.invoices, workspace.clients, query);
+  const searchable = movement.suggestion.kind === 'manual' || movement.suggestion.kind === 'review' || movement.suggestion.candidates.length > 1;
+  return <div className="bank-candidate-picker">
+    <div className="bank-candidate-picker__heading"><span>Facture à rapprocher</span><small>{movement.suggestion.candidates.length} proposition{movement.suggestion.candidates.length > 1 ? 's' : ''}</small></div>
+    {searchable ? <label className="bank-candidate-search"><Search size={14} /><span className="sr-only">Rechercher une facture par numéro, client ou montant</span><input type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="N°, client ou montant…" /></label> : null}
+    <div className="bank-candidate-options" role="radiogroup" aria-label="Choisir explicitement la facture à rapprocher">
+      {candidates.map(({ candidate, invoiceNumber, invoiceTitle, clientName, dueDate }) => <label className={`bank-candidate-option ${selectedInvoiceId === candidate.invoiceId ? 'is-selected' : ''} ${candidate.confirmable ? '' : 'is-blocked'}`} key={candidate.invoiceId}>
+        <input className="sr-only" type="radio" name={`bank-candidate-${movement.id}`} value={candidate.invoiceId} checked={selectedInvoiceId === candidate.invoiceId} disabled={!candidate.confirmable} onChange={() => onSelect(candidate.invoiceId)} />
+        <span className="bank-candidate-option__icon"><Receipt size={15} /></span>
+        <span className="bank-candidate-option__identity"><strong>{invoiceNumber}</strong><span>{clientName}</span><small>{invoiceTitle || (dueDate ? `Échéance ${formatDate(dueDate)}` : 'Facture ouverte')}</small></span>
+        <span className="bank-candidate-option__amount"><strong>{formatBankMoney(candidate.remainingCents, movement.currency)}</strong><small>solde ouvert</small></span>
+        <span className="bank-candidate-option__reason">{candidate.confirmable ? candidate.reason || 'Montant compatible.' : `Bloqué · ${candidate.reason || 'Non confirmable'}`}</span>
+      </label>)}
+      {!candidates.length ? <div className="bank-candidate-empty" role="status">Aucune facture ne correspond à « {query.trim()} ».</div> : null}
+    </div>
+  </div>;
+}
+
 export function BankScreen({
   workspace,
   readOnly,
@@ -88,6 +130,7 @@ export function BankScreen({
   const [bank, setBank] = useState<BankWorkspace | null>(null);
   const [filter, setFilter] = useState<BankMovementFilter>('unreconciled');
   const [choices, setChoices] = useState<Record<string, string>>({});
+  const [candidateQueries, setCandidateQueries] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -210,6 +253,15 @@ export function BankScreen({
     }
   }
 
+  async function copyImportFingerprint(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setFeedback({ tone: 'success', title: 'Empreinte copiée', text: 'L’empreinte SHA-256 complète est dans le presse-papiers.' });
+    } catch (reason) {
+      setFeedback({ tone: 'error', title: 'Copie impossible', text: errorMessage(reason, `Empreinte SHA-256 : ${value}`) });
+    }
+  }
+
   if (loading) return <div className="bank-loading" role="status"><LoaderCircle className="spin" size={19} /> Chargement de l’espace bancaire local…</div>;
   if (error && !bank) return <ErrorPanel title="Banque indisponible" message={error} onRetry={() => { setLoading(true); void load(); }} />;
   if (!bank) return null;
@@ -250,7 +302,7 @@ export function BankScreen({
         {movements.map((movement) => {
           const account = accountFor(movement);
           const selectedInvoiceId = choices[movement.id] ?? '';
-          const candidate = candidateForInvoice(movement, selectedInvoiceId);
+          const candidateQuery = candidateQueries[movement.id] ?? '';
           const blockReason = movementBlockReason(movement, account, selectedInvoiceId);
           const reconciledInvoice = movement.reconciliation ? workspace.invoices.find((invoice) => invoice.id === movement.reconciliation?.invoiceId) : undefined;
           return <article className={`bank-movement ${movement.creditDebit === 'DBIT' ? 'is-debit' : 'is-credit'} ${movement.status === 'PDNG' ? 'is-pending' : ''}`} key={movement.id}>
@@ -262,7 +314,24 @@ export function BankScreen({
                 : movement.creditDebit !== 'CRDT' || movement.reversal ? <div className="bank-match-muted"><span>{movement.reversal ? 'Extourne conservée pour contrôle; aucun encaissement proposé.' : 'Débit conservé dans l’historique; aucun encaissement client proposé.'}</span></div>
                   : movement.status === 'PDNG' ? <div className="bank-match-muted"><Clock3 size={15} /><span>Attendez le statut BOOK avant tout rapprochement.</span></div>
                     : !account?.linked ? <div className="bank-match-warning"><Unlink size={15} /><span>Compte non associé. Confirmez d’abord qu’il appartient à votre entreprise.</span></div>
-                      : <><div className={`bank-suggestion bank-suggestion--${movement.suggestion.kind}`}><span>{suggestionLabels[movement.suggestion.kind]}</span><p>{movement.suggestion.reason || 'Aucune correspondance suffisamment sûre n’a été trouvée.'}</p></div>{movement.suggestion.candidates.length ? <label className="bank-invoice-choice"><span>Facture à rapprocher</span><select value={selectedInvoiceId} onChange={(event) => setChoices((current) => ({ ...current, [movement.id]: event.target.value }))}><option value="">Choisir explicitement une facture</option>{movement.suggestion.candidates.map((option) => <option key={option.invoiceId} value={option.invoiceId} disabled={!option.confirmable}>{option.invoiceNumber || option.invoiceId} · solde {formatBankMoney(option.remainingCents, movement.currency)}{!option.confirmable ? ' · bloqué' : ''}</option>)}</select></label> : null}{candidate ? <small className={`bank-candidate-note ${candidate.confirmable ? '' : 'is-blocked'}`}>{candidate.reason || (candidate.confirmable ? 'Montant compatible avec le solde.' : 'Cette facture n’est pas confirmable.')}</small> : null}<Button size="small" disabled={busy || readOnly || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedInvoiceId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer le rapprochement</Button>{blockReason && selectedInvoiceId ? <small className="bank-block-reason">{blockReason}</small> : null}</>}
+                      : <>
+                        <div className={`bank-suggestion bank-suggestion--${movement.suggestion.kind}`}><span>{suggestionLabels[movement.suggestion.kind]}</span><p>{movement.suggestion.reason || 'Aucune correspondance suffisamment sûre n’a été trouvée.'}</p></div>
+                        {movement.suggestion.candidates.length ? <BankCandidatePicker
+                          movement={movement}
+                          workspace={workspace}
+                          selectedInvoiceId={selectedInvoiceId}
+                          query={candidateQuery}
+                          onQueryChange={(value) => {
+                            setCandidateQueries((current) => ({ ...current, [movement.id]: value }));
+                            if (selectedInvoiceId && !filterBankCandidates(movement, workspace.invoices, workspace.clients, value).some((item) => item.candidate.invoiceId === selectedInvoiceId)) {
+                              setChoices((current) => ({ ...current, [movement.id]: '' }));
+                            }
+                          }}
+                          onSelect={(invoiceId) => setChoices((current) => ({ ...current, [movement.id]: invoiceId }))}
+                        /> : null}
+                        <Button size="small" disabled={busy || readOnly || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedInvoiceId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer le rapprochement</Button>
+                        {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
+                      </>}
             </div>
           </article>;
         })}
@@ -271,7 +340,12 @@ export function BankScreen({
 
     <section className="panel bank-imports-panel">
       <SectionHeading eyebrow="Traçabilité locale" title="Historique des imports" description="Empreinte, type CAMT, compte et nombre d’entrées restent consultables sur ce PC." />
-      {bank.imports.length ? <div className="bank-import-list">{bank.imports.map((item) => <article key={item.id}><span><History size={17} /></span><div><strong>{item.sourceName}</strong><p>{item.messageType || 'CAMT'}{item.namespaceVersion ? ` · ${item.namespaceVersion}` : ''} · {item.accountId || 'Compte non renseigné'}</p></div><div><strong>{item.entryCount}</strong><small>entrée{item.entryCount > 1 ? 's' : ''}{item.ignoredCount ? ` · ${item.ignoredCount} ignorée${item.ignoredCount > 1 ? 's' : ''}` : ''}</small></div><time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time></article>)}</div> : <p className="bank-imports-empty">Aucun relevé importé.</p>}
+      {bank.imports.length ? <div className="bank-import-list">{bank.imports.map((item) => <article key={item.id}>
+        <span><History size={17} /></span>
+        <div className="bank-import-list__identity"><strong>{item.sourceName}</strong><p>{item.messageType || 'CAMT'}{item.namespaceVersion ? ` · ${item.namespaceVersion}` : ''} · {item.accountId || 'Compte non renseigné'}</p>{item.fileSha256 ? <div className="bank-import-hash" title={`SHA-256 ${item.fileSha256}`}><small>SHA-256</small><code>{shortSha256(item.fileSha256)}</code><button type="button" onClick={() => void copyImportFingerprint(item.fileSha256)} aria-label={`Copier l’empreinte SHA-256 du fichier ${item.sourceName}`}><Copy size={12} /></button></div> : null}</div>
+        <div><strong>{item.entryCount}</strong><small>mouvement{item.entryCount > 1 ? 's' : ''} importé{item.entryCount > 1 ? 's' : ''}{item.ignoredCount ? ` · ${item.ignoredCount} ignoré${item.ignoredCount > 1 ? 's' : ''}` : ' · aucun ignoré'}</small></div>
+        <time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
+      </article>)}</div> : <p className="bank-imports-empty">Aucun relevé importé.</p>}
     </section>
   </div>;
 }

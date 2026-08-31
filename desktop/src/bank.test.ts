@@ -4,11 +4,12 @@ import {
   bankConfirmationPayload,
   bankWorkspaceFromRaw,
   canConfirmBankReconciliation,
+  filterBankCandidates,
   filterBankMovements,
   importCamtFromLocalDialog,
   initialInvoiceChoice,
 } from './bank';
-import type { BankMovement, CamtImportResult } from './types';
+import type { BankMovement, CamtImportResult, Client, Invoice } from './types';
 
 const rawWorkspace = {
   summary: {
@@ -91,6 +92,36 @@ describe('triage et choix de facture', () => {
   it('préselectionne uniquement une proposition automatique confirmable', () => {
     expect(initialInvoiceChoice(workspace.movements[0])).toBe('invoice-1');
     expect(initialInvoiceChoice(workspace.movements[1])).toBe('');
+    expect(initialInvoiceChoice({ ...workspace.movements[0], suggestion: { ...workspace.movements[0].suggestion, kind: 'manual' } })).toBe('');
+  });
+
+  it('retrouve les candidats manuels par numéro, client et montant sans masquer les bloqués', () => {
+    const movement: BankMovement = {
+      ...workspace.movements[0],
+      suggestion: {
+        ...workspace.movements[0].suggestion,
+        kind: 'manual',
+        invoiceId: null,
+        invoiceNumber: null,
+        candidates: [
+          workspace.movements[0].suggestion.candidates[0],
+          { invoiceId: 'invoice-2', invoiceNumber: 'FAC-2026-99', remainingCents: 25_050, amountRelation: 'overpayment', reason: 'Montant trop élevé.', confirmable: false },
+        ],
+      },
+    };
+    const invoices = [
+      { id: 'invoice-1', number: 'FAC-2026-15', clientId: 'client-1', title: 'Mandat Genève', issueDate: '2026-08-01', dueDate: '2026-08-31' },
+      { id: 'invoice-2', number: 'FAC-2026-99', clientId: 'client-2', title: 'Maintenance', issueDate: '2026-08-02', dueDate: '2026-09-01' },
+    ] as Invoice[];
+    const clients = [
+      { id: 'client-1', name: 'Alice', company: 'Client SA' },
+      { id: 'client-2', name: 'Bob', company: 'Atelier Étoile' },
+    ] as Client[];
+
+    expect(filterBankCandidates(movement, invoices, clients, 'FAC-2026-15').map((item) => item.candidate.invoiceId)).toEqual(['invoice-1']);
+    expect(filterBankCandidates(movement, invoices, clients, 'etoile').map((item) => item.candidate.invoiceId)).toEqual(['invoice-2']);
+    expect(filterBankCandidates(movement, invoices, clients, '250,50')[0].candidate.confirmable).toBe(false);
+    expect(filterBankCandidates(movement, invoices, clients, '')).toHaveLength(2);
   });
 
   it('bloque PDNG, les extournes et un montant supérieur au solde', () => {

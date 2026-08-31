@@ -8,9 +8,19 @@ import type {
   BankSuggestionKind,
   BankWorkspace,
   CamtImportResult,
+  Client,
+  Invoice,
 } from './types';
 
 export type BankMovementFilter = 'unreconciled' | 'pending' | 'reconciled' | 'all';
+export type BankCandidateMatch = {
+  candidate: BankReconciliationCandidate;
+  invoiceNumber: string;
+  invoiceTitle: string;
+  clientName: string;
+  issueDate: string;
+  dueDate: string;
+};
 type RawRecord = Record<string, unknown>;
 
 const record = (value: unknown): RawRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as RawRecord : {};
@@ -186,6 +196,44 @@ export function initialInvoiceChoice(movement: BankMovement): string {
 
 export function candidateForInvoice(movement: BankMovement, invoiceId: string): BankReconciliationCandidate | undefined {
   return movement.suggestion.candidates.find((candidate) => candidate.invoiceId === invoiceId);
+}
+
+function normalizedCandidateQuery(value: string): string {
+  return value.trim().toLocaleLowerCase('fr-CH').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+export function filterBankCandidates(
+  movement: BankMovement,
+  invoices: Invoice[],
+  clients: Client[],
+  query: string,
+): BankCandidateMatch[] {
+  const normalizedQuery = normalizedCandidateQuery(query);
+  return movement.suggestion.candidates.map((candidate) => {
+    const invoice = invoices.find((item) => item.id === candidate.invoiceId);
+    const client = invoice ? clients.find((item) => item.id === invoice.clientId) : undefined;
+    return {
+      candidate,
+      invoiceNumber: candidate.invoiceNumber || invoice?.number || candidate.invoiceId,
+      invoiceTitle: invoice?.title || '',
+      clientName: client?.company || client?.name || 'Client non renseigné',
+      issueDate: invoice?.issueDate || '',
+      dueDate: invoice?.dueDate || '',
+    };
+  }).filter((item) => {
+    if (!normalizedQuery) return true;
+    const decimal = (item.candidate.remainingCents / 100).toFixed(2);
+    const searchable = normalizedCandidateQuery([
+      item.invoiceNumber,
+      item.invoiceTitle,
+      item.clientName,
+      item.candidate.remainingCents,
+      decimal,
+      decimal.replace('.', ','),
+      `${decimal} ${movement.currency}`,
+    ].join(' '));
+    return searchable.includes(normalizedQuery);
+  });
 }
 
 export function canConfirmBankReconciliation(movement: BankMovement, invoiceId: string): boolean {
