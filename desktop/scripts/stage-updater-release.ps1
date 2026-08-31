@@ -106,7 +106,7 @@ if (-not $lockMatch.Success) {
     throw 'Version du paquet helvichantier absente de Cargo.lock.'
 }
 $lockVersion = $lockMatch.Groups[1].Value
-$versions = @($packageVersion, $tauriConfig.version, $cargoVersion, $lockVersion) | Select-Object -Unique
+$versions = @(@($packageVersion, $tauriConfig.version, $cargoVersion, $lockVersion) | Select-Object -Unique)
 if ($versions.Count -ne 1 -or $versions[0] -ne $Version) {
     throw "Versions incohérentes : demandé=$Version, package.json=$packageVersion, tauri.conf.json=$($tauriConfig.version), Cargo.toml=$cargoVersion, Cargo.lock=$lockVersion."
 }
