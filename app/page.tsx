@@ -25,6 +25,7 @@ import {
 import { buttonVariants } from '@/components/ui/button';
 import { BrandMark } from '@/components/brand-mark';
 import { HeroDashboard } from '@/components/hero-dashboard';
+import { PayrollLocalDemo } from '@/components/payroll-local-demo';
 import { ProductShowcase } from '@/components/product-showcase';
 import { PurchaseButton } from '@/components/purchase-button';
 import { cn } from '@/lib/utils';
@@ -58,7 +59,7 @@ const features = [
   {
     icon: Users,
     title: 'Équipe & salaires',
-    text: 'Préparez les fiches avec vos propres retenues, sans taux inventé, puis contrôlez-les avec votre fiduciaire.',
+    text: 'Importez d’anciennes fiches, contrôlez les champs proposés localement et générez des PDF détaillés avec vos taux validés.',
   },
 ];
 
@@ -166,10 +167,10 @@ export default function Home() {
         className="mx-auto grid w-full max-w-7xl gap-10 px-5 pb-16 pt-9 sm:gap-12 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-16"
       >
         <div className="relative z-10">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f]">
+          <a href="#paie-locale" className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white">
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.1.4 · Windows 10/11
-          </div>
+            Nouveau · import local de fiches de salaire
+          </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
             <br />
@@ -216,7 +217,7 @@ export default function Home() {
               ['22', 'secteurs NOGA'],
               ['1 clic', 'devis → facture'],
               ['QR', 'facture suisse'],
-              ['100 %', 'données locales'],
+              ['Local', 'données métier'],
             ].map(([value, label]) => (
               <div
                 key={label}
@@ -259,6 +260,52 @@ export default function Home() {
           <div className="mt-10 sm:mt-14">
             <ProductShowcase />
           </div>
+        </div>
+      </section>
+
+      <section
+        id="paie-locale"
+        className="border-b border-[#ded9ce] bg-[#fffaf2] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
+                Nouveau dans Elyko 1.2.0
+              </p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
+                Vos anciennes fiches deviennent une base de travail.
+              </h2>
+            </div>
+            <div className="max-w-2xl lg:justify-self-end">
+              <p className="text-lg leading-8 text-[#68736c]">
+                Importez plusieurs PDF ou images. Elyko lit d’abord le texte disponible, puis peut utiliser SmolVLM localement pour proposer les champs, associer la fiche à un collaborateur et préparer une fiche « à contrôler ».
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#7a7061]">
+                Aucun document de paie n’est envoyé. Chaque résultat doit être comparé à l’original et confirmé par une personne avant création.
+              </p>
+            </div>
+          </div>
+          <div className="mt-10 sm:mt-14">
+            <PayrollLocalDemo />
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[
+              ['Import groupé', 'PDF, PNG, JPEG ou WebP, avec détection des doublons et reprise du contrôle.'],
+              ['IA exécutée localement', 'Le modèle s’exécute sur le PC après son téléchargement initial ; il reste facultatif.'],
+              ['PDF professionnel', 'Bases, taux, retenues, charges employeur, net, paiement et mentions restent lisibles.'],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-2xl border border-[#ded8cd] bg-white/70 p-5">
+                <Check className="size-4 text-[#3f7a55]" />
+                <h3 className="mt-3 text-sm font-semibold text-[#2d4135]">{title}</h3>
+                <p className="mt-2 text-xs leading-5 text-[#667169]">{text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-5 text-xs leading-5 text-[#7a746b]">
+            Le modèle officiel SmolVLM-500M-Instruct utilisé ici n’est pas spécifiquement affiné pour la paie suisse. Elyko n’est pas certifié Swissdec.
+          </p>
         </div>
       </section>
 
@@ -420,8 +467,8 @@ export default function Home() {
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
               Chaque action métier produit une trace explicable : l’acceptation
               autorise la conversion du devis, l’émission alimente la
-              comptabilité, le paiement solde la créance et l’échéance déclenche
-              les relances locales.
+              comptabilité, le paiement solde la créance et l’échéance signale
+              les relances à préparer.
             </p>
           </div>
           <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-4">

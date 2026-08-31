@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { OpenDialogOptions, SaveDialogOptions } from '@tauri-apps/plugin-dialog';
 import type {
   Account,
   AccountingPeriod,
@@ -9,6 +10,7 @@ import type {
   Client,
   DocumentLine,
   Employee,
+  EmployeePayrollTemplate,
   EntityKind,
   Expense,
   FrozenCustomer,
@@ -29,6 +31,8 @@ import type {
   Payslip,
   PayslipContributionSnapshot,
   PayslipLine,
+  PayrollDocumentImport,
+  PayrollImportDraft,
   PayrollCalculation,
   PayrollContributionDefinition,
   PayrollContributionSelection,
@@ -70,6 +74,8 @@ type RawWorkspace = {
   expenses?: RawRecord[];
   payslips?: RawRecord[];
   payslip_items?: RawRecord[];
+  payroll_document_imports?: RawRecord[];
+  employee_payroll_templates?: RawRecord[];
   payments?: RawRecord[];
   active_timer?: RawRecord | null;
 };
@@ -108,6 +114,85 @@ function parsedSnapshot(value: unknown): RawRecord | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   try { const parsed: unknown = JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as RawRecord : null; }
   catch { return null; }
+}
+
+function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
+  const root = typeof value === 'string' ? parsedSnapshot(value) ?? {} : recordValue(value);
+  const employee = recordValue(root.employee);
+  const lines = Array.isArray(root.lines) ? root.lines.map(recordValue) : [];
+  return {
+    employee: {
+      employeeNumber: stringValue(employee.employee_number ?? employee.employeeNumber),
+      name: stringValue(employee.name),
+      role: stringValue(employee.role),
+      addressLine1: stringValue(employee.address_line1 ?? employee.addressLine1),
+      addressLine2: stringValue(employee.address_line2 ?? employee.addressLine2),
+      postalCode: stringValue(employee.postal_code ?? employee.postalCode),
+      city: stringValue(employee.city),
+      canton: stringValue(employee.canton),
+      birthDate: stringValue(employee.birth_date ?? employee.birthDate),
+      avsNumber: stringValue(employee.avs_number ?? employee.avsNumber),
+      iban: stringValue(employee.iban),
+      employmentRate: numberValue(employee.employment_rate ?? employee.employmentRate) || 100,
+      salaryMode: stringValue(employee.salary_mode ?? employee.salaryMode) === 'hourly' ? 'hourly' : 'monthly',
+    },
+    period: stringValue(root.period),
+    paymentDate: stringValue(root.payment_date ?? root.paymentDate),
+    grossCents: numberValue(root.gross_cents ?? root.grossCents),
+    netCents: numberValue(root.net_cents ?? root.netCents),
+    lines: lines.map((line, index) => ({
+      id: stringValue(line.id) || `import-line-${index}`,
+      label: stringValue(line.label),
+      kind: (['earning', 'deduction', 'employer'].includes(stringValue(line.kind)) ? stringValue(line.kind) : 'earning') as PayslipLine['kind'],
+      amountCents: numberValue(line.amount_cents ?? line.amountCents),
+      recurring: boolValue(line.recurring),
+      confidenceBp: numberValue(line.confidence_bp ?? line.confidenceBp),
+    })),
+    warnings: Array.isArray(root.warnings) ? root.warnings.map(stringValue).filter(Boolean) : [],
+  };
+}
+
+function payrollImportFromRaw(row: RawRecord): PayrollDocumentImport {
+  return {
+    id: stringValue(row.id),
+    sourceName: stringValue(row.source_name),
+    storedPath: stringValue(row.stored_path),
+    fileSha256: stringValue(row.file_sha256),
+    mediaKind: stringValue(row.media_kind) === 'image' ? 'image' : 'pdf',
+    fileSize: numberValue(row.file_size),
+    extractionEngine: stringValue(row.extraction_engine),
+    engineVersion: stringValue(row.engine_version),
+    extractedText: stringValue(row.extracted_text),
+    draft: payrollImportDraftFromRaw(row.draft_json),
+    confidenceBp: numberValue(row.confidence_bp),
+    status: (['needs_review', 'confirmed', 'rejected', 'error'].includes(stringValue(row.status)) ? stringValue(row.status) : 'needs_review') as PayrollDocumentImport['status'],
+    errorMessage: stringValue(row.error_message),
+    employeeId: stringValue(row.employee_id),
+    payslipId: stringValue(row.payslip_id),
+    reviewedAt: stringValue(row.reviewed_at),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function employeePayrollTemplateFromRaw(row: RawRecord): EmployeePayrollTemplate {
+  const recurring = (() => {
+    try { return typeof row.recurring_earnings_json === 'string' ? JSON.parse(row.recurring_earnings_json) as unknown : []; }
+    catch { return []; }
+  })();
+  const codes = (() => {
+    try { return typeof row.suggested_contribution_codes_json === 'string' ? JSON.parse(row.suggested_contribution_codes_json) as unknown : []; }
+    catch { return []; }
+  })();
+  return {
+    employeeId: stringValue(row.employee_id),
+    salaryMode: stringValue(row.salary_mode) === 'hourly' ? 'hourly' : 'monthly',
+    baseSalaryCents: numberValue(row.base_salary_cents),
+    recurringEarnings: Array.isArray(recurring) ? recurring.map(recordValue).map((line) => ({ label: stringValue(line.label), kind: 'earning' as const, amountCents: numberValue(line.amount_cents ?? line.amountCents) })).filter((line) => line.label && line.amountCents > 0) : [],
+    suggestedContributionCodes: Array.isArray(codes) ? codes.map(stringValue).filter(Boolean) : [],
+    sourceImportId: stringValue(row.source_import_id),
+    reviewedAt: stringValue(row.reviewed_at),
+  };
 }
 
 function licenseStateFromRaw(row: RawRecord): LicenseState {
@@ -308,19 +393,21 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id), date: stringValue(row.date), supplier: stringValue(row.supplier), category: stringValue(row.category), reference: stringValue(row.reference), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents), reimbursable: boolValue(row.reimbursable), note: stringValue(row.note) }));
   const payslips: Payslip[] = (raw.payslips ?? []).map((row) => ({
     id: stringValue(row.id), employeeId: stringValue(row.employee_id), period: stringValue(row.period), status: ({ brouillon: 'draft', a_controler: 'incomplete', valide: 'validated', comptabilise: 'posted', paye: 'paid' } as Record<string, Payslip['status']>)[stringValue(row.status)] ?? 'incomplete',
-    lines: payslipItems.filter((item) => stringValue(item.payslip_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: (['earning', 'deduction', 'employer'].includes(stringValue(item.kind)) ? stringValue(item.kind) : 'earning') as 'earning' | 'deduction' | 'employer', amountCents: numberValue(item.amount_cents) })), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: payslipSnapshotFromRaw(row.snapshot_json),
+    lines: payslipItems.filter((item) => stringValue(item.payslip_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: (['earning', 'deduction', 'employer'].includes(stringValue(item.kind)) ? stringValue(item.kind) : 'earning') as 'earning' | 'deduction' | 'employer', amountCents: numberValue(item.amount_cents) })), paymentDate: stringValue(row.payment_date), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: payslipSnapshotFromRaw(row.snapshot_json),
   }));
+  const payrollImports = (raw.payroll_document_imports ?? []).map(payrollImportFromRaw);
+  const employeePayrollTemplates = (raw.employee_payroll_templates ?? []).map(employeePayrollTemplateFromRaw);
   const payments: Payment[] = (raw.payments ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), date: stringValue(row.date), amountCents: numberValue(row.amount_cents), method: stringValue(row.method), reference: stringValue(row.reference) }));
   const timer = raw.active_timer;
   return {
     schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings), clients, projects, quotes, invoices, payments, employees, timeEntries,
     activeTimer: timer ? { projectId: stringValue(timer.project_id), employeeId: stringValue(timer.employee_id), startedAt: stringValue(timer.started_at), note: stringValue(timer.note), billable: boolValue(timer.billable), billingRateCents: numberValue(timer.billing_rate_cents), hourlyCostCents: numberValue(timer.cost_rate_cents) } : null,
-    expenses, payslips, backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
+    expenses, payslips, payrollImports, employeePayrollTemplates, backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
   };
 }
 
 function emptyWorkspace(): Workspace {
-  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
+  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], payrollImports: [], employeePayrollTemplates: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
 }
 
 async function loadWorkspace(): Promise<Workspace> {
@@ -361,10 +448,46 @@ async function saveDocument(entity: 'quotes' | 'invoices', data: Record<string, 
   return loadWorkspace();
 }
 
-async function chooseFile(options: Record<string, unknown>): Promise<string | null> {
+async function chooseFile(options: OpenDialogOptions & { multiple?: false }): Promise<string | null> {
+  const dialog = await import('@tauri-apps/plugin-dialog');
+  return dialog.open(options);
+}
+
+async function chooseFiles(options: OpenDialogOptions & { multiple: true }): Promise<string[]> {
   const dialog = await import('@tauri-apps/plugin-dialog');
   const result = await dialog.open(options);
-  return typeof result === 'string' ? result : null;
+  return result ?? [];
+}
+
+async function chooseSaveFile(options: SaveDialogOptions): Promise<string | null> {
+  const dialog = await import('@tauri-apps/plugin-dialog');
+  return dialog.save(options);
+}
+
+function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {
+  return {
+    employee: {
+      employee_number: draft.employee.employeeNumber,
+      name: draft.employee.name,
+      role: draft.employee.role,
+      address_line1: draft.employee.addressLine1,
+      address_line2: draft.employee.addressLine2,
+      postal_code: draft.employee.postalCode,
+      city: draft.employee.city,
+      canton: draft.employee.canton,
+      birth_date: draft.employee.birthDate,
+      avs_number: draft.employee.avsNumber,
+      iban: draft.employee.iban,
+      employment_rate: draft.employee.employmentRate,
+      salary_mode: draft.employee.salaryMode,
+    },
+    period: draft.period,
+    payment_date: draft.paymentDate,
+    gross_cents: draft.grossCents,
+    net_cents: draft.netCents,
+    lines: draft.lines.map((line) => ({ label: line.label, kind: line.kind, amount_cents: line.amountCents, recurring: line.recurring, confidence_bp: line.confidenceBp })),
+    warnings: draft.warnings,
+  };
 }
 
 const nullableString = (value: unknown): string | null => stringValue(value) || null;
@@ -435,14 +558,14 @@ function payslipContributionFromRaw(row: RawRecord): PayslipContributionSnapshot
 }
 
 function frozenEmployeeFromRaw(row: RawRecord): FrozenEmployee {
-  return { id: stringValue(row.id), name: stringValue(row.name), address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton), stringValue(row.country)].filter(Boolean).join('\n'), avsNumber: stringValue(row.social_security_number), iban: stringValue(row.iban) };
+  return { id: stringValue(row.id), employeeNumber: stringValue(row.employee_number), name: stringValue(row.name), role: stringValue(row.role), address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton), stringValue(row.country)].filter(Boolean).join('\n'), avsNumber: stringValue(row.social_security_number), iban: stringValue(row.iban), employmentRate: numberValue(row.employment_rate) };
 }
 
 function payslipSnapshotFromRaw(value: unknown): FrozenPayslipSnapshot | null {
   const root = parsedSnapshot(value);
   if (!root || stringValue(root.schema) !== 'helvichantier.payslip_snapshot.v1') return null;
   const payslip = recordValue(root.payslip);
-  return { capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer)), employee: frozenEmployeeFromRaw(recordValue(root.employee)), period: stringValue(payslip.period), notes: stringValue(payslip.notes), items: rawArray(root.items).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: (['earning', 'deduction', 'employer'].includes(stringValue(item.kind)) ? stringValue(item.kind) : 'earning') as PayslipLine['kind'], amountCents: numberValue(item.amount_cents) })), contributions: rawArray(root.contributions).map(payslipContributionFromRaw) };
+  return { capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer)), employee: frozenEmployeeFromRaw(recordValue(root.employee)), period: stringValue(payslip.period), paymentDate: stringValue(payslip.payment_date), notes: stringValue(payslip.notes), items: rawArray(root.items).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: (['earning', 'deduction', 'employer'].includes(stringValue(item.kind)) ? stringValue(item.kind) : 'earning') as PayslipLine['kind'], amountCents: numberValue(item.amount_cents) })), contributions: rawArray(root.contributions).map(payslipContributionFromRaw) };
 }
 
 function qrInputToRaw(input: SwissQrBillInput): RawRecord {
@@ -546,6 +669,34 @@ export const desktopApi = {
   async printDocument(entity: 'quotes' | 'invoices' | 'payslips', id: string) { window.print(); return { entity, id }; },
   chooseBackupFolder: () => chooseFile({ directory: true, multiple: false, title: 'Choisir le dossier de sauvegarde' }),
   chooseLogo: () => chooseFile({ multiple: false, directory: false, title: 'Choisir le logo', filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] }),
+  choosePayrollDocuments: () => chooseFiles({ multiple: true, directory: false, title: 'Ajouter des fiches de salaire', filters: [{ name: 'Fiches de salaire', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'] }] }),
+  async stagePayrollDocuments(paths: string[]): Promise<PayrollDocumentImport[]> {
+    const raw = await invoke<RawRecord>('stage_payroll_documents', { input: { paths } });
+    return rawArray(raw, 'imports').map(payrollImportFromRaw);
+  },
+  async listPayrollDocumentImports(): Promise<PayrollDocumentImport[]> {
+    const raw = await invoke<RawRecord>('list_payroll_document_imports');
+    return rawArray(raw, 'imports').map(payrollImportFromRaw);
+  },
+  async getPayrollDocumentPreview(id: string): Promise<{ mimeType: string; dataBase64: string }> {
+    const raw = await invoke<RawRecord>('get_payroll_document_preview', { id });
+    const mimeType = stringValue(raw.mime_type);
+    const dataBase64 = stringValue(raw.data_base64);
+    if (!mimeType || !dataBase64) throw new Error("L’aperçu local du document est incomplet.");
+    return { mimeType, dataBase64 };
+  },
+  async updatePayrollImportDraft(id: string, draft: PayrollImportDraft, extractionEngine: string, engineVersion: string, confidenceBp: number): Promise<PayrollDocumentImport> {
+    const row = await invoke<RawRecord>('update_payroll_import_draft', { input: { id, draft: payrollImportDraftToRaw(draft), extraction_engine: extractionEngine, engine_version: engineVersion || null, confidence_bp: confidenceBp } });
+    return payrollImportFromRaw(row);
+  },
+  async confirmPayrollDocumentImport(id: string, draft: PayrollImportDraft, employeeId?: string): Promise<Workspace> {
+    await invoke('confirm_payroll_document_import', { input: { id, employee_id: employeeId || null, draft: payrollImportDraftToRaw(draft) } });
+    return loadWorkspace();
+  },
+  async rejectPayrollDocumentImport(id: string): Promise<Workspace> {
+    await invoke('reject_payroll_document_import', { id });
+    return loadWorkspace();
+  },
   async listAccounts() { return rawArray(await invoke<unknown>('list_accounts')).map(accountFromRaw); },
   async upsertAccount(input: Omit<Account, 'id'> & { id?: string }) {
     await invoke('upsert_account', { input: { id: input.id || null, code: input.code, name: input.name, account_type: input.accountType, normal_balance: input.normalBalance, report_section: input.reportSection, active: input.active } });
@@ -585,6 +736,13 @@ export const desktopApi = {
   async applyPayrollContributions(payslipId: string, period: string, items: PayrollContributionSelection[]) { await invoke('apply_payroll_contributions', { input: { payslip_id: payslipId, period, items: items.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents, year_to_date_basis_cents: item.yearToDateBasisCents })) } }); return loadWorkspace(); },
   async getPayslipContributions(payslipId: string): Promise<PayslipContributionSnapshot[]> { return rawArray(await invoke<unknown>('get_payslip_contributions', { payslipId })).map(payslipContributionFromRaw); },
   async postPayslip(payslipId: string, entryDate?: string) { await invoke('post_payslip', { input: { payslip_id: payslipId, entry_date: entryDate || null } }); return loadWorkspace(); },
+  async exportPayslipPdf(payslipId: string, suggestedFileName: string): Promise<{ path: string; pages: number; finalDocument: boolean } | null> {
+    const selected = await chooseSaveFile({ title: 'Enregistrer la fiche de salaire PDF', defaultPath: suggestedFileName, filters: [{ name: 'Document PDF', extensions: ['pdf'] }] });
+    if (!selected) return null;
+    const destinationPath = selected.toLowerCase().endsWith('.pdf') ? selected : `${selected}.pdf`;
+    const raw = await invoke<RawRecord>('generate_payslip_pdf', { input: { payslip_id: payslipId, destination_path: destinationPath } });
+    return { path: stringValue(raw.path), pages: numberValue(raw.pages), finalDocument: boolValue(raw.final_document) };
+  },
   async saveInvoiceQrBill(invoiceId: string, bill: SwissQrBillInput): Promise<StoredSwissQrBill> {
     const raw = await invoke<RawRecord>('save_invoice_qr_bill', { input: { invoice_id: invoiceId, bill: qrInputToRaw(bill) } });
     const stored = storedQrBillFromRaw(raw, invoiceId);

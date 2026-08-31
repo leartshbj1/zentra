@@ -9,6 +9,8 @@ mod license;
 mod models;
 mod noga;
 mod payroll;
+mod payroll_import;
+mod payroll_pdf;
 mod reminders;
 mod schema;
 mod swiss_qr;
@@ -81,6 +83,13 @@ pub fn run() {
             apply_payroll_contributions,
             save_payslip_with_contributions,
             post_payslip,
+            generate_payslip_pdf,
+            stage_payroll_documents,
+            list_payroll_document_imports,
+            get_payroll_document_preview,
+            update_payroll_import_draft,
+            confirm_payroll_document_import,
+            reject_payroll_document_import,
             validate_swiss_qr_bill,
             generate_swiss_qr_payload,
             get_invoice_qr_bill,
@@ -644,7 +653,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 4;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 5;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -710,7 +719,7 @@ mod tests {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
         let qr_table: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='invoice_qr_bills'",

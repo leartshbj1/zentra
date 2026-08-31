@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -31,6 +31,8 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "reminder_history",
     "payroll_contribution_definitions",
     "payslip_contributions",
+    "payroll_document_imports",
+    "employee_payroll_templates",
     "license_state",
 ];
 
@@ -550,6 +552,40 @@ CREATE TABLE IF NOT EXISTS payslip_contributions (
   UNIQUE(payslip_id, definition_id)
 );
 
+CREATE TABLE IF NOT EXISTS payroll_document_imports (
+  id TEXT PRIMARY KEY,
+  source_name TEXT NOT NULL,
+  stored_path TEXT NOT NULL UNIQUE,
+  file_sha256 TEXT NOT NULL UNIQUE,
+  media_kind TEXT NOT NULL CHECK (media_kind IN ('pdf','image')),
+  file_size INTEGER NOT NULL CHECK (file_size > 0),
+  page_count INTEGER,
+  extraction_engine TEXT NOT NULL,
+  engine_version TEXT,
+  extracted_text TEXT,
+  draft_json TEXT NOT NULL,
+  confidence_bp INTEGER NOT NULL DEFAULT 0 CHECK (confidence_bp BETWEEN 0 AND 10000),
+  status TEXT NOT NULL DEFAULT 'needs_review' CHECK (status IN ('needs_review','confirmed','rejected','error')),
+  error_message TEXT,
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  payslip_id TEXT REFERENCES payslips(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS employee_payroll_templates (
+  employee_id TEXT PRIMARY KEY REFERENCES employees(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  salary_mode TEXT NOT NULL CHECK (salary_mode IN ('monthly','hourly')),
+  base_salary_cents INTEGER NOT NULL DEFAULT 0 CHECK (base_salary_cents >= 0),
+  recurring_earnings_json TEXT NOT NULL DEFAULT '[]',
+  suggested_contribution_codes_json TEXT NOT NULL DEFAULT '[]',
+  source_import_id TEXT REFERENCES payroll_document_imports(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  reviewed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_code ON projects(code) WHERE code IS NOT NULL AND code <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_quotes_number ON quotes(number) WHERE number IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number) WHERE number IS NOT NULL;
@@ -577,6 +613,8 @@ CREATE INDEX IF NOT EXISTS idx_accounting_period_dates ON accounting_periods(dat
 CREATE INDEX IF NOT EXISTS idx_reminders_status_date ON reminders(status, scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_reminder_history_reminder ON reminder_history(reminder_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_contributions_payslip ON payslip_contributions(payslip_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_imports_status_created ON payroll_document_imports(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payroll_imports_employee ON payroll_document_imports(employee_id, created_at DESC);
 
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update
 BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is immutable'); END;
@@ -654,7 +692,7 @@ BEFORE UPDATE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.p
 CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_delete
 BEFORE DELETE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
 
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -777,4 +815,44 @@ CREATE TRIGGER IF NOT EXISTS invoice_qr_bills_frozen_no_delete BEFORE DELETE ON 
 WHEN OLD.frozen_at IS NOT NULL OR EXISTS(SELECT 1 FROM invoices WHERE id=OLD.invoice_id AND number IS NOT NULL)
 BEGIN SELECT RAISE(ABORT,'issued invoice QR bill is immutable'); END;
 PRAGMA user_version=4;
+"#;
+
+/// Ajoute le sas d'import documentaire local et les modèles de paie confirmés.
+/// Aucune donnée sensible n'est créée ni envoyée hors de l'ordinateur.
+pub const MIGRATION_V5_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS payroll_document_imports (
+  id TEXT PRIMARY KEY,
+  source_name TEXT NOT NULL,
+  stored_path TEXT NOT NULL UNIQUE,
+  file_sha256 TEXT NOT NULL UNIQUE,
+  media_kind TEXT NOT NULL CHECK (media_kind IN ('pdf','image')),
+  file_size INTEGER NOT NULL CHECK (file_size > 0),
+  page_count INTEGER,
+  extraction_engine TEXT NOT NULL,
+  engine_version TEXT,
+  extracted_text TEXT,
+  draft_json TEXT NOT NULL,
+  confidence_bp INTEGER NOT NULL DEFAULT 0 CHECK (confidence_bp BETWEEN 0 AND 10000),
+  status TEXT NOT NULL DEFAULT 'needs_review' CHECK (status IN ('needs_review','confirmed','rejected','error')),
+  error_message TEXT,
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  payslip_id TEXT REFERENCES payslips(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS employee_payroll_templates (
+  employee_id TEXT PRIMARY KEY REFERENCES employees(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  salary_mode TEXT NOT NULL CHECK (salary_mode IN ('monthly','hourly')),
+  base_salary_cents INTEGER NOT NULL DEFAULT 0 CHECK (base_salary_cents >= 0),
+  recurring_earnings_json TEXT NOT NULL DEFAULT '[]',
+  suggested_contribution_codes_json TEXT NOT NULL DEFAULT '[]',
+  source_import_id TEXT REFERENCES payroll_document_imports(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  reviewed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payroll_imports_status_created ON payroll_document_imports(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payroll_imports_employee ON payroll_document_imports(employee_id, created_at DESC);
+PRAGMA user_version=5;
 "#;

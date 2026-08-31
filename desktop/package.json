@@ -1,6 +1,6 @@
 {
   "name": "elyko-desktop",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "private": true,
   "description": "Application Windows locale de gestion d’entreprise multisectorielle Elyko",
   "type": "module",
@@ -11,9 +11,11 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.7.1",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-dialog": "2.4.2",
     "lucide-react": "1.31.0",
+    "pdfjs-dist": "^6.3.289",
     "qrcode.react": "4.2.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"

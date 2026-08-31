@@ -351,6 +351,7 @@ export type Payslip = {
   period: string;
   status: 'incomplete' | 'draft' | 'validated' | 'posted' | 'paid';
   lines: PayslipLine[];
+  paymentDate: string;
   notes: string;
   createdAt: string;
   snapshot?: FrozenPayslipSnapshot | null;
@@ -358,10 +359,13 @@ export type Payslip = {
 
 export type FrozenEmployee = {
   id: Identifier;
+  employeeNumber: string;
   name: string;
+  role: string;
   address: string;
   avsNumber: string;
   iban: string;
+  employmentRate: number;
 };
 
 export type FrozenPayslipSnapshot = {
@@ -369,9 +373,76 @@ export type FrozenPayslipSnapshot = {
   issuer: FrozenIssuer;
   employee: FrozenEmployee;
   period: string;
+  paymentDate: string;
   notes: string;
   items: PayslipLine[];
   contributions: PayslipContributionSnapshot[];
+};
+
+export type PayrollImportEmployeeDraft = {
+  employeeNumber: string;
+  name: string;
+  role: string;
+  addressLine1: string;
+  addressLine2: string;
+  postalCode: string;
+  city: string;
+  canton: string;
+  birthDate: string;
+  avsNumber: string;
+  iban: string;
+  employmentRate: number;
+  salaryMode: 'monthly' | 'hourly';
+};
+
+export type PayrollImportLineDraft = {
+  id: Identifier;
+  label: string;
+  kind: PayslipLine['kind'];
+  amountCents: number;
+  recurring: boolean;
+  confidenceBp: number;
+};
+
+export type PayrollImportDraft = {
+  employee: PayrollImportEmployeeDraft;
+  period: string;
+  paymentDate: string;
+  grossCents: number;
+  netCents: number;
+  lines: PayrollImportLineDraft[];
+  warnings: string[];
+};
+
+export type PayrollDocumentImport = {
+  id: Identifier;
+  sourceName: string;
+  storedPath: string;
+  fileSha256: string;
+  mediaKind: 'pdf' | 'image';
+  fileSize: number;
+  extractionEngine: string;
+  engineVersion: string;
+  extractedText: string;
+  draft: PayrollImportDraft;
+  confidenceBp: number;
+  status: 'needs_review' | 'confirmed' | 'rejected' | 'error';
+  errorMessage: string;
+  employeeId: Identifier;
+  payslipId: Identifier;
+  reviewedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EmployeePayrollTemplate = {
+  employeeId: Identifier;
+  salaryMode: 'monthly' | 'hourly';
+  baseSalaryCents: number;
+  recurringEarnings: Array<{ label: string; kind: 'earning'; amountCents: number }>;
+  suggestedContributionCodes: string[];
+  sourceImportId: Identifier;
+  reviewedAt: string;
 };
 
 export type BackupStatus = {
@@ -412,6 +483,8 @@ export type Workspace = {
   activeTimer: ActiveTimer;
   expenses: Expense[];
   payslips: Payslip[];
+  payrollImports: PayrollDocumentImport[];
+  employeePayrollTemplates: EmployeePayrollTemplate[];
   backupStatus: BackupStatus;
 };
 

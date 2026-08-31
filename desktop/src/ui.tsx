@@ -171,8 +171,8 @@ const statusLabels: Record<string, string> = {
   posted: 'Comptabilisé',
 };
 
-export function StatusBadge({ status }: { status: string }) {
-  return <span className={`status status--${status}`}>{statusLabels[status] ?? status}</span>;
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
+  return <span className={`status status--${status}`}>{label ?? statusLabels[status] ?? status}</span>;
 }
 
 export function DangerZone({ label, onArchive }: { label: string; onArchive: () => void }) {

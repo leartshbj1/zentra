@@ -44,4 +44,4 @@ La release embarque la clé publique versionnée dans `desktop/src-tauri/license
 
 ## Livraison Windows
 
-La version de validation `1.1.4` est disponible dans `public/downloads`. Avant une diffusion commerciale générale, signer l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+La version de validation `1.2.0` est disponible dans `public/downloads`. Avant une diffusion commerciale générale, signer l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.

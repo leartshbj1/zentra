@@ -5,12 +5,14 @@ import {
   BookOpenCheck,
   Calculator,
   Check,
-  Clock3,
+  Cpu,
   FileCheck2,
+  FileText,
   FolderKanban,
   LayoutDashboard,
   QrCode,
   Receipt,
+  ScanLine,
   ShieldCheck,
   Users,
 } from 'lucide-react';
@@ -276,26 +278,30 @@ function ProjectsView() {
 
 function PayrollView() {
   return (
-    <div className="showcase-panel grid gap-4 lg:grid-cols-[.9fr_1.1fr]">
+    <div className="showcase-panel grid gap-4 lg:grid-cols-[.92fr_1.08fr]">
       <div className="rounded-2xl bg-[#173d2c] p-5 text-white sm:p-6">
-        <Clock3 className="size-5 text-[#efb157]" />
+        <ScanLine className="size-5 text-[#efb157]" />
         <p className="mt-5 text-[10px] font-semibold uppercase tracking-[.13em] text-[#efb157]">
-          Heures vers paie
+          Import documentaire local
         </p>
         <h3 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
-          Les bases restent visibles et contrôlables.
+          Importez plusieurs fiches sans ressaisir chaque salarié.
         </h3>
         <div className="mt-6 space-y-2.5">
           {[
-            'Heures normales · 168 h',
-            'Heures supplémentaires · 8 h',
-            'Indemnités · 420 CHF',
-          ].map((item) => (
+            [FileText, 'PDF et images', 'Ajout groupé'],
+            [Cpu, 'Texte puis SmolVLM', 'Sur ce PC'],
+            [ShieldCheck, 'Comparaison humaine', 'Obligatoire'],
+          ].map(([Icon, label, detail]) => (
             <div
-              key={item}
-              className="flex items-center gap-2 rounded-xl bg-white/7 px-3 py-2.5 text-[10px] text-white/70"
+              key={label as string}
+              className="flex items-center gap-3 rounded-xl bg-white/7 px-3 py-2.5"
             >
-              <Check className="size-3.5 text-[#7dd196]" /> {item}
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/8 text-[#7dd196]">
+                <Icon className="size-3.5" />
+              </span>
+              <span className="min-w-0 flex-1 text-[10px] text-white/76">{label as string}</span>
+              <span className="text-[10px] text-white/65">{detail as string}</span>
             </div>
           ))}
         </div>
@@ -304,14 +310,14 @@ function PayrollView() {
         <div className="flex items-center justify-between border-b border-[#e8ece9] pb-4">
           <div>
             <p className="text-sm font-semibold text-[#2c4034]">
-              Fiche de salaire
+              Proposition extraite
             </p>
             <p className="mt-1 text-[9px] text-[#87928b]">
               Août 2026 · exemple du site
             </p>
           </div>
-          <span className="rounded-full bg-[#f2eadc] px-2.5 py-1 text-[9px] font-semibold text-[#9b6727]">
-            Brouillon
+          <span className="rounded-full bg-[#fff0d9] px-2.5 py-1 text-[9px] font-semibold text-[#96601f]">
+            À contrôler
           </span>
         </div>
         <div className="mt-5 space-y-3 text-[10px]">
@@ -328,13 +334,15 @@ function PayrollView() {
             </div>
           ))}
         </div>
-        <div className="mt-6 flex justify-between rounded-xl bg-[#edf4ee] p-4">
-          <span className="text-xs font-semibold text-[#365143]">
-            Net à verser
-          </span>
-          <span className="text-base font-semibold text-[#2f6547]">
-            5 452.70 CHF
-          </span>
+        <div className="mt-6 rounded-xl bg-[#edf4ee] p-4">
+          <div className="flex justify-between gap-4">
+            <span className="text-xs font-semibold text-[#365143]">Net détecté</span>
+            <span className="text-base font-semibold text-[#2f6547]">5 452.70 CHF</span>
+          </div>
+          <div className="mt-3 flex items-start gap-2 border-t border-[#d8e5da] pt-3 text-[9px] leading-4 text-[#577064]">
+            <Check className="mt-0.5 size-3.5 shrink-0 text-[#3d7a54]" />
+            Comparé au document original avant création
+          </div>
         </div>
       </div>
     </div>
@@ -347,7 +355,7 @@ function AccountingView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#9b692a]">
-            Comptabilité automatique
+            Comptabilité liée après configuration
           </p>
           <h3 className="mt-2 text-xl font-semibold tracking-[-.03em] text-[#263a2e]">
             Journal équilibré et traçable

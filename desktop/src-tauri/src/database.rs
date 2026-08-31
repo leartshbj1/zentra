@@ -33,7 +33,10 @@ use crate::{
         explicit_settings_rate_issues, import_explicit_settings_rates, take_explicit_settings_rates,
     },
     reminders::cancel_settled_reminders,
-    schema::{MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, SCHEMA_SQL, SCHEMA_VERSION},
+    schema::{
+        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, SCHEMA_SQL,
+        SCHEMA_VERSION,
+    },
     swiss_qr::normalize_and_validate_iban,
 };
 
@@ -428,12 +431,18 @@ impl LocalStore {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
+                transaction.execute_batch(MIGRATION_V5_SQL)?;
             }
             2 => {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
+                transaction.execute_batch(MIGRATION_V5_SQL)?;
             }
-            3 => transaction.execute_batch(MIGRATION_V4_SQL)?,
+            3 => {
+                transaction.execute_batch(MIGRATION_V4_SQL)?;
+                transaction.execute_batch(MIGRATION_V5_SQL)?;
+            }
+            4 => transaction.execute_batch(MIGRATION_V5_SQL)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -765,6 +774,16 @@ impl LocalStore {
             "SELECT * FROM payslip_contributions ORDER BY payslip_id,rowid",
             [],
         )?;
+        let payroll_document_imports = query_all(
+            connection,
+            "SELECT * FROM payroll_document_imports ORDER BY created_at DESC",
+            [],
+        )?;
+        let employee_payroll_templates = query_all(
+            connection,
+            "SELECT * FROM employee_payroll_templates ORDER BY employee_id",
+            [],
+        )?;
         let quote_conversions = query_all(
             connection,
             "SELECT * FROM quote_conversions ORDER BY created_at",
@@ -804,6 +823,8 @@ impl LocalStore {
             "reminder_history":reminder_history,
             "payroll_contribution_definitions":payroll_contribution_definitions,
             "payslip_contributions":payslip_contributions,
+            "payroll_document_imports":payroll_document_imports,
+            "employee_payroll_templates":employee_payroll_templates,
             "quote_conversions":quote_conversions,
             "audit_log":audit_log,
         }))

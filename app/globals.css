@@ -195,7 +195,8 @@ summary::-webkit-details-marker {
   }
 
   .hero-progress-bar,
-  .project-progress {
+  .project-progress,
+  .payroll-demo-progress {
     transform: scaleX(0);
     transform-origin: left;
     animation: progress-grow 780ms cubic-bezier(0.22, 1, 0.36, 1) 320ms forwards;

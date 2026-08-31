@@ -134,8 +134,9 @@ function safeDraftRates(value: unknown): PayrollRate[] {
     const label = typeof candidate.label === 'string' ? candidate.label : '';
     const effectiveFrom = typeof candidate.effectiveFrom === 'string' ? candidate.effectiveFrom : '';
     const rateBp = typeof candidate.rateBp === 'number' && Number.isFinite(candidate.rateBp) ? candidate.rateBp : 0;
-    const rawId = typeof candidate.id === 'string' ? candidate.id : '';
-    const id = rawId && !seen.has(rawId) ? rawId : createId();
+    const rawId = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+    let id = rawId && [...rawId].length <= 500 && !seen.has(rawId) ? rawId : createId();
+    while (seen.has(id)) id = createId();
     seen.add(id);
     return [{
       id,
@@ -291,9 +292,19 @@ export function Onboarding({
     setStep(issue.step);
     setHighestStep((value) => Math.max(value, issue.step));
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      const element = document.querySelector<HTMLElement>(`[data-field="${issue.field}"]`);
-      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element?.focus({ preventScroll: true });
+      const element = Array.from(document.querySelectorAll<HTMLElement>('[data-field]'))
+        .find((candidate) => candidate.dataset.field === issue.field);
+      const actionContainer = Array.from(document.querySelectorAll<HTMLElement>('[data-field-action]'))
+        .find((candidate) => candidate.dataset.fieldAction === issue.field);
+      const action = actionContainer?.matches('button, input, select, textarea, [tabindex]')
+        ? actionContainer
+        : actionContainer?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]');
+      const unavailable = element && ('disabled' in element && Boolean((element as HTMLInputElement).disabled));
+      const target = unavailable ? action ?? element : element ?? action;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (target && !('disabled' in target && Boolean((target as HTMLInputElement).disabled))) {
+        target.focus({ preventScroll: true });
+      }
     }));
   }
 
@@ -525,7 +536,7 @@ function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCat
         <Field label="Division NOGA 2025" required wide error={issues['business.nogaDivision']}><select data-field="business.nogaDivision" aria-invalid={Boolean(issues['business.nogaDivision'])} value={business.nogaDivision} onChange={(e) => patchBusiness({ nogaDivision: e.target.value, nogaDetailedCode: '' })} required disabled={!selectedSection}><option value="">{selectedSection ? 'Choisir la division officielle' : 'Choisissez d’abord une section'}</option>{selectedSection?.divisions.map((division) => <option key={division.code} value={division.code}>{division.code} · {division.label}</option>)}</select></Field>
         <Field label="Activité précise" hint="Décrivez votre activité réelle; ce texte reste local." required wide error={issues['business.activityDescription']}><textarea data-field="business.activityDescription" aria-invalid={Boolean(issues['business.activityDescription'])} rows={3} maxLength={2000} value={business.activityDescription} onChange={(e) => patchBusiness({ activityDescription: e.target.value })} required /></Field>
         <Field label="Code NOGA détaillé" hint="Facultatif : code numérique à 3, 4 ou 6 chiffres commençant par la division choisie." wide error={issues['business.nogaDetailedCode']}><input data-field="business.nogaDetailedCode" aria-invalid={Boolean(issues['business.nogaDetailedCode'])} inputMode="numeric" pattern={business.nogaDivision ? `${business.nogaDivision}(?:\\d|\\d{2}|\\d{4})` : '\\d{3}|\\d{4}|\\d{6}'} value={business.nogaDetailedCode} onChange={(e) => patchBusiness({ nogaDetailedCode: e.target.value.replace(/\D/g, '').slice(0, 6) })} /></Field>
-        {catalogError ? <div className="field--wide"><ErrorPanel title="Catalogue NOGA indisponible" message={catalogError} onRetry={onRetryCatalog} /></div> : null}
+        {catalogError ? <div className="field--wide" data-field-action="business.nogaSection"><ErrorPanel title="Catalogue NOGA indisponible" message={catalogError} onRetry={onRetryCatalog} /></div> : null}
         <p className="source-note field--wide">Source : <a href={catalog?.source || 'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025'} target="_blank" rel="noreferrer">Office fédéral de la statistique · KUBB NOGA 2025</a>{catalog?.version ? ` · version ${catalog.version}` : ''}</p>
       </div>
     </div>

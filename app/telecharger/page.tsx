@@ -21,18 +21,18 @@ import { DownloadButton, installerPath } from '@/components/download-button';
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: 'Elyko pour Windows — Télécharger la version 1.1.4',
+  title: 'Elyko pour Windows — Télécharger la version 1.2.0',
   description:
     'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR, projets, salaires et comptabilité avec vos données sur votre PC.',
   openGraph: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.1.4 disponible.',
+      'Toute votre gestion d’entreprise dans une application Windows. Version 1.2.0 disponible.',
   },
   twitter: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.1.4 disponible.',
+      'Toute votre gestion d’entreprise dans une application Windows. Version 1.2.0 disponible.',
   },
 };
 
@@ -55,7 +55,7 @@ const capabilities = [
   {
     icon: Users,
     title: 'Équipe et salaires',
-    text: 'Préparez les fiches à partir de vos paramètres et cotisations.',
+    text: 'Importez des fiches, contrôlez les champs proposés localement et générez des PDF détaillés.',
   },
   {
     icon: Clock3,
@@ -97,7 +97,7 @@ export default function DownloadPage() {
         <div data-reveal="left">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
             <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-            Elyko pour Windows · version 1.1.4
+            Elyko pour Windows · version 1.2.0
           </div>
           <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
             Toute votre entreprise,
@@ -125,7 +125,7 @@ export default function DownloadPage() {
               <Laptop className="size-3.5" /> Windows 10/11
             </span>
             <span>64 bits</span>
-            <span>2,12 Mio</span>
+            <span>6,81 Mio</span>
             <span>50 CHF / mois</span>
           </div>
           <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
@@ -191,7 +191,7 @@ export default function DownloadPage() {
                 </p>
                 <div className="mt-7 space-y-4 text-[10px]">
                   {[
-                    ['Version', '1.1.4'],
+                    ['Version', '1.2.0'],
                     ['Architecture', 'Windows x64'],
                     ['Emplacement', 'Applications de l’utilisateur'],
                     ['Données métier', 'Stockage local'],
@@ -396,18 +396,18 @@ export default function DownloadPage() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-              Version 1.1.4
+              Version 1.2.0
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-              Une première configuration plus claire et plus fiable.
+              Import de salaires local et fiches PDF professionnelles.
             </h2>
             <div className="mt-7 space-y-3">
               {[
-                'Erreurs affichées directement sous le champ concerné',
-                'Sauvegarde automatique du questionnaire en cours',
-                'Validation suisse renforcée, notamment pour l’IBAN',
-                'Interface, transitions et navigation modernisées',
-                'WebView2Loader inclus dans l’installation Windows',
+                'Import groupé de fiches PDF et image, sans envoi vers Elyko',
+                'Lecture du texte puis assistance SmolVLM locale et facultative',
+                'Comparaison humaine obligatoire avant toute création',
+                'Création des collaborateurs, modèles et fiches « à contrôler »',
+                'PDF de salaire détaillé avec bases, taux, retenues et charges',
               ].map((item) => (
                 <div
                   key={item}
@@ -457,13 +457,13 @@ export default function DownloadPage() {
               </summary>
               <div className="space-y-4 border-t border-[#e5e1d8] px-5 py-5 text-xs leading-6 text-[#5f6c64]">
                 <p>
-                  <strong>Fichier :</strong> Elyko_1.1.4_x64-setup.exe · 2,12
+                  <strong>Fichier :</strong> Elyko_1.2.0_x64-setup.exe · 6,81
                   Mio · Windows x64
                 </p>
                 <p>
                   <strong>SHA-256 :</strong>{' '}
                   <code className="break-all">
-                    ABDB5E9D52BF26DE942670BFC9519DB7AA87C8F98098C106E84531973AE8CBDD
+                    A9E6F1722DCFE80AB0E49B1642855E07EA3CCC9E46196CBBCC714AFED006C43D
                   </code>{' '}
                   ·{' '}
                   <a

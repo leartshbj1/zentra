@@ -410,6 +410,106 @@ pub struct PostPayslipInput {
     pub entry_date: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneratePayslipPdfInput {
+    pub payslip_id: String,
+    pub destination_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PayrollImportEmployeeDraft {
+    #[serde(default)]
+    pub employee_number: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub role: String,
+    #[serde(default)]
+    pub address_line1: String,
+    #[serde(default)]
+    pub address_line2: String,
+    #[serde(default)]
+    pub postal_code: String,
+    #[serde(default)]
+    pub city: String,
+    #[serde(default)]
+    pub canton: String,
+    #[serde(default)]
+    pub birth_date: String,
+    #[serde(default)]
+    pub avs_number: String,
+    #[serde(default)]
+    pub iban: String,
+    #[serde(default = "default_employment_rate")]
+    pub employment_rate: i64,
+    #[serde(default = "default_salary_mode")]
+    pub salary_mode: String,
+}
+
+fn default_employment_rate() -> i64 {
+    100
+}
+
+fn default_salary_mode() -> String {
+    "monthly".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PayrollImportLineDraft {
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub amount_cents: i64,
+    #[serde(default)]
+    pub recurring: bool,
+    #[serde(default)]
+    pub confidence_bp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PayrollImportDraft {
+    #[serde(default)]
+    pub employee: PayrollImportEmployeeDraft,
+    #[serde(default)]
+    pub period: String,
+    #[serde(default)]
+    pub payment_date: String,
+    #[serde(default)]
+    pub gross_cents: i64,
+    #[serde(default)]
+    pub net_cents: i64,
+    #[serde(default)]
+    pub lines: Vec<PayrollImportLineDraft>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StagePayrollDocumentsInput {
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePayrollImportDraftInput {
+    pub id: String,
+    pub draft: PayrollImportDraft,
+    pub extraction_engine: String,
+    #[serde(default)]
+    pub engine_version: Option<String>,
+    #[serde(default)]
+    pub confidence_bp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmPayrollImportInput {
+    pub id: String,
+    #[serde(default)]
+    pub employee_id: Option<String>,
+    pub draft: PayrollImportDraft,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SwissQrParty {
     pub name: String,
