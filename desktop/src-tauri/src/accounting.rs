@@ -125,6 +125,16 @@ impl LocalStore {
                 "La période contient des écritures déséquilibrées.".into(),
             ));
         }
+        let date_to = period["date_to"].as_str().ok_or_else(|| {
+            AppError::Validation("La période n'a pas de date de fin valide.".into())
+        })?;
+        // The balance sheet produced for the closing date is cumulative. Refuse the close if any
+        // historical journal line up to that date uses another currency, otherwise the period
+        // could be marked closed while its statutory balance sheet remains impossible to render.
+        crate::accounting_closure::ensure_base_currency_for_ranges(
+            &tx,
+            &[("0001-01-01", date_to)],
+        )?;
         let now = now_iso();
         tx.execute(
             "UPDATE accounting_periods SET status='closed',closed_at=?,updated_at=? WHERE id=?",
@@ -187,11 +197,7 @@ impl LocalStore {
             )
             .optional()?;
         if let Some((old_code, old_type, old_balance, old_section)) = existing {
-            let used: bool = tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM journal_lines WHERE account_id=?)",
-                params![id],
-                |row| row.get(0),
-            )?;
+            let used = account_is_referenced(&tx, &id)?;
             if used
                 && (old_code != code
                     || old_type != input.account_type
@@ -219,9 +225,7 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let record = one_json(&tx, "SELECT * FROM accounts WHERE id=?", params![id])?;
-        let used: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM journal_lines WHERE account_id=? UNION ALL SELECT 1 FROM accounting_settings WHERE ar_account_id=? OR revenue_account_id=? OR vat_payable_account_id=? OR bank_account_id=? OR expense_account_id=? OR vat_receivable_account_id=? OR wages_expense_account_id=? OR wages_payable_account_id=? OR social_expense_account_id=? OR social_payable_account_id=?)",
-            params![id,id,id,id,id,id,id,id,id,id,id], |r| r.get(0))?;
+        let used = account_is_referenced(&tx, id)?;
         if used {
             return Err(AppError::Validation("Ce compte est utilisé par la configuration ou le journal et ne peut pas être supprimé.".into()));
         }
@@ -499,65 +503,13 @@ impl LocalStore {
     pub fn get_income_statement(&self, filter: PeriodFilter) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        let (extra, values) = period_and_clause(&filter, "je.entry_date")?;
-        let rows=query_all(&connection,&format!("SELECT a.id,a.code,a.name,a.account_type,a.report_section,COALESCE(SUM(jl.debit_cents),0) AS debit_cents,COALESCE(SUM(jl.credit_cents),0) AS credit_cents FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE a.account_type IN ('revenue','expense') {extra} GROUP BY a.id ORDER BY a.code"),params_from_iter(values))?;
-        let revenue: i64 = rows
-            .iter()
-            .filter(|v| v["account_type"] == "revenue")
-            .map(|v| {
-                v["credit_cents"].as_i64().unwrap_or(0) - v["debit_cents"].as_i64().unwrap_or(0)
-            })
-            .sum();
-        let expense: i64 = rows
-            .iter()
-            .filter(|v| v["account_type"] == "expense")
-            .map(|v| {
-                v["debit_cents"].as_i64().unwrap_or(0) - v["credit_cents"].as_i64().unwrap_or(0)
-            })
-            .sum();
-        let sections = group_sections(&rows, true);
-        Ok(
-            json!({"rows":rows,"sections":sections,"revenue_cents":revenue,"expense_cents":expense,"profit_cents":revenue-expense}),
-        )
+        crate::accounting_closure::income_statement_report(&connection, &filter)
     }
 
-    pub fn get_balance_sheet(&self, as_of: Option<String>) -> AppResult<Value> {
-        let date = as_of.unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
-        validate_date(&date, "as_of")?;
+    pub fn get_balance_sheet(&self, filter: PeriodFilter) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        let rows=query_all(&connection,"SELECT a.id,a.code,a.name,a.account_type,a.normal_balance,a.report_section,COALESCE(SUM(CASE WHEN je.entry_date<=? THEN jl.debit_cents ELSE 0 END),0) AS debit_cents,COALESCE(SUM(CASE WHEN je.entry_date<=? THEN jl.credit_cents ELSE 0 END),0) AS credit_cents FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE a.account_type IN ('asset','liability','equity') GROUP BY a.id ORDER BY a.code",params![date,date])?;
-        let assets: i64 = rows
-            .iter()
-            .filter(|v| v["account_type"] == "asset")
-            .map(|v| {
-                v["debit_cents"].as_i64().unwrap_or(0) - v["credit_cents"].as_i64().unwrap_or(0)
-            })
-            .sum();
-        let liabilities: i64 = rows
-            .iter()
-            .filter(|v| v["account_type"] == "liability")
-            .map(|v| {
-                v["credit_cents"].as_i64().unwrap_or(0) - v["debit_cents"].as_i64().unwrap_or(0)
-            })
-            .sum();
-        let equity: i64 = rows
-            .iter()
-            .filter(|v| v["account_type"] == "equity")
-            .map(|v| {
-                v["credit_cents"].as_i64().unwrap_or(0) - v["debit_cents"].as_i64().unwrap_or(0)
-            })
-            .sum();
-        let result = self.get_income_statement(PeriodFilter {
-            date_from: None,
-            date_to: Some(date.clone()),
-        })?["profit_cents"]
-            .as_i64()
-            .unwrap_or(0);
-        let sections = group_sections(&rows, false);
-        Ok(
-            json!({"as_of":date,"rows":rows,"sections":sections,"assets_cents":assets,"liabilities_cents":liabilities,"equity_cents":equity,"current_result_cents":result,"balanced":assets==liabilities+equity+result}),
-        )
+        crate::accounting_closure::balance_sheet_report(&connection, &filter)
     }
 
     pub fn get_accounting_dashboard(&self, filter: PeriodFilter) -> AppResult<Value> {
@@ -820,7 +772,20 @@ pub(crate) fn post_payslip_if_enabled(
         return Ok(None);
     };
     let (gross,deductions,net,employer,employee):(i64,i64,i64,i64,String)=tx.query_row("SELECT gross_cents,deductions_cents,net_cents,employer_costs_cents,employee_id FROM payslips WHERE id=?",params![payslip_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
-    if gross <= 0 || deductions < 0 || employer < 0 || gross - deductions != net {
+    let reimbursements: i64 = tx.query_row(
+        "SELECT COALESCE(SUM(amount_cents),0) FROM payslip_items WHERE payslip_id=? AND kind='reimbursement'",
+        params![payslip_id],
+        |row| row.get(0),
+    )?;
+    let expected_net = gross
+        .checked_sub(deductions)
+        .and_then(|value| value.checked_add(reimbursements));
+    if gross <= 0
+        || deductions < 0
+        || reimbursements < 0
+        || employer < 0
+        || expected_net != Some(net)
+    {
         return Err(AppError::Validation(
             "Les totaux de la fiche de salaire sont incohérents.".into(),
         ));
@@ -828,6 +793,7 @@ pub(crate) fn post_payslip_if_enabled(
     let currency: String =
         tx.query_row("SELECT currency FROM settings WHERE id=1", [], |r| r.get(0))?;
     let mut lines = Vec::new();
+    let mut fallbacks = Vec::new();
     push_line(
         &mut lines,
         &map.wages_expense,
@@ -839,19 +805,6 @@ pub(crate) fn post_payslip_if_enabled(
         Some(employee.clone()),
         "Salaire brut",
     );
-    if employer > 0 {
-        push_line(
-            &mut lines,
-            &map.social_expense,
-            employer,
-            0,
-            &currency,
-            None,
-            None,
-            Some(employee.clone()),
-            "Charges employeur",
-        );
-    }
     if net > 0 {
         push_line(
             &mut lines,
@@ -865,20 +818,286 @@ pub(crate) fn post_payslip_if_enabled(
             "Salaire net dû",
         );
     }
-    if deductions + employer > 0 {
-        push_line(
-            &mut lines,
-            &map.social_payable,
-            0,
-            deductions + employer,
-            &currency,
-            None,
-            None,
-            Some(employee),
-            "Cotisations dues",
-        );
+    let contributions = {
+        let mut statement = tx.prepare(
+            "SELECT label,side,amount_cents,liability_account_id,expense_account_id FROM payslip_contributions WHERE payslip_id=? ORDER BY rowid",
+        )?;
+        let rows = statement
+            .query_map(params![payslip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let mut frozen_employee_deductions = 0_i64;
+    let mut frozen_employer_costs = 0_i64;
+    for (label, side, amount, liability_account_id, expense_account_id) in contributions {
+        if amount <= 0 {
+            continue;
+        }
+        let liability = liability_account_id
+            .as_deref()
+            .filter(|account| !account.trim().is_empty())
+            .unwrap_or(&map.social_payable);
+        validate_account_type(
+            tx,
+            liability,
+            &["liability"],
+            &format!("Le compte créancier de la cotisation « {label} »"),
+        )?;
+        if liability_account_id
+            .as_deref()
+            .is_none_or(|account| account.trim().is_empty())
+        {
+            fallbacks.push(json!({
+                "contribution": label,
+                "field": "liability_account_id",
+                "account_id": map.social_payable,
+                "reason": "Compte créancier non figé : utilisation du compte général de cotisations dues."
+            }));
+        }
+        match side.as_str() {
+            "employee" => {
+                frozen_employee_deductions = frozen_employee_deductions
+                    .checked_add(amount)
+                    .ok_or_else(|| {
+                        AppError::Validation(
+                            "Le total des retenues dépasse la capacité locale.".into(),
+                        )
+                    })?;
+                push_line(
+                    &mut lines,
+                    liability,
+                    0,
+                    amount,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!(
+                        "Retenue employé · {label} · {}",
+                        if liability_account_id.is_some() {
+                            "compte figé"
+                        } else {
+                            "compte général"
+                        }
+                    ),
+                );
+            }
+            "employer" => {
+                frozen_employer_costs =
+                    frozen_employer_costs.checked_add(amount).ok_or_else(|| {
+                        AppError::Validation(
+                            "Le total des charges employeur dépasse la capacité locale.".into(),
+                        )
+                    })?;
+                let expense = expense_account_id
+                    .as_deref()
+                    .filter(|account| !account.trim().is_empty())
+                    .unwrap_or(&map.social_expense);
+                validate_account_type(
+                    tx,
+                    expense,
+                    &["expense"],
+                    &format!("Le compte de charge de la cotisation « {label} »"),
+                )?;
+                if expense_account_id
+                    .as_deref()
+                    .is_none_or(|account| account.trim().is_empty())
+                {
+                    fallbacks.push(json!({
+                        "contribution": label,
+                        "field": "expense_account_id",
+                        "account_id": map.social_expense,
+                        "reason": "Compte de charge non figé : utilisation du compte général de charges sociales."
+                    }));
+                }
+                push_line(
+                    &mut lines,
+                    expense,
+                    amount,
+                    0,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!(
+                        "Charge employeur · {label} · {}",
+                        if expense_account_id.is_some() {
+                            "compte figé"
+                        } else {
+                            "compte général"
+                        }
+                    ),
+                );
+                push_line(
+                    &mut lines,
+                    liability,
+                    0,
+                    amount,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!(
+                        "Dette employeur · {label} · {}",
+                        if liability_account_id.is_some() {
+                            "compte figé"
+                        } else {
+                            "compte général"
+                        }
+                    ),
+                );
+            }
+            _ => {
+                return Err(AppError::Validation(format!(
+                    "Le côté comptable de la cotisation « {label} » est invalide."
+                )))
+            }
+        }
     }
-    Ok(Some(post_entry(
+    let manual_items = {
+        let mut statement = tx.prepare(
+            "SELECT pi.label,pi.kind,pi.amount_cents,pi.posting_account_id,pi.expense_account_id FROM payslip_items pi LEFT JOIN payslip_contributions pc ON pc.payslip_item_id=pi.id WHERE pi.payslip_id=? AND pc.id IS NULL AND pi.kind IN ('deduction','employer','reimbursement') ORDER BY pi.position,pi.rowid",
+        )?;
+        let rows = statement
+            .query_map(params![payslip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let mut mapped_deductions = 0_i64;
+    let mut mapped_employer_costs = 0_i64;
+    let mut mapped_reimbursements = 0_i64;
+    for (label, kind, amount, posting_account_id, expense_account_id) in manual_items {
+        if amount <= 0 {
+            continue;
+        }
+        match kind.as_str() {
+            "deduction" => {
+                let account = require_manual_payroll_account(
+                    tx,
+                    posting_account_id.as_deref(),
+                    &["asset", "liability"],
+                    &label,
+                    "compte de contrepartie",
+                )?;
+                mapped_deductions = mapped_deductions.checked_add(amount).ok_or_else(|| {
+                    AppError::Validation(
+                        "Le total des retenues manuelles dépasse la capacité locale.".into(),
+                    )
+                })?;
+                push_line(
+                    &mut lines,
+                    account,
+                    0,
+                    amount,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!("Retenue manuelle · {label} · compte explicitement choisi"),
+                );
+            }
+            "reimbursement" => {
+                let expense = require_manual_payroll_account(
+                    tx,
+                    expense_account_id.as_deref(),
+                    &["expense"],
+                    &label,
+                    "compte de charge",
+                )?;
+                mapped_reimbursements =
+                    mapped_reimbursements.checked_add(amount).ok_or_else(|| {
+                        AppError::Validation(
+                            "Le total des remboursements dépasse la capacité locale.".into(),
+                        )
+                    })?;
+                push_line(
+                    &mut lines,
+                    expense,
+                    amount,
+                    0,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!("Remboursement hors salaire brut · {label}"),
+                );
+            }
+            "employer" => {
+                let liability = require_manual_payroll_account(
+                    tx,
+                    posting_account_id.as_deref(),
+                    &["liability"],
+                    &label,
+                    "compte de dette",
+                )?;
+                let expense = require_manual_payroll_account(
+                    tx,
+                    expense_account_id.as_deref(),
+                    &["expense"],
+                    &label,
+                    "compte de charge",
+                )?;
+                mapped_employer_costs =
+                    mapped_employer_costs.checked_add(amount).ok_or_else(|| {
+                        AppError::Validation(
+                            "Le total des charges employeur manuelles dépasse la capacité locale."
+                                .into(),
+                        )
+                    })?;
+                push_line(
+                    &mut lines,
+                    expense,
+                    amount,
+                    0,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!("Charge employeur manuelle · {label}"),
+                );
+                push_line(
+                    &mut lines,
+                    liability,
+                    0,
+                    amount,
+                    &currency,
+                    None,
+                    None,
+                    Some(employee.clone()),
+                    &format!("Dette employeur manuelle · {label}"),
+                );
+            }
+            _ => unreachable!("manual payroll query filters kinds"),
+        }
+    }
+    let classified_deductions = frozen_employee_deductions.checked_add(mapped_deductions);
+    let classified_employer = frozen_employer_costs.checked_add(mapped_employer_costs);
+    if classified_deductions != Some(deductions)
+        || classified_employer != Some(employer)
+        || mapped_reimbursements != reimbursements
+    {
+        return Err(AppError::Validation(
+            "Les lignes et cotisations classées ne correspondent pas aux totaux de la fiche de salaire."
+                .into(),
+        ));
+    }
+    let mut journal = post_entry(
         tx,
         entry_date,
         "Comptabilisation paie",
@@ -886,11 +1105,228 @@ pub(crate) fn post_payslip_if_enabled(
         payslip_id,
         "post",
         lines,
+    )?;
+    journal["accounting_fallbacks"] = Value::Array(fallbacks);
+    Ok(Some(journal))
+}
+
+pub(crate) fn post_payslip_payment_if_enabled(
+    tx: &Transaction<'_>,
+    payslip_id: &str,
+    payment_date: &str,
+    reference: Option<&str>,
+) -> AppResult<Option<Value>> {
+    let Some(map) = accounting_map(tx)? else {
+        return Ok(None);
+    };
+    let (net, employee, period): (i64, String, String) = tx.query_row(
+        "SELECT net_cents,employee_id,period FROM payslips WHERE id=?",
+        params![payslip_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
+    if net <= 0 {
+        return Err(AppError::Validation(
+            "Le salaire net à payer doit être strictement positif.".into(),
+        ));
+    }
+    let wages_payable_account = posted_wages_payable_account(tx, payslip_id, &employee, net)?;
+    let currency: String = tx.query_row("SELECT currency FROM settings WHERE id=1", [], |row| {
+        row.get(0)
+    })?;
+    let reference_note = reference
+        .filter(|value| !value.is_empty())
+        .map(|value| format!(" · Réf. {value}"))
+        .unwrap_or_default();
+    let mut lines = Vec::new();
+    push_line(
+        &mut lines,
+        &wages_payable_account,
+        net,
+        0,
+        &currency,
+        None,
+        None,
+        Some(employee.clone()),
+        &format!("Extinction salaire net dû · {period}{reference_note}"),
+    );
+    push_line(
+        &mut lines,
+        &map.bank,
+        0,
+        net,
+        &currency,
+        None,
+        None,
+        Some(employee),
+        &format!("Paiement bancaire du salaire · {period}{reference_note}"),
+    );
+    Ok(Some(post_entry(
+        tx,
+        payment_date,
+        &format!("Paiement salaire {period}"),
+        "payslip",
+        payslip_id,
+        "payment",
+        lines,
     )?))
 }
 
+fn posted_wages_payable_account(
+    tx: &Transaction<'_>,
+    payslip_id: &str,
+    employee_id: &str,
+    net_cents: i64,
+) -> AppResult<String> {
+    let mut statement = tx.prepare(
+        "SELECT jl.account_id FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id WHERE je.source_type='payslip' AND je.source_id=? AND je.source_event='post' AND jl.memo='Salaire net dû' AND jl.employee_id=? AND jl.debit_cents=0 AND jl.credit_cents=? ORDER BY jl.rowid",
+    )?;
+    let accounts = statement
+        .query_map(params![payslip_id, employee_id, net_cents], |row| {
+            row.get::<_, String>(0)
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    let account_id = match accounts.as_slice() {
+        [account_id] => account_id.clone(),
+        [] => {
+            return Err(AppError::Validation(
+                "L'écriture de paie d'origine ne contient pas de compte de salaire net dû identifiable."
+                    .into(),
+            ))
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "L'écriture de paie d'origine contient plusieurs comptes de salaire net dû; le paiement est bloqué."
+                    .into(),
+            ))
+        }
+    };
+    validate_account_type(
+        tx,
+        &account_id,
+        &["liability"],
+        "Le compte de salaire net dû figé",
+    )?;
+    Ok(account_id)
+}
+
+fn account_is_referenced(tx: &Transaction<'_>, account_id: &str) -> AppResult<bool> {
+    tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM journal_lines WHERE account_id=? UNION ALL SELECT 1 FROM accounting_settings WHERE ar_account_id=? OR revenue_account_id=? OR vat_payable_account_id=? OR bank_account_id=? OR expense_account_id=? OR vat_receivable_account_id=? OR wages_expense_account_id=? OR wages_payable_account_id=? OR social_expense_account_id=? OR social_payable_account_id=? UNION ALL SELECT 1 FROM payroll_contribution_definitions WHERE liability_account_id=? OR expense_account_id=? UNION ALL SELECT 1 FROM payslip_contributions WHERE liability_account_id=? OR expense_account_id=? UNION ALL SELECT 1 FROM payslip_items WHERE posting_account_id=? OR expense_account_id=?)",
+        params![
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id,
+            account_id
+        ],
+        |row| row.get(0),
+    )
+    .map_err(Into::into)
+}
+
+fn validate_account_type(
+    tx: &Transaction<'_>,
+    account_id: &str,
+    expected_types: &[&str],
+    label: &str,
+) -> AppResult<()> {
+    let actual = tx
+        .query_row(
+            "SELECT account_type FROM accounts WHERE id=?",
+            params![account_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("accounts/{account_id}")))?;
+    if !expected_types.contains(&actual.as_str()) {
+        return Err(AppError::Validation(format!(
+            "{label} doit être de type {}.",
+            expected_types.join(" ou ")
+        )));
+    }
+    Ok(())
+}
+
+fn require_manual_payroll_account<'a>(
+    tx: &Transaction<'_>,
+    account_id: Option<&'a str>,
+    expected_types: &[&str],
+    line_label: &str,
+    field_label: &str,
+) -> AppResult<&'a str> {
+    let account_id = account_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            AppError::Validation(format!(
+                "La ligne de paie « {line_label} » exige un {field_label} explicite avant comptabilisation."
+            ))
+        })?;
+    let account = tx
+        .query_row(
+            "SELECT account_type,active FROM accounts WHERE id=?",
+            params![account_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("accounts/{account_id}")))?;
+    if !account.1 {
+        return Err(AppError::Validation(format!(
+            "Le {field_label} de la ligne « {line_label} » est inactif."
+        )));
+    }
+    if !expected_types.contains(&account.0.as_str()) {
+        return Err(AppError::Validation(format!(
+            "Le {field_label} de la ligne « {line_label} » doit être de type {}.",
+            expected_types.join(" ou ")
+        )));
+    }
+    Ok(account_id)
+}
+
 fn accounting_map(tx: &Transaction<'_>) -> AppResult<Option<AccountingMap>> {
-    tx.query_row("SELECT ar_account_id,revenue_account_id,vat_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id FROM accounting_settings WHERE id=1 AND enabled=1",[],|r|Ok(AccountingMap{ar:r.get(0)?,revenue:r.get(1)?,vat_payable:r.get(2)?,bank:r.get(3)?,expense:r.get(4)?,vat_receivable:r.get(5)?,wages_expense:r.get(6)?,wages_payable:r.get(7)?,social_expense:r.get(8)?,social_payable:r.get(9)?})).optional().map_err(Into::into)
+    let map = tx.query_row("SELECT ar_account_id,revenue_account_id,vat_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id FROM accounting_settings WHERE id=1 AND enabled=1",[],|r|Ok(AccountingMap{ar:r.get(0)?,revenue:r.get(1)?,vat_payable:r.get(2)?,bank:r.get(3)?,expense:r.get(4)?,vat_receivable:r.get(5)?,wages_expense:r.get(6)?,wages_payable:r.get(7)?,social_expense:r.get(8)?,social_payable:r.get(9)?})).optional()?;
+    if let Some(map) = &map {
+        for (account_id, expected_type, label) in [
+            (&map.ar, "asset", "Le compte clients"),
+            (&map.revenue, "revenue", "Le compte de produits"),
+            (&map.vat_payable, "liability", "Le compte de TVA due"),
+            (&map.bank, "asset", "Le compte bancaire"),
+            (&map.expense, "expense", "Le compte de charges"),
+            (&map.vat_receivable, "asset", "Le compte de TVA préalable"),
+            (
+                &map.wages_expense,
+                "expense",
+                "Le compte de charges salariales",
+            ),
+            (&map.wages_payable, "liability", "Le compte de salaires dus"),
+            (
+                &map.social_expense,
+                "expense",
+                "Le compte de charges sociales",
+            ),
+            (
+                &map.social_payable,
+                "liability",
+                "Le compte de cotisations dues",
+            ),
+        ] {
+            validate_account_type(tx, account_id, &[expected_type], label)?;
+        }
+    }
+    Ok(map)
 }
 
 pub(crate) fn post_entry(
@@ -1112,23 +1548,4 @@ fn period_parts(
     } else {
         Ok((format!("{prefix} {}", clauses.join(" AND ")), vals))
     }
-}
-fn group_sections(rows: &[Value], income: bool) -> Value {
-    let mut sections = serde_json::Map::new();
-    for row in rows {
-        let key = row["report_section"].as_str().unwrap_or("unclassified");
-        let debit = row["debit_cents"].as_i64().unwrap_or(0);
-        let credit = row["credit_cents"].as_i64().unwrap_or(0);
-        let account_type = row["account_type"].as_str().unwrap_or("");
-        let amount = if income {
-            credit - debit
-        } else if account_type == "asset" {
-            debit - credit
-        } else {
-            credit - debit
-        };
-        let current = sections.get(key).and_then(Value::as_i64).unwrap_or(0);
-        sections.insert(key.into(), json!(current + amount));
-    }
-    Value::Object(sections)
 }

@@ -70,6 +70,11 @@ Sources primaires : [SIX QR-facture](https://www.six-group.com/fr/products-servi
 - La base, les pièces jointes, sauvegardes et exports restent dans le profil local
   Windows (ou dans le chemin local absolu explicitement fourni par
   `HELVICHANTIER_DATA_DIR`).
+- `HELVICHANTIER_DATA_DIR` est un réglage local de développement/support. Quand
+  il pointe hors de `APPLOCALDATA`, Elyko ajoute au protocole d’aperçu uniquement
+  le dossier exact `attachments/branding`, sans récursion et sans donner accès au
+  reste du profil ni au disque. Les logos y sont toujours validés puis copiés sous
+  un nom immuable dérivé de leur SHA-256 avant affichage.
 - Le backend ne contient aucun client HTTP, aucune télémétrie, aucun envoi de
   relance et aucune donnée métier de démonstration. `sent_manually` est seulement
   une trace locale déclarative.

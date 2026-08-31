@@ -829,7 +829,7 @@ export function InvoiceDemo() {
         <div className="print-hidden mb-4 flex flex-col gap-3 rounded-2xl bg-[#173d2c] p-4 text-white md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#efaa3c]" />
-            <p className="text-sm leading-6 text-white/65">
+            <p className="text-sm leading-6 text-white/78">
               Aucune saisie n’est enregistrée ni envoyée. Cet outil illustre le
               document ; la validation finale dépend toujours des données
               réelles et de la situation fiscale de l’entreprise.

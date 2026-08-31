@@ -1,7 +1,8 @@
-import { invoke } from '@tauri-apps/api/core';
+import { Channel, invoke } from '@tauri-apps/api/core';
 import type { OpenDialogOptions, SaveDialogOptions } from '@tauri-apps/plugin-dialog';
 import type {
   Account,
+  AccountingFallback,
   AccountingPeriod,
   AccountingSettings,
   AppSettings,
@@ -38,6 +39,7 @@ import type {
   PayrollContributionSelection,
   PayrollRegulatoryProfile,
   PeriodFilter,
+  PostPayslipResult,
   Project,
   Quote,
   Reminder,
@@ -45,7 +47,12 @@ import type {
   ReminderSettings,
   ReminderStatus,
   ReminderTemplate,
+  ReportCurrency,
+  SecureUpdateEvent,
+  SecureUpdateMetadata,
+  SecureUpdaterPolicy,
   StatementRow,
+  StatementScope,
   StoredSwissQrBill,
   SwissQrBillInput,
   SwissQrPayload,
@@ -85,6 +92,20 @@ const numberValue = (value: unknown): number => (typeof value === 'number' && Nu
 const boolValue = (value: unknown): boolean => value === true || value === 1 || value === '1';
 const recordValue = (value: unknown): RawRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as RawRecord : {};
 
+/**
+ * Les sauvegardes conservent les logos hashés mais une restauration sur un autre
+ * compte Windows change APPLOCALDATA. Le snapshot métier reste immuable : seul
+ * son pointeur de lecture est rebasé vers le dossier local courant.
+ */
+export function rebaseStoredBrandingPath(value: unknown, dataDir: string): string {
+  const stored = stringValue(value).trim();
+  if (!stored || !dataDir) return stored;
+  const fileName = stored.split(/[\\/]/).at(-1) ?? '';
+  if (!/^logo-[0-9a-f]{64}\.(?:png|jpe?g|webp)$/i.test(fileName)) return stored;
+  const separator = dataDir.includes('\\') ? '\\' : '/';
+  return `${dataDir.replace(/[\\/]+$/, '')}${separator}attachments${separator}branding${separator}${fileName}`;
+}
+
 function appStateFromRaw(value: unknown): AppState {
   const row = recordValue(value);
   return {
@@ -94,6 +115,51 @@ function appStateFromRaw(value: unknown): AppState {
     database_path: stringValue(row.database_path ?? row.databasePath),
     app_version: stringValue(row.app_version ?? row.appVersion),
   };
+}
+
+function secureUpdaterPolicyFromRaw(value: unknown): SecureUpdaterPolicy {
+  const row = recordValue(value);
+  return {
+    enabled: boolValue(row.enabled),
+    currentVersion: stringValue(row.currentVersion ?? row.current_version),
+    channel: 'stable',
+    endpointHost: stringValue(row.endpointHost ?? row.endpoint_host) || null,
+    signatureRequired: true,
+    transport: 'HTTPS',
+    automaticInstall: false,
+    reason: stringValue(row.reason),
+  };
+}
+
+function secureUpdateMetadataFromRaw(value: unknown): SecureUpdateMetadata {
+  const row = recordValue(value);
+  return {
+    version: stringValue(row.version),
+    currentVersion: stringValue(row.currentVersion ?? row.current_version),
+    date: stringValue(row.date) || null,
+    notes: stringValue(row.notes) || null,
+  };
+}
+
+function secureUpdateEventFromRaw(value: unknown): SecureUpdateEvent | null {
+  const row = recordValue(value);
+  const event = stringValue(row.event);
+  const data = recordValue(row.data);
+  if (event === 'preparing' || event === 'verifying' || event === 'installed') return { event };
+  if (event === 'started') {
+    return { event, data: { contentLength: data.contentLength === null || data.content_length === null ? null : numberValue(data.contentLength ?? data.content_length) || null } };
+  }
+  if (event === 'progress') {
+    return {
+      event,
+      data: {
+        downloadedBytes: numberValue(data.downloadedBytes ?? data.downloaded_bytes),
+        contentLength: data.contentLength === null || data.content_length === null ? null : numberValue(data.contentLength ?? data.content_length) || null,
+        percent: data.percent === null || data.percent === undefined ? null : Math.max(0, Math.min(100, numberValue(data.percent))),
+      },
+    };
+  }
+  return null;
 }
 
 function onboardingValidationFromRaw(value: unknown): OnboardingValidationResult {
@@ -114,6 +180,12 @@ function parsedSnapshot(value: unknown): RawRecord | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   try { const parsed: unknown = JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as RawRecord : null; }
   catch { return null; }
+}
+
+function payslipLineKindFromRaw(value: unknown): PayslipLine['kind'] {
+  const kind = stringValue(value);
+  if (kind === 'non_gross_payment' || kind === 'expense_reimbursement') return 'reimbursement';
+  return (['earning', 'deduction', 'reimbursement', 'employer'].includes(kind) ? kind : 'earning') as PayslipLine['kind'];
 }
 
 function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
@@ -143,7 +215,7 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
     lines: lines.map((line, index) => ({
       id: stringValue(line.id) || `import-line-${index}`,
       label: stringValue(line.label),
-      kind: (['earning', 'deduction', 'employer'].includes(stringValue(line.kind)) ? stringValue(line.kind) : 'earning') as PayslipLine['kind'],
+      kind: payslipLineKindFromRaw(line.kind),
       amountCents: numberValue(line.amount_cents ?? line.amountCents),
       recurring: boolValue(line.recurring),
       confidenceBp: numberValue(line.confidence_bp ?? line.confidenceBp),
@@ -225,7 +297,7 @@ function parseExtra(settings: RawRecord): Partial<AppSettings> {
   }
 }
 
-function settingsFromRaw(row: RawRecord | null | undefined): AppSettings | null {
+function settingsFromRaw(row: RawRecord | null | undefined, dataDir = ''): AppSettings | null {
   if (!row || !stringValue(row.company_name)) return null;
   const extra = parseExtra(row);
   const extraBilling = extra.billing;
@@ -250,7 +322,7 @@ function settingsFromRaw(row: RawRecord | null | undefined): AppSettings | null 
         canton: stringValue(row.canton),
         country: stringValue(row.country),
       },
-      logoPath: stringValue(row.logo_path) || undefined,
+      logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) || undefined,
     },
     business: {
       nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section)) ? stringValue(row.noga_section) : '') as AppSettings['business']['nogaSection'],
@@ -307,9 +379,9 @@ function lineFromRaw(row: RawRecord): DocumentLine {
   return { id: stringValue(row.id), description: stringValue(row.description), quantity: numberValue(row.quantity), unit: stringValue(row.unit), unitPriceCents: numberValue(row.unit_price_cents), vatRateBp: numberValue(row.vat_bp) };
 }
 
-function frozenIssuerFromRaw(row: RawRecord): FrozenIssuer {
+function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
   const extra = parseExtra(row);
-  return { companyName: stringValue(row.company_name), legalForm: stringValue(row.legal_form), ownerName: stringValue(row.owner_name), email: stringValue(row.email), phone: stringValue(row.phone), addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), buildingNumber: stringValue(row.building_number) || extra.organization?.address?.buildingNumber || '', postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country), uidNumber: stringValue(row.uid_number), vatNumber: stringValue(row.vat_number), vatRegistered: boolValue(row.vat_registered), iban: stringValue(row.iban), bankName: stringValue(row.bank_name), currency: stringValue(row.currency) || 'CHF', logoPath: stringValue(row.logo_path) };
+  return { companyName: stringValue(row.company_name), legalForm: stringValue(row.legal_form), ownerName: stringValue(row.owner_name), email: stringValue(row.email), phone: stringValue(row.phone), addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), buildingNumber: stringValue(row.building_number) || extra.organization?.address?.buildingNumber || '', postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country), uidNumber: stringValue(row.uid_number), vatNumber: stringValue(row.vat_number), vatRegistered: boolValue(row.vat_registered), iban: stringValue(row.iban), bankName: stringValue(row.bank_name), currency: stringValue(row.currency) || 'CHF', logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) };
 }
 
 function frozenCustomerFromRaw(row: RawRecord): FrozenCustomer {
@@ -342,12 +414,12 @@ function storedQrBillFromRaw(value: unknown, fallbackInvoiceId = ''): StoredSwis
   };
 }
 
-function documentSnapshotFromRaw(value: unknown): FrozenDocumentSnapshot | null {
+function documentSnapshotFromRaw(value: unknown, dataDir = ''): FrozenDocumentSnapshot | null {
   const root = parsedSnapshot(value);
   if (!root || stringValue(root.schema) !== 'helvichantier.document_snapshot.v1') return null;
   const document = recordValue(root.document);
   return {
-    capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer)), customer: frozenCustomerFromRaw(recordValue(root.customer)),
+    capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir), customer: frozenCustomerFromRaw(recordValue(root.customer)),
     document: { id: stringValue(document.id), number: stringValue(document.number), clientId: stringValue(document.client_id), projectId: nullableString(document.project_id), quoteId: nullableString(document.quote_id), originalInvoiceId: nullableString(document.original_invoice_id), title: stringValue(document.title), type: stringValue(document.type), issueDate: stringValue(document.issue_date), validUntil: stringValue(document.valid_until), dueDate: stringValue(document.due_date), serviceDateFrom: stringValue(document.service_date_from), serviceDateTo: stringValue(document.service_date_to), currency: stringValue(document.currency) || 'CHF', notes: stringValue(document.notes), terms: stringValue(document.terms) },
     items: rawArray(root.items).map(lineFromRaw),
     qrBill: storedQrBillFromRaw(root.qr_bill, stringValue(document.id)),
@@ -372,10 +444,10 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   }));
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
     id: stringValue(row.id), number: stringValue(row.number), clientId: stringValue(row.client_id), projectId: stringValue(row.project_id) || null, title: stringValue(row.title), issueDate: stringValue(row.issue_date), validUntil: stringValue(row.valid_until), status: quoteStatusFromRaw(row.status),
-    lines: quoteItems.filter((item) => stringValue(item.quote_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map(lineFromRaw), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: documentSnapshotFromRaw(row.snapshot_json),
+    lines: quoteItems.filter((item) => stringValue(item.quote_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map(lineFromRaw), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: documentSnapshotFromRaw(row.snapshot_json, appState.data_dir),
   }));
   const invoices: Invoice[] = (raw.invoices ?? []).map((row) => {
-    const snapshot = documentSnapshotFromRaw(row.snapshot_json);
+    const snapshot = documentSnapshotFromRaw(row.snapshot_json, appState.data_dir);
     const qrBill = snapshot?.qrBill ?? storedQrBillFromRaw(invoiceQrBills.find((item) => stringValue(item.invoice_id) === stringValue(row.id)), stringValue(row.id));
     return {
       id: stringValue(row.id), number: stringValue(row.number), clientId: stringValue(row.client_id), projectId: stringValue(row.project_id) || null, quoteId: stringValue(row.quote_id) || null, originalInvoiceId: stringValue(row.original_invoice_id) || null, title: stringValue(row.title),
@@ -387,20 +459,20 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     id: stringValue(row.id), employeeNumber: stringValue(row.employee_number), name: stringValue(row.name), role: stringValue(row.role), email: stringValue(row.email), phone: stringValue(row.phone),
     address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton)].filter(Boolean).join('\n'),
     addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country),
-    birthDate: stringValue(row.birth_date), avsNumber: stringValue(row.social_security_number), employmentStart: stringValue(row.employment_start_date), employmentEnd: stringValue(row.employment_end_date), employmentRate: numberValue(row.employment_rate), salaryMode: numberValue(row.monthly_salary_cents) > 0 ? 'monthly' : 'hourly', grossSalaryCents: numberValue(row.monthly_salary_cents), hourlyCostCents: numberValue(row.hourly_rate_cents), iban: stringValue(row.iban), active: stringValue(row.status) !== 'inactif', notes: stringValue(row.notes),
+    birthDate: stringValue(row.birth_date), avsNumber: stringValue(row.social_security_number), employmentStart: stringValue(row.employment_start_date), employmentEnd: stringValue(row.employment_end_date), referenceAgeDate: stringValue(row.reference_age_date), avsAllowanceWaived: row.avs_allowance_waived === null || row.avs_allowance_waived === undefined ? null : boolValue(row.avs_allowance_waived), employmentRate: numberValue(row.employment_rate), salaryMode: numberValue(row.monthly_salary_cents) > 0 ? 'monthly' : 'hourly', grossSalaryCents: numberValue(row.monthly_salary_cents), hourlyCostCents: numberValue(row.hourly_rate_cents), iban: stringValue(row.iban), active: stringValue(row.status) !== 'inactif', notes: stringValue(row.notes),
   }));
   const timeEntries: TimeEntry[] = (raw.time_entries ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id), employeeId: stringValue(row.employee_id), date: stringValue(row.date), minutes: numberValue(row.minutes), breakMinutes: numberValue(row.break_minutes), billable: boolValue(row.billable), billingRateCents: numberValue(row.billing_rate_cents), hourlyCostCents: numberValue(row.cost_rate_cents), note: stringValue(row.note), status: ({ approuve: 'approved', verrouille: 'locked' } as Record<string, TimeEntry['status']>)[stringValue(row.status)] ?? 'entered', createdAt: stringValue(row.created_at) }));
   const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id), date: stringValue(row.date), supplier: stringValue(row.supplier), category: stringValue(row.category), reference: stringValue(row.reference), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents), reimbursable: boolValue(row.reimbursable), note: stringValue(row.note) }));
   const payslips: Payslip[] = (raw.payslips ?? []).map((row) => ({
     id: stringValue(row.id), employeeId: stringValue(row.employee_id), period: stringValue(row.period), status: ({ brouillon: 'draft', a_controler: 'incomplete', valide: 'validated', comptabilise: 'posted', paye: 'paid' } as Record<string, Payslip['status']>)[stringValue(row.status)] ?? 'incomplete',
-    lines: payslipItems.filter((item) => stringValue(item.payslip_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: (['earning', 'deduction', 'employer'].includes(stringValue(item.kind)) ? stringValue(item.kind) : 'earning') as 'earning' | 'deduction' | 'employer', amountCents: numberValue(item.amount_cents) })), paymentDate: stringValue(row.payment_date), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: payslipSnapshotFromRaw(row.snapshot_json),
+    lines: payslipItems.filter((item) => stringValue(item.payslip_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: payslipLineKindFromRaw(item.kind), amountCents: numberValue(item.amount_cents), postingAccountId: stringValue(item.posting_account_id), expenseAccountId: stringValue(item.expense_account_id) })), paymentDate: stringValue(row.payment_date), paymentReference: stringValue(row.payment_reference), paymentJournalEntryId: stringValue(row.payment_journal_entry_id), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: payslipSnapshotFromRaw(row.snapshot_json, appState.data_dir),
   }));
   const payrollImports = (raw.payroll_document_imports ?? []).map(payrollImportFromRaw);
   const employeePayrollTemplates = (raw.employee_payroll_templates ?? []).map(employeePayrollTemplateFromRaw);
   const payments: Payment[] = (raw.payments ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), date: stringValue(row.date), amountCents: numberValue(row.amount_cents), method: stringValue(row.method), reference: stringValue(row.reference) }));
   const timer = raw.active_timer;
   return {
-    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings), clients, projects, quotes, invoices, payments, employees, timeEntries,
+    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings, appState.data_dir), clients, projects, quotes, invoices, payments, employees, timeEntries,
     activeTimer: timer ? { projectId: stringValue(timer.project_id), employeeId: stringValue(timer.employee_id), startedAt: stringValue(timer.started_at), note: stringValue(timer.note), billable: boolValue(timer.billable), billingRateCents: numberValue(timer.billing_rate_cents), hourlyCostCents: numberValue(timer.cost_rate_cents) } : null,
     expenses, payslips, payrollImports, employeePayrollTemplates, backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
   };
@@ -497,6 +569,17 @@ const rawArray = (value: unknown, key?: string): RawRecord[] => {
   return [];
 };
 
+export function accountingFallbacksFromPostPayslip(value: unknown): AccountingFallback[] {
+  const posted = recordValue(value);
+  const journal = recordValue(posted.journal);
+  return rawArray(journal.accounting_fallbacks).map((row) => ({
+    contribution: stringValue(row.contribution),
+    field: stringValue(row.field),
+    accountId: stringValue(row.account_id),
+    reason: stringValue(row.reason),
+  }));
+}
+
 function accountFromRaw(row: RawRecord): Account {
   return { id: stringValue(row.id), code: stringValue(row.code), name: stringValue(row.name), accountType: stringValue(row.account_type) as Account['accountType'], normalBalance: stringValue(row.normal_balance) as Account['normalBalance'], reportSection: stringValue(row.report_section) as Account['reportSection'], active: boolValue(row.active) };
 }
@@ -516,7 +599,17 @@ function journalLineFromRaw(row: RawRecord): JournalLine {
 }
 
 function statementRowFromRaw(row: RawRecord): StatementRow {
-  return { id: stringValue(row.id), code: stringValue(row.code), name: stringValue(row.name), accountType: stringValue(row.account_type) as StatementRow['accountType'], normalBalance: stringValue(row.normal_balance) as StatementRow['normalBalance'], reportSection: stringValue(row.report_section) as StatementRow['reportSection'], debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents) };
+  return { id: stringValue(row.id), code: stringValue(row.code), name: stringValue(row.name), accountType: stringValue(row.account_type) as StatementRow['accountType'], normalBalance: stringValue(row.normal_balance) as StatementRow['normalBalance'], reportSection: stringValue(row.report_section) as StatementRow['reportSection'], debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents), amountCents: numberValue(row.amount_cents), previousDebitCents: numberValue(row.previous_debit_cents), previousCreditCents: numberValue(row.previous_credit_cents), previousAmountCents: numberValue(row.previous_amount_cents) };
+}
+
+function statementScopeFromRaw(value: unknown): StatementScope {
+  const row = recordValue(value);
+  return { dateFrom: stringValue(row.date_from), dateTo: stringValue(row.date_to), previousDateFrom: stringValue(row.previous_date_from), previousDateTo: stringValue(row.previous_date_to), comparisonLabel: stringValue(row.comparison_label), comparisonSource: stringValue(row.comparison_source) as StatementScope['comparisonSource'], previousHasActivity: boolValue(row.previous_has_activity) };
+}
+
+function reportCurrencyFromRaw(value: unknown): ReportCurrency {
+  const row = recordValue(value);
+  return { baseCurrency: stringValue(row.base_currency), currencies: Array.isArray(row.currencies) ? row.currencies.map(stringValue).filter(Boolean) : [], singleCurrency: boolValue(row.single_currency), exchangeRatesApplied: boolValue(row.exchange_rates_applied) };
 }
 
 function numberRecord(value: unknown): Record<string, number> { if (!value || typeof value !== 'object') return {}; return Object.fromEntries(Object.entries(value as RawRecord).map(([key, amount]) => [key, numberValue(amount)])); }
@@ -553,6 +646,8 @@ function payslipContributionFromRaw(row: RawRecord): PayslipContributionSnapshot
     source: stringValue(row.source),
     effectiveFrom: stringValue(row.effective_from),
     effectiveTo: stringValue(row.effective_to),
+    liabilityAccountId: stringValue(row.liability_account_id),
+    expenseAccountId: stringValue(row.expense_account_id),
     createdAt: stringValue(row.created_at),
   };
 }
@@ -561,11 +656,11 @@ function frozenEmployeeFromRaw(row: RawRecord): FrozenEmployee {
   return { id: stringValue(row.id), employeeNumber: stringValue(row.employee_number), name: stringValue(row.name), role: stringValue(row.role), address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton), stringValue(row.country)].filter(Boolean).join('\n'), avsNumber: stringValue(row.social_security_number), iban: stringValue(row.iban), employmentRate: numberValue(row.employment_rate) };
 }
 
-function payslipSnapshotFromRaw(value: unknown): FrozenPayslipSnapshot | null {
+function payslipSnapshotFromRaw(value: unknown, dataDir = ''): FrozenPayslipSnapshot | null {
   const root = parsedSnapshot(value);
   if (!root || stringValue(root.schema) !== 'helvichantier.payslip_snapshot.v1') return null;
   const payslip = recordValue(root.payslip);
-  return { capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer)), employee: frozenEmployeeFromRaw(recordValue(root.employee)), period: stringValue(payslip.period), paymentDate: stringValue(payslip.payment_date), notes: stringValue(payslip.notes), items: rawArray(root.items).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: (['earning', 'deduction', 'employer'].includes(stringValue(item.kind)) ? stringValue(item.kind) : 'earning') as PayslipLine['kind'], amountCents: numberValue(item.amount_cents) })), contributions: rawArray(root.contributions).map(payslipContributionFromRaw) };
+  return { capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir), employee: frozenEmployeeFromRaw(recordValue(root.employee)), period: stringValue(payslip.period), paymentDate: stringValue(payslip.payment_date), notes: stringValue(payslip.notes), items: rawArray(root.items).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: payslipLineKindFromRaw(item.kind), amountCents: numberValue(item.amount_cents), postingAccountId: stringValue(item.posting_account_id), expenseAccountId: stringValue(item.expense_account_id) })), contributions: rawArray(root.contributions).map(payslipContributionFromRaw) };
 }
 
 function qrInputToRaw(input: SwissQrBillInput): RawRecord {
@@ -588,6 +683,21 @@ export const desktopApi = {
   },
   async getLicenseState(): Promise<LicenseState> { return licenseStateFromRaw(await invoke<RawRecord>('get_license_state')); },
   async installLicenseToken(token: string): Promise<LicenseState> { return licenseStateFromRaw(await invoke<RawRecord>('install_license_token', { token })); },
+  async getSecureUpdatePolicy(): Promise<SecureUpdaterPolicy> {
+    return secureUpdaterPolicyFromRaw(await invoke<RawRecord>('get_secure_update_policy'));
+  },
+  async checkSecureUpdate(): Promise<SecureUpdateMetadata | null> {
+    const raw = await invoke<RawRecord | null>('check_secure_update');
+    return raw ? secureUpdateMetadataFromRaw(raw) : null;
+  },
+  async installSecureUpdate(onEvent: (event: SecureUpdateEvent) => void): Promise<void> {
+    const channel = new Channel<unknown>();
+    channel.onmessage = (value) => {
+      const event = secureUpdateEventFromRaw(value);
+      if (event) onEvent(event);
+    };
+    await invoke('install_secure_update', { onEvent: channel });
+  },
   async validateOnboarding(settings: OnboardingPayload): Promise<OnboardingValidationResult> {
     return onboardingValidationFromRaw(await invoke<RawRecord>('validate_onboarding', { input: settingsToBackend(settings) }));
   },
@@ -614,6 +724,7 @@ export const desktopApi = {
     return normalizeWorkspace(workspace as RawWorkspace, appState);
   },
   async saveSettings(settings: AppSettings) { await invoke('update_settings', { data: settingsToBackend(settings) }); return loadWorkspace(); },
+  async stageCompanyLogo(sourcePath: string) { return invoke<string>('stage_company_logo', { sourcePath }); },
   async createEntity<T extends Record<string, unknown>>(entity: EntityKind, data: T) { await createRecord(entityToBackend[entity], toBackendData(data)); return loadWorkspace(); },
   async updateEntity<T extends Record<string, unknown>>(entity: EntityKind, id: string, data: T) { await invoke('update_record', { entity: entityToBackend[entity], id, data: toBackendData(data) }); return loadWorkspace(); },
   async archiveEntity(entity: EntityKind, id: string) { await invoke('delete_record', { entity: entityToBackend[entity], id }); return loadWorkspace(); },
@@ -632,7 +743,7 @@ export const desktopApi = {
     return loadWorkspace();
   },
   async addPayment(invoiceId: string, data: Record<string, unknown>) { await invoke('record_payment', { input: { invoice_id: invoiceId, ...toBackendData(data) } }); return loadWorkspace(); },
-  async savePayslip(data: Record<string, unknown>, lines: Array<{ id: string; label: string; kind: string; amountCents: number }>, existing?: Payslip) {
+  async savePayslip(data: Record<string, unknown>, lines: PayslipLine[], existing?: Payslip) {
     let payslipId = existing?.id;
     if (payslipId) await invoke('update_record', { entity: 'payslips', id: payslipId, data: toBackendData(data) });
     else payslipId = stringValue((await createRecord('payslips', toBackendData(data))).id);
@@ -641,13 +752,13 @@ export const desktopApi = {
     const retained = new Set(lines.filter((line) => previous.some((old) => old.id === line.id)).map((line) => line.id));
     for (const old of previous) if (!retained.has(old.id)) await invoke('delete_record', { entity: 'payslip_items', id: old.id });
     for (const [position, line] of lines.entries()) {
-      const lineData = { payslip_id: payslipId, position, label: line.label, kind: line.kind, amount_cents: line.amountCents };
+      const lineData = { payslip_id: payslipId, position, label: line.label, kind: line.kind, amount_cents: line.amountCents, posting_account_id: line.postingAccountId || null, expense_account_id: line.expenseAccountId || null };
       if (previous.some((old) => old.id === line.id)) await invoke('update_record', { entity: 'payslip_items', id: line.id, data: lineData });
       else await createRecord('payslip_items', lineData);
     }
     return loadWorkspace();
   },
-  async savePayslipWithContributions(data: Record<string, unknown>, lines: Array<{ id: string; label: string; kind: string; amountCents: number }>, existing: Payslip | undefined, period: string, selections: PayrollContributionSelection[]) {
+  async savePayslipWithContributions(data: Record<string, unknown>, lines: PayslipLine[], existing: Payslip | undefined, period: string, selections: PayrollContributionSelection[]) {
     await invoke('save_payslip_with_contributions', { input: {
       id: existing?.id ?? null,
       employee_id: String(data.employeeId ?? ''),
@@ -655,7 +766,7 @@ export const desktopApi = {
       status: statusToBackend[String(data.status ?? 'incomplete')] ?? 'a_controler',
       payment_date: String(data.paymentDate ?? '') || null,
       notes: String(data.notes ?? '') || null,
-      lines: lines.map((line) => ({ id: existing?.lines.some((candidate) => candidate.id === line.id) ? line.id : null, label: line.label, kind: line.kind, amount_cents: line.amountCents })),
+      lines: lines.map((line) => ({ id: existing?.lines.some((candidate) => candidate.id === line.id) ? line.id : null, label: line.label, kind: line.kind, amount_cents: line.amountCents, posting_account_id: line.postingAccountId || null, expense_account_id: line.expenseAccountId || null })),
       contributions: selections.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents ?? null, year_to_date_basis_cents: item.yearToDateBasisCents ?? null })),
     } });
     return loadWorkspace();
@@ -689,8 +800,8 @@ export const desktopApi = {
     const row = await invoke<RawRecord>('update_payroll_import_draft', { input: { id, draft: payrollImportDraftToRaw(draft), extraction_engine: extractionEngine, engine_version: engineVersion || null, confidence_bp: confidenceBp } });
     return payrollImportFromRaw(row);
   },
-  async confirmPayrollDocumentImport(id: string, draft: PayrollImportDraft, employeeId?: string): Promise<Workspace> {
-    await invoke('confirm_payroll_document_import', { input: { id, employee_id: employeeId || null, draft: payrollImportDraftToRaw(draft) } });
+  async confirmPayrollDocumentImport(id: string, draft: PayrollImportDraft, employeeId?: string, replaceExistingTemplate = false): Promise<Workspace> {
+    await invoke('confirm_payroll_document_import', { input: { id, employee_id: employeeId || null, replace_existing_template: replaceExistingTemplate, draft: payrollImportDraftToRaw(draft) } });
     return loadWorkspace();
   },
   async rejectPayrollDocumentImport(id: string): Promise<Workspace> {
@@ -716,8 +827,8 @@ export const desktopApi = {
   async getJournal(filter: PeriodFilter): Promise<JournalReport> { const raw = await invoke<RawRecord>('get_journal', { filter: periodFilterToRaw(filter) }); return { entries: rawArray(raw.entries).map(journalEntryFromRaw), lines: rawArray(raw.lines).map(journalLineFromRaw) }; },
   async getLedger(accountId: string, filter: PeriodFilter): Promise<LedgerReport> { const raw = await invoke<RawRecord>('get_ledger', { input: { account_id: accountId, ...periodFilterToRaw(filter) } }); return { account: accountFromRaw(raw.account as RawRecord), lines: rawArray(raw.lines).map(journalLineFromRaw), debitCents: numberValue(raw.debit_cents), creditCents: numberValue(raw.credit_cents), netDebitCents: numberValue(raw.net_debit_cents) }; },
   async getTrialBalance(filter: PeriodFilter): Promise<TrialBalanceReport> { const raw = await invoke<RawRecord>('get_trial_balance', { filter: periodFilterToRaw(filter) }); const rows: TrialBalanceRow[] = rawArray(raw.rows).map((row) => ({ ...accountFromRaw(row), debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents), debitBalanceCents: numberValue(row.debit_balance_cents), creditBalanceCents: numberValue(row.credit_balance_cents) })); return { rows, debitCents: numberValue(raw.debit_cents), creditCents: numberValue(raw.credit_cents), balanced: boolValue(raw.balanced) }; },
-  async getBalanceSheet(asOf?: string): Promise<BalanceSheetReport> { const raw = await invoke<RawRecord>('get_balance_sheet', { asOf: asOf || null }); return { asOf: stringValue(raw.as_of), rows: rawArray(raw.rows).map(statementRowFromRaw), sections: numberRecord(raw.sections), assetsCents: numberValue(raw.assets_cents), liabilitiesCents: numberValue(raw.liabilities_cents), equityCents: numberValue(raw.equity_cents), currentResultCents: numberValue(raw.current_result_cents), balanced: boolValue(raw.balanced) }; },
-  async getIncomeStatement(filter: PeriodFilter): Promise<IncomeStatementReport> { const raw = await invoke<RawRecord>('get_income_statement', { filter: periodFilterToRaw(filter) }); return { rows: rawArray(raw.rows).map(statementRowFromRaw), sections: numberRecord(raw.sections), revenueCents: numberValue(raw.revenue_cents), expenseCents: numberValue(raw.expense_cents), profitCents: numberValue(raw.profit_cents) }; },
+  async getBalanceSheet(filter: PeriodFilter): Promise<BalanceSheetReport> { const raw = await invoke<RawRecord>('get_balance_sheet', { filter: periodFilterToRaw(filter) }); return { asOf: stringValue(raw.as_of), exerciseFrom: stringValue(raw.exercise_from), scope: statementScopeFromRaw(raw.scope), currency: reportCurrencyFromRaw(raw.currency), rows: rawArray(raw.rows).map(statementRowFromRaw), sections: numberRecord(raw.sections), previousSections: numberRecord(raw.previous_sections), assetsCents: numberValue(raw.assets_cents), liabilitiesCents: numberValue(raw.liabilities_cents), equityCents: numberValue(raw.equity_cents), currentResultCents: numberValue(raw.current_result_cents), unallocatedPriorResultsCents: numberValue(raw.unallocated_prior_results_cents), balanced: boolValue(raw.balanced), previousAssetsCents: numberValue(raw.previous_assets_cents), previousLiabilitiesCents: numberValue(raw.previous_liabilities_cents), previousEquityCents: numberValue(raw.previous_equity_cents), previousCurrentResultCents: numberValue(raw.previous_current_result_cents), previousUnallocatedPriorResultsCents: numberValue(raw.previous_unallocated_prior_results_cents), previousBalanced: boolValue(raw.previous_balanced) }; },
+  async getIncomeStatement(filter: PeriodFilter): Promise<IncomeStatementReport> { const raw = await invoke<RawRecord>('get_income_statement', { filter: periodFilterToRaw(filter) }); return { scope: statementScopeFromRaw(raw.scope), currency: reportCurrencyFromRaw(raw.currency), rows: rawArray(raw.rows).map(statementRowFromRaw), sections: numberRecord(raw.sections), previousSections: numberRecord(raw.previous_sections), revenueCents: numberValue(raw.revenue_cents), expenseCents: numberValue(raw.expense_cents), profitCents: numberValue(raw.profit_cents), previousRevenueCents: numberValue(raw.previous_revenue_cents), previousExpenseCents: numberValue(raw.previous_expense_cents), previousProfitCents: numberValue(raw.previous_profit_cents) }; },
   async getReminderSettings(): Promise<ReminderSettings> { const row = await invoke<RawRecord | null>('get_reminder_settings'); return { enabled: boolValue(row?.enabled), senderName: stringValue(row?.sender_name) }; },
   async updateReminderSettings(settings: ReminderSettings) { await invoke('update_reminder_settings', { input: { enabled: settings.enabled, sender_name: settings.senderName || null } }); },
   async listReminderTemplates(): Promise<ReminderTemplate[]> { return rawArray(await invoke<unknown>('list_reminder_templates')).map(reminderTemplateFromRaw); },
@@ -732,10 +843,14 @@ export const desktopApi = {
   async getPayrollRegulatoryProfiles(): Promise<PayrollRegulatoryProfile[]> { return rawArray(await invoke<unknown>('get_payroll_regulatory_profiles')).map((row) => ({ id: stringValue(row.id), label: stringValue(row.label), source: stringValue(row.source), effectiveFrom: stringValue(row.effective_from), effectiveTo: stringValue(row.effective_to), definitions: rawArray(row.definitions).map((definition) => { const normalized = contributionFromRaw(definition); return { code: normalized.code, label: normalized.label, category: normalized.category, side: normalized.side, calculationKind: normalized.calculationKind, rateBp: normalized.rateBp, fixedAmountCents: normalized.fixedAmountCents, annualCeilingCents: normalized.annualCeilingCents, basisKind: normalized.basisKind, source: normalized.source, effectiveFrom: normalized.effectiveFrom, effectiveTo: normalized.effectiveTo, active: normalized.active }; }), notIncluded: Array.isArray(row.not_included) ? row.not_included.map(stringValue) as PayrollRegulatoryProfile['notIncluded'] : [] })); },
   async upsertPayrollContributionDefinition(input: Omit<PayrollContributionDefinition, 'id'> & { id?: string }) { await invoke('upsert_payroll_contribution_definition', { input: { id: input.id || null, code: input.code, label: input.label, category: input.category, side: input.side, calculation_kind: input.calculationKind, rate_bp: input.calculationKind === 'rate' ? input.rateBp : null, fixed_amount_cents: input.calculationKind === 'fixed' ? input.fixedAmountCents : null, annual_ceiling_cents: input.annualCeilingCents, basis_kind: input.basisKind, source: input.source, effective_from: input.effectiveFrom, effective_to: input.effectiveTo || null, active: input.active, liability_account_id: input.liabilityAccountId || null, expense_account_id: input.expenseAccountId || null } }); },
   async deletePayrollContributionDefinition(id: string) { await invoke('delete_payroll_contribution_definition', { id }); },
-  async calculatePayrollContributions(input: { period: string; grossCents: number; items: PayrollContributionSelection[] }): Promise<PayrollCalculation> { const raw = await invoke<RawRecord>('calculate_payroll_contributions', { input: { period: input.period, gross_cents: input.grossCents, items: input.items.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents, year_to_date_basis_cents: item.yearToDateBasisCents })) } }); const items = rawArray(raw.items).map((row): CalculatedPayrollContribution => ({ ...contributionFromRaw(row), basisCents: numberValue(row.basis_cents), amountCents: numberValue(row.amount_cents) })); return { period: stringValue(raw.period) || input.period, grossCents: numberValue(raw.gross_cents), employeeDeductionsCents: numberValue(raw.employee_deductions_cents), employerCostsCents: numberValue(raw.employer_costs_cents), items }; },
+  async calculatePayrollContributions(input: { employeeId: string; period: string; grossCents: number; items: PayrollContributionSelection[] }): Promise<PayrollCalculation> { const raw = await invoke<RawRecord>('calculate_employee_payroll_contributions', { input: { employee_id: input.employeeId, period: input.period, gross_cents: input.grossCents, items: input.items.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents, year_to_date_basis_cents: item.yearToDateBasisCents })) } }); const items = rawArray(raw.items).map((row): CalculatedPayrollContribution => ({ ...contributionFromRaw(row), originalBasisCents: numberValue(row.original_basis_cents), basisCents: numberValue(row.basis_cents), amountCents: numberValue(row.amount_cents), statutoryAnnualCeilingCents: row.statutory_annual_ceiling_cents === null || row.statutory_annual_ceiling_cents === undefined ? null : numberValue(row.statutory_annual_ceiling_cents), acProrationDays: row.ac_proration_days_30_360 === null || row.ac_proration_days_30_360 === undefined ? null : numberValue(row.ac_proration_days_30_360), acEmploymentFrom: stringValue(row.ac_employment_from), acEmploymentTo: stringValue(row.ac_employment_to), avsAllowanceAppliedCents: row.avs_allowance_applied_cents === null || row.avs_allowance_applied_cents === undefined ? null : numberValue(row.avs_allowance_applied_cents), avsAllowanceWaived: row.avs_allowance_waived === null || row.avs_allowance_waived === undefined ? null : boolValue(row.avs_allowance_waived) })); return { period: stringValue(raw.period) || input.period, grossCents: numberValue(raw.gross_cents), employeeDeductionsCents: numberValue(raw.employee_deductions_cents), employerCostsCents: numberValue(raw.employer_costs_cents), items }; },
   async applyPayrollContributions(payslipId: string, period: string, items: PayrollContributionSelection[]) { await invoke('apply_payroll_contributions', { input: { payslip_id: payslipId, period, items: items.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents, year_to_date_basis_cents: item.yearToDateBasisCents })) } }); return loadWorkspace(); },
   async getPayslipContributions(payslipId: string): Promise<PayslipContributionSnapshot[]> { return rawArray(await invoke<unknown>('get_payslip_contributions', { payslipId })).map(payslipContributionFromRaw); },
-  async postPayslip(payslipId: string, entryDate?: string) { await invoke('post_payslip', { input: { payslip_id: payslipId, entry_date: entryDate || null } }); return loadWorkspace(); },
+  async postPayslip(payslipId: string, entryDate?: string): Promise<PostPayslipResult> {
+    const posted = await invoke<RawRecord>('post_payslip', { input: { payslip_id: payslipId, entry_date: entryDate || null } });
+    return { workspace: await loadWorkspace(), accountingFallbacks: accountingFallbacksFromPostPayslip(posted) };
+  },
+  async payPayslip(payslipId: string, paymentDate: string, reference?: string) { await invoke('pay_payslip', { input: { payslip_id: payslipId, payment_date: paymentDate || null, reference: reference?.trim() || null } }); return loadWorkspace(); },
   async exportPayslipPdf(payslipId: string, suggestedFileName: string): Promise<{ path: string; pages: number; finalDocument: boolean } | null> {
     const selected = await chooseSaveFile({ title: 'Enregistrer la fiche de salaire PDF', defaultPath: suggestedFileName, filters: [{ name: 'Document PDF', extensions: ['pdf'] }] });
     if (!selected) return null;

@@ -1,9 +1,12 @@
 use std::{
     fs,
+    io::Cursor,
     path::{Path, PathBuf},
 };
 
 use base64::{engine::general_purpose::STANDARD, Engine};
+use chrono::NaiveDate;
+use image::{ImageFormat, ImageReader};
 use regex::Regex;
 use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
@@ -22,6 +25,8 @@ use crate::{
 
 const MAX_IMPORT_FILES: usize = 40;
 const MAX_FILE_BYTES: u64 = 25 * 1024 * 1024;
+const MAX_IMAGE_EDGE: u32 = 8_192;
+const MAX_IMAGE_PIXELS: u64 = 24_000_000;
 const MAX_EXTRACTED_TEXT_CHARS: usize = 80_000;
 const ENGINE_VERSION: &str = "elyko-local-parser-1";
 
@@ -116,6 +121,7 @@ impl LocalStore {
                 })?;
             let bytes = fs::read(&source)?;
             validate_document_signature(&source, &bytes, document_type)?;
+            validate_image_dimensions(&source, &bytes, document_type)?;
             let media_kind = document_type.media_kind();
             let hash = format!("{:x}", Sha256::digest(&bytes));
             if let Some(mut existing) = transaction
@@ -281,6 +287,7 @@ impl LocalStore {
         })?;
         let bytes = fs::read(&canonical_path)?;
         validate_document_signature(&canonical_path, &bytes, document_type)?;
+        validate_image_dimensions(&canonical_path, &bytes, document_type)?;
         Ok(json!({
             "mime_type": document_type.mime_type(),
             "data_base64": STANDARD.encode(bytes),
@@ -374,8 +381,13 @@ impl LocalStore {
         &self,
         input: ConfirmPayrollImportInput,
     ) -> AppResult<Value> {
-        let import_id = input.id.trim();
-        let mut draft = input.draft;
+        let ConfirmPayrollImportInput {
+            id,
+            employee_id,
+            replace_existing_template,
+            mut draft,
+        } = input;
+        let import_id = id.trim();
         normalize_draft(&mut draft, true)?;
         validate_confirmable_draft(&draft)?;
         let mut connection = self.connect()?;
@@ -407,8 +419,7 @@ impl LocalStore {
             _ => {}
         }
 
-        let employee_id = match input
-            .employee_id
+        let employee_id = match employee_id
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
@@ -426,6 +437,18 @@ impl LocalStore {
             }
             None => insert_employee_from_draft(&transaction, &draft.employee, draft.gross_cents)?,
         };
+        if replace_existing_template {
+            let template_exists: bool = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM employee_payroll_templates WHERE employee_id=?)",
+                params![employee_id],
+                |row| row.get(0),
+            )?;
+            if !template_exists {
+                return Err(AppError::Validation(
+                    "Aucun modèle salarial actuel n'existe pour ce collaborateur; il n'y a donc rien à remplacer.".into(),
+                ));
+            }
+        }
 
         let duplicate: bool = transaction.query_row(
             "SELECT EXISTS(SELECT 1 FROM payslips WHERE employee_id=? AND period=?)",
@@ -450,7 +473,7 @@ impl LocalStore {
                 draft.period,
                 totals.0,
                 totals.1,
-                totals.0.saturating_sub(totals.1),
+                totals.0.saturating_add(totals.3).saturating_sub(totals.1),
                 totals.2,
                 optional_text(&draft.payment_date),
                 now,
@@ -494,8 +517,13 @@ impl LocalStore {
             } else {
                 0
             });
+        if replace_existing_template && recurring.is_empty() {
+            return Err(AppError::Validation(
+                "Le modèle salarial actuel ne peut être remplacé que si au moins un gain récurrent a été contrôlé dans la fiche importée.".into(),
+            ));
+        }
         transaction.execute(
-            "INSERT INTO employee_payroll_templates(employee_id,salary_mode,base_salary_cents,recurring_earnings_json,suggested_contribution_codes_json,source_import_id,reviewed_at,created_at,updated_at) VALUES(?,?,?,?, '[]',?,?,?,?) ON CONFLICT(employee_id) DO UPDATE SET salary_mode=excluded.salary_mode,base_salary_cents=excluded.base_salary_cents,recurring_earnings_json=excluded.recurring_earnings_json,source_import_id=excluded.source_import_id,reviewed_at=excluded.reviewed_at,updated_at=excluded.updated_at",
+            employee_template_upsert_sql(replace_existing_template),
             params![
                 employee_id,
                 draft.employee.salary_mode,
@@ -529,6 +557,7 @@ impl LocalStore {
                 "payslip_id":payslip_id,
                 "period":draft.period,
                 "line_count":draft.lines.len(),
+                "replace_existing_template":replace_existing_template,
                 "status":"a_controler"
             }),
         )?;
@@ -594,6 +623,50 @@ fn validate_document_signature(
             expected.label(),
         ))),
     }
+}
+
+/// Lit uniquement les métadonnées du décodeur : une image compressée qui
+/// annonce une surface démesurée est refusée avant tout passage au navigateur,
+/// où son décodage complet pourrait épuiser la mémoire du poste.
+fn validate_image_dimensions(
+    source: &Path,
+    bytes: &[u8],
+    document_type: PayrollDocumentType,
+) -> AppResult<()> {
+    let format = match document_type {
+        PayrollDocumentType::Pdf => return Ok(()),
+        PayrollDocumentType::Png => ImageFormat::Png,
+        PayrollDocumentType::Jpeg => ImageFormat::Jpeg,
+        PayrollDocumentType::Webp => ImageFormat::WebP,
+    };
+    let (width, height) = ImageReader::with_format(Cursor::new(bytes), format)
+        .into_dimensions()
+        .map_err(|_| {
+            AppError::Validation(format!(
+                "{} contient un en-tête d’image invalide ou incomplet.",
+                source
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("Le document")
+            ))
+        })?;
+    let pixels = u64::from(width).saturating_mul(u64::from(height));
+    if width == 0
+        || height == 0
+        || width > MAX_IMAGE_EDGE
+        || height > MAX_IMAGE_EDGE
+        || pixels > MAX_IMAGE_PIXELS
+    {
+        return Err(AppError::Validation(format!(
+            "{} annonce une image de {width} × {height} pixels. La limite locale est de {MAX_IMAGE_EDGE} pixels par côté et {} mégapixels.",
+            source
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("Le document"),
+            MAX_IMAGE_PIXELS / 1_000_000,
+        )));
+    }
+    Ok(())
 }
 
 fn empty_draft() -> PayrollImportDraft {
@@ -685,9 +758,12 @@ fn draft_from_text(text: &str) -> PayrollImportDraft {
     if !draft.lines.iter().any(|line| line.kind == "deduction")
         && draft.gross_cents > 0
         && draft.net_cents > 0
-        && draft.gross_cents >= draft.net_cents
+        && draft.gross_cents.saturating_add(totals.3) >= draft.net_cents
     {
-        let difference = draft.gross_cents - draft.net_cents;
+        let difference = draft
+            .gross_cents
+            .saturating_add(totals.3)
+            .saturating_sub(draft.net_cents);
         if difference > 0 {
             draft.lines.push(PayrollImportLineDraft {
                 label: "Retenues détectées — détail à contrôler".into(),
@@ -750,6 +826,24 @@ fn extract_payroll_lines(text: &str) -> Vec<PayrollImportLineDraft> {
         };
         let lower = label.to_lowercase();
         let kind = if contains_any(
+            &lower,
+            &[
+                "remboursement",
+                "frais rembours",
+                "expense reimbursement",
+                "expenses reimbursed",
+                "non-gross payment",
+                "non gross payment",
+                "spesenvergütung",
+                "spesenvergutung",
+                "spesenrückerstattung",
+                "spesenruckerstattung",
+                "rimborso spese",
+                "rimborsi spese",
+            ],
+        ) {
+            "reimbursement"
+        } else if contains_any(
             &lower,
             &[
                 "employeur",
@@ -886,6 +980,9 @@ fn normalize_draft(draft: &mut PayrollImportDraft, strict: bool) -> AppResult<()
         line.kind = match line.kind.trim() {
             "earning" | "gain" => "earning".into(),
             "deduction" | "retenue" => "deduction".into(),
+            "reimbursement" | "expense_reimbursement" | "non_gross_payment" => {
+                "reimbursement".into()
+            }
             "employer" | "employer_cost" => "employer".into(),
             _ if strict => {
                 return Err(AppError::Validation(format!(
@@ -896,6 +993,9 @@ fn normalize_draft(draft: &mut PayrollImportDraft, strict: bool) -> AppResult<()
             _ => "earning".into(),
         };
         line.amount_cents = line.amount_cents.max(0);
+        if line.kind != "earning" {
+            line.recurring = false;
+        }
         line.confidence_bp = line.confidence_bp.clamp(0, 10_000);
     }
     draft.warnings = draft
@@ -917,6 +1017,23 @@ fn validate_confirmable_draft(draft: &PayrollImportDraft) -> AppResult<()> {
     if normalize_period(&draft.period).is_none() {
         return Err(AppError::Validation(
             "La période doit être au format AAAA-MM.".into(),
+        ));
+    }
+    if !draft.payment_date.is_empty()
+        && NaiveDate::parse_from_str(&draft.payment_date, "%Y-%m-%d").is_err()
+    {
+        return Err(AppError::Validation(
+            "La date de paiement détectée n'est pas une date civile valide.".into(),
+        ));
+    }
+    if !draft.employee.avs_number.is_empty() && !is_valid_avs(&draft.employee.avs_number) {
+        return Err(AppError::Validation(
+            "Le numéro AVS ne passe pas le contrôle EAN-13 suisse. Corrigez-le ou laissez le champ vide.".into(),
+        ));
+    }
+    if !draft.employee.iban.is_empty() && !is_valid_iban(&draft.employee.iban) {
+        return Err(AppError::Validation(
+            "L'IBAN de l'employé ne passe pas le contrôle international MOD-97. Corrigez-le ou laissez le champ vide.".into(),
         ));
     }
     if draft.lines.is_empty()
@@ -942,11 +1059,12 @@ fn validate_confirmable_draft(draft: &PayrollImportDraft) -> AppResult<()> {
             totals.0 as f64 / 100.0
         )));
     }
-    if draft.net_cents > 0 && (draft.net_cents - totals.0.saturating_sub(totals.1)).abs() > 2 {
+    let calculated_net = totals.0.saturating_add(totals.3).saturating_sub(totals.1);
+    if draft.net_cents > 0 && (draft.net_cents - calculated_net).abs() > 2 {
         return Err(AppError::Validation(format!(
-            "Le net confirmé ({:.2} CHF) ne correspond pas au brut moins les retenues ({:.2} CHF). Corrigez les lignes avant l'import.",
+            "Le net confirmé ({:.2} CHF) ne correspond pas au brut moins les retenues plus les remboursements hors brut ({:.2} CHF). Corrigez les lignes avant l'import.",
             draft.net_cents as f64 / 100.0,
-            totals.0.saturating_sub(totals.1) as f64 / 100.0
+            calculated_net as f64 / 100.0
         )));
     }
     Ok(())
@@ -993,14 +1111,23 @@ fn optional_text(value: &str) -> Option<&str> {
     (!clean.is_empty()).then_some(clean)
 }
 
-fn draft_totals(lines: &[PayrollImportLineDraft]) -> (i64, i64, i64) {
+fn employee_template_upsert_sql(replace_existing: bool) -> &'static str {
+    if replace_existing {
+        "INSERT INTO employee_payroll_templates(employee_id,salary_mode,base_salary_cents,recurring_earnings_json,suggested_contribution_codes_json,source_import_id,reviewed_at,created_at,updated_at) VALUES(?,?,?,?, '[]',?,?,?,?) ON CONFLICT(employee_id) DO UPDATE SET salary_mode=excluded.salary_mode,base_salary_cents=excluded.base_salary_cents,recurring_earnings_json=excluded.recurring_earnings_json,source_import_id=excluded.source_import_id,reviewed_at=excluded.reviewed_at,updated_at=excluded.updated_at"
+    } else {
+        "INSERT INTO employee_payroll_templates(employee_id,salary_mode,base_salary_cents,recurring_earnings_json,suggested_contribution_codes_json,source_import_id,reviewed_at,created_at,updated_at) VALUES(?,?,?,?, '[]',?,?,?,?) ON CONFLICT(employee_id) DO NOTHING"
+    }
+}
+
+fn draft_totals(lines: &[PayrollImportLineDraft]) -> (i64, i64, i64, i64) {
     lines
         .iter()
-        .fold((0_i64, 0_i64, 0_i64), |mut totals, line| {
+        .fold((0_i64, 0_i64, 0_i64, 0_i64), |mut totals, line| {
             match line.kind.as_str() {
                 "earning" => totals.0 = totals.0.saturating_add(line.amount_cents),
                 "deduction" => totals.1 = totals.1.saturating_add(line.amount_cents),
                 "employer" => totals.2 = totals.2.saturating_add(line.amount_cents),
+                "reimbursement" => totals.3 = totals.3.saturating_add(line.amount_cents),
                 _ => {}
             }
             totals
@@ -1053,6 +1180,53 @@ fn normalize_avs(value: &str) -> String {
     } else {
         clean_text(value, 32)
     }
+}
+
+fn is_valid_avs(value: &str) -> bool {
+    let digits: Vec<u32> = value
+        .chars()
+        .filter_map(|character| character.to_digit(10))
+        .collect();
+    if digits.len() != 13 || digits[..3] != [7, 5, 6] {
+        return false;
+    }
+    let sum: u32 = digits[..12]
+        .iter()
+        .enumerate()
+        .map(|(index, digit)| digit * if index % 2 == 0 { 1 } else { 3 })
+        .sum();
+    (10 - (sum % 10)) % 10 == digits[12]
+}
+
+fn is_valid_iban(value: &str) -> bool {
+    let compact: String = value
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .map(|character| character.to_ascii_uppercase())
+        .collect();
+    if !(15..=34).contains(&compact.len()) || !compact.is_ascii() {
+        return false;
+    }
+    let bytes = compact.as_bytes();
+    if !bytes[..2].iter().all(u8::is_ascii_alphabetic)
+        || !bytes[2..4].iter().all(u8::is_ascii_digit)
+        || !bytes[4..].iter().all(u8::is_ascii_alphanumeric)
+    {
+        return false;
+    }
+    let rearranged = format!("{}{}", &compact[4..], &compact[..4]);
+    let mut remainder = 0_u32;
+    for character in rearranged.chars() {
+        let encoded = if character.is_ascii_digit() {
+            character.to_string()
+        } else {
+            (character as u32 - 'A' as u32 + 10).to_string()
+        };
+        for digit in encoded.bytes() {
+            remainder = (remainder * 10 + u32::from(digit - b'0')) % 97;
+        }
+    }
+    remainder == 1
 }
 
 fn clean_person_name(value: &str) -> String {
@@ -1120,14 +1294,12 @@ fn normalize_period(value: &str) -> Option<String> {
 }
 
 fn find_labeled_amount(text: &str, labels: &[&str]) -> Option<i64> {
+    let amount_pattern =
+        Regex::new(r"(-?\d{1,3}(?:[ '\u{2019}]\d{3})*(?:[.,]\d{2})|-?\d+(?:[.,]\d{2}))").ok()?;
     for line in text.lines() {
         let lower = line.to_lowercase();
         if labels.iter().any(|label| lower.contains(label)) {
-            let captures =
-                Regex::new(r"(-?\d{1,3}(?:[ '\u{2019}]\d{3})*(?:[.,]\d{2})|-?\d+(?:[.,]\d{2}))")
-                    .ok()?
-                    .captures_iter(line)
-                    .last();
+            let captures = amount_pattern.captures_iter(line).last();
             if let Some(amount) = captures
                 .and_then(|capture| capture.get(1))
                 .and_then(|value| parse_amount_to_cents(value.as_str()))
@@ -1192,6 +1364,34 @@ fn contains_any(value: &str, needles: &[&str]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut crc = u32::MAX;
+        for byte in bytes {
+            crc ^= u32::from(*byte);
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 {
+                    (crc >> 1) ^ 0xedb8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+
+    fn png_with_declared_dimensions(width: u32, height: u32) -> Vec<u8> {
+        let mut cursor = Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(1, 1)
+            .write_to(&mut cursor, ImageFormat::Png)
+            .expect("encode tiny PNG");
+        let mut bytes = cursor.into_inner();
+        bytes[16..20].copy_from_slice(&width.to_be_bytes());
+        bytes[20..24].copy_from_slice(&height.to_be_bytes());
+        let checksum = crc32(&bytes[12..29]);
+        bytes[29..33].copy_from_slice(&checksum.to_be_bytes());
+        bytes
+    }
 
     #[test]
     fn accepts_supported_binary_signatures() {
@@ -1262,6 +1462,84 @@ mod tests {
     }
 
     #[test]
+    fn historical_import_preserves_a_template_unless_replacement_is_explicit() {
+        let connection = rusqlite::Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE employee_payroll_templates(
+                    employee_id TEXT PRIMARY KEY,
+                    salary_mode TEXT NOT NULL,
+                    base_salary_cents INTEGER NOT NULL,
+                    recurring_earnings_json TEXT NOT NULL,
+                    suggested_contribution_codes_json TEXT NOT NULL,
+                    source_import_id TEXT,
+                    reviewed_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );",
+            )
+            .expect("template table");
+        let insert = |replace: bool, base: i64, source: &str| {
+            connection
+                .execute(
+                    employee_template_upsert_sql(replace),
+                    rusqlite::params![
+                        "employee-1",
+                        "monthly",
+                        base,
+                        format!(
+                            r#"[{{"label":"Salaire","kind":"earning","amount_cents":{base}}}]"#
+                        ),
+                        source,
+                        "2026-08-31T12:00:00Z",
+                        "2026-08-31T12:00:00Z",
+                        "2026-08-31T12:00:00Z",
+                    ],
+                )
+                .expect("upsert template");
+        };
+        insert(false, 500_000, "current-template");
+        insert(false, 420_000, "historical-import");
+        let preserved: (i64, String) = connection
+            .query_row(
+                "SELECT base_salary_cents,source_import_id FROM employee_payroll_templates WHERE employee_id='employee-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("preserved template");
+        assert_eq!(preserved, (500_000, "current-template".into()));
+
+        insert(true, 420_000, "explicit-replacement");
+        let replaced: (i64, String) = connection
+            .query_row(
+                "SELECT base_salary_cents,source_import_id FROM employee_payroll_templates WHERE employee_id='employee-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("replaced template");
+        assert_eq!(replaced, (420_000, "explicit-replacement".into()));
+    }
+
+    #[test]
+    fn rejects_a_compressed_image_with_a_dimension_bomb_before_decoding() {
+        let normal = png_with_declared_dimensions(1, 1);
+        assert!(validate_image_dimensions(
+            Path::new("normal.png"),
+            &normal,
+            PayrollDocumentType::Png,
+        )
+        .is_ok());
+
+        // Le fichier reste minuscule, mais son en-tête annonce 30 millions de
+        // pixels. Le contrôle ne doit jamais allouer cette surface.
+        let bomb = png_with_declared_dimensions(6_000, 5_000);
+        let error =
+            validate_image_dimensions(Path::new("bombe.png"), &bomb, PayrollDocumentType::Png)
+                .expect_err("oversized declared dimensions must be rejected");
+        assert!(error.to_string().contains("24 mégapixels"));
+    }
+
+    #[test]
     fn parses_a_french_swiss_payslip_without_inventing_unknown_fields() {
         let draft = draft_from_text(
             "Décompte de salaire\nPériode: août 2026\nCollaborateur: Alex Exemple\nN° AVS 756.1234.5678.90\nSalaire mensuel 5'000.00\nCotisation AVS/AI/APG 265.00\nCotisation AC 55.00\nSalaire brut 5'000.00\nSalaire net 4'680.00",
@@ -1271,7 +1549,7 @@ mod tests {
         assert_eq!(draft.period, "2026-08");
         assert_eq!(draft.gross_cents, 500_000);
         assert_eq!(draft.net_cents, 468_000);
-        assert_eq!(draft_totals(&draft.lines), (500_000, 32_000, 0));
+        assert_eq!(draft_totals(&draft.lines), (500_000, 32_000, 0, 0));
     }
 
     #[test]
@@ -1279,7 +1557,7 @@ mod tests {
         let lines = extract_payroll_lines(
             "Salaire mensuel 6'500.00\nAVS / AI / APG 344.50\nAssurance-chômage 71.50\nPart AVS employeur 344.50\nRetenues employé CHF 416.00\nCharges employeur CHF 344.50\nSalaire net CHF 6'084.00",
         );
-        assert_eq!(draft_totals(&lines), (650_000, 41_600, 34_450));
+        assert_eq!(draft_totals(&lines), (650_000, 41_600, 34_450, 0));
         assert!(!lines
             .iter()
             .any(|line| line.label.to_lowercase().contains("retenues employ")));
@@ -1300,5 +1578,50 @@ mod tests {
             confidence_bp: 8_000,
         });
         assert!(validate_confirmable_draft(&draft).is_err());
+    }
+
+    #[test]
+    fn keeps_expense_reimbursements_out_of_gross_and_adds_them_to_net() {
+        let mut draft = draft_from_text(
+            "Décompte de salaire\nPériode: août 2026\nCollaborateur: Alex Exemple\nSalaire mensuel 5'000.00\nCotisation AVS/AI/APG 500.00\nRemboursement de frais 200.00\nSalaire brut 5'000.00\nSalaire net 4'700.00",
+        );
+        normalize_draft(&mut draft, true).expect("normalize reimbursement draft");
+        assert_eq!(draft_totals(&draft.lines), (500_000, 50_000, 0, 20_000));
+        assert!(draft
+            .lines
+            .iter()
+            .any(|line| line.kind == "reimbursement" && !line.recurring));
+        validate_confirmable_draft(&draft)
+            .expect("gross - deductions + reimbursements must reconcile");
+    }
+
+    #[test]
+    fn validates_avs_and_international_iban_checksums() {
+        assert!(is_valid_avs("756.9217.0769.85"));
+        assert!(!is_valid_avs("756.9217.0769.84"));
+        assert!(is_valid_iban("CH93 0076 2011 6238 5295 7"));
+        assert!(is_valid_iban("DE89 3704 0044 0532 0130 00"));
+        assert!(!is_valid_iban("CH93 0076 2011 6238 5295 6"));
+        assert!(!is_valid_iban("Aé12 3456 7890 1234"));
+        assert!(!is_valid_iban("ＣＨ93 0076 2011 6238 5295 7"));
+    }
+
+    #[test]
+    fn blocks_confirmation_with_invalid_identity_checksums() {
+        let mut draft = empty_draft();
+        draft.employee.name = "Alex Exemple".into();
+        draft.employee.avs_number = "756.9217.0769.84".into();
+        draft.period = "2026-08".into();
+        draft.lines.push(PayrollImportLineDraft {
+            label: "Salaire mensuel".into(),
+            kind: "earning".into(),
+            amount_cents: 500_000,
+            recurring: true,
+            confidence_bp: 9_000,
+        });
+        assert!(validate_confirmable_draft(&draft)
+            .expect_err("invalid AVS must block confirmation")
+            .to_string()
+            .contains("EAN-13"));
     }
 }

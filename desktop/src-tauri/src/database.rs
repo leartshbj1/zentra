@@ -34,8 +34,8 @@ use crate::{
     },
     reminders::cancel_settled_reminders,
     schema::{
-        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, SCHEMA_SQL,
-        SCHEMA_VERSION,
+        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
+        MIGRATION_V7_SQL, MIGRATION_V8_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -93,6 +93,86 @@ struct PreparedOnboarding {
     iban: String,
     settings_rates_to_import: Option<Value>,
     extra_settings_json: String,
+}
+
+fn migrate_v6(transaction: &Transaction<'_>) -> AppResult<()> {
+    for (table, column, definition) in [
+        (
+            "payslip_contributions",
+            "liability_account_id",
+            "liability_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+        (
+            "payslip_contributions",
+            "expense_account_id",
+            "expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+        ("payslips", "payment_reference", "payment_reference TEXT"),
+        (
+            "payslips",
+            "payment_journal_entry_id",
+            "payment_journal_entry_id TEXT REFERENCES journal_entries(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+    ] {
+        let mut statement = transaction.prepare(&format!("PRAGMA table_info({table})"))?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        if !columns.contains(column) {
+            transaction.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {definition};"))?;
+        }
+    }
+    transaction.execute_batch(MIGRATION_V6_SQL)?;
+    Ok(())
+}
+
+fn migrate_v7(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(employees)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    for (column, definition) in [
+        ("reference_age_date", "reference_age_date TEXT"),
+        (
+            "avs_allowance_waived",
+            "avs_allowance_waived INTEGER CHECK (avs_allowance_waived IS NULL OR avs_allowance_waived IN (0, 1))",
+        ),
+    ] {
+        if !columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE employees ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+    transaction.execute_batch(MIGRATION_V7_SQL)?;
+    Ok(())
+}
+
+fn migrate_v8(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(payslip_items)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    for (column, definition) in [
+        (
+            "posting_account_id",
+            "posting_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+        (
+            "expense_account_id",
+            "expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+    ] {
+        if !columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE payslip_items ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+    transaction.execute_batch(MIGRATION_V8_SQL)?;
+    Ok(())
 }
 
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
@@ -432,17 +512,41 @@ impl LocalStore {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
+                migrate_v6(&transaction)?;
+                migrate_v7(&transaction)?;
+                migrate_v8(&transaction)?;
             }
             2 => {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
+                migrate_v6(&transaction)?;
+                migrate_v7(&transaction)?;
+                migrate_v8(&transaction)?;
             }
             3 => {
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
+                migrate_v6(&transaction)?;
+                migrate_v7(&transaction)?;
+                migrate_v8(&transaction)?;
             }
-            4 => transaction.execute_batch(MIGRATION_V5_SQL)?,
+            4 => {
+                transaction.execute_batch(MIGRATION_V5_SQL)?;
+                migrate_v6(&transaction)?;
+                migrate_v7(&transaction)?;
+                migrate_v8(&transaction)?;
+            }
+            5 => {
+                migrate_v6(&transaction)?;
+                migrate_v7(&transaction)?;
+                migrate_v8(&transaction)?;
+            }
+            6 => {
+                migrate_v7(&transaction)?;
+                migrate_v8(&transaction)?;
+            }
+            7 => migrate_v8(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1686,9 +1790,51 @@ impl LocalStore {
             ));
         }
         let date = normalized_date(input.date.as_deref().unwrap_or(&today()), "date")?;
+        let method = clean_optional(input.method, 80);
+        let reference = clean_optional(input.reference, 160);
+        let notes = clean_optional(input.notes, 5000);
+        let requested_id = input
+            .request_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| {
+                Uuid::parse_str(value)
+                    .map(|parsed| parsed.to_string())
+                    .map_err(|_| {
+                        AppError::Validation(
+                        "request_id doit être un UUID valide pour sécuriser la reprise du paiement."
+                            .into(),
+                    )
+                    })
+            })
+            .transpose()?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some(request_id) = requested_id.as_deref() {
+            if let Some(existing) = query_optional_tx(
+                &transaction,
+                "SELECT * FROM payments WHERE id=?",
+                params![request_id],
+            )? {
+                let same_request = existing["invoice_id"].as_str()
+                    == Some(input.invoice_id.as_str())
+                    && existing["date"].as_str() == Some(date.as_str())
+                    && existing["amount_cents"].as_i64() == Some(input.amount_cents)
+                    && existing["method"].as_str() == method.as_deref()
+                    && existing["reference"].as_str() == reference.as_deref()
+                    && existing["notes"].as_str() == notes.as_deref();
+                if same_request {
+                    transaction.commit()?;
+                    return Ok(existing);
+                }
+                return Err(AppError::Validation(
+                    "Cet identifiant de reprise correspond déjà à un autre paiement. Rechargez la facture avant de réessayer."
+                        .into(),
+                ));
+            }
+        }
         let (total_cents, paid_cents, credited_cents, invoice_type, number): (
             i64,
             i64,
@@ -1727,7 +1873,7 @@ impl LocalStore {
                 "Le paiement dépasse le solde restant de la facture.".into(),
             ));
         }
-        let id = Uuid::new_v4().to_string();
+        let id = requested_id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let now = now_iso();
         transaction.execute(
             "INSERT INTO payments (id,invoice_id,date,amount_cents,method,reference,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -1736,9 +1882,9 @@ impl LocalStore {
                 input.invoice_id,
                 date,
                 input.amount_cents,
-                clean_optional(input.method, 80),
-                clean_optional(input.reference, 160),
-                clean_optional(input.notes, 5000),
+                method,
+                reference,
+                notes,
                 now,
                 now,
             ],
@@ -2174,6 +2320,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "iban",
                 "employment_start_date",
                 "employment_end_date",
+                "reference_age_date",
+                "avs_allowance_waived",
                 "employment_rate",
                 "hourly_rate_cents",
                 "monthly_salary_cents",
@@ -2234,7 +2382,15 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
         },
         "payslip_items" => EntitySpec {
             table: "payslip_items",
-            fields: &["payslip_id", "position", "label", "kind", "amount_cents"],
+            fields: &[
+                "payslip_id",
+                "position",
+                "label",
+                "kind",
+                "amount_cents",
+                "posting_account_id",
+                "expense_account_id",
+            ],
             required: &["payslip_id", "label", "kind", "amount_cents"],
         },
         "payments" => EntitySpec {
@@ -2401,6 +2557,52 @@ fn normalize_record(
                 object.insert("total_cents".into(), json!(net.saturating_add(vat)));
             }
         }
+        "employees" => {
+            let parsed_date = |field: &str| -> AppResult<Option<NaiveDate>> {
+                let Some(value) = object
+                    .get(field)
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                else {
+                    return Ok(None);
+                };
+                NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                    .map(Some)
+                    .map_err(|_| {
+                        AppError::Validation(format!(
+                            "{field} doit être une date valide au format AAAA-MM-JJ."
+                        ))
+                    })
+            };
+            let birth = parsed_date("birth_date")?;
+            let start = parsed_date("employment_start_date")?;
+            let end = parsed_date("employment_end_date")?;
+            let reference_age = parsed_date("reference_age_date")?;
+            if start.zip(end).is_some_and(|(from, to)| to < from) {
+                return Err(AppError::Validation(
+                    "La fin du contrat précède son début.".into(),
+                ));
+            }
+            if birth
+                .zip(reference_age)
+                .is_some_and(|(birth, reference)| reference <= birth)
+            {
+                return Err(AppError::Validation(
+                    "La date confirmée de l'âge de référence doit être postérieure à la naissance."
+                        .into(),
+                ));
+            }
+            if object.get("avs_allowance_waived").is_some_and(|value| {
+                !value.is_null()
+                    && value.as_bool().is_none()
+                    && !value.as_i64().is_some_and(|flag| matches!(flag, 0 | 1))
+            }) {
+                return Err(AppError::Validation(
+                    "avs_allowance_waived doit être oui, non ou non confirmé.".into(),
+                ));
+            }
+        }
         "payslips" if !object.contains_key("net_cents") => {
             let gross = object
                 .get("gross_cents")
@@ -2418,10 +2620,13 @@ fn normalize_record(
                 let normalized = match kind.as_str().unwrap_or_default() {
                     "earning" | "gain" => "earning",
                     "deduction" => "deduction",
+                    "reimbursement" | "expense_reimbursement" | "non_gross_payment" => {
+                        "reimbursement"
+                    }
                     "employer" => "employer",
                     _ => {
                         return Err(AppError::Validation(
-                            "kind doit être earning, deduction ou employer.".into(),
+                            "kind doit être earning, deduction, reimbursement ou employer.".into(),
                         ))
                     }
                 };
@@ -2847,14 +3052,14 @@ fn recompute_invoice(transaction: &Transaction<'_>, invoice_id: &str) -> AppResu
 }
 
 fn recompute_payslip(transaction: &Transaction<'_>, payslip_id: &str) -> AppResult<()> {
-    let (gross, deductions, employer): (i64, i64, i64) = transaction.query_row(
-        "SELECT COALESCE(SUM(CASE WHEN kind IN ('earning','gain') THEN amount_cents ELSE 0 END),0), COALESCE(SUM(CASE WHEN kind='deduction' THEN ABS(amount_cents) ELSE 0 END),0), COALESCE(SUM(CASE WHEN kind='employer' THEN amount_cents ELSE 0 END),0) FROM payslip_items WHERE payslip_id = ?",
+    let (gross, deductions, employer, reimbursements): (i64, i64, i64, i64) = transaction.query_row(
+        "SELECT COALESCE(SUM(CASE WHEN kind IN ('earning','gain') THEN amount_cents ELSE 0 END),0), COALESCE(SUM(CASE WHEN kind='deduction' THEN ABS(amount_cents) ELSE 0 END),0), COALESCE(SUM(CASE WHEN kind='employer' THEN amount_cents ELSE 0 END),0), COALESCE(SUM(CASE WHEN kind='reimbursement' THEN amount_cents ELSE 0 END),0) FROM payslip_items WHERE payslip_id = ?",
         params![payslip_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
     )?;
     transaction.execute(
         "UPDATE payslips SET gross_cents=?,deductions_cents=?,net_cents=?,employer_costs_cents=?,updated_at=? WHERE id=?",
-        params![gross, deductions, gross.saturating_sub(deductions), employer, now_iso(), payslip_id],
+        params![gross, deductions, gross.saturating_add(reimbursements).saturating_sub(deductions), employer, now_iso(), payslip_id],
     )?;
     Ok(())
 }

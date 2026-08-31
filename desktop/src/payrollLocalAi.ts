@@ -23,13 +23,22 @@ class PayrollLocalAi {
 
   private ensureWorker() {
     if (this.worker) return this.worker;
-    this.worker = new Worker(new URL('./payrollAi.worker.ts', import.meta.url), { type: 'module' });
-    this.worker.addEventListener('message', (event: MessageEvent<WorkerPayload>) => this.handleMessage(event.data));
-    this.worker.addEventListener('error', (event) => {
-      const error = new Error(event.message || "Le moteur IA local s'est arrêté de façon inattendue.");
+    const worker = new Worker(new URL('./payrollAi.worker.ts', import.meta.url), { type: 'module' });
+    this.worker = worker;
+    worker.addEventListener('message', (event: MessageEvent<WorkerPayload>) => this.handleMessage(event.data));
+    const failWorker = (error: Error) => {
+      if (this.worker === worker) this.worker = null;
+      worker.terminate();
       this.rejectAll(error);
+    };
+    worker.addEventListener('error', (event) => {
+      const error = new Error(event.message || "Le moteur IA local s'est arrêté de façon inattendue.");
+      failWorker(error);
     });
-    return this.worker;
+    worker.addEventListener('messageerror', () => {
+      failWorker(new Error("Le moteur IA local a renvoyé un message illisible et a été redémarré."));
+    });
+    return worker;
   }
 
   private handleMessage(message: WorkerPayload) {
@@ -99,11 +108,11 @@ class PayrollLocalAi {
     });
   }
 
-  analyze(input: { imageUrl?: string; extractedText?: string }): Promise<PayrollAiAnalysis> {
+  analyze(input: { imageUrls?: string[]; extractedText?: string }): Promise<PayrollAiAnalysis> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
       this.analyses.set(requestId, { resolve, reject });
-      this.ensureWorker().postMessage({ type: 'analyze', requestId, imageUrl: input.imageUrl, extractedText: input.extractedText });
+      this.ensureWorker().postMessage({ type: 'analyze', requestId, imageUrls: input.imageUrls?.slice(0, 3), extractedText: input.extractedText });
     });
   }
 }

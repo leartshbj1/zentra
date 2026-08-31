@@ -8,14 +8,15 @@ use crate::{
     error::command_error,
     models::{
         AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
-        ApplyPayrollInput, CalculatePayrollInput, CompleteOnboardingResult,
-        ConfirmPayrollImportInput, ContributionDefinitionInput, ConvertQuoteInput, DeleteResult,
-        GeneratePayslipPdfInput, LedgerInput, ManualJournalInput, MarkReminderInput,
-        OnboardingInput, OnboardingValidation, PeriodFilter, PostPayslipInput, RecordPaymentInput,
-        ReminderActionInput, ReminderFilter, ReminderSettingsInput, ReminderTemplateInput,
-        SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SavePayslipWithContributionsInput,
-        StagePayrollDocumentsInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation,
-        TimerInput, UpdatePayrollImportDraftInput,
+        ApplyPayrollInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+        CompleteOnboardingResult, ConfirmPayrollImportInput, ContributionDefinitionInput,
+        ConvertQuoteInput, DeleteResult, GeneratePayslipPdfInput, LedgerInput, ManualJournalInput,
+        MarkReminderInput, OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter,
+        PostPayslipInput, RecordPaymentInput, ReminderActionInput, ReminderFilter,
+        ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
+        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, StagePayrollDocumentsInput,
+        SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
+        UpdatePayrollImportDraftInput,
     },
     swiss_qr,
 };
@@ -126,6 +127,18 @@ pub fn update_settings(state: State<'_, LocalStore>, data: Value) -> Result<Valu
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.update_settings(data).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn stage_company_logo(
+    state: State<'_, LocalStore>,
+    source_path: String,
+) -> Result<String, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .stage_company_logo(&source_path)
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -294,10 +307,10 @@ pub fn get_trial_balance(
 #[tauri::command]
 pub fn get_balance_sheet(
     state: State<'_, LocalStore>,
-    as_of: Option<String>,
+    filter: PeriodFilter,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
-    state.get_balance_sheet(as_of).map_err(command_error)
+    state.get_balance_sheet(filter).map_err(command_error)
 }
 #[tauri::command]
 pub fn get_income_statement(
@@ -448,6 +461,16 @@ pub fn calculate_payroll_contributions(
         .map_err(command_error)
 }
 #[tauri::command]
+pub fn calculate_employee_payroll_contributions(
+    state: State<'_, LocalStore>,
+    input: CalculateEmployeePayrollInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .calculate_employee_payroll_contributions(input)
+        .map_err(command_error)
+}
+#[tauri::command]
 pub fn apply_payroll_contributions(
     state: State<'_, LocalStore>,
     input: ApplyPayrollInput,
@@ -477,6 +500,13 @@ pub fn post_payslip(
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.post_payslip(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn pay_payslip(state: State<'_, LocalStore>, input: PayPayslipInput) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.pay_payslip(input).map_err(command_error)
 }
 
 #[tauri::command]

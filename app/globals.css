@@ -143,6 +143,51 @@ summary::-webkit-details-marker {
   min-height: 340px;
 }
 
+.status-pill {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-align: center;
+  white-space: normal;
+}
+
+.status-pill--green {
+  border-color: #cbded0;
+  background: #e8f2e9;
+  color: #315e47;
+}
+
+.status-pill--gold {
+  border-color: #eed4aa;
+  background: #fff2dd;
+  color: #7a501b;
+}
+
+.status-pill--slate {
+  border-color: #d6dbd7;
+  background: #f1f3f1;
+  color: #4f5f56;
+}
+
+@media (min-width: 1024px) {
+  .story-step:not(:last-child)::after {
+    position: absolute;
+    z-index: 2;
+    top: 2.1rem;
+    right: -0.62rem;
+    width: 1.05rem;
+    height: 1px;
+    background: rgb(239 177 87 / 55%);
+    content: '';
+  }
+}
+
 .installer-progress {
   background-size: 200% 100%;
 }
@@ -242,6 +287,29 @@ summary::-webkit-details-marker {
 
   .sector-details[open] > div {
     animation: details-arrive 300ms ease-out both;
+  }
+
+  .story-step,
+  .guardrail-card {
+    animation: card-arrive 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .story-step:nth-child(2),
+  .guardrail-card:nth-child(2) {
+    animation-delay: 70ms;
+  }
+
+  .story-step:nth-child(3),
+  .guardrail-card:nth-child(3) {
+    animation-delay: 140ms;
+  }
+
+  .story-step:nth-child(4) {
+    animation-delay: 210ms;
+  }
+
+  .story-step:nth-child(5) {
+    animation-delay: 280ms;
   }
 
   @keyframes hero-float {

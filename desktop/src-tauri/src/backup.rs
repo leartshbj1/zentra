@@ -21,6 +21,22 @@ const BACKUP_FORMAT: &str = "helvichantier-backup";
 const BACKUP_FORMAT_VERSION: u32 = 1;
 const DATABASE_ENTRY: &str = "database.sqlite3";
 const ATTACHMENTS_PREFIX: &str = "attachments/";
+const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
+const MAX_DATABASE_BYTES: u64 = 10 * 1024 * 1024 * 1024;
+const MAX_ATTACHMENTS_BYTES: u64 = 50 * 1024 * 1024 * 1024;
+
+#[derive(Clone, Copy)]
+struct ArchiveExtractionLimits {
+    manifest_bytes: u64,
+    database_bytes: u64,
+    attachments_bytes: u64,
+}
+
+const ARCHIVE_EXTRACTION_LIMITS: ArchiveExtractionLimits = ArchiveExtractionLimits {
+    manifest_bytes: MAX_MANIFEST_BYTES,
+    database_bytes: MAX_DATABASE_BYTES,
+    attachments_bytes: MAX_ATTACHMENTS_BYTES,
+};
 
 struct PreservedLicense {
     token: String,
@@ -33,6 +49,81 @@ struct PreservedLicense {
     valid_until: String,
     verified_at: String,
     last_seen_date: String,
+}
+
+struct RestoredDataSwap {
+    database_path: PathBuf,
+    attachments_dir: PathBuf,
+    staged_database: PathBuf,
+    staged_attachments: PathBuf,
+    old_database: PathBuf,
+    old_attachments: PathBuf,
+    old_database_staged: bool,
+    old_attachments_staged: bool,
+    new_database_installed: bool,
+    new_attachments_installed: bool,
+}
+
+impl RestoredDataSwap {
+    fn rollback(self) -> AppResult<()> {
+        let mut failures = Vec::new();
+
+        if self.new_database_installed {
+            if let Err(error) = remove_sqlite_sidecars(&self.database_path) {
+                failures.push(format!("fichiers temporaires SQLite : {error}"));
+            }
+            if self.database_path.exists() {
+                if let Err(error) = fs::remove_file(&self.database_path) {
+                    failures.push(format!("base restaurée : {error}"));
+                }
+            }
+        }
+        if self.new_attachments_installed && self.attachments_dir.exists() {
+            if let Err(error) = fs::remove_dir_all(&self.attachments_dir) {
+                failures.push(format!("pièces jointes restaurées : {error}"));
+            }
+        }
+        if self.old_database_staged && self.old_database.exists() {
+            if let Err(error) = fs::rename(&self.old_database, &self.database_path) {
+                failures.push(format!("ancienne base : {error}"));
+            }
+        }
+        if self.old_attachments_staged && self.old_attachments.exists() {
+            if let Err(error) = fs::rename(&self.old_attachments, &self.attachments_dir) {
+                failures.push(format!("anciennes pièces jointes : {error}"));
+            }
+        }
+        if self.staged_database.exists() {
+            let _ = fs::remove_file(&self.staged_database);
+        }
+        if self.staged_attachments.exists() {
+            let _ = fs::remove_dir_all(&self.staged_attachments);
+        }
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(AppError::Validation(format!(
+                "Le retour aux données précédentes est incomplet ({})",
+                failures.join("; ")
+            )))
+        }
+    }
+
+    fn commit(self) {
+        if self.old_database.exists() {
+            let _ = fs::remove_file(self.old_database);
+        }
+        if self.old_attachments.exists() {
+            let _ = fs::remove_dir_all(self.old_attachments);
+        }
+        if self.staged_database.exists() {
+            let _ = fs::remove_file(self.staged_database);
+        }
+        if self.staged_attachments.exists() {
+            let _ = fs::remove_dir_all(self.staged_attachments);
+        }
+    }
 }
 
 impl LocalStore {
@@ -65,6 +156,15 @@ impl LocalStore {
     }
 
     pub fn restore_backup(&self, source: &str, app_version: &str) -> AppResult<()> {
+        self.restore_backup_with_limits(source, app_version, ARCHIVE_EXTRACTION_LIMITS)
+    }
+
+    fn restore_backup_with_limits(
+        &self,
+        source: &str,
+        app_version: &str,
+        limits: ArchiveExtractionLimits,
+    ) -> AppResult<()> {
         let source = PathBuf::from(source);
         if !source.is_file() {
             return Err(AppError::Validation(
@@ -90,19 +190,33 @@ impl LocalStore {
         let extracted_database = extraction.path().join(DATABASE_ENTRY);
         let extracted_attachments = extraction.path().join("attachments");
         fs::create_dir_all(&extracted_attachments)?;
-        self.extract_and_validate_archive(&source, &extracted_database, &extracted_attachments)?;
+        self.extract_and_validate_archive_with_limits(
+            &source,
+            &extracted_database,
+            &extracted_attachments,
+            limits,
+        )?;
         validate_database(&extracted_database)?;
 
-        if self.database_path.is_file() {
+        let safety_path = if self.database_path.is_file() {
             let safety_path = unique_default_path(&self.backups_dir, "avant-restauration", "elyko");
             self.create_backup_at(&safety_path, app_version)?;
-        }
+            Some(safety_path)
+        } else {
+            None
+        };
 
-        self.install_restored_data(&extracted_database, &extracted_attachments)?;
-        self.migrate()?;
-        self.restore_local_license(preserved_license.as_ref())?;
-        validate_database(&self.database_path)?;
-        Ok(())
+        self.install_restored_data_and_then(
+            &extracted_database,
+            &extracted_attachments,
+            safety_path.as_deref(),
+            || {
+                self.migrate()?;
+                self.restore_local_license(preserved_license.as_ref())?;
+                validate_database(&self.database_path)?;
+                Ok(())
+            },
+        )
     }
 
     fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
@@ -234,11 +348,12 @@ impl LocalStore {
         Ok(())
     }
 
-    fn extract_and_validate_archive(
+    fn extract_and_validate_archive_with_limits(
         &self,
         source: &Path,
         database_destination: &Path,
         attachments_destination: &Path,
+        limits: ArchiveExtractionLimits,
     ) -> AppResult<()> {
         let file = File::open(source)?;
         let mut archive = ZipArchive::new(file)?;
@@ -246,13 +361,11 @@ impl LocalStore {
             let mut entry = archive.by_name("manifest.json").map_err(|_| {
                 AppError::Validation("Le manifeste de sauvegarde est absent.".into())
             })?;
-            if entry.size() > 64 * 1024 {
-                return Err(AppError::Validation(
-                    "Le manifeste de sauvegarde est anormalement volumineux.".into(),
-                ));
-            }
-            let mut contents = String::new();
-            entry.read_to_string(&mut contents)?;
+            let contents = read_utf8_limited(
+                &mut entry,
+                limits.manifest_bytes,
+                "Le manifeste de sauvegarde",
+            )?;
             serde_json::from_str(&contents)?
         };
         if manifest.format != BACKUP_FORMAT
@@ -269,14 +382,12 @@ impl LocalStore {
             let mut database_entry = archive.by_name(DATABASE_ENTRY).map_err(|_| {
                 AppError::Validation("La base SQLite est absente de la sauvegarde.".into())
             })?;
-            if database_entry.size() > 10 * 1024 * 1024 * 1024 {
-                return Err(AppError::Validation(
-                    "La base de données de la sauvegarde est trop volumineuse.".into(),
-                ));
-            }
-            let mut output = create_new_file(database_destination)?;
-            io::copy(&mut database_entry, &mut output)?;
-            output.sync_all()?;
+            copy_reader_to_new_file_limited(
+                &mut database_entry,
+                database_destination,
+                limits.database_bytes,
+                "La base de données de la sauvegarde",
+            )?;
         }
 
         let mut total_attachment_bytes: u64 = 0;
@@ -286,31 +397,74 @@ impl LocalStore {
             if !name.starts_with(ATTACHMENTS_PREFIX) || entry.is_dir() {
                 continue;
             }
-            total_attachment_bytes = total_attachment_bytes.saturating_add(entry.size());
-            if total_attachment_bytes > 50 * 1024 * 1024 * 1024 {
-                return Err(AppError::Validation(
-                    "Les pièces jointes de la sauvegarde dépassent la limite autorisée.".into(),
-                ));
-            }
             let relative_name = name.trim_start_matches(ATTACHMENTS_PREFIX);
             let relative = Path::new(relative_name);
             ensure_safe_relative(relative)?;
             let destination = attachments_destination.join(relative);
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            let mut output = create_new_file(&destination)?;
-            io::copy(&mut entry, &mut output)?;
-            output.sync_all()?;
+            let remaining = limits
+                .attachments_bytes
+                .checked_sub(total_attachment_bytes)
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "Les pièces jointes de la sauvegarde dépassent la limite autorisée.".into(),
+                    )
+                })?;
+            let extracted = copy_reader_to_new_file_limited(
+                &mut entry,
+                &destination,
+                remaining,
+                "Les pièces jointes de la sauvegarde",
+            )?;
+            total_attachment_bytes =
+                total_attachment_bytes
+                    .checked_add(extracted)
+                    .ok_or_else(|| {
+                        AppError::Validation(
+                            "La taille extraite des pièces jointes est invalide.".into(),
+                        )
+                    })?;
         }
         Ok(())
+    }
+
+    fn install_restored_data_and_then<F>(
+        &self,
+        restored_database: &Path,
+        restored_attachments: &Path,
+        safety_path: Option<&Path>,
+        finalize: F,
+    ) -> AppResult<()>
+    where
+        F: FnOnce() -> AppResult<()>,
+    {
+        let swap = self.install_restored_data(restored_database, restored_attachments)?;
+        match finalize() {
+            Ok(()) => {
+                swap.commit();
+                Ok(())
+            }
+            Err(error) => match swap.rollback() {
+                Ok(()) => Err(AppError::Validation(format!(
+                    "La restauration a été annulée et les données précédentes ont été rétablies. Cause : {error}{}",
+                    safety_path
+                        .map(|path| format!(" Une sauvegarde de sécurité reste disponible dans {}.", path.display()))
+                        .unwrap_or_default()
+                ))),
+                Err(rollback_error) => Err(AppError::Validation(format!(
+                    "La restauration a échoué ({error}) et le retour automatique est incomplet ({rollback_error}).{}",
+                    safety_path
+                        .map(|path| format!(" Récupérez la sauvegarde de sécurité : {}.", path.display()))
+                        .unwrap_or_default()
+                ))),
+            },
+        }
     }
 
     fn install_restored_data(
         &self,
         restored_database: &Path,
         restored_attachments: &Path,
-    ) -> AppResult<()> {
+    ) -> AppResult<RestoredDataSwap> {
         let token = Uuid::new_v4();
         let staged_database = self.data_dir.join(format!(".restore-{token}.sqlite3"));
         let old_database = self
@@ -321,43 +475,52 @@ impl LocalStore {
             .data_dir
             .join(format!(".before-restore-attachments-{token}"));
 
-        fs::copy(restored_database, &staged_database)?;
-        copy_directory(restored_attachments, &staged_attachments)?;
-        remove_sqlite_sidecars(&self.database_path)?;
-
-        let had_database = self.database_path.exists();
-        if had_database {
-            fs::rename(&self.database_path, &old_database)?;
+        let mut swap = RestoredDataSwap {
+            database_path: self.database_path.clone(),
+            attachments_dir: self.attachments_dir.clone(),
+            staged_database,
+            staged_attachments,
+            old_database,
+            old_attachments,
+            old_database_staged: false,
+            old_attachments_staged: false,
+            new_database_installed: false,
+            new_attachments_installed: false,
+        };
+        let staging_result = (|| -> AppResult<()> {
+            fs::copy(restored_database, &swap.staged_database)?;
+            copy_directory(restored_attachments, &swap.staged_attachments)?;
+            Ok(())
+        })();
+        if let Err(error) = staging_result {
+            let _ = swap.rollback();
+            return Err(error);
         }
-        let had_attachments = self.attachments_dir.exists();
-        if had_attachments {
-            fs::rename(&self.attachments_dir, &old_attachments)?;
-        }
-
         let install_result = (|| -> AppResult<()> {
-            fs::rename(&staged_database, &self.database_path)?;
-            fs::rename(&staged_attachments, &self.attachments_dir)?;
+            remove_sqlite_sidecars(&self.database_path)?;
+            if self.database_path.exists() {
+                fs::rename(&self.database_path, &swap.old_database)?;
+                swap.old_database_staged = true;
+            }
+            if self.attachments_dir.exists() {
+                fs::rename(&self.attachments_dir, &swap.old_attachments)?;
+                swap.old_attachments_staged = true;
+            }
+            fs::rename(&swap.staged_database, &self.database_path)?;
+            swap.new_database_installed = true;
+            fs::rename(&swap.staged_attachments, &self.attachments_dir)?;
+            swap.new_attachments_installed = true;
             Ok(())
         })();
         if let Err(error) = install_result {
-            let _ = fs::remove_file(&self.database_path);
-            let _ = fs::remove_dir_all(&self.attachments_dir);
-            if had_database && old_database.exists() {
-                let _ = fs::rename(&old_database, &self.database_path);
-            }
-            if had_attachments && old_attachments.exists() {
-                let _ = fs::rename(&old_attachments, &self.attachments_dir);
-            }
-            return Err(error);
+            return match swap.rollback() {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(AppError::Validation(format!(
+                    "L’installation de la sauvegarde a échoué ({error}) et les données précédentes n’ont pas pu être entièrement rétablies ({rollback_error})."
+                ))),
+            };
         }
-
-        if old_database.exists() {
-            fs::remove_file(old_database)?;
-        }
-        if old_attachments.exists() {
-            fs::remove_dir_all(old_attachments)?;
-        }
-        Ok(())
+        Ok(swap)
     }
 
     fn resolve_output_path(
@@ -440,6 +603,52 @@ fn create_new_file(path: &Path) -> AppResult<File> {
         .map_err(Into::into)
 }
 
+fn copy_reader_limited<R: Read, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    max_bytes: u64,
+    label: &str,
+) -> AppResult<u64> {
+    let read_limit = max_bytes
+        .checked_add(1)
+        .ok_or_else(|| AppError::Validation(format!("{label} a une limite invalide.")))?;
+    let mut limited = reader.take(read_limit);
+    let extracted_bytes = io::copy(&mut limited, writer)?;
+    if extracted_bytes > max_bytes {
+        return Err(AppError::Validation(format!(
+            "{label} dépasse la limite autorisée de {max_bytes} octets."
+        )));
+    }
+    Ok(extracted_bytes)
+}
+
+fn read_utf8_limited<R: Read>(reader: &mut R, max_bytes: u64, label: &str) -> AppResult<String> {
+    let mut contents = Vec::new();
+    copy_reader_limited(reader, &mut contents, max_bytes, label)?;
+    String::from_utf8(contents)
+        .map_err(|_| AppError::Validation(format!("{label} n'est pas un texte UTF-8 valide.")))
+}
+
+fn copy_reader_to_new_file_limited<R: Read>(
+    reader: &mut R,
+    destination: &Path,
+    max_bytes: u64,
+    label: &str,
+) -> AppResult<u64> {
+    let mut destination_file = create_new_file(destination)?;
+    let result =
+        copy_reader_limited(reader, &mut destination_file, max_bytes, label).and_then(|written| {
+            destination_file.sync_all()?;
+            Ok(written)
+        });
+    drop(destination_file);
+
+    if result.is_err() {
+        let _ = fs::remove_file(destination);
+    }
+    result
+}
+
 fn add_file_to_archive(
     archive: &mut ZipWriter<File>,
     source: &Path,
@@ -518,6 +727,7 @@ fn remove_sqlite_sidecars(database_path: &Path) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     fn seed_license(store: &LocalStore, license_id: &str) {
         store
@@ -589,5 +799,163 @@ mod tests {
             stored_license_id(&destination).as_deref(),
             Some("lic-destination")
         );
+        assert!(fs::read_dir(&destination.backups_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| entry
+                .file_name()
+                .to_string_lossy()
+                .contains("avant-restauration")));
+    }
+
+    #[test]
+    fn post_install_failure_rolls_back_database_and_attachments() {
+        let temporary = tempfile::tempdir().unwrap();
+        let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
+        seed_license(&destination, "lic-original");
+        fs::write(
+            destination.attachments_dir.join("original.txt"),
+            b"original",
+        )
+        .unwrap();
+
+        let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
+        fs::write(source.attachments_dir.join("restored.txt"), b"restored").unwrap();
+        let restored_database = temporary.path().join("restored.sqlite3");
+        source.snapshot_database(&restored_database).unwrap();
+
+        let error = destination
+            .install_restored_data_and_then(
+                &restored_database,
+                &source.attachments_dir,
+                None,
+                || {
+                    Err(AppError::Validation(
+                        "échec final simulé après installation".into(),
+                    ))
+                },
+            )
+            .expect_err("the simulated finalization must fail");
+
+        assert!(error
+            .to_string()
+            .contains("données précédentes ont été rétablies"));
+        assert_eq!(
+            stored_license_id(&destination).as_deref(),
+            Some("lic-original")
+        );
+        assert!(destination.attachments_dir.join("original.txt").is_file());
+        assert!(!destination.attachments_dir.join("restored.txt").exists());
+    }
+
+    #[test]
+    fn limited_file_copy_counts_streamed_bytes_and_removes_partial_output() {
+        let temporary = tempfile::tempdir().unwrap();
+        let destination = temporary.path().join("oversized.bin");
+        let mut source = Cursor::new(vec![0x41; 65]);
+
+        let error =
+            copy_reader_to_new_file_limited(&mut source, &destination, 32, "Le fichier de test")
+                .expect_err("the streamed content is larger than the runtime limit");
+
+        assert!(error.to_string().contains("dépasse la limite"));
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn forged_zip_size_metadata_cannot_bypass_the_stream_limit() {
+        let temporary = tempfile::tempdir().unwrap();
+        let archive_path = temporary.path().join("forged-size.zip");
+        let archive_file = File::create(&archive_path).unwrap();
+        let mut writer = ZipWriter::new(archive_file);
+        writer
+            .start_file(
+                "oversized.bin",
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
+            )
+            .unwrap();
+        writer.write_all(&[0x41; 65]).unwrap();
+        writer.finish().unwrap();
+
+        let mut archive_bytes = fs::read(&archive_path).unwrap();
+        let local_header = archive_bytes
+            .windows(4)
+            .position(|window| window == b"PK\x03\x04")
+            .unwrap();
+        let central_header = archive_bytes
+            .windows(4)
+            .position(|window| window == b"PK\x01\x02")
+            .unwrap();
+        archive_bytes[local_header + 22..local_header + 26].copy_from_slice(&1_u32.to_le_bytes());
+        archive_bytes[central_header + 24..central_header + 28]
+            .copy_from_slice(&1_u32.to_le_bytes());
+        fs::write(&archive_path, archive_bytes).unwrap();
+
+        let mut archive = ZipArchive::new(File::open(&archive_path).unwrap()).unwrap();
+        let mut entry = archive.by_name("oversized.bin").unwrap();
+        assert_eq!(entry.size(), 1, "the forged metadata must look harmless");
+        let destination = temporary.path().join("extracted.bin");
+
+        let error = copy_reader_to_new_file_limited(
+            &mut entry,
+            &destination,
+            32,
+            "Le fichier ZIP falsifié",
+        )
+        .expect_err("actual decompressed bytes must enforce the limit");
+
+        assert!(error.to_string().contains("dépasse la limite"));
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn oversized_attachment_aborts_restore_without_touching_active_data() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
+        fs::write(source.attachments_dir.join("oversized.bin"), vec![0x41; 65]).unwrap();
+        let archive = temporary.path().join("oversized.elyko");
+        source.create_backup_at(&archive, "1.0.0").unwrap();
+
+        let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
+        seed_license(&destination, "lic-must-survive");
+        fs::write(
+            destination.attachments_dir.join("original.txt"),
+            b"original",
+        )
+        .unwrap();
+
+        let error = destination
+            .restore_backup_with_limits(
+                archive.to_str().unwrap(),
+                "1.0.0",
+                ArchiveExtractionLimits {
+                    manifest_bytes: MAX_MANIFEST_BYTES,
+                    database_bytes: MAX_DATABASE_BYTES,
+                    attachments_bytes: 32,
+                },
+            )
+            .expect_err("the actual attachment bytes exceed the test limit");
+
+        assert!(error.to_string().contains("dépasse la limite"));
+        assert_eq!(
+            stored_license_id(&destination).as_deref(),
+            Some("lic-must-survive")
+        );
+        assert_eq!(
+            fs::read(destination.attachments_dir.join("original.txt")).unwrap(),
+            b"original"
+        );
+        assert!(!destination.attachments_dir.join("oversized.bin").exists());
+        assert!(!fs::read_dir(&destination.backups_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| entry
+                .file_name()
+                .to_string_lossy()
+                .contains("avant-restauration")));
+        assert!(!fs::read_dir(&destination.data_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name().to_string_lossy().starts_with("restore-")));
     }
 }

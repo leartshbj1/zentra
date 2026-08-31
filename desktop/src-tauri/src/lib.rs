@@ -1,6 +1,9 @@
 mod accounting;
+mod accounting_closure;
+mod app_updater;
 mod audit;
 mod backup;
+mod branding;
 mod commands;
 mod database;
 mod error;
@@ -13,6 +16,7 @@ mod payroll_import;
 mod payroll_pdf;
 mod reminders;
 mod schema;
+mod swiss_payroll_rules;
 mod swiss_qr;
 
 use commands::*;
@@ -27,8 +31,15 @@ pub fn run() {
     builder
         .setup(|app| {
             use tauri::Manager;
+            app_updater::initialize(app)?;
             let data_dir = resolve_data_dir(app.handle())?;
             let store = LocalStore::initialize(data_dir)?;
+            // `HELVICHANTIER_DATA_DIR` peut déplacer le profil hors de
+            // `$APPLOCALDATA`. On n'ouvre jamais ce profil entier au protocole
+            // asset : seuls les logos immuables, directement dans ce dossier,
+            // sont lisibles par la WebView (pas de sous-dossiers).
+            app.asset_protocol_scope()
+                .allow_directory(store.attachments_dir.join("branding"), false)?;
             app.manage(store);
             Ok(())
         })
@@ -42,6 +53,7 @@ pub fn run() {
             update_record,
             delete_record,
             update_settings,
+            stage_company_logo,
             save_document_with_items,
             issue_quote,
             issue_invoice,
@@ -80,9 +92,11 @@ pub fn run() {
             upsert_payroll_contribution_definition,
             delete_payroll_contribution_definition,
             calculate_payroll_contributions,
+            calculate_employee_payroll_contributions,
             apply_payroll_contributions,
             save_payslip_with_contributions,
             post_payslip,
+            pay_payslip,
             generate_payslip_pdf,
             stage_payroll_documents,
             list_payroll_document_imports,
@@ -100,6 +114,9 @@ pub fn run() {
             verify_audit_log,
             get_license_state,
             install_license_token,
+            app_updater::get_secure_update_policy,
+            app_updater::check_secure_update,
+            app_updater::install_secure_update,
             start_timer,
             stop_timer,
             cancel_timer,
@@ -127,12 +144,13 @@ mod tests {
         database::LocalStore,
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, ApplyPayrollInput,
-            CalculatePayrollInput, ContributionDefinitionInput, ContributionSelectionInput,
-            ConvertQuoteInput, ManualJournalInput, ManualJournalLineInput, MarkReminderInput,
-            OnboardingInput, PayslipManualLineInput, PeriodFilter, PostPayslipInput,
-            RecordPaymentInput, ReminderSettingsInput, ReminderTemplateInput,
-            SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SavePayslipWithContributionsInput,
-            SwissQrBillInput, SwissQrParty,
+            CalculateEmployeePayrollInput, CalculatePayrollInput, ContributionDefinitionInput,
+            ContributionSelectionInput, ConvertQuoteInput, ManualJournalInput,
+            ManualJournalLineInput, MarkReminderInput, OnboardingInput, PayPayslipInput,
+            PayslipManualLineInput, PeriodFilter, PostPayslipInput, RecordPaymentInput,
+            ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
+            SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SwissQrBillInput,
+            SwissQrParty,
         },
         schema::{BUSINESS_TABLES, SCHEMA_SQL},
     };
@@ -653,7 +671,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 5;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 8;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -719,7 +737,7 @@ mod tests {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 8);
         let qr_table: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='invoice_qr_bills'",
@@ -1393,6 +1411,7 @@ mod tests {
             .unwrap();
         assert_eq!(original_status, "emise");
         let excessive_payment = store.record_payment(RecordPaymentInput {
+            request_id: None,
             invoice_id: invoice_id.clone(),
             amount_cents: 7501,
             date: Some("2026-03-03".into()),
@@ -1403,6 +1422,7 @@ mod tests {
         assert!(excessive_payment.unwrap_err().to_string().contains("solde"));
         store
             .record_payment(RecordPaymentInput {
+                request_id: None,
                 invoice_id: invoice_id.clone(),
                 amount_cents: 7500,
                 date: Some("2026-03-03".into()),
@@ -1524,16 +1544,25 @@ mod tests {
                 Some("2026-07-31".into()),
             )
             .unwrap();
-        store
-            .record_payment(RecordPaymentInput {
-                invoice_id: invoice_id.clone(),
-                amount_cents: 4000,
-                date: Some("2026-07-05".into()),
-                method: Some("bank".into()),
-                reference: None,
-                notes: None,
-            })
-            .unwrap();
+        let payment_request = RecordPaymentInput {
+            request_id: Some("f2f0cc34-f7b5-4a1f-943e-89149e59bd43".into()),
+            invoice_id: invoice_id.clone(),
+            amount_cents: 4000,
+            date: Some("2026-07-05".into()),
+            method: Some("bank".into()),
+            reference: None,
+            notes: None,
+        };
+        let payment = store.record_payment(payment_request.clone()).unwrap();
+        let retried_payment = store.record_payment(payment_request.clone()).unwrap();
+        assert_eq!(payment["id"], retried_payment["id"]);
+        let mut conflicting_retry = payment_request;
+        conflicting_retry.amount_cents = 3_999;
+        assert!(store
+            .record_payment(conflicting_retry)
+            .unwrap_err()
+            .to_string()
+            .contains("identifiant de reprise"));
         store.create_record("expenses",json!({"date":"2026-07-06","supplier":"Fournisseur","net_cents":1000,"vat_cents":0,"total_cents":1000})).unwrap();
         let employee_id = value_id(
             &store
@@ -1553,7 +1582,15 @@ mod tests {
             (1, "deduction", 50000),
             (2, "employer", 30000),
         ] {
-            store.create_record("payslip_items",json!({"payslip_id":payslip_id,"position":position,"label":format!("Ligne {position}"),"kind":kind,"amount_cents":amount})).unwrap();
+            let (posting_account_id, expense_account_id) = match kind {
+                "deduction" => (Some(accounts["social_payable"].clone()), None),
+                "employer" => (
+                    Some(accounts["social_payable"].clone()),
+                    Some(accounts["social_expense"].clone()),
+                ),
+                _ => (None, None),
+            };
+            store.create_record("payslip_items",json!({"payslip_id":payslip_id,"position":position,"label":format!("Ligne {position}"),"kind":kind,"amount_cents":amount,"posting_account_id":posting_account_id,"expense_account_id":expense_account_id})).unwrap();
         }
         let posted = store
             .post_payslip(PostPayslipInput {
@@ -1571,6 +1608,30 @@ mod tests {
         );
         assert_eq!(payslip_snapshot["issuer"]["noga_division"], "43");
         let connection = store.connect().unwrap();
+        let payment_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM payments WHERE invoice_id=?",
+                rusqlite::params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(payment_count, 1);
+        let payment_entry_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE source_type='payment' AND source_id=?",
+                rusqlite::params![payment["id"].as_str()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(payment_entry_count, 1);
+        let payment_lines: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT SUM(CASE WHEN account_id=? THEN debit_cents ELSE 0 END),SUM(CASE WHEN account_id=? THEN credit_cents ELSE 0 END),SUM(debit_cents),SUM(credit_cents) FROM journal_lines WHERE journal_entry_id=(SELECT id FROM journal_entries WHERE source_type='payment' AND source_id=?)",
+                rusqlite::params![accounts["bank"], accounts["ar"], payment["id"].as_str()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(payment_lines, (4000, 4000, 4000, 4000));
         let unbalanced:i64=connection.query_row("SELECT COUNT(*) FROM (SELECT je.id FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id GROUP BY je.id HAVING SUM(jl.debit_cents)<>SUM(jl.credit_cents))",[],|r|r.get(0)).unwrap();
         assert_eq!(unbalanced, 0);
         let historical_reclassification = store.upsert_account(AccountInput {
@@ -1618,8 +1679,871 @@ mod tests {
             })
             .unwrap();
         assert!(income["sections"].is_object());
-        let balance = store.get_balance_sheet(Some("2026-12-31".into())).unwrap();
+        let balance = store
+            .get_balance_sheet(PeriodFilter {
+                date_from: Some("2026-01-01".into()),
+                date_to: Some("2026-12-31".into()),
+            })
+            .unwrap();
         assert!(balance["sections"].is_object());
+    }
+
+    #[test]
+    fn payroll_posting_uses_frozen_creditor_accounts_and_payment_is_idempotent() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let employee_liability = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "2261".into(),
+                    name: "Caisse sociale employés".into(),
+                    account_type: "liability".into(),
+                    normal_balance: "credit".into(),
+                    report_section: "short_term_liabilities".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let employer_liability = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "2271".into(),
+                    name: "Assurance employeur".into(),
+                    account_type: "liability".into(),
+                    normal_balance: "credit".into(),
+                    report_section: "short_term_liabilities".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let employer_expense = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "5721".into(),
+                    name: "Prime employeur dédiée".into(),
+                    account_type: "expense".into(),
+                    normal_balance: "debit".into(),
+                    report_section: "personnel_expense".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let employee_definition = ContributionDefinitionInput {
+            id: None,
+            code: "RETENUE_FIGEE".into(),
+            label: "Retenue caisse dédiée".into(),
+            category: "other".into(),
+            side: "employee".into(),
+            calculation_kind: "fixed".into(),
+            rate_bp: None,
+            fixed_amount_cents: Some(10_000),
+            annual_ceiling_cents: None,
+            basis_kind: "gross".into(),
+            source: "Contrat de test contrôlé".into(),
+            effective_from: "2026-01-01".into(),
+            effective_to: None,
+            active: true,
+            liability_account_id: Some(employee_liability.clone()),
+            expense_account_id: None,
+        };
+        let employee_definition_id = value_id(
+            &store
+                .upsert_payroll_contribution_definition(employee_definition.clone())
+                .unwrap(),
+        );
+        let employer_definition_id = value_id(
+            &store
+                .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                    id: None,
+                    code: "CHARGE_FIGEE".into(),
+                    label: "Prime employeur dédiée".into(),
+                    category: "other".into(),
+                    side: "employer".into(),
+                    calculation_kind: "fixed".into(),
+                    rate_bp: None,
+                    fixed_amount_cents: Some(15_000),
+                    annual_ceiling_cents: None,
+                    basis_kind: "gross".into(),
+                    source: "Contrat de test contrôlé".into(),
+                    effective_from: "2026-01-01".into(),
+                    effective_to: None,
+                    active: true,
+                    liability_account_id: Some(employer_liability.clone()),
+                    expense_account_id: Some(employer_expense.clone()),
+                })
+                .unwrap(),
+        );
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé ventilé"}))
+                .unwrap(),
+        );
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id: employee_id.clone(),
+                period: "2026-08".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Salaire brut".into(),
+                        kind: "earning".into(),
+                        amount_cents: 500_000,
+                        posting_account_id: None,
+                        expense_account_id: None,
+                    },
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Retenue manuelle".into(),
+                        kind: "deduction".into(),
+                        amount_cents: 2_000,
+                        posting_account_id: Some(accounts["social_payable"].clone()),
+                        expense_account_id: None,
+                    },
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Charge manuelle".into(),
+                        kind: "employer".into(),
+                        amount_cents: 3_000,
+                        posting_account_id: Some(accounts["social_payable"].clone()),
+                        expense_account_id: Some(accounts["social_expense"].clone()),
+                    },
+                ],
+                contributions: vec![
+                    ContributionSelectionInput {
+                        definition_id: employee_definition_id.clone(),
+                        basis_cents: None,
+                        year_to_date_basis_cents: None,
+                    },
+                    ContributionSelectionInput {
+                        definition_id: employer_definition_id,
+                        basis_cents: None,
+                        year_to_date_basis_cents: None,
+                    },
+                ],
+            })
+            .unwrap();
+        let payslip_id = value_id(&saved["payslip"]);
+        let frozen_accounts: (String, String) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT liability_account_id,expense_account_id FROM payslip_contributions WHERE payslip_id=? AND side='employer'",
+                rusqlite::params![payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            frozen_accounts,
+            (employer_liability.clone(), employer_expense.clone())
+        );
+
+        let mut changed_employee_definition = employee_definition;
+        changed_employee_definition.id = Some(employee_definition_id);
+        changed_employee_definition.liability_account_id = Some(accounts["social_payable"].clone());
+        store
+            .upsert_payroll_contribution_definition(changed_employee_definition)
+            .unwrap();
+
+        let posted = store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-08-31".into()),
+            })
+            .unwrap();
+        assert_eq!(posted["payslip"]["status"], "comptabilise");
+        assert_eq!(
+            posted["journal"]["accounting_fallbacks"]
+                .as_array()
+                .unwrap()
+                .len(),
+            0,
+            "all manual lines and contribution snapshots have explicit accounts"
+        );
+        let posting_id = posted["journal"]["id"].as_str().unwrap();
+        let connection = store.connect().unwrap();
+        let account_totals = |account_id: &str| -> (i64, i64) {
+            connection
+                .query_row(
+                    "SELECT COALESCE(SUM(debit_cents),0),COALESCE(SUM(credit_cents),0) FROM journal_lines WHERE journal_entry_id=? AND account_id=?",
+                    rusqlite::params![posting_id, account_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap()
+        };
+        assert_eq!(account_totals(&accounts["wages_expense"]), (500_000, 0));
+        assert_eq!(account_totals(&accounts["wages_payable"]), (0, 488_000));
+        assert_eq!(account_totals(&employee_liability), (0, 10_000));
+        assert_eq!(account_totals(&employer_expense), (15_000, 0));
+        assert_eq!(account_totals(&employer_liability), (0, 15_000));
+        assert_eq!(account_totals(&accounts["social_expense"]), (3_000, 0));
+        assert_eq!(account_totals(&accounts["social_payable"]), (0, 5_000));
+        let posting_balance: (i64, i64) = connection
+            .query_row(
+                "SELECT SUM(debit_cents),SUM(credit_cents) FROM journal_lines WHERE journal_entry_id=?",
+                rusqlite::params![posting_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(posting_balance, (518_000, 518_000));
+        drop(connection);
+
+        let replacement_wages_payable = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "2001".into(),
+                    name: "Salaires dus - nouveau mapping".into(),
+                    account_type: "liability".into(),
+                    normal_balance: "credit".into(),
+                    report_section: "short_term_liabilities".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        store
+            .configure_accounting(AccountingSettingsInput {
+                enabled: true,
+                ar_account_id: Some(accounts["ar"].clone()),
+                revenue_account_id: Some(accounts["revenue"].clone()),
+                vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                bank_account_id: Some(accounts["bank"].clone()),
+                expense_account_id: Some(accounts["expense"].clone()),
+                vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
+                wages_expense_account_id: Some(accounts["wages_expense"].clone()),
+                wages_payable_account_id: Some(replacement_wages_payable.clone()),
+                social_expense_account_id: Some(accounts["social_expense"].clone()),
+                social_payable_account_id: Some(accounts["social_payable"].clone()),
+            })
+            .unwrap();
+
+        let payment_input = PayPayslipInput {
+            payslip_id: payslip_id.clone(),
+            payment_date: Some("2026-09-02".into()),
+            reference: Some("PAY-2026-08-001".into()),
+        };
+        let paid = store.pay_payslip(payment_input.clone()).unwrap();
+        assert_eq!(paid["payslip"]["status"], "paye");
+        assert_eq!(paid["payslip"]["payment_date"], "2026-09-02");
+        assert_eq!(paid["payslip"]["payment_reference"], "PAY-2026-08-001");
+        let payment_id = paid["journal"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(paid["payslip"]["payment_journal_entry_id"], payment_id);
+        let retry = store.pay_payslip(payment_input.clone()).unwrap();
+        assert_eq!(retry["idempotent"], true);
+        assert_eq!(retry["journal"]["id"], payment_id);
+        let mut conflicting = payment_input;
+        conflicting.reference = Some("AUTRE-REFERENCE".into());
+        assert!(store
+            .pay_payslip(conflicting)
+            .unwrap_err()
+            .to_string()
+            .contains("déjà payée"));
+        let connection = store.connect().unwrap();
+        let payment_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=? AND source_event='payment'",
+                rusqlite::params![payslip_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(payment_count, 1);
+        let payment_totals: (i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT SUM(CASE WHEN account_id=? THEN debit_cents ELSE 0 END),SUM(CASE WHEN account_id=? THEN debit_cents ELSE 0 END),SUM(CASE WHEN account_id=? THEN credit_cents ELSE 0 END),SUM(debit_cents),SUM(credit_cents) FROM journal_lines WHERE journal_entry_id=?",
+                rusqlite::params![accounts["wages_payable"], replacement_wages_payable, accounts["bank"], payment_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            payment_totals,
+            (488_000, 0, 488_000, 488_000, 488_000),
+            "the payment must clear the liability credited by the original posting, not the current mapping"
+        );
+    }
+
+    #[test]
+    fn payroll_contribution_accounts_must_have_the_expected_accounting_type() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let definition = |code: &str, liability: Option<String>, expense: Option<String>| {
+            ContributionDefinitionInput {
+                id: None,
+                code: code.into(),
+                label: code.into(),
+                category: "other".into(),
+                side: "employer".into(),
+                calculation_kind: "fixed".into(),
+                rate_bp: None,
+                fixed_amount_cents: Some(1_000),
+                annual_ceiling_cents: None,
+                basis_kind: "gross".into(),
+                source: "Contrôle comptable Elyko".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: None,
+                active: true,
+                liability_account_id: liability,
+                expense_account_id: expense,
+            }
+        };
+        let liability_error = store
+            .upsert_payroll_contribution_definition(definition(
+                "INVALID_LIABILITY",
+                Some(accounts["bank"].clone()),
+                Some(accounts["social_expense"].clone()),
+            ))
+            .unwrap_err()
+            .to_string();
+        assert!(liability_error.contains("liability_account_id"));
+        assert!(liability_error.contains("liability"));
+
+        let expense_error = store
+            .upsert_payroll_contribution_definition(definition(
+                "INVALID_EXPENSE",
+                Some(accounts["social_payable"].clone()),
+                Some(accounts["revenue"].clone()),
+            ))
+            .unwrap_err()
+            .to_string();
+        assert!(expense_error.contains("expense_account_id"));
+        assert!(expense_error.contains("expense"));
+
+        let invalid_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM payroll_contribution_definitions WHERE code LIKE 'INVALID_%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(invalid_count, 0);
+    }
+
+    #[test]
+    fn structurally_referenced_accounts_are_frozen_before_the_first_journal_entry() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let configured_error = store
+            .upsert_account(AccountInput {
+                id: Some(accounts["wages_payable"].clone()),
+                code: "2000".into(),
+                name: "Salaires dus reclassés".into(),
+                account_type: "asset".into(),
+                normal_balance: "debit".into(),
+                report_section: "current_assets".into(),
+                active: true,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(configured_error.contains("figés"));
+
+        let reimbursement_account = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "5836".into(),
+                    name: "Frais du personnel à rembourser".into(),
+                    account_type: "expense".into(),
+                    normal_balance: "debit".into(),
+                    report_section: "personnel_expense".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé compte figé"}))
+                .unwrap(),
+        );
+        let payslip_id = value_id(
+            &store
+                .create_record(
+                    "payslips",
+                    json!({"employee_id":employee_id,"period":"2026-12","status":"valide"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "payslip_items",
+                json!({
+                    "payslip_id":payslip_id,
+                    "position":0,
+                    "label":"Remboursement de frais",
+                    "kind":"reimbursement",
+                    "amount_cents":1_000,
+                    "expense_account_id":reimbursement_account
+                }),
+            )
+            .unwrap();
+        let payroll_line_error = store
+            .upsert_account(AccountInput {
+                id: Some(reimbursement_account.clone()),
+                code: "5836".into(),
+                name: "Frais reclassés".into(),
+                account_type: "asset".into(),
+                normal_balance: "debit".into(),
+                report_section: "current_assets".into(),
+                active: true,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(payroll_line_error.contains("figés"));
+        let stored_type: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT account_type FROM accounts WHERE id=?",
+                rusqlite::params![reimbursement_account],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored_type, "expense");
+    }
+
+    #[test]
+    fn payroll_posting_revalidates_global_and_frozen_contribution_account_types() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let contribution_liability = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "2281".into(),
+                    name: "Retenue à payer".into(),
+                    account_type: "liability".into(),
+                    normal_balance: "credit".into(),
+                    report_section: "short_term_liabilities".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let definition_id = value_id(
+            &store
+                .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                    id: None,
+                    code: "TYPE_RECHECK".into(),
+                    label: "Retenue revalidation".into(),
+                    category: "other".into(),
+                    side: "employee".into(),
+                    calculation_kind: "fixed".into(),
+                    rate_bp: None,
+                    fixed_amount_cents: Some(1_000),
+                    annual_ceiling_cents: None,
+                    basis_kind: "gross".into(),
+                    source: "Test de revalidation comptable".into(),
+                    effective_from: "2026-01-01".into(),
+                    effective_to: None,
+                    active: true,
+                    liability_account_id: Some(contribution_liability.clone()),
+                    expense_account_id: None,
+                })
+                .unwrap(),
+        );
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé revalidation"}))
+                .unwrap(),
+        );
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-12".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![PayslipManualLineInput {
+                    id: None,
+                    label: "Salaire brut".into(),
+                    kind: "earning".into(),
+                    amount_cents: 100_000,
+                    posting_account_id: None,
+                    expense_account_id: None,
+                }],
+                contributions: vec![ContributionSelectionInput {
+                    definition_id,
+                    basis_cents: None,
+                    year_to_date_basis_cents: None,
+                }],
+            })
+            .unwrap();
+        let payslip_id = value_id(&saved["payslip"]);
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE accounts SET account_type='asset',normal_balance='debit',report_section='current_assets' WHERE id=?",
+                rusqlite::params![accounts["wages_expense"]],
+            )
+            .unwrap();
+        let global_error = store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-12-31".into()),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(global_error.contains("charges salariales"));
+        assert!(global_error.contains("expense"));
+
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "UPDATE accounts SET account_type='expense',normal_balance='debit',report_section='personnel_expense' WHERE id=?",
+                rusqlite::params![accounts["wages_expense"]],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE accounts SET account_type='revenue',normal_balance='credit',report_section='net_revenue' WHERE id=?",
+                rusqlite::params![contribution_liability],
+            )
+            .unwrap();
+        drop(connection);
+
+        let contribution_error = store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-12-31".into()),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(contribution_error.contains("compte créancier"));
+        assert!(contribution_error.contains("liability"));
+        let unchanged: (String, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status,(SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=p.id) FROM payslips p WHERE id=?",
+                rusqlite::params![payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(unchanged, ("valide".into(), 0));
+    }
+
+    #[test]
+    fn manual_payroll_lines_use_explicit_typed_accounts_including_reimbursements() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let advance_account = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "1175".into(),
+                    name: "Avances au personnel".into(),
+                    account_type: "asset".into(),
+                    normal_balance: "debit".into(),
+                    report_section: "current_assets".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let source_tax_account = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "2275".into(),
+                    name: "Impôt à la source dû".into(),
+                    account_type: "liability".into(),
+                    normal_balance: "credit".into(),
+                    report_section: "short_term_liabilities".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let reimbursement_expense = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "5835".into(),
+                    name: "Frais remboursés au personnel".into(),
+                    account_type: "expense".into(),
+                    normal_balance: "debit".into(),
+                    report_section: "personnel_expense".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé avec frais"}))
+                .unwrap(),
+        );
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id: employee_id.clone(),
+                period: "2026-10".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Salaire brut".into(),
+                        kind: "earning".into(),
+                        amount_cents: 500_000,
+                        posting_account_id: None,
+                        expense_account_id: None,
+                    },
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Récupération avance".into(),
+                        kind: "deduction".into(),
+                        amount_cents: 10_000,
+                        posting_account_id: Some(advance_account.clone()),
+                        expense_account_id: None,
+                    },
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Impôt à la source".into(),
+                        kind: "deduction".into(),
+                        amount_cents: 20_000,
+                        posting_account_id: Some(source_tax_account.clone()),
+                        expense_account_id: None,
+                    },
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Frais de déplacement".into(),
+                        kind: "reimbursement".into(),
+                        amount_cents: 5_000,
+                        posting_account_id: None,
+                        expense_account_id: Some(reimbursement_expense.clone()),
+                    },
+                ],
+                contributions: vec![],
+            })
+            .unwrap();
+        assert_eq!(saved["payslip"]["gross_cents"], 500_000);
+        assert_eq!(saved["payslip"]["deductions_cents"], 30_000);
+        assert_eq!(saved["payslip"]["net_cents"], 475_000);
+        let payslip_id = value_id(&saved["payslip"]);
+        let posted = store
+            .post_payslip(PostPayslipInput {
+                payslip_id,
+                entry_date: Some("2026-10-31".into()),
+            })
+            .unwrap();
+        let journal_id = posted["journal"]["id"].as_str().unwrap();
+        let connection = store.connect().unwrap();
+        let totals = |account_id: &str| -> (i64, i64) {
+            connection
+                .query_row(
+                    "SELECT COALESCE(SUM(debit_cents),0),COALESCE(SUM(credit_cents),0) FROM journal_lines WHERE journal_entry_id=? AND account_id=?",
+                    rusqlite::params![journal_id, account_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap()
+        };
+        assert_eq!(totals(&accounts["wages_expense"]), (500_000, 0));
+        assert_eq!(totals(&accounts["wages_payable"]), (0, 475_000));
+        assert_eq!(totals(&advance_account), (0, 10_000));
+        assert_eq!(totals(&source_tax_account), (0, 20_000));
+        assert_eq!(totals(&reimbursement_expense), (5_000, 0));
+        let balance: (i64, i64) = connection
+            .query_row(
+                "SELECT SUM(debit_cents),SUM(credit_cents) FROM journal_lines WHERE journal_entry_id=?",
+                rusqlite::params![journal_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(balance, (505_000, 505_000));
+
+        let invalid = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-11".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Salaire brut".into(),
+                        kind: "earning".into(),
+                        amount_cents: 100_000,
+                        posting_account_id: None,
+                        expense_account_id: None,
+                    },
+                    PayslipManualLineInput {
+                        id: None,
+                        label: "Retenue mal classée".into(),
+                        kind: "deduction".into(),
+                        amount_cents: 1_000,
+                        posting_account_id: Some(accounts["revenue"].clone()),
+                        expense_account_id: None,
+                    },
+                ],
+                contributions: vec![],
+            })
+            .unwrap();
+        let invalid_id = value_id(&invalid["payslip"]);
+        let error = store
+            .post_payslip(PostPayslipInput {
+                payslip_id: invalid_id.clone(),
+                entry_date: Some("2026-11-30".into()),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("asset ou liability"));
+        let persisted: (String, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status,(SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=p.id) FROM payslips p WHERE id=?",
+                rusqlite::params![invalid_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(persisted, ("valide".into(), 0));
+    }
+
+    #[test]
+    fn payroll_payment_rolls_back_when_payment_period_is_closed() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé clôture"}))
+                .unwrap(),
+        );
+        let payslip_id = value_id(
+            &store
+                .create_record(
+                    "payslips",
+                    json!({"employee_id":employee_id,"period":"2026-09","status":"valide"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "payslip_items",
+                json!({"payslip_id":payslip_id,"position":0,"label":"Salaire brut","kind":"earning","amount_cents":100000}),
+            )
+            .unwrap();
+        store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-09-30".into()),
+            })
+            .unwrap();
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: None,
+                name: "Paiements octobre clôturés".into(),
+                date_from: "2026-10-01".into(),
+                date_to: "2026-10-31".into(),
+            })
+            .unwrap();
+        store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap();
+        let result = store.pay_payslip(PayPayslipInput {
+            payslip_id: payslip_id.clone(),
+            payment_date: Some("2026-10-02".into()),
+            reference: Some("CLOSED-1".into()),
+        });
+        assert!(result.unwrap_err().to_string().contains("clôturée"));
+        let persisted: (String, Option<String>, Option<String>, Option<String>, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status,payment_date,payment_reference,payment_journal_entry_id,(SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=p.id AND source_event='payment') FROM payslips p WHERE id=?",
+                rusqlite::params![payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(persisted, ("comptabilise".into(), None, None, None, 0));
+    }
+
+    #[test]
+    fn payment_and_automatic_journal_entry_roll_back_together() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client transactionnel"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({"client_id":client_id,"title":"Facture atomique","service_date_from":"2026-06-01","service_date_to":"2026-06-30"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0}),
+            )
+            .unwrap();
+        store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-07-01".into()),
+                Some("2026-07-31".into()),
+            )
+            .unwrap();
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: None,
+                name: "Journée clôturée".into(),
+                date_from: "2026-07-05".into(),
+                date_to: "2026-07-05".into(),
+            })
+            .unwrap();
+        store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap();
+
+        let result = store.record_payment(RecordPaymentInput {
+            request_id: Some("d3f1d8d7-b113-4714-9660-b43799d8b9e2".into()),
+            invoice_id: invoice_id.clone(),
+            amount_cents: 10_000,
+            date: Some("2026-07-05".into()),
+            method: Some("Virement".into()),
+            reference: Some("TX-1".into()),
+            notes: None,
+        });
+        assert!(result.unwrap_err().to_string().contains("clôturée"));
+
+        let connection = store.connect().unwrap();
+        let payments: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM payments WHERE invoice_id=?",
+                rusqlite::params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let payment_entries: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE source_type='payment'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let invoice_state: (i64, String) = connection
+            .query_row(
+                "SELECT paid_cents,status FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(payments, 0);
+        assert_eq!(payment_entries, 0);
+        assert_eq!(invoice_state, (0, "emise".into()));
     }
 
     #[test]
@@ -1663,6 +2587,64 @@ mod tests {
             ],
         });
         assert!(result.unwrap_err().to_string().contains("clôturée"));
+    }
+
+    #[test]
+    fn close_period_refuses_historical_foreign_currency_used_by_cumulative_balance_sheet() {
+        let (_temporary, store) = initialized_store();
+        let accounts = accounting_accounts(&store);
+        store
+            .post_manual_journal_entry(ManualJournalInput {
+                entry_date: "2025-12-31".into(),
+                description: "Solde historique en devise étrangère".into(),
+                currency: "EUR".into(),
+                lines: vec![
+                    ManualJournalLineInput {
+                        account_id: accounts["bank"].clone(),
+                        debit_cents: 10_000,
+                        credit_cents: 0,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                    ManualJournalLineInput {
+                        account_id: accounts["ar"].clone(),
+                        debit_cents: 0,
+                        credit_cents: 10_000,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                ],
+            })
+            .unwrap();
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: None,
+                name: "Exercice CHF 2026".into(),
+                date_from: "2026-01-01".into(),
+                date_to: "2026-12-31".into(),
+            })
+            .unwrap();
+        let period_id = period["id"].as_str().unwrap();
+
+        let error = store
+            .close_accounting_period(period_id)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("EUR"));
+        let status: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status FROM accounting_periods WHERE id=?",
+                rusqlite::params![period_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "open");
     }
 
     #[test]
@@ -1734,6 +2716,7 @@ mod tests {
         assert_eq!(third["created"][0]["level"], 2);
         store
             .record_payment(RecordPaymentInput {
+                request_id: None,
                 invoice_id: invoice_id.clone(),
                 amount_cents: 10000,
                 date: Some("2027-01-01".into()),
@@ -1789,15 +2772,25 @@ mod tests {
             })
             .unwrap();
         let definition_id = value_id(&definition);
-        let missing = store.calculate_payroll_contributions(CalculatePayrollInput {
-            period: "2026-08".into(),
-            gross_cents: 500000,
-            items: vec![ContributionSelectionInput {
-                definition_id: definition_id.clone(),
-                basis_cents: None,
-                year_to_date_basis_cents: None,
-            }],
-        });
+        let employee_id = value_id(
+            &store
+                .create_record(
+                    "employees",
+                    json!({"name":"Employé cotisations","birth_date":"1990-05-01","employment_start_date":"2026-01-01"}),
+                )
+                .unwrap(),
+        );
+        let missing =
+            store.calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id: employee_id.clone(),
+                period: "2026-12".into(),
+                gross_cents: 500000,
+                items: vec![ContributionSelectionInput {
+                    definition_id: definition_id.clone(),
+                    basis_cents: None,
+                    year_to_date_basis_cents: None,
+                }],
+            });
         assert!(missing.is_err());
         let selection = ContributionSelectionInput {
             definition_id: definition_id.clone(),
@@ -1805,24 +2798,20 @@ mod tests {
             year_to_date_basis_cents: Some(14_700_000),
         };
         let calculated = store
-            .calculate_payroll_contributions(CalculatePayrollInput {
-                period: "2026-08".into(),
+            .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id: employee_id.clone(),
+                period: "2026-12".into(),
                 gross_cents: 500000,
                 items: vec![selection.clone()],
             })
             .unwrap();
         assert_eq!(calculated["items"][0]["basis_cents"], 120000);
         assert_eq!(calculated["items"][0]["amount_cents"], 1320);
-        let employee_id = value_id(
-            &store
-                .create_record("employees", json!({"name":"Employé cotisations"}))
-                .unwrap(),
-        );
         let payslip_id = value_id(
             &store
                 .create_record(
                     "payslips",
-                    json!({"employee_id":employee_id,"period":"2026-08"}),
+                    json!({"employee_id":employee_id,"period":"2026-12"}),
                 )
                 .unwrap(),
         );
@@ -1830,7 +2819,7 @@ mod tests {
         let applied = store
             .apply_payroll_contributions(ApplyPayrollInput {
                 payslip_id: payslip_id.clone(),
-                period: "2026-08".into(),
+                period: "2026-12".into(),
                 items: vec![selection],
             })
             .unwrap();
@@ -1842,6 +2831,335 @@ mod tests {
         assert_eq!(
             frozen[0]["source"],
             "https://www.bsv.admin.ch/fr/cotisations-apercu"
+        );
+    }
+
+    #[test]
+    fn ac_partial_year_preview_and_saved_payslip_share_the_same_30_360_ceiling() {
+        let (_temporary, store) = initialized_store();
+        let definition = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "AC_PARTIAL_YEAR".into(),
+                label: "AC année partielle".into(),
+                category: "ac".into(),
+                side: "employee".into(),
+                calculation_kind: "rate".into(),
+                rate_bp: Some(110),
+                fixed_amount_cents: None,
+                annual_ceiling_cents: Some(14_820_000),
+                basis_kind: "ahv_salary".into(),
+                source: "https://www.ahv-iv.ch/p/2.08.f".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: Some("2026-12-31".into()),
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        let employee_id = value_id(
+            &store
+                .create_record(
+                    "employees",
+                    json!({
+                        "name":"Employé année partielle",
+                        "birth_date":"1990-01-01",
+                        "employment_start_date":"2026-04-15",
+                        "employment_end_date":"2026-12-29"
+                    }),
+                )
+                .unwrap(),
+        );
+        let selection = ContributionSelectionInput {
+            definition_id: value_id(&definition),
+            basis_cents: Some(20_000_000),
+            year_to_date_basis_cents: Some(10_000_000),
+        };
+        let preview = store
+            .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id: employee_id.clone(),
+                period: "2026-12".into(),
+                gross_cents: 20_000_000,
+                items: vec![selection.clone()],
+            })
+            .unwrap();
+        assert_eq!(preview["items"][0]["ac_proration_days_30_360"], 255);
+        assert_eq!(preview["items"][0]["annual_ceiling_cents"], 10_497_500);
+        assert_eq!(preview["items"][0]["basis_cents"], 497_500);
+        assert_eq!(preview["items"][0]["amount_cents"], 5_473);
+
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-12".into(),
+                status: "a_controler".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![PayslipManualLineInput {
+                    id: None,
+                    label: "Salaire brut".into(),
+                    kind: "earning".into(),
+                    amount_cents: 20_000_000,
+                    posting_account_id: None,
+                    expense_account_id: None,
+                }],
+                contributions: vec![selection],
+            })
+            .unwrap();
+        assert_eq!(saved["calculation"]["items"][0]["basis_cents"], 497_500);
+        assert_eq!(saved["contributions"][0]["basis_cents"], 497_500);
+        assert_eq!(
+            saved["contributions"][0]["annual_ceiling_cents"],
+            10_497_500
+        );
+        assert_eq!(saved["contributions"][0]["amount_cents"], 5_473);
+    }
+
+    #[test]
+    fn reference_age_choices_drive_avs_allowance_and_reject_ac() {
+        let (_temporary, store) = initialized_store();
+        let avs = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "AVS_REFERENCE_AGE".into(),
+                label: "AVS après âge de référence".into(),
+                category: "avs_ai_apg".into(),
+                side: "employee".into(),
+                calculation_kind: "rate".into(),
+                rate_bp: Some(435),
+                fixed_amount_cents: None,
+                annual_ceiling_cents: None,
+                basis_kind: "ahv_salary".into(),
+                source: "Source officielle".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: Some("2026-12-31".into()),
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        let ac = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "AC_REFERENCE_AGE".into(),
+                label: "AC après âge de référence".into(),
+                category: "ac".into(),
+                side: "employee".into(),
+                calculation_kind: "rate".into(),
+                rate_bp: Some(110),
+                fixed_amount_cents: None,
+                annual_ceiling_cents: Some(14_820_000),
+                basis_kind: "ahv_salary".into(),
+                source: "Source officielle".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: Some("2026-12-31".into()),
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        let employee_id = value_id(
+            &store
+                .create_record(
+                    "employees",
+                    json!({
+                        "name":"Employé après référence",
+                        "birth_date":"1950-01-01",
+                        "employment_start_date":"2020-01-01",
+                        "reference_age_date":"2015-01-01",
+                        "avs_allowance_waived":false
+                    }),
+                )
+                .unwrap(),
+        );
+        let avs_input = |employee_id: &str| CalculateEmployeePayrollInput {
+            employee_id: employee_id.into(),
+            period: "2026-08".into(),
+            gross_cents: 500_000,
+            items: vec![ContributionSelectionInput {
+                definition_id: value_id(&avs),
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: None,
+            }],
+        };
+        let allowance = store
+            .calculate_employee_payroll_contributions(avs_input(&employee_id))
+            .unwrap();
+        assert_eq!(allowance["items"][0]["original_basis_cents"], 500_000);
+        assert_eq!(allowance["items"][0]["basis_cents"], 360_000);
+        assert_eq!(
+            allowance["items"][0]["avs_allowance_applied_cents"],
+            140_000
+        );
+        assert_eq!(allowance["items"][0]["amount_cents"], 15_660);
+
+        store
+            .update_record(
+                "employees",
+                &employee_id,
+                json!({"avs_allowance_waived":true}),
+            )
+            .unwrap();
+        let waived = store
+            .calculate_employee_payroll_contributions(avs_input(&employee_id))
+            .unwrap();
+        assert_eq!(waived["items"][0]["basis_cents"], 500_000);
+        assert_eq!(waived["items"][0]["amount_cents"], 21_750);
+
+        store
+            .update_record(
+                "employees",
+                &employee_id,
+                json!({"avs_allowance_waived":null}),
+            )
+            .unwrap();
+        assert!(store
+            .calculate_employee_payroll_contributions(avs_input(&employee_id))
+            .is_err());
+        assert!(store
+            .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id,
+                period: "2026-08".into(),
+                gross_cents: 500_000,
+                items: vec![ContributionSelectionInput {
+                    definition_id: value_id(&ac),
+                    basis_cents: Some(500_000),
+                    year_to_date_basis_cents: Some(0),
+                }],
+            })
+            .is_err());
+    }
+
+    #[test]
+    fn statutory_groups_reject_divergent_avs_and_ac_bases_before_calculation() {
+        let (_temporary, store) = initialized_store();
+        let create_definition =
+            |code: &str, category: &str, side: &str, rate_bp: i64, ceiling: Option<i64>| {
+                value_id(
+                    &store
+                        .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                            id: None,
+                            code: code.into(),
+                            label: code.into(),
+                            category: category.into(),
+                            side: side.into(),
+                            calculation_kind: "rate".into(),
+                            rate_bp: Some(rate_bp),
+                            fixed_amount_cents: None,
+                            annual_ceiling_cents: ceiling,
+                            basis_kind: "ahv_salary".into(),
+                            source: "Source officielle".into(),
+                            effective_from: "2026-01-01".into(),
+                            effective_to: Some("2026-12-31".into()),
+                            active: true,
+                            liability_account_id: None,
+                            expense_account_id: None,
+                        })
+                        .unwrap(),
+                )
+            };
+        let avs_employee = create_definition("AVS_SHARED_E", "avs_ai_apg", "employee", 435, None);
+        let avs_employer = create_definition("AVS_SHARED_R", "avs_ai_apg", "employer", 435, None);
+        let ac_employee = create_definition("AC_SHARED_E", "ac", "employee", 110, Some(14_820_000));
+        let ac_employer = create_definition("AC_SHARED_R", "ac", "employer", 110, Some(14_820_000));
+        let employee_id = value_id(
+            &store
+                .create_record(
+                    "employees",
+                    json!({
+                        "name":"Bases sociales partagées",
+                        "birth_date":"1990-01-01",
+                        "employment_start_date":"2026-01-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        let calculate = |items| {
+            store.calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id: employee_id.clone(),
+                period: "2026-12".into(),
+                gross_cents: 500_000,
+                items,
+            })
+        };
+
+        let avs_error = calculate(vec![
+            ContributionSelectionInput {
+                definition_id: avs_employee.clone(),
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: None,
+            },
+            ContributionSelectionInput {
+                definition_id: avs_employer.clone(),
+                basis_cents: Some(1),
+                year_to_date_basis_cents: None,
+            },
+        ])
+        .unwrap_err()
+        .to_string();
+        assert!(avs_error.contains("base AVS/AI/APG"), "{avs_error}");
+
+        let ac_basis_error = calculate(vec![
+            ContributionSelectionInput {
+                definition_id: ac_employee.clone(),
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: Some(0),
+            },
+            ContributionSelectionInput {
+                definition_id: ac_employer.clone(),
+                basis_cents: Some(499_999),
+                year_to_date_basis_cents: Some(0),
+            },
+        ])
+        .unwrap_err()
+        .to_string();
+        assert!(ac_basis_error.contains("base AC"), "{ac_basis_error}");
+
+        let ac_ytd_error = calculate(vec![
+            ContributionSelectionInput {
+                definition_id: ac_employee.clone(),
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: Some(1_000_000),
+            },
+            ContributionSelectionInput {
+                definition_id: ac_employer.clone(),
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: Some(1_000_001),
+            },
+        ])
+        .unwrap_err()
+        .to_string();
+        assert!(ac_ytd_error.contains("cumul annuel AC"), "{ac_ytd_error}");
+
+        let consistent = calculate(vec![
+            ContributionSelectionInput {
+                definition_id: avs_employee,
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: None,
+            },
+            ContributionSelectionInput {
+                definition_id: avs_employer,
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: None,
+            },
+            ContributionSelectionInput {
+                definition_id: ac_employee,
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: Some(1_000_000),
+            },
+            ContributionSelectionInput {
+                definition_id: ac_employer,
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: Some(1_000_000),
+            },
+        ])
+        .unwrap();
+        assert_eq!(consistent["items"][0]["original_basis_cents"], 500_000);
+        assert_eq!(consistent["items"][1]["original_basis_cents"], 500_000);
+        assert_eq!(
+            consistent["items"][2]["basis_cents"],
+            consistent["items"][3]["basis_cents"]
         );
     }
 
@@ -2149,6 +3467,8 @@ mod tests {
             label: "Salaire initial".into(),
             kind: "earning".into(),
             amount_cents: 500_000,
+            posting_account_id: None,
+            expense_account_id: None,
         };
         let invalid_selection = ContributionSelectionInput {
             definition_id: "cotisation-inexistante".into(),
@@ -2214,6 +3534,8 @@ mod tests {
                     label: "Salaire modifié".into(),
                     kind: "earning".into(),
                     amount_cents: 700_000,
+                    posting_account_id: None,
+                    expense_account_id: None,
                 }],
                 contributions: vec![invalid_selection],
             });
@@ -2236,5 +3558,62 @@ mod tests {
                 audit_before_update
             )
         );
+    }
+
+    #[test]
+    fn reimbursement_increases_net_without_inflating_gross_or_employer_costs() {
+        let (_temporary, store) = initialized_store();
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé remboursé"}))
+                .unwrap(),
+        );
+        let line = |label: &str, kind: &str, amount_cents: i64| PayslipManualLineInput {
+            id: None,
+            label: label.into(),
+            kind: kind.into(),
+            amount_cents,
+            posting_account_id: None,
+            expense_account_id: None,
+        };
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-08".into(),
+                status: "a_controler".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![
+                    line("Salaire", "earning", 500_000),
+                    line("Retenue", "deduction", 50_000),
+                    line("Frais remboursés", "reimbursement", 20_000),
+                    line("Charge employeur", "employer", 30_000),
+                ],
+                contributions: Vec::new(),
+            })
+            .unwrap();
+        assert_eq!(saved["payslip"]["gross_cents"], 500_000);
+        assert_eq!(saved["payslip"]["deductions_cents"], 50_000);
+        assert_eq!(saved["payslip"]["net_cents"], 470_000);
+        assert_eq!(saved["payslip"]["employer_costs_cents"], 30_000);
+
+        let low_gross = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id: saved["payslip"]["employee_id"].as_str().unwrap().into(),
+                period: "2026-09".into(),
+                status: "a_controler".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![
+                    line("Gain", "earning", 100),
+                    line("Retenue", "deduction", 150),
+                    line("Frais", "reimbursement", 100),
+                ],
+                contributions: Vec::new(),
+            })
+            .unwrap();
+        assert_eq!(low_gross["payslip"]["net_cents"], 50);
     }
 }

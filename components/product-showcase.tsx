@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BrandMark } from '@/components/brand-mark';
 import { cn } from '@/lib/utils';
 
@@ -41,7 +41,7 @@ function DashboardView() {
               86 420 CHF
             </p>
           </div>
-          <span className="rounded-full bg-[#e7f2e9] px-2.5 py-1 text-[10px] font-semibold text-[#34684a]">
+          <span className="max-w-full whitespace-normal rounded-full bg-[#e7f2e9] px-2.5 py-1 text-center text-[11px] font-semibold leading-4 text-[#34684a]">
             +12,4 %
           </span>
         </div>
@@ -58,7 +58,7 @@ function DashboardView() {
             </div>
           ))}
         </div>
-        <div className="mt-3 flex justify-between text-[9px] text-[#929d96]">
+        <div className="mt-3 flex justify-between text-[11px] text-[#6e7a72]">
           <span>Janvier</span>
           <span>Août</span>
         </div>
@@ -73,11 +73,11 @@ function DashboardView() {
             key={label}
             className="rounded-2xl border border-[#dfe5e0] bg-white p-4"
           >
-            <p className="text-[10px] font-medium text-[#77837c]">{label}</p>
+            <p className="text-xs font-medium text-[#66736b]">{label}</p>
             <p className="mt-2 text-lg font-semibold tracking-[-.03em] text-[#263b2e]">
               {value}
             </p>
-            <p className="mt-1 text-[10px] text-[#aa6d21]">{detail}</p>
+            <p className="mt-1 text-[11px] leading-4 text-[#8b5a1c]">{detail}</p>
           </div>
         ))}
       </div>
@@ -89,7 +89,7 @@ function DocumentsView() {
   return (
     <div className="showcase-panel grid gap-4 lg:grid-cols-[.86fr_1.14fr]">
       <div className="rounded-2xl bg-[#173d2c] p-5 text-white sm:p-6">
-        <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#efb157]">
+        <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#efb157]">
           Flux sans double saisie
         </p>
         <h3 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
@@ -116,7 +116,7 @@ function DocumentsView() {
                 <p className="truncate text-xs font-medium">
                   {label as string}
                 </p>
-                <p className="mt-0.5 text-[9px] text-white/45">
+                <p className="mt-0.5 text-[11px] text-white/72">
                   {status as string}
                 </p>
               </div>
@@ -124,7 +124,7 @@ function DocumentsView() {
             </div>
           ))}
         </div>
-        <div className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#efaa3c] px-4 py-2 text-[10px] font-semibold text-[#173d2c]">
+        <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full bg-[#efaa3c] px-4 py-2 text-[11px] font-semibold leading-4 text-[#173d2c]">
           Converti avec succès <ArrowRight className="size-3.5" />
         </div>
       </div>
@@ -133,11 +133,11 @@ function DocumentsView() {
         <div className="flex items-start justify-between gap-4 border-b border-[#e7ebe8] pb-4">
           <div>
             <p className="text-lg font-semibold text-[#22372a]">FACTURE</p>
-            <p className="mt-1 text-[10px] text-[#89948d]">FA-2026-0086</p>
+            <p className="mt-1 text-[11px] text-[#68756d]">FA-2026-0086</p>
           </div>
           <BrandMark className="size-8" />
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-4 text-[9px] text-[#7d8881]">
+        <div className="mt-5 grid grid-cols-2 gap-4 text-[11px] text-[#5f6b64]">
           <div>
             <p className="font-semibold text-[#35483d]">Émetteur</p>
             <p className="mt-1 leading-4">
@@ -155,7 +155,7 @@ function DocumentsView() {
             </p>
           </div>
         </div>
-        <div className="mt-6 space-y-2 text-[9px]">
+        <div className="mt-6 space-y-2 text-[11px]">
           {[
             ['Prestation principale', '8 900.00'],
             ['Frais et matériel', '1 350.00'],
@@ -187,7 +187,7 @@ function DocumentsView() {
             ))}
           </div>
           <div className="text-right">
-            <p className="text-[9px] text-[#7d8881]">Total TTC</p>
+            <p className="text-[11px] text-[#5f6b64]">Total TTC</p>
             <p className="mt-1 text-base font-semibold text-[#22372a]">
               11 080.25 CHF
             </p>
@@ -204,14 +204,14 @@ function ProjectsView() {
       <div className="rounded-2xl border border-[#dfe5e0] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#a36b24]">
+            <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#8f5c1d]">
               Projet / chantier
             </p>
             <h3 className="mt-2 text-xl font-semibold tracking-[-.03em] text-[#22372a]">
               Rénovation intérieure — exemple
             </h3>
           </div>
-          <span className="rounded-full bg-[#e7f1e9] px-3 py-1 text-[10px] font-semibold text-[#37694c]">
+          <span className="max-w-full whitespace-normal rounded-full bg-[#e7f1e9] px-3 py-1 text-center text-[11px] font-semibold leading-4 text-[#37694c]">
             En cours · 68 %
           </span>
         </div>
@@ -226,7 +226,7 @@ function ProjectsView() {
             ['Dépenses', '16 120 CHF'],
           ].map(([label, value]) => (
             <div key={label}>
-              <p className="text-[9px] text-[#88938c]">{label}</p>
+              <p className="text-[11px] text-[#66736b]">{label}</p>
               <p className="mt-1.5 text-sm font-semibold text-[#304538]">
                 {value}
               </p>
@@ -239,7 +239,7 @@ function ProjectsView() {
               <span
                 className={`block size-2 rounded-full ${index < 2 ? 'bg-[#4d8a62]' : 'bg-[#d2d9d3]'}`}
               />
-              <p className="mt-3 text-[10px] font-medium text-[#4b5b52]">
+              <p className="mt-3 text-[11px] font-medium text-[#4b5b52]">
                 {step}
               </p>
             </div>
@@ -248,7 +248,7 @@ function ProjectsView() {
       </div>
       <div className="rounded-2xl bg-[#f0e8d9] p-5 sm:p-6">
         <Calculator className="size-5 text-[#a66b20]" />
-        <p className="mt-4 text-[10px] font-semibold uppercase tracking-[.12em] text-[#8e692f]">
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[.11em] text-[#745224]">
           Rentabilité calculée
         </p>
         <p className="mt-3 text-3xl font-semibold tracking-[-.05em] text-[#26392e]">
@@ -257,7 +257,7 @@ function ProjectsView() {
         <p className="mt-2 text-xs leading-5 text-[#6e685d]">
           À partir des factures, heures et dépenses réellement enregistrées.
         </p>
-        <div className="mt-7 space-y-3 border-t border-[#d9cdb8] pt-5 text-[10px]">
+        <div className="mt-7 space-y-3 border-t border-[#d9cdb8] pt-5 text-[11px]">
           <div className="flex justify-between">
             <span>Revenus nets</span>
             <strong>26 368 CHF</strong>
@@ -281,7 +281,7 @@ function PayrollView() {
     <div className="showcase-panel grid gap-4 lg:grid-cols-[.92fr_1.08fr]">
       <div className="rounded-2xl bg-[#173d2c] p-5 text-white sm:p-6">
         <ScanLine className="size-5 text-[#efb157]" />
-        <p className="mt-5 text-[10px] font-semibold uppercase tracking-[.13em] text-[#efb157]">
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[.11em] text-[#efb157]">
           Import documentaire local
         </p>
         <h3 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
@@ -300,8 +300,8 @@ function PayrollView() {
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/8 text-[#7dd196]">
                 <Icon className="size-3.5" />
               </span>
-              <span className="min-w-0 flex-1 text-[10px] text-white/76">{label as string}</span>
-              <span className="text-[10px] text-white/65">{detail as string}</span>
+              <span className="min-w-0 flex-1 text-[11px] text-white/85">{label as string}</span>
+              <span className="text-[11px] text-white/74">{detail as string}</span>
             </div>
           ))}
         </div>
@@ -312,15 +312,15 @@ function PayrollView() {
             <p className="text-sm font-semibold text-[#2c4034]">
               Proposition extraite
             </p>
-            <p className="mt-1 text-[9px] text-[#87928b]">
+            <p className="mt-1 text-[11px] text-[#65726a]">
               Août 2026 · exemple du site
             </p>
           </div>
-          <span className="rounded-full bg-[#fff0d9] px-2.5 py-1 text-[9px] font-semibold text-[#96601f]">
+          <span className="max-w-full whitespace-normal rounded-full bg-[#fff0d9] px-2.5 py-1 text-center text-[11px] font-semibold leading-4 text-[#805019]">
             À contrôler
           </span>
         </div>
-        <div className="mt-5 space-y-3 text-[10px]">
+        <div className="mt-5 space-y-3 text-[11px]">
           {[
             ['Salaire brut', '6 240.00 CHF'],
             ['AVS / AI / APG', '331.75 CHF'],
@@ -339,7 +339,7 @@ function PayrollView() {
             <span className="text-xs font-semibold text-[#365143]">Net détecté</span>
             <span className="text-base font-semibold text-[#2f6547]">5 452.70 CHF</span>
           </div>
-          <div className="mt-3 flex items-start gap-2 border-t border-[#d8e5da] pt-3 text-[9px] leading-4 text-[#577064]">
+          <div className="mt-3 flex items-start gap-2 border-t border-[#d8e5da] pt-3 text-[11px] leading-5 text-[#4b6458]">
             <Check className="mt-0.5 size-3.5 shrink-0 text-[#3d7a54]" />
             Comparé au document original avant création
           </div>
@@ -354,19 +354,19 @@ function AccountingView() {
     <div className="showcase-panel rounded-2xl border border-[#dfe5e0] bg-white p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#9b692a]">
+          <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#81551f]">
             Comptabilité liée après configuration
           </p>
           <h3 className="mt-2 text-xl font-semibold tracking-[-.03em] text-[#263a2e]">
             Journal équilibré et traçable
           </h3>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e8f2e9] px-3 py-1.5 text-[10px] font-semibold text-[#34694a]">
+        <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full bg-[#e8f2e9] px-3 py-1.5 text-[11px] font-semibold leading-4 text-[#34694a]">
           <ShieldCheck className="size-3.5" /> Débit = crédit
         </span>
       </div>
       <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left text-[10px]">
+        <table className="w-full min-w-[560px] text-left text-[11px]">
           <thead className="border-b border-[#dfe5e0] text-[#7c8880]">
             <tr>
               <th className="pb-3 font-medium">Date</th>
@@ -410,7 +410,7 @@ function AccountingView() {
           </tfoot>
         </table>
       </div>
-      <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[9px]">
+      <div className="mt-5 grid grid-cols-1 gap-2 text-center text-[11px] min-[380px]:grid-cols-3">
         {['Journal', 'Grand livre', 'Bilan & résultat'].map((label) => (
           <div
             key={label}
@@ -434,29 +434,14 @@ const panels = [
 
 export function ProductShowcase() {
   const [active, setActive] = useState(0);
-  const [automatic, setAutomatic] = useState(true);
   const baseId = 'elyko-product-tour';
-
-  useEffect(() => {
-    if (
-      !automatic ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    )
-      return;
-    const timer = window.setInterval(
-      () => setActive((value) => (value + 1) % views.length),
-      6200,
-    );
-    return () => window.clearInterval(timer);
-  }, [automatic]);
-
-  const Panel = panels[active];
 
   return (
     <div>
       <div
         className="horizontal-rail -mx-5 flex snap-x gap-2 overflow-x-auto px-5 pb-3 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0"
         role="tablist"
+        aria-orientation="horizontal"
         aria-label="Visite guidée d’Elyko"
       >
         {views.map(({ label, icon: Icon }, index) => (
@@ -466,17 +451,14 @@ export function ProductShowcase() {
             type="button"
             role="tab"
             aria-selected={active === index}
-            aria-controls={`${baseId}-panel`}
+            aria-controls={`${baseId}-panel-${index}`}
             tabIndex={active === index ? 0 : -1}
-            onClick={() => {
-              setActive(index);
-              setAutomatic(false);
-            }}
+            onClick={() => setActive(index)}
             onKeyDown={(event) => {
               const direction =
-                event.key === 'ArrowRight'
+                event.key === 'ArrowRight' || event.key === 'ArrowDown'
                   ? 1
-                  : event.key === 'ArrowLeft'
+                  : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
                     ? -1
                     : 0;
               const requested =
@@ -490,7 +472,6 @@ export function ProductShowcase() {
               if (requested === null) return;
               event.preventDefault();
               setActive(requested);
-              setAutomatic(false);
               document.getElementById(`${baseId}-tab-${requested}`)?.focus();
             }}
             className={cn(
@@ -501,16 +482,13 @@ export function ProductShowcase() {
             )}
           >
             <Icon className="size-4" /> {label}
-            {active === index && automatic && (
-              <span className="showcase-tab-progress absolute inset-x-0 bottom-0 h-0.5 origin-left bg-[#efaa3c]" />
-            )}
           </button>
         ))}
       </div>
 
       <div className="mt-3 overflow-hidden rounded-[26px] border border-[#cfd8d1] bg-[#eef2ef] shadow-[0_30px_80px_rgba(23,61,44,.14)]">
         <div className="flex h-11 items-center justify-between border-b border-[#d8dfda] bg-white px-4">
-          <div className="flex items-center gap-2 text-[10px] font-semibold text-[#42534a]">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#42534a]">
             <BrandMark className="size-5" /> Elyko
           </div>
           <div className="flex h-full items-center text-[12px] text-[#69766f]">
@@ -521,7 +499,7 @@ export function ProductShowcase() {
         </div>
         <div className="grid min-h-[440px] sm:grid-cols-[158px_1fr] lg:min-h-[510px]">
           <aside className="hidden bg-[#173d2c] p-4 text-white sm:flex sm:flex-col">
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-white/35">
+            <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-white/65">
               Navigation
             </p>
             <div className="mt-4 space-y-1.5">
@@ -529,17 +507,17 @@ export function ProductShowcase() {
                 <div
                   key={label}
                   className={cn(
-                    'flex items-center gap-2 rounded-lg px-2.5 py-2 text-[10px]',
+                    'flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11px]',
                     active === index
                       ? 'bg-white/12 text-white'
-                      : 'text-white/42',
+                      : 'text-white/68',
                   )}
                 >
                   <Icon className="size-3.5" /> {label}
                 </div>
               ))}
             </div>
-            <div className="mt-auto rounded-xl border border-white/10 p-3 text-[9px] text-white/55">
+            <div className="mt-auto rounded-xl border border-white/14 p-3 text-[11px] text-white/72">
               <span className="flex items-center gap-2 font-semibold text-white/80">
                 <span className="local-pulse size-1.5 rounded-full bg-[#63d18a]" />{' '}
                 Stockage local
@@ -549,28 +527,32 @@ export function ProductShowcase() {
               </span>
             </div>
           </aside>
-          <div
-            id={`${baseId}-panel`}
-            role="tabpanel"
-            aria-labelledby={`${baseId}-tab-${active}`}
-            key={active}
-            className="min-w-0 p-3 sm:p-5 lg:p-6"
-          >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#8f6a37]">
-                  Aperçu interactif
-                </p>
-                <h3 className="mt-1 text-lg font-semibold tracking-[-.03em] text-[#24382b]">
-                  {views[active].label}
-                </h3>
+          {panels.map((Panel, index) => (
+            <div
+              id={`${baseId}-panel-${index}`}
+              role="tabpanel"
+              aria-labelledby={`${baseId}-tab-${index}`}
+              tabIndex={0}
+              hidden={active !== index}
+              key={views[index].label}
+              className="min-w-0 p-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#315f47] sm:p-5 lg:p-6"
+            >
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#7b592e]">
+                    Aperçu interactif
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold tracking-[-.03em] text-[#24382b]">
+                    {views[index].label}
+                  </h3>
+                </div>
+                <span className="max-w-full whitespace-normal rounded-full border border-[#c7d1ca] bg-white px-3 py-1.5 text-center text-[11px] font-semibold leading-4 text-[#536159]">
+                  Exemples fictifs du site
+                </span>
               </div>
-              <span className="rounded-full border border-[#d3ddd5] bg-white px-2.5 py-1 text-[9px] font-medium text-[#65736b]">
-                Exemples fictifs du site
-              </span>
+              <Panel />
             </div>
-            <Panel />
-          </div>
+          ))}
         </div>
       </div>
       <p className="mt-4 text-center text-xs leading-5 text-[#727e76]">

@@ -13,6 +13,7 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
 
 use crate::{
+    branding::{load_pdf_logo, load_pdf_logo_with_fallback, PdfLogo},
     database::{query_all, row_to_json_public, LocalStore},
     error::{AppError, AppResult},
     models::GeneratePayslipPdfInput,
@@ -44,6 +45,7 @@ struct PayslipPdfLine {
 #[derive(Debug, Clone)]
 struct PayslipPdfData {
     company_name: String,
+    logo_path: String,
     company_address: Vec<String>,
     uid_number: String,
     employee_name: String,
@@ -61,6 +63,7 @@ struct PayslipPdfData {
     lines: Vec<PayslipPdfLine>,
     gross_cents: i64,
     deductions_cents: i64,
+    reimbursements_cents: i64,
     net_cents: i64,
     employer_costs_cents: i64,
     final_document: bool,
@@ -72,7 +75,11 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let destination = validate_pdf_destination(&input.destination_path)?;
         let data = load_payslip_data(&connection, input.payslip_id.trim())?;
-        let page_count = render_payslip_pdf(&destination, &data)?;
+        let page_count = render_payslip_pdf(
+            &destination,
+            &data,
+            Some(self.attachments_dir.join("branding").as_path()),
+        )?;
         Ok(json!({
             "path": destination.to_string_lossy(),
             "pages": page_count,
@@ -133,6 +140,7 @@ fn load_payslip_data(
     }
 
     if matches!(status.as_str(), "comptabilise" | "paye") {
+        let live_payment_date = string_at(&payslip, "payment_date");
         let snapshot = string_at(&payslip, "snapshot_json");
         if snapshot.is_empty() {
             return Err(AppError::Validation(
@@ -158,6 +166,12 @@ fn load_payslip_data(
             true,
         )?;
         data.status = status;
+        // Financial and identity fields stay frozen at posting. The actual payment date is the
+        // only later business event allowed by the immutable-payslip trigger, so a paid PDF must
+        // display that audited live value instead of the earlier planned/snapshot date.
+        if data.status == "paye" && !live_payment_date.is_empty() {
+            data.payment_date = live_payment_date;
+        }
         return Ok(data);
     }
 
@@ -216,10 +230,10 @@ fn pdf_data_from_values(
                 kind: string_at(row, "kind"),
                 amount_cents: integer_at(row, "amount_cents"),
                 detail: contribution.map(contribution_detail).unwrap_or_else(|| {
-                    if string_at(row, "kind") == "earning" {
-                        "Élément salarial contrôlé".into()
-                    } else {
-                        "Montant saisi et contrôlé".into()
+                    match string_at(row, "kind").as_str() {
+                        "earning" => "Élément salarial contrôlé".into(),
+                        "reimbursement" => "Remboursement de frais hors salaire brut".into(),
+                        _ => "Montant saisi et contrôlé".into(),
                     }
                 }),
             }
@@ -239,6 +253,11 @@ fn pdf_data_from_values(
     let deductions_cents = lines
         .iter()
         .filter(|line| line.kind == "deduction")
+        .map(|line| line.amount_cents)
+        .sum();
+    let reimbursements_cents = lines
+        .iter()
+        .filter(|line| line.kind == "reimbursement")
         .map(|line| line.amount_cents)
         .sum();
     let employer_costs_cents = lines
@@ -274,6 +293,7 @@ fn pdf_data_from_values(
 
     Ok(PayslipPdfData {
         company_name: string_at(issuer, "company_name"),
+        logo_path: string_at(issuer, "logo_path"),
         company_address,
         uid_number: string_at(issuer, "uid_number"),
         employee_name,
@@ -291,7 +311,10 @@ fn pdf_data_from_values(
         lines,
         gross_cents,
         deductions_cents,
-        net_cents: gross_cents - deductions_cents,
+        reimbursements_cents,
+        net_cents: gross_cents
+            .saturating_add(reimbursements_cents)
+            .saturating_sub(deductions_cents),
         employer_costs_cents,
         final_document,
     })
@@ -319,9 +342,13 @@ fn contribution_detail(row: &Value) -> String {
     format!("Base {basis} · {calculation} · {source}")
 }
 
-fn render_payslip_pdf(path: &Path, data: &PayslipPdfData) -> AppResult<usize> {
+fn render_payslip_pdf(
+    path: &Path,
+    data: &PayslipPdfData,
+    branding_dir: Option<&Path>,
+) -> AppResult<usize> {
     let mut ordered_lines = Vec::with_capacity(data.lines.len());
-    for kind in ["earning", "deduction", "employer"] {
+    for kind in ["earning", "reimbursement", "deduction", "employer"] {
         ordered_lines.extend(data.lines.iter().filter(|line| line.kind == kind).cloned());
     }
 
@@ -345,19 +372,37 @@ fn render_payslip_pdf(path: &Path, data: &PayslipPdfData) -> AppResult<usize> {
     let pages_id = document.new_object_id();
     let regular_font = add_font(&mut document, "Helvetica");
     let bold_font = add_font(&mut document, "Helvetica-Bold");
-    let resources_id = document.add_object(dictionary! {
+    let logo = branding_dir
+        .and_then(|directory| load_pdf_logo_with_fallback(&data.logo_path, directory))
+        .or_else(|| load_pdf_logo(&data.logo_path));
+    let logo_object = logo
+        .as_ref()
+        .map(|image| add_logo_image(&mut document, image));
+    let mut resources = dictionary! {
         "Font" => dictionary! {
             "F1" => regular_font,
             "F2" => bold_font,
         }
-    });
+    };
+    if let Some(logo_object) = logo_object {
+        resources.set("XObject", dictionary! { "Logo" => logo_object });
+    }
+    let resources_id = document.add_object(resources);
     let total_pages = chunks.len();
     let mut page_ids = Vec::with_capacity(total_pages);
 
     for (index, chunk) in chunks.iter().enumerate() {
         let is_first = index == 0;
         let is_last = index + 1 == total_pages;
-        let operations = render_page(data, chunk, index + 1, total_pages, is_first, is_last);
+        let operations = render_page(
+            data,
+            chunk,
+            index + 1,
+            total_pages,
+            is_first,
+            is_last,
+            logo.as_ref(),
+        );
         let content = Content { operations }.encode().map_err(|error| {
             AppError::Validation(format!("Le contenu PDF est invalide : {error}"))
         })?;
@@ -419,6 +464,20 @@ fn add_font(document: &mut Document, base_font: &str) -> ObjectId {
     })
 }
 
+fn add_logo_image(document: &mut Document, logo: &PdfLogo) -> ObjectId {
+    document.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Image",
+            "Width" => i64::from(logo.width),
+            "Height" => i64::from(logo.height),
+            "ColorSpace" => "DeviceRGB",
+            "BitsPerComponent" => 8,
+        },
+        logo.rgb.clone(),
+    ))
+}
+
 fn render_page(
     data: &PayslipPdfData,
     lines: &[PayslipPdfLine],
@@ -426,13 +485,21 @@ fn render_page(
     total_pages: usize,
     first: bool,
     last: bool,
+    logo: Option<&PdfLogo>,
 ) -> Vec<Operation> {
     let mut ops = Vec::new();
     fill_rect(&mut ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, BLUE);
+    let brand_text_x = if let Some(logo) = logo {
+        let (width, height) = fitted_size(logo.width, logo.height, 72.0, 25.0);
+        draw_image(&mut ops, "Logo", MARGIN, 786.0, width, height);
+        MARGIN + width + 9.0
+    } else {
+        MARGIN
+    };
     text(
         &mut ops,
-        MARGIN,
-        805.0,
+        brand_text_x,
+        798.0,
         9.0,
         "F2",
         BLUE,
@@ -621,6 +688,7 @@ fn render_page(
         if line.kind != previous_kind {
             let heading = match line.kind.as_str() {
                 "earning" => "RÉMUNÉRATION",
+                "reimbursement" => "REMBOURSEMENTS HORS BRUT",
                 "deduction" => "RETENUES EMPLOYÉ",
                 "employer" => "COTISATIONS EMPLOYEUR · INFORMATIF",
                 _ => "AUTRES ÉLÉMENTS",
@@ -690,13 +758,48 @@ fn render_page(
     ops
 }
 
+fn fitted_size(width: u32, height: u32, max_width: f32, max_height: f32) -> (f32, f32) {
+    let width = width.max(1) as f32;
+    let height = height.max(1) as f32;
+    let scale = (max_width / width).min(max_height / height);
+    (width * scale, height * scale)
+}
+
+fn draw_image(ops: &mut Vec<Operation>, name: &str, x: f32, y: f32, width: f32, height: f32) {
+    ops.push(Operation::new("q", vec![]));
+    ops.push(Operation::new(
+        "cm",
+        vec![
+            Object::Real(width),
+            0.into(),
+            0.into(),
+            Object::Real(height),
+            Object::Real(x),
+            Object::Real(y),
+        ],
+    ));
+    ops.push(Operation::new(
+        "Do",
+        vec![Object::Name(name.as_bytes().to_vec())],
+    ));
+    ops.push(Operation::new("Q", vec![]));
+}
+
 fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
-    fill_rect(ops, 290.0, 87.0, PAGE_WIDTH - MARGIN - 290.0, 120.0, PALE);
-    total_row(ops, 305.0, 187.0, "Salaire brut", data.gross_cents, false);
+    fill_rect(ops, 290.0, 87.0, PAGE_WIDTH - MARGIN - 290.0, 130.0, PALE);
+    total_row(ops, 305.0, 197.0, "Salaire brut", data.gross_cents, false);
     total_row(
         ops,
         305.0,
-        165.0,
+        177.0,
+        "Remboursements hors brut",
+        data.reimbursements_cents,
+        false,
+    );
+    total_row(
+        ops,
+        305.0,
+        157.0,
         "Retenues employé",
         data.deductions_cents,
         false,
@@ -704,7 +807,7 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
     total_row(
         ops,
         305.0,
-        143.0,
+        137.0,
         "Charges employeur",
         data.employer_costs_cents,
         false,
@@ -969,12 +1072,9 @@ fn pdf_literal(value: &str) -> Object {
 fn normalize_pdf_text(value: &str) -> String {
     value
         .replace('’', "'")
-        .replace('–', "-")
-        .replace('—', "-")
-        .replace('·', "-")
+        .replace(['–', '—', '·'], "-")
         .replace('→', "->")
-        .replace('\n', " ")
-        .replace('\r', " ")
+        .replace(['\n', '\r'], " ")
 }
 
 fn string_at(value: &Value, key: &str) -> String {
@@ -1105,8 +1205,13 @@ mod tests {
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent).expect("create sample PDF directory");
         }
+        let logo_path = directory.path().join("logo.png");
+        image::DynamicImage::new_rgba8(96, 48)
+            .save_with_format(&logo_path, image::ImageFormat::Png)
+            .expect("write test logo");
         let data = PayslipPdfData {
             company_name: "Atelier Démo Sàrl".into(),
+            logo_path: logo_path.to_string_lossy().into_owned(),
             company_address: vec!["Rue du Lac 8".into(), "1000 Lausanne".into()],
             uid_number: "CHE-123.456.789".into(),
             employee_name: "Élodie Exemple".into(),
@@ -1146,18 +1251,74 @@ mod tests {
                     amount_cents: 34_450,
                     detail: "Base CHF 6'500.00 - 5.3 % - AVS 2026".into(),
                 },
+                PayslipPdfLine {
+                    label: "Remboursement de frais".into(),
+                    kind: "reimbursement".into(),
+                    amount_cents: 20_000,
+                    detail: "Remboursement de frais hors salaire brut".into(),
+                },
             ],
             gross_cents: 650_000,
             deductions_cents: 41_600,
-            net_cents: 608_400,
+            reimbursements_cents: 20_000,
+            net_cents: 628_400,
             employer_costs_cents: 34_450,
             final_document: true,
         };
-        let pages = render_payslip_pdf(&destination, &data).expect("render payslip");
+        let pages = render_payslip_pdf(&destination, &data, None).expect("render payslip");
         assert_eq!(pages, 1);
         let bytes = fs::read(&destination).expect("read pdf");
         assert!(bytes.starts_with(b"%PDF-1.7"));
         assert!(bytes.len() > 2_000);
-        Document::load(&destination).expect("parse generated PDF");
+        let parsed = Document::load(&destination).expect("parse generated PDF");
+        assert!(parsed.objects.values().any(|object| match object {
+            Object::Stream(stream) =>
+                stream.dict.get(b"Subtype").ok() == Some(&Object::Name(b"Image".to_vec())),
+            _ => false,
+        }));
+    }
+
+    #[test]
+    fn paid_payslip_uses_the_audited_payment_date_over_the_posting_snapshot() {
+        let connection = rusqlite::Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE payslips(
+                    id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL,
+                    payment_date TEXT,
+                    snapshot_json TEXT
+                );",
+            )
+            .expect("payslip table");
+        let snapshot = serde_json::json!({
+            "captured_at":"2026-08-31T12:00:00Z",
+            "issuer":{"company_name":"Entreprise test"},
+            "employee":{"name":"Employé test"},
+            "payslip":{
+                "period":"2026-08",
+                "payment_date":"2026-08-31",
+                "status":"comptabilise",
+                "notes":""
+            },
+            "items":[{
+                "id":"salary-line",
+                "label":"Salaire brut",
+                "kind":"earning",
+                "amount_cents":500000
+            }],
+            "contributions":[]
+        });
+        connection
+            .execute(
+                "INSERT INTO payslips(id,status,payment_date,snapshot_json) VALUES('paid-slip','paye','2026-09-02',?)",
+                rusqlite::params![snapshot.to_string()],
+            )
+            .expect("paid payslip");
+
+        let data = load_payslip_data(&connection, "paid-slip").expect("load paid payslip");
+        assert_eq!(data.payment_date, "2026-09-02");
+        assert_eq!(data.status, "paye");
+        assert!(data.final_document);
     }
 }

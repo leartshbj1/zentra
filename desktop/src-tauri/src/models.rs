@@ -137,6 +137,10 @@ fn default_true() -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordPaymentInput {
+    /// Identifiant stable généré par l'interface avant l'appel. Une reprise avec
+    /// le même identifiant et les mêmes données retourne le paiement existant.
+    #[serde(default)]
+    pub request_id: Option<String>,
     pub invoice_id: String,
     pub amount_cents: i64,
     #[serde(default)]
@@ -372,6 +376,14 @@ pub struct CalculatePayrollInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalculateEmployeePayrollInput {
+    pub employee_id: String,
+    pub period: String,
+    pub gross_cents: i64,
+    pub items: Vec<ContributionSelectionInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApplyPayrollInput {
     pub payslip_id: String,
     pub period: String,
@@ -385,6 +397,10 @@ pub struct PayslipManualLineInput {
     pub label: String,
     pub kind: String,
     pub amount_cents: i64,
+    #[serde(default)]
+    pub posting_account_id: Option<String>,
+    #[serde(default)]
+    pub expense_account_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -408,6 +424,15 @@ pub struct PostPayslipInput {
     pub payslip_id: String,
     #[serde(default)]
     pub entry_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayPayslipInput {
+    pub payslip_id: String,
+    #[serde(default)]
+    pub payment_date: Option<String>,
+    #[serde(default)]
+    pub reference: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -507,6 +532,8 @@ pub struct ConfirmPayrollImportInput {
     pub id: String,
     #[serde(default)]
     pub employee_id: Option<String>,
+    #[serde(default)]
+    pub replace_existing_template: bool,
     pub draft: PayrollImportDraft,
 }
 

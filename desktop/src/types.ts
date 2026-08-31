@@ -287,6 +287,10 @@ export type Employee = {
   avsNumber: string;
   employmentStart: string;
   employmentEnd: string;
+  /** Date confirmée par la caisse/fiduciaire; jamais déduite du sexe. */
+  referenceAgeDate: string;
+  /** true = renonciation confirmée, false = franchise conservée, null = à confirmer. */
+  avsAllowanceWaived: boolean | null;
   employmentRate: number;
   salaryMode: 'hourly' | 'monthly';
   grossSalaryCents: number;
@@ -341,8 +345,10 @@ export type Expense = {
 export type PayslipLine = {
   id: Identifier;
   label: string;
-  kind: 'earning' | 'deduction' | 'employer';
+  kind: 'earning' | 'deduction' | 'reimbursement' | 'employer';
   amountCents: number;
+  postingAccountId?: string;
+  expenseAccountId?: string;
 };
 
 export type Payslip = {
@@ -352,6 +358,8 @@ export type Payslip = {
   status: 'incomplete' | 'draft' | 'validated' | 'posted' | 'paid';
   lines: PayslipLine[];
   paymentDate: string;
+  paymentReference?: string;
+  paymentJournalEntryId?: string;
   notes: string;
   createdAt: string;
   snapshot?: FrozenPayslipSnapshot | null;
@@ -532,6 +540,18 @@ export type AccountingSettings = {
   socialPayableAccountId: string;
 };
 
+export type AccountingFallback = {
+  contribution: string;
+  field: string;
+  accountId: Identifier;
+  reason: string;
+};
+
+export type PostPayslipResult = {
+  workspace: Workspace;
+  accountingFallbacks: AccountingFallback[];
+};
+
 export type PeriodFilter = { dateFrom?: string; dateTo?: string };
 export type AccountingPeriod = { id: Identifier; name: string; dateFrom: string; dateTo: string; status: 'open' | 'closed'; closedAt: string; createdAt: string; updatedAt: string };
 
@@ -575,9 +595,11 @@ export type TrialBalanceRow = Account & {
 };
 export type TrialBalanceReport = { rows: TrialBalanceRow[]; debitCents: number; creditCents: number; balanced: boolean };
 
-export type StatementRow = Pick<Account, 'id' | 'code' | 'name' | 'accountType' | 'reportSection'> & { normalBalance?: NormalBalance; debitCents: number; creditCents: number };
-export type BalanceSheetReport = { asOf: string; rows: StatementRow[]; sections: Partial<Record<ReportSection, number>>; assetsCents: number; liabilitiesCents: number; equityCents: number; currentResultCents: number; balanced: boolean };
-export type IncomeStatementReport = { rows: StatementRow[]; sections: Partial<Record<ReportSection, number>>; revenueCents: number; expenseCents: number; profitCents: number };
+export type StatementScope = { dateFrom: string; dateTo: string; previousDateFrom: string; previousDateTo: string; comparisonLabel: string; comparisonSource: 'registered_period' | 'same_dates_previous_year'; previousHasActivity: boolean };
+export type ReportCurrency = { baseCurrency: string; currencies: string[]; singleCurrency: boolean; exchangeRatesApplied: boolean };
+export type StatementRow = Pick<Account, 'id' | 'code' | 'name' | 'accountType' | 'reportSection'> & { normalBalance?: NormalBalance; debitCents: number; creditCents: number; amountCents: number; previousDebitCents: number; previousCreditCents: number; previousAmountCents: number };
+export type BalanceSheetReport = { asOf: string; exerciseFrom: string; scope: StatementScope; currency: ReportCurrency; rows: StatementRow[]; sections: Partial<Record<ReportSection, number>>; previousSections: Partial<Record<ReportSection, number>>; assetsCents: number; liabilitiesCents: number; equityCents: number; currentResultCents: number; unallocatedPriorResultsCents: number; balanced: boolean; previousAssetsCents: number; previousLiabilitiesCents: number; previousEquityCents: number; previousCurrentResultCents: number; previousUnallocatedPriorResultsCents: number; previousBalanced: boolean };
+export type IncomeStatementReport = { scope: StatementScope; currency: ReportCurrency; rows: StatementRow[]; sections: Partial<Record<ReportSection, number>>; previousSections: Partial<Record<ReportSection, number>>; revenueCents: number; expenseCents: number; profitCents: number; previousRevenueCents: number; previousExpenseCents: number; previousProfitCents: number };
 
 export type ReminderSettings = { enabled: boolean; senderName: string };
 export type ReminderTemplate = { id: Identifier; level: number; name: string; subject: string; body: string; daysAfterDue: number; active: boolean };
@@ -622,7 +644,17 @@ export type PayrollContributionDefinition = {
   expenseAccountId: string;
 };
 export type PayrollContributionSelection = { definitionId: Identifier; basisCents?: number; yearToDateBasisCents?: number };
-export type CalculatedPayrollContribution = PayrollContributionDefinition & { basisCents: number; amountCents: number };
+export type CalculatedPayrollContribution = PayrollContributionDefinition & {
+  basisCents: number;
+  originalBasisCents: number;
+  amountCents: number;
+  statutoryAnnualCeilingCents: number | null;
+  acProrationDays: number | null;
+  acEmploymentFrom: string;
+  acEmploymentTo: string;
+  avsAllowanceAppliedCents: number | null;
+  avsAllowanceWaived: boolean | null;
+};
 export type PayrollCalculation = { period: string; grossCents: number; employeeDeductionsCents: number; employerCostsCents: number; items: CalculatedPayrollContribution[] };
 export type PayrollRegulatoryProfile = { id: string; label: string; source: string; effectiveFrom: string; effectiveTo: string; definitions: Array<Omit<PayrollContributionDefinition, 'id' | 'liabilityAccountId' | 'expenseAccountId'>>; notIncluded: ContributionCategory[] };
 export type PayslipContributionSnapshot = {
@@ -644,6 +676,8 @@ export type PayslipContributionSnapshot = {
   source: string;
   effectiveFrom: string;
   effectiveTo: string;
+  liabilityAccountId: string;
+  expenseAccountId: string;
   createdAt: string;
 };
 
@@ -670,3 +704,28 @@ export type StoredSwissQrBill = SwissQrPayload & {
   updatedAt: string;
   frozen: boolean;
 };
+
+export type SecureUpdaterPolicy = {
+  enabled: boolean;
+  currentVersion: string;
+  channel: 'stable';
+  endpointHost: string | null;
+  signatureRequired: true;
+  transport: 'HTTPS';
+  automaticInstall: false;
+  reason: string;
+};
+
+export type SecureUpdateMetadata = {
+  version: string;
+  currentVersion: string;
+  date: string | null;
+  notes: string | null;
+};
+
+export type SecureUpdateEvent =
+  | { event: 'preparing' }
+  | { event: 'started'; data: { contentLength: number | null } }
+  | { event: 'progress'; data: { downloadedBytes: number; contentLength: number | null; percent: number | null } }
+  | { event: 'verifying' }
+  | { event: 'installed' };

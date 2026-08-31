@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 5;
+pub const SCHEMA_VERSION: i64 = 8;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -220,6 +220,8 @@ CREATE TABLE IF NOT EXISTS employees (
   iban TEXT,
   employment_start_date TEXT,
   employment_end_date TEXT,
+  reference_age_date TEXT,
+  avs_allowance_waived INTEGER CHECK (avs_allowance_waived IS NULL OR avs_allowance_waived IN (0, 1)),
   employment_rate INTEGER NOT NULL DEFAULT 100 CHECK (employment_rate BETWEEN 1 AND 100),
   hourly_rate_cents INTEGER NOT NULL DEFAULT 0 CHECK (hourly_rate_cents >= 0),
   monthly_salary_cents INTEGER NOT NULL DEFAULT 0 CHECK (monthly_salary_cents >= 0),
@@ -274,6 +276,8 @@ CREATE TABLE IF NOT EXISTS payslips (
   net_cents INTEGER NOT NULL DEFAULT 0,
   employer_costs_cents INTEGER NOT NULL DEFAULT 0,
   payment_date TEXT,
+  payment_reference TEXT,
+  payment_journal_entry_id TEXT REFERENCES journal_entries(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   notes TEXT,
   snapshot_json TEXT,
   created_at TEXT NOT NULL,
@@ -288,6 +292,8 @@ CREATE TABLE IF NOT EXISTS payslip_items (
   label TEXT NOT NULL,
   kind TEXT NOT NULL,
   amount_cents INTEGER NOT NULL,
+  posting_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -548,6 +554,8 @@ CREATE TABLE IF NOT EXISTS payslip_contributions (
   source TEXT NOT NULL,
   effective_from TEXT NOT NULL,
   effective_to TEXT,
+  liability_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   created_at TEXT NOT NULL,
   UNIQUE(payslip_id, definition_id)
 );
@@ -684,7 +692,24 @@ BEFORE DELETE ON expenses WHEN EXISTS(SELECT 1 FROM journal_entries WHERE source
 CREATE TRIGGER IF NOT EXISTS payslips_posted_no_delete
 BEFORE DELETE ON payslips WHEN OLD.status IN ('comptabilise','paye') BEGIN SELECT RAISE(ABORT, 'posted payslip is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payslips_posted_no_update
-BEFORE UPDATE ON payslips WHEN OLD.status IN ('comptabilise','paye') BEGIN SELECT RAISE(ABORT, 'posted payslip is immutable'); END;
+BEFORE UPDATE ON payslips
+WHEN OLD.status IN ('comptabilise','paye')
+AND NOT (
+  OLD.status='comptabilise' AND NEW.status='paye'
+  AND NEW.id IS OLD.id
+  AND NEW.employee_id IS OLD.employee_id
+  AND NEW.period IS OLD.period
+  AND NEW.gross_cents IS OLD.gross_cents
+  AND NEW.deductions_cents IS OLD.deductions_cents
+  AND NEW.net_cents IS OLD.net_cents
+  AND NEW.employer_costs_cents IS OLD.employer_costs_cents
+  AND NEW.notes IS OLD.notes
+  AND NEW.snapshot_json IS OLD.snapshot_json
+  AND NEW.created_at IS OLD.created_at
+  AND NEW.payment_date IS NOT NULL
+  AND NEW.payment_journal_entry_id IS NOT NULL
+)
+BEGIN SELECT RAISE(ABORT, 'posted payslip is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_insert
 BEFORE INSERT ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=NEW.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_update
@@ -692,7 +717,7 @@ BEFORE UPDATE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.p
 CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_delete
 BEFORE DELETE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
 
-PRAGMA user_version = 5;
+PRAGMA user_version = 8;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -855,4 +880,47 @@ CREATE TABLE IF NOT EXISTS employee_payroll_templates (
 CREATE INDEX IF NOT EXISTS idx_payroll_imports_status_created ON payroll_document_imports(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payroll_imports_employee ON payroll_document_imports(employee_id, created_at DESC);
 PRAGMA user_version=5;
+"#;
+
+/// Fige les comptes comptables utilisés par chaque cotisation et autorise la
+/// seule mutation financière légitime d'une fiche comptabilisée : son paiement
+/// atomique, lié à une écriture de journal immuable.
+pub const MIGRATION_V6_SQL: &str = r#"
+DROP TRIGGER IF EXISTS payslips_posted_no_update;
+CREATE TRIGGER payslips_posted_no_update
+BEFORE UPDATE ON payslips
+WHEN OLD.status IN ('comptabilise','paye')
+AND NOT (
+  OLD.status='comptabilise' AND NEW.status='paye'
+  AND NEW.id IS OLD.id
+  AND NEW.employee_id IS OLD.employee_id
+  AND NEW.period IS OLD.period
+  AND NEW.gross_cents IS OLD.gross_cents
+  AND NEW.deductions_cents IS OLD.deductions_cents
+  AND NEW.net_cents IS OLD.net_cents
+  AND NEW.employer_costs_cents IS OLD.employer_costs_cents
+  AND NEW.notes IS OLD.notes
+  AND NEW.snapshot_json IS OLD.snapshot_json
+  AND NEW.created_at IS OLD.created_at
+  AND NEW.payment_date IS NOT NULL
+  AND NEW.payment_journal_entry_id IS NOT NULL
+)
+BEGIN SELECT RAISE(ABORT,'posted payslip is immutable'); END;
+
+PRAGMA user_version=6;
+"#;
+
+/// Conserve les choix sociaux confirmés pour les collaborateurs proches ou
+/// au-delà de l'âge de référence. Les colonnes restent NULL sur les bases
+/// existantes : Elyko ne déduit ni le sexe, ni l'âge de référence, ni la
+/// renonciation à la franchise AVS.
+pub const MIGRATION_V7_SQL: &str = r#"
+PRAGMA user_version=7;
+"#;
+
+/// Lie chaque ligne de paie manuelle à ses comptes explicites. Les anciennes lignes restent
+/// volontairement NULL : elles doivent être classées par l'utilisateur avant comptabilisation,
+/// afin qu'une avance, un impôt à la source ou un remboursement ne soit jamais ventilé au hasard.
+pub const MIGRATION_V8_SQL: &str = r#"
+PRAGMA user_version=8;
 "#;

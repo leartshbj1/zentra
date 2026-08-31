@@ -39,15 +39,15 @@ export function HeroDashboard() {
 
         <div className="grid min-h-[430px] grid-cols-1 sm:grid-cols-[148px_1fr] lg:min-h-[500px]">
           <aside className="hidden bg-[#153b2a] p-3 text-white sm:flex sm:flex-col">
-            <p className="px-2 pt-2 text-[9px] font-semibold uppercase tracking-[.14em] text-white/35">
+            <p className="px-2 pt-2 text-[11px] font-semibold uppercase tracking-[.11em] text-white/70">
               Espace de travail
             </p>
             <div className="mt-4 space-y-1">
               {navItems.map(([Icon, label], index) => (
                 <div
                   key={label}
-                  className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[10px] ${
-                    index === 0 ? 'bg-white/12 text-white' : 'text-white/48'
+                  className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] ${
+                    index === 0 ? 'bg-white/12 text-white' : 'text-white/72'
                   }`}
                 >
                   <Icon className="size-3.5" />
@@ -56,11 +56,11 @@ export function HeroDashboard() {
               ))}
             </div>
             <div className="mt-auto rounded-xl border border-white/10 bg-white/6 p-3">
-              <div className="flex items-center gap-2 text-[9px] font-semibold text-white/75">
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-white/85">
                 <span className="local-pulse size-1.5 rounded-full bg-[#5ed38a]" />
                 Base locale active
               </div>
-              <p className="mt-1.5 text-[8px] leading-4 text-white/38">
+              <p className="mt-1.5 text-[11px] leading-4 text-white/68">
                 Données enregistrées sur ce PC
               </p>
             </div>
@@ -69,14 +69,14 @@ export function HeroDashboard() {
           <div className="min-w-0 p-4 sm:p-5 lg:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] font-medium text-[#7b877f]">
+                <p className="text-[11px] font-medium text-[#647169]">
                   LUNDI 31 AOÛT
                 </p>
                 <h2 className="mt-1 text-lg font-semibold tracking-[-.03em] text-[#1d2d24] sm:text-xl">
                   Bonjour, votre activité en un coup d’œil.
                 </h2>
               </div>
-              <span className="hidden items-center gap-1.5 rounded-full bg-[#e7f1e9] px-2.5 py-1 text-[9px] font-semibold text-[#2f6647] min-[430px]:inline-flex">
+              <span className="hidden max-w-full flex-wrap items-center gap-1.5 rounded-full bg-[#e7f1e9] px-2.5 py-1 text-[11px] font-semibold leading-4 text-[#2f6647] min-[430px]:inline-flex">
                 <ShieldCheck className="size-3" /> Local
               </span>
             </div>
@@ -96,13 +96,13 @@ export function HeroDashboard() {
                   }`}
                   style={{ animationDelay: `${220 + index * 90}ms` }}
                 >
-                  <p className="text-[9px] font-medium text-[#7a867f]">
+                  <p className="text-[11px] font-medium text-[#647169]">
                     {label}
                   </p>
                   <p className="mt-2 text-base font-semibold tracking-[-.03em] text-[#23372b] sm:text-lg">
                     {value}
                   </p>
-                  <p className="mt-1 text-[8px] text-[#9a6a28]">{detail}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-[#845718]">{detail}</p>
                 </div>
               ))}
             </div>
@@ -111,10 +111,10 @@ export function HeroDashboard() {
               <div className="hidden rounded-xl border border-[#dde4de] bg-white p-3.5 lg:block">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-semibold text-[#2d4135]">
+                    <p className="text-[11px] font-semibold text-[#2d4135]">
                       Activité facturée
                     </p>
-                    <p className="mt-0.5 text-[8px] text-[#89948d]">
+                    <p className="mt-0.5 text-[11px] text-[#65716a]">
                       6 derniers mois · exemple
                     </p>
                   </div>
@@ -133,7 +133,7 @@ export function HeroDashboard() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 grid grid-cols-6 text-center text-[7px] text-[#98a19b]">
+                <div className="mt-2 grid grid-cols-6 text-center text-[10px] text-[#68736c]">
                   {['M', 'A', 'M', 'J', 'J', 'A'].map((month, index) => (
                     <span key={`${month}-${index}`}>{month}</span>
                   ))}
@@ -142,10 +142,10 @@ export function HeroDashboard() {
 
               <div className="rounded-xl border border-[#dde4de] bg-white p-3.5">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold text-[#2d4135]">
+                  <p className="text-[11px] font-semibold text-[#2d4135]">
                     Dossiers actifs
                   </p>
-                  <span className="text-[8px] text-[#7d8881]">Voir tout</span>
+                  <span className="text-[11px] text-[#5f6b64]">Voir tout</span>
                 </div>
                 <div className="mt-3 space-y-3">
                   {[
@@ -154,7 +154,7 @@ export function HeroDashboard() {
                     ['Installation technique', '86%', '#6d9377'],
                   ].map(([label, progress, color]) => (
                     <div key={label}>
-                      <div className="flex items-center justify-between gap-2 text-[8px]">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
                         <span className="truncate font-medium text-[#43534a]">
                           {label}
                         </span>
@@ -172,7 +172,7 @@ export function HeroDashboard() {
               </div>
             </div>
 
-            <div className="mt-2.5 flex items-center justify-between rounded-xl border border-[#eadfcf] bg-[#fff9ee] px-3.5 py-3 text-[9px] text-[#695a43]">
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#eadfcf] bg-[#fff9ee] px-3.5 py-3 text-[11px] leading-4 text-[#624e32]">
               <span className="font-medium">Devis accepté · DV-2026-0042</span>
               <span className="rounded-full bg-[#dceade] px-2 py-1 font-semibold text-[#316347]">
                 Convertir en facture
@@ -181,7 +181,7 @@ export function HeroDashboard() {
           </div>
         </div>
       </div>
-      <div className="hero-proof-chip absolute -bottom-4 left-4 flex items-center gap-2 rounded-full border border-[#d4dcd5] bg-white px-3 py-2 text-[9px] font-semibold text-[#365044] shadow-lg sm:left-auto sm:right-6">
+      <div className="hero-proof-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#d4dcd5] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#365044] shadow-lg sm:left-auto sm:right-6">
         <ShieldCheck className="size-3.5 text-[#3c7452]" />
         Interface Elyko · données d’exemple
       </div>

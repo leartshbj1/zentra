@@ -1,0 +1,97 @@
+.closing-folder {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.closing-readiness {
+  display: flex;
+  gap: .8rem;
+  align-items: flex-start;
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--border, #d7dde5) 76%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface, #fff) 86%, #edf3ff);
+}
+
+.closing-readiness svg { flex: 0 0 auto; margin-top: .1rem; }
+.closing-readiness strong { display: block; }
+.closing-readiness p,
+.closing-checks p,
+.closing-limitation p { margin: .25rem 0 0; color: var(--muted, #5f6b7a); line-height: 1.55; }
+.closing-readiness.is-ready { border-color: color-mix(in srgb, #1f9d68 45%, transparent); }
+.closing-readiness.is-ready svg { color: #167a51; }
+.closing-readiness.is-warning { border-color: color-mix(in srgb, #d58a12 52%, transparent); }
+.closing-readiness.is-warning svg { color: #a76700; }
+.closing-readiness.is-blocked { border-color: color-mix(in srgb, #c84b4b 48%, transparent); }
+.closing-readiness.is-blocked svg { color: #b03939; }
+
+.closing-period-grid,
+.closing-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .8rem;
+}
+
+.closing-period-grid article,
+.closing-statement-card,
+.closing-checks article,
+.closing-limitation {
+  border: 1px solid var(--border, #d7dde5);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+}
+
+.closing-period-grid article { padding: 1rem; }
+.closing-period-grid span,
+.closing-period-grid small { display: block; color: var(--muted, #5f6b7a); }
+.closing-period-grid strong { display: block; margin: .28rem 0; }
+.closing-comparison-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.closing-statement-card { min-width: 0; overflow: hidden; }
+.closing-statement-card > header { display: flex; gap: .55rem; align-items: center; padding: 1rem 1rem .4rem; }
+.closing-statement-card .table-panel { border: 0; border-radius: 0; box-shadow: none; }
+.closing-statement-card th:not(:first-child),
+.closing-statement-card td:not(:first-child) { text-align: right; white-space: nowrap; }
+
+.closing-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.closing-checks article,
+.closing-limitation {
+  display: flex;
+  align-items: flex-start;
+  gap: .7rem;
+  padding: .95rem 1rem;
+}
+
+.closing-checks svg,
+.closing-limitation svg { flex: 0 0 auto; margin-top: .12rem; }
+.closing-checks .is-ready svg { color: #167a51; }
+.closing-checks .is-warning svg { color: #a76700; }
+.closing-checks .is-blocked { border-color: color-mix(in srgb, #c84b4b 45%, var(--border, #d7dde5)); }
+.closing-checks .is-blocked svg { color: #b03939; }
+.closing-limitation { background: color-mix(in srgb, var(--surface, #fff) 90%, #fff4d8); }
+.closing-limitation svg { color: #8a5a00; }
+
+@media (max-width: 900px) {
+  .closing-period-grid,
+  .closing-comparison-grid,
+  .closing-checks { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .closing-readiness,
+  .closing-period-grid article,
+  .closing-statement-card,
+  .closing-checks article { animation: closing-card-in .35s ease both; }
+  .closing-period-grid article:nth-child(2),
+  .closing-checks article:nth-child(2) { animation-delay: .04s; }
+  .closing-period-grid article:nth-child(3),
+  .closing-checks article:nth-child(3) { animation-delay: .08s; }
+  @keyframes closing-card-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}

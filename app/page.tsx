@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { BrandMark } from '@/components/brand-mark';
+import { CapabilityStory } from '@/components/capability-story';
 import { HeroDashboard } from '@/components/hero-dashboard';
 import { PayrollLocalDemo } from '@/components/payroll-local-demo';
 import { ProductShowcase } from '@/components/product-showcase';
@@ -157,7 +158,8 @@ export default function Home() {
               'h-11 rounded-full bg-[#173d2c] px-4 text-white hover:bg-[#24563f] sm:px-5',
             )}
           >
-            Télécharger Elyko <FileDown className="size-4" />
+            Télécharger <span className="hidden min-[390px]:inline">Elyko</span>{' '}
+            <FileDown className="size-4 shrink-0" />
           </a>
         </div>
       </header>
@@ -212,7 +214,7 @@ export default function Home() {
           <p className="mt-3 text-sm text-[#5f6962]">
             50 CHF / mois · données locales · sauvegardes exportables
           </p>
-          <div className="mt-6 grid max-w-xl grid-cols-4 gap-1.5 text-[11px] font-medium text-[#4f5e55] sm:mt-7 sm:gap-2">
+          <div className="mt-6 grid max-w-xl grid-cols-2 gap-2 text-xs font-medium text-[#4f5e55] sm:mt-7 sm:grid-cols-4">
             {[
               ['22', 'secteurs NOGA'],
               ['1 clic', 'devis → facture'],
@@ -226,7 +228,7 @@ export default function Home() {
                 <strong className="block text-sm text-[#254333]">
                   {value}
                 </strong>
-                <span className="mt-0.5 block text-[8px] leading-3 text-[#748078] sm:text-[9px]">
+                <span className="mt-0.5 block text-[11px] leading-4 text-[#647168]">
                   {label}
                 </span>
               </div>
@@ -235,6 +237,8 @@ export default function Home() {
         </div>
         <HeroDashboard />
       </section>
+
+      <CapabilityStory />
 
       <section
         id="logiciel"
@@ -394,7 +398,7 @@ export default function Home() {
                 Vos données restent là où vous les travaillez.
               </h2>
             </div>
-            <p className="max-w-2xl text-lg leading-8 text-white/60 lg:justify-self-end">
+            <p className="max-w-2xl text-lg leading-8 text-white/76 lg:justify-self-end">
               Elyko installe l’application et sa base sur votre ordinateur. La
               gestion quotidienne ne dépend pas d’un navigateur ni d’une
               connexion permanente.
@@ -408,7 +412,7 @@ export default function Home() {
               >
                 <Icon className="size-5 text-[#efaa3c]" />
                 <h3 className="mt-5 font-semibold">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-white/65">{text}</p>
+                <p className="mt-3 text-sm leading-6 text-white/76">{text}</p>
               </div>
             ))}
           </div>
@@ -509,7 +513,7 @@ export default function Home() {
               <p className="font-semibold">
                 Testez le document avant d’installer.
               </p>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/72">
                 Le générateur commence vide, calcule vos propres lignes et
                 imprime un aperçu PDF sans enregistrer ni envoyer vos saisies.
               </p>

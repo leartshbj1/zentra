@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 const steps = [
   {
     title: 'Documents',
-    short: '2 PDF ajoutés',
+    short: 'PDF multipages + images',
     icon: FileText,
   },
   {
@@ -46,20 +46,47 @@ const detectedLines = [
 
 export function PayrollLocalDemo() {
   const [active, setActive] = useState(0);
+  const baseId = 'elyko-payroll-demo';
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-[#cfd8d1] bg-[#edf2ee] shadow-[0_30px_80px_rgba(23,61,44,.13)]">
       <div className="border-b border-[#d9dfda] bg-white px-4 py-3 sm:px-6">
         <div
           className="horizontal-rail -mx-2 flex snap-x gap-2 overflow-x-auto px-2 sm:grid sm:grid-cols-4 sm:overflow-visible"
+          role="tablist"
+          aria-orientation="horizontal"
           aria-label="Exemple du parcours d’import de salaires"
         >
           {steps.map(({ title, short, icon: Icon }, index) => (
             <button
               key={title}
+              id={`${baseId}-tab-${index}`}
               type="button"
-              aria-pressed={active === index}
+              role="tab"
+              aria-selected={active === index}
+              aria-controls={`${baseId}-panel`}
+              tabIndex={active === index ? 0 : -1}
               onClick={() => setActive(index)}
+              onKeyDown={(event) => {
+                const direction =
+                  event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                    ? 1
+                    : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                      ? -1
+                      : 0;
+                const requested =
+                  event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? steps.length - 1
+                      : direction
+                        ? (index + direction + steps.length) % steps.length
+                        : null;
+                if (requested === null) return;
+                event.preventDefault();
+                setActive(requested);
+                document.getElementById(`${baseId}-tab-${requested}`)?.focus();
+              }}
               className={cn(
                 'min-w-[168px] snap-start rounded-xl border px-3 py-2.5 text-left transition sm:min-w-0',
                 active === index
@@ -72,8 +99,8 @@ export function PayrollLocalDemo() {
               </span>
               <span
                 className={cn(
-                  'mt-1 block text-[9px]',
-                  active === index ? 'text-white/70' : 'text-[#66736b]',
+                  'mt-1 block text-[11px] leading-4',
+                  active === index ? 'text-white/82' : 'text-[#5d6b63]',
                 )}
               >
                 {short}
@@ -83,27 +110,27 @@ export function PayrollLocalDemo() {
         </div>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[.82fr_1.18fr]">
-        <div className="border-b border-[#d9dfda] bg-[#173d2c] p-5 text-white sm:p-7 lg:border-b-0 lg:border-r">
+      <div className="grid min-w-0 gap-0 lg:grid-cols-[.82fr_1.18fr]">
+        <div className="min-w-0 border-b border-[#d9dfda] bg-[#173d2c] p-5 text-white sm:p-7 lg:border-b-0 lg:border-r">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1.5 text-[10px] font-semibold text-white/68">
+            <span className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-semibold leading-4 text-white/82">
               <ShieldCheck className="size-3.5 text-[#7fd399]" /> Traitement sur ce PC
             </span>
-            <span className="rounded-full bg-[#efaa3c] px-2.5 py-1 text-[9px] font-bold text-[#173d2c]">
+            <span className="max-w-full whitespace-normal rounded-full bg-[#efaa3c] px-2.5 py-1 text-center text-[11px] font-bold leading-4 text-[#173d2c]">
               EXEMPLE FICTIF
             </span>
           </div>
           <div className="mt-7 rounded-2xl bg-white p-5 text-[#24372c] shadow-xl sm:p-6">
             <div className="flex items-start justify-between border-b border-[#e6eae7] pb-4">
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#809087]">
+                <p className="text-[11px] font-semibold uppercase tracking-[.11em] text-[#617068]">
                   Fiche source importée
                 </p>
                 <p className="mt-1.5 text-sm font-semibold">Août 2026</p>
               </div>
               <FileText className="size-5 text-[#b77726]" />
             </div>
-            <div className="mt-5 space-y-3 text-[10px]">
+            <div className="mt-5 space-y-3 text-[11px]">
               <div className="grid grid-cols-2 gap-3">
                 <span className="rounded-lg bg-[#f3f5f3] p-2.5">Employeur exemple</span>
                 <span className="rounded-lg bg-[#f3f5f3] p-2.5">Élodie Exemple</span>
@@ -116,15 +143,22 @@ export function PayrollLocalDemo() {
               ))}
             </div>
           </div>
-          <p className="mt-5 text-xs leading-5 text-white/58">
+          <p className="mt-5 text-xs leading-5 text-white/74">
             Les fichiers PDF et images sont copiés dans l’espace local Elyko. Aucun document de paie n’est envoyé, ni à Elyko ni au fournisseur du modèle.
           </p>
         </div>
 
-        <div className="p-5 sm:p-7" aria-live="polite">
+        <div
+          id={`${baseId}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${baseId}-tab-${active}`}
+          tabIndex={0}
+          className="min-w-0 p-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#315f47] sm:p-7"
+          aria-live="polite"
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#986522]">
+              <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#80521b]">
                 Étape {active + 1} sur 4
               </p>
               <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-[#24372c]">
@@ -136,7 +170,7 @@ export function PayrollLocalDemo() {
                 ][active]}
               </h3>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e3eee6] px-3 py-1.5 text-[10px] font-semibold text-[#34694a]">
+            <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full bg-[#e3eee6] px-3 py-1.5 text-[11px] font-semibold leading-4 text-[#34694a]">
               <Cpu className="size-3.5" /> IA facultative
             </span>
           </div>
@@ -144,7 +178,7 @@ export function PayrollLocalDemo() {
           <div className="mt-6 rounded-2xl border border-[#d7ded8] bg-white p-4 sm:p-5">
             {active === 0 && (
               <div className="space-y-2.5">
-                {['fiche-elodie-aout.pdf', 'fiche-luca-aout.pdf'].map((file) => (
+                {['fiche-elodie-aout-3-pages.pdf', 'fiche-luca-aout.jpg'].map((file) => (
                   <div key={file} className="flex items-center justify-between rounded-xl bg-[#f4f6f4] px-3 py-3 text-xs">
                     <span className="flex min-w-0 items-center gap-2 font-medium text-[#3f5147]">
                       <FileText className="size-4 shrink-0 text-[#a66b20]" />
@@ -153,12 +187,18 @@ export function PayrollLocalDemo() {
                     <Check className="size-4 shrink-0 text-[#3d7854]" />
                   </div>
                 ))}
+                <p className="rounded-xl bg-[#eef3ef] p-3 text-[11px] leading-5 text-[#506158]">
+                  Les pages sont rendues sur le PC. Pour un PDF long, la couche
+                  texte complète reste utilisée et Elyko indique clairement les
+                  pages analysées visuellement.
+                </p>
               </div>
             )}
             {active === 1 && (
               <div className="space-y-3 text-xs text-[#526159]">
-                <div className="flex items-center justify-between"><span>Texte PDF disponible</span><strong className="text-[#376d4c]">Lu en premier</strong></div>
-                <div className="flex items-center justify-between"><span>SmolVLM local</span><strong>Prêt si nécessaire</strong></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><span>Couche texte du PDF</span><strong className="text-[#376d4c]">Lue en premier</strong></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><span>Pages rendues localement</span><strong>Comparées ensemble</strong></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><span>SmolVLM local</span><strong>Prêt si nécessaire</strong></div>
                 <div className="h-2 overflow-hidden rounded-full bg-[#e9eeea]"><span className="payroll-demo-progress block h-full w-[86%] rounded-full bg-gradient-to-r from-[#2c6748] to-[#81a98a]" /></div>
                 <p className="rounded-xl bg-[#fff4e4] p-3 leading-5 text-[#76511f]">Les propositions peuvent être inexactes : elles ne sont jamais validées automatiquement.</p>
               </div>
@@ -181,14 +221,14 @@ export function PayrollLocalDemo() {
               <div>
                 <div className="flex items-center justify-between rounded-xl bg-[#e9f2eb] p-4">
                   <div>
-                    <p className="text-[10px] text-[#678073]">Résultat dans Elyko</p>
+                    <p className="text-[11px] text-[#536b5f]">Résultat dans Elyko</p>
                     <strong className="mt-1 block text-sm text-[#2e523e]">Fiche d’août · À contrôler</strong>
                   </div>
                   <Check className="size-5 text-[#3e7b55]" />
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <span className="rounded-xl border border-[#dfe5e0] p-3 text-[10px] text-[#5c6962]">Collaborateur rapproché</span>
-                  <span className="rounded-xl border border-[#dfe5e0] p-3 text-[10px] text-[#5c6962]">Lignes récurrentes proposées</span>
+                  <span className="rounded-xl border border-[#dfe5e0] p-3 text-[11px] leading-4 text-[#4f5e56]">Collaborateur rapproché</span>
+                  <span className="rounded-xl border border-[#dfe5e0] p-3 text-[11px] leading-4 text-[#4f5e56]">Lignes récurrentes proposées</span>
                 </div>
               </div>
             )}

@@ -2,9 +2,13 @@ use std::{env, fs};
 
 const LICENSE_PUBLIC_KEY_ENV: &str = "HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL";
 const LICENSE_PUBLIC_KEY_FILE: &str = "license-public-key.b64url";
+const UPDATER_PUBLIC_KEY_ENV: &str = "ELYKO_UPDATER_PUBLIC_KEY";
+const UPDATER_ENDPOINT_ENV: &str = "ELYKO_UPDATER_ENDPOINT";
 
 fn main() {
     println!("cargo:rerun-if-changed={LICENSE_PUBLIC_KEY_FILE}");
+    println!("cargo:rerun-if-env-changed={UPDATER_PUBLIC_KEY_ENV}");
+    println!("cargo:rerun-if-env-changed={UPDATER_ENDPOINT_ENV}");
 
     // The desktop executable links this crate as an rlib; the cdylib is kept only
     // for Tauri's cross-platform crate layout and is not an FFI surface. MinGW's

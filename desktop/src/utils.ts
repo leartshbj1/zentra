@@ -117,7 +117,10 @@ export function payslipTotals(payslip: Payslip) {
   const employer = payslip.lines
     .filter((line) => line.kind === 'employer')
     .reduce((total, line) => total + line.amountCents, 0);
-  return { earnings, deductions, employer, net: earnings - deductions };
+  const reimbursements = payslip.lines
+    .filter((line) => line.kind === 'reimbursement')
+    .reduce((total, line) => total + line.amountCents, 0);
+  return { earnings, deductions, reimbursements, employer, net: earnings - deductions + reimbursements };
 }
 
 export function projectFinancials(

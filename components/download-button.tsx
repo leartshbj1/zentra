@@ -27,7 +27,9 @@ export function DownloadButton({
         )}
       >
         <Download className="size-4.5 shrink-0" />
-        Télécharger Elyko pour Windows
+        <span className="min-w-0 leading-5">
+          Télécharger Elyko{compact ? '' : ' pour Windows'}
+        </span>
       </a>
 
       {started && !compact && (

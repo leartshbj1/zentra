@@ -14,7 +14,7 @@ const MODEL_VERSION = 'a7da5b986cb59b408707209984f360a5f4ad7e47';
 type WorkerRequest =
   | { type: 'check' }
   | { type: 'load' }
-  | { type: 'analyze'; requestId: string; imageUrl?: string; extractedText?: string };
+  | { type: 'analyze'; requestId: string; imageUrls?: string[]; extractedText?: string };
 
 type GpuNavigator = Navigator & {
   gpu?: { requestAdapter: () => Promise<{ features: Set<string> } | null> };
@@ -23,6 +23,11 @@ type GpuNavigator = Navigator & {
 let processorPromise: ReturnType<typeof AutoProcessor.from_pretrained> | null = null;
 let modelPromise: ReturnType<typeof AutoModelForVision2Seq.from_pretrained> | null = null;
 let runtimeDevice: 'webgpu' | 'wasm' | null = null;
+
+function resetEngine() {
+  processorPromise = null;
+  modelPromise = null;
+}
 
 function post(payload: Record<string, unknown>) {
   self.postMessage(payload);
@@ -66,19 +71,28 @@ async function getEngine() {
 
 function extractionPrompt(extractedText: string) {
   const text = extractedText.slice(0, 24_000);
-  return `You are a document transcription assistant. Read this Swiss payslip carefully.
+  return `You are a strict document transcription engine for Swiss payslips in French, German, Italian or English. Inspect every supplied page and the OCR text twice: first transcribe, then verify arithmetic and classification.
 Return exactly one JSON object, with no Markdown and no commentary, using this schema:
-{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":100,"salary_mode":"monthly"},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"lines":[{"label":"","kind":"earning|deduction|employer","amount_cents":0,"recurring":false,"confidence_bp":0}],"warnings":[]}
-Rules: transcribe only information visibly present in the image or OCR text. Never guess a missing value. All CHF amounts must be integer cents. Employee deductions are positive amounts with kind deduction. Employer-only contributions use kind employer. Base monthly salary may be recurring; bonuses, expenses and one-off allowances are not recurring. confidence_bp is 0 to 10000. If two values conflict, leave the field empty or zero and add a short warning.
+{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":null,"salary_mode":null},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"lines":[{"label":"","kind":"earning|deduction|reimbursement|employer","amount_cents":0,"recurring":false,"confidence_bp":0}],"warnings":[]}
+Rules: transcribe only information visibly present in the pages or OCR text. Never guess a missing value, legal rate, contribution or employee identity. Set employment_rate and salary_mode to null unless each value is explicitly printed; salary_mode is monthly or hourly only. All CHF amounts must be integer cents. Keep a printed minus sign out of amount_cents and express employee deductions as positive amounts with kind deduction. Employer-only contributions use kind employer and must never reduce net pay. Reimbursements of expenses and non-gross payments paid to the employee use kind reimbursement, are never recurring, are excluded from gross_cents, and are added after deductions when reconciling net_cents. Base monthly salary may be recurring; bonuses and one-off salary allowances are earnings but are not recurring. gross_cents and net_cents must be the explicitly printed totals, never recomputed substitutes. confidence_bp is 0 to 10000 and must fall below 6000 when a label, sign or amount is ambiguous. If two values conflict, leave the field empty or zero and add a short warning naming the conflict. Do not merge employee and employer contributions bearing similar labels.
 ${text ? `OCR text extracted locally from the PDF:\n${text}` : 'No OCR text is available; use only the image.'}`;
 }
 
-async function analyze(requestId: string, imageUrl?: string, extractedText = '') {
+async function analyze(requestId: string, imageUrls: string[] = [], extractedText = '') {
   try {
-    const [processor, model] = await getEngine();
+    let processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>;
+    let model: Awaited<ReturnType<typeof AutoModelForVision2Seq.from_pretrained>>;
+    try {
+      [processor, model] = await getEngine();
+    } catch (error) {
+      // Une coupure réseau ou un cache incomplet ne doit pas condamner toutes
+      // les relances jusqu'au prochain redémarrage d'Elyko.
+      resetEngine();
+      throw error;
+    }
     const content: Array<{ type: 'image'; image: string } | { type: 'text'; text: string }> = [];
     const images = [];
-    if (imageUrl) {
+    for (const imageUrl of imageUrls.slice(0, 3)) {
       content.push({ type: 'image', image: imageUrl });
       images.push(await load_image(imageUrl));
     }
@@ -112,7 +126,10 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   if (request.type === 'load') {
     void getEngine()
       .then(() => post({ type: 'ready', modelId: MODEL_ID, modelVersion: MODEL_VERSION, mode: runtimeDevice }))
-      .catch((error) => post({ type: 'load_error', error: String(error) }));
+      .catch((error) => {
+        resetEngine();
+        post({ type: 'load_error', error: String(error) });
+      });
   }
-  if (request.type === 'analyze') void analyze(request.requestId, request.imageUrl, request.extractedText);
+  if (request.type === 'analyze') void analyze(request.requestId, request.imageUrls, request.extractedText);
 });

@@ -10,6 +10,7 @@ import {
   Laptop,
   LockKeyhole,
   QrCode,
+  RefreshCcw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -156,17 +157,17 @@ export default function DownloadPage() {
                 <div className="absolute -right-16 -top-16 size-52 rounded-full border border-white/8" />
                 <div className="absolute -right-6 -top-6 size-36 rounded-full border border-white/8" />
                 <BrandMark className="size-12 shadow-lg" />
-                <p className="mt-8 text-[10px] font-semibold uppercase tracking-[.14em] text-[#efb157]">
+                <p className="mt-8 text-xs font-semibold uppercase tracking-[.11em] text-[#efb157]">
                   Votre espace de gestion
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
                   Elyko
                 </h2>
-                <p className="mt-4 text-sm leading-6 text-white/58">
+                <p className="mt-4 text-sm leading-6 text-white/76">
                   Une installation guidée, puis un questionnaire adapté à votre
                   entreprise.
                 </p>
-                <div className="mt-8 space-y-3 text-[10px] text-white/65">
+                <div className="mt-8 space-y-3 text-[11px] text-white/78">
                   {[
                     'Application de bureau Windows',
                     'Base de données locale',
@@ -179,7 +180,7 @@ export default function DownloadPage() {
                 </div>
               </div>
               <div className="flex flex-col p-6 sm:p-8">
-                <p className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#8c692f]">
+                <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#76531f]">
                   Prêt à installer
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-.035em] text-[#22382a]">
@@ -189,7 +190,7 @@ export default function DownloadPage() {
                   L’assistant installe Elyko et crée les éléments nécessaires au
                   lancement depuis le menu Démarrer.
                 </p>
-                <div className="mt-7 space-y-4 text-[10px]">
+                <div className="mt-7 space-y-4 text-[11px]">
                   {[
                     ['Version', '1.2.0'],
                     ['Architecture', 'Windows x64'],
@@ -200,7 +201,7 @@ export default function DownloadPage() {
                       key={label}
                       className="flex justify-between gap-4 border-b border-[#e8ece9] pb-3"
                     >
-                      <span className="text-[#818c85]">{label}</span>
+                      <span className="text-[#66736b]">{label}</span>
                       <strong className="text-right text-[#405247]">
                         {value}
                       </strong>
@@ -212,7 +213,7 @@ export default function DownloadPage() {
                     <span className="installer-progress block h-full w-[82%] rounded-full bg-gradient-to-r from-[#2d6749] to-[#77a781]" />
                   </div>
                   <div className="mt-4 flex justify-end">
-                    <span className="inline-flex min-h-10 items-center rounded-lg bg-[#173d2c] px-5 text-[10px] font-semibold text-white">
+                    <span className="inline-flex min-h-10 items-center rounded-lg bg-[#173d2c] px-5 text-[11px] font-semibold text-white">
                       Installer Elyko
                     </span>
                   </div>
@@ -220,7 +221,7 @@ export default function DownloadPage() {
               </div>
             </div>
           </div>
-          <div className="installer-chip absolute -bottom-4 left-4 flex items-center gap-2 rounded-full border border-[#cad6cc] bg-white px-3 py-2 text-[9px] font-semibold text-[#355141] shadow-lg sm:left-auto sm:right-6">
+          <div className="installer-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#cad6cc] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#355141] shadow-lg sm:left-auto sm:right-6">
             <ShieldCheck className="size-3.5 text-[#3b7752]" /> Données
             conservées sur votre PC
           </div>
@@ -349,7 +350,7 @@ export default function DownloadPage() {
             <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
               L’application complète pour 50 CHF par mois.
             </h2>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-white/62">
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
               Le paiement est traité par Stripe. La licence signée est liée à
               l’identifiant d’installation affiché par Elyko, tandis que vos
               données métier restent sur votre PC.
@@ -357,7 +358,7 @@ export default function DownloadPage() {
             <div className="mt-7 grid gap-3 text-sm text-white/72 sm:grid-cols-2">
               {[
                 'Toutes les fonctions incluses',
-                'Mises à jour de l’application',
+                'Nouvelles versions incluses',
                 'Paiement sécurisé par Stripe',
                 'Résiliation depuis le portail client',
               ].map((item) => (
@@ -370,9 +371,9 @@ export default function DownloadPage() {
           <div className="rounded-[24px] border border-white/12 bg-white/7 p-6 sm:p-8">
             <div className="flex items-end gap-2">
               <strong className="text-5xl tracking-[-.05em]">50 CHF</strong>
-              <span className="pb-1 text-sm text-white/50">/ mois</span>
+              <span className="pb-1 text-sm text-white/76">/ mois</span>
             </div>
-            <p className="mt-3 text-xs leading-5 text-white/55">
+            <p className="mt-3 text-xs leading-5 text-white/74">
               Installez d’abord Elyko afin de récupérer l’identifiant demandé
               pendant l’activation.
             </p>
@@ -473,6 +474,16 @@ export default function DownloadPage() {
                     télécharger l’empreinte
                   </a>
                 </p>
+                <div className="flex items-start gap-3 rounded-xl bg-[#edf4ee] p-4 text-[#315e48]">
+                  <RefreshCcw className="mt-0.5 size-4 shrink-0" />
+                  <p>
+                    <strong>Mises à jour intégrées.</strong> Le canal sécurisé est
+                    conçu pour rester désactivé tant qu’une clé publique et un
+                    manifeste HTTPS ne sont pas configurés par l’éditeur. Dans
+                    la version 1.2.0 disponible ici, installez les nouvelles
+                    versions manuellement depuis ce site.
+                  </p>
+                </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">
                   <ShieldAlert className="mt-0.5 size-4 shrink-0" />
                   <p>

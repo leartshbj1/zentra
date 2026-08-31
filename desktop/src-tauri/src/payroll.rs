@@ -6,18 +6,23 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
-    accounting::{post_payslip_if_enabled, validate_date},
+    accounting::{post_payslip_if_enabled, post_payslip_payment_if_enabled, validate_date},
     audit::append_audit,
     database::{enrich_issuer_snapshot, now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
     models::{
-        ApplyPayrollInput, CalculatePayrollInput, ContributionDefinitionInput,
-        ContributionSelectionInput, OnboardingIssue, PostPayslipInput,
-        SavePayslipWithContributionsInput,
+        ApplyPayrollInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+        ContributionDefinitionInput, ContributionSelectionInput, OnboardingIssue, PayPayslipInput,
+        PostPayslipInput, SavePayslipWithContributionsInput,
+    },
+    swiss_payroll_rules::{
+        ac_is_due, ac_reference_age_status_for_period, apply_avs_reference_age_allowance,
+        avs_is_due_for_period, prorated_ac_ceiling_through_period,
+        SWISS_AC_ANNUAL_CEILING_CENTS_2026,
     },
 };
 
-const CH_2026_SOURCE: &str = "https://www.bsv.admin.ch/fr/cotisations-apercu";
+const CH_2026_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf";
 const SETTINGS_RATE_ID_PREFIX: &str = "settings-rate-";
 const SETTINGS_RATE_SOURCE: &str = "Questionnaire local Elyko (saisie client)";
 
@@ -36,6 +41,17 @@ struct Definition {
     source: String,
     effective_from: String,
     effective_to: Option<String>,
+    liability_account_id: Option<String>,
+    expense_account_id: Option<String>,
+}
+
+#[derive(Debug)]
+struct EmployeePayrollContext {
+    birth_date: Option<String>,
+    employment_start: Option<String>,
+    employment_end: Option<String>,
+    reference_age_date: Option<String>,
+    avs_allowance_waived: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -278,8 +294,8 @@ impl LocalStore {
                 profile_line("AI_EMPLOYER","AI employeur", "avs_ai_apg","employer",70,None),
                 profile_line("APG_EMPLOYEE","APG salarié", "avs_ai_apg","employee",25,None),
                 profile_line("APG_EMPLOYER","APG employeur", "avs_ai_apg","employer",25,None),
-                profile_line("AC_EMPLOYEE","AC salarié", "ac","employee",110,Some(14_820_000)),
-                profile_line("AC_EMPLOYER","AC employeur", "ac","employer",110,Some(14_820_000))
+                profile_line("AC_EMPLOYEE","AC salarié", "ac","employee",110,Some(SWISS_AC_ANNUAL_CEILING_CENTS_2026)),
+                profile_line("AC_EMPLOYER","AC employeur", "ac","employer",110,Some(SWISS_AC_ANNUAL_CEILING_CENTS_2026))
             ],
             "not_included":["lpp","aanp","aap","ijm","family_allowance","source_tax","other"]
         }]))
@@ -318,12 +334,15 @@ impl LocalStore {
         validate_definition_input(&input)?;
         let id = input
             .id
+            .as_deref()
             .filter(|v| !v.trim().is_empty())
+            .map(str::to_owned)
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let now = now_iso();
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        validate_contribution_accounts(&tx, &input)?;
         tx.execute("INSERT INTO payroll_contribution_definitions(id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active,liability_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET code=excluded.code,label=excluded.label,category=excluded.category,side=excluded.side,calculation_kind=excluded.calculation_kind,rate_bp=excluded.rate_bp,fixed_amount_cents=excluded.fixed_amount_cents,annual_ceiling_cents=excluded.annual_ceiling_cents,basis_kind=excluded.basis_kind,source=excluded.source,effective_from=excluded.effective_from,effective_to=excluded.effective_to,active=excluded.active,liability_account_id=excluded.liability_account_id,expense_account_id=excluded.expense_account_id,updated_at=excluded.updated_at",params![id,input.code.trim().to_uppercase(),input.label.trim(),input.category,input.side,input.calculation_kind,input.rate_bp,input.fixed_amount_cents,input.annual_ceiling_cents,input.basis_kind,input.source.trim(),input.effective_from,input.effective_to,input.active as i64,input.liability_account_id,input.expense_account_id,now,now])?;
         let record = tx.query_row(
             "SELECT * FROM payroll_contribution_definitions WHERE id=?",
@@ -382,7 +401,29 @@ impl LocalStore {
     ) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        calculate(&connection, &input.period, input.gross_cents, &input.items)
+        calculate(
+            &connection,
+            &input.period,
+            input.gross_cents,
+            &input.items,
+            None,
+        )
+    }
+
+    pub fn calculate_employee_payroll_contributions(
+        &self,
+        input: CalculateEmployeePayrollInput,
+    ) -> AppResult<Value> {
+        let connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let employee = load_employee_payroll_context(&connection, input.employee_id.trim())?;
+        calculate(
+            &connection,
+            &input.period,
+            input.gross_cents,
+            &input.items,
+            Some(&employee),
+        )
     }
 
     pub fn apply_payroll_contributions(&self, input: ApplyPayrollInput) -> AppResult<Value> {
@@ -483,7 +524,7 @@ impl LocalStore {
                 .filter(|id| !id.is_empty())
                 .map(ToOwned::to_owned)
                 .unwrap_or_else(|| Uuid::new_v4().to_string());
-            tx.execute("INSERT INTO payslip_items(id,payslip_id,position,label,kind,amount_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",params![line_id,payslip_id,position as i64,line.label.trim(),line.kind,line.amount_cents,now,now])?;
+            tx.execute("INSERT INTO payslip_items(id,payslip_id,position,label,kind,amount_cents,posting_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",params![line_id,payslip_id,position as i64,line.label.trim(),line.kind,line.amount_cents,line.posting_account_id.as_deref(),line.expense_account_id.as_deref(),now,now])?;
         }
         recompute_payslip(&tx, &payslip_id)?;
         let contribution_result =
@@ -593,6 +634,140 @@ impl LocalStore {
         tx.commit()?;
         Ok(json!({"payslip":payslip,"journal":journal}))
     }
+
+    pub fn pay_payslip(&self, input: PayPayslipInput) -> AppResult<Value> {
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (status, stored_payment_date, stored_reference, stored_journal_id): (
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ) = tx
+            .query_row(
+                "SELECT status,payment_date,payment_reference,payment_journal_entry_id FROM payslips WHERE id=?",
+                params![input.payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("payslips/{}", input.payslip_id)))?;
+        let requested_reference = input
+            .reference
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned);
+        if requested_reference
+            .as_deref()
+            .is_some_and(|value| value.chars().count() > 200 || value.chars().any(char::is_control))
+        {
+            return Err(AppError::Validation(
+                "La référence de paiement est limitée à 200 caractères sans contrôle invisible."
+                    .into(),
+            ));
+        }
+        if status == "paye" {
+            let requested_date = input
+                .payment_date
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            if requested_date.is_some_and(|value| stored_payment_date.as_deref() != Some(value))
+                || requested_reference != stored_reference
+            {
+                return Err(AppError::Validation(
+                    "Cette fiche est déjà payée avec une autre date ou référence.".into(),
+                ));
+            }
+            let payslip = tx.query_row(
+                "SELECT * FROM payslips WHERE id=?",
+                params![input.payslip_id],
+                crate::database::row_to_json_public,
+            )?;
+            let journal = stored_journal_id
+                .as_deref()
+                .map(|journal_id| payroll_payment_journal(&tx, journal_id))
+                .transpose()?;
+            tx.commit()?;
+            return Ok(json!({"payslip":payslip,"journal":journal,"idempotent":true}));
+        }
+        if status != "comptabilise" {
+            return Err(AppError::Validation(
+                "Seule une fiche comptabilisée peut être marquée comme payée.".into(),
+            ));
+        }
+        let payment_date = input
+            .payment_date
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
+        validate_date(&payment_date, "payment_date")?;
+        let journal = post_payslip_payment_if_enabled(
+            &tx,
+            &input.payslip_id,
+            &payment_date,
+            requested_reference.as_deref(),
+        )?
+        .ok_or_else(|| {
+            AppError::Validation(
+                "La comptabilité doit être configurée et activée avant de payer une fiche de salaire."
+                    .into(),
+            )
+        })?;
+        let journal_id = journal["id"]
+            .as_str()
+            .ok_or_else(|| AppError::Validation("L'écriture de paiement est invalide.".into()))?;
+        tx.execute(
+            "UPDATE payslips SET status='paye',payment_date=?,payment_reference=?,payment_journal_entry_id=?,updated_at=? WHERE id=?",
+            params![
+                payment_date,
+                requested_reference,
+                journal_id,
+                now_iso(),
+                input.payslip_id
+            ],
+        )?;
+        let payslip = tx.query_row(
+            "SELECT * FROM payslips WHERE id=?",
+            params![input.payslip_id],
+            crate::database::row_to_json_public,
+        )?;
+        append_audit(
+            &tx,
+            "payment",
+            "payslip",
+            &input.payslip_id,
+            &json!({
+                "from":"comptabilise",
+                "to":"paye",
+                "payment_date":payment_date,
+                "payment_reference":requested_reference,
+                "journal":journal
+            }),
+        )?;
+        tx.commit()?;
+        Ok(json!({"payslip":payslip,"journal":journal,"idempotent":false}))
+    }
+}
+
+fn payroll_payment_journal(tx: &Transaction<'_>, journal_id: &str) -> AppResult<Value> {
+    let entry = tx
+        .query_row(
+            "SELECT * FROM journal_entries WHERE id=? AND source_type='payslip' AND source_event='payment'",
+            params![journal_id],
+            crate::database::row_to_json_public,
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("journal_entries/{journal_id}")))?;
+    let lines = query_all(
+        tx,
+        "SELECT jl.*,a.code AS account_code,a.name AS account_name FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id WHERE jl.journal_entry_id=? ORDER BY jl.rowid",
+        params![journal_id],
+    )?;
+    Ok(json!({"entry":entry,"lines":lines,"id":journal_id}))
 }
 
 fn validate_atomic_payslip_input(input: &SavePayslipWithContributionsInput) -> AppResult<()> {
@@ -628,9 +803,12 @@ fn validate_atomic_payslip_input(input: &SavePayslipWithContributionsInput) -> A
                 "Chaque ligne exige un libellé limité à 200 caractères.".into(),
             ));
         }
-        if !matches!(line.kind.as_str(), "earning" | "deduction" | "employer") {
+        if !matches!(
+            line.kind.as_str(),
+            "earning" | "deduction" | "employer" | "reimbursement"
+        ) {
             return Err(AppError::Validation(
-                "kind doit être earning, deduction ou employer.".into(),
+                "kind doit être earning, deduction, employer ou reimbursement.".into(),
             ));
         }
         if line.amount_cents < 0 {
@@ -660,11 +838,11 @@ fn apply_contributions_tx(
     requested_period: &str,
     items: &[ContributionSelectionInput],
 ) -> AppResult<Value> {
-    let (period, gross, status): (String, i64, String) = tx
+    let (period, gross, status, employee_id): (String, i64, String, String) = tx
         .query_row(
-            "SELECT period,gross_cents,status FROM payslips WHERE id=?",
+            "SELECT period,gross_cents,status,employee_id FROM payslips WHERE id=?",
             params![payslip_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()?
         .ok_or_else(|| AppError::NotFound(format!("payslips/{payslip_id}")))?;
@@ -678,7 +856,8 @@ fn apply_contributions_tx(
             "Une fiche comptabilisée ou payée est immuable.".into(),
         ));
     }
-    let calculation = calculate(tx, &period, gross, items)?;
+    let employee = load_employee_payroll_context(tx, &employee_id)?;
+    let calculation = calculate(tx, &period, gross, items, Some(&employee))?;
     let existing_ids = query_all(
         tx,
         "SELECT payslip_item_id FROM payslip_contributions WHERE payslip_id=?",
@@ -709,7 +888,7 @@ fn apply_contributions_tx(
             "employer"
         };
         tx.execute("INSERT INTO payslip_items(id,payslip_id,position,label,kind,amount_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",params![item_id,payslip_id,10_000_i64+position as i64,item["label"].as_str(),kind,item["amount_cents"].as_i64(),now,now])?;
-        tx.execute("INSERT INTO payslip_contributions(id,payslip_id,definition_id,payslip_item_id,label,category,side,calculation_kind,basis_kind,basis_cents,year_to_date_basis_cents,rate_bp,fixed_amount_cents,annual_ceiling_cents,amount_cents,source,effective_from,effective_to,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![contribution_id,payslip_id,item["definition_id"].as_str(),item_id,item["label"].as_str(),item["category"].as_str(),side,item["calculation_kind"].as_str(),item["basis_kind"].as_str(),item["basis_cents"].as_i64(),item["year_to_date_basis_cents"].as_i64(),item["rate_bp"].as_i64(),item["fixed_amount_cents"].as_i64(),item["annual_ceiling_cents"].as_i64(),item["amount_cents"].as_i64(),item["source"].as_str(),item["effective_from"].as_str(),item["effective_to"].as_str(),now])?;
+        tx.execute("INSERT INTO payslip_contributions(id,payslip_id,definition_id,payslip_item_id,label,category,side,calculation_kind,basis_kind,basis_cents,year_to_date_basis_cents,rate_bp,fixed_amount_cents,annual_ceiling_cents,amount_cents,source,effective_from,effective_to,liability_account_id,expense_account_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![contribution_id,payslip_id,item["definition_id"].as_str(),item_id,item["label"].as_str(),item["category"].as_str(),side,item["calculation_kind"].as_str(),item["basis_kind"].as_str(),item["basis_cents"].as_i64(),item["year_to_date_basis_cents"].as_i64(),item["rate_bp"].as_i64(),item["fixed_amount_cents"].as_i64(),item["annual_ceiling_cents"].as_i64(),item["amount_cents"].as_i64(),item["source"].as_str(),item["effective_from"].as_str(),item["effective_to"].as_str(),item["liability_account_id"].as_str(),item["expense_account_id"].as_str(),now])?;
     }
     recompute_payslip(tx, payslip_id)?;
     Ok(
@@ -722,6 +901,7 @@ fn calculate(
     period: &str,
     gross: i64,
     selections: &[ContributionSelectionInput],
+    employee_context: Option<&EmployeePayrollContext>,
 ) -> AppResult<Value> {
     if gross < 0 {
         return Err(AppError::Validation(
@@ -729,10 +909,13 @@ fn calculate(
         ));
     }
     let date = period_date(period)?;
+    validate_shared_statutory_bases(connection, gross, selections)?;
     let mut seen = HashSet::new();
     let mut items = Vec::new();
     let mut employee = 0_i64;
     let mut employer = 0_i64;
+    let mut avs_effective_basis: Option<(i64, String)> = None;
+    let mut ac_effective_basis: Option<(i64, String)> = None;
     for selection in selections {
         if !seen.insert(&selection.definition_id) {
             return Err(AppError::Validation(format!(
@@ -762,7 +945,99 @@ fn calculate(
                 "basis_cents ne peut pas être négatif.".into(),
             ));
         }
-        if let Some(ceiling) = def.annual_ceiling_cents {
+        let original_basis = basis;
+        let statutory_employee = if matches!(def.category.as_str(), "avs_ai_apg" | "ac") {
+            let employee = employee_context.ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La cotisation {} exige un collaborateur et sa date de naissance pour contrôler l'assujettissement AVS/AC.",
+                    def.code
+                ))
+            })?;
+            let avs_due = avs_is_due_for_period(period, employee.birth_date.as_deref())
+                .map_err(|error| AppError::Validation(error.to_string()))?;
+            if !avs_due {
+                return Err(AppError::Validation(format!(
+                    "La cotisation {} ne doit pas être appliquée avant le 1er janvier suivant le 17e anniversaire.",
+                    def.code
+                )));
+            }
+            Some(employee)
+        } else {
+            None
+        };
+        let mut avs_allowance_applied = None;
+        let mut avs_allowance_waived = None;
+        if def.category == "avs_ai_apg" {
+            let employee = statutory_employee.expect("statutory employee validated above");
+            let reference_status = ac_reference_age_status_for_period(
+                period,
+                employee.birth_date.as_deref(),
+                employee.reference_age_date.as_deref(),
+            )
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+            let application = apply_avs_reference_age_allowance(
+                basis,
+                reference_status,
+                employee.avs_allowance_waived,
+            )
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+            basis = application.effective_basis_cents;
+            avs_allowance_applied = Some(application.allowance_applied_cents);
+            avs_allowance_waived = application.allowance_waived;
+        }
+        let statutory_annual_ceiling = def.annual_ceiling_cents;
+        let mut effective_ceiling = statutory_annual_ceiling;
+        let mut ac_proration_days = None;
+        let mut ac_employment_from = None;
+        let mut ac_employment_to = None;
+        if def.category == "ac" {
+            let employee = statutory_employee.expect("statutory employee validated above");
+            let reference_status = ac_reference_age_status_for_period(
+                period,
+                employee.birth_date.as_deref(),
+                employee.reference_age_date.as_deref(),
+            )
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+            match ac_is_due(reference_status) {
+                Ok(true) => {}
+                Ok(false) => {
+                    return Err(AppError::Validation(format!(
+                        "La cotisation {} ne doit pas être appliquée: la date confirmée de l'âge de référence est atteinte pour {period}.",
+                        def.code
+                    )))
+                }
+                Err(error) => return Err(AppError::Validation(error.to_string())),
+            }
+            let start = employee
+                .employment_start
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AppError::Validation(format!(
+                        "La date d'entrée en fonction est obligatoire pour proratiser le plafond AC de {}.",
+                        def.code
+                    ))
+                })?;
+            let statutory_ceiling = statutory_annual_ceiling.ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La cotisation AC {} doit posséder un plafond annuel explicite.",
+                    def.code
+                ))
+            })?;
+            let proration = prorated_ac_ceiling_through_period(
+                statutory_ceiling,
+                period,
+                start,
+                employee.employment_end.as_deref(),
+            )
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+            effective_ceiling = Some(proration.ceiling_cents);
+            ac_proration_days = Some(proration.days_30_360);
+            ac_employment_from = Some(proration.employment_from.to_string());
+            ac_employment_to = Some(proration.employment_to.to_string());
+        }
+        if let Some(ceiling) = effective_ceiling {
             let ytd = selection.year_to_date_basis_cents.ok_or_else(|| {
                 AppError::Validation(format!(
                     "year_to_date_basis_cents est obligatoire pour la cotisation plafonnée {}.",
@@ -775,6 +1050,23 @@ fn calculate(
                 ));
             }
             basis = basis.min(ceiling.saturating_sub(ytd).max(0));
+        }
+        let effective_group = match def.category.as_str() {
+            "avs_ai_apg" => Some((&mut avs_effective_basis, "AVS/AI/APG")),
+            "ac" => Some((&mut ac_effective_basis, "AC")),
+            _ => None,
+        };
+        if let Some((expected, label)) = effective_group {
+            match expected {
+                Some((expected_basis, expected_code)) if *expected_basis != basis => {
+                    return Err(AppError::Validation(format!(
+                        "La base effective {label} doit être identique pour toutes les parts: {} utilise {} centimes, contre {} centimes pour {}.",
+                        def.code, basis, expected_basis, expected_code
+                    )))
+                }
+                None => *expected = Some((basis, def.code.clone())),
+                _ => {}
+            }
         }
         let amount = match def.calculation_kind.as_str() {
             "rate" => round_rate(
@@ -792,15 +1084,120 @@ fn calculate(
         } else {
             employer = employer.saturating_add(amount)
         };
-        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"basis_cents":basis,"year_to_date_basis_cents":selection.year_to_date_basis_cents,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":def.annual_ceiling_cents,"amount_cents":amount,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to}));
+        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":selection.year_to_date_basis_cents,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
     }
     Ok(
         json!({"period":period,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
     )
 }
 
+/// Les six lignes AVS/AI/APG représentent une seule assiette légale. Les
+/// deux parts AC représentent elles aussi une seule assiette et un seul cumul.
+/// Cette validation s'exécute avant tout calcul de montant et reste côté Rust,
+/// même si un client contourne l'interface.
+fn validate_shared_statutory_bases(
+    connection: &Connection,
+    gross: i64,
+    selections: &[ContributionSelectionInput],
+) -> AppResult<()> {
+    let mut seen = HashSet::new();
+    let mut avs_basis: Option<(i64, String)> = None;
+    let mut ac_basis: Option<(i64, String)> = None;
+    let mut ac_ytd: Option<(Option<i64>, String)> = None;
+    for selection in selections {
+        if !seen.insert(&selection.definition_id) {
+            return Err(AppError::Validation(format!(
+                "Cotisation sélectionnée deux fois : {}",
+                selection.definition_id
+            )));
+        }
+        let definition = load_definition(connection, &selection.definition_id)?;
+        if !matches!(definition.category.as_str(), "avs_ai_apg" | "ac") {
+            continue;
+        }
+        let basis = if definition.basis_kind == "gross" {
+            gross
+        } else {
+            selection.basis_cents.ok_or_else(|| {
+                AppError::Validation(format!(
+                    "basis_cents doit être explicite pour {}.",
+                    definition.code
+                ))
+            })?
+        };
+        if basis < 0 {
+            return Err(AppError::Validation(
+                "basis_cents ne peut pas être négatif.".into(),
+            ));
+        }
+        let (expected_basis, label) = if definition.category == "avs_ai_apg" {
+            (&mut avs_basis, "AVS/AI/APG")
+        } else {
+            (&mut ac_basis, "AC")
+        };
+        match expected_basis {
+            Some((expected, expected_code)) if *expected != basis => {
+                return Err(AppError::Validation(format!(
+                    "La base {label} doit être identique pour toutes les lignes: {} utilise {} centimes, contre {} centimes pour {}.",
+                    definition.code, basis, expected, expected_code
+                )))
+            }
+            None => *expected_basis = Some((basis, definition.code.clone())),
+            _ => {}
+        }
+        if definition.category == "ac" {
+            match &ac_ytd {
+                Some((expected, expected_code))
+                    if *expected != selection.year_to_date_basis_cents =>
+                {
+                    return Err(AppError::Validation(format!(
+                        "Le cumul annuel AC doit être identique pour toutes les parts: {} utilise {:?}, contre {:?} pour {}.",
+                        definition.code,
+                        selection.year_to_date_basis_cents,
+                        expected,
+                        expected_code
+                    )))
+                }
+                None => {
+                    ac_ytd = Some((
+                        selection.year_to_date_basis_cents,
+                        definition.code.clone(),
+                    ))
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn load_employee_payroll_context(
+    connection: &Connection,
+    employee_id: &str,
+) -> AppResult<EmployeePayrollContext> {
+    if employee_id.is_empty() {
+        return Err(AppError::Validation("employee_id est obligatoire.".into()));
+    }
+    connection
+        .query_row(
+            "SELECT birth_date,employment_start_date,employment_end_date,reference_age_date,avs_allowance_waived FROM employees WHERE id=?",
+            params![employee_id],
+            |row| {
+                Ok(EmployeePayrollContext {
+                    birth_date: row.get(0)?,
+                    employment_start: row.get(1)?,
+                    employment_end: row.get(2)?,
+                    reference_age_date: row.get(3)?,
+                    avs_allowance_waived: row.get(4)?,
+                })
+            },
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("employees/{employee_id}")))
+}
+
 fn load_definition(connection: &Connection, id: &str) -> AppResult<Definition> {
-    connection.query_row("SELECT id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to FROM payroll_contribution_definitions WHERE id=? AND active=1",params![id],|r|Ok(Definition{id:r.get(0)?,code:r.get(1)?,label:r.get(2)?,category:r.get(3)?,side:r.get(4)?,calculation_kind:r.get(5)?,rate_bp:r.get(6)?,fixed_amount_cents:r.get(7)?,annual_ceiling_cents:r.get(8)?,basis_kind:r.get(9)?,source:r.get(10)?,effective_from:r.get(11)?,effective_to:r.get(12)?})).optional()?.ok_or_else(||AppError::NotFound(format!("payroll_contribution_definitions/{id}")))
+    connection.query_row("SELECT id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,liability_account_id,expense_account_id FROM payroll_contribution_definitions WHERE id=? AND active=1",params![id],|r|Ok(Definition{id:r.get(0)?,code:r.get(1)?,label:r.get(2)?,category:r.get(3)?,side:r.get(4)?,calculation_kind:r.get(5)?,rate_bp:r.get(6)?,fixed_amount_cents:r.get(7)?,annual_ceiling_cents:r.get(8)?,basis_kind:r.get(9)?,source:r.get(10)?,effective_from:r.get(11)?,effective_to:r.get(12)?,liability_account_id:r.get(13)?,expense_account_id:r.get(14)?})).optional()?.ok_or_else(||AppError::NotFound(format!("payroll_contribution_definitions/{id}")))
 }
 fn validate_definition_input(i: &ContributionDefinitionInput) -> AppResult<()> {
     if i.code.trim().is_empty() || i.label.trim().is_empty() || i.source.trim().is_empty() {
@@ -852,6 +1249,61 @@ fn validate_definition_input(i: &ContributionDefinitionInput) -> AppResult<()> {
     }
     Ok(())
 }
+
+fn validate_contribution_accounts(
+    connection: &Connection,
+    input: &ContributionDefinitionInput,
+) -> AppResult<()> {
+    if input.side == "employee"
+        && input
+            .expense_account_id
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+    {
+        return Err(AppError::Validation(
+            "expense_account_id est réservé aux charges de la part employeur.".into(),
+        ));
+    }
+    for (id, expected_type, field) in [
+        (
+            input.liability_account_id.as_deref(),
+            "liability",
+            "liability_account_id",
+        ),
+        (
+            input.expense_account_id.as_deref(),
+            "expense",
+            "expense_account_id",
+        ),
+    ] {
+        let Some(id) = id.map(str::trim).filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        let account = connection
+            .query_row(
+                "SELECT account_type,active FROM accounts WHERE id=?",
+                params![id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| {
+                AppError::Validation(format!(
+                    "{field} référence un compte comptable introuvable."
+                ))
+            })?;
+        if account.1 != 1 {
+            return Err(AppError::Validation(format!(
+                "{field} doit référencer un compte actif."
+            )));
+        }
+        if account.0 != expected_type {
+            return Err(AppError::Validation(format!(
+                "{field} doit référencer un compte de type {expected_type}."
+            )));
+        }
+    }
+    Ok(())
+}
 fn period_date(period: &str) -> AppResult<String> {
     if period.len() != 7 {
         return Err(AppError::Validation(
@@ -866,8 +1318,25 @@ fn round_rate(basis: i64, rate: i64) -> i64 {
     ((basis as i128 * rate as i128 + 5_000) / 10_000) as i64
 }
 fn recompute_payslip(tx: &rusqlite::Transaction<'_>, id: &str) -> AppResult<()> {
-    let (g,d,e):(i64,i64,i64)=tx.query_row("SELECT COALESCE(SUM(CASE WHEN kind='earning' THEN amount_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN kind='deduction' THEN amount_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN kind='employer' THEN amount_cents ELSE 0 END),0) FROM payslip_items WHERE payslip_id=?",params![id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
-    tx.execute("UPDATE payslips SET gross_cents=?,deductions_cents=?,net_cents=?,employer_costs_cents=?,updated_at=? WHERE id=?",params![g,d,g-d,e,now_iso(),id])?;
+    let (gross, deductions, employer_costs, reimbursements): (i64, i64, i64, i64) = tx
+        .query_row(
+            "SELECT COALESCE(SUM(CASE WHEN kind='earning' THEN amount_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN kind='deduction' THEN amount_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN kind='employer' THEN amount_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN kind='reimbursement' THEN amount_cents ELSE 0 END),0) FROM payslip_items WHERE payslip_id=?",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )?;
+    tx.execute(
+        "UPDATE payslips SET gross_cents=?,deductions_cents=?,net_cents=?,employer_costs_cents=?,updated_at=? WHERE id=?",
+        params![
+            gross,
+            deductions,
+            gross
+                .saturating_add(reimbursements)
+                .saturating_sub(deductions),
+            employer_costs,
+            now_iso(),
+            id
+        ],
+    )?;
     Ok(())
 }
 fn profile_line(
