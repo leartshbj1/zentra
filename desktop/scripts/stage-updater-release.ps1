@@ -171,7 +171,7 @@ Assert-ElykoUpdaterBuildProvenance `
     -MaximumAgeHours $MaximumBuildAgeHours
 
 $applicationBytes = [IO.File]::ReadAllBytes($applicationExe)
-$applicationText = [Text.Encoding]::Latin1.GetString($applicationBytes)
+$applicationText = [Text.Encoding]::GetEncoding(28591).GetString($applicationBytes)
 if (-not $applicationText.Contains($endpoint.Trim())) {
     throw "L’exécutable ne contient pas l’endpoint attendu; rebuild updater obligatoire."
 }
