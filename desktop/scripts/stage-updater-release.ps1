@@ -14,7 +14,7 @@ param(
 
     [string] $OutputRoot,
     [string] $DownloadBaseUrl = 'https://elyko.alb-leart1.chatgpt.site/downloads',
-    [string] $Notes = 'Mise à jour stable Elyko.',
+    [string] $Notes = 'Version stable Elyko.',
     [string] $PreviousVersion = '1.2.0',
     [ValidateRange(1, 168)]
     [int] $MaximumBuildAgeHours = 24,
