@@ -457,6 +457,7 @@ export type BankImport = {
   accountId: string;
   accountCurrency: string;
   entryCount: number;
+  importedCount: number;
   ignoredCount: number;
   createdAt: string;
 };

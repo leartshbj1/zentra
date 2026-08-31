@@ -343,7 +343,7 @@ export function BankScreen({
       {bank.imports.length ? <div className="bank-import-list">{bank.imports.map((item) => <article key={item.id}>
         <span><History size={17} /></span>
         <div className="bank-import-list__identity"><strong>{item.sourceName}</strong><p>{item.messageType || 'CAMT'}{item.namespaceVersion ? ` · ${item.namespaceVersion}` : ''} · {item.accountId || 'Compte non renseigné'}</p>{item.fileSha256 ? <div className="bank-import-hash" title={`SHA-256 ${item.fileSha256}`}><small>SHA-256</small><code>{shortSha256(item.fileSha256)}</code><button type="button" onClick={() => void copyImportFingerprint(item.fileSha256)} aria-label={`Copier l’empreinte SHA-256 du fichier ${item.sourceName}`}><Copy size={12} /></button></div> : null}</div>
-        <div><strong>{item.entryCount}</strong><small>mouvement{item.entryCount > 1 ? 's' : ''} importé{item.entryCount > 1 ? 's' : ''}{item.ignoredCount ? ` · ${item.ignoredCount} ignoré${item.ignoredCount > 1 ? 's' : ''}` : ' · aucun ignoré'}</small></div>
+        <div><strong>{item.importedCount}</strong><small>mouvement{item.importedCount > 1 ? 's' : ''} importé{item.importedCount > 1 ? 's' : ''} sur {item.entryCount}{item.ignoredCount ? ` · ${item.ignoredCount} ignoré${item.ignoredCount > 1 ? 's' : ''}` : ' · aucun ignoré'}</small></div>
         <time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
       </article>)}</div> : <p className="bank-imports-empty">Aucun relevé importé.</p>}
     </section>

@@ -23,7 +23,7 @@ const rawWorkspace = {
   imports: [{
     id: 'import-1', source_name: 'releve.xml', file_sha256: 'abc', file_size: 12_340,
     message_type: 'camt.053', namespace_version: '001.08', account_id: 'CH9300',
-    account_currency: 'CHF', entry_count: 3, ignored_count: 0, created_at: '2026-09-01T08:00:00Z',
+    account_currency: 'CHF', entry_count: 3, imported_count: 2, ignored_count: 1, created_at: '2026-09-01T08:00:00Z',
   }],
   movements: [
     {
@@ -58,7 +58,7 @@ describe('mapping CAMT local', () => {
   it('convertit systématiquement le snake_case du backend en types UI', () => {
     const workspace = bankWorkspaceFromRaw(rawWorkspace);
     expect(workspace.summary).toEqual({ importCount: 1, movementCount: 3, unreconciledCount: 2, pendingCount: 1, bookedCreditCount: 1 });
-    expect(workspace.imports[0]).toMatchObject({ sourceName: 'releve.xml', messageType: 'camt.053', namespaceVersion: '001.08', entryCount: 3 });
+    expect(workspace.imports[0]).toMatchObject({ sourceName: 'releve.xml', messageType: 'camt.053', namespaceVersion: '001.08', entryCount: 3, importedCount: 2, ignoredCount: 1 });
     expect(workspace.accounts[0]).toEqual({ accountId: 'CH9300', currency: 'CHF', linked: true, linkSource: 'settings_iban', movementCount: 3 });
     expect(workspace.movements[0]).toMatchObject({
       id: 'movement-booked', creditDebit: 'CRDT', status: 'BOOK', reversal: false,

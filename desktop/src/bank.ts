@@ -111,6 +111,7 @@ export function bankImportFromRaw(value: unknown): BankImport {
     accountId: text(row.account_id),
     accountCurrency: text(row.account_currency),
     entryCount: integer(row.entry_count),
+    importedCount: integer(row.imported_count),
     ignoredCount: integer(row.ignored_count),
     createdAt: text(row.created_at),
   };
