@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Elyko
 
-État de la comparaison : 1er septembre 2026.
+État de la comparaison : 1er septembre 2026. Version produit documentée : Elyko 1.4.0.
 
 Cette feuille de route compare Elyko aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Elyko reste une application Windows locale, avec les données conservées chez le client.
 
@@ -18,15 +18,27 @@ Cette feuille de route compare Elyko aux fonctions officiellement documentées p
 | --- | --- | --- |
 | Socle local | installation Windows, configuration guidée, SQLite locale, sauvegardes, audit, mises à jour signées | Disponible |
 | Vente essentiel | clients, devis, acceptation, conversion en facture, facture QR, avoir, paiements, relances | Disponible ; automatisation d'envoi à compléter |
-| Catalogue et saisie rapide | produits/services, prix, TVA, coûts, remises, stock minimal, ajout aux devis/factures | En cours |
-| Achats | fournisseurs, factures et crédits fournisseurs, justificatifs, échéances, paiements, OCR | Planifié après le catalogue |
-| Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Planifié après les achats |
+| Catalogue et saisie rapide | produits/services, prix, TVA, coûts, remises, stock minimal, ajout aux devis/factures | Disponible pour le catalogue, les remises et l'ajout aux documents ; quantité indicative, mouvements de stock à compléter |
+| Achats | fournisseurs, factures et crédits fournisseurs, justificatifs, échéances, paiements, OCR | Disponible pour l'annuaire fournisseurs, les achats à payer ou payés, les échéances et l'écriture au paiement ; crédits, pièces jointes et OCR à venir |
+| Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible en 1.4.0 pour les crédits clients ; périmètre détaillé ci-dessous |
 | Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Planifié |
 | Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Partiel ; validation fiduciaire requise |
 | Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Disponible ; jalons et planification à enrichir |
 | Paie suisse | employés, cotisations versionnées, fiches, import OCR local, écritures | Disponible en partie ; Swissdec/ELM non certifié |
 | Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Planifié |
 | Écosystème | API locale, connecteurs isolés, compagnon mobile | Ultérieur |
+
+## Périmètre bancaire local d'Elyko 1.4.0
+
+- Import sur le PC de relevés suisses `camt.053` et `camt.054` dans les versions `v04` et `v08`. Le fichier XML brut n'est pas envoyé à Elyko ni à un service tiers.
+- Détection des doublons d'import et conservation locale de l'historique utile au contrôle.
+- Association explicite d'un compte bancaire importé à un IBAN ou QR-IBAN de l'entreprise. Cette association reste visible et peut être révoquée.
+- Proposition de factures clientes à partir de références structurées QRR ou SCOR. Elyko n'enregistre aucun paiement sans confirmation humaine.
+- Rapprochement limité aux mouvements créditeurs comptabilisés, non annulés, dans la devise attendue et sans dépassement du solde de la facture.
+- Les débits, écritures en attente, annulations, lots ambigus et montants excédentaires restent visibles pour contrôle, mais ne sont pas rapprochés automatiquement dans cette version.
+- Le rapprochement des achats fournisseurs, l'import de pièces, les règles bancaires personnalisées et les écritures de frais bancaires restent à venir.
+
+Cette portée volontairement bornée évite de présenter une lecture bancaire comme une comptabilisation certaine. Les mouvements importés, les liens de comptes, la décision de l'utilisateur et l'écriture résultante restent dans la base SQLite locale et ses sauvegardes.
 
 ## Références officielles consultées
 
@@ -39,4 +51,7 @@ Cette feuille de route compare Elyko aux fonctions officiellement documentées p
 - ISO 20022 : https://www.bexio.com/fr-CH/iso20022
 - API : https://docs.bexio.com/
 - Comparatif des forfaits du 28 mai 2026 : https://cdn.www.bexio.com/assets/content_craft/documents/bexio/compare-packages-fr.pdf
-
+- SIX, Swiss Payment Standards 2026 — Implementation Guidelines for Cash Management : https://www.six-group.com/dam/download/banking-services/standardization/sps/ig-cash-management-sps-2026-en.pdf
+- SIX, Swiss Payment Standards 2026 — Business Rules : https://www.six-group.com/dam/download/banking-services/standardization/sps/business-rules-sps-2026-en.pdf
+- SIX, standardisation des paiements suisses : https://www.six-group.com/en/products-services/banking-services/payment-standardization/swiss-payments.html
+- SIX, norme ISO 20022 : https://www.six-group.com/en/products-services/banking-services/payment-standardization/standards/iso-20022.html
