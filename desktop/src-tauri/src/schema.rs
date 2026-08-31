@@ -421,7 +421,7 @@ CREATE TABLE IF NOT EXISTS bank_movement_keys (
   strong_key TEXT PRIMARY KEY,
   movement_id TEXT NOT NULL REFERENCES bank_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
   account_id TEXT NOT NULL,
-  reference_level TEXT NOT NULL CHECK (reference_level IN ('D','C','T','E')),
+  reference_level TEXT NOT NULL CHECK (reference_level IN ('D','C','T')),
   account_servicer_ref TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
@@ -832,6 +832,7 @@ BEFORE UPDATE ON bank_movements WHEN NOT (
       AND OLD.booked_import_id IS NOT NEW.booked_import_id
       AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=OLD.booked_import_id AND source.message_type='camt.054')
       AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=NEW.booked_import_id AND source.message_type='camt.053')))
+  AND NOT EXISTS(SELECT 1 FROM bank_reconciliations frozen WHERE frozen.movement_id=OLD.id)
   AND OLD.id IS NEW.id AND OLD.import_id IS NEW.import_id
   AND OLD.entry_sequence IS NEW.entry_sequence AND OLD.account_id IS NEW.account_id
   AND OLD.account_currency IS NEW.account_currency AND OLD.amount_cents IS NEW.amount_cents
@@ -1265,7 +1266,7 @@ CREATE TABLE IF NOT EXISTS bank_movement_keys (
   strong_key TEXT PRIMARY KEY,
   movement_id TEXT NOT NULL REFERENCES bank_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
   account_id TEXT NOT NULL,
-  reference_level TEXT NOT NULL CHECK (reference_level IN ('D','C','T','E')),
+  reference_level TEXT NOT NULL CHECK (reference_level IN ('D','C','T')),
   account_servicer_ref TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
@@ -1295,6 +1296,7 @@ CREATE TRIGGER IF NOT EXISTS bank_movements_guarded_update BEFORE UPDATE ON bank
       AND OLD.booked_import_id IS NOT NEW.booked_import_id
       AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=OLD.booked_import_id AND source.message_type='camt.054')
       AND EXISTS(SELECT 1 FROM bank_imports source WHERE source.id=NEW.booked_import_id AND source.message_type='camt.053')))
+  AND NOT EXISTS(SELECT 1 FROM bank_reconciliations frozen WHERE frozen.movement_id=OLD.id)
   AND OLD.id IS NEW.id AND OLD.import_id IS NEW.import_id
   AND OLD.entry_sequence IS NEW.entry_sequence AND OLD.account_id IS NEW.account_id
   AND OLD.account_currency IS NEW.account_currency AND OLD.amount_cents IS NEW.amount_cents

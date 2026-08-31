@@ -90,14 +90,26 @@ impl ParsedMovement {
         let mut keys = Vec::new();
         if let Some(reference) = self.d_level_ref.as_deref() {
             keys.push((
-                strong_key(&self.account_id, "D", reference),
+                strong_key(
+                    &self.account_id,
+                    "D",
+                    reference,
+                    &self.credit_debit,
+                    self.reversal,
+                ),
                 "D".to_owned(),
                 reference.to_owned(),
             ));
         }
         if let Some(reference) = self.c_level_ref.as_deref() {
             keys.push((
-                strong_key(&self.account_id, "C", reference),
+                strong_key(
+                    &self.account_id,
+                    "C",
+                    reference,
+                    &self.credit_debit,
+                    self.reversal,
+                ),
                 "C".to_owned(),
                 reference.to_owned(),
             ));
@@ -105,15 +117,14 @@ impl ParsedMovement {
         if movement_tx_count_from_json(&self.details_json) == 1 {
             if let Some(reference) = self.transaction_id.as_deref() {
                 keys.push((
-                    strong_key(&self.account_id, "T", reference),
+                    strong_key(
+                        &self.account_id,
+                        "T",
+                        reference,
+                        &self.credit_debit,
+                        self.reversal,
+                    ),
                     "T".to_owned(),
-                    reference.to_owned(),
-                ));
-            }
-            if let Some(reference) = self.end_to_end_id.as_deref() {
-                keys.push((
-                    strong_key(&self.account_id, "E", reference),
-                    "E".to_owned(),
                     reference.to_owned(),
                 ));
             }
@@ -281,8 +292,20 @@ fn normalize_reference(reference_type: &str, value: &str) -> String {
     }
 }
 
-fn strong_key(account_id: &str, level: &str, reference: &str) -> String {
-    let digest = Sha256::digest(format!("{account_id}|{level}|{reference}").as_bytes());
+fn strong_key(
+    account_id: &str,
+    level: &str,
+    reference: &str,
+    credit_debit: &str,
+    reversal: bool,
+) -> String {
+    let digest = Sha256::digest(
+        format!(
+            "{account_id}|{level}|{reference}|{credit_debit}|{}",
+            if reversal { "REVERSAL" } else { "ORIGINAL" }
+        )
+        .as_bytes(),
+    );
     format!("sha256:{digest:x}")
 }
 
@@ -417,18 +440,15 @@ fn finalize_entry(
     let stable_key = account_servicer_ref
         .as_deref()
         .zip(reference_level.as_deref())
-        .map(|(reference, level)| strong_key(&account_id, level, reference))
+        .map(|(reference, level)| {
+            strong_key(&account_id, level, reference, &credit_debit, reversal)
+        })
         .or_else(|| {
             (entry.tx_details.len() == 1)
                 .then(|| {
-                    transaction_id
-                        .as_deref()
-                        .map(|reference| strong_key(&account_id, "T", reference))
-                        .or_else(|| {
-                            end_to_end_id
-                                .as_deref()
-                                .map(|reference| strong_key(&account_id, "E", reference))
-                        })
+                    transaction_id.as_deref().map(|reference| {
+                        strong_key(&account_id, "T", reference, &credit_debit, reversal)
+                    })
                 })
                 .flatten()
         });
@@ -821,6 +841,7 @@ struct ExistingMovement {
     reversal: bool,
     booked_import_id: Option<String>,
     booked_message_type: Option<String>,
+    reconciled: bool,
     end_to_end_id: Option<String>,
     transaction_id: Option<String>,
     reference_type: String,
@@ -866,7 +887,8 @@ fn can_enrich(
     movement: &ParsedMovement,
     incoming_message_type: &str,
 ) -> bool {
-    lifecycle_allows_enrichment(existing, movement, incoming_message_type)
+    !existing.reconciled
+        && lifecycle_allows_enrichment(existing, movement, incoming_message_type)
         && existing.account_id == movement.account_id
         && existing.account_currency == movement.account_currency
         && existing.amount_cents == movement.amount_cents
@@ -1037,7 +1059,7 @@ impl LocalStore {
                 for (key, _, _) in &stable_keys {
                     let existing = transaction
                         .query_row(
-                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
+                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
                             params![key],
                             |row| {
                                 Ok(ExistingMovement {
@@ -1051,13 +1073,14 @@ impl LocalStore {
                                     reversal: row.get::<_, i64>(7)? != 0,
                                     booked_import_id: row.get(8)?,
                                     booked_message_type: row.get(9)?,
-                                    end_to_end_id: row.get(10)?,
-                                    transaction_id: row.get(11)?,
-                                    reference_type: row.get(12)?,
-                                    reference: row.get(13)?,
-                                    unstructured: row.get(14)?,
-                                    counterparty_name: row.get(15)?,
-                                    details_json: row.get(16)?,
+                                    reconciled: row.get::<_, i64>(10)? != 0,
+                                    end_to_end_id: row.get(11)?,
+                                    transaction_id: row.get(12)?,
+                                    reference_type: row.get(13)?,
+                                    reference: row.get(14)?,
+                                    unstructured: row.get(15)?,
+                                    counterparty_name: row.get(16)?,
+                                    details_json: row.get(17)?,
                                 })
                             },
                         )
@@ -1087,12 +1110,14 @@ impl LocalStore {
                     } else {
                         skipped_duplicate_count += 1;
                         warnings.push(format!(
-                            "Écriture {} ignorée : sa référence bancaire stable existe déjà{}.",
+                            "Écriture {} ignorée : {}.",
                             movement.sequence,
-                            if existing.status == "PDNG" && movement.status == "BOOK" {
-                                " mais les données BOOK contredisent l’observation PDNG"
+                            if existing.reconciled {
+                                "le mouvement est déjà rapproché et son instantané comptable est figé"
+                            } else if existing.status == "PDNG" && movement.status == "BOOK" {
+                                "sa référence bancaire existe, mais les données BOOK contredisent l’observation PDNG"
                             } else {
-                                ""
+                                "sa référence bancaire stable existe déjà"
                             }
                         ));
                     }
@@ -1653,7 +1678,7 @@ mod tests {
         assert_eq!(movement.account_servicer_ref.as_deref(), Some("C-BATCH"));
         assert_eq!(
             movement.strong_key,
-            Some(strong_key(STATEMENT_IBAN, "C", "C-BATCH"))
+            Some(strong_key(STATEMENT_IBAN, "C", "C-BATCH", "CRDT", false))
         );
     }
 
@@ -1876,6 +1901,104 @@ mod tests {
     }
 
     #[test]
+    fn reconciled_054_book_snapshot_is_frozen_when_the_053_arrives() {
+        let (temporary, store) = store();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("909090").unwrap();
+        let invoice_id = create_invoice(&store, 10_000, &qrr);
+        let notification = fixture(
+            "054",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-FROZEN",
+            None,
+            Some("QRR"),
+            Some(&qrr),
+            false,
+            true,
+        );
+        let notification_import = store
+            .import_camt_file(&write_xml(
+                temporary.path(),
+                "notification-book.xml",
+                &notification,
+            ))
+            .unwrap();
+        let ready = store.get_bank_workspace().unwrap();
+        assert_eq!(ready["movements"][0]["suggestion"]["confirmable"], true);
+        let movement_id = ready["movements"][0]["id"].as_str().unwrap().to_owned();
+        store
+            .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                movement_id: movement_id.clone(),
+                invoice_id,
+            })
+            .unwrap();
+
+        let statement = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-FROZEN",
+            Some("D-FROZEN"),
+            Some("QRR"),
+            Some(&qrr),
+            false,
+            true,
+        )
+        .replace("2026-08-31", "2026-09-02")
+        .replace("2026-08-30", "2026-09-01");
+        let ignored = store
+            .import_camt_file(&write_xml(
+                temporary.path(),
+                "statement-after-payment.xml",
+                &statement,
+            ))
+            .unwrap();
+        assert_eq!(ignored["imported_count"], 0);
+        assert_eq!(ignored["skipped_duplicate_count"], 1);
+        assert!(ignored["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|warning| warning.as_str().is_some_and(|text| text.contains("figé"))));
+
+        let connection = store.connect().unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE bank_movements SET booked_import_id=?,booking_date='2026-09-02',enriched_at='2026-09-02T12:00:00Z' WHERE id=?",
+                params![ignored["import"]["id"].as_str().unwrap(), movement_id],
+            )
+            .is_err());
+        let snapshot: (i64, String, Option<String>, Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT COUNT(*),booked_import_id,booking_date,reference_level,enriched_at FROM bank_movements WHERE id=?",
+                params![movement_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(snapshot.0, 1);
+        assert_eq!(snapshot.1, notification_import["import"]["id"]);
+        assert_eq!(snapshot.2.as_deref(), Some("2026-08-31"));
+        assert_eq!(snapshot.3.as_deref(), Some("C"));
+        assert!(snapshot.4.is_none());
+        let payment_date: String = connection
+            .query_row(
+                "SELECT p.date FROM payments p JOIN bank_reconciliations r ON r.payment_id=p.id WHERE r.movement_id=?",
+                params![movement_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(payment_date, "2026-08-31");
+    }
+
+    #[test]
     fn pending_reversal_and_missing_date_are_never_confirmable() {
         let (temporary, store) = store();
         store
@@ -1910,6 +2033,70 @@ mod tests {
         for movement in workspace["movements"].as_array().unwrap() {
             assert_eq!(movement["suggestion"]["confirmable"], false);
         }
+    }
+
+    #[test]
+    fn original_and_reversal_with_the_same_bank_reference_remain_distinct() {
+        let (temporary, store) = store();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        create_open_invoice(&store, 10_000, "CHF");
+        let original = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-SAME-REV",
+            Some("D-SAME-REV"),
+            None,
+            None,
+            false,
+            true,
+        );
+        let reversal = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-SAME-REV",
+            Some("D-SAME-REV"),
+            None,
+            None,
+            true,
+            true,
+        )
+        .replace("<MsgId>MSG</MsgId>", "<MsgId>REVERSAL</MsgId>");
+        store
+            .import_camt_file(&write_xml(temporary.path(), "original.xml", &original))
+            .unwrap();
+        store
+            .import_camt_file(&write_xml(temporary.path(), "reversal.xml", &reversal))
+            .unwrap();
+
+        let workspace = store.get_bank_workspace().unwrap();
+        assert_eq!(workspace["movements"].as_array().unwrap().len(), 2);
+        let reversal = workspace["movements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|movement| movement["reversal"] == true)
+            .unwrap();
+        assert_eq!(reversal["suggestion"]["confirmable"], false);
+        assert!(reversal["suggestion"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("Extourne"));
+        let keys = workspace["movements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|movement| movement["strong_key"].as_str().unwrap())
+            .collect::<HashSet<_>>();
+        assert_eq!(keys.len(), 2);
     }
 
     #[test]
@@ -2132,7 +2319,7 @@ mod tests {
     }
 
     #[test]
-    fn no_structured_reference_gets_bounded_manual_candidates_and_stable_dedup() {
+    fn no_structured_reference_gets_all_safe_manual_candidates_and_stable_dedup() {
         let (temporary, store) = store();
         store
             .associate_bank_account(AssociateBankAccountInput {
@@ -2179,7 +2366,115 @@ mod tests {
     }
 
     #[test]
-    fn overlapping_files_without_any_stable_bank_id_can_never_create_a_payment() {
+    fn a_false_text_match_never_hides_another_compatible_open_invoice() {
+        let (temporary, store) = store();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let paid_id = create_open_invoice(&store, 10_000, "CHF");
+        store
+            .record_payment(RecordPaymentInput {
+                request_id: None,
+                invoice_id: paid_id.clone(),
+                amount_cents: 10_000,
+                date: Some("2026-08-20".into()),
+                method: Some("Test".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let open_id = create_open_invoice(&store, 10_000, "CHF");
+        let connection = store.connect().unwrap();
+        let paid_number: String = connection
+            .query_row(
+                "SELECT number FROM invoices WHERE id=?",
+                params![paid_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        drop(connection);
+        let xml = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-FALSE-TEXT",
+            Some("D-FALSE-TEXT"),
+            None,
+            None,
+            false,
+            true,
+        )
+        .replace(
+            "Paiement sans référence",
+            &format!("Faux indice {paid_number}"),
+        )
+        .replace("Client test", "Payeur inconnu");
+        store
+            .import_camt_file(&write_xml(temporary.path(), "false-text.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let candidates = workspace["movements"][0]["suggestion"]["candidates"]
+            .as_array()
+            .unwrap();
+        let paid = candidates
+            .iter()
+            .find(|candidate| candidate["invoice_id"] == paid_id)
+            .unwrap();
+        let open = candidates
+            .iter()
+            .find(|candidate| candidate["invoice_id"] == open_id)
+            .unwrap();
+        assert_eq!(paid["confirmable"], false);
+        assert_eq!(open["confirmable"], true);
+        assert_eq!(workspace["movements"][0]["suggestion"]["confirmable"], true);
+    }
+
+    #[test]
+    fn a_valid_but_unknown_qrr_offers_explicit_manual_invoice_choices() {
+        let (temporary, store) = store();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let open_id = create_open_invoice(&store, 10_000, "CHF");
+        let unknown_qrr = generate_qrr("606060").unwrap();
+        let xml = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-UNKNOWN-QRR",
+            Some("D-UNKNOWN-QRR"),
+            Some("QRR"),
+            Some(&unknown_qrr),
+            false,
+            true,
+        );
+        store
+            .import_camt_file(&write_xml(temporary.path(), "unknown-qrr.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let suggestion = &workspace["movements"][0]["suggestion"];
+        assert_eq!(suggestion["kind"], "manual");
+        assert_eq!(suggestion["confirmable"], true);
+        assert!(suggestion["reason"].as_str().unwrap().contains("inconnue"));
+        assert!(suggestion["candidates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(
+                |candidate| candidate["invoice_id"] == open_id && candidate["confirmable"] == true
+            ));
+    }
+
+    #[test]
+    fn shared_end_to_end_id_alone_neither_deduplicates_nor_allows_a_payment() {
         let (temporary, store) = store();
         store
             .associate_bank_account(AssociateBankAccountInput {
@@ -2201,7 +2496,6 @@ mod tests {
             false,
             true,
         )
-        .replace("<EndToEndId>E2E-</EndToEndId>", "")
         .replace("<TxId>TX-</TxId>", "");
         store
             .import_camt_file(&write_xml(temporary.path(), "no-id-a.xml", &xml))
@@ -2217,6 +2511,7 @@ mod tests {
         let workspace = store.get_bank_workspace().unwrap();
         assert_eq!(workspace["movements"].as_array().unwrap().len(), 2);
         for movement in workspace["movements"].as_array().unwrap() {
+            assert_eq!(movement["end_to_end_id"], "E2E-");
             assert!(movement["strong_key"].is_null());
             assert_eq!(movement["suggestion"]["confirmable"], false);
             assert!(store
@@ -2781,23 +3076,24 @@ fn suggestion_for_movement(
             "candidates":[],
         }));
     }
-    if manual_matches.is_empty() && reference_type == "NON" {
-        manual_matches.extend(
-            invoices
+    if reference_type == "NON" || structured_valid {
+        let fallback_reason = if structured_valid {
+            "Référence QRR/SCOR valide mais inconnue; sélection manuelle d’une facture ouverte requise."
+        } else {
+            "Facture ouverte compatible en devise et en solde; sélection manuelle requise."
+        };
+        for invoice in invoices.iter().filter(|invoice| {
+            invoice.currency == movement_currency
+                && invoice.remaining_cents() >= amount
+                && invoice.remaining_cents() > 0
+        }) {
+            if !manual_matches
                 .iter()
-                .filter(|invoice| {
-                    invoice.currency == movement_currency
-                        && invoice.remaining_cents() >= amount
-                        && invoice.remaining_cents() > 0
-                })
-                .take(50)
-                .map(|invoice| {
-                    (
-                        invoice,
-                        "Facture ouverte compatible en devise et en solde; sélection manuelle requise.",
-                    )
-                }),
-        );
+                .any(|(candidate, _)| candidate.id == invoice.id)
+            {
+                manual_matches.push((invoice, fallback_reason));
+            }
+        }
     }
     if !manual_matches.is_empty() {
         let candidates = manual_matches
@@ -2811,7 +3107,7 @@ fn suggestion_for_movement(
             .any(|candidate| candidate["confirmable"].as_bool() == Some(true));
         return Ok(json!({
             "kind":if single_transaction { "manual" } else { "review" },
-            "reason": if !single_transaction { "Écriture collective : les candidats restent informatifs et ne sont pas confirmables." } else if !has_stable_dedup_key { "Aucun identifiant bancaire stable : rapprochement bloqué pour éviter un double encaissement." } else if !account_linked { "Compte bancaire non associé : vérifiez-le avant toute confirmation." } else if !account_currency_matches { "Devise du mouvement différente de celle du compte : gestion FX requise." } else { "Choisissez explicitement une facture ouverte compatible." },
+            "reason": if !booked { "Mouvement en attente (PDNG) : aucune confirmation possible." } else if !credit { "Débit bancaire : aucun encaissement client possible." } else if reversal { "Extourne bancaire détectée : elle reste visible mais ne peut pas encaisser une facture." } else if !has_bank_date { "Le mouvement BOOK ne contient aucune date bancaire utilisable." } else if !single_transaction { "Écriture collective : les candidats restent informatifs et ne sont pas confirmables." } else if !has_stable_dedup_key { "Aucun identifiant bancaire stable : rapprochement bloqué pour éviter un double encaissement." } else if !account_linked { "Compte bancaire non associé : vérifiez-le avant toute confirmation." } else if !account_currency_matches { "Devise du mouvement différente de celle du compte : gestion FX requise." } else if structured_valid { "Référence structurée valide mais inconnue : choisissez explicitement une facture ouverte compatible." } else { "Choisissez explicitement une facture ouverte compatible." },
             "confirmable":confirmable,
             "invoice_id": if manual_matches.len()==1 { json!(manual_matches[0].0.id) } else { Value::Null },
             "invoice_number": if manual_matches.len()==1 { json!(manual_matches[0].0.number) } else { Value::Null },
