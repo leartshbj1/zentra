@@ -43,6 +43,7 @@
     "category": "Business",
     "copyright": "Copyright © 2026 Elyko",
     "windows": {
+      "allowDowngrades": false,
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       },

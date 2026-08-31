@@ -42,4 +42,22 @@ describe('contrôles déterministes de l’import paie', () => {
     });
     expect(assessPayrollDraft(draft).blockers).toEqual([]);
   });
+
+  it('bloque une date de naissance impossible avant la confirmation', () => {
+    const draft: PayrollImportDraft = {
+      employee: {
+        employeeNumber: '', name: 'Alex Exemple', role: '', addressLine1: '', addressLine2: '', postalCode: '', city: '', canton: '', birthDate: '2026-02-30', avsNumber: '', iban: '', employmentRate: 100, salaryMode: 'monthly',
+      },
+      period: '2026-08',
+      paymentDate: '',
+      grossCents: 500_000,
+      netCents: 500_000,
+      lines: [
+        { id: 'salary', label: 'Salaire mensuel', kind: 'earning', amountCents: 500_000, recurring: true, confidenceBp: 9_000 },
+      ],
+      warnings: [],
+    };
+
+    expect(assessPayrollDraft(draft).blockers).toContain('La date de naissance détectée est invalide.');
+  });
 });

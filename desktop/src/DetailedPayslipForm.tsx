@@ -482,6 +482,7 @@ export function DetailedPayslipForm({
         (definition.basisKind !== 'gross' &&
           selected.basisCents === undefined) ||
         (definition.annualCeilingCents &&
+          definition.category !== 'ac' &&
           selected.yearToDateBasisCents === undefined)
       ) {
         setCalculationError(
@@ -968,7 +969,7 @@ export function DetailedPayslipForm({
                             required
                           />
                         </Field>
-                        {definition.annualCeilingCents ? (
+                        {definition.annualCeilingCents && definition.category !== 'ac' ? (
                           <Field
                             label="Base cumulée avant ce mois (CHF)"
                             required
@@ -993,6 +994,13 @@ export function DetailedPayslipForm({
                               required
                             />
                           </Field>
+                        ) : definition.category === 'ac' ? (
+                          <div className="info-strip">
+                            <ShieldCheck size={16} />
+                            <span>
+                              Le cumul AC est calculé côté Rust : base d’ouverture confirmée du collaborateur + bases AC des fiches Elyko antérieures de la même année.
+                            </span>
+                          </div>
                         ) : null}
                       </div>
                     ) : null}
@@ -1035,6 +1043,9 @@ export function DetailedPayslipForm({
                       {result.rateBp !== null
                         ? `${(result.rateBp / 100).toLocaleString('fr-CH')} %`
                         : 'montant fixe'}
+                      {result.category === 'ac' && result.yearToDateBasisCents !== null
+                        ? ` · cumul antérieur ${formatMoney(result.yearToDateBasisCents)}`
+                        : ''}
                     </small>
                   </span>
                   <strong>{formatMoney(result.amountCents)}</strong>

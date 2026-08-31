@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import {
   AlertCircle,
   ArrowLeft,
@@ -26,6 +27,7 @@ import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './t
 import { createId, errorMessage } from './utils';
 import { Button, ErrorPanel, Field } from './ui';
 import { projectTerminology } from './terminology';
+import { initialOnboardingSettings, settingsFromOnboardingDraft } from './onboardingDraft';
 import {
   backendOnboardingIssue,
   normalizeIban,
@@ -44,59 +46,6 @@ const steps = [
   { label: 'Confirmation', icon: Check },
 ];
 
-const initialSettings: AppSettings = {
-  organization: {
-    legalName: '',
-    legalForm: '',
-    contactName: '',
-    email: '',
-    phone: '',
-    website: '',
-    uidNumber: '',
-    vatNumber: '',
-    vatRegistered: false,
-    address: { street: '', postalCode: '', city: '', canton: '', country: 'CH' },
-  },
-  business: { nogaSection: '', nogaDivision: '', activityDescription: '', nogaDetailedCode: '' },
-  billing: {
-    currency: 'CHF',
-    iban: '',
-    accountHolder: '',
-    quotePrefix: 'D',
-    invoicePrefix: 'F',
-    creditNotePrefix: 'A',
-    nextQuoteNumber: 1,
-    nextInvoiceNumber: 1,
-    nextCreditNoteNumber: 1,
-    paymentTermsDays: 30,
-    quoteValidityDays: 30,
-    vatRatesBp: [],
-    defaultFooter: '',
-  },
-  work: { workWeekHours: 0, dailyHours: 0, roundingMinutes: 5, breakMinutes: 0, costCategories: [] },
-  payroll: {
-    enabled: false,
-    fiduciaryValidated: false,
-    avsFund: '',
-    accidentInsurer: '',
-    pensionFund: '',
-    dailyAllowanceInsurer: '',
-    familyAllowanceFund: '',
-    payrollCanton: '',
-    employeeRates: [],
-    employerRates: [],
-  },
-  backup: {
-    automatic: false,
-    folder: '',
-    frequency: 'manual',
-    retentionDaily: 0,
-    retentionWeekly: 0,
-    retentionMonthly: 0,
-    recoveryConfirmed: false,
-  },
-};
-
 const ONBOARDING_DRAFT_KEY = 'elyko.onboarding.draft.v1';
 type SettingsSetter = Dispatch<SetStateAction<AppSettings>>;
 type IssueMap = Record<string, string>;
@@ -111,82 +60,13 @@ type OnboardingDraft = {
   privacyConfirmed: boolean;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function mergeDraftValue<T>(base: T, value: unknown): T {
-  if (Array.isArray(base)) return (Array.isArray(value) ? [...value] : [...base]) as T;
-  if (isRecord(base)) {
-    const source = isRecord(value) ? value : {};
-    return Object.fromEntries(
-      Object.entries(base).map(([key, fallback]) => [key, mergeDraftValue(fallback, source[key])]),
-    ) as T;
-  }
-  return typeof value === typeof base ? value as T : base;
-}
-
-function safeDraftRates(value: unknown): PayrollRate[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  return value.flatMap((candidate) => {
-    if (!isRecord(candidate)) return [];
-    const label = typeof candidate.label === 'string' ? candidate.label : '';
-    const effectiveFrom = typeof candidate.effectiveFrom === 'string' ? candidate.effectiveFrom : '';
-    const rateBp = typeof candidate.rateBp === 'number' && Number.isFinite(candidate.rateBp) ? candidate.rateBp : 0;
-    const rawId = typeof candidate.id === 'string' ? candidate.id.trim() : '';
-    let id = rawId && [...rawId].length <= 500 && !seen.has(rawId) ? rawId : createId();
-    while (seen.has(id)) id = createId();
-    seen.add(id);
-    return [{
-      id,
-      label,
-      effectiveFrom,
-      rateBp,
-      ...(typeof candidate.sourceLabel === 'string' ? { sourceLabel: candidate.sourceLabel } : {}),
-      ...(typeof candidate.sourceUrl === 'string' ? { sourceUrl: candidate.sourceUrl } : {}),
-      ...(typeof candidate.annualCeilingCents === 'number' && Number.isSafeInteger(candidate.annualCeilingCents) && candidate.annualCeilingCents > 0
-        ? { annualCeilingCents: candidate.annualCeilingCents }
-        : {}),
-    }];
-  });
-}
-
-function settingsFromDraft(value: unknown): AppSettings {
-  const merged = mergeDraftValue(initialSettings, value);
-  const root = isRecord(value) ? value : {};
-  const billing = isRecord(root.billing) ? root.billing : {};
-  const work = isRecord(root.work) ? root.work : {};
-  const payroll = isRecord(root.payroll) ? root.payroll : {};
-  return {
-    ...merged,
-    billing: {
-      ...merged.billing,
-      vatRatesBp: Array.isArray(billing.vatRatesBp)
-        ? billing.vatRatesBp.filter((item): item is number => typeof item === 'number' && Number.isFinite(item))
-        : [],
-    },
-    work: {
-      ...merged.work,
-      costCategories: Array.isArray(work.costCategories)
-        ? work.costCategories.filter((item): item is string => typeof item === 'string')
-        : [],
-    },
-    payroll: {
-      ...merged.payroll,
-      employeeRates: safeDraftRates(payroll.employeeRates),
-      employerRates: safeDraftRates(payroll.employerRates),
-    },
-  };
-}
-
 function readOnboardingDraft(): OnboardingDraft | null {
   try {
     const raw = window.localStorage.getItem(ONBOARDING_DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<OnboardingDraft>;
     if (parsed.version !== 1) return null;
-    const settings = settingsFromDraft(parsed.settings);
+    const settings = settingsFromOnboardingDraft(parsed.settings);
     const safeStep = Number.isInteger(parsed.step) ? Math.min(6, Math.max(0, Number(parsed.step))) : 0;
     const safeHighestStep = Number.isInteger(parsed.highestStep)
       ? Math.min(6, Math.max(safeStep, Number(parsed.highestStep)))
@@ -227,7 +107,7 @@ export function Onboarding({
   const [draft] = useState(readOnboardingDraft);
   const [step, setStep] = useState(() => Math.min(6, Math.max(0, draft?.step ?? 0)));
   const [highestStep, setHighestStep] = useState(() => Math.min(6, Math.max(0, draft?.highestStep ?? draft?.step ?? 0)));
-  const [settings, setSettings] = useState<AppSettings>(() => draft?.settings ?? initialSettings);
+  const [settings, setSettings] = useState<AppSettings>(() => draft?.settings ?? initialOnboardingSettings);
   const [categoriesText, setCategoriesText] = useState(() => draft?.categoriesText ?? draft?.settings?.work.costCategories.join(', ') ?? '');
   const [vatText, setVatText] = useState(() => draft?.vatText ?? '');
   const [privacyConfirmed, setPrivacyConfirmed] = useState(() => draft?.privacyConfirmed ?? false);
@@ -508,14 +388,47 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
 function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCatalog, issues }: { settings: AppSettings; setSettings: SettingsSetter; catalog: NogaCatalog | null; catalogError: string; onRetryCatalog: () => void; issues: IssueMap }) {
   const org = settings.organization;
   const business = settings.business;
+  const [choosingLogo, setChoosingLogo] = useState(false);
+  const [logoError, setLogoError] = useState('');
   const patch = (value: Partial<typeof org>) => setSettings((current) => setDeep(current, 'organization', value));
   const patchAddress = (value: Partial<typeof org.address>) => patch({ address: { ...org.address, ...value } });
   const patchBusiness = (value: Partial<typeof business>) => setSettings((current) => setDeep(current, 'business', value));
   const selectedSection = catalog?.sections.find((section) => section.code === business.nogaSection);
+
+  async function chooseLogo() {
+    setLogoError('');
+    setChoosingLogo(true);
+    try {
+      const sourcePath = await desktopApi.chooseLogo();
+      if (!sourcePath) return;
+      const logoPath = await desktopApi.stageCompanyLogo(sourcePath);
+      patch({ logoPath });
+    } catch (reason) {
+      setLogoError(errorMessage(reason, 'Le logo n’a pas pu être vérifié et copié dans les données locales.'));
+    } finally {
+      setChoosingLogo(false);
+    }
+  }
+
   return (
     <div>
       <StepHeader eyebrow="Étape 1 sur 5" title="Identité de l’entreprise" text="Ces informations apparaîtront sur vos devis, factures et documents de salaire." />
       <div className="form-grid setup-form">
+        <div className="company-logo-setting onboarding-logo-setting field--wide">
+          <div className="company-logo-setting__preview">{org.logoPath ? <img src={convertFileSrc(org.logoPath)} alt={`Logo de ${org.legalName || 'l’entreprise'}`} /> : <Building2 size={30} />}</div>
+          <div className="company-logo-setting__copy">
+            <strong>Logo de l’entreprise</strong>
+            <p>Facultatif · PNG, JPEG ou WebP, 8 Mo maximum. Elyko vérifie l’image et en conserve une copie locale pour vos devis, factures et fiches de salaire.</p>
+            <div className="settings-inline-actions">
+              <Button type="button" variant="secondary" disabled={choosingLogo} onClick={() => void chooseLogo()}>
+                {choosingLogo ? <LoaderCircle className="spin" size={16} /> : <FolderOpen size={16} />} {choosingLogo ? 'Vérification…' : org.logoPath ? 'Remplacer le logo' : 'Choisir le logo'}
+              </Button>
+              {org.logoPath ? <Button type="button" variant="ghost" disabled={choosingLogo} onClick={() => { setLogoError(''); patch({ logoPath: '' }); }}><Trash2 size={15} /> Retirer</Button> : null}
+            </div>
+            {org.logoPath ? <span className="path-note"><ShieldCheck size={14} /> Copie locale prête pour les documents</span> : <span className="path-note">Vous pourrez aussi l’ajouter plus tard dans Paramètres.</span>}
+          </div>
+        </div>
+        {logoError ? <div className="field--wide"><ErrorPanel title="Logo non importé" message={logoError} /></div> : null}
         <Field label="Raison sociale" required wide error={issues['organization.legalName']}><input data-field="organization.legalName" aria-invalid={Boolean(issues['organization.legalName'])} value={org.legalName} onChange={(e) => patch({ legalName: e.target.value })} autoFocus /></Field>
         <Field label="Forme juridique"><input value={org.legalForm} onChange={(e) => patch({ legalForm: e.target.value })} /></Field>
         <Field label="Responsable" required error={issues['organization.contactName']}><input data-field="organization.contactName" aria-invalid={Boolean(issues['organization.contactName'])} value={org.contactName} onChange={(e) => patch({ contactName: e.target.value })} /></Field>
@@ -656,7 +569,7 @@ function ConfirmationStep({ settings, onEdit }: { settings: AppSettings; onEdit:
   return (
     <div>
       <StepHeader eyebrow="Prêt à démarrer" title="Vérifiez votre configuration" text="Seules les informations ci-dessous seront créées. Toutes les listes métier commenceront vides." />
-      <div className="review-grid"><ReviewCard title="Entreprise" onEdit={() => onEdit(1)} rows={[["Raison sociale", org.legalName], ["Responsable", org.contactName], ["Adresse", `${org.address.street}, ${org.address.postalCode} ${org.address.city}`], ["TVA", org.vatRegistered ? `Assujettie · ${org.vatNumber || org.uidNumber}` : 'Non assujettie']]} /><ReviewCard title="Activité" onEdit={() => onEdit(1)} rows={[["Section NOGA", settings.business.nogaSection], ["Division NOGA", settings.business.nogaDivision], ["Activité précise", settings.business.activityDescription], ["Code détaillé", settings.business.nogaDetailedCode || 'Non renseigné']]} /><ReviewCard title="Facturation" onEdit={() => onEdit(2)} rows={[["Compte", settings.billing.iban], ["Numérotation devis", `${settings.billing.quotePrefix} · prochain ${settings.billing.nextQuoteNumber}`], ["Numérotation factures", `${settings.billing.invoicePrefix} · prochain ${settings.billing.nextInvoiceNumber}`], ["TVA", settings.billing.vatRatesBp.length ? settings.billing.vatRatesBp.map((rate) => `${(rate / 100).toLocaleString('fr-CH')} %`).join(', ') : 'Sans TVA'], ["Délais", `${settings.billing.paymentTermsDays} jours · devis ${settings.billing.quoteValidityDays} jours`]]} /><ReviewCard title="Temps & coûts" onEdit={() => onEdit(3)} rows={[["Semaine", `${settings.work.workWeekHours} heures`], ["Journée", `${settings.work.dailyHours} heures · pause ${settings.work.breakMinutes} min`], ["Arrondi", settings.work.roundingMinutes ? `${settings.work.roundingMinutes} min` : 'Aucun'], ["Catégories", settings.work.costCategories.join(', ')]]} /><ReviewCard title="Paie" onEdit={() => onEdit(4)} rows={[["Module", settings.payroll.enabled ? settings.payroll.fiduciaryValidated ? 'Activé · configuration contrôlée' : 'Activé · validation fiduciaire requise' : 'Désactivé'], ["Caisse AVS", settings.payroll.enabled ? settings.payroll.avsFund : '—'], ["Taux saisis", settings.payroll.enabled ? `${settings.payroll.employeeRates.length} salarié · ${settings.payroll.employerRates.length} employeur` : 'Aucun']]} /><ReviewCard title="Données" onEdit={() => onEdit(5)} rows={[["Stockage", 'Uniquement sur cet ordinateur'], ["Sauvegarde", 'Manuelle, à votre initiative'], ["Dossier", settings.backup.folder]]} /></div>
+      <div className="review-grid"><ReviewCard title="Entreprise" onEdit={() => onEdit(1)} rows={[["Raison sociale", org.legalName], ["Responsable", org.contactName], ["Adresse", `${org.address.street}${org.address.buildingNumber ? ` ${org.address.buildingNumber}` : ''}, ${org.address.postalCode} ${org.address.city}`], ["Logo", org.logoPath ? 'Copie locale configurée' : 'Non configuré'], ["TVA", org.vatRegistered ? `Assujettie · ${org.vatNumber || org.uidNumber}` : 'Non assujettie']]} /><ReviewCard title="Activité" onEdit={() => onEdit(1)} rows={[["Section NOGA", settings.business.nogaSection], ["Division NOGA", settings.business.nogaDivision], ["Activité précise", settings.business.activityDescription], ["Code détaillé", settings.business.nogaDetailedCode || 'Non renseigné']]} /><ReviewCard title="Facturation" onEdit={() => onEdit(2)} rows={[["Compte", settings.billing.iban], ["Numérotation devis", `${settings.billing.quotePrefix} · prochain ${settings.billing.nextQuoteNumber}`], ["Numérotation factures", `${settings.billing.invoicePrefix} · prochain ${settings.billing.nextInvoiceNumber}`], ["TVA", settings.billing.vatRatesBp.length ? settings.billing.vatRatesBp.map((rate) => `${(rate / 100).toLocaleString('fr-CH')} %`).join(', ') : 'Sans TVA'], ["Délais", `${settings.billing.paymentTermsDays} jours · devis ${settings.billing.quoteValidityDays} jours`]]} /><ReviewCard title="Temps & coûts" onEdit={() => onEdit(3)} rows={[["Semaine", `${settings.work.workWeekHours} heures`], ["Journée", `${settings.work.dailyHours} heures · pause ${settings.work.breakMinutes} min`], ["Arrondi", settings.work.roundingMinutes ? `${settings.work.roundingMinutes} min` : 'Aucun'], ["Catégories", settings.work.costCategories.join(', ')]]} /><ReviewCard title="Paie" onEdit={() => onEdit(4)} rows={[["Module", settings.payroll.enabled ? settings.payroll.fiduciaryValidated ? 'Activé · configuration contrôlée' : 'Activé · validation fiduciaire requise' : 'Désactivé'], ["Caisse AVS", settings.payroll.enabled ? settings.payroll.avsFund : '—'], ["Taux saisis", settings.payroll.enabled ? `${settings.payroll.employeeRates.length} salarié · ${settings.payroll.employerRates.length} employeur` : 'Aucun']]} /><ReviewCard title="Données" onEdit={() => onEdit(5)} rows={[["Stockage", 'Uniquement sur cet ordinateur'], ["Sauvegarde", 'Manuelle, à votre initiative'], ["Dossier", settings.backup.folder]]} /></div>
       <div className="zero-data"><Check size={19} /><div><strong>Démarrage propre confirmé</strong><p>0 client · 0 chantier ou projet · 0 devis · 0 facture · 0 salarié · 0 montant simulé</p></div></div>
     </div>
   );

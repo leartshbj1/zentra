@@ -47,11 +47,15 @@ struct Definition {
 
 #[derive(Debug)]
 struct EmployeePayrollContext {
+    id: String,
     birth_date: Option<String>,
     employment_start: Option<String>,
     employment_end: Option<String>,
     reference_age_date: Option<String>,
     avs_allowance_waived: Option<bool>,
+    contractual_weekly_minutes: Option<i64>,
+    ac_opening_year: Option<i64>,
+    ac_opening_basis_cents: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -529,6 +533,14 @@ impl LocalStore {
         recompute_payslip(&tx, &payslip_id)?;
         let contribution_result =
             apply_contributions_tx(&tx, &payslip_id, &input.period, &input.contributions)?;
+        if input.status == "valide" {
+            validate_validated_swiss_payslip(
+                &tx,
+                input.employee_id.trim(),
+                &input.period,
+                &contribution_result["calculation"],
+            )?;
+        }
         let result = json!({
             "payslip": contribution_result["payslip"].clone(),
             "manual_lines": query_all(&tx,"SELECT pi.* FROM payslip_items pi LEFT JOIN payslip_contributions pc ON pc.payslip_item_id=pi.id WHERE pi.payslip_id=? AND pc.id IS NULL ORDER BY pi.position,pi.rowid",params![payslip_id])?,
@@ -554,11 +566,11 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (period, status): (String, String) = tx
+        let (period, status, employee_id, gross_cents): (String, String, String, i64) = tx
             .query_row(
-                "SELECT period,status FROM payslips WHERE id=?",
+                "SELECT period,status,employee_id,gross_cents FROM payslips WHERE id=?",
                 params![input.payslip_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
             )
             .optional()?
             .ok_or_else(|| AppError::NotFound(format!("payslips/{}", input.payslip_id)))?;
@@ -583,6 +595,20 @@ impl LocalStore {
                 "Seule une fiche de salaire au statut valide peut être comptabilisée.".into(),
             ));
         }
+        let persisted_items = query_all(
+            &tx,
+            "SELECT pc.*,d.code,d.annual_ceiling_cents AS statutory_annual_ceiling_cents \
+             FROM payslip_contributions pc \
+             JOIN payroll_contribution_definitions d ON d.id=pc.definition_id \
+             WHERE pc.payslip_id=? ORDER BY pc.rowid",
+            params![input.payslip_id],
+        )?;
+        validate_validated_swiss_payslip(
+            &tx,
+            &employee_id,
+            &period,
+            &json!({"period":period,"gross_cents":gross_cents,"items":persisted_items}),
+        )?;
         let journal = post_payslip_if_enabled(&tx, &input.payslip_id, &date)?.ok_or_else(|| {
             AppError::Validation(
                 "La comptabilité doit être configurée et activée avant de comptabiliser une fiche de salaire."
@@ -858,6 +884,9 @@ fn apply_contributions_tx(
     }
     let employee = load_employee_payroll_context(tx, &employee_id)?;
     let calculation = calculate(tx, &period, gross, items, Some(&employee))?;
+    if status == "valide" {
+        validate_validated_swiss_payslip(tx, &employee_id, &period, &calculation)?;
+    }
     let existing_ids = query_all(
         tx,
         "SELECT payslip_item_id FROM payslip_contributions WHERE payslip_id=?",
@@ -916,6 +945,7 @@ fn calculate(
     let mut employer = 0_i64;
     let mut avs_effective_basis: Option<(i64, String)> = None;
     let mut ac_effective_basis: Option<(i64, String)> = None;
+    let mut derived_ac_ytd: Option<i64> = None;
     for selection in selections {
         if !seen.insert(&selection.definition_id) {
             return Err(AppError::Validation(format!(
@@ -987,11 +1017,30 @@ fn calculate(
         }
         let statutory_annual_ceiling = def.annual_ceiling_cents;
         let mut effective_ceiling = statutory_annual_ceiling;
+        let mut effective_ytd_basis = selection.year_to_date_basis_cents;
         let mut ac_proration_days = None;
         let mut ac_employment_from = None;
         let mut ac_employment_to = None;
         if def.category == "ac" {
             let employee = statutory_employee.expect("statutory employee validated above");
+            let expected_ytd = match derived_ac_ytd {
+                Some(value) => value,
+                None => {
+                    let value = derived_ac_year_to_date_basis(connection, employee, period)?;
+                    derived_ac_ytd = Some(value);
+                    value
+                }
+            };
+            if selection
+                .year_to_date_basis_cents
+                .is_some_and(|provided| provided != expected_ytd)
+            {
+                return Err(AppError::Validation(format!(
+                    "Le cumul annuel AC de {} doit être celui calculé localement par Elyko: {} centimes (ouverture confirmée et périodes antérieures), pas {:?}.",
+                    def.code, expected_ytd, selection.year_to_date_basis_cents
+                )));
+            }
+            effective_ytd_basis = Some(expected_ytd);
             let reference_status = ac_reference_age_status_for_period(
                 period,
                 employee.birth_date.as_deref(),
@@ -1038,7 +1087,7 @@ fn calculate(
             ac_employment_to = Some(proration.employment_to.to_string());
         }
         if let Some(ceiling) = effective_ceiling {
-            let ytd = selection.year_to_date_basis_cents.ok_or_else(|| {
+            let ytd = effective_ytd_basis.ok_or_else(|| {
                 AppError::Validation(format!(
                     "year_to_date_basis_cents est obligatoire pour la cotisation plafonnée {}.",
                     def.code
@@ -1048,6 +1097,12 @@ fn calculate(
                 return Err(AppError::Validation(
                     "year_to_date_basis_cents ne peut pas être négatif.".into(),
                 ));
+            }
+            if def.category == "ac" && ytd > ceiling {
+                return Err(AppError::Validation(format!(
+                    "Le cumul annuel AC confirmé ({ytd} centimes) dépasse le plafond proratisé de {} centimes pour {period}.",
+                    ceiling
+                )));
             }
             basis = basis.min(ceiling.saturating_sub(ytd).max(0));
         }
@@ -1084,7 +1139,7 @@ fn calculate(
         } else {
             employer = employer.saturating_add(amount)
         };
-        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":selection.year_to_date_basis_cents,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
+        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
     }
     Ok(
         json!({"period":period,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
@@ -1171,6 +1226,329 @@ fn validate_shared_statutory_bases(
     Ok(())
 }
 
+fn payroll_setting_text<'a>(settings: &'a Value, pointer: &str) -> &'a str {
+    settings
+        .pointer(pointer)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+}
+
+fn validate_official_federal_group(
+    items: &[Value],
+    category: &str,
+    expected: &[(&str, &str, i64, Option<i64>)],
+) -> AppResult<()> {
+    let relevant = items
+        .iter()
+        .filter(|item| item["category"].as_str() == Some(category))
+        .collect::<Vec<_>>();
+    if relevant.len() != expected.len() {
+        return Err(AppError::Validation(format!(
+            "Le profil fédéral {category} est incomplet: {} ligne(s) sélectionnée(s), {} attendue(s).",
+            relevant.len(),
+            expected.len()
+        )));
+    }
+    for (code, side, rate_bp, annual_ceiling) in expected {
+        let Some(item) = relevant
+            .iter()
+            .find(|item| item["code"].as_str() == Some(*code))
+        else {
+            return Err(AppError::Validation(format!(
+                "La cotisation fédérale {code} manque pour valider la fiche."
+            )));
+        };
+        let actual_ceiling = item["statutory_annual_ceiling_cents"]
+            .as_i64()
+            .or_else(|| item["annual_ceiling_cents"].as_i64());
+        if item["side"].as_str() != Some(*side)
+            || item["calculation_kind"].as_str() != Some("rate")
+            || item["basis_kind"].as_str() != Some("ahv_salary")
+            || item["rate_bp"].as_i64() != Some(*rate_bp)
+            || actual_ceiling != *annual_ceiling
+            || item["source"].as_str() != Some(CH_2026_SOURCE)
+            || item["effective_from"].as_str() != Some("2026-01-01")
+            || item["effective_to"].as_str() != Some("2026-12-31")
+        {
+            return Err(AppError::Validation(format!(
+                "La cotisation {code} ne correspond pas au profil fédéral suisse 2026 figé (part, taux, base, plafond, source ou dates)."
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Garde serveur du statut `valide`. L'interface ne constitue jamais une
+/// frontière de sécurité : cette validation est rejouée dans la transaction
+/// Rust avant chaque enregistrement ou modification d'une fiche validée.
+fn validate_validated_swiss_payslip(
+    connection: &Connection,
+    employee_id: &str,
+    period: &str,
+    calculation: &Value,
+) -> AppResult<()> {
+    let items = calculation["items"].as_array().ok_or_else(|| {
+        AppError::Validation("Le détail des cotisations calculées est invalide.".into())
+    })?;
+    let employee = load_employee_payroll_context(connection, employee_id)?;
+    let settings_json: String = connection.query_row(
+        "SELECT extra_settings_json FROM settings WHERE id=1",
+        [],
+        |row| row.get(0),
+    )?;
+    let settings: Value = serde_json::from_str(&settings_json).map_err(|_| {
+        AppError::Validation("La configuration locale de paie est illisible.".into())
+    })?;
+    if settings
+        .pointer("/payroll/enabled")
+        .and_then(Value::as_bool)
+        != Some(true)
+        || settings
+            .pointer("/payroll/fiduciaryValidated")
+            .and_then(Value::as_bool)
+            != Some(true)
+    {
+        return Err(AppError::Validation(
+            "Activez la paie et confirmez sa configuration avec la fiduciaire avant le statut valide."
+                .into(),
+        ));
+    }
+    let has_category = |category: &str| {
+        items
+            .iter()
+            .any(|item| item["category"].as_str() == Some(category))
+    };
+    if has_category("source_tax") {
+        return Err(AppError::Validation(
+            "L’impôt à la source ne peut pas être validé comme cotisation à taux linéaire; saisissez le montant officiel cantonal comme retenue manuelle et conservez sa référence."
+                .into(),
+        ));
+    }
+    if !has_category("aap") {
+        return Err(AppError::Validation(
+            "La prime accidents professionnels AAP doit être configurée pour valider toute fiche de salarié."
+                .into(),
+        ));
+    }
+    if payroll_setting_text(&settings, "/payroll/accidentInsurer").is_empty() {
+        return Err(AppError::Validation(
+            "L’assureur accidents doit être renseigné avant de valider AAP/AANP.".into(),
+        ));
+    }
+    let weekly_minutes = employee.contractual_weekly_minutes.ok_or_else(|| {
+        AppError::Validation(
+            "Confirmez les minutes contractuelles hebdomadaires pour décider l’assujettissement AANP."
+                .into(),
+        )
+    })?;
+    match (weekly_minutes >= 480, has_category("aanp")) {
+        (true, false) => {
+            return Err(AppError::Validation(
+                "Le contrat atteint 8 heures par semaine: une couverture AANP explicite est obligatoire."
+                    .into(),
+            ))
+        }
+        (false, true) => {
+            return Err(AppError::Validation(
+                "AANP est sélectionnée alors que le contrat confirmé est inférieur à 8 heures par semaine."
+                    .into(),
+            ))
+        }
+        _ => {}
+    }
+    for (category, setting, message) in [
+        (
+            "lpp",
+            "/payroll/pensionFund",
+            "La caisse de pension doit être renseignée pour la cotisation LPP sélectionnée.",
+        ),
+        (
+            "ijm",
+            "/payroll/dailyAllowanceInsurer",
+            "L’assureur IJM doit être renseigné pour la cotisation sélectionnée.",
+        ),
+        (
+            "family_allowance",
+            "/payroll/familyAllowanceFund",
+            "La caisse d’allocations familiales doit être renseignée pour la cotisation sélectionnée.",
+        ),
+    ] {
+        if has_category(category) && payroll_setting_text(&settings, setting).is_empty() {
+            return Err(AppError::Validation(message.into()));
+        }
+    }
+
+    let avs_due = avs_is_due_for_period(period, employee.birth_date.as_deref())
+        .map_err(|error| AppError::Validation(error.to_string()))?;
+    if !avs_due {
+        if has_category("avs_ai_apg") || has_category("ac") {
+            return Err(AppError::Validation(
+                "AVS/AI/APG et AC ne doivent pas être appliquées avant le 1er janvier suivant le 17e anniversaire."
+                    .into(),
+            ));
+        }
+        return Ok(());
+    }
+    if !period.starts_with("2026-") {
+        return Err(AppError::Validation(
+            "Elyko ne possède un profil fédéral figé que pour 2026; chargez et contrôlez le profil officiel de l’année avant validation."
+                .into(),
+        ));
+    }
+    if payroll_setting_text(&settings, "/payroll/avsFund").is_empty() {
+        return Err(AppError::Validation(
+            "La caisse AVS doit être renseignée avant validation.".into(),
+        ));
+    }
+    validate_official_federal_group(
+        items,
+        "avs_ai_apg",
+        &[
+            ("AVS_EMPLOYEE", "employee", 435, None),
+            ("AVS_EMPLOYER", "employer", 435, None),
+            ("AI_EMPLOYEE", "employee", 70, None),
+            ("AI_EMPLOYER", "employer", 70, None),
+            ("APG_EMPLOYEE", "employee", 25, None),
+            ("APG_EMPLOYER", "employer", 25, None),
+        ],
+    )?;
+    let reference_status = ac_reference_age_status_for_period(
+        period,
+        employee.birth_date.as_deref(),
+        employee.reference_age_date.as_deref(),
+    )
+    .map_err(|error| AppError::Validation(error.to_string()))?;
+    match reference_status {
+        crate::swiss_payroll_rules::AcReferenceAgeStatus::ConfirmedSubject => {
+            validate_official_federal_group(
+                items,
+                "ac",
+                &[
+                    (
+                        "AC_EMPLOYEE",
+                        "employee",
+                        110,
+                        Some(SWISS_AC_ANNUAL_CEILING_CENTS_2026),
+                    ),
+                    (
+                        "AC_EMPLOYER",
+                        "employer",
+                        110,
+                        Some(SWISS_AC_ANNUAL_CEILING_CENTS_2026),
+                    ),
+                ],
+            )?;
+            let expected_ytd = derived_ac_year_to_date_basis(connection, &employee, period)?;
+            if items
+                .iter()
+                .filter(|item| item["category"].as_str() == Some("ac"))
+                .any(|item| item["year_to_date_basis_cents"].as_i64() != Some(expected_ytd))
+            {
+                return Err(AppError::Validation(format!(
+                    "Le cumul AC figé doit être {expected_ytd} centimes pour {period}."
+                )));
+            }
+        }
+        crate::swiss_payroll_rules::AcReferenceAgeStatus::ConfirmedExempt => {
+            if has_category("ac") {
+                return Err(AppError::Validation(
+                    "L’AC ne doit plus être appliquée après le mois d’atteinte confirmé de l’âge de référence."
+                        .into(),
+                ));
+            }
+            if employee.avs_allowance_waived.is_none() {
+                return Err(AppError::Validation(
+                    "Confirmez si la franchise AVS après l’âge de référence est conservée ou abandonnée."
+                        .into(),
+                ));
+            }
+        }
+        crate::swiss_payroll_rules::AcReferenceAgeStatus::NeedsReview => {
+            return Err(AppError::Validation(
+                "Le statut d’assujettissement après l’âge de référence doit être confirmé explicitement."
+                    .into(),
+            ))
+        }
+    }
+    Ok(())
+}
+
+/// Le cumul AC ne fait jamais confiance à une valeur libre envoyée par le
+/// client IPC. Il part d'une ouverture annuelle explicitement confirmée, puis
+/// additionne une seule fois la base AC figée de chaque période antérieure.
+fn derived_ac_year_to_date_basis(
+    connection: &Connection,
+    employee: &EmployeePayrollContext,
+    period: &str,
+) -> AppResult<i64> {
+    let year = period
+        .get(..4)
+        .and_then(|value| value.parse::<i64>().ok())
+        .ok_or_else(|| AppError::Validation("La période AC est invalide.".into()))?;
+    let opening_basis = match (employee.ac_opening_year, employee.ac_opening_basis_cents) {
+        (Some(opening_year), Some(basis)) if opening_year == year => basis,
+        (Some(opening_year), Some(_)) => {
+            return Err(AppError::Validation(format!(
+                "La base d’ouverture AC est confirmée pour {opening_year}, pas pour {year}. Confirmez l’ouverture {year}, même si elle vaut zéro."
+            )))
+        }
+        (None, None) => {
+            return Err(AppError::Validation(format!(
+                "Confirmez la base d’ouverture AC {year} du collaborateur, même si elle vaut zéro."
+            )))
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "L’année et la base d’ouverture AC doivent être confirmées ensemble.".into(),
+            ))
+        }
+    };
+    if opening_basis < 0 {
+        return Err(AppError::Validation(
+            "La base d’ouverture AC ne peut pas être négative.".into(),
+        ));
+    }
+
+    let year_start = format!("{year:04}-01");
+    let mut statement = connection.prepare(
+        "SELECT p.period,p.status,COUNT(pc.id),MIN(pc.basis_cents),MAX(pc.basis_cents) \
+         FROM payslips p \
+         LEFT JOIN payslip_contributions pc ON pc.payslip_id=p.id AND pc.category='ac' \
+         WHERE p.employee_id=? AND p.period>=? AND p.period<? \
+         GROUP BY p.id,p.period,p.status ORDER BY p.period",
+    )?;
+    let rows = statement.query_map(params![employee.id, year_start, period], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, Option<i64>>(3)?,
+            row.get::<_, Option<i64>>(4)?,
+        ))
+    })?;
+    let mut ytd = opening_basis;
+    for row in rows {
+        let (prior_period, status, ac_part_count, minimum_basis, maximum_basis) = row?;
+        if !matches!(status.as_str(), "valide" | "comptabilise" | "paye") {
+            return Err(AppError::Validation(format!(
+                "La fiche AC {prior_period} doit être validée avant de calculer la période {period}."
+            )));
+        }
+        if ac_part_count != 2 || minimum_basis.is_none() || minimum_basis != maximum_basis {
+            return Err(AppError::Validation(format!(
+                "La fiche {prior_period} doit contenir exactement les deux parts AC sur la même base avant de continuer."
+            )));
+        }
+        ytd = ytd
+            .checked_add(maximum_basis.expect("validated AC basis"))
+            .ok_or_else(|| {
+                AppError::Validation("Le cumul annuel AC dépasse la capacité de calcul.".into())
+            })?;
+    }
+    Ok(ytd)
+}
+
 fn load_employee_payroll_context(
     connection: &Connection,
     employee_id: &str,
@@ -1180,15 +1558,19 @@ fn load_employee_payroll_context(
     }
     connection
         .query_row(
-            "SELECT birth_date,employment_start_date,employment_end_date,reference_age_date,avs_allowance_waived FROM employees WHERE id=?",
+            "SELECT id,birth_date,employment_start_date,employment_end_date,reference_age_date,avs_allowance_waived,contractual_weekly_minutes,ac_opening_year,ac_opening_basis_cents FROM employees WHERE id=?",
             params![employee_id],
             |row| {
                 Ok(EmployeePayrollContext {
-                    birth_date: row.get(0)?,
-                    employment_start: row.get(1)?,
-                    employment_end: row.get(2)?,
-                    reference_age_date: row.get(3)?,
-                    avs_allowance_waived: row.get(4)?,
+                    id: row.get(0)?,
+                    birth_date: row.get(1)?,
+                    employment_start: row.get(2)?,
+                    employment_end: row.get(3)?,
+                    reference_age_date: row.get(4)?,
+                    avs_allowance_waived: row.get(5)?,
+                    contractual_weekly_minutes: row.get(6)?,
+                    ac_opening_year: row.get(7)?,
+                    ac_opening_basis_cents: row.get(8)?,
                 })
             },
         )

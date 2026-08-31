@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Archive, BookOpen, CheckCircle2, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, RefreshCw, RotateCcw, Scale, ShieldCheck, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { Account, AccountingPeriod, AccountingSettings, BalanceSheetReport, IncomeStatementReport, JournalEntry, JournalReport, LedgerReport, PeriodFilter, StatementRow, TrialBalanceReport, Workspace } from './types';
@@ -63,6 +63,8 @@ export function AccountingScreen({ workspace }: { workspace: Workspace }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const reportRequest = useRef(0);
+  const actionRequest = useRef(0);
 
   const activeAccounts = accounts.filter((account) => account.active);
   const debit = entryLines.reduce((sum, line) => sum + line.debitCents, 0);
@@ -71,12 +73,18 @@ export function AccountingScreen({ workspace }: { workspace: Workspace }) {
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
 
   async function run(action: () => Promise<void>, success?: string) {
+    const request = ++actionRequest.current;
     setBusy(true);
     setError('');
     setNotice('');
-    try { await action(); if (success) setNotice(success); }
-    catch (reason) { setError(errorMessage(reason, 'La commande comptable locale a échoué.')); }
-    finally { setBusy(false); }
+    try {
+      await action();
+      if (request === actionRequest.current && success) setNotice(success);
+    } catch (reason) {
+      if (request === actionRequest.current) setError(errorMessage(reason, 'La commande comptable locale a échoué.'));
+    } finally {
+      if (request === actionRequest.current) setBusy(false);
+    }
   }
 
   async function loadBase() {
@@ -84,30 +92,61 @@ export function AccountingScreen({ workspace }: { workspace: Workspace }) {
     setAccounts(nextAccounts);
     setSettings(nextSettings);
     setPeriods(nextPeriods);
-    if (!selectedAccountId && nextAccounts.length) setSelectedAccountId(nextAccounts[0].id);
+    const accountId = nextAccounts.some((account) => account.id === selectedAccountId)
+      ? selectedAccountId
+      : nextAccounts[0]?.id || '';
+    if (selectedAccountId !== accountId) setSelectedAccountId(accountId);
+    return accountId;
   }
 
-  async function refreshReports() {
-    const [nextJournal, nextTrial] = await Promise.all([desktopApi.getJournal(filter), desktopApi.getTrialBalance(filter)]);
-    setJournal(nextJournal); setTrial(nextTrial);
-    if (selectedAccountId) setLedger(await desktopApi.getLedger(selectedAccountId, filter));
+  async function refreshReports(nextFilter: PeriodFilter = filter, accountId = selectedAccountId) {
+    const request = ++reportRequest.current;
     try {
-      const [nextBalance, nextIncome] = await Promise.all([desktopApi.getBalanceSheet(filter), desktopApi.getIncomeStatement(filter)]);
-      setBalance(nextBalance); setIncome(nextIncome);
+      const [nextJournal, nextTrial, nextLedger, nextBalance, nextIncome] = await Promise.allSettled([
+        desktopApi.getJournal(nextFilter),
+        desktopApi.getTrialBalance(nextFilter),
+        accountId ? desktopApi.getLedger(accountId, nextFilter) : Promise.resolve(null),
+        desktopApi.getBalanceSheet(nextFilter),
+        desktopApi.getIncomeStatement(nextFilter),
+      ]);
+      if (request !== reportRequest.current) return;
+      const failures: Array<{ label: string; reason: unknown }> = [];
+      if (nextJournal.status === 'fulfilled') setJournal(nextJournal.value);
+      else { setJournal(null); failures.push({ label: 'journal', reason: nextJournal.reason }); }
+      if (nextTrial.status === 'fulfilled') setTrial(nextTrial.value);
+      else { setTrial(null); failures.push({ label: 'balance des comptes', reason: nextTrial.reason }); }
+      if (nextLedger.status === 'fulfilled') setLedger(nextLedger.value);
+      else { setLedger(null); failures.push({ label: 'grand livre', reason: nextLedger.reason }); }
+      if (nextBalance.status === 'fulfilled') setBalance(nextBalance.value);
+      else { setBalance(null); failures.push({ label: 'bilan', reason: nextBalance.reason }); }
+      if (nextIncome.status === 'fulfilled') setIncome(nextIncome.value);
+      else { setIncome(null); failures.push({ label: 'compte de résultat', reason: nextIncome.reason }); }
+      if (failures.length) {
+        const labels = failures.map((failure) => failure.label).join(', ');
+        throw new Error(`Certains états n’ont pas pu être actualisés (${labels}). Les autres résultats chargés restent affichés. ${errorMessage(failures[0].reason, 'Erreur locale non détaillée.')}`);
+      }
     } catch (reason) {
-      setBalance(null); setIncome(null);
-      throw reason;
+      if (request === reportRequest.current) throw reason;
     }
   }
 
-  useEffect(() => { void run(async () => { await loadBase(); await refreshReports(); }); }, []);
+  useEffect(() => { void run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }); }, []);
 
-  async function reloadAll(success?: string) { await run(async () => { await loadBase(); await refreshReports(); }, success); }
+  async function reloadAll(success?: string) { await run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }, success); }
 
   function choosePeriod(id: string) {
     setPeriodId(id);
     const period = periods.find((item) => item.id === id);
-    setFilter(period ? { dateFrom: period.dateFrom, dateTo: period.dateTo } : {});
+    const nextFilter = period ? { dateFrom: period.dateFrom, dateTo: period.dateTo } : {};
+    setFilter(nextFilter);
+    void run(() => refreshReports(nextFilter), period ? `Les états de « ${period.name} » sont affichés.` : 'La période libre est affichée.');
+  }
+
+  function changeFreeFilter(patch: Partial<PeriodFilter>) {
+    const nextFilter = { ...filter, ...patch };
+    setPeriodId('');
+    setFilter(nextFilter);
+    void run(() => refreshReports(nextFilter));
   }
 
   async function saveAccount(form: FormData) {
@@ -115,7 +154,7 @@ export function AccountingScreen({ workspace }: { workspace: Workspace }) {
     const normalBalance = String(form.get('normalBalance')) as Account['normalBalance'];
     await run(async () => {
       await desktopApi.upsertAccount({ id: accountDraft?.id, code: String(form.get('code')), name: String(form.get('name')), accountType, normalBalance, reportSection: String(form.get('reportSection')) as Account['reportSection'], active: form.get('active') === 'on' });
-      setAccountDraft(null); await loadBase(); await refreshReports();
+      setAccountDraft(null); const accountId = await loadBase(); await refreshReports(filter, accountId);
     }, 'Le compte a été enregistré.');
   }
 
@@ -148,12 +187,12 @@ export function AccountingScreen({ workspace }: { workspace: Workspace }) {
   ];
 
   return <div className="stack-layout accounting-screen">
-    <section className="accounting-toolbar panel"><div className="tab-strip">{tabs.map(([id, label, icon]) => <button key={id} className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{icon}{label}</button>)}</div><div className="accounting-filters"><select value={periodId} onChange={(event) => choosePeriod(event.target.value)}><option value="">Période libre</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.status === 'closed' ? 'clôturé' : 'ouvert'}</option>)}</select><input type="date" value={filter.dateFrom ?? ''} onChange={(event) => { setPeriodId(''); setFilter((current) => ({ ...current, dateFrom: event.target.value || undefined })); }} aria-label="Du" /><input type="date" value={filter.dateTo ?? ''} onChange={(event) => { setPeriodId(''); setFilter((current) => ({ ...current, dateTo: event.target.value || undefined })); }} aria-label="Au" /><span className={`report-state ${reportState === 'Clôturé' ? 'is-closed' : ''}`}>{reportState}</span><Button variant="secondary" size="small" disabled={busy} onClick={() => void run(refreshReports, 'Les états ont été actualisés.')}><RefreshCw size={15} /> Actualiser</Button></div></section>
-    {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success"><span><CheckCircle2 size={18} />{notice}</span><button onClick={() => setNotice('')}><X size={15} /></button></div> : null}
+    <section className="accounting-toolbar panel"><div className="tab-strip">{tabs.map(([id, label, icon]) => <button key={id} className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{icon}{label}</button>)}</div><div className="accounting-filters"><select value={periodId} disabled={busy} onChange={(event) => choosePeriod(event.target.value)}><option value="">Période libre</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.status === 'closed' ? 'clôturé' : 'ouvert'}</option>)}</select><input type="date" value={filter.dateFrom ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateFrom: event.target.value || undefined })} aria-label="Du" /><input type="date" value={filter.dateTo ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateTo: event.target.value || undefined })} aria-label="Au" /><span className={`report-state ${reportState === 'Clôturé' ? 'is-closed' : ''}`}>{busy ? 'Actualisation…' : reportState}</span><Button variant="secondary" size="small" disabled={busy} onClick={() => void run(() => refreshReports(), 'Les états ont été actualisés.')}><RefreshCw size={15} /> Actualiser</Button></div></section>
+    {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
 
     {tab === 'journal' ? <section className="panel"><SectionHeading eyebrow="Partie double" title="Journal chronologique" description="Chaque écriture validée est immuable et équilibrée; une correction passe par une extourne traçable." action={<Button disabled={!settings.enabled || busy} onClick={() => setEntryOpen((value) => !value)}><Plus size={15} /> Saisir une écriture</Button>} />{!settings.enabled ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité non activée</strong><p>Créez le plan comptable et sélectionnez les dix comptes de liaison.</p></div></div> : null}{entryOpen ? <form className="accounting-entry-form" onSubmit={submitForm(postEntry)}><div className="form-grid"><Field label="Date" required><input name="entryDate" type="date" defaultValue={todayIso()} required /></Field><Field label="Description" required wide><input name="description" required /></Field></div><JournalLinesEditor lines={entryLines} accounts={activeAccounts} workspace={workspace} onPatch={patchLine} onAdd={() => setEntryLines((current) => [...current, newJournalLine()])} onRemove={(id) => setEntryLines((current) => current.length > 2 ? current.filter((line) => line.id !== id) : current)} /><div className={`entry-balance ${debit === credit && debit > 0 ? 'is-balanced' : ''}`}><span>Débits {formatMoney(debit)}</span><span>Crédits {formatMoney(credit)}</span><strong>{debit === credit && debit > 0 ? 'Équilibrée' : `Écart ${formatMoney(Math.abs(debit - credit))}`}</strong></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setEntryOpen(false)}>Annuler</Button><Button type="submit" disabled={busy || debit <= 0 || debit !== credit}>Comptabiliser</Button></div></form> : null}{reversalTarget ? <form className="accounting-entry-form reversal-form" onSubmit={submitForm(reverseEntry)}><div><strong>Extourner {reversalTarget.number}</strong><p>L’écriture originale restera intacte. Une nouvelle écriture inverse sera créée et liée.</p></div><div className="form-grid"><Field label="Date de l’extourne" required><input name="entryDate" type="date" min={reversalTarget.entryDate} defaultValue={todayIso()} required /></Field><Field label="Description"><input name="description" placeholder={`Extourne ${reversalTarget.number}`} /></Field></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setReversalTarget(null)}>Annuler</Button><Button type="submit" disabled={busy}><RotateCcw size={15} /> Créer l’extourne</Button></div></form> : null}{journal?.entries.length ? <JournalTable report={journal} onReverse={setReversalTarget} /> : <EmptyState icon={<BookOpen />} title="Journal vide" text="Aucune écriture réelle n’a encore été comptabilisée pour cette période." />}</section> : null}
 
-    {tab === 'ledger' ? <section className="panel"><SectionHeading eyebrow="Mouvements par compte" title="Grand livre" /><div className="ledger-picker"><Field label="Compte"><select value={selectedAccountId} onChange={(event) => { const id = event.target.value; setSelectedAccountId(id); if (id) void run(async () => setLedger(await desktopApi.getLedger(id, filter))); }}><option value="">Choisir un compte</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.code} · {account.name}</option>)}</select></Field></div>{ledger?.lines.length ? <><div className="summary-strip"><div><span>Débit</span><strong>{formatMoney(ledger.debitCents)}</strong></div><div><span>Crédit</span><strong>{formatMoney(ledger.creditCents)}</strong></div><div><span>Solde débiteur net</span><strong>{formatMoney(ledger.netDebitCents)}</strong></div></div><JournalLineTable lines={ledger.lines} /></> : <EmptyState icon={<ListChecks />} title="Aucun mouvement" text={selectedAccountId ? 'Ce compte ne présente aucun mouvement pour la période.' : 'Choisissez un compte du plan comptable.'} />}</section> : null}
+    {tab === 'ledger' ? <section className="panel"><SectionHeading eyebrow="Mouvements par compte" title="Grand livre" /><div className="ledger-picker"><Field label="Compte"><select value={selectedAccountId} disabled={busy} onChange={(event) => { const id = event.target.value; setSelectedAccountId(id); if (id) void run(() => refreshReports(filter, id)); else setLedger(null); }}><option value="">Choisir un compte</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.code} · {account.name}</option>)}</select></Field></div>{ledger?.lines.length ? <><div className="summary-strip"><div><span>Débit</span><strong>{formatMoney(ledger.debitCents)}</strong></div><div><span>Crédit</span><strong>{formatMoney(ledger.creditCents)}</strong></div><div><span>Solde débiteur net</span><strong>{formatMoney(ledger.netDebitCents)}</strong></div></div><JournalLineTable lines={ledger.lines} /></> : <EmptyState icon={<ListChecks />} title="Aucun mouvement" text={selectedAccountId ? 'Ce compte ne présente aucun mouvement pour la période.' : 'Choisissez un compte du plan comptable.'} />}</section> : null}
 
     {tab === 'trial' ? <section className="panel"><SectionHeading eyebrow={reportState} title="Balance des comptes" description="Les totaux débit et crédit doivent être égaux." />{trial?.rows.length ? <div className="table-panel"><table><thead><tr><th>Compte</th><th>Débit mouvement</th><th>Crédit mouvement</th><th>Solde débiteur</th><th>Solde créditeur</th></tr></thead><tbody>{trial.rows.map((row) => <tr key={row.id}><td><strong>{row.code}</strong><small>{row.name}</small></td><td>{formatMoney(row.debitCents)}</td><td>{formatMoney(row.creditCents)}</td><td>{formatMoney(row.debitBalanceCents)}</td><td>{formatMoney(row.creditBalanceCents)}</td></tr>)}</tbody><tfoot><tr><th>Totaux</th><th>{formatMoney(trial.debitCents)}</th><th>{formatMoney(trial.creditCents)}</th><th colSpan={2}>{trial.balanced ? 'Balance équilibrée' : 'Écart à contrôler'}</th></tr></tfoot></table></div> : <EmptyState icon={<Scale />} title="Balance vide" text="Aucune écriture ne contribue à la période sélectionnée." />}</section> : null}
 
@@ -161,7 +200,7 @@ export function AccountingScreen({ workspace }: { workspace: Workspace }) {
     {tab === 'income' ? <FinancialStatement title="Compte de résultat" state={reportState} rows={income?.rows ?? []} summary={[['Produits', income?.revenueCents, income?.previousRevenueCents], ['Charges', income?.expenseCents, income?.previousExpenseCents], ['Résultat', income?.profitCents, income?.previousProfitCents]]} comparisonLabel={income?.scope.comparisonLabel} previousHasActivity={income?.scope.previousHasActivity} currency={income?.currency.baseCurrency} /> : null}
     {tab === 'closing' ? <ClosingFolder filter={filter} period={selectedPeriod} trial={trial} balance={balance} income={income} /> : null}
 
-    {tab === 'accounts' ? <div className="settings-layout"><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Plan comptable" title="Comptes" description="Aucun compte n’est créé automatiquement." action={<Button onClick={() => setAccountDraft({ code: '', name: '' })}><Plus size={15} /> Nouveau compte</Button>} />{accountDraft ? <form className="account-inline-form" onSubmit={submitForm(saveAccount)}><Field label="Code" required><input name="code" defaultValue={accountDraft.code} required /></Field><Field label="Nom" required><input name="name" defaultValue={accountDraft.name} required /></Field><Field label="Type" required><select name="accountType" defaultValue={accountDraft.accountType ?? ''} required><option value="">Choisir</option><option value="asset">Actif</option><option value="liability">Passif</option><option value="equity">Fonds propres</option><option value="revenue">Produit</option><option value="expense">Charge</option></select></Field><Field label="Rubrique des états" required><select name="reportSection" defaultValue={accountDraft.reportSection ?? ''} required><option value="">Choisir</option>{reportSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Solde normal" required><select name="normalBalance" defaultValue={accountDraft.normalBalance ?? ''} required><option value="">Choisir</option><option value="debit">Débit</option><option value="credit">Crédit</option></select></Field><label className="check-card"><input name="active" type="checkbox" defaultChecked={accountDraft.active ?? true} /><span><strong>Compte actif</strong></span></label><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setAccountDraft(null)}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{accounts.length ? <div className="account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.code}</strong><span>{account.name}</span><small>{reportSections.find(([value]) => value === account.reportSection)?.[1] || account.reportSection} · solde {account.normalBalance}</small></div><StatusBadge status={account.active ? 'validated' : 'incomplete'} /><Button variant="ghost" size="small" onClick={() => setAccountDraft(account)}>Modifier</Button><Button variant="ghost" size="icon" onClick={() => { if (window.confirm(`Supprimer le compte ${account.code} ?`)) void run(async () => { await desktopApi.deleteAccount(account.id); await loadBase(); }, 'Le compte inutilisé a été supprimé.'); }}><Archive size={15} /></Button></article>)}</div> : <EmptyState title="Plan comptable vide" text="Créez vos comptes réels avant d’activer les écritures automatiques." />}</section><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Automatisation" title="Comptes de liaison" description="Les dix liaisons sont obligatoires pour activer la comptabilité." /><label className="module-toggle module-toggle--compact"><input type="checkbox" checked={settings.enabled} onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))} /><span><Landmark size={19} /><strong>Comptabilité active</strong><small>{settings.enabled ? 'Les opérations seront comptabilisées' : 'Aucune écriture automatique'}</small></span></label><div className="form-grid">{mappingFields.map(([key, label]) => <Field key={key} label={label} required={settings.enabled}><select value={String(settings[key])} onChange={(event) => setSettings((current) => ({ ...current, [key]: event.target.value }))} required={settings.enabled}><option value="">Choisir un compte</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></Field>)}</div><Button disabled={busy} onClick={() => void saveMapping()}>Enregistrer les liaisons</Button></section></div> : null}
+    {tab === 'accounts' ? <div className="settings-layout"><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Plan comptable" title="Comptes" description="Aucun compte n’est créé automatiquement." action={<Button onClick={() => setAccountDraft({ code: '', name: '' })}><Plus size={15} /> Nouveau compte</Button>} />{accountDraft ? <form className="account-inline-form" onSubmit={submitForm(saveAccount)}><Field label="Code" required><input name="code" defaultValue={accountDraft.code} required /></Field><Field label="Nom" required><input name="name" defaultValue={accountDraft.name} required /></Field><Field label="Type" required><select name="accountType" defaultValue={accountDraft.accountType ?? ''} required><option value="">Choisir</option><option value="asset">Actif</option><option value="liability">Passif</option><option value="equity">Fonds propres</option><option value="revenue">Produit</option><option value="expense">Charge</option></select></Field><Field label="Rubrique des états" required><select name="reportSection" defaultValue={accountDraft.reportSection ?? ''} required><option value="">Choisir</option>{reportSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Solde normal" required><select name="normalBalance" defaultValue={accountDraft.normalBalance ?? ''} required><option value="">Choisir</option><option value="debit">Débit</option><option value="credit">Crédit</option></select></Field><label className="check-card"><input name="active" type="checkbox" defaultChecked={accountDraft.active ?? true} /><span><strong>Compte actif</strong></span></label><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setAccountDraft(null)}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{accounts.length ? <div className="account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.code}</strong><span>{account.name}</span><small>{reportSections.find(([value]) => value === account.reportSection)?.[1] || account.reportSection} · solde {account.normalBalance}</small></div><StatusBadge status={account.active ? 'validated' : 'incomplete'} /><Button variant="ghost" size="small" onClick={() => setAccountDraft(account)}>Modifier</Button><Button variant="ghost" size="icon" onClick={() => { if (window.confirm(`Supprimer le compte ${account.code} ?`)) void run(async () => { await desktopApi.deleteAccount(account.id); const accountId = await loadBase(); await refreshReports(filter, accountId); }, 'Le compte inutilisé a été supprimé.'); }}><Archive size={15} /></Button></article>)}</div> : <EmptyState title="Plan comptable vide" text="Créez vos comptes réels avant d’activer les écritures automatiques." />}</section><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Automatisation" title="Comptes de liaison" description="Les dix liaisons sont obligatoires pour activer la comptabilité." /><label className="module-toggle module-toggle--compact"><input type="checkbox" checked={settings.enabled} onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))} /><span><Landmark size={19} /><strong>Comptabilité active</strong><small>{settings.enabled ? 'Les opérations seront comptabilisées' : 'Aucune écriture automatique'}</small></span></label><div className="form-grid">{mappingFields.map(([key, label]) => <Field key={key} label={label} required={settings.enabled}><select value={String(settings[key])} onChange={(event) => setSettings((current) => ({ ...current, [key]: event.target.value }))} required={settings.enabled}><option value="">Choisir un compte</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></Field>)}</div><Button disabled={busy} onClick={() => void saveMapping()}>Enregistrer les liaisons</Button></section></div> : null}
 
     {tab === 'periods' ? <AccountingPeriods periods={periods} busy={busy} onRefresh={async (message) => { await reloadAll(message); }} onError={setError} /> : null}
   </div>;

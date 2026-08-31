@@ -419,23 +419,36 @@ impl LocalStore {
             _ => {}
         }
 
+        // Un bulletin historique ne doit jamais devenir implicitement le
+        // salaire contractuel courant. Seuls les gains que la personne a
+        // explicitement marqués « récurrents » peuvent alimenter le modèle.
+        let (recurring, recurring_base_salary_cents) = reviewed_recurring_earnings(&draft);
+
         let employee_id = match employee_id
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
         {
             Some(existing_id) => {
-                let exists: bool = transaction.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM employees WHERE id=?)",
-                    params![existing_id],
-                    |row| row.get(0),
+                let existing_avs: Option<String> = transaction
+                    .query_row(
+                        "SELECT social_security_number FROM employees WHERE id=?",
+                        params![existing_id],
+                        |row| row.get(0),
+                    )
+                    .optional()?
+                    .ok_or_else(|| AppError::NotFound(format!("employees/{existing_id}")))?;
+                validate_linked_employee_identity(
+                    existing_avs.as_deref(),
+                    &draft.employee.avs_number,
                 )?;
-                if !exists {
-                    return Err(AppError::NotFound(format!("employees/{existing_id}")));
-                }
                 existing_id.to_owned()
             }
-            None => insert_employee_from_draft(&transaction, &draft.employee, draft.gross_cents)?,
+            None => insert_employee_from_draft(
+                &transaction,
+                &draft.employee,
+                recurring_base_salary_cents,
+            )?,
         };
         if replace_existing_template {
             let template_exists: bool = transaction.query_row(
@@ -496,45 +509,26 @@ impl LocalStore {
             )?;
         }
 
-        let recurring: Vec<Value> = draft
-            .lines
-            .iter()
-            .filter(|line| line.kind == "earning" && line.recurring)
-            .map(|line| {
-                json!({
-                    "label":line.label,
-                    "kind":"earning",
-                    "amount_cents":line.amount_cents
-                })
-            })
-            .collect();
-        let base_salary_cents = recurring
-            .iter()
-            .filter_map(|line| line["amount_cents"].as_i64())
-            .sum::<i64>()
-            .max(if recurring.is_empty() {
-                draft.gross_cents
-            } else {
-                0
-            });
         if replace_existing_template && recurring.is_empty() {
             return Err(AppError::Validation(
                 "Le modèle salarial actuel ne peut être remplacé que si au moins un gain récurrent a été contrôlé dans la fiche importée.".into(),
             ));
         }
-        transaction.execute(
-            employee_template_upsert_sql(replace_existing_template),
-            params![
-                employee_id,
-                draft.employee.salary_mode,
-                base_salary_cents,
-                serde_json::to_string(&recurring)?,
-                import_id,
-                now,
-                now,
-                now,
-            ],
-        )?;
+        if !recurring.is_empty() {
+            transaction.execute(
+                employee_template_upsert_sql(replace_existing_template),
+                params![
+                    employee_id,
+                    draft.employee.salary_mode,
+                    recurring_base_salary_cents,
+                    serde_json::to_string(&recurring)?,
+                    import_id,
+                    now,
+                    now,
+                    now,
+                ],
+            )?;
+        }
         transaction.execute(
             "UPDATE payroll_document_imports SET draft_json=?,confidence_bp=?,status='confirmed',employee_id=?,payslip_id=?,reviewed_at=?,updated_at=? WHERE id=?",
             params![
@@ -1026,6 +1020,13 @@ fn validate_confirmable_draft(draft: &PayrollImportDraft) -> AppResult<()> {
             "La date de paiement détectée n'est pas une date civile valide.".into(),
         ));
     }
+    if !draft.employee.birth_date.is_empty()
+        && NaiveDate::parse_from_str(&draft.employee.birth_date, "%Y-%m-%d").is_err()
+    {
+        return Err(AppError::Validation(
+            "La date de naissance détectée n'est pas une date civile valide.".into(),
+        ));
+    }
     if !draft.employee.avs_number.is_empty() && !is_valid_avs(&draft.employee.avs_number) {
         return Err(AppError::Validation(
             "Le numéro AVS ne passe pas le contrôle EAN-13 suisse. Corrigez-le ou laissez le champ vide.".into(),
@@ -1073,12 +1074,12 @@ fn validate_confirmable_draft(draft: &PayrollImportDraft) -> AppResult<()> {
 fn insert_employee_from_draft(
     transaction: &rusqlite::Transaction<'_>,
     employee: &PayrollImportEmployeeDraft,
-    gross_cents: i64,
+    recurring_base_salary_cents: i64,
 ) -> AppResult<String> {
     let id = Uuid::new_v4().to_string();
     let now = now_iso();
     let monthly_salary = if employee.salary_mode == "monthly" {
-        gross_cents.max(0)
+        recurring_base_salary_cents.max(0)
     } else {
         0
     };
@@ -1106,6 +1107,26 @@ fn insert_employee_from_draft(
     Ok(id)
 }
 
+fn validate_linked_employee_identity(
+    stored_avs_number: Option<&str>,
+    imported_avs_number: &str,
+) -> AppResult<()> {
+    let normalized = |value: &str| {
+        value
+            .chars()
+            .filter(char::is_ascii_digit)
+            .collect::<String>()
+    };
+    let stored = stored_avs_number.map(normalized).unwrap_or_default();
+    let imported = normalized(imported_avs_number);
+    if !stored.is_empty() && !imported.is_empty() && stored != imported {
+        return Err(AppError::Validation(
+            "Le numéro AVS du document ne correspond pas au collaborateur sélectionné. Corrigez le rattachement avant de confirmer.".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn optional_text(value: &str) -> Option<&str> {
     let clean = value.trim();
     (!clean.is_empty()).then_some(clean)
@@ -1117,6 +1138,26 @@ fn employee_template_upsert_sql(replace_existing: bool) -> &'static str {
     } else {
         "INSERT INTO employee_payroll_templates(employee_id,salary_mode,base_salary_cents,recurring_earnings_json,suggested_contribution_codes_json,source_import_id,reviewed_at,created_at,updated_at) VALUES(?,?,?,?, '[]',?,?,?,?) ON CONFLICT(employee_id) DO NOTHING"
     }
+}
+
+fn reviewed_recurring_earnings(draft: &PayrollImportDraft) -> (Vec<Value>, i64) {
+    let recurring: Vec<Value> = draft
+        .lines
+        .iter()
+        .filter(|line| line.kind == "earning" && line.recurring && line.amount_cents > 0)
+        .map(|line| {
+            json!({
+                "label":line.label,
+                "kind":"earning",
+                "amount_cents":line.amount_cents
+            })
+        })
+        .collect();
+    let base_salary_cents = recurring
+        .iter()
+        .filter_map(|line| line["amount_cents"].as_i64())
+        .fold(0_i64, i64::saturating_add);
+    (recurring, base_salary_cents)
 }
 
 fn draft_totals(lines: &[PayrollImportLineDraft]) -> (i64, i64, i64, i64) {
@@ -1521,6 +1562,46 @@ mod tests {
     }
 
     #[test]
+    fn historical_gross_never_becomes_a_salary_template_without_a_reviewed_recurring_gain() {
+        let mut draft = empty_draft();
+        draft.gross_cents = 780_000;
+        draft.lines.push(PayrollImportLineDraft {
+            label: "Salaire, bonus et indemnités".into(),
+            kind: "earning".into(),
+            amount_cents: 780_000,
+            recurring: false,
+            confidence_bp: 9_000,
+        });
+
+        let (recurring, base_salary_cents) = reviewed_recurring_earnings(&draft);
+        assert!(recurring.is_empty());
+        assert_eq!(base_salary_cents, 0);
+
+        draft.lines.push(PayrollImportLineDraft {
+            label: "Salaire mensuel contrôlé".into(),
+            kind: "earning".into(),
+            amount_cents: 600_000,
+            recurring: true,
+            confidence_bp: 9_500,
+        });
+        let (recurring, base_salary_cents) = reviewed_recurring_earnings(&draft);
+        assert_eq!(recurring.len(), 1);
+        assert_eq!(base_salary_cents, 600_000);
+    }
+
+    #[test]
+    fn refuses_to_link_a_document_to_a_conflicting_avs_identity() {
+        validate_linked_employee_identity(Some("756.9217.0769.85"), "756 9217 0769 85")
+            .expect("formatting differences are harmless");
+        validate_linked_employee_identity(None, "756.9217.0769.85")
+            .expect("an empty stored AVS cannot contradict the document");
+
+        let error = validate_linked_employee_identity(Some("756.9217.0769.85"), "756.1234.5678.97")
+            .expect_err("different identities must be blocked");
+        assert!(error.to_string().contains("ne correspond pas"));
+    }
+
+    #[test]
     fn rejects_a_compressed_image_with_a_dimension_bomb_before_decoding() {
         let normal = png_with_declared_dimensions(1, 1);
         assert!(validate_image_dimensions(
@@ -1623,5 +1704,25 @@ mod tests {
             .expect_err("invalid AVS must block confirmation")
             .to_string()
             .contains("EAN-13"));
+    }
+
+    #[test]
+    fn blocks_confirmation_with_an_invalid_birth_date() {
+        let mut draft = empty_draft();
+        draft.employee.name = "Alex Exemple".into();
+        draft.employee.birth_date = "2026-02-30".into();
+        draft.period = "2026-08".into();
+        draft.lines.push(PayrollImportLineDraft {
+            label: "Salaire mensuel".into(),
+            kind: "earning".into(),
+            amount_cents: 500_000,
+            recurring: true,
+            confidence_bp: 9_000,
+        });
+
+        assert!(validate_confirmable_draft(&draft)
+            .expect_err("an impossible calendar date must be blocked")
+            .to_string()
+            .contains("date de naissance"));
     }
 }

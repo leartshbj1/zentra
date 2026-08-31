@@ -215,6 +215,70 @@ mod tests {
         (temporary, store)
     }
 
+    /// Fixture réglementaire minimale pour les tests comptables qui ne portent
+    /// pas sur les taux sociaux : collaborateur mineur, contrat < 8 h/semaine
+    /// et AAP explicite à montant nul. Aucun taux légal n'est inventé.
+    fn configure_minor_test_payroll(
+        store: &LocalStore,
+        employee_id: &str,
+    ) -> ContributionSelectionInput {
+        let workspace = store.get_workspace().unwrap();
+        let mut extra: serde_json::Value = serde_json::from_str(
+            workspace["settings"]["extra_settings_json"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        extra["payroll"] = json!({
+            "enabled": true,
+            "fiduciaryValidated": true,
+            "avsFund": "Caisse AVS de test",
+            "accidentInsurer": "Assureur LAA de test",
+            "pensionFund": "",
+            "dailyAllowanceInsurer": "",
+            "familyAllowanceFund": ""
+        });
+        store
+            .update_settings(json!({"extra_settings_json":extra}))
+            .unwrap();
+        store
+            .update_record(
+                "employees",
+                employee_id,
+                json!({
+                    "birth_date":"2010-01-01",
+                    "employment_start_date":"2026-01-01",
+                    "contractual_weekly_minutes":420
+                }),
+            )
+            .unwrap();
+        let definition = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "AAP_TEST_EXPLICIT".into(),
+                label: "AAP confirmée pour le test".into(),
+                category: "aap".into(),
+                side: "employer".into(),
+                calculation_kind: "fixed".into(),
+                rate_bp: None,
+                fixed_amount_cents: Some(0),
+                annual_ceiling_cents: None,
+                basis_kind: "gross".into(),
+                source: "Police LAA explicite de test".into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: Some("2026-12-31".into()),
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        ContributionSelectionInput {
+            definition_id: value_id(&definition),
+            basis_cents: None,
+            year_to_date_basis_cents: None,
+        }
+    }
+
     fn test_invoice_qr_bill(invoice_id: &str, message: &str) -> SaveInvoiceQrBillInput {
         SaveInvoiceQrBillInput {
             invoice_id: invoice_id.to_owned(),
@@ -671,7 +735,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 8;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 9;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -737,7 +801,7 @@ mod tests {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 8);
+        assert_eq!(version, 9);
         let qr_table: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='invoice_qr_bills'",
@@ -1107,16 +1171,21 @@ mod tests {
             })
             .unwrap_err();
         assert!(not_validated.to_string().contains("statut valide"));
-        store
+        let bypass = store
             .update_record("payslips", &payslip_id, json!({"status":"valide"}))
+            .unwrap_err()
+            .to_string();
+        assert!(bypass.contains("flux atomique"));
+        let status: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status FROM payslips WHERE id=?",
+                rusqlite::params![payslip_id],
+                |row| row.get(0),
+            )
             .unwrap();
-        let accounting_missing = store
-            .post_payslip(PostPayslipInput {
-                payslip_id,
-                entry_date: Some("2026-08-31".into()),
-            })
-            .unwrap_err();
-        assert!(accounting_missing.to_string().contains("comptabilité"));
+        assert_eq!(status, "a_controler");
     }
 
     #[test]
@@ -1569,14 +1638,8 @@ mod tests {
                 .create_record("employees", json!({"name":"Employé comptable"}))
                 .unwrap(),
         );
-        let payslip_id = value_id(
-            &store
-                .create_record(
-                    "payslips",
-                    json!({"employee_id":employee_id,"period":"2026-07","status":"valide"}),
-                )
-                .unwrap(),
-        );
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let mut payroll_lines = Vec::new();
         for (position, kind, amount) in [
             (0, "earning", 500000),
             (1, "deduction", 50000),
@@ -1590,8 +1653,28 @@ mod tests {
                 ),
                 _ => (None, None),
             };
-            store.create_record("payslip_items",json!({"payslip_id":payslip_id,"position":position,"label":format!("Ligne {position}"),"kind":kind,"amount_cents":amount,"posting_account_id":posting_account_id,"expense_account_id":expense_account_id})).unwrap();
+            payroll_lines.push(PayslipManualLineInput {
+                id: None,
+                label: format!("Ligne {position}"),
+                kind: kind.into(),
+                amount_cents: amount,
+                posting_account_id,
+                expense_account_id,
+            });
         }
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-07".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: payroll_lines,
+                contributions: vec![aap_selection],
+            })
+            .unwrap();
+        let payslip_id = value_id(&saved["payslip"]);
         let posted = store
             .post_payslip(PostPayslipInput {
                 payslip_id,
@@ -1781,6 +1864,7 @@ mod tests {
                 .create_record("employees", json!({"name":"Employé ventilé"}))
                 .unwrap(),
         );
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -1826,6 +1910,7 @@ mod tests {
                         basis_cents: None,
                         year_to_date_basis_cents: None,
                     },
+                    aap_selection,
                 ],
             })
             .unwrap();
@@ -2065,7 +2150,7 @@ mod tests {
             &store
                 .create_record(
                     "payslips",
-                    json!({"employee_id":employee_id,"period":"2026-12","status":"valide"}),
+                    json!({"employee_id":employee_id,"period":"2026-12","status":"a_controler"}),
                 )
                 .unwrap(),
         );
@@ -2151,6 +2236,7 @@ mod tests {
                 .create_record("employees", json!({"name":"Employé revalidation"}))
                 .unwrap(),
         );
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -2167,11 +2253,14 @@ mod tests {
                     posting_account_id: None,
                     expense_account_id: None,
                 }],
-                contributions: vec![ContributionSelectionInput {
-                    definition_id,
-                    basis_cents: None,
-                    year_to_date_basis_cents: None,
-                }],
+                contributions: vec![
+                    ContributionSelectionInput {
+                        definition_id,
+                        basis_cents: None,
+                        year_to_date_basis_cents: None,
+                    },
+                    aap_selection,
+                ],
             })
             .unwrap();
         let payslip_id = value_id(&saved["payslip"]);
@@ -2278,6 +2367,7 @@ mod tests {
                 .create_record("employees", json!({"name":"Employé avec frais"}))
                 .unwrap(),
         );
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -2320,7 +2410,7 @@ mod tests {
                         expense_account_id: Some(reimbursement_expense.clone()),
                     },
                 ],
-                contributions: vec![],
+                contributions: vec![aap_selection.clone()],
             })
             .unwrap();
         assert_eq!(saved["payslip"]["gross_cents"], 500_000);
@@ -2384,7 +2474,7 @@ mod tests {
                         expense_account_id: None,
                     },
                 ],
-                contributions: vec![],
+                contributions: vec![aap_selection],
             })
             .unwrap();
         let invalid_id = value_id(&invalid["payslip"]);
@@ -2417,20 +2507,27 @@ mod tests {
                 .create_record("employees", json!({"name":"Employé clôture"}))
                 .unwrap(),
         );
-        let payslip_id = value_id(
-            &store
-                .create_record(
-                    "payslips",
-                    json!({"employee_id":employee_id,"period":"2026-09","status":"valide"}),
-                )
-                .unwrap(),
-        );
-        store
-            .create_record(
-                "payslip_items",
-                json!({"payslip_id":payslip_id,"position":0,"label":"Salaire brut","kind":"earning","amount_cents":100000}),
-            )
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-09".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![PayslipManualLineInput {
+                    id: None,
+                    label: "Salaire brut".into(),
+                    kind: "earning".into(),
+                    amount_cents: 100_000,
+                    posting_account_id: None,
+                    expense_account_id: None,
+                }],
+                contributions: vec![aap_selection],
+            })
             .unwrap();
+        let payslip_id = value_id(&saved["payslip"]);
         store
             .post_payslip(PostPayslipInput {
                 payslip_id: payslip_id.clone(),
@@ -2776,22 +2873,24 @@ mod tests {
             &store
                 .create_record(
                     "employees",
-                    json!({"name":"Employé cotisations","birth_date":"1990-05-01","employment_start_date":"2026-01-01"}),
+                    json!({"name":"Employé cotisations","birth_date":"1990-05-01","employment_start_date":"2026-01-01","ac_opening_year":2026,"ac_opening_basis_cents":14_700_000}),
                 )
                 .unwrap(),
         );
-        let missing =
+        let derived =
             store.calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
                 employee_id: employee_id.clone(),
                 period: "2026-12".into(),
                 gross_cents: 500000,
                 items: vec![ContributionSelectionInput {
                     definition_id: definition_id.clone(),
-                    basis_cents: None,
+                    basis_cents: Some(500_000),
                     year_to_date_basis_cents: None,
                 }],
             });
-        assert!(missing.is_err());
+        let derived = derived.unwrap();
+        assert_eq!(derived["items"][0]["year_to_date_basis_cents"], 14_700_000);
+        assert_eq!(derived["items"][0]["basis_cents"], 120_000);
         let selection = ContributionSelectionInput {
             definition_id: definition_id.clone(),
             basis_cents: Some(500000),
@@ -2865,7 +2964,9 @@ mod tests {
                         "name":"Employé année partielle",
                         "birth_date":"1990-01-01",
                         "employment_start_date":"2026-04-15",
-                        "employment_end_date":"2026-12-29"
+                        "employment_end_date":"2026-12-29",
+                        "ac_opening_year":2026,
+                        "ac_opening_basis_cents":10_000_000
                     }),
                 )
                 .unwrap(),
@@ -3070,7 +3171,9 @@ mod tests {
                     json!({
                         "name":"Bases sociales partagées",
                         "birth_date":"1990-01-01",
-                        "employment_start_date":"2026-01-01"
+                        "employment_start_date":"2026-01-01",
+                        "ac_opening_year":2026,
+                        "ac_opening_basis_cents":1_000_000
                     }),
                 )
                 .unwrap(),

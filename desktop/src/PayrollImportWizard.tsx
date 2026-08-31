@@ -208,14 +208,24 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   async function confirmCurrent() {
     if (!active || !draft || !reviewed[active.id]) return;
     setLocalError('');
-    setConfirming(true);
     const linkedEmployee = employeeLinks[active.id] || undefined;
+    const linkedEmployeeRecord = linkedEmployee
+      ? workspace.employees.find((employee) => employee.id === linkedEmployee)
+      : undefined;
+    const importedAvs = normalizedIdentity(draft.employee.avsNumber);
+    const storedAvs = normalizedIdentity(linkedEmployeeRecord?.avsNumber ?? '');
+    if (importedAvs && storedAvs && importedAvs !== storedAvs) {
+      setLocalError('Le numéro AVS lu sur le document ne correspond pas au collaborateur sélectionné. Choisissez le bon collaborateur avant de confirmer.');
+      return;
+    }
+    setConfirming(true);
     const hadExistingTemplate = Boolean(linkedEmployee && workspace.employeePayrollTemplates.some((template) => template.employeeId === linkedEmployee));
+    const hasReviewedRecurringEarnings = draft.lines.some((line) => line.kind === 'earning' && line.recurring && line.amountCents > 0);
     const replaceExistingTemplate = Boolean(
       linkedEmployee
       && hadExistingTemplate
       && replaceTemplates[active.id]
-      && draft.lines.some((line) => line.kind === 'earning' && line.recurring && line.amountCents > 0),
+      && hasReviewedRecurringEarnings,
     );
     const ok = await act(
       () => desktopApi.confirmPayrollDocumentImport(active.id, draft, linkedEmployee, replaceExistingTemplate),
@@ -224,8 +234,12 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
           ? 'La fiche a été rattachée et le modèle salarial existant a été remplacé explicitement.'
           : hadExistingTemplate
             ? 'La fiche a été rattachée; le modèle salarial existant a été préservé.'
-            : 'La fiche a été rattachée et un premier modèle salarial contrôlé a été créé.'
-        : 'Le collaborateur, son modèle et la fiche à contrôler ont été créés.',
+            : hasReviewedRecurringEarnings
+              ? 'La fiche a été rattachée et un premier modèle salarial contrôlé a été créé.'
+              : 'La fiche a été rattachée sans inventer de modèle salarial; aucun gain récurrent n’était confirmé.'
+        : hasReviewedRecurringEarnings
+          ? 'Le collaborateur, son modèle contrôlé et la fiche à contrôler ont été créés.'
+          : 'Le collaborateur et la fiche à contrôler ont été créés sans déduire un salaire contractuel du brut historique.',
       false,
     );
     if (ok) {
@@ -284,6 +298,10 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const arithmeticOk = Boolean(assessment && !assessment.blockers.length);
   const aiBusy = aiState === 'loading' || aiState === 'analyzing';
   const linkedEmployeeId = active ? employeeLinks[active.id] || '' : '';
+  const linkedEmployee = linkedEmployeeId ? workspace.employees.find((employee) => employee.id === linkedEmployeeId) : undefined;
+  const importedAvs = normalizedIdentity(draft?.employee.avsNumber ?? '');
+  const linkedAvs = normalizedIdentity(linkedEmployee?.avsNumber ?? '');
+  const linkedAvsMismatch = Boolean(importedAvs && linkedAvs && importedAvs !== linkedAvs);
   const existingTemplate = linkedEmployeeId ? workspace.employeePayrollTemplates.find((template) => template.employeeId === linkedEmployeeId) : undefined;
   const hasRecurringEarnings = Boolean(draft?.lines.some((line) => line.kind === 'earning' && line.recurring && line.amountCents > 0));
   const interactionBusy = confirming || aiBusy || savingDrafts;
@@ -320,12 +338,12 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             {draft.warnings.length || assessment?.warnings.length ? <div className="payroll-import-warnings"><strong>Points à vérifier</strong>{[...new Set([...draft.warnings, ...(assessment?.warnings ?? [])])].map((warning, index) => <p key={`${warning}-${index}`}><AlertTriangle size={14} /> {warning}</p>)}</div> : null}
             <header className="payroll-lines-heading"><div><span>3</span><div><strong>Rattachement et confirmation</strong><small>La fiche créée restera « à contrôler »</small></div></div></header>
             <Field label="Rattacher à un collaborateur"><select value={employeeLinks[active.id] ?? ''} onChange={(event) => { const employeeId = event.target.value; setEmployeeLinks((current) => ({ ...current, [active.id]: employeeId })); setReplaceTemplates((current) => ({ ...current, [active.id]: false })); setReviewed((current) => ({ ...current, [active.id]: false })); }}><option value="">Créer un nouveau collaborateur avec les champs ci-dessus</option>{workspace.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{employee.employeeNumber ? ` · ${employee.employeeNumber}` : ''}</option>)}</select></Field>
-            {linkedEmployeeId ? <p className="link-note">Le profil et le modèle salarial actuels du collaborateur sont préservés par défaut. La fiche historique sera seulement ajoutée à la période indiquée.</p> : null}
+            {linkedEmployeeId ? <p className={linkedAvsMismatch ? 'link-note link-note--error' : 'link-note'}>{linkedAvsMismatch ? 'Rattachement bloqué : le numéro AVS du document diffère de celui du collaborateur sélectionné.' : 'Le profil et le modèle salarial actuels du collaborateur sont préservés par défaut. La fiche historique sera seulement ajoutée à la période indiquée.'}</p> : null}
             {existingTemplate && hasRecurringEarnings ? <label className={`review-confirmation ${replaceTemplates[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(replaceTemplates[active.id])} onChange={(event) => { setReplaceTemplates((current) => ({ ...current, [active.id]: event.target.checked })); setReviewed((current) => ({ ...current, [active.id]: false })); }} /><span><strong>Remplacer explicitement le modèle salarial actuel</strong><small>Les gains marqués « Récurrent » dans cette fiche historique deviendront le nouveau modèle. Cette action est facultative et ne se fera jamais automatiquement.</small></span></label> : existingTemplate ? <p className="link-note">Aucun gain récurrent contrôlé n’a été identifié : le modèle salarial actuel ne peut pas être remplacé depuis cette fiche.</p> : null}
             <label className={`review-confirmation ${reviewed[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(reviewed[active.id])} onChange={(event) => setReviewed((current) => ({ ...current, [active.id]: event.target.checked }))} /><span><strong>J’ai comparé les champs et montants au document original</strong><small>Je comprends que SmolVLM peut se tromper et qu’aucune cotisation manquante ne sera inventée.</small></span></label>
           </section>
         </div>
-        <footer className="payroll-import-actions"><Button type="button" variant="ghost" onClick={() => void rejectCurrent()} disabled={interactionBusy}><Trash2 size={15} /> Écarter ce document</Button><span /><Button type="button" variant="secondary" onClick={() => void persistAndClose()} disabled={interactionBusy}>{savingDrafts ? <LoaderCircle className="spin" size={16} /> : null} Continuer plus tard</Button><Button type="button" onClick={() => void confirmCurrent()} disabled={!reviewed[active.id] || !arithmeticOk || interactionBusy}>{confirming ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />} Confirmer et créer à contrôler</Button></footer>
+        <footer className="payroll-import-actions"><Button type="button" variant="ghost" onClick={() => void rejectCurrent()} disabled={interactionBusy}><Trash2 size={15} /> Écarter ce document</Button><span /><Button type="button" variant="secondary" onClick={() => void persistAndClose()} disabled={interactionBusy}>{savingDrafts ? <LoaderCircle className="spin" size={16} /> : null} Continuer plus tard</Button><Button type="button" onClick={() => void confirmCurrent()} disabled={!reviewed[active.id] || !arithmeticOk || linkedAvsMismatch || interactionBusy}>{confirming ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />} Confirmer et créer à contrôler</Button></footer>
       </> : null}
     </div>
   </Modal>;

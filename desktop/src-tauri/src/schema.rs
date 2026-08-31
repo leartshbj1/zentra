@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 8;
+pub const SCHEMA_VERSION: i64 = 9;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -222,6 +222,9 @@ CREATE TABLE IF NOT EXISTS employees (
   employment_end_date TEXT,
   reference_age_date TEXT,
   avs_allowance_waived INTEGER CHECK (avs_allowance_waived IS NULL OR avs_allowance_waived IN (0, 1)),
+  contractual_weekly_minutes INTEGER CHECK (contractual_weekly_minutes IS NULL OR contractual_weekly_minutes BETWEEN 0 AND 10080),
+  ac_opening_year INTEGER CHECK (ac_opening_year IS NULL OR ac_opening_year BETWEEN 1900 AND 9999),
+  ac_opening_basis_cents INTEGER CHECK (ac_opening_basis_cents IS NULL OR ac_opening_basis_cents >= 0),
   employment_rate INTEGER NOT NULL DEFAULT 100 CHECK (employment_rate BETWEEN 1 AND 100),
   hourly_rate_cents INTEGER NOT NULL DEFAULT 0 CHECK (hourly_rate_cents >= 0),
   monthly_salary_cents INTEGER NOT NULL DEFAULT 0 CHECK (monthly_salary_cents >= 0),
@@ -716,8 +719,16 @@ CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_update
 BEFORE UPDATE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_delete
 BEFORE DELETE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS employees_payroll_decisions_insert_guard
+BEFORE INSERT ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
+CREATE TRIGGER IF NOT EXISTS employees_payroll_decisions_update_guard
+BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
 
-PRAGMA user_version = 8;
+PRAGMA user_version = 9;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -923,4 +934,21 @@ PRAGMA user_version=7;
 /// afin qu'une avance, un impôt à la source ou un remboursement ne soit jamais ventilé au hasard.
 pub const MIGRATION_V8_SQL: &str = r#"
 PRAGMA user_version=8;
+"#;
+
+/// Ajoute uniquement les décisions explicites nécessaires au contrôle LAA et
+/// au cumul AC. Les valeurs restent NULL sur les bases existantes : aucune
+/// durée contractuelle ni base d'ouverture n'est déduite par Elyko.
+pub const MIGRATION_V9_SQL: &str = r#"
+DROP TRIGGER IF EXISTS employees_payroll_decisions_insert_guard;
+DROP TRIGGER IF EXISTS employees_payroll_decisions_update_guard;
+CREATE TRIGGER employees_payroll_decisions_insert_guard
+BEFORE INSERT ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT,'AC opening year and basis must be confirmed together'); END;
+CREATE TRIGGER employees_payroll_decisions_update_guard
+BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT,'AC opening year and basis must be confirmed together'); END;
+PRAGMA user_version=9;
 "#;

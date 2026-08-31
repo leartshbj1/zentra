@@ -92,6 +92,7 @@ export function assessPayrollDraft(draft: PayrollImportDraft): PayrollDraftAsses
   const ibanValid = isValidIban(draft.employee.iban);
   const periodValid = /^\d{4}-(0[1-9]|1[0-2])$/.test(draft.period);
   const paymentDateValid = isValidIsoCalendarDate(draft.paymentDate);
+  const birthDateValid = isValidIsoCalendarDate(draft.employee.birthDate);
 
   if (!draft.employee.name.trim()) blockers.push('Le nom du collaborateur manque.');
   if (!periodValid) blockers.push('La période salariale doit être une année et un mois valides.');
@@ -102,6 +103,7 @@ export function assessPayrollDraft(draft: PayrollImportDraft): PayrollDraftAsses
   if (!avsValid) blockers.push('Le numéro AVS ne passe pas le contrôle EAN-13 suisse.');
   if (!ibanValid) blockers.push('L’IBAN ne passe pas le contrôle MOD-97.');
   if (!paymentDateValid) blockers.push('La date de paiement détectée est invalide.');
+  if (!birthDateValid) blockers.push('La date de naissance détectée est invalide.');
 
   const duplicateLabels = new Set<string>();
   const seen = new Set<string>();
@@ -116,7 +118,7 @@ export function assessPayrollDraft(draft: PayrollImportDraft): PayrollDraftAsses
   if (!draft.grossCents) warnings.push('Le salaire brut imprimé n’a pas été reconnu.');
   if (!draft.netCents) warnings.push('Le salaire net imprimé n’a pas été reconnu.');
 
-  const requiredChecks = [Boolean(draft.employee.name.trim()), periodValid, draft.lines.length > 0, grossMatches, netMatches, avsValid, ibanValid, paymentDateValid];
+  const requiredChecks = [Boolean(draft.employee.name.trim()), periodValid, draft.lines.length > 0, grossMatches, netMatches, avsValid, ibanValid, paymentDateValid, birthDateValid];
   const lineConfidence = draft.lines.length
     ? draft.lines.reduce((sum, line) => sum + Math.max(0, Math.min(10_000, line.confidenceBp)), 0) / draft.lines.length
     : 0;
@@ -131,6 +133,7 @@ export function assessPayrollDraft(draft: PayrollImportDraft): PayrollDraftAsses
     checks: [
       { label: 'Identité', ok: Boolean(draft.employee.name.trim()), detail: draft.employee.name || 'Nom absent' },
       { label: 'Période', ok: periodValid, detail: draft.period || 'Période absente' },
+      { label: 'Naissance', ok: birthDateValid, detail: draft.employee.birthDate ? (birthDateValid ? 'Date civile valide' : 'Date invalide') : 'Non renseignée' },
       { label: 'AVS', ok: avsValid, detail: draft.employee.avsNumber ? (avsValid ? 'Clé EAN-13 valide' : 'Clé invalide') : 'Non renseigné' },
       { label: 'IBAN', ok: ibanValid, detail: draft.employee.iban ? (ibanValid ? 'MOD-97 valide' : 'MOD-97 invalide') : 'Non renseigné' },
       { label: 'Brut', ok: grossMatches, detail: grossMatches ? 'Somme cohérente' : 'Écart à corriger' },

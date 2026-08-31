@@ -11,7 +11,7 @@ import type {
 
 function definition(
   code: string,
-  category: 'avs_ai_apg' | 'ac',
+  category: PayrollContributionDefinition['category'],
   side: 'employee' | 'employer',
   rateBp: number,
   annualCeilingCents: number | null = null,
@@ -46,6 +46,8 @@ const federal = [
   definition('AC_EMPLOYEE', 'ac', 'employee', 110, 14_820_000),
   definition('AC_EMPLOYER', 'ac', 'employer', 110, 14_820_000),
 ];
+const aap = definition('AAP_CONFIRMED', 'aap', 'employer', 100, 14_820_000);
+const aanp = definition('AANP_CONFIRMED', 'aanp', 'employee', 100, 14_820_000);
 
 describe('profil fédéral suisse', () => {
   it('refuse une catégorie partiellement sélectionnée', () => {
@@ -77,6 +79,9 @@ describe('assujettissement par date', () => {
     birthDate: '2008-12-31',
     employmentStart: '2026-01-01',
     employmentRate: 100,
+    contractualWeeklyMinutes: 2_400,
+    acOpeningYear: 2026,
+    acOpeningBasisCents: 0,
   } as Employee;
   const settings = {
     work: { workWeekHours: 40 },
@@ -127,6 +132,63 @@ describe('assujettissement par date', () => {
       selectedIds: new Set(federal.map((item) => item.id)),
     });
     expect(result.blockers.join(' ')).toContain('date/validation explicite');
+  });
+
+  it('refuse de déduire le seuil AANP du seul taux d’activité', () => {
+    const result = assessSwissPayrollEligibility({
+      employee: { ...employee, contractualWeeklyMinutes: null },
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions: federal,
+      selectedIds: new Set(),
+    });
+    expect(result.blockers.join(' ')).toContain(
+      'horaire contractuel hebdomadaire manque',
+    );
+  });
+
+  it('exige une ouverture AC annuelle explicite, y compris zéro', () => {
+    const result = assessSwissPayrollEligibility({
+      employee: { ...employee, acOpeningYear: null, acOpeningBasisCents: null },
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions: federal,
+      selectedIds: new Set(federal.map((item) => item.id)),
+    });
+    expect(result.blockers.join(' ')).toContain(
+      'base d’ouverture AC 2026',
+    );
+  });
+
+  it('applique le seuil AANP aux heures contractuelles explicites', () => {
+    const definitions = [...federal, aap, aanp];
+    const selectedWithoutAanp = new Set([
+      ...federal.map((item) => item.id),
+      aap.id,
+    ]);
+    const atThreshold = assessSwissPayrollEligibility({
+      employee: { ...employee, contractualWeeklyMinutes: 480 },
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions,
+      selectedIds: selectedWithoutAanp,
+    });
+    expect(atThreshold.blockers.join(' ')).toContain('atteint 8 h/semaine');
+
+    const belowThreshold = assessSwissPayrollEligibility({
+      employee: { ...employee, contractualWeeklyMinutes: 479 },
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions,
+      selectedIds: new Set([...selectedWithoutAanp, aanp.id]),
+    });
+    expect(belowThreshold.blockers.join(' ')).toContain(
+      'moins de 8 h/semaine',
+    );
   });
 
   it('conserve l’AC pendant le mois d’atteinte puis l’interdit le mois suivant', () => {

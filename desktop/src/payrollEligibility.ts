@@ -157,8 +157,10 @@ export function assessSwissPayrollEligibility(input: {
     month >= 1 &&
     month <= 12;
   const age = periodValid ? ageAt(employee.birthDate, year, month) : null;
-  const weeklyHours =
-    (settings.work.workWeekHours * employee.employmentRate) / 100;
+  const weeklyHours = typeof employee.contractualWeeklyMinutes === 'number'
+    && Number.isFinite(employee.contractualWeeklyMinutes)
+    ? employee.contractualWeeklyMinutes / 60
+    : null;
   const annualizedGrossCents = grossCents * 12;
   const selectedCategories = new Set<ContributionCategory>(
     definitions
@@ -207,9 +209,15 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       'La date de naissance est invalide; utilisez une date réelle au format AAAA-MM-JJ.',
     );
-  if (!employee.employmentStart)
-    warnings.push(
-      'La date d’entrée manque; le plafond AC proratisé devra être confirmé manuellement.',
+  if (!employee.employmentStart) {
+    const message =
+      'La date d’entrée manque; le plafond AC ne peut pas être proratisé de manière fiable.';
+    if (has('ac')) blockers.push(message);
+    else warnings.push(message);
+  }
+  if (weeklyHours === null)
+    blockers.push(
+      'L’horaire contractuel hebdomadaire manque; la couverture AANP ne peut pas être décidée sans cette donnée explicite.',
     );
   if (avsLiable === false && (has('avs_ai_apg') || has('ac')))
     blockers.push(
@@ -261,11 +269,11 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       'La prime accidents professionnels AAP doit être configurée pour tout salarié.',
     );
-  if (weeklyHours >= 8 && !has('aanp'))
+  if (weeklyHours !== null && weeklyHours >= 8 && !has('aanp'))
     blockers.push(
       'Le collaborateur atteint 8 h/semaine: la couverture AANP doit être configurée.',
     );
-  if (weeklyHours < 8 && has('aanp'))
+  if (weeklyHours !== null && weeklyHours < 8 && has('aanp'))
     blockers.push(
       'AANP est sélectionnée alors que le taux de travail indique moins de 8 h/semaine; contrôlez l’horaire réel.',
     );
@@ -298,6 +306,15 @@ export function assessSwissPayrollEligibility(input: {
     );
   if (!settings.payroll.avsFund.trim() && has('avs_ai_apg'))
     blockers.push('La caisse AVS doit être renseignée avant validation.');
+  if (
+    has('ac') &&
+    (!periodValid ||
+      employee.acOpeningYear !== year ||
+      employee.acOpeningBasisCents == null)
+  )
+    blockers.push(
+      `Confirmez sur la fiche collaborateur la base d’ouverture AC ${periodValid ? year : 'de l’année'} (zéro compris); Elyko ajoutera automatiquement les bases des fiches antérieures.`,
+    );
   if (grossCents > 0 && grossCents * 12 <= 250_000)
     warnings.push(
       'Salaire annualisé ≤ CHF 2’500: vérifiez la règle des rémunérations de minime importance et ses exceptions.',
@@ -340,9 +357,20 @@ export function assessSwissPayrollEligibility(input: {
             : 'neutral',
       },
       {
-        label: 'Horaire estimé',
-        value: `${weeklyHours.toLocaleString('fr-CH', { maximumFractionDigits: 2 })} h/semaine`,
-        tone: weeklyHours >= 8 ? 'ok' : 'neutral',
+        label: 'Horaire contractuel',
+        value: weeklyHours === null ? 'Non renseigné' : `${weeklyHours.toLocaleString('fr-CH', { maximumFractionDigits: 2 })} h/semaine`,
+        tone: weeklyHours === null ? 'warning' : weeklyHours >= 8 ? 'ok' : 'neutral',
+      },
+      {
+        label: 'Ouverture AC',
+        value:
+          employee.acOpeningYear === year && employee.acOpeningBasisCents != null
+            ? `${(employee.acOpeningBasisCents / 100).toLocaleString('fr-CH', { style: 'currency', currency: 'CHF' })} · ${year}`
+            : 'À confirmer pour la période',
+        tone:
+          employee.acOpeningYear === year && employee.acOpeningBasisCents != null
+            ? 'ok'
+            : 'warning',
       },
       {
         label: 'Salaire annualisé',

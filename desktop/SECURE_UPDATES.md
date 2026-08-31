@@ -18,6 +18,8 @@ La clé privée ne doit jamais être ajoutée à Git, au site ou à l’applicat
 
 La paire Tauri sert à authentifier les archives de mise à jour. Elle ne remplace pas un certificat Authenticode Windows, recommandé séparément pour l’identité de l’éditeur et SmartScreen.
 
+Sur le poste de publication du propriétaire, `scripts/build-local-signed-updater.ps1` sait charger la paire située dans `%LOCALAPPDATA%\Elyko\release-signing`. Le mot de passe n’est pas stocké en clair : son blob est protégé par Windows DPAPI et ne peut être déchiffré que par le même compte Windows. Le script efface les quatre variables sensibles de son processus dans un bloc `finally`.
+
 ## Création de la paire, une seule fois par le propriétaire
 
 À exécuter dans un emplacement privé et sauvegardé hors du dépôt :
@@ -62,6 +64,8 @@ Le script n’accepte que ces sorties canoniques :
 - la preuve JSON du même build.
 
 Les anciens paramètres de chemin restent tolérés pour l’automatisation, mais toute valeur différente de ces chemins exacts est refusée. Le staging recalcule chaque SHA-256 et rejette aussi un fichier remplacé après la création de la preuve. L’EXE autonome sert seulement aux contrôles de configuration et d’Authenticode : il ne peut plus servir de témoin pour publier un autre NSIS ancien ou renommé. La vérification Ed25519 porte directement sur le NSIS et son `.exe.sig`, conformément au format d’artefact updater de Tauri 2.
+
+Par défaut, le staging refuse aussi tout binaire sans signature Authenticode valide. Lorsqu’un propriétaire a explicitement autorisé une publication avant l’achat du certificat éditeur, `-AllowUnsignedAuthenticodeForPublication` consigne un avertissement distinct et permet le lot. Cette dérogation ne doit jamais être confondue avec la signature Tauri/Ed25519, qui reste obligatoire et vérifiée. Le site doit alors annoncer clairement que Windows peut afficher « Éditeur inconnu ».
 
 Le test négatif autonome ne nécessite ni certificat ni clé privée :
 

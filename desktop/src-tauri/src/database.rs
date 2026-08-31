@@ -35,7 +35,7 @@ use crate::{
     reminders::cancel_settled_reminders,
     schema::{
         MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
-        MIGRATION_V7_SQL, MIGRATION_V8_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -172,6 +172,36 @@ fn migrate_v8(transaction: &Transaction<'_>) -> AppResult<()> {
         }
     }
     transaction.execute_batch(MIGRATION_V8_SQL)?;
+    Ok(())
+}
+
+fn migrate_v9(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(employees)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    for (column, definition) in [
+        (
+            "contractual_weekly_minutes",
+            "contractual_weekly_minutes INTEGER CHECK (contractual_weekly_minutes IS NULL OR contractual_weekly_minutes BETWEEN 0 AND 10080)",
+        ),
+        (
+            "ac_opening_year",
+            "ac_opening_year INTEGER CHECK (ac_opening_year IS NULL OR ac_opening_year BETWEEN 1900 AND 9999)",
+        ),
+        (
+            "ac_opening_basis_cents",
+            "ac_opening_basis_cents INTEGER CHECK (ac_opening_basis_cents IS NULL OR ac_opening_basis_cents >= 0)",
+        ),
+    ] {
+        if !columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE employees ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+    transaction.execute_batch(MIGRATION_V9_SQL)?;
     Ok(())
 }
 
@@ -515,6 +545,7 @@ impl LocalStore {
                 migrate_v6(&transaction)?;
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
             }
             2 => {
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
@@ -523,6 +554,7 @@ impl LocalStore {
                 migrate_v6(&transaction)?;
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
             }
             3 => {
                 transaction.execute_batch(MIGRATION_V4_SQL)?;
@@ -530,23 +562,31 @@ impl LocalStore {
                 migrate_v6(&transaction)?;
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
             }
             4 => {
                 transaction.execute_batch(MIGRATION_V5_SQL)?;
                 migrate_v6(&transaction)?;
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
             }
             5 => {
                 migrate_v6(&transaction)?;
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
             }
             6 => {
                 migrate_v7(&transaction)?;
                 migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
             }
-            7 => migrate_v8(&transaction)?,
+            7 => {
+                migrate_v8(&transaction)?;
+                migrate_v9(&transaction)?;
+            }
+            8 => migrate_v9(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -978,6 +1018,26 @@ impl LocalStore {
         );
 
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if entity == "payslip_items" {
+            let payslip_id = object
+                .get("payslip_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let protected: bool = transaction
+                .query_row(
+                    "SELECT status IN ('valide','comptabilise','paye') FROM payslips WHERE id=?",
+                    params![payslip_id],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .unwrap_or(true);
+            if protected {
+                return Err(AppError::Validation(
+                    "Les lignes d’une fiche validée doivent être modifiées par le flux atomique de paie."
+                        .into(),
+                ));
+            }
+        }
         transaction.execute(&sql, params_from_iter(values))?;
         recompute_after_change(&transaction, entity, &object, None)?;
         if entity == "expenses" {
@@ -2322,6 +2382,9 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "employment_end_date",
                 "reference_age_date",
                 "avs_allowance_waived",
+                "contractual_weekly_minutes",
+                "ac_opening_year",
+                "ac_opening_basis_cents",
                 "employment_rate",
                 "hourly_rate_cents",
                 "monthly_salary_cents",
@@ -2435,8 +2498,8 @@ fn ensure_record_mutable(
         "payments"=>true,
         "quote_items"=>record.get("quote_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL FROM quotes WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
         "invoice_items"=>record.get("invoice_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL FROM invoices WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
-        "payslips"=>record.get("status").and_then(Value::as_str).is_some_and(|v|matches!(v,"comptabilise"|"paye")),
-        "payslip_items"=>record.get("payslip_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT status IN ('comptabilise','paye') FROM payslips WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
+        "payslips"=>record.get("status").and_then(Value::as_str).is_some_and(|v|matches!(v,"valide"|"comptabilise"|"paye")),
+        "payslip_items"=>record.get("payslip_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT status IN ('valide','comptabilise','paye') FROM payslips WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
         "expenses"=>record.get("id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='expense' AND source_id=?)",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
         _=>false,
     };
@@ -2602,6 +2665,59 @@ fn normalize_record(
                     "avs_allowance_waived doit être oui, non ou non confirmé.".into(),
                 ));
             }
+            if object
+                .get("contractual_weekly_minutes")
+                .is_some_and(|value| {
+                    !value.is_null()
+                        && !value
+                            .as_i64()
+                            .is_some_and(|minutes| (0..=10_080).contains(&minutes))
+                })
+            {
+                return Err(AppError::Validation(
+                    "contractual_weekly_minutes doit être un nombre entier entre 0 et 10080, ou non confirmé."
+                        .into(),
+                ));
+            }
+            let ac_opening_year = object.get("ac_opening_year");
+            let ac_opening_basis = object.get("ac_opening_basis_cents");
+            let year_present = ac_opening_year.is_some_and(|value| !value.is_null());
+            let basis_present = ac_opening_basis.is_some_and(|value| !value.is_null());
+            if year_present != basis_present {
+                return Err(AppError::Validation(
+                    "L’année et la base d’ouverture AC doivent être confirmées ensemble, même si la base est zéro."
+                        .into(),
+                ));
+            }
+            if year_present
+                && !ac_opening_year
+                    .and_then(Value::as_i64)
+                    .is_some_and(|year| (1900..=9999).contains(&year))
+            {
+                return Err(AppError::Validation(
+                    "ac_opening_year doit être une année comprise entre 1900 et 9999.".into(),
+                ));
+            }
+            if basis_present
+                && !ac_opening_basis
+                    .and_then(Value::as_i64)
+                    .is_some_and(|basis| basis >= 0)
+            {
+                return Err(AppError::Validation(
+                    "ac_opening_basis_cents doit être un montant entier positif ou nul.".into(),
+                ));
+            }
+        }
+        "payslips"
+            if object
+                .get("status")
+                .and_then(Value::as_str)
+                .is_some_and(|status| matches!(status, "valide" | "comptabilise" | "paye")) =>
+        {
+            return Err(AppError::Validation(
+                "Une fiche validée doit passer par le flux atomique de paie et ses contrôles réglementaires."
+                    .into(),
+            ));
         }
         "payslips" if !object.contains_key("net_cents") => {
             let gross = object

@@ -1,0 +1,38 @@
+diff --git a/dist/types/index.cjs b/dist/types/index.cjs
+index 6949cd134db7ab59dae7b804b36c7bacb4e387cf..87ca2e16a82124d98bffd1e298221681d9f5a5f7 100644
+--- a/dist/types/index.cjs
++++ b/dist/types/index.cjs
+@@ -919,14 +919,10 @@ var typeHandlers = /* @__PURE__ */ new Map([
+   ["cur", CUR],
+   ["dds", DDS],
+   ["gif", GIF],
+-  ["heif", HEIF],
+-  ["icns", ICNS],
+   ["ico", ICO],
+   ["j2c", J2C],
+   ["jp2", JP2],
+   ["jpg", JPG],
+-  ["jxl", JXL],
+-  ["jxl-stream", JXLStream],
+   ["ktx", KTX],
+   ["png", PNG],
+   ["pnm", PNM],
+diff --git a/dist/types/index.mjs b/dist/types/index.mjs
+index b026dda4aa16c6077a76e4b3cfe3f54fe1d6d1d0..65bd61603937e857a61d8ce6dec2b6db7a9b7e7b 100644
+--- a/dist/types/index.mjs
++++ b/dist/types/index.mjs
+@@ -917,14 +917,10 @@ var typeHandlers = /* @__PURE__ */ new Map([
+   ["cur", CUR],
+   ["dds", DDS],
+   ["gif", GIF],
+-  ["heif", HEIF],
+-  ["icns", ICNS],
+   ["ico", ICO],
+   ["j2c", J2C],
+   ["jp2", JP2],
+   ["jpg", JPG],
+-  ["jxl", JXL],
+-  ["jxl-stream", JXLStream],
+   ["ktx", KTX],
+   ["png", PNG],
+   ["pnm", PNM],

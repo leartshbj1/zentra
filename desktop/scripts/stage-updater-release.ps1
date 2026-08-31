@@ -19,7 +19,8 @@ param(
     [ValidateRange(1, 168)]
     [int] $MaximumBuildAgeHours = 24,
     [switch] $AllowDirtyWorktree,
-    [switch] $AllowUnsignedAuthenticodeForTesting
+    [switch] $AllowUnsignedAuthenticodeForTesting,
+    [switch] $AllowUnsignedAuthenticodeForPublication
 )
 
 Set-StrictMode -Version Latest
@@ -55,8 +56,16 @@ function Assert-ValidAuthenticode([string] $Path, [string] $Label) {
             Write-Warning "$Label non signé Authenticode : ce lot est réservé aux tests et ne doit pas être publié."
             return
         }
+        if ($AllowUnsignedAuthenticodeForPublication) {
+            Write-Warning "$Label non signé Authenticode : publication explicitement autorisée par le propriétaire. Windows peut afficher Éditeur inconnu."
+            return
+        }
         throw "$Label refusé : signature Authenticode non valide ($($signature.Status))."
     }
+}
+
+if ($AllowUnsignedAuthenticodeForTesting -and $AllowUnsignedAuthenticodeForPublication) {
+    throw 'Choisissez un seul mode de tolérance Authenticode : test ou publication autorisée.'
 }
 
 $desktopRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path

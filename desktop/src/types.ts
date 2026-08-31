@@ -292,6 +292,12 @@ export type Employee = {
   /** true = renonciation confirmée, false = franchise conservée, null = à confirmer. */
   avsAllowanceWaived: boolean | null;
   employmentRate: number;
+  /** Horaire contractuel explicite; utilisé pour la décision AANP de 8 h/semaine. */
+  contractualWeeklyMinutes: number | null;
+  /** Année pour laquelle la base AC antérieure à Elyko a été confirmée. */
+  acOpeningYear: number | null;
+  /** Base AC déjà acquise hors Elyko au début de l'année, y compris zéro confirmé. */
+  acOpeningBasisCents: number | null;
   salaryMode: 'hourly' | 'monthly';
   grossSalaryCents: number;
   hourlyCostCents: number;
@@ -647,6 +653,7 @@ export type PayrollContributionSelection = { definitionId: Identifier; basisCent
 export type CalculatedPayrollContribution = PayrollContributionDefinition & {
   basisCents: number;
   originalBasisCents: number;
+  yearToDateBasisCents: number | null;
   amountCents: number;
   statutoryAnnualCeilingCents: number | null;
   acProrationDays: number | null;

@@ -352,21 +352,7 @@ fn render_payslip_pdf(
         ordered_lines.extend(data.lines.iter().filter(|line| line.kind == kind).cloned());
     }
 
-    let chunks: Vec<Vec<PayslipPdfLine>> = if ordered_lines.len() <= 12 {
-        vec![ordered_lines]
-    } else {
-        let mut result = Vec::new();
-        let mut offset = 0;
-        let first = ordered_lines.len().min(18);
-        result.push(ordered_lines[..first].to_vec());
-        offset += first;
-        while offset < ordered_lines.len() {
-            let end = (offset + 20).min(ordered_lines.len());
-            result.push(ordered_lines[offset..end].to_vec());
-            offset = end;
-        }
-        result
-    };
+    let chunks = paginate_payslip_lines(&ordered_lines);
 
     let mut document = Document::with_version("1.7");
     let pages_id = document.new_object_id();
@@ -445,6 +431,86 @@ fn render_payslip_pdf(
         return Err(error);
     }
     Ok(total_pages)
+}
+
+/// La hauteur d'une table dépend à la fois du nombre de rubriques et des
+/// intertitres de catégories. Une limite fondée uniquement sur le nombre de
+/// lignes faisait chevaucher les totaux dès qu'un bulletin contenait plusieurs
+/// familles (gains, frais, retenues et charges employeur).
+fn payroll_lines_height(lines: &[PayslipPdfLine]) -> f32 {
+    let category_headings = lines
+        .iter()
+        .enumerate()
+        .filter(|(index, line)| {
+            *index == 0 || lines[*index - 1].kind.as_str() != line.kind.as_str()
+        })
+        .count();
+    lines.len() as f32 * 21.0 + category_headings as f32 * 18.0
+}
+
+fn largest_fitting_prefix(lines: &[PayslipPdfLine], budget: f32) -> usize {
+    (1..=lines.len())
+        .take_while(|count| payroll_lines_height(&lines[..*count]) <= budget)
+        .last()
+        .unwrap_or(1)
+}
+
+fn balanced_split(lines: &[PayslipPdfLine], first_budget: f32, last_budget: f32) -> usize {
+    (1..lines.len())
+        .filter(|split| {
+            payroll_lines_height(&lines[..*split]) <= first_budget
+                && payroll_lines_height(&lines[*split..]) <= last_budget
+        })
+        .min_by_key(|split| {
+            let left = payroll_lines_height(&lines[..*split]);
+            let right = payroll_lines_height(&lines[*split..]);
+            ((left - right).abs() * 100.0) as i64
+        })
+        .unwrap_or_else(|| largest_fitting_prefix(lines, first_budget).min(lines.len() - 1))
+}
+
+fn paginate_payslip_lines(lines: &[PayslipPdfLine]) -> Vec<Vec<PayslipPdfLine>> {
+    const SINGLE_PAGE_BUDGET: f32 = 285.0;
+    const FIRST_NON_FINAL_BUDGET: f32 = 420.0;
+    const CONTINUATION_NON_FINAL_BUDGET: f32 = 600.0;
+    const LAST_CONTINUATION_BUDGET: f32 = 465.0;
+
+    if lines.is_empty() || payroll_lines_height(lines) <= SINGLE_PAGE_BUDGET {
+        return vec![lines.to_vec()];
+    }
+
+    let mut chunks = Vec::new();
+    let mut remaining = lines;
+    while !remaining.is_empty() {
+        if !chunks.is_empty() && payroll_lines_height(remaining) <= LAST_CONTINUATION_BUDGET {
+            chunks.push(remaining.to_vec());
+            break;
+        }
+
+        let budget = if chunks.is_empty() {
+            FIRST_NON_FINAL_BUDGET
+        } else {
+            CONTINUATION_NON_FINAL_BUDGET
+        };
+        let fitting = largest_fitting_prefix(remaining, budget);
+        let split = if fitting >= remaining.len() {
+            balanced_split(remaining, budget, LAST_CONTINUATION_BUDGET)
+        } else {
+            fitting
+        };
+        chunks.push(remaining[..split].to_vec());
+        remaining = &remaining[split..];
+    }
+    chunks
+}
+
+fn payslip_status_label(status: &str, final_document: bool) -> &'static str {
+    match status {
+        "paye" => "DOCUMENT FINAL · PAYÉ",
+        "comptabilise" => "DOCUMENT FINAL · COMPTABILISÉ",
+        _ if final_document => "DOCUMENT FINAL · FIGÉ",
+        _ => "À CONTRÔLER · NON COMPTABILISÉ",
+    }
 }
 
 fn replace_file(temporary: &Path, destination: &Path) -> AppResult<()> {
@@ -574,11 +640,7 @@ fn render_page(
             &data.employee_address,
         );
 
-        let status_label = if data.final_document {
-            "DOCUMENT FINAL · COMPTABILISÉ"
-        } else {
-            "À CONTRÔLER · NON COMPTABILISÉ"
-        };
+        let status_label = payslip_status_label(&data.status, data.final_document);
         fill_rect(
             &mut ops,
             MARGIN,
@@ -1195,6 +1257,48 @@ fn format_date_time(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_line(index: usize, kind: &str) -> PayslipPdfLine {
+        PayslipPdfLine {
+            label: format!("Rubrique {index}"),
+            kind: kind.into(),
+            amount_cents: 10_000 + index as i64,
+            detail: "Montant contrôlé".into(),
+        }
+    }
+
+    #[test]
+    fn pagination_reserves_the_totals_area_even_with_many_category_headings() {
+        let mut lines = Vec::new();
+        for (kind, count) in [
+            ("earning", 3),
+            ("reimbursement", 3),
+            ("deduction", 3),
+            ("employer", 3),
+        ] {
+            for _ in 0..count {
+                lines.push(sample_line(lines.len(), kind));
+            }
+        }
+
+        assert!(payroll_lines_height(&lines) > 285.0);
+        let chunks = paginate_payslip_lines(&lines);
+        assert!(
+            chunks.len() >= 2,
+            "the totals must move to a continuation page"
+        );
+        assert_eq!(chunks.iter().map(Vec::len).sum::<usize>(), lines.len());
+        assert!(payroll_lines_height(chunks.last().expect("last page")) <= 465.0);
+    }
+
+    #[test]
+    fn paid_document_is_labelled_as_paid_not_only_posted() {
+        assert_eq!(payslip_status_label("paye", true), "DOCUMENT FINAL · PAYÉ");
+        assert_eq!(
+            payslip_status_label("comptabilise", true),
+            "DOCUMENT FINAL · COMPTABILISÉ"
+        );
+    }
 
     #[test]
     fn renders_a_parseable_professional_payslip() {

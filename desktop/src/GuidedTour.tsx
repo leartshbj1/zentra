@@ -8,7 +8,7 @@ export type TourView = 'dashboard' | 'projects' | 'clients' | 'quotes' | 'invoic
 const TOUR_STORAGE_KEY = 'elyko-guided-tour-v2';
 
 const steps: Array<{ view: TourView; eyebrow: string; title: string; text: string; target: string }> = [
-  { view: 'dashboard', eyebrow: 'Bienvenue', title: 'Votre entreprise, sans données fictives', text: 'Elyko démarre vide et construit les indicateurs uniquement à partir de vos clients, projets, heures, documents et paiements réels.', target: '.sidebar__brand' },
+  { view: 'dashboard', eyebrow: 'Bienvenue', title: 'Votre entreprise, sans données fictives', text: 'Elyko démarre vide et construit les indicateurs uniquement à partir de vos clients, projets, heures, documents et paiements réels.', target: '.topbar__title' },
   { view: 'dashboard', eyebrow: 'Vue d’ensemble', title: 'Commencez par une action concrète', text: 'Créez un client ou un projet, puis lancez un pointage. Le tableau de bord se remplit automatiquement sans aucune donnée de démonstration.', target: '.page-content' },
   { view: 'projects', eyebrow: 'Activité', title: 'Suivez chaque chantier ou projet', text: 'Budget, durée, heures, dépenses, facturation, encaissements et marge sont réunis dans la même fiche.', target: '.page-header' },
   { view: 'quotes', eyebrow: 'Vente', title: 'Du devis à la facture en un clic', text: 'Émettez le devis, marquez-le accepté puis convertissez-le. Elyko empêche les doubles conversions et fige les documents émis.', target: '.page-header' },
@@ -42,22 +42,30 @@ export function GuidedTour({ open, onClose, onNavigate }: { open: boolean; onClo
     if (!open) return;
     onNavigate(step.view);
     let frame = 0;
+    let settle = 0;
     const update = () => {
       const target = document.querySelector(step.target);
       const next = target?.getBoundingClientRect() ?? null;
       setRect(next && next.width > 0 && next.height > 0 && next.bottom > 0 && next.right > 0 ? next : null);
     };
-    frame = window.requestAnimationFrame(() => { update(); document.querySelector<HTMLButtonElement>('.guided-tour__card footer .button:last-child')?.focus(); });
+    frame = window.requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(step.target);
+      target?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      update();
+      settle = window.setTimeout(update, 320);
+      document.querySelector<HTMLButtonElement>('.guided-tour__card footer .button:last-child')?.focus();
+    });
     window.addEventListener('resize', update);
-    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('resize', update); };
+    window.addEventListener('scroll', update, true);
+    return () => { window.cancelAnimationFrame(frame); window.clearTimeout(settle); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
   }, [index, onNavigate, open, step.target, step.view]);
 
   useEffect(() => {
     if (!open) return;
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') finish(false);
-      if (event.key === 'ArrowRight') next();
-      if (event.key === 'ArrowLeft') setIndex((current) => Math.max(0, current - 1));
+      if (event.key === 'ArrowRight') { event.preventDefault(); next(); }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); setIndex((current) => Math.max(0, current - 1)); }
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
