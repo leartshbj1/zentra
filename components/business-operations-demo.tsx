@@ -1,0 +1,436 @@
+'use client';
+
+import {
+  Building2,
+  Check,
+  FileCheck2,
+  Package,
+  Percent,
+  RefreshCcw,
+  Receipt,
+  ShieldCheck,
+} from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
+
+const catalogItems = [
+  {
+    id: 'service-conseil',
+    kind: 'Service',
+    name: 'Conseil sur site',
+    unit: 'heure',
+    salesPriceCents: 14500,
+    vatBp: 810,
+  },
+  {
+    id: 'kit-installation',
+    kind: 'Produit',
+    name: 'Kit d’installation',
+    unit: 'pièce',
+    salesPriceCents: 89000,
+    vatBp: 810,
+  },
+  {
+    id: 'forfait-deplacement',
+    kind: 'Service',
+    name: 'Forfait déplacement',
+    unit: 'forfait',
+    salesPriceCents: 9500,
+    vatBp: 810,
+  },
+] as const;
+
+const money = new Intl.NumberFormat('fr-CH', {
+  style: 'currency',
+  currency: 'CHF',
+  minimumFractionDigits: 2,
+});
+
+type DemoMode = 'quote' | 'purchase';
+type PurchaseStatus = 'pending' | 'paid';
+
+export function BusinessOperationsDemo() {
+  const baseId = useId().replace(/:/g, '');
+  const [mode, setMode] = useState<DemoMode>('quote');
+  const [catalogItemId, setCatalogItemId] = useState(catalogItems[0].id);
+  const [quantity, setQuantity] = useState(2);
+  const [discount, setDiscount] = useState(10);
+  const [purchaseStatus, setPurchaseStatus] =
+    useState<PurchaseStatus>('pending');
+  const [confirmPayment, setConfirmPayment] = useState(false);
+  const [paidAt, setPaidAt] = useState<string | null>(null);
+
+  const selectedItem =
+    catalogItems.find((item) => item.id === catalogItemId) ?? catalogItems[0];
+  const totals = useMemo(() => {
+    const grossCents = selectedItem.salesPriceCents * quantity;
+    const netCents = Math.round(grossCents * (1 - discount / 100));
+    const vatCents = Math.round((netCents * selectedItem.vatBp) / 10000);
+
+    return { grossCents, netCents, vatCents, totalCents: netCents + vatCents };
+  }, [discount, quantity, selectedItem]);
+
+  const resetPurchase = () => {
+    setPurchaseStatus('pending');
+    setConfirmPayment(false);
+    setPaidAt(null);
+  };
+
+  const markPurchasePaid = () => {
+    setPurchaseStatus('paid');
+    setConfirmPayment(false);
+    setPaidAt(
+      new Intl.DateTimeFormat('fr-CH', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date()),
+    );
+  };
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-[#d8ddd8] bg-[#f1f5f2] shadow-[0_24px_70px_rgba(29,54,39,.1)]">
+      <div className="flex flex-col gap-4 border-b border-[#d9e0da] bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8c5d20]">
+            Démonstration locale du site
+          </p>
+          <p className="mt-1 text-sm text-[#657169]">
+            Essayez le flux sans compte, sans sauvegarde et sans envoi réseau.
+          </p>
+        </div>
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#cddbd0] bg-[#eef7f0] px-3 py-1.5 text-[11px] font-semibold text-[#315e47]">
+          <ShieldCheck className="size-3.5" aria-hidden="true" />
+          Exemples fictifs
+        </span>
+      </div>
+
+      <div
+        className="grid grid-cols-2 gap-1 border-b border-[#d9e0da] bg-[#e6ece7] p-1.5"
+        role="tablist"
+        aria-label="Choisir une démonstration Elyko"
+      >
+        <button
+          id={baseId + '-quote-tab'}
+          type="button"
+          role="tab"
+          aria-selected={mode === 'quote'}
+          aria-controls={baseId + '-quote-panel'}
+          onClick={() => setMode('quote')}
+          className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315e47] ${
+            mode === 'quote'
+              ? 'bg-white text-[#21402f] shadow-sm'
+              : 'text-[#5f6c64] hover:bg-white/55'
+          }`}
+        >
+          <FileCheck2 className="size-4" aria-hidden="true" />
+          Catalogue → devis
+        </button>
+        <button
+          id={baseId + '-purchase-tab'}
+          type="button"
+          role="tab"
+          aria-selected={mode === 'purchase'}
+          aria-controls={baseId + '-purchase-panel'}
+          onClick={() => setMode('purchase')}
+          className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315e47] ${
+            mode === 'purchase'
+              ? 'bg-white text-[#21402f] shadow-sm'
+              : 'text-[#5f6c64] hover:bg-white/55'
+          }`}
+        >
+          <Receipt className="size-4" aria-hidden="true" />
+          Fournisseur → achat
+        </button>
+      </div>
+
+      <div
+        id={baseId + '-quote-panel'}
+        role="tabpanel"
+        aria-labelledby={baseId + '-quote-tab'}
+        hidden={mode !== 'quote'}
+        className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[.86fr_1.14fr] lg:p-7"
+      >
+        <div className="rounded-2xl border border-[#dce3dd] bg-white p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-[#e8f1ea] text-[#356249]">
+              <Package className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="font-semibold text-[#273c30]">
+                Ajouter du catalogue
+              </p>
+              <p className="text-xs text-[#6a766e]">
+                Références actives uniquement
+              </p>
+            </div>
+          </div>
+
+          <label
+            className="mt-6 block text-xs font-semibold text-[#435249]"
+            htmlFor={baseId + '-catalog-item'}
+          >
+            Produit ou service
+          </label>
+          <select
+            id={baseId + '-catalog-item'}
+            value={catalogItemId}
+            onChange={(event) =>
+              setCatalogItemId(event.target.value as typeof catalogItemId)
+            }
+            className="mt-2 min-h-12 w-full rounded-xl border border-[#cfd8d1] bg-white px-3 text-sm text-[#263b2e] outline-none transition focus:border-[#4b795e] focus:ring-2 focus:ring-[#4b795e]/15"
+          >
+            {catalogItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.kind} · {item.name}
+              </option>
+            ))}
+          </select>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+            <label className="text-xs font-semibold text-[#435249]">
+              Quantité
+              <input
+                type="number"
+                min={1}
+                max={99}
+                inputMode="numeric"
+                value={quantity}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setQuantity(
+                    Number.isFinite(next) ? Math.min(99, Math.max(1, next)) : 1,
+                  );
+                }}
+                className="mt-2 min-h-12 w-full rounded-xl border border-[#cfd8d1] bg-white px-3 text-sm outline-none transition focus:border-[#4b795e] focus:ring-2 focus:ring-[#4b795e]/15"
+              />
+            </label>
+            <label className="text-xs font-semibold text-[#435249]">
+              Remise
+              <span className="relative mt-2 flex min-h-12 items-center rounded-xl border border-[#cfd8d1] bg-white px-3">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  inputMode="numeric"
+                  value={discount}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setDiscount(
+                      Number.isFinite(next)
+                        ? Math.min(100, Math.max(0, next))
+                        : 0,
+                    );
+                  }}
+                  aria-label="Remise en pour-cent"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                />
+                <Percent className="size-4 text-[#78837c]" aria-hidden="true" />
+              </span>
+            </label>
+          </div>
+
+          <p className="mt-5 rounded-xl bg-[#f4f1e9] p-3 text-xs leading-5 text-[#6c624f]">
+            Elyko copie le libellé, l’unité, le prix et la TVA dans la ligne du
+            devis. La ligne reste modifiable sans changer la référence du
+            catalogue.
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-[#173d2c] p-5 text-white sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/12 pb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#efb157]">
+                Ligne de devis
+              </p>
+              <h3 className="mt-2 text-xl font-semibold tracking-[-.03em]">
+                {selectedItem.name}
+              </h3>
+            </div>
+            <span className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/80">
+              {selectedItem.kind}
+            </span>
+          </div>
+          <dl className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            {[
+              ['Quantité', String(quantity)],
+              ['Unité', selectedItem.unit],
+              [
+                'Prix unitaire',
+                money.format(selectedItem.salesPriceCents / 100),
+              ],
+              [
+                'TVA',
+                (selectedItem.vatBp / 100).toLocaleString('fr-CH') + ' %',
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-white/[.075] p-3">
+                <dt className="text-[11px] text-white/60">{label}</dt>
+                <dd className="mt-1 font-semibold text-white/90">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-5 space-y-2.5 border-t border-white/12 pt-5 text-sm">
+            <div className="flex justify-between gap-4 text-white/70">
+              <span>Avant remise</span>
+              <span>{money.format(totals.grossCents / 100)}</span>
+            </div>
+            <div className="flex justify-between gap-4 text-[#efc27f]">
+              <span>Remise {discount} %</span>
+              <span>
+                − {money.format((totals.grossCents - totals.netCents) / 100)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4 text-white/70">
+              <span>TVA</span>
+              <span>{money.format(totals.vatCents / 100)}</span>
+            </div>
+            <div className="flex items-end justify-between gap-4 border-t border-white/12 pt-4">
+              <span className="font-semibold">Total TTC</span>
+              <strong className="text-2xl tracking-[-.04em] text-[#efb157]">
+                {money.format(totals.totalCents / 100)}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id={baseId + '-purchase-panel'}
+        role="tabpanel"
+        aria-labelledby={baseId + '-purchase-tab'}
+        hidden={mode !== 'purchase'}
+        className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[.75fr_1.25fr] lg:p-7"
+      >
+        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3 lg:grid-cols-1">
+          {[
+            [
+              'À payer',
+              purchaseStatus === 'pending' ? '2 480.60' : '0.00',
+              'CHF',
+            ],
+            ['Échu', '0.00', 'CHF'],
+            ['Payé', purchaseStatus === 'paid' ? '2 480.60' : '0.00', 'CHF'],
+          ].map(([label, value, unit]) => (
+            <div
+              key={label}
+              className="rounded-2xl border border-[#dce3dd] bg-white p-3 sm:p-4"
+            >
+              <p className="text-[11px] text-[#68746c]">{label}</p>
+              <p className="mt-2 break-words text-sm font-semibold tracking-[-.02em] text-[#294033] sm:text-lg">
+                {value}{' '}
+                <span className="text-[10px] font-medium text-[#758078]">
+                  {unit}
+                </span>
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-2xl border border-[#dce3dd] bg-white p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f1ea] text-[#356249]">
+                <Building2 className="size-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-[#273c30]">
+                  Atelier Romand SA
+                </p>
+                <p className="mt-0.5 text-xs text-[#6a766e]">
+                  Facture fournisseur AF-2026-014
+                </p>
+              </div>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
+                purchaseStatus === 'paid'
+                  ? 'bg-[#e7f2e9] text-[#34684a]'
+                  : 'bg-[#fff0d9] text-[#805019]'
+              }`}
+            >
+              {purchaseStatus === 'paid' ? 'Payé' : 'À payer'}
+            </span>
+          </div>
+
+          <dl className="mt-6 grid grid-cols-2 gap-4 border-y border-[#e7ebe8] py-5 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-[#748078]">Montant</dt>
+              <dd className="mt-1 font-semibold text-[#2d4336]">
+                2 480.60 CHF
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[#748078]">Échéance</dt>
+              <dd className="mt-1 font-semibold text-[#2d4336]">07.09.2026</dd>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <dt className="text-xs text-[#748078]">Paiement</dt>
+              <dd className="mt-1 font-semibold text-[#2d4336]">
+                {paidAt ?? 'Non confirmé'}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="mt-5" aria-live="polite">
+            {purchaseStatus === 'paid' ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="flex items-start gap-2 text-sm leading-6 text-[#356249]">
+                  <Check className="mt-1 size-4 shrink-0" aria-hidden="true" />
+                  Paiement confirmé dans cette démonstration.
+                </p>
+                <button
+                  type="button"
+                  onClick={resetPurchase}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#cfd8d1] px-4 text-sm font-semibold text-[#415248] transition hover:bg-[#f3f6f3] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315e47]"
+                >
+                  <RefreshCcw className="size-4" aria-hidden="true" />
+                  Recommencer
+                </button>
+              </div>
+            ) : confirmPayment ? (
+              <div className="rounded-xl border border-[#e7c88e] bg-[#fff8ea] p-4">
+                <p className="text-sm font-semibold text-[#684b22]">
+                  Confirmer le paiement avec la date du jour ?
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#776443]">
+                  Dans Elyko, une écriture devient immuable si la comptabilité
+                  est activée. Ici, rien n’est enregistré.
+                </p>
+                <div className="mt-4 flex flex-col gap-2 min-[420px]:flex-row">
+                  <button
+                    type="button"
+                    onClick={markPurchasePaid}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#173d2c] px-4 text-sm font-semibold text-white transition hover:bg-[#24563f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315e47]"
+                  >
+                    Confirmer le paiement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmPayment(false)}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#d8cfbe] px-4 text-sm font-semibold text-[#5d5548] transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315e47]"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-[#6c776f]">
+                  Le fournisseur est lié à l’achat, tandis que son nom reste
+                  copié dans le document.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setConfirmPayment(true)}
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#e9a33a] px-5 text-sm font-semibold text-[#173d2c] transition hover:bg-[#f0b252] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#805019]"
+                >
+                  Marquer payé aujourd’hui
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

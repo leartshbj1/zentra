@@ -5,6 +5,7 @@ import {
   BellRing,
   BookOpenCheck,
   BriefcaseBusiness,
+  Building2,
   Check,
   Clock3,
   Database,
@@ -12,10 +13,12 @@ import {
   FileDown,
   FolderKanban,
   HardDrive,
+  Landmark,
   Laptop,
   LockKeyhole,
   QrCode,
   Plus,
+  Package,
   Receipt,
   ShieldCheck,
   Users,
@@ -24,6 +27,7 @@ import {
 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { BrandMark } from '@/components/brand-mark';
+import { BusinessOperationsDemo } from '@/components/business-operations-demo';
 import { CapabilityStory } from '@/components/capability-story';
 import { HeroDashboard } from '@/components/hero-dashboard';
 import { PayrollLocalDemo } from '@/components/payroll-local-demo';
@@ -38,9 +42,14 @@ const features = [
     text: 'Le module adapte ses libellés au secteur choisi tout en conservant dates, budget, avancement, documents et intervenants.',
   },
   {
+    icon: Package,
+    title: 'Produits & services',
+    text: 'Un catalogue local, recherchable et archivable, pour réutiliser vos libellés, unités, prix et taux de TVA.',
+  },
+  {
     icon: FileCheck2,
     title: 'Devis détaillés',
-    text: 'Vos lignes, vos prix et vos taux de TVA. Un devis accepté devient une facture sans double saisie.',
+    text: 'Ajoutez une référence du catalogue, adaptez sa ligne et appliquez une remise. Un devis accepté devient une facture sans double saisie.',
   },
   {
     icon: Receipt,
@@ -51,6 +60,11 @@ const features = [
     icon: Clock3,
     title: 'Temps de travail',
     text: 'Chronomètre ou saisie manuelle, par collaborateur et par projet ou chantier, avec historique vérifiable.',
+  },
+  {
+    icon: Building2,
+    title: 'Fournisseurs & achats',
+    text: 'Annuaire local, achats à payer ou payés, échéances et confirmation explicite du paiement.',
   },
   {
     icon: WalletCards,
@@ -126,7 +140,7 @@ export default function Home() {
             <span className="font-semibold tracking-[-0.03em]">Elyko</span>
           </a>
           <nav
-            className="hidden items-center gap-7 text-sm text-[#4f5c54] md:flex"
+            className="hidden items-center gap-6 text-sm text-[#4f5c54] lg:flex"
             aria-label="Navigation principale"
           >
             <a
@@ -134,6 +148,12 @@ export default function Home() {
               className="transition-colors hover:text-[#173d2c]"
             >
               Voir le logiciel
+            </a>
+            <a
+              href="#catalogue-achats"
+              className="transition-colors hover:text-[#173d2c]"
+            >
+              Catalogue & achats
             </a>
             <a
               href="#confidentialite"
@@ -169,9 +189,12 @@ export default function Home() {
         className="mx-auto grid w-full max-w-7xl gap-10 px-5 pb-16 pt-9 sm:gap-12 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-16"
       >
         <div className="relative z-10">
-          <a href="#paie-locale" className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white">
+          <a
+            href="#catalogue-achats"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
+          >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Nouveau · import local de fiches de salaire
+            Nouveau · catalogue, remises & achats fournisseurs
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -179,10 +202,10 @@ export default function Home() {
             <span className="text-[#b86b16]">Une seule vue.</span>
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
-            Devis, factures QR, projets et chantiers, heures, salaires et
-            comptabilité&nbsp;: Elyko centralise votre gestion dans une
-            application Windows, tandis que vos données métier restent sur votre
-            PC.
+            Catalogue, devis, factures QR, fournisseurs, achats, projets,
+            heures, salaires et comptabilité&nbsp;: Elyko centralise votre
+            gestion dans une application Windows, tandis que vos données métier
+            restent sur votre PC.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -268,6 +291,144 @@ export default function Home() {
       </section>
 
       <section
+        id="catalogue-achats"
+        className="border-b border-[#ded9ce] bg-[#fffaf2] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="catalogue-achats-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
+                Disponible dans Elyko
+              </p>
+              <h2
+                id="catalogue-achats-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Du catalogue au devis. Du fournisseur au paiement.
+              </h2>
+            </div>
+            <div className="max-w-2xl lg:justify-self-end">
+              <p className="text-lg leading-8 text-[#68736c]">
+                Réutilisez vos références commerciales sans perdre la liberté de
+                modifier chaque document, puis suivez les achats qui restent à
+                payer avec leur fournisseur et leur échéance.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#7a7061]">
+                Ces informations sont enregistrées dans la base locale de
+                l’application. Aucune donnée d’entreprise n’est nécessaire pour
+                essayer la démonstration ci-dessous.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
+            {[
+              {
+                icon: Package,
+                title: 'Catalogue local',
+                text: 'Recherchez, filtrez, modifiez, archivez ou réactivez vos produits et services.',
+              },
+              {
+                icon: FileCheck2,
+                title: 'Devis avec remises',
+                text: 'Copiez une référence dans une ligne indépendante, puis adaptez quantité, prix, TVA et remise.',
+              },
+              {
+                icon: Building2,
+                title: 'Annuaire fournisseurs',
+                text: 'Conservez coordonnées, conditions de paiement, IBAN et historique lié aux achats.',
+              },
+              {
+                icon: Receipt,
+                title: 'Achats à suivre',
+                text: 'Distinguez à payer, échu et payé, avec une confirmation avant d’enregistrer le règlement.',
+              },
+            ].map(({ icon: Icon, title, text }) => (
+              <article
+                key={title}
+                className="interactive-card rounded-2xl border border-[#ded8cd] bg-white/75 p-5"
+              >
+                <span className="grid size-10 place-items-center rounded-xl bg-[#e7efe9] text-[#315d47]">
+                  <Icon className="size-5" aria-hidden="true" />
+                </span>
+                <h3 className="mt-5 font-semibold text-[#2d4135]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#667169]">{text}</p>
+              </article>
+            ))}
+          </div>
+
+          <p className="mt-4 text-xs leading-5 text-[#756e64]">
+            Le suivi de quantité du catalogue est indicatif à ce stade&nbsp;: il
+            ne crée pas automatiquement de mouvement de stock.
+          </p>
+
+          <div className="mt-8 sm:mt-10">
+            <BusinessOperationsDemo />
+          </div>
+
+          <article className="mt-8 overflow-hidden rounded-[26px] border border-[#d6c29d] bg-[#173d2c] text-white sm:mt-10">
+            <div className="grid gap-7 p-6 sm:p-8 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:p-10">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#efb157]/35 bg-[#efb157]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.1em] text-[#f2bd6d]">
+                  <span className="size-1.5 rounded-full bg-[#efb157]" />
+                  Prochaine mise à jour · en cours
+                </span>
+                <Landmark
+                  className="mt-7 size-7 text-[#efb157]"
+                  aria-hidden="true"
+                />
+                <h3 className="mt-4 text-2xl font-semibold leading-tight tracking-[-.035em] sm:text-3xl">
+                  Import bancaire suisse CAMT — rapprochement local à confirmer
+                </h3>
+              </div>
+              <div>
+                <p className="text-base leading-7 text-white/75">
+                  Cette fonction est en développement et n’est pas disponible
+                  dans Elyko 1.3.0. Le flux prévu importe un relevé CAMT sur le
+                  PC, propose des correspondances avec les factures clients,
+                  puis attend votre confirmation avant tout rapprochement.
+                </p>
+                <ol className="mt-6 grid gap-3 sm:grid-cols-3">
+                  {[
+                    [
+                      '01',
+                      'Importer',
+                      'Choisir un fichier bancaire CAMT local.',
+                    ],
+                    [
+                      '02',
+                      'Comparer',
+                      'Afficher les correspondances proposées.',
+                    ],
+                    [
+                      '03',
+                      'Confirmer',
+                      'Valider chaque rapprochement sur le PC.',
+                    ],
+                  ].map(([number, title, text]) => (
+                    <li
+                      key={number}
+                      className="rounded-2xl border border-white/12 bg-white/[.07] p-4"
+                    >
+                      <span className="text-[11px] font-bold tracking-[.12em] text-[#efb157]">
+                        {number}
+                      </span>
+                      <p className="mt-4 text-sm font-semibold">{title}</p>
+                      <p className="mt-1.5 text-xs leading-5 text-white/65">
+                        {text}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
         id="paie-locale"
         className="border-b border-[#ded9ce] bg-[#fffaf2] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
@@ -284,10 +445,15 @@ export default function Home() {
             </div>
             <div className="max-w-2xl lg:justify-self-end">
               <p className="text-lg leading-8 text-[#68736c]">
-                Importez plusieurs PDF ou images. Elyko lit d’abord le texte disponible, puis peut utiliser SmolVLM localement pour proposer les champs, associer la fiche à un collaborateur et préparer une fiche « à contrôler ».
+                Importez plusieurs PDF ou images. Elyko lit d’abord le texte
+                disponible, puis peut utiliser SmolVLM localement pour proposer
+                les champs, associer la fiche à un collaborateur et préparer une
+                fiche « à contrôler ».
               </p>
               <p className="mt-3 text-sm leading-6 text-[#7a7061]">
-                Aucun document de paie n’est envoyé. Chaque résultat doit être comparé à l’original et confirmé par une personne avant création.
+                Aucun document de paie n’est envoyé. Chaque résultat doit être
+                comparé à l’original et confirmé par une personne avant
+                création.
               </p>
             </div>
           </div>
@@ -296,19 +462,35 @@ export default function Home() {
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
-              ['Import groupé', 'PDF, PNG, JPEG ou WebP, avec détection des doublons et reprise du contrôle.'],
-              ['IA exécutée localement', 'Le modèle s’exécute sur le PC après son téléchargement initial ; il reste facultatif.'],
-              ['PDF professionnel', 'Bases, taux, retenues, charges employeur, net, paiement et mentions restent lisibles.'],
+              [
+                'Import groupé',
+                'PDF, PNG, JPEG ou WebP, avec détection des doublons et reprise du contrôle.',
+              ],
+              [
+                'IA exécutée localement',
+                'Le modèle s’exécute sur le PC après son téléchargement initial ; il reste facultatif.',
+              ],
+              [
+                'PDF professionnel',
+                'Bases, taux, retenues, charges employeur, net, paiement et mentions restent lisibles.',
+              ],
             ].map(([title, text]) => (
-              <div key={title} className="rounded-2xl border border-[#ded8cd] bg-white/70 p-5">
+              <div
+                key={title}
+                className="rounded-2xl border border-[#ded8cd] bg-white/70 p-5"
+              >
                 <Check className="size-4 text-[#3f7a55]" />
-                <h3 className="mt-3 text-sm font-semibold text-[#2d4135]">{title}</h3>
+                <h3 className="mt-3 text-sm font-semibold text-[#2d4135]">
+                  {title}
+                </h3>
                 <p className="mt-2 text-xs leading-5 text-[#667169]">{text}</p>
               </div>
             ))}
           </div>
           <p className="mt-5 text-xs leading-5 text-[#7a746b]">
-            Le modèle officiel SmolVLM-500M-Instruct utilisé ici n’est pas spécifiquement affiné pour la paie suisse. Elyko n’est pas certifié Swissdec.
+            Le modèle officiel SmolVLM-500M-Instruct utilisé ici n’est pas
+            spécifiquement affiné pour la paie suisse. Elyko n’est pas certifié
+            Swissdec.
           </p>
         </div>
       </section>
@@ -440,7 +622,7 @@ export default function Home() {
               salaire fictif n’est injecté.
             </p>
           </div>
-          <div className="mt-10 grid gap-px overflow-hidden rounded-[24px] border border-[#ded9ce] bg-[#ded9ce] sm:mt-14 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid gap-px overflow-hidden rounded-[24px] border border-[#ded9ce] bg-[#ded9ce] sm:mt-14 md:grid-cols-2 lg:grid-cols-4">
             {features.map(({ icon: Icon, title, text }) => (
               <div key={title} className="interactive-card bg-[#fffdf9] p-7">
                 <span className="grid size-11 place-items-center rounded-2xl bg-[#e7efe9] text-[#315d47]">
@@ -671,8 +853,10 @@ export default function Home() {
                   '22 secteurs NOGA 2025',
                   'Données métier locales',
                   'Projets, chantiers & clients',
-                  'Devis & factures',
+                  'Catalogue produits & services',
+                  'Devis, remises & factures',
                   'Paiements & échéances',
+                  'Fournisseurs & achats à payer',
                   'Temps & dépenses',
                   'Rentabilité par dossier',
                   'Salaires préparatoires',
@@ -763,6 +947,18 @@ export default function Home() {
               [
                 'Puis-je créer de vrais devis et factures ?',
                 'Oui. Vous configurez les coordonnées, numéros, délais et taux de TVA. Vous pouvez ensuite créer, imprimer, convertir et suivre vos documents.',
+              ],
+              [
+                'Comment fonctionne le catalogue ?',
+                'Vous créez vos produits et services localement. Lorsqu’une référence est ajoutée à un devis, son libellé, son unité, son prix et sa TVA sont copiés dans une ligne qui reste modifiable. Une référence archivée n’est plus proposée par défaut.',
+              ],
+              [
+                'Comment suivre les achats fournisseurs ?',
+                'Un achat peut rester à payer avec une échéance, ou être enregistré comme payé avec sa date. Elyko affiche les montants en attente, échus et payés, puis demande confirmation avant de marquer un achat comme réglé.',
+              ],
+              [
+                'L’import bancaire CAMT est-il déjà disponible ?',
+                'Non. L’import CAMT et le rapprochement local à confirmer sont en cours de développement pour une prochaine mise à jour. Elyko 1.3.0 ne les propose pas.',
               ],
               [
                 'Le module salaire est-il certifié Swissdec ?',
