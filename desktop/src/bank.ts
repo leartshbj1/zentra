@@ -168,7 +168,7 @@ export function filterBankMovements(movements: BankMovement[], filter: BankMovem
     .filter((movement) => {
       if (filter === 'pending') return movement.status === 'PDNG' && !movement.reconciliation;
       if (filter === 'reconciled') return Boolean(movement.reconciliation);
-      if (filter === 'unreconciled') return movement.status === 'BOOK' && !movement.reconciliation;
+      if (filter === 'unreconciled') return movement.status === 'BOOK' && movement.creditDebit === 'CRDT' && !movement.reversal && !movement.reconciliation;
       return true;
     })
     .sort((left, right) => {

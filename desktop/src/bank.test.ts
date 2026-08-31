@@ -80,6 +80,14 @@ describe('triage et choix de facture', () => {
     expect(filterBankMovements(workspace.movements, 'all').map((item) => item.id)).toEqual(['movement-pending', 'movement-booked', 'movement-reconciled']);
   });
 
+  it('réserve « À rapprocher » aux crédits BOOK et garde débits et extournes dans « Tous »', () => {
+    const booked = workspace.movements[0];
+    const debit: BankMovement = { ...booked, id: 'movement-debit', creditDebit: 'DBIT' };
+    const reversal: BankMovement = { ...booked, id: 'movement-reversal', reversal: true };
+    expect(filterBankMovements([booked, debit, reversal], 'unreconciled').map((item) => item.id)).toEqual(['movement-booked']);
+    expect(filterBankMovements([booked, debit, reversal], 'all')).toHaveLength(3);
+  });
+
   it('préselectionne uniquement une proposition automatique confirmable', () => {
     expect(initialInvoiceChoice(workspace.movements[0])).toBe('invoice-1');
     expect(initialInvoiceChoice(workspace.movements[1])).toBe('');
