@@ -213,7 +213,7 @@ export function ExpenseForm({ item, workspace, busy, close, act }: { item?: Expe
         <Field label="Référence"><input name="reference" defaultValue={item?.reference} maxLength={200} /></Field>
         <Field label="Remboursable ?" required><select name="reimbursable" defaultValue={item ? item.reimbursable ? 'yes' : 'no' : 'no'} required><option value="no">Non, charge de l’entreprise</option><option value="yes">Oui, à rembourser</option></select></Field>
         <Field label="Montant net (CHF)" required><input type="number" min="0" step="0.01" value={netCents ? netCents / 100 : ''} onChange={(event) => setNetCents(centsFromInput(event.target.value))} required /></Field>
-        <Field label="Montant TVA (CHF)" required><input type="number" min="0" step="0.01" value={vatCents ? vatCents / 100 : ''} onChange={(event) => setVatCents(centsFromInput(event.target.value))} required /></Field>
+        <Field label="Montant TVA (CHF)" required><input type="number" min="0" step="0.01" value={vatCents / 100} onChange={(event) => setVatCents(centsFromInput(event.target.value))} required /></Field>
         <Field label="Total calculé"><output className="field-output">{formatMoney(netCents + vatCents)}</output></Field>
         <Field label="Note" wide><textarea name="note" rows={3} defaultValue={item?.note} maxLength={2_000} /></Field>
       </div>

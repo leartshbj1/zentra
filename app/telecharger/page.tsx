@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Building2,
   Check,
   Clock3,
   Database,
@@ -8,6 +9,7 @@ import {
   FolderKanban,
   HardDrive,
   Laptop,
+  Landmark,
   LockKeyhole,
   QrCode,
   RefreshCcw,
@@ -22,18 +24,18 @@ import { DownloadButton, installerPath } from '@/components/download-button';
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: 'Elyko pour Windows — Télécharger la version 1.3.0',
+  title: 'Elyko pour Windows — Télécharger la version 1.4.0',
   description:
     'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR, projets, salaires et comptabilité avec vos données sur votre PC.',
   openGraph: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.3.0 disponible.',
+      'Toute votre gestion d’entreprise dans une application Windows. Version 1.4.0 disponible.',
   },
   twitter: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.3.0 disponible.',
+      'Toute votre gestion d’entreprise dans une application Windows. Version 1.4.0 disponible.',
   },
 };
 
@@ -68,6 +70,16 @@ const capabilities = [
     title: 'Comptabilité liée',
     text: 'Retrouvez journal, grand livre, balance, bilan et résultat.',
   },
+  {
+    icon: Building2,
+    title: 'Fournisseurs et achats',
+    text: 'Suivez les achats à payer, les échéances et, si la comptabilité est activée, leur règlement comptabilisé.',
+  },
+  {
+    icon: Landmark,
+    title: 'Import CAMT local',
+    text: 'Importez CAMT.053/.054, contrôlez les écritures et ne confirmez un crédit client qu’avec le relevé .053 définitif.',
+  },
 ];
 
 export default function DownloadPage() {
@@ -98,7 +110,7 @@ export default function DownloadPage() {
         <div data-reveal="left">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
             <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-            Elyko pour Windows · version 1.3.0
+            Elyko pour Windows · version 1.4.0
           </div>
           <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
             Toute votre entreprise,
@@ -106,9 +118,10 @@ export default function DownloadPage() {
             <span className="text-[#b66b18]">dans une seule application.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-8 text-[#667169]">
-            Devis, factures QR, projets et chantiers, heures, salaires et
-            comptabilité&nbsp;: installez Elyko sur votre PC et travaillez avec
-            vos propres données, dans une interface pensée pour votre activité.
+            Catalogue, devis, factures QR, fournisseurs, import CAMT, projets,
+            heures, salaires et comptabilité&nbsp;: installez Elyko sur votre PC
+            et travaillez avec vos propres données, dans une interface pensée
+            pour votre activité.
           </p>
 
           <div className="mt-8">
@@ -192,7 +205,7 @@ export default function DownloadPage() {
                 </p>
                 <div className="mt-7 space-y-4 text-[11px]">
                   {[
-                    ['Version', '1.3.0'],
+                    ['Version', '1.4.0'],
                     ['Architecture', 'Windows x64'],
                     ['Emplacement', 'Applications de l’utilisateur'],
                     ['Données métier', 'Stockage local'],
@@ -397,17 +410,17 @@ export default function DownloadPage() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-              Version 1.3.0
+              Version 1.4.0
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-              Paie mieux contrôlée et mises à jour signées.
+              Moins de ressaisie, plus de contrôles avant paiement.
             </h2>
             <div className="mt-7 space-y-3">
               {[
-                'Démarrage avancé, logo d’entreprise et reprise fiable de la configuration',
-                'Import groupé de fiches PDF et image, sans envoi vers Elyko',
-                'Contrôles de paie suisse 2026 rejoués localement avant validation',
-                'PDF de salaire paginé avec bases, taux, retenues, charges et paiement',
+                'Catalogue local de produits et services avec remises par ligne',
+                'Fournisseurs, achats à payer, échéances et règlement comptabilisé',
+                'Import CAMT.053/.054 v04/v08 et détection locale des doublons',
+                'Rapprochement des crédits clients seulement après votre confirmation',
                 'Mises à jour intégrées vérifiées par signature Tauri/Ed25519',
               ].map((item) => (
                 <div

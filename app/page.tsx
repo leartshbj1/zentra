@@ -194,7 +194,7 @@ export default function Home() {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Nouveau · catalogue, remises & achats fournisseurs
+            Nouveau · catalogue, achats & import CAMT local
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -202,8 +202,8 @@ export default function Home() {
             <span className="text-[#b86b16]">Une seule vue.</span>
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
-            Catalogue, devis, factures QR, fournisseurs, achats, projets,
-            heures, salaires et comptabilité&nbsp;: Elyko centralise votre
+            Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
+            projets, heures, salaires et comptabilité&nbsp;: Elyko centralise votre
             gestion dans une application Windows, tandis que vos données métier
             restent sur votre PC.
           </p>
@@ -373,39 +373,40 @@ export default function Home() {
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#efb157]/35 bg-[#efb157]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.1em] text-[#f2bd6d]">
                   <span className="size-1.5 rounded-full bg-[#efb157]" />
-                  Prochaine mise à jour · en cours
+                  Disponible dans Elyko 1.4.0
                 </span>
                 <Landmark
                   className="mt-7 size-7 text-[#efb157]"
                   aria-hidden="true"
                 />
                 <h3 className="mt-4 text-2xl font-semibold leading-tight tracking-[-.035em] sm:text-3xl">
-                  Import bancaire suisse CAMT — rapprochement local à confirmer
+                  Import bancaire suisse CAMT — vous gardez le dernier mot
                 </h3>
               </div>
               <div>
                 <p className="text-base leading-7 text-white/75">
-                  Cette fonction est en développement et n’est pas disponible
-                  dans Elyko 1.3.0. Le flux prévu importe un relevé CAMT sur le
-                  PC, propose des correspondances avec les factures clients,
-                  puis attend votre confirmation avant tout rapprochement.
+                  Importez sur votre PC les relevés CAMT.053 ou CAMT.054 de
+                  votre banque. Elyko détecte les doublons et propose les
+                  factures clients correspondant aux crédits. Un CAMT.054
+                  reste en revue&nbsp;: le paiement ne peut être confirmé qu’avec
+                  le relevé CAMT.053 définitif.
                 </p>
                 <ol className="mt-6 grid gap-3 sm:grid-cols-3">
                   {[
                     [
                       '01',
                       'Importer',
-                      'Choisir un fichier bancaire CAMT local.',
+                      'Choisir un fichier CAMT v04 ou v08 sur le PC.',
                     ],
                     [
                       '02',
                       'Comparer',
-                      'Afficher les correspondances proposées.',
+                      'Contrôler compte, devise, référence et montant.',
                     ],
                     [
                       '03',
                       'Confirmer',
-                      'Valider chaque rapprochement sur le PC.',
+                      'Créer le paiement et, si la comptabilité est activée, son écriture.',
                     ],
                   ].map(([number, title, text]) => (
                     <li
@@ -422,6 +423,12 @@ export default function Home() {
                     </li>
                   ))}
                 </ol>
+                <p className="mt-4 text-xs leading-5 text-white/58">
+                  Les débits, écritures en attente, extournes, lots ambigus et
+                  trop-perçus restent visibles mais sont bloqués pour éviter un
+                  faux rapprochement. Toute association manuelle avec un compte
+                  Elyko est explicite et révocable.
+                </p>
               </div>
             </div>
           </article>
@@ -437,7 +444,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
-                Nouveau dans Elyko 1.3.0
+                Paie locale contrôlée
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                 Vos anciennes fiches deviennent une base de travail.
@@ -958,7 +965,7 @@ export default function Home() {
               ],
               [
                 'L’import bancaire CAMT est-il déjà disponible ?',
-                'Non. L’import CAMT et le rapprochement local à confirmer sont en cours de développement pour une prochaine mise à jour. Elyko 1.3.0 ne les propose pas.',
+                'Oui, dans Elyko 1.4.0. Vous pouvez importer localement des relevés CAMT.053 et CAMT.054 v04/v08. Les CAMT.054 servent à la revue; la confirmation d’un crédit client exige le CAMT.053 définitif. Les débits, extournes, écritures en attente, lots ambigus et trop-perçus ne sont jamais validés automatiquement.',
               ],
               [
                 'Le module salaire est-il certifié Swissdec ?',

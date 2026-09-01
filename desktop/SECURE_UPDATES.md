@@ -52,8 +52,8 @@ Préparer le lot dans les 24 heures suivant ce build frais :
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1 `
-  -Version 1.3.0 `
-  -PreviousVersion 1.2.0
+  -Version 1.4.0 `
+  -PreviousVersion 1.3.0
 ```
 
 Le script n’accepte que ces sorties canoniques :
@@ -81,13 +81,13 @@ Publier l’installateur et le manifeste sur HTTPS. La valeur `signature` est le
 
 ```json
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "notes": "Résumé contrôlé des changements.",
   "pub_date": "2026-09-01T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "CONTENU_EXACT_DU_FICHIER_SIG",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.3.0_x64-setup.exe"
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.4.0_x64-setup.exe"
     }
   }
 }

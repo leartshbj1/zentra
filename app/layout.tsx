@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   ...(metadataBase ? { metadataBase } : {}),
   title: 'Elyko — Gestion d’entreprise multisectorielle en Suisse',
   description:
-    'L’application Windows locale pour piloter catalogue, devis, factures, fournisseurs, achats, projets, salaires et comptabilité dans tous les secteurs NOGA 2025.',
+    'L’application Windows locale pour piloter catalogue, devis, factures, fournisseurs, achats, import CAMT, projets, salaires et comptabilité dans tous les secteurs NOGA 2025.',
   applicationName: 'Elyko',
   icons: { icon: '/favicon.svg' },
   openGraph: {
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     locale: 'fr_CH',
     title: 'Elyko — Toute votre entreprise, dans une seule application',
     description:
-      'Le logiciel Windows suisse multisectoriel pour gérer catalogue, devis, factures, fournisseurs, achats, projets et comptabilité avec les données sur votre PC.',
+      'Le logiciel Windows suisse multisectoriel pour gérer catalogue, devis, factures, fournisseurs, achats, import CAMT, projets et comptabilité avec les données sur votre PC.',
     ...(socialImage
       ? {
           images: [
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Elyko',
     description:
-      'Catalogue, devis, factures QR, fournisseurs, achats et comptabilité dans une application Windows locale.',
+      'Catalogue, devis, factures QR, fournisseurs, achats, import CAMT et comptabilité dans une application Windows locale.',
     ...(socialImage ? { images: [socialImage] } : {}),
   },
 };
