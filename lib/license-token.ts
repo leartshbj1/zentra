@@ -1,9 +1,11 @@
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
+import { LICENSE_PUBLIC_KEY_B64URL } from '@/lib/license-constants';
 import {
   base64Url,
   fromBase64Url,
   LICENSE_PLAN,
   LICENSE_PRICE_CHF_CENTS,
+  paidEntitlementForSubscription,
   PublicError,
   retrieveSubscription,
   upsertSubscription,
@@ -50,6 +52,32 @@ async function signEncoded(encoded: string) {
   );
 }
 
+export async function assertLicenseSignerReady() {
+  const challenge = 'elyko-license-readiness-v1';
+  const signature = await signEncoded(challenge);
+  try {
+    const publicKey = await crypto.subtle.importKey(
+      'raw',
+      fromBase64Url(LICENSE_PUBLIC_KEY_B64URL),
+      { name: 'Ed25519' },
+      false,
+      ['verify'],
+    );
+    const verified = await crypto.subtle.verify(
+      'Ed25519',
+      publicKey,
+      signature,
+      new TextEncoder().encode(challenge),
+    );
+    if (!verified) throw new Error('signer mismatch');
+  } catch {
+    throw new PublicError(
+      'La clé de signature ne correspond pas à l’application Windows.',
+      503,
+    );
+  }
+}
+
 async function signPayload(payload: LicensePayload) {
   const encoded = base64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const signature = await signEncoded(encoded);
@@ -68,6 +96,12 @@ export async function issueLicense(input: {
     );
   const db = database();
   const now = Math.floor(Date.now() / 1000);
+  if (input.periodEnd + 3 * 86_400 < now) {
+    throw new PublicError(
+      'La dernière période payée est expirée. Régularisez l’abonnement dans le portail Stripe.',
+      402,
+    );
+  }
   const existing = await db
     .prepare(
       'SELECT license_id,installation_id FROM license_activations WHERE subscription_id=? LIMIT 1',
@@ -148,9 +182,7 @@ async function sha256Hex(value: string) {
   const digest = new Uint8Array(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)),
   );
-  return [...digest]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function constantTimeTextEqual(left: string, right: string) {
@@ -206,15 +238,15 @@ export async function refreshLicense(token: string) {
       };
     }
   }
-  const activation = await database()
+  const db = database();
+  const activation = await db
     .prepare(
-      `SELECT activation.subscription_id, subscription.customer_name
+      `SELECT activation.subscription_id
        FROM license_activations activation
-       LEFT JOIN subscriptions subscription ON subscription.subscription_id=activation.subscription_id
        WHERE activation.license_id=? AND activation.installation_id=? LIMIT 1`,
     )
     .bind(licenseId, installationId)
-    .first<{ subscription_id: string; customer_name: string | null }>();
+    .first<{ subscription_id: string }>();
   if (!activation) {
     throw new PublicError(
       'Cette activation n’est pas reconnue. Contactez le support Elyko.',
@@ -222,12 +254,13 @@ export async function refreshLicense(token: string) {
     );
   }
   const subscription = await retrieveSubscription(activation.subscription_id);
-  const item = validateActiveElykoSubscription(subscription);
+  validateActiveElykoSubscription(subscription);
   await upsertSubscription(subscription);
+  const entitlement = await paidEntitlementForSubscription(subscription.id);
   return issueLicense({
     subscriptionId: subscription.id,
     installationId,
-    customerName: activation.customer_name,
-    periodEnd: item.current_period_end!,
+    customerName: entitlement.customer_name,
+    periodEnd: entitlement.entitlement_valid_until,
   });
 }

@@ -98,10 +98,13 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           <Check className="size-5" />
         </span>
         <div>
-          <h2 className="text-xl font-semibold">Paiement reçu</h2>
+          <h2 className="text-xl font-semibold">
+            {token ? 'Paiement vérifié' : 'Finaliser votre activation'}
+          </h2>
           <p className="mt-1 text-sm leading-6 text-[#5f6962]">
-            La licence est liée à une seule installation Windows afin de limiter
-            le partage.
+            {token
+              ? 'La facture payée a été vérifiée et la licence est liée à cette installation Windows.'
+              : 'Saisissez l’identifiant Windows : le serveur vérifiera alors la facture payée avant de créer la licence.'}
           </p>
         </div>
       </div>

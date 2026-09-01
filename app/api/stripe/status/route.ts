@@ -1,10 +1,10 @@
-import { stripeConfiguration } from '@/lib/runtime';
 import { noStoreHeaders } from '@/lib/stripe';
+import { stripeCheckoutIsReady } from '@/lib/stripe-readiness';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { checkoutReady } = stripeConfiguration();
+  const checkoutReady = await stripeCheckoutIsReady();
   return Response.json(
     {
       ready: checkoutReady,

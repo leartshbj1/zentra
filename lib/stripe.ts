@@ -1,54 +1,32 @@
+import Stripe from 'stripe';
 import { database, stripeConfiguration } from '@/lib/runtime';
+import { stripeAccountReadinessProblem } from '@/lib/stripe-account';
+import { buildElykoCheckoutParams } from '@/lib/stripe-checkout';
+import {
+  CLAIM_STRIPE_EVENT_SQL,
+  COMPLETE_STRIPE_EVENT_SQL,
+  INSERT_STRIPE_EVENT_SQL,
+  RELEASE_STRIPE_EVENT_SQL,
+  UPSERT_SUBSCRIPTION_SQL,
+} from '@/lib/stripe-sql';
+import { constructVerifiedStripeEvent } from '@/lib/stripe-webhook';
+import {
+  paidThroughFromInvoice,
+  stripeReferenceId,
+  stripeSecretKeyLivemode,
+  subscriptionIdFromStripeEvent,
+  type StripeReference,
+} from '@/lib/stripe-event';
 
-export const LICENSE_PLAN = 'helvichantier-monthly-50-chf';
+export const LICENSE_PLAN = 'elyko-monthly-50-chf';
 export const LICENSE_PRICE_CHF_CENTS = 5_000;
 export const ACTIVATION_COOKIE = 'hc_activation_claim';
-export const STRIPE_API_VERSION = '2025-03-31.basil';
+export const STRIPE_API_VERSION = '2026-02-25.clover';
+export const STRIPE_PRICE_TAX_BEHAVIOR = 'inclusive';
 
-type StripeReference = string | { id: string } | null;
-
-export type StripeCheckoutSession = {
-  id: string;
-  mode: string;
-  status: string | null;
-  payment_status: string;
-  customer: StripeReference;
-  subscription: StripeReference;
-  customer_details?: {
-    email?: string | null;
-    name?: string | null;
-    business_name?: string | null;
-  } | null;
-  metadata?: Record<string, string> | null;
-  url?: string | null;
-};
-
-export type StripeSubscription = {
-  id: string;
-  customer: StripeReference;
-  status: string;
-  cancel_at_period_end: boolean;
-  livemode: boolean;
-  metadata?: Record<string, string> | null;
-  items: {
-    data: Array<{
-      current_period_end?: number;
-      price: {
-        id: string;
-        currency: string;
-        unit_amount: number | null;
-        recurring?: { interval?: string } | null;
-      };
-    }>;
-  };
-};
-
-type StripeEvent = {
-  id: string;
-  type: string;
-  livemode: boolean;
-  data: { object: Record<string, unknown> };
-};
+export type StripeCheckoutSession = Stripe.Checkout.Session;
+export type StripeSubscription = Stripe.Subscription;
+type StripeEvent = Stripe.Event;
 
 export class PublicError extends Error {
   constructor(
@@ -78,86 +56,67 @@ export function noStoreHeaders(): HeadersInit {
   };
 }
 
-function formBody(entries: Array<[string, string]>) {
-  const body = new URLSearchParams();
-  for (const [key, value] of entries) body.append(key, value);
-  return body;
-}
+let stripeClient: Stripe | null = null;
+let stripeClientKey = '';
 
-async function stripeRequest<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+function stripe() {
   const { secretKey } = stripeConfiguration();
   if (!secretKey)
     throw new PublicError(
       'Le compte marchand Stripe n’est pas encore configuré.',
       503,
     );
-  const headers = new Headers(init.headers);
-  headers.set('Authorization', `Bearer ${secretKey}`);
-  headers.set('Stripe-Version', STRIPE_API_VERSION);
-  if (init.body)
-    headers.set('Content-Type', 'application/x-www-form-urlencoded');
-  const response = await fetch(`https://api.stripe.com/v1${path}`, {
-    method: init.method,
-    body: init.body,
-    cache: init.cache,
-    redirect: init.redirect,
-    headers,
-  });
-  const payload = (await response.json()) as T & {
-    error?: { message?: string };
-  };
-  if (!response.ok) {
+  if (!stripeClient || stripeClientKey !== secretKey) {
+    stripeClient = new Stripe(secretKey, {
+      apiVersion: STRIPE_API_VERSION,
+      httpClient: Stripe.createFetchHttpClient(),
+      maxNetworkRetries: 2,
+      timeout: 20_000,
+      typescript: true,
+    });
+    stripeClientKey = secretKey;
+  }
+  return stripeClient;
+}
+
+async function stripeOperation<T>(name: string, action: () => Promise<T>) {
+  try {
+    return await action();
+  } catch (error) {
+    const stripeError = error as {
+      statusCode?: number;
+      type?: string;
+      code?: string;
+    };
     console.error('Stripe API request failed', {
-      path,
-      status: response.status,
+      operation: name,
+      status: stripeError.statusCode,
+      type: stripeError.type,
+      code: stripeError.code,
     });
     throw new PublicError(
-      response.status >= 500
+      (stripeError.statusCode ?? 500) >= 500
         ? 'Stripe est momentanément indisponible. Réessayez dans quelques instants.'
         : 'La configuration Stripe doit être vérifiée par le marchand.',
       502,
     );
   }
-  return payload;
 }
 
 export async function createCheckoutSession(origin: string, claimHash: string) {
-  const session = await stripeRequest<StripeCheckoutSession>(
-    '/checkout/sessions',
-    {
-      method: 'POST',
-      headers: { 'Idempotency-Key': `hc_checkout_${claimHash}` },
-      body: formBody([
-        ['mode', 'subscription'],
-        ['locale', 'fr'],
-        ['billing_address_collection', 'required'],
-        ['tax_id_collection[enabled]', 'true'],
-        ['allow_promotion_codes', 'false'],
-        ['line_items[0][quantity]', '1'],
-        ['line_items[0][price_data][currency]', 'chf'],
-        [
-          'line_items[0][price_data][unit_amount]',
-          String(LICENSE_PRICE_CHF_CENTS),
-        ],
-        ['line_items[0][price_data][recurring][interval]', 'month'],
-        ['line_items[0][price_data][product_data][name]', 'Elyko'],
-        [
-          'line_items[0][price_data][product_data][description]',
-          'Licence Windows multisectorielle · données métier locales',
-        ],
-        ['metadata[plan]', LICENSE_PLAN],
-        ['metadata[activation_claim_hash]', claimHash],
-        ['subscription_data[metadata][plan]', LICENSE_PLAN],
-        [
-          'success_url',
-          `${origin}/paiement/succes?session_id={CHECKOUT_SESSION_ID}`,
-        ],
-        ['cancel_url', `${origin}/?paiement=annule#tarif`],
-      ]),
-    },
+  const { priceId } = stripeConfiguration();
+  if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
+    throw new PublicError('Le prix Stripe Elyko n’est pas configuré.', 503);
+  const session = await stripeOperation('checkout.sessions.create', () =>
+    stripe().checkout.sessions.create(
+      buildElykoCheckoutParams({
+        origin,
+        claimHash,
+        priceId,
+        plan: LICENSE_PLAN,
+      }),
+      { idempotencyKey: `hc_checkout_${claimHash}` },
+    ),
   );
   if (!session.id || !session.url)
     throw new PublicError('Stripe n’a pas créé de page de paiement.', 502);
@@ -167,17 +126,72 @@ export async function createCheckoutSession(origin: string, claimHash: string) {
 export async function retrieveCheckoutSession(sessionId: string) {
   if (!/^cs_(test_|live_)?[A-Za-z0-9_]+$/.test(sessionId))
     throw new PublicError('Référence de paiement invalide.');
-  return stripeRequest<StripeCheckoutSession>(
-    `/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=subscription`,
+  return stripeOperation('checkout.sessions.retrieve', () =>
+    stripe().checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription'],
+    }),
   );
 }
 
 export async function retrieveSubscription(subscriptionId: string) {
   if (!/^sub_[A-Za-z0-9_]+$/.test(subscriptionId))
     throw new PublicError('Référence d’abonnement invalide.');
-  return stripeRequest<StripeSubscription>(
-    `/subscriptions/${encodeURIComponent(subscriptionId)}?expand[]=items.data.price`,
+  return stripeOperation('subscriptions.retrieve', () =>
+    stripe().subscriptions.retrieve(subscriptionId, {
+      expand: ['items.data.price'],
+    }),
   );
+}
+
+export async function retrieveInvoice(invoiceId: string) {
+  if (!/^in_[A-Za-z0-9_]+$/.test(invoiceId))
+    throw new PublicError('Référence de facture Stripe invalide.');
+  return stripeOperation('invoices.retrieve', () =>
+    stripe().invoices.retrieve(invoiceId),
+  );
+}
+
+export async function assertConfiguredStripeAccount() {
+  const { priceId, secretKey } = stripeConfiguration();
+  const expectedLivemode = stripeSecretKeyLivemode(secretKey);
+  if (expectedLivemode === null)
+    throw new PublicError('La clé serveur Stripe est invalide.', 503);
+  if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
+    throw new PublicError('Le prix Stripe Elyko n’est pas configuré.', 503);
+
+  const [price, taxSettings, portalConfigurations] = await Promise.all([
+    stripeOperation('prices.retrieve', () =>
+      stripe().prices.retrieve(priceId, { expand: ['product'] }),
+    ),
+    stripeOperation('tax.settings.retrieve', () =>
+      stripe().tax.settings.retrieve(),
+    ),
+    stripeOperation('billingPortal.configurations.list', () =>
+      stripe().billingPortal.configurations.list({
+        active: true,
+        is_default: true,
+        limit: 1,
+      }),
+    ),
+  ]);
+  const readinessProblem = stripeAccountReadinessProblem({
+    price,
+    taxSettings,
+    portal: portalConfigurations.data[0],
+    expectedLivemode,
+    unitAmount: LICENSE_PRICE_CHF_CENTS,
+    taxBehavior: STRIPE_PRICE_TAX_BEHAVIOR,
+  });
+  if (readinessProblem) {
+    throw new PublicError(
+      readinessProblem === 'tax'
+        ? 'Stripe Tax n’est pas entièrement activé.'
+        : readinessProblem === 'portal'
+          ? 'Le portail client Stripe doit permettre la connexion par e-mail, les factures, le moyen de paiement et la résiliation en fin de période.'
+          : 'Le produit Stripe Elyko doit être actif, facturé 50 CHF par mois, taxe comprise, avec un code fiscal explicite.',
+      503,
+    );
+  }
 }
 
 export async function createPortalSession(
@@ -186,15 +200,11 @@ export async function createPortalSession(
 ) {
   if (!/^cus_[A-Za-z0-9_]+$/.test(customerId))
     throw new PublicError('Référence client invalide.');
-  const portal = await stripeRequest<{ url?: string }>(
-    '/billing_portal/sessions',
-    {
-      method: 'POST',
-      body: formBody([
-        ['customer', customerId],
-        ['return_url', returnUrl],
-      ]),
-    },
+  const portal = await stripeOperation('billingPortal.sessions.create', () =>
+    stripe().billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    }),
   );
   if (!portal.url)
     throw new PublicError(
@@ -205,7 +215,7 @@ export async function createPortalSession(
 }
 
 export function referenceId(value: StripeReference): string {
-  return typeof value === 'string' ? value : (value?.id ?? '');
+  return stripeReferenceId(value);
 }
 
 export function validatePaidSubscription(
@@ -214,10 +224,7 @@ export function validatePaidSubscription(
 ) {
   if (session.mode !== 'subscription' || session.status !== 'complete')
     throw new PublicError('Ce paiement n’est pas terminé.', 409);
-  if (
-    session.payment_status !== 'paid' &&
-    session.payment_status !== 'no_payment_required'
-  )
+  if (session.payment_status !== 'paid')
     throw new PublicError('Le premier paiement n’est pas confirmé.', 402);
   if (session.metadata?.plan !== LICENSE_PLAN) {
     throw new PublicError(
@@ -231,42 +238,94 @@ export function validatePaidSubscription(
 export function validateActiveElykoSubscription(
   subscription: StripeSubscription,
 ) {
-  if (!['active', 'trialing'].includes(subscription.status))
+  if (subscription.status !== 'active')
     throw new PublicError('L’abonnement Stripe n’est pas actif.', 402);
-  if (subscription.metadata?.plan !== LICENSE_PLAN) {
-    throw new PublicError(
-      'Cet abonnement ne correspond pas au produit Elyko.',
-      403,
-    );
-  }
-  const item = subscription.items.data[0];
-  if (
-    !item ||
-    item.price.currency.toLowerCase() !== 'chf' ||
-    item.price.unit_amount !== LICENSE_PRICE_CHF_CENTS ||
-    item.price.recurring?.interval !== 'month'
-  ) {
+  const item = elykoSubscriptionItem(subscription);
+  if (!item) {
     throw new PublicError(
       'L’abonnement ne correspond pas au plan Elyko à 50 CHF/mois.',
       403,
     );
   }
-  if (!item.current_period_end)
-    throw new PublicError('La période de licence Stripe est absente.', 502);
   return item;
+}
+
+function elykoSubscriptionItem(subscription: StripeSubscription) {
+  if (subscription.metadata?.plan !== LICENSE_PLAN) {
+    return null;
+  }
+  const item = subscription.items.data[0];
+  const { priceId } = stripeConfiguration();
+  const expectedLivemode = stripeSecretKeyLivemode(
+    stripeConfiguration().secretKey,
+  );
+  if (
+    !item ||
+    subscription.items.data.length !== 1 ||
+    item.price.id !== priceId ||
+    item.price.currency.toLowerCase() !== 'chf' ||
+    item.price.unit_amount !== LICENSE_PRICE_CHF_CENTS ||
+    item.price.recurring?.interval !== 'month' ||
+    item.price.recurring.interval_count !== 1 ||
+    item.price.recurring.usage_type !== 'licensed' ||
+    item.price.tax_behavior !== STRIPE_PRICE_TAX_BEHAVIOR ||
+    expectedLivemode === null ||
+    subscription.livemode !== expectedLivemode
+  ) {
+    return null;
+  }
+  if (!subscription.automatic_tax.enabled) {
+    return null;
+  }
+  return item.current_period_end ? item : null;
+}
+
+export function validatePaidElykoInvoice(
+  invoice: Stripe.Invoice,
+  subscription: StripeSubscription,
+) {
+  const item = elykoSubscriptionItem(subscription);
+  if (!item) {
+    throw new PublicError(
+      'La facture ne correspond pas au produit Elyko.',
+      403,
+    );
+  }
+  const paidThrough = paidThroughFromInvoice(invoice, {
+    subscriptionId: subscription.id,
+    priceId: item.price.id,
+    unitAmount: LICENSE_PRICE_CHF_CENTS,
+    livemode: subscription.livemode,
+  });
+  if (!paidThrough) {
+    throw new PublicError(
+      'La facture Stripe ne couvre pas une période Elyko payée valide.',
+      402,
+    );
+  }
+  return paidThrough;
 }
 
 export function requestOrigin(request: Request) {
   const configured = stripeConfiguration().siteUrl;
-  if (configured) return new URL(configured).origin;
-  const origin = new URL(request.url).origin;
+  const candidate = configured || new URL(request.url).origin;
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new PublicError('Origine de paiement invalide.', 503);
+  }
+  const isLocalHttp =
+    url.protocol === 'http:' &&
+    ['localhost', '127.0.0.1'].includes(url.hostname);
   if (
-    !origin.startsWith('https://') &&
-    !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    (url.protocol !== 'https:' && !isLocalHttp) ||
+    url.username ||
+    url.password
   ) {
     throw new PublicError('Origine de paiement refusée.', 403);
   }
-  return origin;
+  return url.origin;
 }
 
 export function requireSameOrigin(request: Request) {
@@ -310,6 +369,36 @@ export async function sha256(value: string) {
   );
 }
 
+export async function assertActivationClaim(
+  session: StripeCheckoutSession,
+  claim: string,
+) {
+  const claimHash = await sha256(claim);
+  if (
+    !session.metadata?.activation_claim_hash ||
+    claimHash !== session.metadata.activation_claim_hash
+  )
+    throw new PublicError(
+      'Cette session de paiement ne vous appartient pas.',
+      403,
+    );
+  const attempt = await database()
+    .prepare(
+      'SELECT checkout_session_id,expires_at FROM checkout_attempts WHERE claim_hash=? LIMIT 1',
+    )
+    .bind(claimHash)
+    .first<{ checkout_session_id: string | null; expires_at: number }>();
+  if (
+    attempt?.checkout_session_id !== session.id ||
+    attempt.expires_at < Math.floor(Date.now() / 1000)
+  ) {
+    throw new PublicError(
+      'Cette demande d’activation a expiré. Contactez le support Elyko.',
+      401,
+    );
+  }
+}
+
 export function activationCookieName(sessionId: string) {
   return `${ACTIVATION_COOKIE}_${sessionId.replace(/[^A-Za-z0-9]/g, '').slice(-24)}`;
 }
@@ -326,6 +415,10 @@ export async function enforceCheckoutRateLimit(request: Request) {
     `checkout:${hour}:${address}:${signingKey.slice(0, 24)}`,
   );
   const db = database();
+  await db
+    .prepare('DELETE FROM checkout_rate_limits WHERE expires_at<?')
+    .bind(now)
+    .run();
   await db
     .prepare(`INSERT INTO checkout_rate_limits(rate_key,count,window_started_at,expires_at) VALUES(?,1,?,?)
       ON CONFLICT(rate_key) DO UPDATE SET count=checkout_rate_limits.count+1`)
@@ -362,6 +455,10 @@ export async function enforceLicenseRefreshRateLimit(
     `license-refresh-credential:${hour}:${address}:${credentialHash}:${secretFragment}`,
   );
   const db = database();
+  await db
+    .prepare('DELETE FROM checkout_rate_limits WHERE expires_at<?')
+    .bind(now)
+    .run();
   const increment = async (rateKey: string) => {
     await db
       .prepare(`INSERT INTO checkout_rate_limits(rate_key,count,window_started_at,expires_at) VALUES(?,1,?,?)
@@ -385,16 +482,6 @@ export async function enforceLicenseRefreshRateLimit(
   }
 }
 
-function constantTimeEqual(left: string, right: string) {
-  const a = new TextEncoder().encode(left);
-  const b = new TextEncoder().encode(right);
-  if (a.length !== b.length) return false;
-  let difference = 0;
-  for (let index = 0; index < a.length; index += 1)
-    difference |= a[index] ^ b[index];
-  return difference === 0;
-}
-
 export async function verifyStripeEvent(
   rawBody: string,
   signatureHeader: string,
@@ -402,70 +489,45 @@ export async function verifyStripeEvent(
   const { webhookSecret } = stripeConfiguration();
   if (!webhookSecret)
     throw new PublicError('Le webhook Stripe n’est pas configuré.', 503);
-  const parts = signatureHeader
-    .split(',')
-    .map((part) => part.trim().split('=', 2));
-  const timestampText = parts.find(([key]) => key === 't')?.[1] ?? '';
-  const signatures = parts
-    .filter(([key]) => key === 'v1')
-    .map(([, value]) => value);
-  const timestamp = Number(timestampText);
-  if (
-    !Number.isSafeInteger(timestamp) ||
-    Math.abs(Math.floor(Date.now() / 1000) - timestamp) > 300
-  ) {
-    throw new PublicError('Signature Stripe expirée.', 400);
+  try {
+    const expectedLivemode = stripeSecretKeyLivemode(
+      stripeConfiguration().secretKey,
+    );
+    if (expectedLivemode === null)
+      throw new Error('Stripe server key mode unavailable');
+    return await constructVerifiedStripeEvent({
+      client: stripe(),
+      rawBody,
+      signatureHeader,
+      webhookSecret,
+      toleranceSeconds: 300,
+      expectedLivemode,
+      expectedApiVersion: STRIPE_API_VERSION,
+    });
+  } catch {
+    throw new PublicError('Signature Stripe invalide ou expirée.', 400);
   }
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(webhookSecret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const digest = new Uint8Array(
-    await crypto.subtle.sign(
-      'HMAC',
-      key,
-      new TextEncoder().encode(`${timestampText}.${rawBody}`),
-    ),
-  );
-  const expected = [...digest]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-  if (!signatures.some((signature) => constantTimeEqual(signature, expected)))
-    throw new PublicError('Signature Stripe invalide.', 400);
-  const event = JSON.parse(rawBody) as StripeEvent;
-  if (!event.id || !event.type || !event.data?.object)
-    throw new PublicError('Événement Stripe invalide.', 400);
-  return event;
-}
-
-function subscriptionIdFromEvent(event: StripeEvent) {
-  if (event.type.startsWith('customer.subscription.')) {
-    return typeof event.data.object.id === 'string' ? event.data.object.id : '';
-  }
-  if (event.type.startsWith('invoice.'))
-    return referenceId(event.data.object.subscription as StripeReference);
-  if (event.type === 'checkout.session.completed')
-    return referenceId(event.data.object.subscription as StripeReference);
-  return '';
 }
 
 export async function upsertSubscription(
   subscription: StripeSubscription,
   session: StripeCheckoutSession | null = null,
+  settlement: {
+    paidInvoiceId?: string;
+    paidThrough?: number;
+    paidAt?: number;
+    failedInvoiceId?: string;
+    failedAt?: number;
+  } = {},
 ) {
-  const item = subscription.items.data[0];
-  if (!item?.current_period_end)
+  const item = elykoSubscriptionItem(subscription);
+  if (!item)
     throw new PublicError(
-      'La période Stripe de l’abonnement est absente.',
-      502,
+      'Cet abonnement ne correspond pas au produit Elyko.',
+      403,
     );
   await database()
-    .prepare(`INSERT INTO subscriptions(subscription_id,customer_id,checkout_session_id,customer_email,customer_name,price_id,status,current_period_end,cancel_at_period_end,livemode,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(subscription_id) DO UPDATE SET customer_id=excluded.customer_id,checkout_session_id=COALESCE(excluded.checkout_session_id,subscriptions.checkout_session_id),customer_email=COALESCE(excluded.customer_email,subscriptions.customer_email),customer_name=COALESCE(excluded.customer_name,subscriptions.customer_name),price_id=excluded.price_id,status=excluded.status,current_period_end=excluded.current_period_end,cancel_at_period_end=excluded.cancel_at_period_end,livemode=excluded.livemode,updated_at=excluded.updated_at`)
+    .prepare(UPSERT_SUBSCRIPTION_SQL)
     .bind(
       subscription.id,
       referenceId(subscription.customer),
@@ -479,42 +541,104 @@ export async function upsertSubscription(
       item.current_period_end,
       subscription.cancel_at_period_end ? 1 : 0,
       subscription.livemode ? 1 : 0,
+      settlement.paidThrough ?? 0,
+      settlement.paidInvoiceId ?? null,
+      settlement.paidAt ?? null,
+      settlement.failedInvoiceId ?? null,
+      settlement.failedAt ?? null,
       Math.floor(Date.now() / 1000),
     )
     .run();
 }
 
+export async function paidEntitlementForSubscription(subscriptionId: string) {
+  if (!/^sub_[A-Za-z0-9_]+$/.test(subscriptionId))
+    throw new PublicError('Référence d’abonnement invalide.');
+  const entitlement = await database()
+    .prepare(
+      `SELECT customer_name,entitlement_valid_until,last_paid_invoice_id
+       FROM subscriptions WHERE subscription_id=? LIMIT 1`,
+    )
+    .bind(subscriptionId)
+    .first<{
+      customer_name: string | null;
+      entitlement_valid_until: number;
+      last_paid_invoice_id: string | null;
+    }>();
+  if (
+    !entitlement?.last_paid_invoice_id ||
+    !Number.isSafeInteger(entitlement.entitlement_valid_until) ||
+    entitlement.entitlement_valid_until <= 0
+  ) {
+    throw new PublicError(
+      'Aucune facture Stripe payée ne permet d’activer cette licence.',
+      402,
+    );
+  }
+  return entitlement;
+}
+
 export async function persistStripeEvent(event: StripeEvent) {
   const db = database();
   const now = Math.floor(Date.now() / 1000);
-  const inserted = await db
-    .prepare(
-      'INSERT OR IGNORE INTO stripe_events(event_id,event_type,livemode,received_at,processed_at) VALUES(?,?,?,?,NULL)',
-    )
-    .bind(event.id, event.type, event.livemode ? 1 : 0, now)
+  await db
+    .prepare(INSERT_STRIPE_EVENT_SQL)
+    .bind(event.id, event.type, event.livemode ? 1 : 0, event.created, now)
     .run();
-  if ((inserted.meta.changes ?? 0) === 0) return;
+  const claimed = await db
+    .prepare(CLAIM_STRIPE_EVENT_SQL)
+    .bind(now, event.id, now - 5 * 60)
+    .run();
+  if ((claimed.meta.changes ?? 0) === 0) {
+    const state = await db
+      .prepare('SELECT processed_at FROM stripe_events WHERE event_id=?')
+      .bind(event.id)
+      .first<{ processed_at: number | null }>();
+    if (state?.processed_at) return;
+    throw new PublicError(
+      'Un traitement Stripe identique est déjà en cours.',
+      503,
+    );
+  }
   try {
-    const subscriptionId = subscriptionIdFromEvent(event);
+    const subscriptionId = subscriptionIdFromStripeEvent(event);
     if (subscriptionId) {
       const subscription = await retrieveSubscription(subscriptionId);
+      const item = elykoSubscriptionItem(subscription);
+      if (!item) {
+        await db.prepare(COMPLETE_STRIPE_EVENT_SQL).bind(now, event.id).run();
+        return;
+      }
       const session =
-        event.type === 'checkout.session.completed'
+        event.type === 'checkout.session.completed' ||
+        event.type === 'checkout.session.async_payment_succeeded'
           ? (event.data.object as unknown as StripeCheckoutSession)
           : null;
-      await upsertSubscription(subscription, session);
+      const invoice = event.type.startsWith('invoice.')
+        ? (event.data.object as Stripe.Invoice)
+        : null;
+      const paidThrough =
+        event.type === 'invoice.paid' && invoice
+          ? validatePaidElykoInvoice(invoice, subscription)
+          : undefined;
+      const paidInvoiceId = paidThrough ? invoice?.id : undefined;
+      const isFailure = [
+        'invoice.payment_failed',
+        'invoice.finalization_failed',
+      ].includes(event.type);
+      await upsertSubscription(subscription, session, {
+        paidInvoiceId,
+        paidThrough,
+        paidAt: paidInvoiceId
+          ? (invoice?.status_transitions?.paid_at ?? now)
+          : undefined,
+        failedInvoiceId: isFailure ? invoice?.id : undefined,
+        failedAt: isFailure ? event.created : undefined,
+      });
     }
-    await db
-      .prepare('UPDATE stripe_events SET processed_at=? WHERE event_id=?')
-      .bind(now, event.id)
-      .run();
+    await db.prepare(COMPLETE_STRIPE_EVENT_SQL).bind(now, event.id).run();
   } catch (error) {
-    await db
-      .prepare(
-        'DELETE FROM stripe_events WHERE event_id=? AND processed_at IS NULL',
-      )
-      .bind(event.id)
-      .run();
+    await db.prepare(RELEASE_STRIPE_EVENT_SQL).bind(event.id).run();
     throw error;
   }
 }

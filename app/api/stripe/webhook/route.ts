@@ -1,4 +1,10 @@
-import { jsonError, noStoreHeaders, persistStripeEvent, PublicError, verifyStripeEvent } from '@/lib/stripe';
+import {
+  jsonError,
+  noStoreHeaders,
+  persistStripeEvent,
+  PublicError,
+  verifyStripeEvent,
+} from '@/lib/stripe';
 
 export const dynamic = 'force-dynamic';
 
