@@ -4,6 +4,10 @@ use chrono::{Datelike, NaiveDate};
 
 /// Plafond annuel du salaire soumis à l'assurance-chômage en 2026.
 pub(crate) const SWISS_AC_ANNUAL_CEILING_CENTS_2026: i64 = 14_820_000;
+/// Gain assuré LAA maximal 2026, commun à l'AAP et à l'AANP.
+/// Le taux reste celui de la police réelle de l'assureur et ne doit jamais
+/// être remplacé par un taux national fictif.
+pub(crate) const SWISS_LAA_ANNUAL_CEILING_CENTS_2026: i64 = 14_820_000;
 pub(crate) const SWISS_AVS_REFERENCE_AGE_MONTHLY_ALLOWANCE_CENTS: i64 = 140_000;
 const SWISS_AC_YEAR_DAYS: i64 = 360;
 

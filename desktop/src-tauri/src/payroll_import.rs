@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs,
     io::Cursor,
     path::{Path, PathBuf},
@@ -28,7 +29,8 @@ const MAX_FILE_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_IMAGE_EDGE: u32 = 8_192;
 const MAX_IMAGE_PIXELS: u64 = 24_000_000;
 const MAX_EXTRACTED_TEXT_CHARS: usize = 80_000;
-const ENGINE_VERSION: &str = "elyko-local-parser-1";
+const MAX_PDF_PAGES: usize = 12;
+const ENGINE_VERSION: &str = "elyko-local-parser-2";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PayrollDocumentType {
@@ -122,6 +124,7 @@ impl LocalStore {
             let bytes = fs::read(&source)?;
             validate_document_signature(&source, &bytes, document_type)?;
             validate_image_dimensions(&source, &bytes, document_type)?;
+            let page_count = document_page_count(&source, &bytes, document_type)?;
             let media_kind = document_type.media_kind();
             let hash = format!("{:x}", Sha256::digest(&bytes));
             if let Some(mut existing) = transaction
@@ -154,7 +157,6 @@ impl LocalStore {
             let id = Uuid::new_v4().to_string();
             let stored_name = format!("{id}.{extension}");
             let stored_path = import_dir.join(stored_name);
-            fs::write(&stored_path, &bytes)?;
             let source_name = source
                 .file_name()
                 .and_then(|value| value.to_str())
@@ -202,12 +204,19 @@ impl LocalStore {
                     );
                 (String::new(), "image_pending", empty, None)
             };
+            if let Some(existing) = find_semantic_text_duplicate(&transaction, &extracted_text)? {
+                staged.push(existing);
+                continue;
+            }
             normalize_draft(&mut draft, false)?;
             let confidence_bp = draft_confidence(&draft);
             let now = now_iso();
             let draft_json = serde_json::to_string(&draft)?;
+            // Écrire la copie immuable seulement après les détections de
+            // doublon évite de laisser un fichier orphelin dans la sauvegarde.
+            fs::write(&stored_path, &bytes)?;
             transaction.execute(
-                "INSERT INTO payroll_document_imports(id,source_name,stored_path,file_sha256,media_kind,file_size,page_count,extraction_engine,engine_version,extracted_text,draft_json,confidence_bp,status,error_message,created_at,updated_at) VALUES(?,?,?,?,?,?,NULL,?,?,?,?,?,'needs_review',?,?,?)",
+                "INSERT INTO payroll_document_imports(id,source_name,stored_path,file_sha256,media_kind,file_size,page_count,extraction_engine,engine_version,extracted_text,draft_json,confidence_bp,status,error_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'needs_review',?,?,?)",
                 params![
                     id,
                     source_name,
@@ -215,6 +224,7 @@ impl LocalStore {
                     hash,
                     media_kind,
                     metadata.len() as i64,
+                    page_count as i64,
                     extraction_engine,
                     ENGINE_VERSION,
                     if extracted_text.is_empty() { None::<String> } else { Some(extracted_text) },
@@ -630,6 +640,37 @@ fn validate_document_signature(
     }
 }
 
+fn document_page_count(
+    source: &Path,
+    bytes: &[u8],
+    document_type: PayrollDocumentType,
+) -> AppResult<usize> {
+    if document_type != PayrollDocumentType::Pdf {
+        return Ok(1);
+    }
+    let document = lopdf::Document::load_mem(bytes).map_err(|_| {
+        AppError::Validation(format!(
+            "{} n'est pas un PDF structurellement lisible.",
+            source
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("Le document")
+        ))
+    })?;
+    let page_count = document.get_pages().len();
+    if page_count == 0 {
+        return Err(AppError::Validation(
+            "Le PDF ne contient aucune page exploitable.".into(),
+        ));
+    }
+    if page_count > MAX_PDF_PAGES {
+        return Err(AppError::Validation(format!(
+            "Le PDF contient {page_count} pages. Pour garantir qu'aucune page de salaire n'est ignorée, importez au maximum {MAX_PDF_PAGES} pages par fichier et séparez les fiches de collaborateurs différents."
+        )));
+    }
+    Ok(page_count)
+}
+
 /// Lit uniquement les métadonnées du décodeur : une image compressée qui
 /// annonce une surface démesurée est refusée avant tout passage au navigateur,
 /// où son décodage complet pourrait épuiser la mémoire du poste.
@@ -696,6 +737,63 @@ fn normalize_extracted_text(text: &str) -> String {
         .join("\n")
 }
 
+fn semantic_text_fingerprint(text: &str) -> Option<String> {
+    let normalized = text
+        .chars()
+        .flat_map(char::to_lowercase)
+        .filter(|character| character.is_alphanumeric())
+        .collect::<String>();
+    // Un en-tête très court (nom d'entreprise, titre générique) n'est pas une
+    // preuve suffisante pour déclarer deux bulletins identiques.
+    if normalized.chars().count() < 120 {
+        return None;
+    }
+    Some(format!("{:x}", Sha256::digest(normalized.as_bytes())))
+}
+
+fn find_semantic_text_duplicate(
+    transaction: &rusqlite::Transaction<'_>,
+    extracted_text: &str,
+) -> AppResult<Option<Value>> {
+    let Some(candidate_fingerprint) = semantic_text_fingerprint(extracted_text) else {
+        return Ok(None);
+    };
+    let mut statement = transaction.prepare(
+        "SELECT id,extracted_text,status FROM payroll_document_imports WHERE extracted_text IS NOT NULL",
+    )?;
+    let rows = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut duplicate: Option<(String, String)> = None;
+    for row in rows {
+        let (id, text, status) = row?;
+        if semantic_text_fingerprint(&text).as_deref() == Some(candidate_fingerprint.as_str()) {
+            duplicate = Some((id, status));
+            break;
+        }
+    }
+    drop(statement);
+    let Some((id, status)) = duplicate else {
+        return Ok(None);
+    };
+    if matches!(status.as_str(), "rejected" | "error") {
+        transaction.execute(
+            "UPDATE payroll_document_imports SET status='needs_review',error_message=NULL,reviewed_at=NULL,updated_at=? WHERE id=?",
+            params![now_iso(), id],
+        )?;
+    }
+    let existing = transaction.query_row(
+        "SELECT * FROM payroll_document_imports WHERE id=?",
+        params![id],
+        crate::database::row_to_json_public,
+    )?;
+    Ok(Some(existing))
+}
+
 fn limit_chars(value: String, max_chars: usize) -> String {
     if value.chars().count() <= max_chars {
         return value;
@@ -743,10 +841,6 @@ fn draft_from_text(text: &str) -> PayrollImportDraft {
     .unwrap_or(0);
     draft.lines = extract_payroll_lines(text);
 
-    let totals = draft_totals(&draft.lines);
-    if draft.gross_cents == 0 && totals.0 > 0 {
-        draft.gross_cents = totals.0;
-    }
     if !draft.lines.iter().any(|line| line.kind == "earning") && draft.gross_cents > 0 {
         draft.lines.insert(
             0,
@@ -1090,8 +1184,38 @@ fn validate_confirmable_draft(draft: &PayrollImportDraft) -> AppResult<()> {
             "Chaque ligne de salaire doit avoir un libellé.".into(),
         ));
     }
+    if draft.lines.iter().any(|line| line.amount_cents <= 0) {
+        return Err(AppError::Validation(
+            "Chaque rubrique confirmée doit avoir un montant strictement positif.".into(),
+        ));
+    }
+    let mut unique_lines = HashSet::new();
+    for line in &draft.lines {
+        let normalized_label = line
+            .label
+            .chars()
+            .flat_map(char::to_lowercase)
+            .filter(|character| character.is_alphanumeric())
+            .collect::<String>();
+        if !unique_lines.insert((line.kind.as_str(), normalized_label, line.amount_cents)) {
+            return Err(AppError::Validation(format!(
+                "La rubrique « {} » apparaît deux fois avec le même type et le même montant. Différenciez les lignes ou supprimez le doublon avant l'import.",
+                line.label
+            )));
+        }
+    }
     let totals = draft_totals(&draft.lines);
-    if draft.gross_cents > 0 && (draft.gross_cents - totals.0).abs() > 2 {
+    if draft.gross_cents <= 0 {
+        return Err(AppError::Validation(
+            "Saisissez le total brut exactement comme il est imprimé sur la fiche.".into(),
+        ));
+    }
+    if draft.net_cents <= 0 {
+        return Err(AppError::Validation(
+            "Saisissez le net à payer exactement comme il est imprimé sur la fiche.".into(),
+        ));
+    }
+    if (draft.gross_cents - totals.0).abs() > 2 {
         return Err(AppError::Validation(format!(
             "Le brut confirmé ({:.2} CHF) ne correspond pas à la somme des gains ({:.2} CHF). Corrigez les lignes avant l'import.",
             draft.gross_cents as f64 / 100.0,
@@ -1099,7 +1223,7 @@ fn validate_confirmable_draft(draft: &PayrollImportDraft) -> AppResult<()> {
         )));
     }
     let calculated_net = totals.0.saturating_add(totals.3).saturating_sub(totals.1);
-    if draft.net_cents > 0 && (draft.net_cents - calculated_net).abs() > 2 {
+    if (draft.net_cents - calculated_net).abs() > 2 {
         return Err(AppError::Validation(format!(
             "Le net confirmé ({:.2} CHF) ne correspond pas au brut moins les retenues plus les remboursements hors brut ({:.2} CHF). Corrigez les lignes avant l'import.",
             draft.net_cents as f64 / 100.0,
@@ -1522,6 +1646,7 @@ fn contains_any(value: &str, needles: &[&str]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lopdf::dictionary;
 
     fn crc32(bytes: &[u8]) -> u32 {
         let mut crc = u32::MAX;
@@ -1548,6 +1673,37 @@ mod tests {
         bytes[20..24].copy_from_slice(&height.to_be_bytes());
         let checksum = crc32(&bytes[12..29]);
         bytes[29..33].copy_from_slice(&checksum.to_be_bytes());
+        bytes
+    }
+
+    fn pdf_with_page_count(page_count: usize) -> Vec<u8> {
+        let mut document = lopdf::Document::with_version("1.5");
+        let pages_id = document.new_object_id();
+        let kids = (0..page_count)
+            .map(|_| {
+                let page_id = document.add_object(lopdf::dictionary! {
+                    "Type" => "Page",
+                    "Parent" => pages_id,
+                });
+                lopdf::Object::Reference(page_id)
+            })
+            .collect::<Vec<_>>();
+        document.objects.insert(
+            pages_id,
+            lopdf::Object::Dictionary(lopdf::dictionary! {
+                "Type" => "Pages",
+                "Kids" => kids,
+                "Count" => page_count as i64,
+                "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+            }),
+        );
+        let catalog_id = document.add_object(lopdf::dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        document.trailer.set("Root", catalog_id);
+        let mut bytes = Vec::new();
+        document.save_to(&mut bytes).expect("serialize test PDF");
         bytes
     }
 
@@ -1616,6 +1772,24 @@ mod tests {
         assert_eq!(
             PayrollDocumentType::from_extension("jpeg"),
             Some(PayrollDocumentType::Jpeg)
+        );
+    }
+
+    #[test]
+    fn counts_every_pdf_page_and_refuses_silent_visual_truncation() {
+        let accepted = pdf_with_page_count(MAX_PDF_PAGES);
+        assert_eq!(
+            document_page_count(Path::new("fiche.pdf"), &accepted, PayrollDocumentType::Pdf)
+                .expect("all accepted pages must be counted"),
+            MAX_PDF_PAGES
+        );
+
+        let oversized = pdf_with_page_count(MAX_PDF_PAGES + 1);
+        assert!(
+            document_page_count(Path::new("lot.pdf"), &oversized, PayrollDocumentType::Pdf)
+                .expect_err("a document must never be silently truncated")
+                .to_string()
+                .contains("13 pages")
         );
     }
 
@@ -1863,5 +2037,53 @@ mod tests {
             .expect_err("an impossible calendar date must be blocked")
             .to_string()
             .contains("date de naissance"));
+    }
+
+    #[test]
+    fn semantic_fingerprint_detects_layout_only_pdf_duplicates_but_ignores_short_headers() {
+        let first = "Décompte de salaire Alex Exemple période août 2026 salaire mensuel 5000.00 AVS AI APG 265.00 AC 55.00 LPP 350.00 brut 5000.00 net à payer 4330.00 adresse Rue du Test 1 1000 Lausanne";
+        let second = "DÉCOMPTE   DE SALAIRE\nAlex Exemple\nPériode: août 2026\nSalaire mensuel: 5'000.00\nAVS/AI/APG 265.00\nAC 55.00\nLPP 350.00\nBrut 5'000.00\nNet à payer 4'330.00\nAdresse: Rue du Test 1, 1000 Lausanne";
+        assert_eq!(
+            semantic_text_fingerprint(first),
+            semantic_text_fingerprint(second)
+        );
+        assert_eq!(semantic_text_fingerprint("Décompte de salaire"), None);
+    }
+
+    #[test]
+    fn confirmation_requires_printed_totals_instead_of_inventing_them_from_lines() {
+        let draft = draft_from_text(
+            "Décompte de salaire\nPériode: août 2026\nCollaborateur: Alex Exemple\nSalaire mensuel 5'000.00\nCotisation AVS 265.00",
+        );
+        assert_eq!(
+            draft.gross_cents, 0,
+            "a missing printed total must remain missing"
+        );
+        assert!(validate_confirmable_draft(&draft)
+            .expect_err("the printed gross and net are mandatory")
+            .to_string()
+            .contains("total brut"));
+    }
+
+    #[test]
+    fn confirmation_blocks_exact_duplicate_lines_before_they_double_the_totals() {
+        let mut draft = empty_draft();
+        draft.employee.name = "Alex Exemple".into();
+        draft.period = "2026-08".into();
+        draft.gross_cents = 500_000;
+        draft.net_cents = 500_000;
+        for label in ["Salaire mensuel", "SALAIRE  MENSUEL"] {
+            draft.lines.push(PayrollImportLineDraft {
+                label: label.into(),
+                kind: "earning".into(),
+                amount_cents: 500_000,
+                recurring: true,
+                confidence_bp: 9_000,
+            });
+        }
+        assert!(validate_confirmable_draft(&draft)
+            .expect_err("an exact semantic duplicate must be rejected")
+            .to_string()
+            .contains("apparaît deux fois"));
     }
 }

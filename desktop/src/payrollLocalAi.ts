@@ -111,6 +111,13 @@ class PayrollLocalAi {
     return () => this.progressListeners.delete(listener);
   }
 
+  cancel() {
+    const worker = this.worker;
+    this.worker = null;
+    worker?.terminate();
+    this.rejectAll(new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.'));
+  }
+
   check(): Promise<PayrollAiMode> {
     return new Promise((resolve) => {
       this.checkWaiters.push(resolve);
@@ -125,11 +132,18 @@ class PayrollLocalAi {
     });
   }
 
-  analyze(input: { imageUrls?: string[]; extractedText?: string }): Promise<PayrollAiAnalysis> {
+  analyze(input: { imageUrls?: string[]; extractedText?: string; pageStart?: number; pageEnd?: number }): Promise<PayrollAiAnalysis> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
       this.analyses.set(requestId, { resolve, reject });
-      this.ensureWorker().postMessage({ type: 'analyze', requestId, imageUrls: input.imageUrls?.slice(0, 3), extractedText: input.extractedText });
+      this.ensureWorker().postMessage({
+        type: 'analyze',
+        requestId,
+        imageUrls: input.imageUrls?.slice(0, 3),
+        extractedText: input.extractedText,
+        pageStart: input.pageStart,
+        pageEnd: input.pageEnd,
+      });
     });
   }
 }

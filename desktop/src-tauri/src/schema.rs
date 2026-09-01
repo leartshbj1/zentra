@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 18;
+pub const SCHEMA_VERSION: i64 = 19;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -6,6 +6,8 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "catalog_items",
     "suppliers",
     "projects",
+    "project_milestones",
+    "project_tasks",
     "quotes",
     "quote_items",
     "invoices",
@@ -324,9 +326,87 @@ CREATE TABLE IF NOT EXISTS employees (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS project_milestones (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 200),
+  description TEXT CHECK (description IS NULL OR LENGTH(description) <= 20000),
+  due_date TEXT CHECK (due_date IS NULL OR (LENGTH(due_date)=10 AND due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')),
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done','cancelled')),
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
+  sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order BETWEEN 0 AND 1000000),
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  completed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='done' AND completed_at IS NOT NULL) OR (status<>'done' AND completed_at IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  milestone_id TEXT REFERENCES project_milestones(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 200),
+  description TEXT CHECK (description IS NULL OR LENGTH(description) <= 20000),
+  due_date TEXT CHECK (due_date IS NULL OR (LENGTH(due_date)=10 AND due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')),
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done','cancelled')),
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
+  sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order BETWEEN 0 AND 1000000),
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  completed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='done' AND completed_at IS NOT NULL) OR (status<>'done' AND completed_at IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_milestones_project_order ON project_milestones(project_id,sort_order,created_at);
+CREATE INDEX IF NOT EXISTS idx_project_milestones_due ON project_milestones(status,due_date) WHERE due_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project_order ON project_tasks(project_id,sort_order,created_at);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_milestone_order ON project_tasks(milestone_id,sort_order,created_at) WHERE milestone_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_project_tasks_assignee_status ON project_tasks(employee_id,status) WHERE employee_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_project_tasks_due ON project_tasks(status,due_date) WHERE due_date IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS project_milestones_project_immutable
+BEFORE UPDATE OF project_id ON project_milestones WHEN NEW.project_id<>OLD.project_id
+BEGIN SELECT RAISE(ABORT,'project milestone cannot change project'); END;
+CREATE TRIGGER IF NOT EXISTS project_milestones_terminal_guard
+BEFORE UPDATE OF status ON project_milestones
+WHEN NEW.status IN ('done','cancelled') AND EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.milestone_id=OLD.id AND task.status NOT IN ('done','cancelled')
+)
+BEGIN SELECT RAISE(ABORT,'milestone has active tasks'); END;
+CREATE TRIGGER IF NOT EXISTS project_milestones_due_guard
+BEFORE UPDATE OF due_date ON project_milestones
+WHEN NEW.due_date IS NOT NULL AND EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.milestone_id=OLD.id AND task.due_date IS NOT NULL AND task.due_date>NEW.due_date
+)
+BEGIN SELECT RAISE(ABORT,'milestone due date precedes a task due date'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_project_immutable
+BEFORE UPDATE OF project_id ON project_tasks WHEN NEW.project_id<>OLD.project_id
+BEGIN SELECT RAISE(ABORT,'project task cannot change project'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_milestone_insert_guard
+BEFORE INSERT ON project_tasks
+WHEN NEW.milestone_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_milestones milestone
+  WHERE milestone.id=NEW.milestone_id AND milestone.project_id=NEW.project_id
+    AND milestone.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'task milestone is invalid or closed'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_milestone_update_guard
+BEFORE UPDATE OF milestone_id,project_id ON project_tasks
+WHEN NEW.milestone_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_milestones milestone
+  WHERE milestone.id=NEW.milestone_id AND milestone.project_id=NEW.project_id
+    AND milestone.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'task milestone is invalid or closed'); END;
+
 CREATE TABLE IF NOT EXISTS time_entries (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  task_id TEXT REFERENCES project_tasks(id) ON UPDATE CASCADE ON DELETE SET NULL,
   employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
   date TEXT NOT NULL,
   started_at TEXT,
@@ -341,6 +421,20 @@ CREATE TABLE IF NOT EXISTS time_entries (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_time_entries_task_date ON time_entries(task_id,date) WHERE task_id IS NOT NULL;
+CREATE TRIGGER IF NOT EXISTS time_entries_task_insert_guard
+BEFORE INSERT ON time_entries
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+)
+BEGIN SELECT RAISE(ABORT,'time entry task belongs to another project'); END;
+CREATE TRIGGER IF NOT EXISTS time_entries_task_update_guard
+BEFORE UPDATE OF task_id,project_id ON time_entries
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+)
+BEGIN SELECT RAISE(ABORT,'time entry task belongs to another project'); END;
 
 CREATE TABLE IF NOT EXISTS time_billing_batches (
   id TEXT PRIMARY KEY,
@@ -614,6 +708,7 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE TABLE IF NOT EXISTS active_timers (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   project_id TEXT NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  task_id TEXT REFERENCES project_tasks(id) ON UPDATE CASCADE ON DELETE SET NULL,
   employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
   started_at TEXT NOT NULL,
   note TEXT,
@@ -621,6 +716,28 @@ CREATE TABLE IF NOT EXISTS active_timers (
   billing_rate_cents INTEGER NOT NULL DEFAULT 0 CHECK (billing_rate_cents >= 0),
   cost_rate_cents INTEGER NOT NULL DEFAULT 0 CHECK (cost_rate_cents >= 0)
 );
+
+CREATE TRIGGER IF NOT EXISTS active_timers_task_insert_guard
+BEFORE INSERT ON active_timers
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+    AND task.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'active timer task is invalid or closed'); END;
+CREATE TRIGGER IF NOT EXISTS active_timers_task_update_guard
+BEFORE UPDATE OF task_id,project_id ON active_timers
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+    AND task.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'active timer task is invalid or closed'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_active_timer_close_guard
+BEFORE UPDATE OF status ON project_tasks
+WHEN NEW.status IN ('done','cancelled') AND OLD.status NOT IN ('done','cancelled')
+  AND EXISTS(SELECT 1 FROM active_timers timer WHERE timer.task_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'task has an active timer'); END;
 
 CREATE TABLE IF NOT EXISTS number_sequences (
   document_type TEXT NOT NULL,
@@ -1407,7 +1524,7 @@ BEFORE UPDATE ON supplier_payments BEGIN SELECT RAISE(ABORT, 'supplier payments 
 CREATE TRIGGER IF NOT EXISTS supplier_payments_no_delete
 BEFORE DELETE ON supplier_payments BEGIN SELECT RAISE(ABORT, 'supplier payments are immutable'); END;
 
-PRAGMA user_version = 18;
+PRAGMA user_version = 19;
 "#;
 
 /// Migration appliquée exclusivement aux bases v1 déjà présentes. Elle ne crée aucune
@@ -2418,4 +2535,126 @@ WHEN NEW.status='annulee' AND OLD.status<>'annulee' AND EXISTS(
 BEGIN SELECT RAISE(ABORT, 'stock-bearing invoices cannot be cancelled without a dedicated reversal workflow'); END;
 
 PRAGMA user_version=18;
+"#;
+
+/// Ajoute la planification locale des projets sans créer de jalon, de tâche
+/// ni d'affectation métier. Les ajouts de `time_entries.task_id` et
+/// `active_timers.task_id` sont effectués par le migrateur Rust après la
+/// création de ces tables afin de rester idempotents.
+pub const MIGRATION_V19_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS project_milestones (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 200),
+  description TEXT CHECK (description IS NULL OR LENGTH(description) <= 20000),
+  due_date TEXT CHECK (due_date IS NULL OR (LENGTH(due_date)=10 AND due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')),
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done','cancelled')),
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
+  sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order BETWEEN 0 AND 1000000),
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  completed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='done' AND completed_at IS NOT NULL) OR (status<>'done' AND completed_at IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  milestone_id TEXT REFERENCES project_milestones(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 200),
+  description TEXT CHECK (description IS NULL OR LENGTH(description) <= 20000),
+  due_date TEXT CHECK (due_date IS NULL OR (LENGTH(due_date)=10 AND due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')),
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done','cancelled')),
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
+  sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order BETWEEN 0 AND 1000000),
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  completed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='done' AND completed_at IS NOT NULL) OR (status<>'done' AND completed_at IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_milestones_project_order ON project_milestones(project_id,sort_order,created_at);
+CREATE INDEX IF NOT EXISTS idx_project_milestones_due ON project_milestones(status,due_date) WHERE due_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project_order ON project_tasks(project_id,sort_order,created_at);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_milestone_order ON project_tasks(milestone_id,sort_order,created_at) WHERE milestone_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_project_tasks_assignee_status ON project_tasks(employee_id,status) WHERE employee_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_project_tasks_due ON project_tasks(status,due_date) WHERE due_date IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS project_milestones_project_immutable
+BEFORE UPDATE OF project_id ON project_milestones WHEN NEW.project_id<>OLD.project_id
+BEGIN SELECT RAISE(ABORT,'project milestone cannot change project'); END;
+CREATE TRIGGER IF NOT EXISTS project_milestones_terminal_guard
+BEFORE UPDATE OF status ON project_milestones
+WHEN NEW.status IN ('done','cancelled') AND EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.milestone_id=OLD.id AND task.status NOT IN ('done','cancelled')
+)
+BEGIN SELECT RAISE(ABORT,'milestone has active tasks'); END;
+CREATE TRIGGER IF NOT EXISTS project_milestones_due_guard
+BEFORE UPDATE OF due_date ON project_milestones
+WHEN NEW.due_date IS NOT NULL AND EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.milestone_id=OLD.id AND task.due_date IS NOT NULL AND task.due_date>NEW.due_date
+)
+BEGIN SELECT RAISE(ABORT,'milestone due date precedes a task due date'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_project_immutable
+BEFORE UPDATE OF project_id ON project_tasks WHEN NEW.project_id<>OLD.project_id
+BEGIN SELECT RAISE(ABORT,'project task cannot change project'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_milestone_insert_guard
+BEFORE INSERT ON project_tasks
+WHEN NEW.milestone_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_milestones milestone
+  WHERE milestone.id=NEW.milestone_id AND milestone.project_id=NEW.project_id
+    AND milestone.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'task milestone is invalid or closed'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_milestone_update_guard
+BEFORE UPDATE OF milestone_id,project_id ON project_tasks
+WHEN NEW.milestone_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_milestones milestone
+  WHERE milestone.id=NEW.milestone_id AND milestone.project_id=NEW.project_id
+    AND milestone.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'task milestone is invalid or closed'); END;
+"#;
+
+pub const MIGRATION_V19_FINALIZE_SQL: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_time_entries_task_date ON time_entries(task_id,date) WHERE task_id IS NOT NULL;
+CREATE TRIGGER IF NOT EXISTS time_entries_task_insert_guard
+BEFORE INSERT ON time_entries
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+)
+BEGIN SELECT RAISE(ABORT,'time entry task belongs to another project'); END;
+CREATE TRIGGER IF NOT EXISTS time_entries_task_update_guard
+BEFORE UPDATE OF task_id,project_id ON time_entries
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+)
+BEGIN SELECT RAISE(ABORT,'time entry task belongs to another project'); END;
+CREATE TRIGGER IF NOT EXISTS active_timers_task_insert_guard
+BEFORE INSERT ON active_timers
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+    AND task.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'active timer task is invalid or closed'); END;
+CREATE TRIGGER IF NOT EXISTS active_timers_task_update_guard
+BEFORE UPDATE OF task_id,project_id ON active_timers
+WHEN NEW.task_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM project_tasks task
+  WHERE task.id=NEW.task_id AND task.project_id=NEW.project_id
+    AND task.status IN ('todo','in_progress')
+)
+BEGIN SELECT RAISE(ABORT,'active timer task is invalid or closed'); END;
+CREATE TRIGGER IF NOT EXISTS project_tasks_active_timer_close_guard
+BEFORE UPDATE OF status ON project_tasks
+WHEN NEW.status IN ('done','cancelled') AND OLD.status NOT IN ('done','cancelled')
+  AND EXISTS(SELECT 1 FROM active_timers timer WHERE timer.task_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'task has an active timer'); END;
+
+PRAGMA user_version=19;
 "#;

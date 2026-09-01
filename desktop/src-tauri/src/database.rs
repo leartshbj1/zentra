@@ -39,9 +39,9 @@ use crate::{
     schema::{
         MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V12_SQL, MIGRATION_V13_SQL,
         MIGRATION_V14_SQL, MIGRATION_V15_SQL, MIGRATION_V16_SQL, MIGRATION_V17_SQL,
-        MIGRATION_V18_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
-        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
-        SCHEMA_VERSION,
+        MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL, MIGRATION_V2_SQL,
+        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
+        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -381,6 +381,32 @@ fn migrate_v18(transaction: &Transaction<'_>) -> AppResult<()> {
         )));
     }
     transaction.execute_batch(MIGRATION_V18_SQL)?;
+    Ok(())
+}
+
+fn migrate_v19(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V19_SQL)?;
+    let mut statement = transaction.prepare("PRAGMA table_info(time_entries)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !columns.contains("task_id") {
+        transaction.execute_batch(
+            "ALTER TABLE time_entries ADD COLUMN task_id TEXT REFERENCES project_tasks(id) ON UPDATE CASCADE ON DELETE SET NULL;",
+        )?;
+    }
+    let mut statement = transaction.prepare("PRAGMA table_info(active_timers)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !columns.contains("task_id") {
+        transaction.execute_batch(
+            "ALTER TABLE active_timers ADD COLUMN task_id TEXT REFERENCES project_tasks(id) ON UPDATE CASCADE ON DELETE SET NULL;",
+        )?;
+    }
+    transaction.execute_batch(MIGRATION_V19_FINALIZE_SQL)?;
     Ok(())
 }
 
@@ -802,7 +828,7 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
-            12..=17 => {}
+            12..=18 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -818,6 +844,7 @@ impl LocalStore {
             migrate_v16(&transaction)?;
             migrate_v17(&transaction)?;
             migrate_v18(&transaction)?;
+            migrate_v19(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1051,6 +1078,16 @@ impl LocalStore {
         let projects = query_all(
             connection,
             "SELECT * FROM projects ORDER BY CASE status WHEN 'en_cours' THEN 0 WHEN 'planifie' THEN 1 ELSE 2 END, COALESCE(planned_start_date, created_at) DESC",
+            [],
+        )?;
+        let project_milestones = query_all(
+            connection,
+            "SELECT * FROM project_milestones ORDER BY project_id,sort_order,COALESCE(due_date,'9999-12-31'),created_at",
+            [],
+        )?;
+        let project_tasks = query_all(
+            connection,
+            "SELECT * FROM project_tasks ORDER BY project_id,sort_order,COALESCE(due_date,'9999-12-31'),created_at",
             [],
         )?;
         let quotes = query_all(
@@ -1307,6 +1344,9 @@ impl LocalStore {
         workspace["time_billing_entries"] = json!(time_billing_entries);
         workspace["bank_supplier_reconciliations"] = json!(bank_supplier_reconciliations);
         workspace["stock_movements"] = json!(stock_movements);
+        workspace["project_milestones"] = json!(project_milestones);
+        workspace["project_tasks"] = json!(project_tasks);
+        workspace["schema_version"] = json!(SCHEMA_VERSION);
         Ok(workspace)
     }
 
@@ -1353,6 +1393,9 @@ impl LocalStore {
         );
 
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if entity == "time_entries" {
+            validate_time_entry_task_link(&transaction, &object, None)?;
+        }
         if entity == "payslip_items" {
             let payslip_id = object
                 .get("payslip_id")
@@ -1562,6 +1605,9 @@ impl LocalStore {
         let previous = query_record_tx(&transaction, spec.table, id)?;
         ensure_record_mutable(&transaction, entity, &previous)?;
         normalize_record_patch(entity, &mut object, &previous)?;
+        if entity == "time_entries" {
+            validate_time_entry_task_link(&transaction, &object, Some(&previous))?;
+        }
         if object.is_empty() {
             return Err(AppError::Validation("Aucun champ à modifier.".into()));
         }
@@ -1614,6 +1660,9 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let previous = query_record_tx(&transaction, spec.table, id)?;
+        if entity == "projects" {
+            ensure_project_empty_before_delete(&transaction, id)?;
+        }
         ensure_record_mutable(&transaction, entity, &previous)?;
         let deleted = transaction.execute(
             &format!("DELETE FROM {} WHERE id = ?", spec.table),
@@ -2216,9 +2265,20 @@ impl LocalStore {
     }
 
     pub fn start_timer(&self, input: TimerInput) -> AppResult<Value> {
-        if input.project_id.trim().is_empty() {
+        let project_id = input.project_id.trim().to_owned();
+        if project_id.is_empty() {
             return Err(AppError::Validation("project_id est obligatoire.".into()));
         }
+        let task_id = match input.task_id {
+            Some(value) if value.trim().is_empty() => None,
+            Some(value) if value.trim().chars().count() > 80 => {
+                return Err(AppError::Validation(
+                    "task_id ne peut pas dépasser 80 caractères.".into(),
+                ));
+            }
+            Some(value) => Some(value.trim().to_owned()),
+            None => None,
+        };
         if input.billing_rate_cents < 0 || input.cost_rate_cents < 0 {
             return Err(AppError::Validation(
                 "Les taux du chronomètre ne peuvent pas être négatifs.".into(),
@@ -2229,11 +2289,33 @@ impl LocalStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let project_exists: bool = transaction.query_row(
             "SELECT EXISTS(SELECT 1 FROM projects WHERE id = ?)",
-            params![input.project_id],
+            params![project_id],
             |row| row.get(0),
         )?;
         if !project_exists {
-            return Err(AppError::NotFound(format!("projects/{}", input.project_id)));
+            return Err(AppError::NotFound(format!("projects/{project_id}")));
+        }
+        if let Some(task_id) = task_id.as_deref() {
+            let task: Option<(String, String)> = transaction
+                .query_row(
+                    "SELECT project_id,status FROM project_tasks WHERE id=?",
+                    params![task_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            let Some((task_project_id, task_status)) = task else {
+                return Err(AppError::NotFound(format!("project_tasks/{task_id}")));
+            };
+            if task_project_id != project_id {
+                return Err(AppError::Validation(
+                    "La tâche du chronomètre appartient à un autre projet.".into(),
+                ));
+            }
+            if !matches!(task_status.as_str(), "todo" | "in_progress") {
+                return Err(AppError::Validation(
+                    "Le chronomètre ne peut démarrer que sur une tâche ouverte.".into(),
+                ));
+            }
         }
         let timer_exists: bool = transaction.query_row(
             "SELECT EXISTS(SELECT 1 FROM active_timers WHERE id = 1)",
@@ -2246,9 +2328,10 @@ impl LocalStore {
             ));
         }
         transaction.execute(
-            "INSERT INTO active_timers (id,project_id,employee_id,started_at,note,billable,billing_rate_cents,cost_rate_cents) VALUES (1,?,?,?,?,?,?,?)",
+            "INSERT INTO active_timers (id,project_id,task_id,employee_id,started_at,note,billable,billing_rate_cents,cost_rate_cents) VALUES (1,?,?,?,?,?,?,?,?)",
             params![
-                input.project_id,
+                project_id,
+                task_id,
                 clean_optional(input.employee_id, 80),
                 now_iso(),
                 clean_optional(input.note, 5000),
@@ -2316,10 +2399,11 @@ impl LocalStore {
         let id = Uuid::new_v4().to_string();
         let now = ended.to_rfc3339();
         transaction.execute(
-            "INSERT INTO time_entries (id,project_id,employee_id,date,started_at,ended_at,minutes,break_minutes,billable,billing_rate_cents,cost_rate_cents,note,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO time_entries (id,project_id,task_id,employee_id,date,started_at,ended_at,minutes,break_minutes,billable,billing_rate_cents,cost_rate_cents,note,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             params![
                 id,
                 timer.get("project_id").and_then(Value::as_str),
+                timer.get("task_id").and_then(Value::as_str),
                 timer.get("employee_id").and_then(Value::as_str),
                 &started_at[..10.min(started_at.len())],
                 started_at,
@@ -2612,6 +2696,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
             table: "time_entries",
             fields: &[
                 "project_id",
+                "task_id",
                 "employee_id",
                 "date",
                 "started_at",
@@ -2715,6 +2800,45 @@ fn ensure_record_mutable(
         return Err(AppError::Validation("Cet enregistrement financier est immuable. Utilisez un avoir ou une écriture d'extourne.".into()));
     }
     Ok(())
+}
+
+fn ensure_project_empty_before_delete(
+    transaction: &Transaction<'_>,
+    project_id: &str,
+) -> AppResult<()> {
+    const DEPENDENCIES: &[(&str, &str)] = &[
+        ("project_milestones", "jalons"),
+        ("project_tasks", "tâches"),
+        ("time_entries", "temps saisis"),
+        ("time_billing_batches", "lots de facturation des temps"),
+        ("quotes", "devis"),
+        ("invoices", "factures clients"),
+        ("expenses", "dépenses"),
+        ("supplier_invoices", "factures fournisseurs"),
+        ("supplier_invoice_items", "lignes de factures fournisseurs"),
+        ("active_timers", "chronomètre actif"),
+        ("attachments", "pièces jointes"),
+        ("journal_lines", "écritures comptables"),
+    ];
+    let mut linked = Vec::new();
+    for (table, label) in DEPENDENCIES {
+        let count: i64 = transaction.query_row(
+            &format!("SELECT COUNT(*) FROM {table} WHERE project_id=?"),
+            params![project_id],
+            |row| row.get(0),
+        )?;
+        if count > 0 {
+            linked.push(format!("{label} ({count})"));
+        }
+    }
+    if linked.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation(format!(
+            "Le projet ne peut pas être supprimé car il contient encore : {}. Supprimez ou réaffectez ces données avant de réessayer.",
+            linked.join(", ")
+        )))
+    }
 }
 
 fn value_object(data: Value) -> AppResult<Map<String, Value>> {
@@ -3976,6 +4100,49 @@ pub(crate) fn query_record_tx(
         params![id],
     )?
     .ok_or_else(|| AppError::NotFound(format!("{table}/{id}")))
+}
+
+fn validate_time_entry_task_link(
+    transaction: &Transaction<'_>,
+    patch: &Map<String, Value>,
+    previous: Option<&Value>,
+) -> AppResult<()> {
+    let project_id = patch
+        .get("project_id")
+        .and_then(Value::as_str)
+        .or_else(|| previous.and_then(|record| record["project_id"].as_str()))
+        .ok_or_else(|| AppError::Validation("project_id est obligatoire.".into()))?;
+    let task_value = if patch.contains_key("task_id") {
+        patch.get("task_id")
+    } else {
+        previous.map(|record| &record["task_id"])
+    };
+    let Some(task_value) = task_value else {
+        return Ok(());
+    };
+    if task_value.is_null() {
+        return Ok(());
+    }
+    let task_id = task_value
+        .as_str()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::Validation("task_id doit être un identifiant ou null.".into()))?;
+    let task_project_id: Option<String> = transaction
+        .query_row(
+            "SELECT project_id FROM project_tasks WHERE id=?",
+            params![task_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(task_project_id) = task_project_id else {
+        return Err(AppError::NotFound(format!("project_tasks/{task_id}")));
+    };
+    if task_project_id != project_id {
+        return Err(AppError::Validation(
+            "La tâche affectée au temps appartient à un autre projet.".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn build_document_snapshot(

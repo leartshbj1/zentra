@@ -2,7 +2,6 @@ import {
   ArrowRight,
   Banknote,
   BarChart3,
-  BellRing,
   BookOpenCheck,
   BriefcaseBusiness,
   Building2,
@@ -16,7 +15,6 @@ import {
   Landmark,
   Laptop,
   LockKeyhole,
-  QrCode,
   Plus,
   Package,
   Receipt,
@@ -132,10 +130,12 @@ const capabilityRows = [
   ['Clients & dossier 360°', 'Disponible', 'Fiche, projets, documents, soldes et archivage local.'],
   ['Devis & factures', 'Disponible', 'Devis accepté vers facture brouillon, QR-facture et paiements.'],
   ['Projets & temps', 'Disponible', 'Budgets, durées, coûts, rentabilité et heures approuvées à facturer.'],
+  ['Tâches & jalons · lot 1.6', 'Disponible', 'Vue par projet, responsables, priorités et échéances; temps manuel ou chronométré lié à une tâche.'],
   ['Achats fournisseurs', 'Disponible', 'Factures, justificatifs locaux, échéances, paiements et comptabilisation.'],
   ['Banque CAMT', 'Assisté', 'Crédits clients et débits fournisseurs proposés, puis confirmés par l’utilisateur.'],
   ['Comptabilité', 'Disponible avec contrôle', 'Journal, grand livre, balance, bilan et résultat calculés depuis les écritures.'],
   ['Paie suisse', 'Assistée localement', 'Import OCR/IA local, calculs contrôlés et PDF; Elyko n’est pas certifié Swissdec.'],
+  ['Import paie multipage · lot 1.6', 'Disponible', 'PDF jusqu’à 12 pages, analyse locale par lots de trois et contrôle humain avant création.'],
   ['Catalogue & stock', 'Disponible', 'Produits et services réutilisables, registre immuable, seuils et sortie des produits à l’émission d’une facture standard.'],
   ['Application', 'Windows', 'Vraie application Windows 10/11 x64; le site de présentation est adapté au mobile.'],
 ] as const;
@@ -173,6 +173,12 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
+              href="#lot-16"
+              className="transition-colors hover:text-[#173d2c]"
+            >
+              Lot 1.6
+            </a>
+            <a
               href="#capacites"
               className="transition-colors hover:text-[#173d2c]"
             >
@@ -201,6 +207,7 @@ export default function Home() {
               </summary>
               <nav className="absolute right-0 top-[calc(100%+.65rem)] z-50 grid min-w-64 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]" aria-label="Navigation mobile">
                 <a href="#logiciel">Voir le logiciel</a>
+                <a href="#lot-16">Lot 1.6</a>
                 <a href="#capacites">Capacités</a>
                 <a href="#confidentialite">Données locales</a>
                 <a href="#tarif">Tarif</a>
@@ -227,11 +234,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#catalogue-achats"
+            href="#lot-16"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Nouveau · catalogue, achats & import CAMT local
+            Elyko 1.6 · tâches, jalons & paie multipage
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -299,6 +306,96 @@ export default function Home() {
       </section>
 
       <CapabilityStory />
+
+      <section
+        id="lot-16"
+        className="scroll-mt-24 border-y border-[#ded9ce] bg-[#fffaf1] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="lot-16-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.76fr_1.24fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
+                Elyko 1.6 · disponible
+              </p>
+              <h2
+                id="lot-16-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Planifier le travail. Contrôler chaque page de paie.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
+              La version {ELYKO_VERSION} est intégrée à l’installateur Windows et
+              au canal de mise à jour signé. Elle ajoute la planification détaillée
+              et renforce l’import local de documents de paie.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 lg:grid-cols-2">
+            <article className="rounded-[26px] border border-[#d9d4c8] bg-white p-6 shadow-[0_18px_55px_rgba(35,58,43,.07)] sm:p-8">
+              <div className="grid size-11 place-items-center rounded-2xl bg-[#e8f0ea] text-[#2f6848]">
+                <FolderKanban className="size-5" />
+              </div>
+              <h3 className="mt-6 text-2xl font-semibold tracking-[-.03em]">
+                La prochaine action reste attachée au projet.
+              </h3>
+              <p className="mt-4 text-sm leading-7 text-[#606c64]">
+                Une vue réunit les jalons, les tâches, leurs responsables,
+                priorités, échéances et statuts. Une saisie ou un chronométrage
+                peut être rattaché à une tâche afin de conserver le contexte du
+                travail réalisé.
+              </p>
+              <ul className="mt-6 grid gap-3 text-sm text-[#34483b]">
+                {[
+                  'Tâches en retard, aujourd’hui, à venir ou sans échéance.',
+                  'Jalons vérifiables et responsables identifiés.',
+                  'Temps manuel ou chronométré relié à la tâche correspondante.',
+                ].map((item) => (
+                  <li key={item} className="flex gap-3">
+                    <Check className="mt-0.5 size-4 shrink-0 text-[#3f7454]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+
+            <article className="rounded-[26px] border border-[#dfd4c3] bg-white p-6 shadow-[0_18px_55px_rgba(66,46,23,.07)] sm:p-8">
+              <div className="grid size-11 place-items-center rounded-2xl bg-[#f7ead7] text-[#9a651f]">
+                <Users className="size-5" />
+              </div>
+              <h3 className="mt-6 text-2xl font-semibold tracking-[-.03em]">
+                Jusqu’à 12 pages, sans page ignorée.
+              </h3>
+              <p className="mt-4 text-sm leading-7 text-[#606c64]">
+                Elyko rend localement toutes les pages du PDF, les analyse par
+                lots de trois et réunit les propositions. Une provenance absente
+                ou contradictoire devient un avertissement; elle n’est jamais
+                inventée.
+              </p>
+              <ul className="mt-6 grid gap-3 text-sm text-[#34483b]">
+                {[
+                  'Maximum 12 pages par PDF de fiche de salaire.',
+                  'Double lecture locale et détection des conflits entre pages.',
+                  'Comparaison à l’original et confirmation humaine obligatoires.',
+                ].map((item) => (
+                  <li key={item} className="flex gap-3">
+                    <Check className="mt-0.5 size-4 shrink-0 text-[#9a651f]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          </div>
+
+          <p className="mt-5 rounded-2xl border border-[#c9d9cd] bg-[#eef7f0] px-5 py-4 text-sm leading-6 text-[#315e47]">
+            Inclus dans Elyko {ELYKO_VERSION}. L’import de paie reste une aide
+            locale à vérifier par l’utilisateur&nbsp;: il ne remplace ni la pièce
+            originale ni une certification Swissdec/ELM.
+          </p>
+        </div>
+      </section>
 
       <section
         id="logiciel"
@@ -776,52 +873,69 @@ export default function Home() {
           <div className="grid gap-8 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
-                Flux structurés pour la Suisse
+                Continuité métier
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                De l’offre aux écritures, sans ressaisir les mêmes chiffres.
+                Du client à la comptabilité, sans ressaisir les mêmes données.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
-              Chaque action métier produit une trace explicable : l’acceptation
-              autorise la conversion du devis, l’émission alimente la
-              comptabilité, le paiement solde la créance et l’échéance signale
-              les relances à préparer.
+              Elyko conserve l’origine des informations à chaque étape. Le
+              client alimente le projet et les documents; un devis accepté ou
+              des temps approuvés prépare une facture brouillon; l’utilisateur
+              contrôle ensuite son émission et son règlement.
             </p>
           </div>
-          <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-14 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
               {
-                icon: QrCode,
-                title: 'QR-facture suisse',
-                text: 'Adresses structurées, IBAN ou QR-IBAN, référence contrôlée et section paiement imprimable.',
+                icon: Building2,
+                title: 'Client',
+                text: 'Coordonnées réutilisées dans les projets, devis et factures.',
               },
               {
-                icon: BellRing,
-                title: 'Relances à préparer',
-                text: 'Niveaux, délais, frais éventuels, modèles et historique local; aucun e-mail n’est envoyé automatiquement.',
+                icon: FolderKanban,
+                title: 'Projet & temps',
+                text: 'Travail organisé par projet; les temps approuvés peuvent préparer une facture.',
+              },
+              {
+                icon: Receipt,
+                title: 'Facture brouillon',
+                text: 'Le devis accepté ou les temps sélectionnés sont repris, puis contrôlés avant émission.',
+              },
+              {
+                icon: Landmark,
+                title: 'Paiement confirmé',
+                text: 'Règlement manuel ou proposition CAMT validée explicitement par l’utilisateur.',
               },
               {
                 icon: BookOpenCheck,
-                title: 'Partie double',
-                text: 'Journal, grand livre, balance, bilan et résultat issus d’écritures toujours équilibrées.',
+                title: 'Comptabilité',
+                text: 'Une configuration active produit des écritures équilibrées et traçables.',
               },
-              {
-                icon: WalletCards,
-                title: 'Paie préparatoire locale',
-                text: 'Bases et cotisations restent visibles et contrôlables; Elyko n’est pas certifié Swissdec et ne transmet pas ELM.',
-              },
-            ].map(({ icon: Icon, title, text }) => (
+            ].map(({ icon: Icon, title, text }, index) => (
               <div
                 key={title}
-                className="rounded-2xl border border-[#ddd8cd] bg-white/65 p-6"
+                className="relative rounded-2xl border border-[#ddd8cd] bg-white/65 p-6"
               >
-                <Icon className="size-5 text-[#b86b16]" />
-                <h3 className="mt-5 font-semibold">{title}</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <Icon className="size-5 text-[#b86b16]" />
+                  <span className="text-xs font-bold text-[#9b7b50]">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                </div>
+                <h3 className="mt-6 font-semibold">{title}</h3>
                 <p className="mt-3 text-sm leading-6 text-[#5f6962]">{text}</p>
+                {index < 4 ? (
+                  <ArrowRight className="absolute -right-2.5 top-1/2 z-10 hidden size-5 rounded-full bg-[#f6f4ef] text-[#9b7b50] xl:block" />
+                ) : null}
               </div>
             ))}
           </div>
+          <p className="mt-5 rounded-2xl border border-[#e1d4c0] bg-[#fff9ef] px-5 py-4 text-sm leading-6 text-[#70562f]">
+            Ce parcours ne prétend pas encore couvrir les commandes clients,
+            bons de livraison, décomptes TVA ou envois automatiques de relances.
+          </p>
           <div className="mt-10 flex flex-col items-start justify-between gap-5 rounded-[24px] bg-[#173d2c] p-6 text-white sm:flex-row sm:items-center sm:p-8">
             <div>
               <p className="font-semibold">

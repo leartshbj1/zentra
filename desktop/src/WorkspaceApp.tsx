@@ -89,6 +89,11 @@ import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { PayrollImportWizard } from './PayrollImportWizard';
 import { TimeBillingWizard } from './TimeBillingWizard';
+import {
+  ProjectPlanningPanel,
+  type ProjectMilestoneDraft,
+  type ProjectTaskDraft,
+} from './ProjectPlanningPanel';
 import type {
   Account,
   AccountingPeriod,
@@ -116,6 +121,9 @@ import type {
   PayrollContributionSelection,
   PeriodFilter,
   Project,
+  ProjectMilestone,
+  ProjectPlanningStatus,
+  ProjectTask,
   Quote,
   Reminder,
   ReminderHistory,
@@ -284,6 +292,7 @@ export function WorkspaceApp({
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const reminderScanStarted = useRef(false);
+  const actionInFlight = useRef(false);
   const guidedTour = useGuidedTour();
   const navigateTour = useCallback((nextView: TourView) => {
     setView(nextView);
@@ -352,6 +361,8 @@ export function WorkspaceApp({
       });
       return false;
     }
+    if (actionInFlight.current) return false;
+    actionInFlight.current = true;
     setBusy(true);
     setNotice(null);
     try {
@@ -366,6 +377,7 @@ export function WorkspaceApp({
       });
       return false;
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   }
@@ -463,6 +475,44 @@ export function WorkspaceApp({
     await act(
       () => desktopApi.archiveEntity(entity, id),
       `${label} a été supprimé.`,
+      false,
+    );
+  }
+
+  async function deleteEmptyProject(item: Project) {
+    const linked: Array<[string, number]> = [
+      ['jalon', workspace.projectMilestones.filter((row) => row.projectId === item.id).length],
+      ['tâche', workspace.projectTasks.filter((row) => row.projectId === item.id).length],
+      ['saisie de temps', workspace.timeEntries.filter((row) => row.projectId === item.id).length],
+      ['devis', workspace.quotes.filter((row) => row.projectId === item.id).length],
+      ['facture', workspace.invoices.filter((row) => row.projectId === item.id).length],
+      ['dépense', workspace.expenses.filter((row) => row.projectId === item.id).length],
+      ['facture fournisseur', workspace.supplierInvoices.filter((row) => row.projectId === item.id).length],
+    ];
+    const used = linked.filter(([, count]) => count > 0);
+    if (workspace.activeTimer?.projectId === item.id)
+      used.push(['chronomètre actif', 1]);
+    if (used.length) {
+      setNotice({
+        tone: 'error',
+        text: `Ce ${terminology.singular} contient encore ${used
+          .map(
+            ([label, count]) =>
+              `${count} ${label}${count > 1 ? 's' : ''}`,
+          )
+          .join(', ')}. Pour protéger l’historique, il ne peut pas être supprimé. Passez-le au statut « Clôturé » depuis Modifier.`,
+      });
+      return;
+    }
+    if (
+      !window.confirm(
+        `Supprimer définitivement le ${terminology.singular} vide « ${item.name} » ?`,
+      )
+    )
+      return;
+    await act(
+      () => desktopApi.archiveEntity('projects', item.id),
+      `${item.name} a été supprimé.`,
       false,
     );
   }
@@ -607,6 +657,9 @@ export function WorkspaceApp({
   const timerProject = workspace.projects.find(
     (project) => project.id === workspace.activeTimer?.projectId,
   );
+  const timerTask = workspace.projectTasks.find(
+    (task) => task.id === workspace.activeTimer?.taskId,
+  );
   const timerEmployee = workspace.employees.find(
     (employee) => employee.id === workspace.activeTimer?.employeeId,
   );
@@ -748,6 +801,7 @@ export function WorkspaceApp({
               <strong>Pointage en cours · {formatTimer(timerSeconds)}</strong>
               <small>
                 {timerProject?.name ?? terminology.singularTitle}
+                {timerTask ? ` · ${timerTask.title}` : ''}
                 {timerEmployee ? ` · ${timerEmployee.name}` : ''}
               </small>
             </div>
@@ -838,9 +892,68 @@ export function WorkspaceApp({
             <ProjectsScreen
               workspace={workspace}
               query={search}
+              busy={busy}
+              readOnly={readOnly}
               onEdit={(item) => setModal({ type: 'project', item })}
               onCreate={() => setModal({ type: 'project' })}
-              onArchive={(item) => void archive('projects', item.id, item.name)}
+              onArchive={(item) => void deleteEmptyProject(item)}
+              onSaveTask={(input) =>
+                act(
+                  () => desktopApi.saveProjectTask(input),
+                  input.id
+                    ? 'La tâche a été mise à jour.'
+                    : 'La tâche a été ajoutée au planning.',
+                  false,
+                )
+              }
+              onSaveMilestone={(input) =>
+                act(
+                  () => desktopApi.saveProjectMilestone(input),
+                  input.id
+                    ? 'Le jalon a été mis à jour.'
+                    : 'Le jalon a été ajouté au projet.',
+                  false,
+                )
+              }
+              onSetTaskStatus={(item, status) =>
+                act(
+                  () => desktopApi.setProjectTaskStatus(item.id, status),
+                  status === 'done'
+                    ? 'La tâche est terminée.'
+                    : status === 'in_progress'
+                      ? 'La tâche est en cours.'
+                      : status === 'cancelled'
+                        ? 'La tâche a été annulée.'
+                        : 'La tâche a été rouverte.',
+                  false,
+                )
+              }
+              onDeleteTask={async (item) => {
+                if (
+                  !window.confirm(
+                    `Supprimer définitivement la tâche « ${item.title} » ?`,
+                  )
+                )
+                  return false;
+                return act(
+                  () => desktopApi.deleteProjectTask(item.id),
+                  'La tâche a été supprimée.',
+                  false,
+                );
+              }}
+              onDeleteMilestone={async (item) => {
+                if (
+                  !window.confirm(
+                    `Supprimer définitivement le jalon « ${item.title} » ?`,
+                  )
+                )
+                  return false;
+                return act(
+                  () => desktopApi.deleteProjectMilestone(item.id),
+                  'Le jalon a été supprimé.',
+                  false,
+                );
+              }}
             />
           ) : null}
           {view === 'clients' ? (
@@ -1470,16 +1583,34 @@ function MetricCard({
 function ProjectsScreen({
   workspace,
   query,
+  busy,
+  readOnly,
   onEdit,
   onCreate,
   onArchive,
+  onSaveTask,
+  onSaveMilestone,
+  onSetTaskStatus,
+  onDeleteTask,
+  onDeleteMilestone,
 }: {
   workspace: Workspace;
   query: string;
+  busy: boolean;
+  readOnly: boolean;
   onEdit: (item: Project) => void;
   onCreate: () => void;
   onArchive: (item: Project) => void;
+  onSaveTask: (input: ProjectTaskDraft) => Promise<boolean>;
+  onSaveMilestone: (input: ProjectMilestoneDraft) => Promise<boolean>;
+  onSetTaskStatus: (
+    item: ProjectTask,
+    status: ProjectPlanningStatus,
+  ) => Promise<boolean>;
+  onDeleteTask: (item: ProjectTask) => Promise<boolean>;
+  onDeleteMilestone: (item: ProjectMilestone) => Promise<boolean>;
 }) {
+  const [mode, setMode] = useState<'overview' | 'planning'>('overview');
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
@@ -1518,96 +1649,158 @@ function ProjectsScreen({
       />
     );
   return (
-    <div className="project-card-grid">
-      {projects.map((project) => {
-        const client = workspace.clients.find(
-          (item) => item.id === project.clientId,
-        );
-        const stats = projectFinancials(
-          project,
-          workspace.invoices,
-          workspace.payments,
-          workspace.timeEntries,
-          workspace.expenses,
-          workspace.supplierInvoices,
-        );
-        return (
-          <article className="project-card" key={project.id}>
-            <header>
-              <div className="project-card__icon">
-                <ProjectIcon size={20} />
-              </div>
-              <div>
-                <h3>{project.name}</h3>
-                <p>
-                  {client?.company || client?.name || 'Client non renseigné'}
-                </p>
-              </div>
-              <StatusBadge status={project.status} />
-            </header>
-            <p className="project-card__address">
-              {project.address || 'Adresse non renseignée'}
-            </p>
-            <div className="project-stats">
-              <div>
-                <span>Facturé TTC</span>
-                <strong>
-                  {stats.invoicedTotal ? formatMoney(stats.invoicedTotal) : '—'}
-                </strong>
-              </div>
-              <div>
-                <span>Temps réel</span>
-                <strong>
-                  {stats.minutes ? formatMinutes(stats.minutes) : '—'}
-                </strong>
-              </div>
-              <div>
-                <span>Marge nette saisie</span>
-                <strong>
-                  {stats.invoicedNet || stats.laborCost || stats.expenseNet
-                    ? formatMoney(stats.margin)
-                    : '—'}
-                </strong>
-              </div>
-            </div>
-            <div className="project-dates">
-              <span>
-                <CalendarDays size={14} /> Prévu :{' '}
-                {formatDate(project.plannedStart)} →{' '}
-                {formatDate(project.plannedEnd)}
-              </span>
-              <span>
-                Réel : {formatDate(project.actualStart)} →{' '}
-                {formatDate(project.actualEnd)}
-              </span>
-            </div>
-            <footer>
-              <Button
-                variant="secondary"
-                size="small"
-                onClick={() => onEdit(project)}
-              >
-                <Pencil size={14} /> Modifier
-              </Button>
-              <Button
-                variant="ghost"
-                size="small"
-                onClick={() => onArchive(project)}
-              >
-                <Archive size={14} /> Supprimer
-              </Button>
-            </footer>
-          </article>
-        );
-      })}
-      {!projects.length ? (
-        <div className="panel panel--span">
-          <EmptyState
-            title="Aucun résultat"
-            text={`Modifiez votre recherche pour retrouver un ${terminology.singular}.`}
-          />
+    <div className="stack-layout">
+      <section className="project-view-switch panel" aria-label="Vue des projets">
+        <div>
+          <span>Une seule base, deux vues</span>
+          <strong>
+            {mode === 'overview'
+              ? 'Rentabilité et durée'
+              : 'Prochaines actions et échéances'}
+          </strong>
         </div>
-      ) : null}
+        <div role="group" aria-label="Choisir la vue">
+          <button
+            type="button"
+            className={mode === 'overview' ? 'is-active' : ''}
+            aria-pressed={mode === 'overview'}
+            onClick={() => setMode('overview')}
+          >
+            <BarChart3 size={15} /> Vue d’ensemble
+          </button>
+          <button
+            type="button"
+            className={mode === 'planning' ? 'is-active' : ''}
+            aria-pressed={mode === 'planning'}
+            onClick={() => setMode('planning')}
+          >
+            <ListChecks size={15} /> Tâches & jalons
+          </button>
+        </div>
+      </section>
+
+      {mode === 'planning' ? (
+        <ProjectPlanningPanel
+          workspace={workspace}
+          query={query}
+          busy={busy}
+          readOnly={readOnly}
+          onSaveTask={onSaveTask}
+          onSaveMilestone={onSaveMilestone}
+          onSetTaskStatus={onSetTaskStatus}
+          onDeleteTask={onDeleteTask}
+          onDeleteMilestone={onDeleteMilestone}
+        />
+      ) : (
+        <div className="project-card-grid">
+          {projects.map((project) => {
+            const client = workspace.clients.find(
+              (item) => item.id === project.clientId,
+            );
+            const stats = projectFinancials(
+              project,
+              workspace.invoices,
+              workspace.payments,
+              workspace.timeEntries,
+              workspace.expenses,
+              workspace.supplierInvoices,
+            );
+            const projectTasks = workspace.projectTasks.filter(
+              (task) =>
+                task.projectId === project.id && task.status !== 'cancelled',
+            );
+            const completedTasks = projectTasks.filter(
+              (task) => task.status === 'done',
+            ).length;
+            return (
+              <article className="project-card" key={project.id}>
+                <header>
+                  <div className="project-card__icon">
+                    <ProjectIcon size={20} />
+                  </div>
+                  <div>
+                    <h3>{project.name}</h3>
+                    <p>
+                      {client?.company || client?.name || 'Client non renseigné'}
+                    </p>
+                  </div>
+                  <StatusBadge status={project.status} />
+                </header>
+                <p className="project-card__address">
+                  {project.address || 'Adresse non renseignée'}
+                </p>
+                <div className="project-stats">
+                  <div>
+                    <span>Facturé TTC</span>
+                    <strong>
+                      {stats.invoicedTotal
+                        ? formatMoney(stats.invoicedTotal)
+                        : '—'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Temps réel</span>
+                    <strong>
+                      {stats.minutes ? formatMinutes(stats.minutes) : '—'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Marge nette saisie</span>
+                    <strong>
+                      {stats.invoicedNet ||
+                      stats.laborCost ||
+                      stats.expenseNet
+                        ? formatMoney(stats.margin)
+                        : '—'}
+                    </strong>
+                  </div>
+                </div>
+                <div className="project-dates">
+                  <span>
+                    <CalendarDays size={14} /> Prévu :{' '}
+                    {formatDate(project.plannedStart)} →{' '}
+                    {formatDate(project.plannedEnd)}
+                  </span>
+                  <span>
+                    Réel : {formatDate(project.actualStart)} →{' '}
+                    {formatDate(project.actualEnd)}
+                  </span>
+                  <span>
+                    <ListChecks size={14} /> Planning : {completedTasks}/
+                    {projectTasks.length} tâche
+                    {projectTasks.length > 1 ? 's' : ''} terminée
+                    {completedTasks > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <footer>
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    onClick={() => onEdit(project)}
+                  >
+                    <Pencil size={14} /> Modifier
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={() => onArchive(project)}
+                  >
+                    <Archive size={14} /> Supprimer
+                  </Button>
+                </footer>
+              </article>
+            );
+          })}
+          {!projects.length ? (
+            <div className="panel panel--span">
+              <EmptyState
+                title="Aucun résultat"
+                text={`Modifiez votre recherche pour retrouver un ${terminology.singular}.`}
+              />
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -2504,6 +2697,7 @@ function TimeScreen({
         entry.note,
         workspace.projects.find((project) => project.id === entry.projectId)
           ?.name,
+        workspace.projectTasks.find((task) => task.id === entry.taskId)?.title,
         workspace.employees.find((employee) => employee.id === entry.employeeId)
           ?.name,
       ],
@@ -2627,6 +2821,9 @@ function TimeScreen({
                 const employee = workspace.employees.find(
                   (item) => item.id === entry.employeeId,
                 );
+                const task = workspace.projectTasks.find(
+                  (item) => item.id === entry.taskId,
+                );
                 const linked = entry.billingStatus !== 'unbilled';
                 const billingLabel =
                   entry.billingStatus === 'billed'
@@ -2643,6 +2840,7 @@ function TimeScreen({
                     <td>{formatDate(entry.date)}</td>
                     <td>
                       <strong>{project?.name || '—'}</strong>
+                      {task ? <small>Tâche : {task.title}</small> : null}
                     </td>
                     <td>{employee?.name || '—'}</td>
                     <td>
@@ -4380,7 +4578,6 @@ function ProjectForm({
             plannedMinutes: Math.round(
               numberFromInput(form.get('plannedHours')) * 60,
             ),
-            progress: 0,
             description: '',
             notes: String(form.get('notes')),
           };
@@ -4504,6 +4701,15 @@ function TimeForm({
   const [billable, setBillable] = useState<'' | 'yes' | 'no'>(
     item ? (item.billable ? 'yes' : 'no') : '',
   );
+  const [projectId, setProjectId] = useState(item?.projectId ?? '');
+  const [taskId, setTaskId] = useState(item?.taskId ?? '');
+  const availableTasks = workspace.projectTasks.filter(
+    (task) =>
+      task.projectId === projectId &&
+      ((!['done', 'cancelled'].includes(task.status) &&
+        workspace.projects.some((project) => project.id === task.projectId)) ||
+        task.id === item?.taskId),
+  );
   return (
     <Modal
       title={item ? 'Modifier les heures' : 'Saisir des heures'}
@@ -4514,6 +4720,7 @@ function TimeForm({
         onSubmit={submitForm(async (form) => {
           const data = {
             projectId: String(form.get('projectId')),
+            taskId: String(form.get('taskId')) || null,
             employeeId: String(form.get('employeeId')),
             date: String(form.get('date')),
             minutes: Math.round(numberFromInput(form.get('hours')) * 60),
@@ -4540,7 +4747,11 @@ function TimeForm({
           <Field label={terminology.singularTitle} required wide>
             <select
               name="projectId"
-              defaultValue={item?.projectId}
+              value={projectId}
+              onChange={(event) => {
+                setProjectId(event.target.value);
+                setTaskId('');
+              }}
               required
               autoFocus
             >
@@ -4556,6 +4767,25 @@ function TimeForm({
                     {project.name}
                   </option>
                 ))}
+            </select>
+          </Field>
+          <Field
+            label="Tâche liée"
+            hint="Facultatif : relie ces heures à une action précise du planning."
+            wide
+          >
+            <select
+              name="taskId"
+              value={taskId}
+              onChange={(event) => setTaskId(event.target.value)}
+              disabled={!projectId}
+            >
+              <option value="">Sans tâche précise</option>
+              {availableTasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.title}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Collaborateur" required>
@@ -5512,13 +5742,20 @@ function TimerForm({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
+  const [projectId, setProjectId] = useState('');
+  const [taskId, setTaskId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [billable, setBillable] = useState<'' | 'yes' | 'no'>('');
   const employee = workspace.employees.find((item) => item.id === employeeId);
+  const availableTasks = workspace.projectTasks.filter(
+    (task) =>
+      task.projectId === projectId &&
+      (task.status === 'todo' || task.status === 'in_progress'),
+  );
   return (
     <Modal
       title="Démarrer un pointage"
-      description="Le chronomètre utilise le coût horaire réellement configuré du collaborateur."
+      description="Choisissez le projet, éventuellement une tâche, puis le collaborateur. Le coût horaire vient de sa fiche réelle."
       onClose={close}
     >
       <form
@@ -5526,7 +5763,8 @@ function TimerForm({
           await act(
             () =>
               desktopApi.startTimer({
-                projectId: String(form.get('projectId')),
+                projectId,
+                taskId: taskId || null,
                 employeeId,
                 note: String(form.get('note')),
                 billable: billable === 'yes',
@@ -5545,7 +5783,16 @@ function TimerForm({
         </div>
         <div className="form-grid">
           <Field label={terminology.singularTitle} required wide>
-            <select name="projectId" required autoFocus>
+            <select
+              name="projectId"
+              value={projectId}
+              onChange={(event) => {
+                setProjectId(event.target.value);
+                setTaskId('');
+              }}
+              required
+              autoFocus
+            >
               <option value="">Choisir un {terminology.singular}</option>
               {workspace.projects
                 .filter((project) => project.status !== 'closed')
@@ -5554,6 +5801,24 @@ function TimerForm({
                     {project.name}
                   </option>
                 ))}
+            </select>
+          </Field>
+          <Field
+            label="Tâche liée"
+            hint="Facultatif : le temps sera rattaché à cette tâche à l’arrêt."
+            wide
+          >
+            <select
+              value={taskId}
+              onChange={(event) => setTaskId(event.target.value)}
+              disabled={!projectId}
+            >
+              <option value="">Sans tâche précise</option>
+              {availableTasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.title}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Collaborateur" required wide>

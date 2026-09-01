@@ -43,6 +43,8 @@ const FEDERAL_PROFILE = {
   ],
 } as const;
 
+const SWISS_LAA_ANNUAL_CEILING_CENTS_2026 = 14_820_000;
+
 function isRealIsoDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
@@ -162,10 +164,11 @@ export function assessSwissPayrollEligibility(input: {
     ? employee.contractualWeeklyMinutes / 60
     : null;
   const annualizedGrossCents = grossCents * 12;
+  const selectedDefinitions = definitions.filter(
+    (item) => item.active && selectedIds.has(item.id),
+  );
   const selectedCategories = new Set<ContributionCategory>(
-    definitions
-      .filter((item) => selectedIds.has(item.id))
-      .map((item) => item.category),
+    selectedDefinitions.map((item) => item.category),
   );
   const has = (category: ContributionCategory) =>
     selectedCategories.has(category);
@@ -268,6 +271,22 @@ export function assessSwissPayrollEligibility(input: {
   if (!has('aap'))
     blockers.push(
       'La prime accidents professionnels AAP doit être configurée pour tout salarié.',
+    );
+  const invalidLaaCategories = (['aap', 'aanp'] as const).filter((category) =>
+    selectedDefinitions
+      .filter((item) => item.category === category)
+      .some(
+        (item) =>
+          item.calculationKind !== 'rate' ||
+          (item.rateBp ?? 0) <= 0 ||
+          item.annualCeilingCents !==
+            SWISS_LAA_ANNUAL_CEILING_CENTS_2026 ||
+          !item.source.trim(),
+      ),
+  );
+  for (const category of invalidLaaCategories)
+    blockers.push(
+      `${category.toUpperCase()} doit utiliser le taux positif de la police LAA, sa source et le plafond fédéral 2026 de CHF 148’200.`,
     );
   if (weeklyHours !== null && weeklyHours >= 8 && !has('aanp'))
     blockers.push(

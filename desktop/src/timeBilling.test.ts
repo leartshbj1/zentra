@@ -10,6 +10,7 @@ import {
 const entry = (patch: Partial<TimeEntry> = {}): TimeEntry => ({
   id: 'time-1',
   projectId: 'project-1',
+  taskId: null,
   employeeId: 'employee-1',
   date: '2026-09-01',
   minutes: 61,

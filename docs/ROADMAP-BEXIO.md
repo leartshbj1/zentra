@@ -1,8 +1,11 @@
 # Feuille de route fonctionnelle Elyko
 
-État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.5.0, à publier uniquement après validation du nouvel installateur.
+État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.6.0, à publier uniquement après validation du nouvel installateur.
 
 Cette feuille de route compare Elyko aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Elyko reste une application Windows locale, avec les données conservées chez le client.
+
+La matrice détaillée et l'ordre produit retenu sont documentés dans
+[`BENCHMARK-BEXIO-2026.md`](./BENCHMARK-BEXIO-2026.md).
 
 ## Principes produit
 
@@ -23,12 +26,12 @@ Cette feuille de route compare Elyko aux fonctions officiellement documentées p
 | Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible pour les crédits clients et débits fournisseurs ; périmètre détaillé ci-dessous |
 | Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Planifié |
 | Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Partiel ; validation fiduciaire requise |
-| Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, temps, coûts, rentabilité et temps approuvés vers facture disponibles ; tâches et jalons à venir |
+| Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, tâches, jalons, responsables, échéances, temps, coûts, rentabilité et temps approuvés vers facture disponibles |
 | Paie suisse | employés, cotisations versionnées, fiches, import OCR local, écritures | Disponible en partie ; Swissdec/ELM non certifié |
 | Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Planifié |
 | Écosystème | API locale, connecteurs isolés, compagnon mobile | Ultérieur |
 
-## Périmètre bancaire local d'Elyko 1.5.0
+## Périmètre bancaire local d'Elyko 1.6.0
 
 - Import sur le PC de relevés suisses `camt.053` et `camt.054` dans les versions `v04` et `v08`. Le fichier XML brut n'est pas envoyé à Elyko ni à un service tiers.
 - Détection des doublons d'import et conservation locale de l'historique utile au contrôle.

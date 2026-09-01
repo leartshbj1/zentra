@@ -187,6 +187,44 @@ export type Project = {
   archivedAt?: string | null;
 };
 
+export type ProjectPlanningStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'done'
+  | 'cancelled';
+export type ProjectPlanningPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export type ProjectMilestone = {
+  id: Identifier;
+  projectId: Identifier;
+  title: string;
+  description: string;
+  dueDate: string;
+  status: ProjectPlanningStatus;
+  priority: ProjectPlanningPriority;
+  sortOrder: number;
+  employeeId: Identifier | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProjectTask = {
+  id: Identifier;
+  projectId: Identifier;
+  milestoneId: Identifier | null;
+  title: string;
+  description: string;
+  dueDate: string;
+  status: ProjectPlanningStatus;
+  priority: ProjectPlanningPriority;
+  sortOrder: number;
+  employeeId: Identifier | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CatalogItem = {
   id: Identifier;
   kind: 'product' | 'service';
@@ -408,6 +446,7 @@ export type Employee = {
 export type TimeEntry = {
   id: Identifier;
   projectId: Identifier;
+  taskId: Identifier | null;
   employeeId: Identifier;
   date: string;
   minutes: number;
@@ -451,6 +490,7 @@ export type TimeBillingEntry = {
 
 export type ActiveTimer = {
   projectId: Identifier;
+  taskId: Identifier | null;
   employeeId: Identifier;
   startedAt: string;
   note: string;
@@ -916,6 +956,8 @@ export type Workspace = {
   stockMovements: StockMovement[];
   suppliers: Supplier[];
   projects: Project[];
+  projectMilestones: ProjectMilestone[];
+  projectTasks: ProjectTask[];
   quotes: Quote[];
   invoices: Invoice[];
   payments: Payment[];

@@ -191,6 +191,30 @@ describe('assujettissement par date', () => {
     );
   });
 
+  it('refuse une prime LAA fixe ou privée du plafond fédéral 2026', () => {
+    const invalidAap = {
+      ...aap,
+      calculationKind: 'fixed' as const,
+      rateBp: null,
+      fixedAmountCents: 100,
+      annualCeilingCents: null,
+    };
+    const result = assessSwissPayrollEligibility({
+      employee: { ...employee, contractualWeeklyMinutes: 479 },
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions: [...federal, invalidAap],
+      selectedIds: new Set([
+        ...federal.map((item) => item.id),
+        invalidAap.id,
+      ]),
+    });
+    expect(result.blockers.join(' ')).toContain(
+      'plafond fédéral 2026 de CHF 148’200',
+    );
+  });
+
   it('conserve l’AC pendant le mois d’atteinte puis l’interdit le mois suivant', () => {
     const older = {
       ...employee,

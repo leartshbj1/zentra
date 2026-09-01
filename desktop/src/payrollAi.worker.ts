@@ -14,7 +14,7 @@ const MODEL_VERSION = 'a7da5b986cb59b408707209984f360a5f4ad7e47';
 type WorkerRequest =
   | { type: 'check' }
   | { type: 'load' }
-  | { type: 'analyze'; requestId: string; imageUrls?: string[]; extractedText?: string };
+  | { type: 'analyze'; requestId: string; imageUrls?: string[]; extractedText?: string; pageStart?: number; pageEnd?: number };
 
 type GpuNavigator = Navigator & {
   gpu?: { requestAdapter: () => Promise<{ features: Set<string> } | null> };
@@ -69,26 +69,38 @@ async function getEngine() {
   return Promise.all([processorPromise, modelPromise]);
 }
 
-function extractionPrompt(extractedText: string) {
+function sourcePageInstructions(pageStart: number, pageEnd: number) {
+  const pageRange = pageStart === pageEnd ? `page ${pageStart}` : `pages ${pageStart} to ${pageEnd}`;
+  return `The supplied images are the document ${pageRange}, in ascending order. Use these absolute page numbers. For every non-empty scalar, put its exact source page in field_pages using one of these keys: employee.name, employee.employee_number, employee.role, employee.address, employee.birth_date, employee.avs_number, employee.iban, employee.employment_rate, employee.salary_mode, period, payment_date, gross_cents, net_cents. Every line must contain source_page. Use null when the page cannot be determined; never invent a page.`;
+}
+
+function extractionPrompt(extractedText: string, pageStart: number, pageEnd: number) {
   const text = extractedText.slice(0, 24_000);
-  return `You are a strict document transcription engine for Swiss payslips in French, German, Italian or English. Inspect every supplied page and the OCR text twice: first transcribe, then verify arithmetic and classification.
+  return `You are a strict document transcription engine for Swiss payslips in French, German, Italian or English. Inspect every supplied page and the locally extracted PDF text twice: first transcribe, then verify arithmetic and classification.
 Return exactly one JSON object, with no Markdown and no commentary, using this schema:
-{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":null,"salary_mode":null},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"lines":[{"label":"","kind":"earning|deduction|reimbursement|employer","amount_cents":0,"recurring":false,"confidence_bp":0}],"warnings":[]}
+{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":null,"salary_mode":null},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"field_pages":{"employee.name":null,"period":null,"gross_cents":null,"net_cents":null},"lines":[{"label":"","kind":"earning|deduction|reimbursement|employer","amount_cents":0,"recurring":false,"confidence_bp":0,"source_page":null}],"warnings":[]}
 Rules: transcribe only information visibly present in the pages or OCR text. Never guess a missing value, legal rate, contribution or employee identity. Set employment_rate and salary_mode to null unless each value is explicitly printed; salary_mode is monthly or hourly only. All CHF amounts must be integer cents. Keep a printed minus sign out of amount_cents and express employee deductions as positive amounts with kind deduction. Employer-only contributions use kind employer and must never reduce net pay. Reimbursements of expenses and non-gross payments paid to the employee use kind reimbursement, are never recurring, are excluded from gross_cents, and are added after deductions when reconciling net_cents. Base monthly salary may be recurring; bonuses and one-off salary allowances are earnings but are not recurring. gross_cents and net_cents must be the explicitly printed totals, never recomputed substitutes. confidence_bp is 0 to 10000 and must fall below 6000 when a label, sign or amount is ambiguous. If two values conflict, leave the field empty or zero and add a short warning naming the conflict. Do not merge employee and employer contributions bearing similar labels.
-${text ? `OCR text extracted locally from the PDF:\n${text}` : 'No OCR text is available; use only the image.'}`;
+${sourcePageInstructions(pageStart, pageEnd)}
+${text ? `Text layer extracted locally from the PDF:\n${text}` : 'No extracted text is available; use only the image.'}`;
 }
 
-function verificationPrompt(extractedText: string) {
+function verificationPrompt(extractedText: string, pageStart: number, pageEnd: number) {
   const text = extractedText.slice(0, 16_000);
-  return `This is an independent second transcription of a Swiss payslip. Re-read every supplied page and the OCR text from the beginning. You have not been given any earlier answer: rely only on the document evidence.
+  return `This is an independent second transcription of a Swiss payslip. Re-read every supplied page and the locally extracted PDF text from the beginning. You have not been given any earlier answer: rely only on the document evidence.
 Return exactly one JSON object, with no Markdown and no commentary, using this schema:
-{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":null,"salary_mode":null},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"lines":[{"label":"","kind":"earning|deduction|reimbursement|employer","amount_cents":0,"recurring":false,"confidence_bp":0}],"warnings":[]}
+{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":null,"salary_mode":null},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"field_pages":{"employee.name":null,"period":null,"gross_cents":null,"net_cents":null},"lines":[{"label":"","kind":"earning|deduction|reimbursement|employer","amount_cents":0,"recurring":false,"confidence_bp":0,"source_page":null}],"warnings":[]}
 Rules: use only information visible in the document or OCR. Never invent missing values, legal rates, contributions or identities. CHF amounts are integer cents. Employee deductions are positive amounts with kind deduction; employer-only contributions use kind employer and never reduce net pay. Reimbursements are outside gross and added after deductions. Printed gross_cents and net_cents must remain printed totals, not recomputed substitutes. Keep similarly named employee and employer contributions separate. If a value remains ambiguous, leave the field empty or zero, lower confidence below 6000 and add a precise warning.
-${text ? `OCR text extracted locally from the PDF:\n${text}` : 'No OCR text is available; verify only against the images.'}`;
+${sourcePageInstructions(pageStart, pageEnd)}
+${text ? `Text layer extracted locally from the PDF:\n${text}` : 'No extracted text is available; verify only against the images.'}`;
 }
 
-async function analyze(requestId: string, imageUrls: string[] = [], extractedText = '') {
+async function analyze(requestId: string, imageUrls: string[] = [], extractedText = '', requestedPageStart = 1, requestedPageEnd?: number) {
   try {
+    const pageStart = Number.isInteger(requestedPageStart) && requestedPageStart >= 1 ? requestedPageStart : 1;
+    const maximumPageEnd = pageStart + Math.max(0, Math.min(3, imageUrls.length) - 1);
+    const pageEnd = Number.isInteger(requestedPageEnd) && (requestedPageEnd ?? 0) >= pageStart
+      ? Math.min(requestedPageEnd!, maximumPageEnd)
+      : maximumPageEnd;
     let processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>;
     let model: Awaited<ReturnType<typeof AutoModelForVision2Seq.from_pretrained>>;
     try {
@@ -116,7 +128,7 @@ async function analyze(requestId: string, imageUrls: string[] = [], extractedTex
         ...inputs,
         do_sample: false,
         repetition_penalty: 1.05,
-        max_new_tokens: 900,
+        max_new_tokens: 1_100,
         return_dict_in_generate: true,
       });
       const sequences = output && typeof output === 'object' && 'sequences' in output
@@ -135,11 +147,11 @@ async function analyze(requestId: string, imageUrls: string[] = [], extractedTex
     };
 
     post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Lecture locale 1 sur 2 · transcription', percent: 55 });
-    const primaryOutput = await runPass(extractionPrompt(extractedText));
+    const primaryOutput = await runPass(extractionPrompt(extractedText, pageStart, pageEnd));
     post({ type: 'analysis_stage', requestId, stage: 'verifying', label: 'Lecture locale 2 sur 2 · vérification indépendante', percent: 82 });
     let verifiedOutput = '';
     try {
-      verifiedOutput = await runPass(verificationPrompt(extractedText));
+      verifiedOutput = await runPass(verificationPrompt(extractedText, pageStart, pageEnd));
     } catch (error) {
       post({ type: 'analysis_stage', requestId, stage: 'partial', label: 'Seconde lecture indisponible · proposition faible uniquement', percent: 100 });
       post({
@@ -183,5 +195,5 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
         post({ type: 'load_error', error: String(error) });
       });
   }
-  if (request.type === 'analyze') void analyze(request.requestId, request.imageUrls, request.extractedText);
+  if (request.type === 'analyze') void analyze(request.requestId, request.imageUrls, request.extractedText, request.pageStart, request.pageEnd);
 });

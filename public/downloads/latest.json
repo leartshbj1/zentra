@@ -1,11 +1,11 @@
 {
-    "version":  "1.5.0",
-    "notes":  "Elyko 1.5 ajoute les achats, le rapprochement CAMT, le temps facturable, le stock immuable, le dossier client 360, la paie assistée locale et une activation renforcée.",
-    "pub_date":  "2026-09-01T05:13:15.2851187+00:00",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmM1T24wNm43MEwvVnErVHkrbHFoSGluYmpIdktFRjVYYVhVRmw0L1dsV0pSaFlFaE15TW82ZXp1eVM0UEx0UHkyN2dxQytXTzdYRml1QTE4M0o0b2c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjM5NTczCWZpbGU6RWx5a29fMS41LjBfeDY0LXNldHVwLmV4ZQpnbVVBRWYwZXpKTmxhL3dSTkJEeWJwQ2JyZVVHczFtYTZ3SXc0elY3SnBFY2FSbCtSNjJSNXR6dG43MlpjRmtlSlFWL1VHMHl4VXpGZzNiYU1XYXJBUT09Cg==",
-                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.5.0_x64-setup.exe"
-                                         }
-                  }
+  "version": "1.6.0",
+  "notes": "Elyko 1.6 ajoute la planification par tâches et jalons, le temps lié aux tâches et l’import local de fiches de salaire multipage avec double lecture et contrôle humain.",
+  "pub_date": "2026-09-01T06:27:41.2064492+00:00",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlljcW0xNHhxaGtCTXBrS2V4QjVqaEVrVDZncUxSeHlGbjd0aE0zMUZ2bEZKRHJHdm9PUkJNRGZYcFBvQUZwbjAveFQ5YTFWTllZYkZUZi9xcWNla0FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjQzODg3CWZpbGU6RWx5a29fMS42LjBfeDY0LXNldHVwLmV4ZQpVMkxtYTI0ZnVGL0tUS3lrZlFZRGw3TU9DMWxjcnk1QUViN1ZLa0xidkY5LzFBdFY4VnEyckVwZDU0b1BSOWZVV0hud0UrRTZVWXkydkNHUFF6RitEdz09Cg==",
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.6.0_x64-setup.exe"
+    }
+  }
 }

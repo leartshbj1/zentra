@@ -120,6 +120,8 @@ fn default_quote_validity_days() -> i64 {
 pub struct TimerInput {
     pub project_id: String,
     #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
     pub employee_id: Option<String>,
     #[serde(default)]
     pub note: Option<String>,
@@ -129,6 +131,50 @@ pub struct TimerInput {
     pub billing_rate_cents: i64,
     #[serde(default)]
     pub cost_rate_cents: i64,
+}
+
+/// Création ou modification atomique d'un jalon local. `completed_at` est
+/// toujours calculé par le backend à partir de `status`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveProjectMilestoneInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub project_id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub due_date: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub priority: Option<String>,
+    #[serde(default)]
+    pub sort_order: Option<i64>,
+    #[serde(default)]
+    pub employee_id: Option<String>,
+}
+
+/// Création ou modification du contenu d'une tâche. Les changements de statut
+/// passent par `set_project_task_status`, ce qui conserve un audit explicite.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveProjectTaskInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub project_id: String,
+    #[serde(default)]
+    pub milestone_id: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub due_date: Option<String>,
+    #[serde(default)]
+    pub priority: Option<String>,
+    #[serde(default)]
+    pub sort_order: Option<i64>,
+    #[serde(default)]
+    pub employee_id: Option<String>,
 }
 
 fn default_true() -> bool {

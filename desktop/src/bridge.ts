@@ -51,6 +51,8 @@ import type {
   PeriodFilter,
   PostPayslipResult,
   Project,
+  ProjectMilestone,
+  ProjectTask,
   Quote,
   Reminder,
   ReminderHistory,
@@ -110,12 +112,15 @@ export type OnboardingValidationResult = {
   issues: OnboardingValidationIssue[];
 };
 type RawWorkspace = {
+  schema_version?: unknown;
   settings?: RawRecord | null;
   clients?: RawRecord[];
   catalog_items?: RawRecord[];
   stock_movements?: RawRecord[];
   suppliers?: RawRecord[];
   projects?: RawRecord[];
+  project_milestones?: RawRecord[];
+  project_tasks?: RawRecord[];
   quotes?: RawRecord[];
   quote_items?: RawRecord[];
   invoices?: RawRecord[];
@@ -621,6 +626,32 @@ const invoiceStatusFromRaw = (value: unknown): Invoice['status'] => {
   );
 };
 
+const planningStatusFromRaw = (value: unknown): ProjectTask['status'] => {
+  const status = stringValue(value);
+  if (
+    status === 'todo' ||
+    status === 'in_progress' ||
+    status === 'done' ||
+    status === 'cancelled'
+  )
+    return status;
+  throw new Error(`État de planning local inconnu : ${status || 'vide'}.`);
+};
+
+const planningPriorityFromRaw = (value: unknown): ProjectTask['priority'] => {
+  const priority = stringValue(value);
+  if (
+    priority === 'low' ||
+    priority === 'normal' ||
+    priority === 'high' ||
+    priority === 'urgent'
+  )
+    return priority;
+  throw new Error(
+    `Priorité de planning locale inconnue : ${priority || 'vide'}.`,
+  );
+};
+
 function lineFromRaw(row: RawRecord): DocumentLine {
   return {
     id: stringValue(row.id),
@@ -956,6 +987,37 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     plannedMinutes: numberValue(row.planned_minutes),
     notes: stringValue(row.notes) || stringValue(row.description),
   }));
+  const projectMilestones: ProjectMilestone[] = (
+    raw.project_milestones ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    projectId: stringValue(row.project_id),
+    title: stringValue(row.title),
+    description: stringValue(row.description),
+    dueDate: stringValue(row.due_date),
+    status: planningStatusFromRaw(row.status),
+    priority: planningPriorityFromRaw(row.priority),
+    sortOrder: numberValue(row.sort_order),
+    employeeId: nullableString(row.employee_id),
+    completedAt: nullableString(row.completed_at),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  }));
+  const projectTasks: ProjectTask[] = (raw.project_tasks ?? []).map((row) => ({
+    id: stringValue(row.id),
+    projectId: stringValue(row.project_id),
+    milestoneId: nullableString(row.milestone_id),
+    title: stringValue(row.title),
+    description: stringValue(row.description),
+    dueDate: stringValue(row.due_date),
+    status: planningStatusFromRaw(row.status),
+    priority: planningPriorityFromRaw(row.priority),
+    sortOrder: numberValue(row.sort_order),
+    employeeId: nullableString(row.employee_id),
+    completedAt: nullableString(row.completed_at),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  }));
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
     id: stringValue(row.id),
     number: stringValue(row.number),
@@ -1077,6 +1139,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const timeEntries: TimeEntry[] = (raw.time_entries ?? []).map((row) => ({
     id: stringValue(row.id),
     projectId: stringValue(row.project_id),
+    taskId: nullableString(row.task_id),
     employeeId: stringValue(row.employee_id),
     date: stringValue(row.date),
     minutes: numberValue(row.minutes),
@@ -1252,7 +1315,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   }));
   const timer = raw.active_timer;
   return {
-    schemaVersion: 1,
+    schemaVersion: numberValue(raw.schema_version) || 19,
     onboardingCompleted: appState.onboarding_completed,
     activityProfileRequired: boolValue(appState.activity_profile_required),
     settings: settingsFromRaw(raw.settings, appState.data_dir),
@@ -1261,6 +1324,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     stockMovements,
     suppliers,
     projects,
+    projectMilestones,
+    projectTasks,
     quotes,
     invoices,
     payments,
@@ -1271,6 +1336,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     activeTimer: timer
       ? {
           projectId: stringValue(timer.project_id),
+          taskId: nullableString(timer.task_id),
           employeeId: stringValue(timer.employee_id),
           startedAt: stringValue(timer.started_at),
           note: stringValue(timer.note),
@@ -1298,7 +1364,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
 
 function emptyWorkspace(): Workspace {
   return {
-    schemaVersion: 1,
+    schemaVersion: 19,
     onboardingCompleted: false,
     activityProfileRequired: true,
     settings: null,
@@ -1307,6 +1373,8 @@ function emptyWorkspace(): Workspace {
     stockMovements: [],
     suppliers: [],
     projects: [],
+    projectMilestones: [],
+    projectTasks: [],
     quotes: [],
     invoices: [],
     payments: [],
@@ -2149,6 +2217,70 @@ export const desktopApi = {
       id,
       data: toBackendData(data),
     });
+    return loadWorkspace();
+  },
+  async saveProjectMilestone(input: {
+    id?: string;
+    projectId: string;
+    title: string;
+    description: string;
+    dueDate: string | null;
+    status: ProjectMilestone['status'];
+    priority: ProjectMilestone['priority'];
+    sortOrder: number;
+    employeeId: string | null;
+  }) {
+    await invoke('save_project_milestone', {
+      input: {
+        id: input.id ?? null,
+        project_id: input.projectId,
+        title: input.title,
+        description: input.description || null,
+        due_date: input.dueDate,
+        status: input.status,
+        priority: input.priority,
+        sort_order: input.sortOrder,
+        employee_id: input.employeeId,
+      },
+    });
+    return loadWorkspace();
+  },
+  async deleteProjectMilestone(id: string) {
+    await invoke('delete_project_milestone', { id });
+    return loadWorkspace();
+  },
+  async saveProjectTask(input: {
+    id?: string;
+    projectId: string;
+    milestoneId: string | null;
+    title: string;
+    description: string;
+    dueDate: string | null;
+    priority: ProjectTask['priority'];
+    sortOrder: number;
+    employeeId: string | null;
+  }) {
+    await invoke('save_project_task', {
+      input: {
+        id: input.id ?? null,
+        project_id: input.projectId,
+        milestone_id: input.milestoneId,
+        title: input.title,
+        description: input.description || null,
+        due_date: input.dueDate,
+        priority: input.priority,
+        sort_order: input.sortOrder,
+        employee_id: input.employeeId,
+      },
+    });
+    return loadWorkspace();
+  },
+  async setProjectTaskStatus(id: string, status: ProjectTask['status']) {
+    await invoke('set_project_task_status', { id, status });
+    return loadWorkspace();
+  },
+  async deleteProjectTask(id: string) {
+    await invoke('delete_project_task', { id });
     return loadWorkspace();
   },
   async recordStockEntry(input: {

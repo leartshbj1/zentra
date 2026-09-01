@@ -16,6 +16,7 @@ mod noga;
 mod payroll;
 mod payroll_import;
 mod payroll_pdf;
+mod project_planning;
 mod reminders;
 mod schema;
 mod stock;
@@ -63,6 +64,11 @@ pub fn run() {
             create_record,
             update_record,
             delete_record,
+            save_project_milestone,
+            delete_project_milestone,
+            save_project_task,
+            set_project_task_status,
+            delete_project_task,
             record_stock_entry,
             record_stock_exit,
             record_stock_correction,
@@ -309,7 +315,7 @@ mod tests {
 
     /// Fixture réglementaire minimale pour les tests comptables qui ne portent
     /// pas sur les taux sociaux : collaborateur mineur, contrat < 8 h/semaine
-    /// et AAP explicite à montant nul. Aucun taux légal n'est inventé.
+    /// et police AAP de test à 1 %, avec le plafond LAA 2026 explicite.
     fn configure_minor_test_payroll(
         store: &LocalStore,
         employee_id: &str,
@@ -344,6 +350,15 @@ mod tests {
                 }),
             )
             .unwrap();
+        let (liability_account_id, expense_account_id): (Option<String>, Option<String>) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT social_payable_account_id,social_expense_account_id FROM accounting_settings WHERE id=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
         let definition = store
             .upsert_payroll_contribution_definition(ContributionDefinitionInput {
                 id: None,
@@ -351,23 +366,23 @@ mod tests {
                 label: "AAP confirmée pour le test".into(),
                 category: "aap".into(),
                 side: "employer".into(),
-                calculation_kind: "fixed".into(),
-                rate_bp: None,
-                fixed_amount_cents: Some(0),
-                annual_ceiling_cents: None,
+                calculation_kind: "rate".into(),
+                rate_bp: Some(100),
+                fixed_amount_cents: None,
+                annual_ceiling_cents: Some(14_820_000),
                 basis_kind: "gross".into(),
                 source: "Police LAA explicite de test".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: Some("2026-12-31".into()),
                 active: true,
-                liability_account_id: None,
-                expense_account_id: None,
+                liability_account_id,
+                expense_account_id,
             })
             .unwrap();
         ContributionSelectionInput {
             definition_id: value_id(&definition),
             basis_cents: None,
-            year_to_date_basis_cents: None,
+            year_to_date_basis_cents: Some(0),
         }
     }
 
@@ -836,7 +851,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 18;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 19;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -1256,7 +1271,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             })
             .collect::<Vec<_>>()
             .join("\n")
-            .replace("PRAGMA user_version = 18;", "PRAGMA user_version = 10;");
+            .replace("PRAGMA user_version = 19;", "PRAGMA user_version = 10;");
         assert!(!legacy_schema.contains("CREATE TABLE IF NOT EXISTS suppliers"));
         assert!(!legacy_schema.contains(
             "supplier_id TEXT REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT"
@@ -1828,6 +1843,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         store
             .start_timer(crate::models::TimerInput {
                 project_id: value_id(&project),
+                task_id: None,
                 employee_id: None,
                 note: Some("Temps réellement mesuré".into()),
                 billable: true,
@@ -3271,8 +3287,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(account_totals(&employee_liability), (0, 10_000));
         assert_eq!(account_totals(&employer_expense), (15_000, 0));
         assert_eq!(account_totals(&employer_liability), (0, 15_000));
-        assert_eq!(account_totals(&accounts["social_expense"]), (3_000, 0));
-        assert_eq!(account_totals(&accounts["social_payable"]), (0, 5_000));
+        assert_eq!(account_totals(&accounts["social_expense"]), (8_000, 0));
+        assert_eq!(account_totals(&accounts["social_payable"]), (0, 10_000));
         let posting_balance: (i64, i64) = connection
             .query_row(
                 "SELECT SUM(debit_cents),SUM(credit_cents) FROM journal_lines WHERE journal_entry_id=?",
@@ -3280,7 +3296,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        assert_eq!(posting_balance, (518_000, 518_000));
+        assert_eq!(posting_balance, (523_000, 523_000));
         drop(connection);
 
         let replacement_wages_payable = value_id(
@@ -3744,6 +3760,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(totals(&advance_account), (0, 10_000));
         assert_eq!(totals(&source_tax_account), (0, 20_000));
         assert_eq!(totals(&reimbursement_expense), (5_000, 0));
+        assert_eq!(totals(&accounts["social_expense"]), (5_000, 0));
+        assert_eq!(totals(&accounts["social_payable"]), (0, 5_000));
         let balance: (i64, i64) = connection
             .query_row(
                 "SELECT SUM(debit_cents),SUM(credit_cents) FROM journal_lines WHERE journal_entry_id=?",
@@ -3751,7 +3769,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        assert_eq!(balance, (505_000, 505_000));
+        assert_eq!(balance, (510_000, 510_000));
 
         let invalid = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {

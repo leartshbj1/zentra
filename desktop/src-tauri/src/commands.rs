@@ -17,10 +17,10 @@ use crate::{
         OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter, PostPayslipInput,
         RecordPaymentInput, RecordSupplierPaymentInput, ReminderActionInput, ReminderFilter,
         ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
-        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveSupplierInvoiceDraftInput,
-        StagePayrollDocumentsInput, StockCorrectionInput, StockEntryInput, StockExitInput,
-        SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
-        UpdatePayrollImportDraftInput,
+        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveProjectMilestoneInput,
+        SaveProjectTaskInput, SaveSupplierInvoiceDraftInput, StagePayrollDocumentsInput,
+        StockCorrectionInput, StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload,
+        SwissQrValidation, TimerInput, UpdatePayrollImportDraftInput,
     },
     swiss_qr,
 };
@@ -199,6 +199,59 @@ pub fn delete_record(
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.delete_record(&entity, &id).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_project_milestone(
+    state: State<'_, LocalStore>,
+    input: SaveProjectMilestoneInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_project_milestone(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn delete_project_milestone(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<DeleteResult, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.delete_project_milestone(&id).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_project_task(
+    state: State<'_, LocalStore>,
+    input: SaveProjectTaskInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_project_task(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn set_project_task_status(
+    state: State<'_, LocalStore>,
+    id: String,
+    status: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .set_project_task_status(&id, &status)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn delete_project_task(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<DeleteResult, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.delete_project_task(&id).map_err(command_error)
 }
 
 #[tauri::command]

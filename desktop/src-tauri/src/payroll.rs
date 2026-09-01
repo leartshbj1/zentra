@@ -18,7 +18,7 @@ use crate::{
     swiss_payroll_rules::{
         ac_is_due, ac_reference_age_status_for_period, apply_avs_reference_age_allowance,
         avs_is_due_for_period, prorated_ac_ceiling_through_period,
-        SWISS_AC_ANNUAL_CEILING_CENTS_2026,
+        SWISS_AC_ANNUAL_CEILING_CENTS_2026, SWISS_LAA_ANNUAL_CEILING_CENTS_2026,
     },
 };
 
@@ -1392,6 +1392,40 @@ fn validate_official_federal_group(
     Ok(())
 }
 
+/// Les primes LAA sont contractuelles, mais le plafond du gain assuré est
+/// fédéral. Une ligne fixe ou sans plafond donnerait un résultat apparemment
+/// plausible mais faux lorsque le salaire dépasse CHF 148'200.
+fn validate_official_laa_group(items: &[Value], category: &str) -> AppResult<()> {
+    let relevant = items
+        .iter()
+        .filter(|item| item["category"].as_str() == Some(category))
+        .collect::<Vec<_>>();
+    if relevant.is_empty() {
+        return Err(AppError::Validation(format!(
+            "La couverture {category} doit provenir de la police LAA réelle."
+        )));
+    }
+    for item in relevant {
+        let actual_ceiling = item["statutory_annual_ceiling_cents"]
+            .as_i64()
+            .or_else(|| item["annual_ceiling_cents"].as_i64());
+        let rate_bp = item["rate_bp"].as_i64();
+        if item["calculation_kind"].as_str() != Some("rate")
+            || !rate_bp.is_some_and(|rate| (1..=10_000).contains(&rate))
+            || actual_ceiling != Some(SWISS_LAA_ANNUAL_CEILING_CENTS_2026)
+            || item["source"]
+                .as_str()
+                .map(str::trim)
+                .is_none_or(str::is_empty)
+        {
+            return Err(AppError::Validation(format!(
+                "La couverture {category} doit utiliser le taux positif de la police LAA, citer sa source et appliquer le plafond fédéral 2026 de CHF 148'200."
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Garde serveur du statut `valide`. L'interface ne constitue jamais une
 /// frontière de sécurité : cette validation est rejouée dans la transaction
 /// Rust avant chaque enregistrement ou modification d'une fiche validée.
@@ -1449,6 +1483,7 @@ fn validate_validated_swiss_payslip(
             "L’assureur accidents doit être renseigné avant de valider AAP/AANP.".into(),
         ));
     }
+    validate_official_laa_group(items, "aap")?;
     let weekly_minutes = employee.contractual_weekly_minutes.ok_or_else(|| {
         AppError::Validation(
             "Confirmez les minutes contractuelles hebdomadaires pour décider l’assujettissement AANP."
@@ -1469,6 +1504,9 @@ fn validate_validated_swiss_payslip(
             ))
         }
         _ => {}
+    }
+    if weekly_minutes >= 480 {
+        validate_official_laa_group(items, "aanp")?;
     }
     for (category, setting, message) in [
         (
@@ -1843,4 +1881,29 @@ fn profile_line(
     ceiling: Option<i64>,
 ) -> Value {
     json!({"code":code,"label":label,"category":category,"side":side,"calculation_kind":"rate","rate_bp":rate_bp,"fixed_amount_cents":null,"annual_ceiling_cents":ceiling,"basis_kind":"ahv_salary","source":CH_2026_SOURCE,"effective_from":"2026-01-01","effective_to":"2026-12-31","active":true})
+}
+
+#[cfg(test)]
+mod laa_policy_tests {
+    use super::*;
+
+    #[test]
+    fn laa_validation_requires_a_real_rate_source_and_the_federal_ceiling() {
+        let valid = vec![json!({
+            "category":"aap",
+            "calculation_kind":"rate",
+            "rate_bp":125,
+            "annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,
+            "source":"Police LAA 2026, classe confirmée"
+        })];
+        assert!(validate_official_laa_group(&valid, "aap").is_ok());
+
+        for invalid in [
+            json!({"category":"aap","calculation_kind":"fixed","fixed_amount_cents":500,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"source":"Police"}),
+            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"source":"Police"}),
+            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"source":""}),
+        ] {
+            assert!(validate_official_laa_group(&[invalid], "aap").is_err());
+        }
+    }
 }

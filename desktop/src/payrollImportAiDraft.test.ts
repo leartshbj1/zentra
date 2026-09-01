@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergePayrollImportDraft, parsePayrollAiJson, reconcilePayrollAiPasses } from './payrollImportAiDraft';
+import { combinePayrollAiPageBatches, mergePayrollImportDraft, parsePayrollAiJson, reconcilePayrollAiPasses } from './payrollImportAiDraft';
 import type { PayrollImportDraft } from './types';
 
 function existingDraft(): PayrollImportDraft {
@@ -112,5 +112,65 @@ describe('fusion du brouillon de paie et de la lecture IA', () => {
     }));
     expect(parsed.draft.lines).toEqual([]);
     expect(parsed.draft.warnings.join(' ')).toContain('classification IA inconnue');
+  });
+
+  it('conserve uniquement une provenance de page entière et explicite', () => {
+    const parsed = parsePayrollAiJson(JSON.stringify({
+      employee: { name: 'Alex Exemple' }, period: '2026-08', payment_date: '', gross_cents: 500_000, net_cents: 500_000,
+      field_pages: { 'employee.name': 2, period: [2, 2], gross_cents: 2.5, net_cents: 999 },
+      lines: [{ label: 'Salaire', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 9_000, source_page: 2 }], warnings: [],
+    }));
+    expect(parsed.provenance.fields).toEqual({ 'employee.name': [2], period: [2] });
+    expect(parsed.provenance.lines[0].pages).toEqual([2]);
+  });
+
+  it('assemble tous les lots multipages et bloque une identité contradictoire', () => {
+    const page = (pageNumber: number, employeeName: string, line: { label: string; kind: 'earning' | 'deduction'; amount: number }) => {
+      const raw = JSON.stringify({
+        employee: { name: employeeName, employee_number: 'E-001', avs_number: '756.9217.0769.85' },
+        period: '2026-08', payment_date: '2026-08-25', gross_cents: 500_000, net_cents: 450_000,
+        field_pages: { 'employee.name': pageNumber, 'employee.employee_number': pageNumber, 'employee.avs_number': pageNumber, period: pageNumber, gross_cents: pageNumber, net_cents: pageNumber },
+        lines: [{ label: line.label, kind: line.kind, amount_cents: line.amount, recurring: line.kind === 'earning', confidence_bp: 9_000, source_page: pageNumber }], warnings: [],
+      });
+      return reconcilePayrollAiPasses(raw, raw);
+    };
+    const combined = combinePayrollAiPageBatches([
+      { pageStart: 1, pageEnd: 1, analysis: page(1, 'Alex Exemple', { label: 'Salaire', kind: 'earning', amount: 500_000 }) },
+      { pageStart: 2, pageEnd: 2, analysis: page(2, 'Autre Personne', { label: 'Retenues', kind: 'deduction', amount: 50_000 }) },
+    ]);
+    expect(combined.draft.lines).toHaveLength(2);
+    expect(combined.draft.employee.name).toBe('');
+    expect(combined.identity.passes).toBe(0);
+    expect(combined.identity.conflicts).toContain('nom du collaborateur');
+    expect(combined.draft.warnings.join(' ')).toContain('Conflit entre pages');
+    expect(combined.draft.warnings.join(' ')).toContain('Provenance IA');
+  });
+
+  it('déduplique une même rubrique relue sur deux lots sans la compter deux fois', () => {
+    const raw = (pageNumber: number) => JSON.stringify({
+      employee: { name: 'Alex Exemple' }, period: '2026-08', payment_date: '2026-08-25', gross_cents: 500_000, net_cents: 500_000,
+      field_pages: { 'employee.name': pageNumber, period: pageNumber, gross_cents: pageNumber, net_cents: pageNumber },
+      lines: [{ label: 'Salaire mensuel', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 9_000, source_page: pageNumber }], warnings: [],
+    });
+    const combined = combinePayrollAiPageBatches([
+      { pageStart: 1, pageEnd: 1, analysis: reconcilePayrollAiPasses(raw(1), raw(1)) },
+      { pageStart: 2, pageEnd: 2, analysis: reconcilePayrollAiPasses(raw(2), raw(2)) },
+    ]);
+    expect(combined.draft.lines).toHaveLength(1);
+    expect(combined.provenance.lines[0].pages).toEqual([1, 2]);
+  });
+
+  it('écarte les deux montants quand une rubrique se contredit entre pages', () => {
+    const raw = (pageNumber: number, amount: number) => JSON.stringify({
+      employee: { name: 'Alex Exemple' }, period: '2026-08', payment_date: '', gross_cents: 0, net_cents: 0,
+      field_pages: { 'employee.name': pageNumber, period: pageNumber },
+      lines: [{ label: 'Cotisation LPP', kind: 'deduction', amount_cents: amount, recurring: false, confidence_bp: 9_000, source_page: pageNumber }], warnings: [],
+    });
+    const combined = combinePayrollAiPageBatches([
+      { pageStart: 1, pageEnd: 1, analysis: reconcilePayrollAiPasses(raw(1, 25_000), raw(1, 25_000)) },
+      { pageStart: 2, pageEnd: 2, analysis: reconcilePayrollAiPasses(raw(2, 26_000), raw(2, 26_000)) },
+    ]);
+    expect(combined.draft.lines).toEqual([]);
+    expect(combined.draft.warnings.join(' ')).toContain('ont tous deux été écartés');
   });
 });
