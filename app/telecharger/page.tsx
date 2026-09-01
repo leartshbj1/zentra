@@ -553,12 +553,11 @@ export default function DownloadPage() {
                   <RefreshCcw className="mt-0.5 size-4 shrink-0" />
                   <p>
                     <strong>Mises à jour intégrées et signées.</strong> La
-                    version
-                    {ELYKO_VERSION} embarque la clé publique Elyko et vérifie la
-                    signature de chaque futur installateur avant de proposer son
-                    installation. Si une ancienne version ne propose pas la mise
-                    à jour intégrée, installez {ELYKO_VERSION} manuellement
-                    depuis cette page.
+                    version {ELYKO_VERSION} embarque la clé publique Elyko et
+                    vérifie la signature de chaque futur installateur avant de
+                    proposer son installation. Si une ancienne version ne
+                    propose pas la mise à jour intégrée, installez{' '}
+                    {ELYKO_VERSION} manuellement depuis cette page.
                   </p>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">
