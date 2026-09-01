@@ -94,6 +94,12 @@ export function normalizeOnboardingSettings(settings: AppSettings): AppSettings 
       dailyAllowanceInsurer: clean(settings.payroll.dailyAllowanceInsurer),
       familyAllowanceFund: clean(settings.payroll.familyAllowanceFund),
       payrollCanton: clean(settings.payroll.payrollCanton),
+      aanpEmployerCoverage: {
+        enabled: settings.payroll.aanpEmployerCoverage?.enabled === true,
+        reference: clean(settings.payroll.aanpEmployerCoverage?.reference ?? ''),
+        effectiveFrom: clean(settings.payroll.aanpEmployerCoverage?.effectiveFrom ?? ''),
+        effectiveTo: clean(settings.payroll.aanpEmployerCoverage?.effectiveTo ?? ''),
+      },
       employeeRates: settings.payroll.enabled ? settings.payroll.employeeRates.map(normalizeRate) : [],
       employerRates: settings.payroll.enabled ? settings.payroll.employerRates.map(normalizeRate) : [],
     },
@@ -231,6 +237,41 @@ export function validateOnboarding(
     required(4, 'payroll.avsFund', 'La caisse AVS', payroll.avsFund, 200);
     required(4, 'payroll.accidentInsurer', 'L’assureur accidents', payroll.accidentInsurer, 200);
     required(4, 'payroll.payrollCanton', 'Le canton de paie', payroll.payrollCanton, 80);
+    const aanpCoverage = payroll.aanpEmployerCoverage;
+    if (aanpCoverage?.enabled) {
+      required(
+        4,
+        'payroll.aanpEmployerCoverage.reference',
+        'La référence de prise en charge AANP',
+        aanpCoverage.reference,
+        500,
+      );
+      if (!isRealDate(aanpCoverage.effectiveFrom))
+        add(
+          4,
+          'payroll.aanpEmployerCoverage.effectiveFrom',
+          'Le début de prise en charge AANP',
+          'Choisissez une date de début valide pour la convention AANP.',
+        );
+      if (aanpCoverage.effectiveTo && !isRealDate(aanpCoverage.effectiveTo))
+        add(
+          4,
+          'payroll.aanpEmployerCoverage.effectiveTo',
+          'La fin de prise en charge AANP',
+          'Choisissez une date de fin valide ou laissez ce champ vide.',
+        );
+      if (
+        isRealDate(aanpCoverage.effectiveFrom) &&
+        isRealDate(aanpCoverage.effectiveTo) &&
+        aanpCoverage.effectiveTo < aanpCoverage.effectiveFrom
+      )
+        add(
+          4,
+          'payroll.aanpEmployerCoverage.effectiveTo',
+          'La fin de prise en charge AANP',
+          'La date de fin ne peut pas précéder la date de début.',
+        );
+    }
     const validateRates = (rates: PayrollRate[], target: 'employeeRates' | 'employerRates') => {
       const identifiers = new Set<string>();
       rates.forEach((rate, index) => {

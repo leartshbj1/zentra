@@ -41,6 +41,12 @@ export const initialOnboardingSettings: AppSettings = {
     dailyAllowanceInsurer: '',
     familyAllowanceFund: '',
     payrollCanton: '',
+    aanpEmployerCoverage: {
+      enabled: false,
+      reference: '',
+      effectiveFrom: '',
+      effectiveTo: '',
+    },
     employeeRates: [],
     employerRates: [],
   },

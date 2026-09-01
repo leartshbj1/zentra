@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { initialOnboardingSettings, settingsFromOnboardingDraft } from './onboardingDraft';
+import { validateOnboarding } from './onboardingValidation';
 
 describe('reprise du brouillon de configuration', () => {
   it('conserve le logo local et le numéro de bâtiment après un redémarrage', () => {
@@ -45,5 +46,47 @@ describe('reprise du brouillon de configuration', () => {
       code: 'AVS',
       annualCeilingCents: 14_820_000,
     });
+  });
+
+  it('conserve la preuve structurée de prise en charge AANP employeur', () => {
+    const restored = settingsFromOnboardingDraft({
+      ...initialOnboardingSettings,
+      payroll: {
+        ...initialOnboardingSettings.payroll,
+        aanpEmployerCoverage: {
+          enabled: true,
+          reference: 'Police LAA 2026, clause 8',
+          effectiveFrom: '2026-01-01',
+          effectiveTo: '2026-12-31',
+        },
+      },
+    });
+
+    expect(restored.payroll.aanpEmployerCoverage).toEqual({
+      enabled: true,
+      reference: 'Police LAA 2026, clause 8',
+      effectiveFrom: '2026-01-01',
+      effectiveTo: '2026-12-31',
+    });
+  });
+
+  it('bloque une prise en charge AANP employeur sans référence ni période cohérente', () => {
+    const settings = {
+      ...initialOnboardingSettings,
+      payroll: {
+        ...initialOnboardingSettings.payroll,
+        enabled: true,
+        aanpEmployerCoverage: {
+          enabled: true,
+          reference: '',
+          effectiveFrom: '2026-12-31',
+          effectiveTo: '2026-01-01',
+        },
+      },
+    };
+    const fields = validateOnboarding(settings, null, false).map((issue) => issue.field);
+
+    expect(fields).toContain('payroll.aanpEmployerCoverage.reference');
+    expect(fields).toContain('payroll.aanpEmployerCoverage.effectiveTo');
   });
 });

@@ -282,6 +282,37 @@ pub(crate) fn import_explicit_settings_rates(
     Ok(())
 }
 
+fn sealed_source_import_evidence(payslip: &Value) -> AppResult<Value> {
+    let Some(raw_evidence) = payslip
+        .get("source_import_evidence_json")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+    else {
+        return Ok(Value::Null);
+    };
+    let expected_sha256 = payslip
+        .get("source_import_evidence_sha256")
+        .and_then(Value::as_str)
+        .filter(|value| value.len() == 64)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "La preuve de l’import salarial ne contient pas son empreinte SHA-256.".into(),
+            )
+        })?;
+    let actual_sha256 = format!("{:x}", Sha256::digest(raw_evidence.as_bytes()));
+    if actual_sha256 != expected_sha256 {
+        return Err(AppError::Validation(
+            "La preuve de l’import salarial a été altérée; la comptabilisation est refusée.".into(),
+        ));
+    }
+    let record: Value = serde_json::from_str(raw_evidence).map_err(|_| {
+        AppError::Validation(
+            "La preuve de l’import salarial est illisible; la comptabilisation est refusée.".into(),
+        )
+    })?;
+    Ok(json!({"sha256":expected_sha256,"record":record}))
+}
+
 impl LocalStore {
     /// Profil réglementaire explicite, jamais installé automatiquement.
     pub fn get_payroll_regulatory_profiles(&self) -> AppResult<Value> {
@@ -648,7 +679,8 @@ impl LocalStore {
             "SELECT * FROM payslip_contributions WHERE payslip_id=? ORDER BY rowid",
             params![input.payslip_id],
         )?;
-        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions});
+        let source_import_evidence = sealed_source_import_evidence(&current)?;
+        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"source_import_evidence":source_import_evidence});
         tx.execute(
             "UPDATE payslips SET status='comptabilise',snapshot_json=?,updated_at=? WHERE id=?",
             params![
@@ -1747,23 +1779,92 @@ fn load_definition(connection: &Connection, id: &str) -> AppResult<Definition> {
 }
 
 /// Verrouille les côtés légaux certains même pour une définition historique
-/// créée avant l'ajout de ces contrôles. Le modèle actuel ne possède aucun
-/// champ structuré permettant de conserver la preuve d'une convention plus
-/// favorable pour l'AANP. Accepter une simple chaîne libre `source` comme
-/// preuve serait ambigu; Zentra bloque donc la part employeur jusqu'à ce que
-/// cette preuve soit modélisée et vérifiable.
+/// créée avant l'ajout de ces contrôles. La prise en charge AANP par
+/// l'employeur est contrôlée séparément contre la convention structurée et
+/// datée conservée dans les paramètres de paie.
 fn validate_statutory_contribution_side(category: &str, side: &str) -> AppResult<()> {
     match (category, side) {
         ("aap", "employee") => Err(AppError::Validation(
             "La prime accidents professionnels AAP est exclusivement à la charge de l’employeur et ne peut jamais être retenue au salarié."
                 .into(),
         )),
-        ("aanp", "employer") => Err(AppError::Validation(
-            "Zentra ne dispose pas encore d’un champ structuré permettant de prouver une convention plus favorable qui met l’AANP à la charge de l’employeur. Par sécurité, configurez cette prime côté salarié."
-                .into(),
-        )),
         _ => Ok(()),
     }
+}
+
+/// L'art. 91 LAA réserve les conventions plus favorables aux assurés. Une
+/// simple part `employer` ne suffit donc pas : Zentra exige une référence
+/// exacte, une fenêtre de validité et une correspondance avec la source figée
+/// sur la définition de cotisation. Ces données sont ensuite recopiées dans la
+/// contribution de la fiche via `source` et les dates d'effet.
+fn validate_aanp_employer_coverage(
+    connection: &Connection,
+    category: &str,
+    side: &str,
+    source: &str,
+    effective_from: &str,
+    effective_to: Option<&str>,
+) -> AppResult<()> {
+    if category != "aanp" || side != "employer" {
+        return Ok(());
+    }
+    let settings_json: String = connection.query_row(
+        "SELECT extra_settings_json FROM settings WHERE id=1",
+        [],
+        |row| row.get(0),
+    )?;
+    let settings: Value = serde_json::from_str(&settings_json).map_err(|_| {
+        AppError::Validation("La configuration locale de paie est illisible.".into())
+    })?;
+    let root = "/payroll/aanpEmployerCoverage";
+    if settings
+        .pointer(&format!("{root}/enabled"))
+        .and_then(Value::as_bool)
+        != Some(true)
+    {
+        return Err(AppError::Validation(
+            "Une part AANP employeur exige une convention plus favorable activée dans les paramètres de paie."
+                .into(),
+        ));
+    }
+    let reference = payroll_setting_text(&settings, &format!("{root}/reference"));
+    if reference.is_empty() || reference.len() > 500 {
+        return Err(AppError::Validation(
+            "La référence structurée de la convention AANP employeur est obligatoire et limitée à 500 caractères."
+                .into(),
+        ));
+    }
+    if source.trim() != reference {
+        return Err(AppError::Validation(
+            "La source de la définition AANP employeur doit correspondre exactement à la référence de convention enregistrée."
+                .into(),
+        ));
+    }
+    let coverage_from = payroll_setting_text(&settings, &format!("{root}/effectiveFrom"));
+    let coverage_to = payroll_setting_text(&settings, &format!("{root}/effectiveTo"));
+    validate_date(coverage_from, "début de la convention AANP employeur")?;
+    if !coverage_to.is_empty() {
+        validate_date(coverage_to, "fin de la convention AANP employeur")?;
+        if coverage_to < coverage_from {
+            return Err(AppError::Validation(
+                "La fin de la convention AANP employeur précède son début.".into(),
+            ));
+        }
+    }
+    if effective_from < coverage_from {
+        return Err(AppError::Validation(
+            "La définition AANP employeur commence avant la convention qui justifie sa prise en charge."
+                .into(),
+        ));
+    }
+    if !coverage_to.is_empty()
+        && (effective_to.is_none() || effective_to.is_some_and(|to| to > coverage_to))
+    {
+        return Err(AppError::Validation(
+            "La définition AANP employeur dépasse la fin de la convention enregistrée.".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn configured_payroll_canton(connection: &Connection) -> AppResult<Option<String>> {
@@ -1833,6 +1934,14 @@ fn validate_definition_configuration_policy(
     connection: &Connection,
     input: &ContributionDefinitionInput,
 ) -> AppResult<()> {
+    validate_aanp_employer_coverage(
+        connection,
+        &input.category,
+        &input.side,
+        &input.source,
+        &input.effective_from,
+        input.effective_to.as_deref(),
+    )?;
     let payroll_canton = if input.category == "family_allowance" && input.side == "employee" {
         configured_payroll_canton(connection)?
     } else {
@@ -1855,6 +1964,14 @@ fn validate_persisted_definition_policy(
     definition: &Definition,
 ) -> AppResult<()> {
     validate_statutory_contribution_side(&definition.category, &definition.side)?;
+    validate_aanp_employer_coverage(
+        connection,
+        &definition.category,
+        &definition.side,
+        &definition.source,
+        &definition.effective_from,
+        definition.effective_to.as_deref(),
+    )?;
     let payroll_canton =
         if definition.category == "family_allowance" && definition.side == "employee" {
             configured_payroll_canton(connection)?
@@ -2079,6 +2196,45 @@ fn profile_line(
 }
 
 #[cfg(test)]
+mod source_import_evidence_tests {
+    use super::*;
+
+    #[test]
+    fn posting_snapshot_embeds_only_a_hash_verified_import_evidence() {
+        assert_eq!(
+            sealed_source_import_evidence(&json!({})).expect("legacy payslip"),
+            Value::Null
+        );
+
+        let raw = json!({
+            "schema":"zentra.payroll-import-confirmation.v1",
+            "source_import_id":"import-1",
+            "human_review":{
+                "attestation_version":"zentra.payroll-import.human-review.v1",
+                "attested_at":"2026-09-02T10:00:00Z"
+            }
+        })
+        .to_string();
+        let sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+        let sealed = sealed_source_import_evidence(&json!({
+            "source_import_evidence_json":raw,
+            "source_import_evidence_sha256":sha256,
+        }))
+        .expect("matching sealed evidence");
+        assert_eq!(sealed["sha256"], sha256);
+        assert_eq!(sealed["record"]["source_import_id"], "import-1");
+
+        let error = sealed_source_import_evidence(&json!({
+            "source_import_evidence_json":"{\"tampered\":true}",
+            "source_import_evidence_sha256":sha256,
+        }))
+        .expect_err("altered evidence must block posting")
+        .to_string();
+        assert!(error.contains("altérée"));
+    }
+}
+
+#[cfg(test)]
 mod laa_policy_tests {
     use super::*;
 
@@ -2172,7 +2328,7 @@ mod laa_policy_tests {
     }
 
     #[test]
-    fn statutory_sides_block_employee_aap_and_unproven_employer_aanp() {
+    fn statutory_sides_block_employee_aap_and_defer_employer_aanp_to_evidence() {
         assert!(validate_statutory_contribution_side("aap", "employer").is_ok());
         let aap_error = validate_statutory_contribution_side("aap", "employee")
             .expect_err("AAP employee deduction must be refused")
@@ -2180,10 +2336,50 @@ mod laa_policy_tests {
         assert!(aap_error.contains("ne peut jamais être retenue"));
 
         assert!(validate_statutory_contribution_side("aanp", "employee").is_ok());
-        let aanp_error = validate_statutory_contribution_side("aanp", "employer")
-            .expect_err("AANP employer needs structured convention evidence")
-            .to_string();
-        assert!(aanp_error.contains("champ structuré"));
+        assert!(validate_statutory_contribution_side("aanp", "employer").is_ok());
+    }
+
+    #[test]
+    fn employer_aanp_requires_exact_dated_structured_evidence() {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE settings(id INTEGER PRIMARY KEY,extra_settings_json TEXT NOT NULL);\
+                 INSERT INTO settings(id,extra_settings_json) VALUES(1,'{\"payroll\":{\"aanpEmployerCoverage\":{\"enabled\":true,\"reference\":\"Police LAA 2026, clause 8\",\"effectiveFrom\":\"2026-01-01\",\"effectiveTo\":\"2026-12-31\"}}}');",
+            )
+            .expect("minimal settings table");
+
+        validate_aanp_employer_coverage(
+            &connection,
+            "aanp",
+            "employer",
+            "Police LAA 2026, clause 8",
+            "2026-01-01",
+            Some("2026-12-31"),
+        )
+        .expect("matching convention must be accepted");
+        assert!(validate_aanp_employer_coverage(
+            &connection,
+            "aanp",
+            "employer",
+            "Source libre",
+            "2026-01-01",
+            Some("2026-12-31"),
+        )
+        .expect_err("the source must match the stored evidence")
+        .to_string()
+        .contains("correspondre exactement"));
+        assert!(validate_aanp_employer_coverage(
+            &connection,
+            "aanp",
+            "employer",
+            "Police LAA 2026, clause 8",
+            "2026-01-01",
+            None,
+        )
+        .expect_err("an open definition cannot outlive a dated convention")
+        .to_string()
+        .contains("dépasse la fin"));
     }
 
     #[test]
@@ -2307,7 +2503,39 @@ mod laa_policy_tests {
         let aanp_error = calculate(&connection, "2026-06", 500_000, &selections, None)
             .expect_err("legacy employer AANP must be blocked without structured proof")
             .to_string();
-        assert!(aanp_error.contains("champ structuré"));
+        assert!(aanp_error.contains("convention plus favorable"));
+
+        connection
+            .execute(
+                "UPDATE settings SET extra_settings_json=? WHERE id=1",
+                params![json!({
+                    "payroll": {
+                        "payrollCanton": "VS",
+                        "aanpEmployerCoverage": {
+                            "enabled": true,
+                            "reference": "Police LAA 2026, clause 8",
+                            "effectiveFrom": "2026-01-01",
+                            "effectiveTo": "2026-12-31"
+                        }
+                    }
+                })
+                .to_string()],
+            )
+            .expect("store structured AANP coverage");
+        connection
+            .execute(
+                "UPDATE payroll_contribution_definitions SET source='Police LAA 2026, clause 8',annual_ceiling_cents=?,effective_to='2026-12-31' WHERE id='legacy'",
+                params![SWISS_LAA_ANNUAL_CEILING_CENTS_2026],
+            )
+            .expect("align the definition with the convention");
+        let covered_selections = [ContributionSelectionInput {
+            definition_id: "legacy".into(),
+            basis_cents: None,
+            year_to_date_basis_cents: Some(0),
+        }];
+        let covered = calculate(&connection, "2026-06", 500_000, &covered_selections, None)
+            .expect("structured employer coverage must calculate");
+        assert_eq!(covered["employer_costs_cents"], 5_000);
 
         connection
             .execute(
@@ -2315,7 +2543,7 @@ mod laa_policy_tests {
                 params![CH_2026_FAMILY_ALLOWANCE_SOURCE],
             )
             .expect("switch legacy definition to official Valais CAF");
-        let valais = calculate(&connection, "2026-06", 500_000, &selections, None)
+        let valais = calculate(&connection, "2026-06", 500_000, &covered_selections, None)
             .expect("official employee CAF must calculate in Valais");
         assert_eq!(valais["employee_deductions_cents"], 650);
 
@@ -2325,7 +2553,7 @@ mod laa_policy_tests {
                 [],
             )
             .expect("switch payroll canton");
-        let canton_error = calculate(&connection, "2026-06", 500_000, &selections, None)
+        let canton_error = calculate(&connection, "2026-06", 500_000, &covered_selections, None)
             .expect_err("employee CAF outside Valais must be blocked")
             .to_string();
         assert!(canton_error.contains("qu’en Valais"));

@@ -43,8 +43,9 @@ use crate::{
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
         MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
-        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
-        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V26_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
+        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
+        SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -711,6 +712,82 @@ fn migrate_v25(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn add_column_if_missing(
+    transaction: &Transaction<'_>,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> AppResult<()> {
+    let mut statement = transaction.prepare(&format!("PRAGMA table_info({table})"))?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !columns.contains(column) {
+        transaction.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {definition};"))?;
+    }
+    Ok(())
+}
+
+fn migrate_v26(transaction: &Transaction<'_>) -> AppResult<()> {
+    for (table, column, definition) in [
+        (
+            "payroll_document_imports",
+            "human_review_attestation_version",
+            "human_review_attestation_version TEXT",
+        ),
+        (
+            "payroll_document_imports",
+            "human_review_attested_at",
+            "human_review_attested_at TEXT",
+        ),
+        (
+            "payroll_document_imports",
+            "confirmation_evidence_sha256",
+            "confirmation_evidence_sha256 TEXT CHECK (confirmation_evidence_sha256 IS NULL OR (LENGTH(confirmation_evidence_sha256)=64 AND confirmation_evidence_sha256 NOT GLOB '*[^0-9a-f]*'))",
+        ),
+        (
+            "payslips",
+            "source_payroll_import_id",
+            "source_payroll_import_id TEXT REFERENCES payroll_document_imports(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+        (
+            "payslips",
+            "source_import_evidence_json",
+            "source_import_evidence_json TEXT CHECK (source_import_evidence_json IS NULL OR (LENGTH(source_import_evidence_json) BETWEEN 2 AND 1000000 AND json_valid(source_import_evidence_json)=1))",
+        ),
+        (
+            "payslips",
+            "source_import_evidence_sha256",
+            "source_import_evidence_sha256 TEXT CHECK (source_import_evidence_sha256 IS NULL OR (LENGTH(source_import_evidence_sha256)=64 AND source_import_evidence_sha256 NOT GLOB '*[^0-9a-f]*'))",
+        ),
+        (
+            "vat_adjustments",
+            "request_id",
+            "request_id TEXT CHECK (request_id IS NULL OR LENGTH(request_id)=36)",
+        ),
+        (
+            "vat_adjustments",
+            "request_sha256",
+            "request_sha256 TEXT CHECK (request_sha256 IS NULL OR (LENGTH(request_sha256)=64 AND request_sha256 NOT GLOB '*[^0-9a-f]*'))",
+        ),
+        (
+            "vat_adjustments",
+            "request_json",
+            "request_json TEXT CHECK (request_json IS NULL OR (LENGTH(request_json) BETWEEN 2 AND 20000 AND json_valid(request_json)=1))",
+        ),
+        (
+            "accounting_settings",
+            "vat_deferred_payable_account_id",
+            "vat_deferred_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+    ] {
+        add_column_if_missing(transaction, table, column, definition)?;
+    }
+    transaction.execute_batch(MIGRATION_V26_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1050,6 +1127,7 @@ impl LocalStore {
                 migrate_v23(&transaction)?;
                 migrate_v24(&transaction)?;
                 migrate_v25(&transaction)?;
+                migrate_v26(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -1138,7 +1216,11 @@ impl LocalStore {
             }
             11 => migrate_v12(&transaction)?,
             12..=23 => {}
-            24 => migrate_v25(&transaction)?,
+            24 => {
+                migrate_v25(&transaction)?;
+                migrate_v26(&transaction)?;
+            }
+            25 => migrate_v26(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1161,6 +1243,7 @@ impl LocalStore {
             migrate_v23(&transaction)?;
             migrate_v24(&transaction)?;
             migrate_v25(&transaction)?;
+            migrate_v26(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -4714,7 +4797,7 @@ pub(crate) fn record_payment_in_transaction(
 /// Retourne la preuve de liaison comptable avec le paiement. Le lien reste
 /// dérivable du triplet immuable `(source_type, source_id, source_event)` du
 /// journal et ne dépend donc pas d'une donnée dupliquée dans `payments`.
-fn payment_record_with_journal(
+pub(crate) fn payment_record_with_journal(
     transaction: &Transaction<'_>,
     payment_id: &str,
 ) -> AppResult<Value> {
@@ -5803,7 +5886,7 @@ mod v25_migration_tests {
     use super::*;
 
     #[test]
-    fn migration_dispatch_upgrades_an_existing_v24_profile_directly() {
+    fn migration_dispatch_upgrades_an_existing_v24_profile_to_latest() {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
         {
@@ -5818,12 +5901,22 @@ mod v25_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            25
+            26
         );
         assert_eq!(
             connection
                 .query_row(
                     "SELECT COUNT(*) FROM pragma_table_info('payroll_document_imports') WHERE name='analysis_manifest_json'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('payroll_document_imports') WHERE name='human_review_attested_at'",
                     [],
                     |row| row.get::<_, i64>(0),
                 )
@@ -5941,5 +6034,172 @@ mod v25_migration_tests {
                 .unwrap(),
             1
         );
+    }
+}
+
+#[cfg(test)]
+mod v26_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_v26_is_additive_replayable_and_preserves_legacy_rows() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE accounts(id TEXT PRIMARY KEY);
+                 CREATE TABLE accounting_settings(
+                   id INTEGER PRIMARY KEY CHECK(id=1),
+                   enabled INTEGER NOT NULL DEFAULT 0,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL
+                 );
+                 INSERT INTO accounting_settings(id,enabled,created_at,updated_at)
+                 VALUES(1,0,'2026-08-31T12:00:00Z','2026-08-31T12:00:00Z');
+                 CREATE TABLE payslips(id TEXT PRIMARY KEY,created_at TEXT NOT NULL);
+                 CREATE TABLE payroll_document_imports(
+                   id TEXT PRIMARY KEY,
+                   source_name TEXT NOT NULL,
+                   file_sha256 TEXT NOT NULL,
+                   media_kind TEXT NOT NULL,
+                   file_size INTEGER NOT NULL,
+                   page_count INTEGER,
+                   extraction_engine TEXT NOT NULL,
+                   engine_version TEXT,
+                   draft_json TEXT NOT NULL,
+                   analysis_manifest_json TEXT,
+                   confidence_bp INTEGER NOT NULL,
+                   status TEXT NOT NULL,
+                   employee_id TEXT,
+                   payslip_id TEXT,
+                   reviewed_at TEXT
+                 );
+                 CREATE TABLE vat_adjustments(
+                   sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                   id TEXT NOT NULL UNIQUE,
+                   adjustment_date TEXT NOT NULL,
+                   category TEXT NOT NULL,
+                   amount_cents INTEGER NOT NULL,
+                   tax_rate_bp INTEGER,
+                   description TEXT NOT NULL,
+                   evidence_reference TEXT,
+                   reverses_adjustment_id TEXT UNIQUE REFERENCES vat_adjustments(id),
+                   created_by TEXT NOT NULL,
+                   created_at TEXT NOT NULL
+                 );
+                 INSERT INTO payslips(id,created_at) VALUES('slip-v25','2026-08-31T12:00:00Z');
+                 INSERT INTO payroll_document_imports(id,source_name,file_sha256,media_kind,file_size,page_count,extraction_engine,engine_version,draft_json,analysis_manifest_json,confidence_bp,status,employee_id,payslip_id,reviewed_at)
+                 VALUES('import-v25','fiche.pdf','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','pdf',42,1,'pdf_text','legacy','{}','{\"schema_version\":1}',6500,'confirmed','employee-v25','slip-v25','2026-08-31T12:00:00Z');
+                 INSERT INTO vat_adjustments(id,adjustment_date,category,amount_cents,tax_rate_bp,description,evidence_reference,reverses_adjustment_id,created_by,created_at)
+                 VALUES('legacy-vat-adjustment','2026-06-30','input_materials',100,NULL,'Ligne V25 conservee',NULL,NULL,'legacy','2026-06-30T00:00:00Z');
+                 PRAGMA user_version=25;",
+            )
+            .unwrap();
+
+        for pass in 0..2 {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v26(&tx).unwrap();
+            tx.commit().unwrap();
+            if pass == 0 {
+                connection.pragma_update(None, "user_version", 25).unwrap();
+            }
+        }
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            26
+        );
+
+        let import_columns = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(payroll_document_imports)")
+                .unwrap();
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .collect::<Result<HashSet<_>, _>>()
+                .unwrap()
+        };
+        for column in [
+            "human_review_attestation_version",
+            "human_review_attested_at",
+            "confirmation_evidence_sha256",
+        ] {
+            assert!(import_columns.contains(column));
+        }
+        let payslip_columns = {
+            let mut statement = connection.prepare("PRAGMA table_info(payslips)").unwrap();
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .collect::<Result<HashSet<_>, _>>()
+                .unwrap()
+        };
+        for column in [
+            "source_payroll_import_id",
+            "source_import_evidence_json",
+            "source_import_evidence_sha256",
+        ] {
+            assert!(payslip_columns.contains(column));
+        }
+        let vat_columns = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(vat_adjustments)")
+                .unwrap();
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .collect::<Result<HashSet<_>, _>>()
+                .unwrap()
+        };
+        for column in ["request_id", "request_sha256", "request_json"] {
+            assert!(vat_columns.contains(column));
+        }
+        let accounting_columns = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(accounting_settings)")
+                .unwrap();
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .collect::<Result<HashSet<_>, _>>()
+                .unwrap()
+        };
+        assert!(accounting_columns.contains("vat_deferred_payable_account_id"));
+        let legacy_vat_request: (Option<String>, Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT request_id,request_sha256,request_json FROM vat_adjustments WHERE id='legacy-vat-adjustment'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(legacy_vat_request, (None, None, None));
+        assert!(connection
+            .execute(
+                "INSERT INTO vat_adjustments(id,request_id,request_sha256,request_json,adjustment_date,category,amount_cents,description,created_by,created_at) VALUES('bad-vat','not-an-uuid',?1,'{}','2026-07-01','input_materials',1,'invalid','tester','2026-07-01T00:00:00Z')",
+                params!["b".repeat(64)],
+            )
+            .is_err());
+        let preserved: (String, Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT file_sha256,human_review_attested_at,confirmation_evidence_sha256 FROM payroll_document_imports WHERE id='import-v25'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(preserved.0, "a".repeat(64));
+        assert_eq!(preserved.1, None);
+        assert_eq!(preserved.2, None);
+        assert!(connection
+            .execute(
+                "UPDATE payroll_document_imports SET confirmation_evidence_sha256=? WHERE id='import-v25'",
+                params!["b".repeat(64)],
+            )
+            .is_err());
     }
 }

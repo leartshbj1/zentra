@@ -46,7 +46,7 @@ const detectedLines = [
 
 export function PayrollLocalDemo() {
   const [active, setActive] = useState(0);
-  const baseId = 'elyko-payroll-demo';
+  const baseId = 'zentra-payroll-demo';
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-[#cfd8d1] bg-[#edf2ee] shadow-[0_30px_80px_rgba(23,61,44,.13)]">

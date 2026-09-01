@@ -561,7 +561,13 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       && hasReviewedRecurringEarnings,
     );
     const ok = await act(
-      () => desktopApi.confirmPayrollDocumentImport(active.id, draft, linkedEmployee, replaceExistingTemplate),
+      () => desktopApi.confirmPayrollDocumentImport(
+        active.id,
+        draft,
+        linkedEmployee,
+        replaceExistingTemplate,
+        reviewed[active.id] === true,
+      ),
       linkedEmployee
         ? replaceExistingTemplate
           ? 'La fiche a été rattachée et le modèle salarial existant a été remplacé explicitement.'

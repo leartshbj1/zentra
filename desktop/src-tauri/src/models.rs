@@ -525,6 +525,8 @@ pub struct AccountingSettingsInput {
     #[serde(default)]
     pub vat_payable_account_id: Option<String>,
     #[serde(default)]
+    pub vat_deferred_payable_account_id: Option<String>,
+    #[serde(default)]
     pub bank_account_id: Option<String>,
     #[serde(default)]
     pub expense_account_id: Option<String>,
@@ -1238,6 +1240,15 @@ pub struct ConfirmPayrollImportInput {
     pub employee_id: Option<String>,
     #[serde(default)]
     pub replace_existing_template: bool,
+    /// Confirmation explicite provenant de la case de contrôle humain dans
+    /// l'interface. La valeur par défaut `false` fait échouer les anciens
+    /// clients au lieu de fabriquer silencieusement une attestation.
+    #[serde(default)]
+    pub human_review_attested: bool,
+    /// Version du texte présenté à la personne qui confirme. Le backend
+    /// n'accepte que la version qu'il connaît et horodate lui-même l'acte.
+    #[serde(default)]
+    pub human_review_attestation_version: String,
     pub draft: PayrollImportDraft,
 }
 

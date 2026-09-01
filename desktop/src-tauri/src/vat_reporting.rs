@@ -12,6 +12,8 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
+    accounting::validate_received_vat_accounting_configuration,
+    audit::append_audit,
     database::{now_iso, LocalStore},
     error::{AppError, AppResult},
 };
@@ -96,8 +98,9 @@ pub struct VatSourceClassification {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VatAdjustmentInput {
-    #[serde(default)]
-    pub id: Option<String>,
+    /// UUID stable genere par le client avant le premier appel. Une reprise
+    /// reutilise strictement cet identifiant et le meme contenu normalise.
+    pub request_id: String,
     pub adjustment_date: String,
     pub category: String,
     pub amount_cents: i64,
@@ -111,8 +114,8 @@ pub struct VatAdjustmentInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReverseVatAdjustmentInput {
-    #[serde(default)]
-    pub id: Option<String>,
+    /// UUID stable genere par le client avant le premier appel.
+    pub request_id: String,
     pub original_adjustment_id: String,
     pub adjustment_date: String,
     pub description: String,
@@ -470,6 +473,14 @@ impl LocalStore {
                 "Le profil TVA {} existe déjà avec un autre contenu; créez une nouvelle version.",
                 normalized.id
             )));
+        }
+
+        if normalized.form_of_reporting == "received" {
+            validate_received_vat_accounting_configuration(
+                &transaction,
+                &normalized.effective_from,
+                normalized.effective_to.as_deref(),
+            )?;
         }
 
         if normalized.close_previous_open_profile {
@@ -979,21 +990,36 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
-        if let Some(existing) = load_adjustment_by_id(&transaction, &normalized.id)? {
-            if adjustment_matches_input(&existing, &normalized) {
+        if let Some((existing, stored_sha256, stored_json)) =
+            load_adjustment_by_request_id(&transaction, &normalized.request_id)?
+        {
+            if stored_sha256 == normalized.request_sha256
+                && stored_json == normalized.request_json
+                && adjustment_matches_input(&existing, &normalized)
+            {
                 transaction.commit()?;
                 return Ok(existing);
             }
             return Err(AppError::Validation(format!(
-                "L'ajustement TVA {} existe déjà avec un autre contenu; un ajustement est immuable.",
+                "Le request_id {} a déjà été utilisé avec un autre ajustement TVA.",
+                normalized.request_id
+            )));
+        }
+
+        if load_adjustment_by_id(&transaction, &normalized.id)?.is_some() {
+            return Err(AppError::Validation(format!(
+                "L'identifiant {} appartient deja a une ligne TVA anterieure sans preuve de requete rejouable.",
                 normalized.id
             )));
         }
 
         transaction.execute(
-            "INSERT INTO vat_adjustments(id,adjustment_date,category,amount_cents,tax_rate_bp,description,evidence_reference,reverses_adjustment_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,NULL,?,?)",
+            "INSERT INTO vat_adjustments(id,request_id,request_sha256,request_json,adjustment_date,category,amount_cents,tax_rate_bp,description,evidence_reference,reverses_adjustment_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,NULL,?,?)",
             params![
                 normalized.id,
+                normalized.request_id,
+                normalized.request_sha256,
+                normalized.request_json,
                 normalized.adjustment_date,
                 normalized.category,
                 normalized.amount_cents,
@@ -1006,6 +1032,18 @@ impl LocalStore {
         )?;
         let result = load_adjustment_by_id(&transaction, &normalized.id)?
             .ok_or_else(|| AppError::NotFound(format!("vat_adjustments/{}", normalized.id)))?;
+        append_audit(
+            &transaction,
+            "create",
+            "vat_adjustment",
+            &result.id,
+            &serde_json::json!({
+                "schema": "zentra.vat-adjustment-audit.v1",
+                "request_id": normalized.request_id,
+                "request_sha256": normalized.request_sha256,
+                "adjustment": &result,
+            }),
+        )?;
         transaction.commit()?;
         Ok(result)
     }
@@ -1014,51 +1052,59 @@ impl LocalStore {
         &self,
         input: ReverseVatAdjustmentInput,
     ) -> AppResult<VatAdjustment> {
-        let id = match input.id {
-            Some(value) => required_text(&value, "id", 255)?,
-            None => Uuid::new_v4().to_string(),
-        };
-        let original_id =
-            required_text(&input.original_adjustment_id, "original_adjustment_id", 255)?;
-        let adjustment_date = normalize_date(&input.adjustment_date, "adjustment_date")?;
-        let description = required_text(&input.description, "description", 500)?;
-        let evidence_reference =
-            optional_text(input.evidence_reference, "evidence_reference", 500)?;
-        let created_by = required_text(&input.created_by, "created_by", 200)?;
+        let normalized = normalize_reverse_adjustment_input(input)?;
 
         let _guard = self.lock()?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let original = load_adjustment_by_id(&transaction, &original_id)?
-            .ok_or_else(|| AppError::NotFound(format!("vat_adjustments/{original_id}")))?;
+        let original = load_adjustment_by_id(&transaction, &normalized.original_adjustment_id)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "vat_adjustments/{}",
+                    normalized.original_adjustment_id
+                ))
+            })?;
         if original.reverses_adjustment_id.is_some() {
             return Err(AppError::Validation(
                 "Une extourne ne peut pas elle-même être extournée.".into(),
             ));
         }
 
-        if let Some(existing) = load_adjustment_by_id(&transaction, &id)? {
-            if existing.reverses_adjustment_id.as_deref() == Some(original_id.as_str())
-                && existing.adjustment_date == adjustment_date
+        if let Some((existing, stored_sha256, stored_json)) =
+            load_adjustment_by_request_id(&transaction, &normalized.request_id)?
+        {
+            if stored_sha256 == normalized.request_sha256
+                && stored_json == normalized.request_json
+                && existing.reverses_adjustment_id.as_deref()
+                    == Some(normalized.original_adjustment_id.as_str())
+                && existing.adjustment_date == normalized.adjustment_date
                 && existing.category == original.category
                 && existing.amount_cents == -original.amount_cents
                 && existing.tax_rate_bp == original.tax_rate_bp
-                && existing.description == description
-                && existing.evidence_reference == evidence_reference
-                && existing.created_by == created_by
+                && existing.description == normalized.description
+                && existing.evidence_reference == normalized.evidence_reference
+                && existing.created_by == normalized.created_by
             {
                 transaction.commit()?;
                 return Ok(existing);
             }
             return Err(AppError::Validation(format!(
-                "L'identifiant d'extourne {id} existe déjà avec un autre contenu."
+                "Le request_id {} existe déjà avec un autre contenu d'extourne.",
+                normalized.request_id
+            )));
+        }
+
+        if load_adjustment_by_id(&transaction, &normalized.id)?.is_some() {
+            return Err(AppError::Validation(format!(
+                "L'identifiant {} appartient deja a une ligne TVA anterieure sans preuve de requete rejouable.",
+                normalized.id
             )));
         }
 
         let already_reversed: bool = transaction.query_row(
             "SELECT EXISTS(SELECT 1 FROM vat_adjustments WHERE reverses_adjustment_id=?)",
-            params![original_id],
+            params![normalized.original_adjustment_id],
             |row| row.get(0),
         )?;
         if already_reversed {
@@ -1068,22 +1114,38 @@ impl LocalStore {
         }
 
         transaction.execute(
-            "INSERT INTO vat_adjustments(id,adjustment_date,category,amount_cents,tax_rate_bp,description,evidence_reference,reverses_adjustment_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO vat_adjustments(id,request_id,request_sha256,request_json,adjustment_date,category,amount_cents,tax_rate_bp,description,evidence_reference,reverses_adjustment_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             params![
-                id,
-                adjustment_date,
+                normalized.id,
+                normalized.request_id,
+                normalized.request_sha256,
+                normalized.request_json,
+                normalized.adjustment_date,
                 original.category,
                 -original.amount_cents,
                 original.tax_rate_bp,
-                description,
-                evidence_reference,
-                original_id,
-                created_by,
+                normalized.description,
+                normalized.evidence_reference,
+                normalized.original_adjustment_id,
+                normalized.created_by,
                 now_iso(),
             ],
         )?;
-        let result = load_adjustment_by_id(&transaction, &id)?
-            .ok_or_else(|| AppError::NotFound(format!("vat_adjustments/{id}")))?;
+        let result = load_adjustment_by_id(&transaction, &normalized.id)?
+            .ok_or_else(|| AppError::NotFound(format!("vat_adjustments/{}", normalized.id)))?;
+        append_audit(
+            &transaction,
+            "reverse",
+            "vat_adjustment",
+            &result.id,
+            &serde_json::json!({
+                "schema": "zentra.vat-adjustment-audit.v1",
+                "request_id": normalized.request_id,
+                "request_sha256": normalized.request_sha256,
+                "original_adjustment_id": normalized.original_adjustment_id,
+                "adjustment": &result,
+            }),
+        )?;
         transaction.commit()?;
         Ok(result)
     }
@@ -1136,6 +1198,9 @@ impl LocalStore {
 #[derive(Debug)]
 struct NormalizedVatAdjustmentInput {
     id: String,
+    request_id: String,
+    request_sha256: String,
+    request_json: String,
     adjustment_date: String,
     category: String,
     amount_cents: i64,
@@ -1148,10 +1213,8 @@ struct NormalizedVatAdjustmentInput {
 fn normalize_adjustment_input(
     input: VatAdjustmentInput,
 ) -> AppResult<NormalizedVatAdjustmentInput> {
-    let id = match input.id {
-        Some(value) => required_text(&value, "id", 255)?,
-        None => Uuid::new_v4().to_string(),
-    };
+    let request_id = normalize_request_id(&input.request_id)?;
+    let id = request_id.clone();
     let adjustment_date = normalize_date(&input.adjustment_date, "adjustment_date")?;
     let category = input.category.trim().to_string();
     if !matches!(
@@ -1195,15 +1258,32 @@ fn normalize_adjustment_input(
             "tax_rate_bp n'est admis que pour acquisition_tax.".into(),
         ));
     }
+    let description = required_text(&input.description, "description", 500)?;
+    let evidence_reference = optional_text(input.evidence_reference, "evidence_reference", 500)?;
+    let created_by = required_text(&input.created_by, "created_by", 200)?;
+    let request_json = serde_json::to_string(&serde_json::json!({
+        "operation": "create_vat_adjustment",
+        "adjustment_date": adjustment_date,
+        "category": category,
+        "amount_cents": input.amount_cents,
+        "tax_rate_bp": input.tax_rate_bp,
+        "description": description,
+        "evidence_reference": evidence_reference,
+        "created_by": created_by,
+    }))?;
+    let request_sha256 = sha256_hex(request_json.as_bytes());
     Ok(NormalizedVatAdjustmentInput {
         id,
+        request_id,
+        request_sha256,
+        request_json,
         adjustment_date,
         category,
         amount_cents: input.amount_cents,
         tax_rate_bp: input.tax_rate_bp,
-        description: required_text(&input.description, "description", 500)?,
-        evidence_reference: optional_text(input.evidence_reference, "evidence_reference", 500)?,
-        created_by: required_text(&input.created_by, "created_by", 200)?,
+        description,
+        evidence_reference,
+        created_by,
     })
 }
 
@@ -1219,6 +1299,58 @@ fn adjustment_matches_input(
         && adjustment.description == input.description
         && adjustment.evidence_reference == input.evidence_reference
         && adjustment.created_by == input.created_by
+}
+
+#[derive(Debug)]
+struct NormalizedReverseVatAdjustmentInput {
+    id: String,
+    request_id: String,
+    request_sha256: String,
+    request_json: String,
+    original_adjustment_id: String,
+    adjustment_date: String,
+    description: String,
+    evidence_reference: Option<String>,
+    created_by: String,
+}
+
+fn normalize_reverse_adjustment_input(
+    input: ReverseVatAdjustmentInput,
+) -> AppResult<NormalizedReverseVatAdjustmentInput> {
+    let request_id = normalize_request_id(&input.request_id)?;
+    let id = request_id.clone();
+    let original_adjustment_id =
+        required_text(&input.original_adjustment_id, "original_adjustment_id", 255)?;
+    let adjustment_date = normalize_date(&input.adjustment_date, "adjustment_date")?;
+    let description = required_text(&input.description, "description", 500)?;
+    let evidence_reference = optional_text(input.evidence_reference, "evidence_reference", 500)?;
+    let created_by = required_text(&input.created_by, "created_by", 200)?;
+    let request_json = serde_json::to_string(&serde_json::json!({
+        "operation": "reverse_vat_adjustment",
+        "original_adjustment_id": original_adjustment_id,
+        "adjustment_date": adjustment_date,
+        "description": description,
+        "evidence_reference": evidence_reference,
+        "created_by": created_by,
+    }))?;
+    let request_sha256 = sha256_hex(request_json.as_bytes());
+    Ok(NormalizedReverseVatAdjustmentInput {
+        id,
+        request_id,
+        request_sha256,
+        request_json,
+        original_adjustment_id,
+        adjustment_date,
+        description,
+        evidence_reference,
+        created_by,
+    })
+}
+
+fn normalize_request_id(value: &str) -> AppResult<String> {
+    Uuid::parse_str(value.trim())
+        .map(|request_id| request_id.hyphenated().to_string())
+        .map_err(|_| AppError::Validation("request_id doit etre un UUID valide.".into()))
 }
 
 fn map_adjustment(row: &Row<'_>) -> rusqlite::Result<VatAdjustment> {
@@ -1246,6 +1378,26 @@ fn load_adjustment_by_id(connection: &Connection, id: &str) -> AppResult<Option<
         )
         .optional()
         .map_err(Into::into)
+}
+
+fn load_adjustment_by_request_id(
+    connection: &Connection,
+    request_id: &str,
+) -> AppResult<Option<(VatAdjustment, String, String)>> {
+    let stored: Option<(String, String, String)> = connection
+        .query_row(
+            "SELECT id,request_sha256,request_json FROM vat_adjustments WHERE request_id=?",
+            params![request_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
+    stored
+        .map(|(id, request_sha256, request_json)| {
+            load_adjustment_by_id(connection, &id)?
+                .map(|adjustment| (adjustment, request_sha256, request_json))
+                .ok_or_else(|| AppError::NotFound(format!("vat_adjustments/{id}")))
+        })
+        .transpose()
 }
 
 fn load_adjustments_for_period(
@@ -3204,6 +3356,28 @@ mod tests {
     }
 
     #[test]
+    fn received_profile_fails_closed_without_a_distinct_deferred_vat_account() {
+        let (_temporary, store) = initialized_store("Zentra Tests");
+        store
+            .install_swiss_accounting_starter()
+            .expect("accounting starter");
+        store
+            .connect()
+            .expect("connection")
+            .execute(
+                "UPDATE accounting_settings SET vat_deferred_payable_account_id=NULL WHERE id=1",
+                [],
+            )
+            .expect("simulate legacy mapping");
+        let error = store
+            .create_vat_profile(effective_profile("received"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("TVA à régulariser"), "{error}");
+        assert!(store.list_vat_profiles().expect("profiles").is_empty());
+    }
+
+    #[test]
     fn effective_calculation_uses_exact_cents_and_reversal_history() {
         let (_temporary, store) = initialized_store("Zentra Tests");
         store
@@ -3241,7 +3415,7 @@ mod tests {
 
         let adjustment = store
             .create_vat_adjustment(VatAdjustmentInput {
-                id: Some("adjustment-1".into()),
+                request_id: "11111111-1111-4111-8111-111111111111".into(),
                 adjustment_date: "2026-03-20".into(),
                 category: "input_materials".into(),
                 amount_cents: 100,
@@ -3260,7 +3434,7 @@ mod tests {
         );
         store
             .reverse_vat_adjustment(ReverseVatAdjustmentInput {
-                id: Some("reversal-1".into()),
+                request_id: "22222222-2222-4222-8222-222222222222".into(),
                 original_adjustment_id: adjustment.id,
                 adjustment_date: "2026-03-21".into(),
                 description: "Extourne correction".into(),
@@ -3285,13 +3459,110 @@ mod tests {
         let connection = store.connect().expect("connection");
         assert!(connection
             .execute(
-                "UPDATE vat_adjustments SET amount_cents=1 WHERE id='adjustment-1'",
+                "UPDATE vat_adjustments SET amount_cents=1 WHERE id='11111111-1111-4111-8111-111111111111'",
                 [],
             )
             .is_err());
         assert!(connection
-            .execute("DELETE FROM vat_adjustments WHERE id='adjustment-1'", [])
+            .execute(
+                "DELETE FROM vat_adjustments WHERE id='11111111-1111-4111-8111-111111111111'",
+                [],
+            )
             .is_err());
+    }
+
+    #[test]
+    fn adjustment_requests_are_replay_safe_conflict_checked_and_audited_once() {
+        let (_temporary, store) = initialized_store("Zentra TVA idempotence");
+        let request = VatAdjustmentInput {
+            request_id: "33333333-3333-4333-8333-333333333333".into(),
+            adjustment_date: "2026-03-20".into(),
+            category: "input_materials".into(),
+            amount_cents: 125,
+            tax_rate_bp: None,
+            description: "Correction avec reprise sure".into(),
+            evidence_reference: Some("DOSSIER-TVA-42".into()),
+            created_by: "responsable TVA".into(),
+        };
+        let first = store
+            .create_vat_adjustment(request.clone())
+            .expect("first adjustment");
+        let replay = store
+            .create_vat_adjustment(request.clone())
+            .expect("stable replay");
+        assert_eq!(first.id, request.request_id);
+        assert_eq!(replay.id, first.id);
+        assert_eq!(replay.sequence, first.sequence);
+
+        let mut conflicting_request = request;
+        conflicting_request.amount_cents = 126;
+        let conflict = store
+            .create_vat_adjustment(conflicting_request)
+            .expect_err("same request id with changed content");
+        assert!(conflict.to_string().contains("request_id"));
+
+        let reversal_request = ReverseVatAdjustmentInput {
+            request_id: "44444444-4444-4444-8444-444444444444".into(),
+            original_adjustment_id: first.id,
+            adjustment_date: "2026-03-21".into(),
+            description: "Extourne controlee".into(),
+            evidence_reference: Some("DOSSIER-TVA-43".into()),
+            created_by: "responsable TVA".into(),
+        };
+        let reversal = store
+            .reverse_vat_adjustment(reversal_request.clone())
+            .expect("first reversal");
+        let reversal_replay = store
+            .reverse_vat_adjustment(reversal_request.clone())
+            .expect("stable reversal replay");
+        assert_eq!(reversal.id, reversal_request.request_id);
+        assert_eq!(reversal_replay.id, reversal.id);
+        assert_eq!(reversal_replay.sequence, reversal.sequence);
+
+        let mut conflicting_reversal = reversal_request;
+        conflicting_reversal.description = "Autre motif".into();
+        let conflict = store
+            .reverse_vat_adjustment(conflicting_reversal)
+            .expect_err("same reversal request id with changed content");
+        assert!(conflict.to_string().contains("request_id"));
+
+        let invalid = store
+            .create_vat_adjustment(VatAdjustmentInput {
+                request_id: "pas-un-uuid".into(),
+                adjustment_date: "2026-03-22".into(),
+                category: "input_materials".into(),
+                amount_cents: 1,
+                tax_rate_bp: None,
+                description: "Invalide".into(),
+                evidence_reference: None,
+                created_by: "tester".into(),
+            })
+            .expect_err("invalid request id");
+        assert!(invalid.to_string().contains("UUID"));
+
+        let connection = store.connect().expect("connection");
+        let stored: (i64, i64, String, String) = connection
+            .query_row(
+                "SELECT COUNT(*),COUNT(DISTINCT request_id),MIN(request_sha256),MIN(request_json) FROM vat_adjustments",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("request evidence");
+        assert_eq!(stored.0, 2);
+        assert_eq!(stored.1, 2);
+        assert_eq!(stored.2.len(), 64);
+        assert!(stored.3.contains("vat_adjustment"));
+        let audit_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE entity_type='vat_adjustment'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("audit count");
+        assert_eq!(audit_count, 2, "replays must not append duplicate audits");
+        let verified = crate::audit::verify_audit_chain(&connection).expect("valid audit chain");
+        assert_eq!(verified["valid"], true);
+        assert_eq!(verified["entries"], 2);
     }
 
     #[test]

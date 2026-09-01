@@ -83,7 +83,7 @@ function shortSha256(value: string): string {
 }
 
 function commonMovementBlockReason(movement: BankMovement, account: BankAccountLink | undefined, accountingReady: boolean): string {
-  if (!accountingReady) return 'Activez la comptabilité et ses onze comptes de liaison avant de confirmer le rapprochement.';
+  if (!accountingReady) return 'Activez la comptabilité et tous ses comptes de liaison avant de confirmer le rapprochement.';
   if (!account?.linked) return 'Associez d’abord ce compte à votre entreprise.';
   if (movement.status === 'PDNG') return 'Ce mouvement est encore en attente auprès de la banque.';
   if (movement.reversal) return 'Une extourne ne peut pas être rapprochée comme paiement.';

@@ -1,6 +1,6 @@
 {
   "name": "zentra-desktop",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "private": true,
   "description": "Application Windows locale de gestion d’entreprise multisectorielle Zentra",
   "type": "module",

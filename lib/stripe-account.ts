@@ -70,12 +70,13 @@ export function stripeAccountReadinessProblem(input: {
 
   const product = price.product;
   const taxCode =
-    typeof product === 'string' || 'deleted' in product
+    !product || typeof product === 'string' || 'deleted' in product
       ? ''
       : typeof product.tax_code === 'string'
         ? product.tax_code
         : (product.tax_code?.id ?? '');
   if (
+    !product ||
     typeof product === 'string' ||
     'deleted' in product ||
     !product.active ||

@@ -8,6 +8,11 @@ import {
 } from '@huggingface/transformers';
 import type { ProgressInfo } from '@huggingface/transformers';
 import { PAYROLL_AI_MODEL_ID as MODEL_ID, PAYROLL_AI_MODEL_REVISION as MODEL_VERSION } from './payrollAiModel';
+import {
+  nextPayrollAiRuntimeAfterFailure,
+  selectInitialPayrollAiRuntime,
+  type PayrollAiRuntimeDevice,
+} from './payrollAiRuntimePolicy';
 
 type WorkerRequest =
   | { type: 'check' }
@@ -20,36 +25,67 @@ type GpuNavigator = Navigator & {
 
 let processorPromise: ReturnType<typeof AutoProcessor.from_pretrained> | null = null;
 let modelPromise: ReturnType<typeof AutoModelForVision2Seq.from_pretrained> | null = null;
-let runtimeDevice: 'webgpu' | 'wasm' | null = null;
+let runtimeDevice: PayrollAiRuntimeDevice | null = null;
 
-function resetEngine() {
+function resetEngine(nextDevice: PayrollAiRuntimeDevice | null) {
   processorPromise = null;
   modelPromise = null;
+  runtimeDevice = nextDevice;
 }
 
 function post(payload: Record<string, unknown>) {
   self.postMessage(payload);
 }
 
-async function checkWebGpu() {
+function wasmAvailable() {
+  return typeof WebAssembly !== 'undefined';
+}
+
+async function detectRuntimeDevice() {
+  let webGpuAvailable = false;
   try {
     const gpu = (navigator as GpuNavigator).gpu;
-    const adapter = gpu ? await gpu.requestAdapter() : null;
-    runtimeDevice = adapter ? 'webgpu' : typeof WebAssembly !== 'undefined' ? 'wasm' : null;
+    webGpuAvailable = Boolean(gpu ? await gpu.requestAdapter() : null);
+  } catch {
+    // Some Windows/WebView2 GPU stacks expose navigator.gpu but fail while
+    // requesting the adapter. Treat that exactly like an unavailable GPU so a
+    // direct load/analyze call can still start locally on WASM.
+    webGpuAvailable = false;
+  }
+  return selectInitialPayrollAiRuntime({
+    webGpuAvailable,
+    wasmAvailable: wasmAvailable(),
+  });
+}
+
+async function ensureRuntimeDevice() {
+  runtimeDevice ??= await detectRuntimeDevice();
+  if (!runtimeDevice) {
+    throw new Error('Ni WebGPU ni WebAssembly ne sont disponibles dans cette installation Windows.');
+  }
+  return runtimeDevice;
+}
+
+async function checkWebGpu() {
+  try {
+    // Once WebGPU has failed in this worker, runtimeDevice remains WASM. A
+    // subsequent availability check must not silently switch the engine back
+    // to the failing GPU and recreate the loop.
+    runtimeDevice ??= await detectRuntimeDevice();
     post({ type: 'check', available: Boolean(runtimeDevice), mode: runtimeDevice ?? 'unavailable', modelId: MODEL_ID, modelVersion: MODEL_VERSION });
   } catch (error) {
-    runtimeDevice = typeof WebAssembly !== 'undefined' ? 'wasm' : null;
+    runtimeDevice = selectInitialPayrollAiRuntime({
+      webGpuAvailable: false,
+      wasmAvailable: wasmAvailable(),
+    });
     post({ type: 'check', available: Boolean(runtimeDevice), mode: runtimeDevice ?? 'unavailable', error: String(error), modelId: MODEL_ID, modelVersion: MODEL_VERSION });
   }
 }
 
-async function getEngine() {
-  if (!runtimeDevice) {
-    const gpu = (navigator as GpuNavigator).gpu;
-    const adapter = gpu ? await gpu.requestAdapter() : null;
-    runtimeDevice = adapter ? 'webgpu' : typeof WebAssembly !== 'undefined' ? 'wasm' : null;
+async function getEngine(device: PayrollAiRuntimeDevice) {
+  if (runtimeDevice !== device) {
+    resetEngine(device);
   }
-  if (!runtimeDevice) throw new Error('Ni WebGPU ni WebAssembly ne sont disponibles dans cette installation Windows.');
   processorPromise ??= AutoProcessor.from_pretrained(MODEL_ID, {
     revision: MODEL_VERSION,
     progress_callback: (progress: ProgressInfo) => post({ type: 'progress', progress }),
@@ -61,10 +97,38 @@ async function getEngine() {
       vision_encoder: 'q4',
       decoder_model_merged: 'q4',
     },
-    device: runtimeDevice,
+    device,
     progress_callback: (progress: ProgressInfo) => post({ type: 'progress', progress }),
   });
   return Promise.all([processorPromise, modelPromise]);
+}
+
+async function runWithCpuFallback<T>(input: {
+  run: (device: PayrollAiRuntimeDevice) => Promise<T>;
+  onFallback: (failure: unknown) => void;
+}) {
+  const attemptedDevices: PayrollAiRuntimeDevice[] = [];
+  while (true) {
+    const device = await ensureRuntimeDevice();
+    // This guard is deliberately redundant with the pure policy: it makes a
+    // future regression fail closed instead of spinning inside the worker.
+    if (attemptedDevices.includes(device)) {
+      throw new Error(`Le moteur IA local a interrompu une tentative répétée sur ${device}.`);
+    }
+    attemptedDevices.push(device);
+    try {
+      return await input.run(device);
+    } catch (failure) {
+      const fallbackDevice = nextPayrollAiRuntimeAfterFailure({
+        failedDevice: device,
+        attemptedDevices,
+        wasmAvailable: wasmAvailable(),
+      });
+      resetEngine(fallbackDevice ?? device);
+      if (!fallbackDevice) throw failure;
+      input.onFallback(failure);
+    }
+  }
 }
 
 function sourcePageInstructions(pageStart: number, pageEnd: number) {
@@ -99,83 +163,83 @@ async function analyze(requestId: string, imageUrls: string[] = [], extractedTex
     const pageEnd = Number.isInteger(requestedPageEnd) && (requestedPageEnd ?? 0) >= pageStart
       ? Math.min(requestedPageEnd!, maximumPageEnd)
       : maximumPageEnd;
-    let processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>;
-    let model: Awaited<ReturnType<typeof AutoModelForVision2Seq.from_pretrained>>;
-    try {
-      [processor, model] = await getEngine();
-    } catch (error) {
-      // Une coupure réseau ou un cache incomplet ne doit pas condamner toutes
-      // les relances jusqu'au prochain redémarrage de Zentra.
-      resetEngine();
-      throw error;
-    }
     const images: Awaited<ReturnType<typeof load_image>>[] = [];
     for (const imageUrl of imageUrls.slice(0, 3)) images.push(await load_image(imageUrl));
 
-    const runPass = async (promptText: string) => {
-      const content: Array<{ type: 'image'; image: string } | { type: 'text'; text: string }> = imageUrls
-        .slice(0, 3)
-        .map((image) => ({ type: 'image' as const, image }));
-      content.push({ type: 'text', text: promptText });
-      // Transformers.js supports multimodal content at runtime, while its public
-      // Message type still describes text-only content in v3.7.1.
-      const messages = [{ role: 'user', content }] as unknown as Parameters<typeof processor.apply_chat_template>[0];
-      const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
-      const inputs = await processor(prompt, images, { do_image_splitting: true });
-      const output = await model.generate({
-        ...inputs,
-        do_sample: false,
-        repetition_penalty: 1.05,
-        max_new_tokens: 1_100,
-        return_dict_in_generate: true,
-      });
-      const sequences = output && typeof output === 'object' && 'sequences' in output
-        ? (output as { sequences: unknown }).sequences
-        : output;
-      if (!(sequences instanceof Tensor)) throw new Error("SmolVLM n'a pas renvoyé de séquence exploitable.");
-      const inputIds = inputs.input_ids;
-      const promptLength = inputIds instanceof Tensor ? inputIds.dims.at(-1) ?? 0 : 0;
-      // Les modèles causaux renvoient généralement le prompt suivi des jetons
-      // générés. Ne jamais redécoder le prompt : il contient le schéma JSON et
-      // le texte OCR, qui ne doivent pas pouvoir se faire passer pour la réponse.
-      const generatedOnly = promptLength > 0 && (sequences.dims.at(-1) ?? 0) > promptLength
-        ? sequences.slice(null, [promptLength, sequences.dims.at(-1) ?? promptLength])
-        : sequences;
-      return processor.batch_decode(generatedOnly, { skip_special_tokens: true }).at(-1) ?? '';
-    };
+    const result = await runWithCpuFallback({
+      run: async (device) => {
+        const [processor, model] = await getEngine(device);
+        const runPass = async (promptText: string) => {
+          const content: Array<{ type: 'image'; image: string } | { type: 'text'; text: string }> = imageUrls
+            .slice(0, 3)
+            .map((image) => ({ type: 'image' as const, image }));
+          content.push({ type: 'text', text: promptText });
+          // Transformers.js supports multimodal content at runtime, while its public
+          // Message type still describes text-only content in v3.7.1.
+          const messages = [{ role: 'user', content }] as unknown as Parameters<typeof processor.apply_chat_template>[0];
+          const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
+          const inputs = await processor(prompt, images, { do_image_splitting: true });
+          const output = await model.generate({
+            ...inputs,
+            do_sample: false,
+            repetition_penalty: 1.05,
+            max_new_tokens: 1_100,
+            return_dict_in_generate: true,
+          });
+          const sequences = output && typeof output === 'object' && 'sequences' in output
+            ? (output as { sequences: unknown }).sequences
+            : output;
+          if (!(sequences instanceof Tensor)) throw new Error("SmolVLM n'a pas renvoyé de séquence exploitable.");
+          const inputIds = inputs.input_ids;
+          const promptLength = inputIds instanceof Tensor ? inputIds.dims.at(-1) ?? 0 : 0;
+          // Les modèles causaux renvoient généralement le prompt suivi des jetons
+          // générés. Ne jamais redécoder le prompt : il contient le schéma JSON et
+          // le texte OCR, qui ne doivent pas pouvoir se faire passer pour la réponse.
+          const generatedOnly = promptLength > 0 && (sequences.dims.at(-1) ?? 0) > promptLength
+            ? sequences.slice(null, [promptLength, sequences.dims.at(-1) ?? promptLength])
+            : sequences;
+          return processor.batch_decode(generatedOnly, { skip_special_tokens: true }).at(-1) ?? '';
+        };
 
-    post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Lecture locale 1 sur 2 · transcription', percent: 55 });
-    const primaryOutput = await runPass(extractionPrompt(extractedText, pageStart, pageEnd));
-    post({ type: 'analysis_stage', requestId, stage: 'verifying', label: 'Lecture locale 2 sur 2 · vérification indépendante', percent: 82 });
-    let verifiedOutput = '';
-    try {
-      verifiedOutput = await runPass(verificationPrompt(extractedText, pageStart, pageEnd));
-    } catch (error) {
+        post({ type: 'analysis_stage', requestId, stage: 'reading', label: `Lecture locale 1 sur 2 · transcription${device === 'wasm' ? ' · CPU/WASM' : ''}`, percent: 55 });
+        const primaryOutput = await runPass(extractionPrompt(extractedText, pageStart, pageEnd));
+        post({ type: 'analysis_stage', requestId, stage: 'verifying', label: `Lecture locale 2 sur 2 · vérification indépendante${device === 'wasm' ? ' · CPU/WASM' : ''}`, percent: 82 });
+        try {
+          const verifiedOutput = await runPass(verificationPrompt(extractedText, pageStart, pageEnd));
+          return { device, primaryOutput, verifiedOutput, partialError: '' };
+        } catch (error) {
+          // A WebGPU inference failure must trigger the one allowed CPU retry.
+          // On WASM there is no third runtime: retain the first pass as a weak
+          // proposal and keep the existing mandatory human review workflow.
+          if (device === 'webgpu') throw error;
+          return { device, primaryOutput, verifiedOutput: '', partialError: String(error) };
+        }
+      },
+      onFallback: () => {
+        post({
+          type: 'analysis_stage',
+          requestId,
+          stage: 'cpu_fallback',
+          label: 'WebGPU indisponible · repli local CPU/WASM en cours',
+          percent: 45,
+        });
+      },
+    });
+
+    if (result.partialError) {
       post({ type: 'analysis_stage', requestId, stage: 'partial', label: 'Seconde lecture indisponible · proposition faible uniquement', percent: 100 });
-      post({
-        type: 'analysis',
-        requestId,
-        output: primaryOutput,
-        primaryOutput,
-        verifiedOutput: '',
-        passes: 1,
-        partialError: String(error),
-        modelId: MODEL_ID,
-        modelVersion: MODEL_VERSION,
-        mode: runtimeDevice,
-      });
-      return;
     }
     post({
       type: 'analysis',
       requestId,
-      output: verifiedOutput,
-      primaryOutput,
-      verifiedOutput,
-      passes: 2,
+      output: result.verifiedOutput || result.primaryOutput,
+      primaryOutput: result.primaryOutput,
+      verifiedOutput: result.verifiedOutput,
+      passes: result.verifiedOutput ? 2 : 1,
+      partialError: result.partialError || undefined,
       modelId: MODEL_ID,
       modelVersion: MODEL_VERSION,
-      mode: runtimeDevice,
+      mode: result.device,
     });
   } catch (error) {
     post({ type: 'analysis_error', requestId, error: String(error) });
@@ -186,10 +250,22 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
   if (request.type === 'check') void checkWebGpu();
   if (request.type === 'load') {
-    void getEngine()
+    void runWithCpuFallback({
+      run: async (device) => {
+        await getEngine(device);
+      },
+      onFallback: () => {
+        post({
+          type: 'analysis_stage',
+          stage: 'cpu_fallback',
+          label: 'WebGPU indisponible · repli local CPU/WASM. Le modèle de base sera téléchargé une première fois s’il n’est pas déjà en cache.',
+          percent: 5,
+        });
+      },
+    })
       .then(() => post({ type: 'ready', modelId: MODEL_ID, modelVersion: MODEL_VERSION, mode: runtimeDevice }))
       .catch((error) => {
-        resetEngine();
+        resetEngine(runtimeDevice);
         post({ type: 'load_error', error: String(error) });
       });
   }

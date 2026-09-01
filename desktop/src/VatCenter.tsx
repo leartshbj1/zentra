@@ -27,7 +27,7 @@ import type {
   Workspace,
 } from './types';
 import { Button, EmptyState, ErrorPanel, Field, SectionHeading, submitForm } from './ui';
-import { errorMessage, formatDate, formatMoney, todayIso } from './utils';
+import { createId, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import {
   suggestedVatBusinessReference,
   treatmentsForVatSource,
@@ -62,7 +62,9 @@ export function VatCenter({
   const [profileGrossOrNet, setProfileGrossOrNet] = useState<'net' | 'gross'>('net');
   const [adjustmentCategory, setAdjustmentCategory] = useState<VatAdjustmentCategory>('input_materials');
   const [adjustmentFormVersion, setAdjustmentFormVersion] = useState(0);
+  const [adjustmentRequestId, setAdjustmentRequestId] = useState(createId);
   const [reversalTarget, setReversalTarget] = useState<VatAdjustment | null>(null);
+  const [reversalRequestId, setReversalRequestId] = useState('');
   const [lastExport, setLastExport] = useState<VatReturnExport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -138,6 +140,7 @@ export function VatCenter({
   useEffect(() => {
     setLastExport(null);
     setReversalTarget(null);
+    setReversalRequestId('');
     void load();
   }, [filter.dateFrom, filter.dateTo, submissionType]);
 
@@ -203,6 +206,7 @@ export function VatCenter({
     setBusy(true);
     try {
       await desktopApi.createVatAdjustment({
+        requestId: adjustmentRequestId,
         adjustmentDate: String(form.get('adjustmentDate')),
         category: adjustmentCategory,
         amountCents,
@@ -212,6 +216,7 @@ export function VatCenter({
         createdBy: actor,
       });
       await load();
+      setAdjustmentRequestId(createId());
       setAdjustmentFormVersion((current) => current + 1);
       setNotice('L’ajustement a été ajouté au registre append-only. Une correction future passera par une extourne.');
     } catch (reason) {
@@ -221,20 +226,22 @@ export function VatCenter({
   }
 
   async function reverseAdjustment(form: FormData) {
-    if (!reversalTarget) return;
+    if (!reversalTarget || !reversalRequestId) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
       await desktopApi.reverseVatAdjustment({
+        requestId: reversalRequestId,
         originalAdjustmentId: reversalTarget.id,
         adjustmentDate: String(form.get('adjustmentDate')),
         description: String(form.get('description')),
         evidenceReference: String(form.get('evidenceReference') || ''),
         createdBy: actor,
       });
-      setReversalTarget(null);
       await load();
+      setReversalTarget(null);
+      setReversalRequestId('');
       setNotice('L’ajustement original reste visible et une ligne inverse lui a été liée.');
     } catch (reason) {
       setError(errorMessage(reason, 'L’extourne TVA a été refusée.'));
@@ -290,6 +297,7 @@ export function VatCenter({
           <Field label="Mode de décompte" required><select value={profileBasis} onChange={(event) => setProfileBasis(event.target.value as VatReportingBasis)}><option value="agreed">Contre-prestations convenues</option><option value="received">Contre-prestations reçues · autorisation AFC</option></select></Field>
           <Field label="Périodicité" required><select value={profilePeriodicity} onChange={(event) => setProfilePeriodicity(event.target.value as VatReportingPeriodicity)}><option value="monthly">Mensuelle · sur autorisation</option><option value="quarterly">Trimestrielle</option><option value="semiannual">Semestrielle</option><option value="annual">Annuelle · sur autorisation</option></select></Field>
           <Field label="Présentation" hint={profileMethod === 'simple_tax_rate' ? 'Brut obligatoire pour l’export eCH-0217 TDFN/TaF.' : undefined} required><select value={profileGrossOrNet} disabled={profileMethod === 'simple_tax_rate'} onChange={(event) => setProfileGrossOrNet(event.target.value as 'net' | 'gross')}><option value="net">Net · recommandé</option><option value="gross">Brut</option></select></Field>
+          {profileBasis === 'received' ? <div className="info-strip field--wide"><Settings2 size={18} /><span>Ce mode exige, dans Comptabilité &gt; Plan &amp; liaisons, deux comptes de passif actifs et distincts : « TVA à régulariser » à l’émission puis « TVA due » lors des encaissements. L’enregistrement sera bloqué si la chaîne ou l’historique est incohérent.</span></div> : null}
           {profileMethod === 'simple_tax_rate' ? <><Field label="ActivityID AFC · 5 chiffres" required><input name="activityId" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} required /></Field><Field label="Taux TDFN/TaF confirmé (%)" hint="Saisissez uniquement le taux communiqué ou accepté pour votre activité." required><input name="tdfnRate" type="number" min="0" max="100" step="0.01" required /></Field></> : null}
           <Field label="Note / référence de décision" wide><textarea name="notes" rows={3} placeholder="Date et référence de l’autorisation, personne ayant validé la méthode…" /></Field>
         </div>
@@ -337,9 +345,9 @@ export function VatCenter({
             <Field label="Motif de l’extourne" required wide><input name="description" maxLength={500} required /></Field>
             <Field label="Référence"><input name="evidenceReference" maxLength={500} /></Field>
           </div>
-          <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setReversalTarget(null)}>Annuler</Button><Button type="submit" disabled={busy}><RotateCcw size={15} /> Créer la ligne inverse</Button></div>
+          <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => { setReversalTarget(null); setReversalRequestId(''); }}>Annuler</Button><Button type="submit" disabled={busy}><RotateCcw size={15} /> Créer la ligne inverse</Button></div>
         </form> : null}
-        {adjustments.length ? <div className="vat-adjustment-list">{adjustments.map((item) => <article key={item.id}><div><strong>{vatAdjustmentLabels[item.category]}</strong><span>{formatDate(item.adjustmentDate)} · {item.description}</span><small>{item.reversesAdjustmentId ? 'Extourne liée' : item.evidenceReference || 'Aucune référence documentaire'} · saisi par {item.createdBy}</small></div><strong className={item.amountCents < 0 ? 'is-negative' : ''}>{formatMoney(item.amountCents)}</strong>{!item.reversesAdjustmentId && !reversedAdjustmentIds.has(item.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => setReversalTarget(item)}><RotateCcw size={14} /> Extourner</Button> : <span className="vat-locked">Immuable</span>}</article>)}</div> : <EmptyState title="Aucun ajustement" text="Les calculs reposent uniquement sur les documents de la période tant qu’aucun ajustement justifié n’est ajouté." />}
+        {adjustments.length ? <div className="vat-adjustment-list">{adjustments.map((item) => <article key={item.id}><div><strong>{vatAdjustmentLabels[item.category]}</strong><span>{formatDate(item.adjustmentDate)} · {item.description}</span><small>{item.reversesAdjustmentId ? 'Extourne liée' : item.evidenceReference || 'Aucune référence documentaire'} · saisi par {item.createdBy}</small></div><strong className={item.amountCents < 0 ? 'is-negative' : ''}>{formatMoney(item.amountCents)}</strong>{!item.reversesAdjustmentId && !reversedAdjustmentIds.has(item.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => { setReversalTarget(item); setReversalRequestId(createId()); }}><RotateCcw size={14} /> Extourner</Button> : <span className="vat-locked">Immuable</span>}</article>)}</div> : <EmptyState title="Aucun ajustement" text="Les calculs reposent uniquement sur les documents de la période tant qu’aucun ajustement justifié n’est ajouté." />}
       </>}
     </section> : null}
 

@@ -68,8 +68,21 @@ export type PayrollSettings = {
   dailyAllowanceInsurer: string;
   familyAllowanceFund: string;
   payrollCanton: string;
+  /**
+   * Preuve locale d'une convention plus favorable qui met la prime AANP à la
+   * charge de l'employeur. L'absence de cet objet conserve la règle légale par
+   * défaut: la prime est supportée par le salarié.
+   */
+  aanpEmployerCoverage?: PayrollInsuranceCoverageEvidence;
   employeeRates: PayrollRate[];
   employerRates: PayrollRate[];
+};
+
+export type PayrollInsuranceCoverageEvidence = {
+  enabled: boolean;
+  reference: string;
+  effectiveFrom: string;
+  effectiveTo: string;
 };
 
 export type PayrollRate = {
@@ -1571,6 +1584,7 @@ export type AccountingSettings = {
   arAccountId: string;
   revenueAccountId: string;
   vatPayableAccountId: string;
+  vatDeferredPayableAccountId: string;
   bankAccountId: string;
   expenseAccountId: string;
   vatReceivableAccountId: string;
@@ -1674,27 +1688,55 @@ export type JournalLine = {
   projectId: Identifier | null;
   clientId: Identifier | null;
   employeeId: Identifier | null;
+  runningNetDebitCents?: number;
+  runningDebitBalanceCents?: number;
+  runningCreditBalanceCents?: number;
 };
 
-export type JournalReport = { entries: JournalEntry[]; lines: JournalLine[] };
+export type JournalReport = {
+  entries: JournalEntry[];
+  lines: JournalLine[];
+  currency: ReportCurrency;
+};
 export type LedgerReport = {
   account: Account;
   lines: JournalLine[];
+  currency: ReportCurrency;
+  openingDebitCents: number;
+  openingCreditCents: number;
+  openingDebitBalanceCents: number;
+  openingCreditBalanceCents: number;
+  openingNetDebitCents: number;
   debitCents: number;
   creditCents: number;
+  movementNetDebitCents: number;
   netDebitCents: number;
+  closingDebitBalanceCents: number;
+  closingCreditBalanceCents: number;
+  closingNetDebitCents: number;
 };
 
 export type TrialBalanceRow = Account & {
+  openingDebitCents: number;
+  openingCreditCents: number;
+  openingDebitBalanceCents: number;
+  openingCreditBalanceCents: number;
+  openingNetDebitCents: number;
   debitCents: number;
   creditCents: number;
   debitBalanceCents: number;
   creditBalanceCents: number;
+  closingNetDebitCents: number;
 };
 export type TrialBalanceReport = {
   rows: TrialBalanceRow[];
+  currency: ReportCurrency;
+  openingDebitBalanceCents: number;
+  openingCreditBalanceCents: number;
   debitCents: number;
   creditCents: number;
+  closingDebitBalanceCents: number;
+  closingCreditBalanceCents: number;
   balanced: boolean;
 };
 

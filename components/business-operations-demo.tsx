@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { formatChfCents, formatPercentFromBasisPoints } from '@/lib/site-format';
 
 const catalogItems = [
   {
@@ -38,12 +39,6 @@ const catalogItems = [
     vatBp: 810,
   },
 ] as const;
-
-const money = new Intl.NumberFormat('fr-CH', {
-  style: 'currency',
-  currency: 'CHF',
-  minimumFractionDigits: 2,
-});
 
 type DemoMode = 'quote' | 'purchase';
 type PurchaseStatus = 'ordered' | 'received' | 'matched' | 'paid';
@@ -289,11 +284,11 @@ export function BusinessOperationsDemo() {
               ['Unité', selectedItem.unit],
               [
                 'Prix unitaire',
-                money.format(selectedItem.salesPriceCents / 100),
+                formatChfCents(selectedItem.salesPriceCents),
               ],
               [
                 'TVA',
-                (selectedItem.vatBp / 100).toLocaleString('fr-CH') + ' %',
+                formatPercentFromBasisPoints(selectedItem.vatBp),
               ],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl bg-white/[.075] p-3">
@@ -305,22 +300,22 @@ export function BusinessOperationsDemo() {
           <div className="mt-5 space-y-2.5 border-t border-white/12 pt-5 text-sm">
             <div className="flex justify-between gap-4 text-white/70">
               <span>Avant remise</span>
-              <span>{money.format(totals.grossCents / 100)}</span>
+              <span>{formatChfCents(totals.grossCents)}</span>
             </div>
             <div className="flex justify-between gap-4 text-[#efc27f]">
               <span>Remise {discount} %</span>
               <span>
-                − {money.format((totals.grossCents - totals.netCents) / 100)}
+                − {formatChfCents(totals.grossCents - totals.netCents)}
               </span>
             </div>
             <div className="flex justify-between gap-4 text-white/70">
               <span>TVA</span>
-              <span>{money.format(totals.vatCents / 100)}</span>
+              <span>{formatChfCents(totals.vatCents)}</span>
             </div>
             <div className="flex items-end justify-between gap-4 border-t border-white/12 pt-4">
               <span className="font-semibold">Total TTC</span>
               <strong className="text-2xl tracking-[-.04em] text-[#efb157]">
-                {money.format(totals.totalCents / 100)}
+                {formatChfCents(totals.totalCents)}
               </strong>
             </div>
           </div>

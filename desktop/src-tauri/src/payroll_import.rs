@@ -38,6 +38,48 @@ const MAX_FIELD_PROVENANCE_ITEMS: usize = 256;
 const MAX_LINE_PROVENANCE_ITEMS: usize = 512;
 const MAX_ANALYSIS_CONFLICTS: usize = 128;
 const MAX_ANALYSIS_MANIFEST_BYTES: usize = 1_000_000;
+const HUMAN_REVIEW_ATTESTATION_VERSION: &str = "zentra.payroll-import.human-review.v1";
+const CONFIRMATION_EVIDENCE_SCHEMA: &str = "zentra.payroll-import-confirmation.v1";
+
+fn validate_human_review_attestation(attested: bool, version: &str) -> AppResult<()> {
+    if !attested {
+        return Err(AppError::Validation(
+            "Confirmez explicitement avoir comparé les champs et les montants au document original."
+                .into(),
+        ));
+    }
+    if version.trim() != HUMAN_REVIEW_ATTESTATION_VERSION {
+        return Err(AppError::Validation(
+            "La version de l’attestation de contrôle humain est absente ou n’est plus prise en charge. Rechargez l’interface avant de confirmer."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn confirmation_analysis_summary(manifest_json: Option<&str>) -> AppResult<Value> {
+    let Some(manifest_json) = manifest_json else {
+        return Ok(Value::Null);
+    };
+    let manifest: PayrollAnalysisManifest = serde_json::from_str(manifest_json).map_err(|_| {
+        AppError::Validation(
+            "Le manifeste d’analyse local est illisible et ne peut pas être scellé.".into(),
+        )
+    })?;
+    Ok(json!({
+        "sha256": format!("{:x}", Sha256::digest(manifest_json.as_bytes())),
+        "schema_version": manifest.schema_version,
+        "model_id": manifest.model_id,
+        "model_revision": manifest.model_revision,
+        "input_sha256": manifest.input_sha256,
+        "analyzed_pages": manifest.analyzed_pages,
+        "passes": manifest.passes,
+        "analyzed_at": manifest.analyzed_at,
+        "field_provenance_count": manifest.field_provenance.len(),
+        "line_provenance_count": manifest.line_provenance.len(),
+        "conflict_count": manifest.conflicts.len(),
+    }))
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PayrollDocumentType {
@@ -1154,8 +1196,14 @@ impl LocalStore {
             id,
             employee_id,
             replace_existing_template,
+            human_review_attested,
+            human_review_attestation_version,
             mut draft,
         } = input;
+        validate_human_review_attestation(
+            human_review_attested,
+            &human_review_attestation_version,
+        )?;
         let import_id = id.trim();
         normalize_draft(&mut draft, true)?;
         validate_confirmable_draft(&draft)?;
@@ -1168,11 +1216,15 @@ impl LocalStore {
             String,
             String,
             String,
+            i64,
             Option<i64>,
+            String,
+            String,
+            Option<String>,
             Option<String>,
         )> = transaction
             .query_row(
-                "SELECT status,draft_json,stored_path,file_sha256,media_kind,page_count,analysis_manifest_json FROM payroll_document_imports WHERE id=?",
+                "SELECT status,draft_json,stored_path,file_sha256,media_kind,file_size,page_count,source_name,extraction_engine,engine_version,analysis_manifest_json FROM payroll_document_imports WHERE id=?",
                 params![import_id],
                 |row| {
                     Ok((
@@ -1183,6 +1235,10 @@ impl LocalStore {
                         row.get(4)?,
                         row.get(5)?,
                         row.get(6)?,
+                        row.get(7)?,
+                        row.get(8)?,
+                        row.get(9)?,
+                        row.get(10)?,
                     ))
                 },
             )
@@ -1193,7 +1249,11 @@ impl LocalStore {
             stored_path,
             file_sha256,
             media_kind,
+            file_size,
             page_count,
+            source_name,
+            extraction_engine,
+            engine_version,
             stored_manifest_json,
         ) = match import_state {
             None => {
@@ -1201,12 +1261,12 @@ impl LocalStore {
                     "payroll_document_imports/{import_id}"
                 )))
             }
-            Some((status, _, _, _, _, _, _)) if status == "confirmed" => {
+            Some((status, _, _, _, _, _, _, _, _, _, _)) if status == "confirmed" => {
                 return Err(AppError::Validation(
                     "Cette fiche a déjà été confirmée et importée.".into(),
                 ))
             }
-            Some((status, _, _, _, _, _, _)) if status == "rejected" => {
+            Some((status, _, _, _, _, _, _, _, _, _, _)) if status == "rejected" => {
                 return Err(AppError::Validation(
                     "Cette fiche a été rejetée. Réimportez le document pour recommencer.".into(),
                 ))
@@ -1299,8 +1359,34 @@ impl LocalStore {
         let payslip_id = Uuid::new_v4().to_string();
         let totals = draft_totals(&draft.lines);
         let now = now_iso();
+        let analysis_summary = confirmation_analysis_summary(retained_manifest_json.as_deref())?;
+        let evidence = json!({
+            "schema": CONFIRMATION_EVIDENCE_SCHEMA,
+            "source_import_id": import_id,
+            "source_document": {
+                "source_name": source_name,
+                "file_sha256": file_sha256,
+                "media_kind": media_kind,
+                "file_size": file_size,
+                "page_count": page_count,
+            },
+            "extraction": {
+                "engine": extraction_engine,
+                "engine_version": engine_version,
+                "analysis_manifest": analysis_summary,
+            },
+            "confirmed_draft_sha256": format!("{:x}", Sha256::digest(draft_json.as_bytes())),
+            "human_review": {
+                "attestation_version": HUMAN_REVIEW_ATTESTATION_VERSION,
+                "statement": "J’ai comparé les champs et les montants au document original et je comprends que l’analyse locale peut se tromper.",
+                "attested_at": now,
+                "timestamp_authority": "zentra-local-backend",
+            },
+        });
+        let evidence_json = serde_json::to_string(&evidence)?;
+        let evidence_sha256 = format!("{:x}", Sha256::digest(evidence_json.as_bytes()));
         transaction.execute(
-            "INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,notes,created_at,updated_at) VALUES(?,?,?,'a_controler',?,?,?,?,?,'Import documentaire local à contrôler avant validation.',?,?)",
+            "INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,notes,source_payroll_import_id,source_import_evidence_json,source_import_evidence_sha256,created_at,updated_at) VALUES(?,?,?,'a_controler',?,?,?,?,?,'Import documentaire local contrôlé humainement; cotisations à vérifier avant validation.',?,?,?,?,?)",
             params![
                 payslip_id,
                 employee_id,
@@ -1310,6 +1396,9 @@ impl LocalStore {
                 totals.0.saturating_add(totals.3).saturating_sub(totals.1),
                 totals.2,
                 optional_text(&draft.payment_date),
+                import_id,
+                evidence_json,
+                evidence_sha256,
                 now,
                 now,
             ],
@@ -1351,7 +1440,7 @@ impl LocalStore {
             )?;
         }
         transaction.execute(
-            "UPDATE payroll_document_imports SET draft_json=?,analysis_manifest_json=?,confidence_bp=?,status='confirmed',employee_id=?,payslip_id=?,reviewed_at=?,updated_at=? WHERE id=?",
+            "UPDATE payroll_document_imports SET draft_json=?,analysis_manifest_json=?,confidence_bp=?,status='confirmed',employee_id=?,payslip_id=?,reviewed_at=?,human_review_attestation_version=?,human_review_attested_at=?,confirmation_evidence_sha256=?,updated_at=? WHERE id=?",
             params![
                 draft_json,
                 retained_manifest_json,
@@ -1359,6 +1448,9 @@ impl LocalStore {
                 employee_id,
                 payslip_id,
                 now,
+                HUMAN_REVIEW_ATTESTATION_VERSION,
+                now,
+                evidence_sha256,
                 now,
                 import_id,
             ],
@@ -1374,6 +1466,10 @@ impl LocalStore {
                 "period":draft.period,
                 "line_count":draft.lines.len(),
                 "replace_existing_template":replace_existing_template,
+                "human_review_attestation_version":HUMAN_REVIEW_ATTESTATION_VERSION,
+                "human_review_attested_at":now,
+                "source_file_sha256":file_sha256,
+                "source_import_evidence_sha256":evidence_sha256,
                 "status":"a_controler"
             }),
         )?;
@@ -1382,6 +1478,9 @@ impl LocalStore {
             "import_id":import_id,
             "employee_id":employee_id,
             "payslip_id":payslip_id,
+            "human_review_attestation_version":HUMAN_REVIEW_ATTESTATION_VERSION,
+            "human_review_attested_at":now,
+            "source_import_evidence_sha256":evidence_sha256,
             "status":"confirmed"
         }))
     }
@@ -2948,6 +3047,29 @@ mod tests {
     }
 
     #[test]
+    fn confirmation_requires_an_explicit_supported_human_attestation() {
+        let missing = validate_human_review_attestation(false, HUMAN_REVIEW_ATTESTATION_VERSION)
+            .expect_err("an unchecked review must be refused")
+            .to_string();
+        assert!(missing.contains("Confirmez explicitement"));
+
+        let obsolete = validate_human_review_attestation(true, "legacy-review-v0")
+            .expect_err("an unknown statement must be refused")
+            .to_string();
+        assert!(obsolete.contains("version"));
+        validate_human_review_attestation(true, HUMAN_REVIEW_ATTESTATION_VERSION)
+            .expect("the current explicit attestation is accepted");
+
+        let legacy_input: ConfirmPayrollImportInput = serde_json::from_value(json!({
+            "id": "legacy-import",
+            "draft": {}
+        }))
+        .expect("legacy payload still deserializes fail-closed");
+        assert!(!legacy_input.human_review_attested);
+        assert!(legacy_input.human_review_attestation_version.is_empty());
+    }
+
+    #[test]
     fn update_persists_a_manifest_and_a_legacy_update_does_not_erase_it() {
         let temporary = tempfile::tempdir().expect("temporary Zentra profile");
         let store = LocalStore::initialize(temporary.path().join("profile"))
@@ -3128,6 +3250,8 @@ mod tests {
                 id: "import-proof".into(),
                 employee_id: None,
                 replace_existing_template: false,
+                human_review_attested: true,
+                human_review_attestation_version: HUMAN_REVIEW_ATTESTATION_VERSION.into(),
                 draft: persisted_draft,
             })
             .expect("confirmation keeps reconciled evidence");
@@ -3148,6 +3272,62 @@ mod tests {
         .expect("typed confirmed manifest");
         assert_eq!(confirmed_manifest.field_provenance[0].field, "period");
         assert_eq!(confirmed_manifest.line_provenance.len(), 1);
+
+        let connection = store.connect().expect("open sealed confirmation");
+        let (payslip_id, attestation_version, attested_at, import_evidence_sha): (
+            String,
+            String,
+            String,
+            String,
+        ) = connection
+            .query_row(
+                "SELECT payslip_id,human_review_attestation_version,human_review_attested_at,confirmation_evidence_sha256 FROM payroll_document_imports WHERE id='import-proof'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("sealed import row");
+        assert_eq!(attestation_version, HUMAN_REVIEW_ATTESTATION_VERSION);
+        DateTime::parse_from_rfc3339(&attested_at).expect("server RFC3339 timestamp");
+        let (source_import_id, evidence_json, payslip_evidence_sha): (String, String, String) =
+            connection
+                .query_row(
+                    "SELECT source_payroll_import_id,source_import_evidence_json,source_import_evidence_sha256 FROM payslips WHERE id=?",
+                    params![payslip_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .expect("payslip import evidence");
+        assert_eq!(source_import_id, "import-proof");
+        assert_eq!(payslip_evidence_sha, import_evidence_sha);
+        assert_eq!(
+            payslip_evidence_sha,
+            format!("{:x}", Sha256::digest(evidence_json.as_bytes()))
+        );
+        let evidence: Value = serde_json::from_str(&evidence_json).expect("typed evidence");
+        assert_eq!(evidence["schema"], CONFIRMATION_EVIDENCE_SCHEMA);
+        assert_eq!(evidence["source_document"]["file_sha256"], hash);
+        assert_eq!(
+            evidence["human_review"]["attestation_version"],
+            HUMAN_REVIEW_ATTESTATION_VERSION
+        );
+        assert_eq!(evidence["human_review"]["attested_at"], attested_at);
+        assert_eq!(
+            evidence["extraction"]["analysis_manifest"]["sha256"],
+            format!(
+                "{:x}",
+                Sha256::digest(
+                    confirmed_manifest_json
+                        .as_deref()
+                        .expect("confirmed manifest")
+                        .as_bytes()
+                )
+            )
+        );
+        assert!(connection
+            .execute(
+                "UPDATE payroll_document_imports SET confirmation_evidence_sha256=? WHERE id='import-proof'",
+                params!["0".repeat(64)],
+            )
+            .is_err(), "a confirmed evidence hash must be immutable");
     }
 
     #[test]
@@ -3406,6 +3586,8 @@ mod tests {
                 id: import_id.clone(),
                 employee_id: None,
                 replace_existing_template: false,
+                human_review_attested: true,
+                human_review_attestation_version: HUMAN_REVIEW_ATTESTATION_VERSION.into(),
                 draft: manifest_draft(),
             })
             .expect_err("confirmation must re-read the managed bytes");

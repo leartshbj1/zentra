@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 25;
+pub const SCHEMA_VERSION: i64 = 26;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -592,6 +592,19 @@ CREATE TABLE IF NOT EXISTS payslips (
   payment_journal_entry_id TEXT REFERENCES journal_entries(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   notes TEXT,
   snapshot_json TEXT,
+  source_payroll_import_id TEXT REFERENCES payroll_document_imports(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  source_import_evidence_json TEXT CHECK (
+    source_import_evidence_json IS NULL OR (
+      LENGTH(source_import_evidence_json) BETWEEN 2 AND 1000000
+      AND json_valid(source_import_evidence_json)=1
+    )
+  ),
+  source_import_evidence_sha256 TEXT CHECK (
+    source_import_evidence_sha256 IS NULL OR (
+      LENGTH(source_import_evidence_sha256)=64
+      AND source_import_evidence_sha256 NOT GLOB '*[^0-9a-f]*'
+    )
+  ),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE(employee_id, period)
@@ -829,6 +842,7 @@ CREATE TABLE IF NOT EXISTS accounting_settings (
   ar_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   revenue_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   vat_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  vat_deferred_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   bank_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   vat_receivable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -1007,6 +1021,14 @@ CREATE TABLE IF NOT EXISTS payroll_document_imports (
   employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
   payslip_id TEXT REFERENCES payslips(id) ON UPDATE CASCADE ON DELETE SET NULL,
   reviewed_at TEXT,
+  human_review_attestation_version TEXT,
+  human_review_attested_at TEXT,
+  confirmation_evidence_sha256 TEXT CHECK (
+    confirmation_evidence_sha256 IS NULL OR (
+      LENGTH(confirmation_evidence_sha256)=64
+      AND confirmation_evidence_sha256 NOT GLOB '*[^0-9a-f]*'
+    )
+  ),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -4661,4 +4683,68 @@ PRAGMA user_version=24;
 pub const MIGRATION_V25_SQL: &str = r#"
 CREATE INDEX IF NOT EXISTS idx_journal_reversal_of ON journal_entries(reversal_of);
 PRAGMA user_version=25;
+"#;
+
+/// Scelle la validation humaine d'un import documentaire et rend chaque
+/// ajustement TVA rejouable par une preuve de requête unique et immuable. Les
+/// colonnes sont ajoutées conditionnellement par `migrate_v26`.
+pub const MIGRATION_V26_SQL: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_payslips_source_payroll_import
+ON payslips(source_payroll_import_id)
+WHERE source_payroll_import_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vat_adjustments_request_id
+ON vat_adjustments(request_id)
+WHERE request_id IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS vat_adjustments_request_evidence_guard
+BEFORE INSERT ON vat_adjustments
+WHEN NEW.request_id IS NULL
+  OR LENGTH(TRIM(NEW.request_id))<>36
+  OR NEW.request_sha256 IS NULL
+  OR LENGTH(NEW.request_sha256)<>64
+  OR NEW.request_sha256 GLOB '*[^0-9a-f]*'
+  OR NEW.request_json IS NULL
+  OR LENGTH(NEW.request_json) NOT BETWEEN 2 AND 20000
+  OR json_valid(NEW.request_json)<>1
+BEGIN SELECT RAISE(ABORT,'VAT adjustment requires complete idempotence evidence'); END;
+
+CREATE TRIGGER IF NOT EXISTS payroll_import_confirmed_evidence_no_update
+BEFORE UPDATE ON payroll_document_imports
+WHEN OLD.status='confirmed' AND (
+  NEW.status IS NOT OLD.status
+  OR NEW.source_name IS NOT OLD.source_name
+  OR NEW.file_sha256 IS NOT OLD.file_sha256
+  OR NEW.media_kind IS NOT OLD.media_kind
+  OR NEW.file_size IS NOT OLD.file_size
+  OR NEW.page_count IS NOT OLD.page_count
+  OR NEW.extraction_engine IS NOT OLD.extraction_engine
+  OR NEW.engine_version IS NOT OLD.engine_version
+  OR NEW.draft_json IS NOT OLD.draft_json
+  OR NEW.analysis_manifest_json IS NOT OLD.analysis_manifest_json
+  OR NEW.confidence_bp IS NOT OLD.confidence_bp
+  OR NEW.human_review_attestation_version IS NOT OLD.human_review_attestation_version
+  OR NEW.human_review_attested_at IS NOT OLD.human_review_attested_at
+  OR NEW.confirmation_evidence_sha256 IS NOT OLD.confirmation_evidence_sha256
+  OR NEW.employee_id IS NOT OLD.employee_id
+  OR NEW.payslip_id IS NOT OLD.payslip_id
+  OR NEW.reviewed_at IS NOT OLD.reviewed_at
+)
+BEGIN SELECT RAISE(ABORT,'confirmed payroll import evidence is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS payroll_import_confirmed_no_delete
+BEFORE DELETE ON payroll_document_imports
+WHEN OLD.status='confirmed'
+BEGIN SELECT RAISE(ABORT,'confirmed payroll import evidence is retained'); END;
+
+CREATE TRIGGER IF NOT EXISTS payslip_source_import_evidence_no_update
+BEFORE UPDATE ON payslips
+WHEN OLD.source_payroll_import_id IS NOT NULL AND (
+  NEW.source_payroll_import_id IS NOT OLD.source_payroll_import_id
+  OR NEW.source_import_evidence_json IS NOT OLD.source_import_evidence_json
+  OR NEW.source_import_evidence_sha256 IS NOT OLD.source_import_evidence_sha256
+)
+BEGIN SELECT RAISE(ABORT,'payslip source import evidence is immutable'); END;
+
+PRAGMA user_version=26;
 "#;

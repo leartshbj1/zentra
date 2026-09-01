@@ -40,6 +40,7 @@ const coreAccountingMappingKeys: Array<Exclude<keyof AccountingSettings, 'enable
   'arAccountId',
   'revenueAccountId',
   'vatPayableAccountId',
+  'vatDeferredPayableAccountId',
   'bankAccountId',
   'expenseAccountId',
   'vatReceivableAccountId',
@@ -57,6 +58,7 @@ const accountingMappingTypes: Record<Exclude<keyof AccountingSettings, 'enabled'
   arAccountId: 'asset',
   revenueAccountId: 'revenue',
   vatPayableAccountId: 'liability',
+  vatDeferredPayableAccountId: 'liability',
   bankAccountId: 'asset',
   expenseAccountId: 'expense',
   vatReceivableAccountId: 'asset',
@@ -161,6 +163,9 @@ export function buildSetupReadiness(
     if (new Set(distinctAssetRoles).size !== distinctAssetRoles.length) {
       accountingMissing.push('comptes distincts pour clients, banque et TVA préalable');
     }
+    if (accounting.vatPayableAccountId === accounting.vatDeferredPayableAccountId) {
+      accountingMissing.push('comptes distincts pour TVA due et TVA à régulariser');
+    }
   }
 
   const steps: SetupReadinessStep[] = [
@@ -198,6 +203,17 @@ export function buildSetupReadiness(
     if (!hasText(payroll.familyAllowanceFund))
       payrollMissing.push('caisse d’allocations familiales');
     if (!hasText(payroll.payrollCanton)) payrollMissing.push('canton de paie');
+    if (payroll.aanpEmployerCoverage?.enabled) {
+      if (!hasText(payroll.aanpEmployerCoverage.reference))
+        payrollMissing.push('référence de prise en charge AANP employeur');
+      if (!hasText(payroll.aanpEmployerCoverage.effectiveFrom))
+        payrollMissing.push('début de prise en charge AANP employeur');
+      if (
+        hasText(payroll.aanpEmployerCoverage.effectiveTo) &&
+        payroll.aanpEmployerCoverage.effectiveTo < payroll.aanpEmployerCoverage.effectiveFrom
+      )
+        payrollMissing.push('période AANP employeur cohérente');
+    }
     if (!payroll.fiduciaryValidated) payrollMissing.push('validation professionnelle');
     steps.push(
       step(

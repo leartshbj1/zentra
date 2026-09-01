@@ -4380,7 +4380,7 @@ function SettingsScreen({
         <SectionHeading
           eyebrow="Comptabilité"
           title="Activation et comptes de liaison"
-          description="Le centre lit l’activation et les onze liaisons réellement enregistrées dans la base locale."
+          description="Le centre lit l’activation et toutes les liaisons réellement enregistrées dans la base locale."
           action={
             <Button type="button" variant="secondary" onClick={onOpenAccounting}>
               <Landmark size={16} /> Ouvrir la comptabilité
@@ -4573,6 +4573,31 @@ function SettingsScreen({
         />
         <form
           onSubmit={submitForm(async (form) => {
+            const aanpEmployerCoverage = {
+              enabled: form.get('aanpEmployerCoverageEnabled') === 'on',
+              reference: String(form.get('aanpEmployerCoverageReference')).trim(),
+              effectiveFrom: String(form.get('aanpEmployerCoverageEffectiveFrom')).trim(),
+              effectiveTo: String(form.get('aanpEmployerCoverageEffectiveTo')).trim(),
+            };
+            if (
+              aanpEmployerCoverage.enabled &&
+              (!aanpEmployerCoverage.reference ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(aanpEmployerCoverage.effectiveFrom))
+            ) {
+              throw new Error(
+                'La prise en charge AANP employeur exige une référence écrite et une date de début.',
+              );
+            }
+            if (
+              aanpEmployerCoverage.enabled &&
+              aanpEmployerCoverage.effectiveTo &&
+              (aanpEmployerCoverage.effectiveTo < aanpEmployerCoverage.effectiveFrom ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(aanpEmployerCoverage.effectiveTo))
+            ) {
+              throw new Error(
+                'La fin de prise en charge AANP doit être une date valide postérieure ou égale au début.',
+              );
+            }
             const next = {
               ...settings,
               payroll: {
@@ -4587,6 +4612,7 @@ function SettingsScreen({
                 ),
                 familyAllowanceFund: String(form.get('familyAllowanceFund')),
                 payrollCanton: String(form.get('payrollCanton')),
+                aanpEmployerCoverage,
               },
             };
             setSettings(next);
@@ -4629,6 +4655,42 @@ function SettingsScreen({
               <input
                 name="accidentInsurer"
                 defaultValue={settings.payroll.accidentInsurer}
+              />
+            </Field>
+            <label className="check-card">
+              <input
+                name="aanpEmployerCoverageEnabled"
+                type="checkbox"
+                defaultChecked={settings.payroll.aanpEmployerCoverage?.enabled}
+              />
+              <span>
+                <strong>Prime AANP prise en charge par l’employeur</strong>
+                <small>Uniquement avec une convention plus favorable écrite.</small>
+              </span>
+            </label>
+            <Field
+              label="Référence de la convention AANP"
+              hint="Le même texte devra être utilisé comme source de la définition AANP employeur."
+              wide
+            >
+              <input
+                name="aanpEmployerCoverageReference"
+                maxLength={500}
+                defaultValue={settings.payroll.aanpEmployerCoverage?.reference ?? ''}
+              />
+            </Field>
+            <Field label="Début de prise en charge AANP">
+              <input
+                name="aanpEmployerCoverageEffectiveFrom"
+                type="date"
+                defaultValue={settings.payroll.aanpEmployerCoverage?.effectiveFrom ?? ''}
+              />
+            </Field>
+            <Field label="Fin de prise en charge AANP" hint="Facultatif.">
+              <input
+                name="aanpEmployerCoverageEffectiveTo"
+                type="date"
+                defaultValue={settings.payroll.aanpEmployerCoverage?.effectiveTo ?? ''}
               />
             </Field>
             <Field label="Caisse de pension">

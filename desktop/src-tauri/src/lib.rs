@@ -229,7 +229,7 @@ mod tests {
             CancelSupplierOrderRemainderInput, CancelSupplierOrderRemainderLineInput,
             ConfirmSupplierOrderInput, ContributionDefinitionInput, ContributionSelectionInput,
             ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, GenerateSalesDocumentPdfInput,
-            InstallReminderCycleInput, IssueSupplierReceiptInput, ManualJournalInput,
+            InstallReminderCycleInput, IssueSupplierReceiptInput, LedgerInput, ManualJournalInput,
             ManualJournalLineInput, MarkReminderInput, OnboardingInput, PayPayslipInput,
             PayslipManualLineInput, PeriodFilter, PostPayslipInput,
             ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
@@ -246,6 +246,7 @@ mod tests {
             ValidateSupplierCreditNoteInput,
         },
         schema::{BUSINESS_TABLES, SCHEMA_SQL, SCHEMA_VERSION},
+        vat_reporting::VatProfileInput,
     };
 
     fn test_onboarding() -> OnboardingInput {
@@ -516,6 +517,14 @@ mod tests {
                 "credit",
                 "short_term_liabilities",
             ),
+            (
+                "vat_deferred_payable",
+                "2201",
+                "TVA à régulariser",
+                "liability",
+                "credit",
+                "short_term_liabilities",
+            ),
             ("bank", "1020", "Banque", "asset", "debit", "current_assets"),
             (
                 "expense",
@@ -600,6 +609,7 @@ mod tests {
                 ar_account_id: Some(a["ar"].clone()),
                 revenue_account_id: Some(a["revenue"].clone()),
                 vat_payable_account_id: Some(a["vat_payable"].clone()),
+                vat_deferred_payable_account_id: Some(a["vat_deferred_payable"].clone()),
                 bank_account_id: Some(a["bank"].clone()),
                 expense_account_id: Some(a["expense"].clone()),
                 vat_receivable_account_id: Some(a["vat_receivable"].clone()),
@@ -613,6 +623,44 @@ mod tests {
         a
     }
 
+    fn post_manual_pair(
+        store: &LocalStore,
+        entry_date: &str,
+        description: &str,
+        debit_account_id: &str,
+        credit_account_id: &str,
+        amount_cents: i64,
+        currency: &str,
+    ) -> serde_json::Value {
+        store
+            .post_manual_journal_entry(ManualJournalInput {
+                entry_date: entry_date.into(),
+                description: description.into(),
+                currency: currency.into(),
+                lines: vec![
+                    ManualJournalLineInput {
+                        account_id: debit_account_id.into(),
+                        debit_cents: amount_cents,
+                        credit_cents: 0,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                    ManualJournalLineInput {
+                        account_id: credit_account_id.into(),
+                        debit_cents: 0,
+                        credit_cents: amount_cents,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                ],
+            })
+            .expect("post balanced manual journal pair")
+    }
+
     #[test]
     fn accounting_requires_seven_core_mappings_until_payroll_is_enabled() {
         let (_temporary, store) = initialized_store();
@@ -622,6 +670,7 @@ mod tests {
             ar_account_id: Some(accounts["ar"].clone()),
             revenue_account_id: Some(accounts["revenue"].clone()),
             vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+            vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
             bank_account_id: Some(accounts["bank"].clone()),
             expense_account_id: Some(accounts["expense"].clone()),
             vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
@@ -707,6 +756,7 @@ mod tests {
                 ar_account_id: Some(accounts["ar"].clone()),
                 revenue_account_id: Some(accounts["revenue"].clone()),
                 vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
                 bank_account_id: Some(accounts["bank"].clone()),
                 expense_account_id: Some(accounts["expense"].clone()),
                 vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
@@ -3013,6 +3063,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 ar_account_id: Some(accounts["ar"].clone()),
                 revenue_account_id: Some(accounts["revenue"].clone()),
                 vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
                 bank_account_id: Some(accounts["bank"].clone()),
                 expense_account_id: Some(accounts["expense"].clone()),
                 vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
@@ -3443,6 +3494,318 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn received_vat_is_deferred_then_reclassified_on_each_payment_and_credit_note() {
+        let (_temporary, store) = initialized_store();
+        store
+            .update_settings(json!({
+                "vat_registered":true,
+                "default_vat_bp":810,
+                "uid_number":"CHE-123.456.789",
+                "vat_number":"CHE-123.456.789 TVA"
+            }))
+            .unwrap();
+        let accounts = enable_accounting(&store);
+        store
+            .create_vat_profile(VatProfileInput {
+                id: Some("received-accounting-2026".into()),
+                effective_from: "2026-01-01".into(),
+                effective_to: None,
+                reporting_method: "effective".into(),
+                form_of_reporting: "received".into(),
+                periodicity: "quarterly".into(),
+                gross_or_net: "net".into(),
+                tdfn_activity_id: None,
+                tdfn_rate_bp: None,
+                afc_authorization_confirmed: true,
+                notes: Some("Autorisation AFC confirmée pour le test".into()),
+                close_previous_open_profile: false,
+            })
+            .unwrap();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client TVA reçue"))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture TVA sur encaissements",
+                        "service_date_from":"2026-02-01",
+                        "service_date_to":"2026-02-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation imposable",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "vat_bp":810
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some("2026-02-01".into()), None)
+            .unwrap();
+
+        let first_payment = RecordPaymentInput {
+            request_id: "296f7196-3cd8-4d99-8a20-209578d49696".into(),
+            invoice_id: invoice_id.clone(),
+            amount_cents: 5_405,
+            date: Some("2026-02-15".into()),
+            method: Some("bank".into()),
+            reference: None,
+            notes: None,
+        };
+        store.record_payment(first_payment.clone()).unwrap();
+        store
+            .record_payment(RecordPaymentInput {
+                request_id: "9d39d2de-b03f-4612-a75d-dda8d5eb76a6".into(),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 5_405,
+                date: Some("2026-04-15".into()),
+                method: Some("bank".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        store.record_payment(first_payment).unwrap();
+
+        let connection = store.connect().unwrap();
+        let issue_vat: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                   COALESCE(SUM(CASE WHEN line.account_id=?2 THEN line.credit_cents ELSE 0 END),0),
+                   COALESCE(SUM(CASE WHEN line.account_id=?3 THEN line.credit_cents ELSE 0 END),0)
+                 FROM journal_entries entry JOIN journal_lines line ON line.journal_entry_id=entry.id
+                 WHERE entry.source_type='invoice' AND entry.source_id=?1 AND entry.source_event='issue'",
+                rusqlite::params![invoice_id, accounts["vat_deferred_payable"], accounts["vat_payable"]],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(issue_vat, (810, 0));
+        let allocations = connection
+            .prepare(
+                "SELECT entry.entry_date,line.debit_cents
+                   FROM journal_entries entry
+                   JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo='Reclassement TVA à régulariser'
+                  WHERE entry.source_type='vat_cash_reclassification'
+                  ORDER BY entry.entry_date,entry.created_at,entry.id",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            allocations,
+            vec![("2026-02-15".into(), 405), ("2026-04-15".into(), 405)]
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM journal_entries WHERE source_type='vat_cash_reclassification'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2,
+            "la reprise du premier paiement ne doit créer aucune reclassification supplémentaire"
+        );
+        drop(connection);
+
+        let credit_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "original_invoice_id":invoice_id,
+                        "title":"Avoir après encaissement",
+                        "type":"credit_note",
+                        "service_date_from":"2026-05-01",
+                        "service_date_to":"2026-05-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":credit_id,
+                    "description":"Correction imposable",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":5_000,
+                    "vat_bp":810
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&credit_id, Some("2026-05-01".into()), None)
+            .unwrap();
+        let connection = store.connect().unwrap();
+        let vat_balances: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   COALESCE(SUM(CASE WHEN line.account_id=?1 THEN line.credit_cents-line.debit_cents ELSE 0 END),0),
+                   COALESCE(SUM(CASE WHEN line.account_id=?2 THEN line.credit_cents-line.debit_cents ELSE 0 END),0),
+                   COALESCE(SUM(CASE WHEN entry.source_type='invoice' AND entry.source_id=?3 AND line.memo='Extourne TVA due encaissée' THEN line.debit_cents ELSE 0 END),0)
+                 FROM journal_entries entry JOIN journal_lines line ON line.journal_entry_id=entry.id",
+                rusqlite::params![accounts["vat_deferred_payable"], accounts["vat_payable"], credit_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(vat_balances, (0, 405, 405));
+        drop(connection);
+        let continuity = store.get_accounting_continuity().unwrap();
+        assert_eq!(continuity["semantic_posting_mismatches"], 0);
+    }
+
+    #[test]
+    fn ledger_and_trial_balance_include_opening_and_running_balances() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        post_manual_pair(
+            &store,
+            "2025-12-31",
+            "Solde antérieur",
+            &accounts["bank"],
+            &accounts["ar"],
+            10_000,
+            "CHF",
+        );
+        post_manual_pair(
+            &store,
+            "2026-01-10",
+            "Encaissement",
+            &accounts["bank"],
+            &accounts["ar"],
+            2_500,
+            "CHF",
+        );
+        post_manual_pair(
+            &store,
+            "2026-01-20",
+            "Correction",
+            &accounts["ar"],
+            &accounts["bank"],
+            400,
+            "CHF",
+        );
+
+        let filter = PeriodFilter {
+            date_from: Some("2026-01-01".into()),
+            date_to: Some("2026-12-31".into()),
+        };
+        let ledger = store
+            .get_ledger(LedgerInput {
+                account_id: accounts["bank"].clone(),
+                date_from: filter.date_from.clone(),
+                date_to: filter.date_to.clone(),
+            })
+            .unwrap();
+        assert_eq!(ledger["currency"]["base_currency"], "CHF");
+        assert_eq!(ledger["opening_debit_cents"], 10_000);
+        assert_eq!(ledger["opening_credit_cents"], 0);
+        assert_eq!(ledger["opening_debit_balance_cents"], 10_000);
+        assert_eq!(ledger["opening_credit_balance_cents"], 0);
+        assert_eq!(ledger["debit_cents"], 2_500);
+        assert_eq!(ledger["credit_cents"], 400);
+        assert_eq!(ledger["movement_net_debit_cents"], 2_100);
+        assert_eq!(ledger["net_debit_cents"], 12_100);
+        assert_eq!(ledger["closing_debit_balance_cents"], 12_100);
+        let ledger_lines = ledger["lines"].as_array().unwrap();
+        assert_eq!(ledger_lines.len(), 2);
+        assert_eq!(ledger_lines[0]["running_net_debit_cents"], 12_500);
+        assert_eq!(ledger_lines[1]["running_net_debit_cents"], 12_100);
+
+        let trial = store.get_trial_balance(filter).unwrap();
+        assert_eq!(trial["currency"]["base_currency"], "CHF");
+        assert_eq!(trial["opening_debit_balance_cents"], 10_000);
+        assert_eq!(trial["opening_credit_balance_cents"], 10_000);
+        assert_eq!(trial["debit_cents"], 2_900);
+        assert_eq!(trial["credit_cents"], 2_900);
+        assert_eq!(trial["closing_debit_balance_cents"], 12_100);
+        assert_eq!(trial["closing_credit_balance_cents"], 12_100);
+        assert_eq!(trial["balanced"], true);
+        let bank_row = trial["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"].as_str() == Some(accounts["bank"].as_str()))
+            .unwrap();
+        assert_eq!(bank_row["opening_debit_balance_cents"], 10_000);
+        assert_eq!(bank_row["debit_cents"], 2_500);
+        assert_eq!(bank_row["credit_cents"], 400);
+        assert_eq!(bank_row["debit_balance_cents"], 12_100);
+        assert_eq!(bank_row["credit_balance_cents"], 0);
+    }
+
+    #[test]
+    fn journal_ledger_and_trial_balance_fail_closed_on_unconverted_currency() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        post_manual_pair(
+            &store,
+            "2025-12-31",
+            "Solde EUR non converti",
+            &accounts["bank"],
+            &accounts["ar"],
+            10_000,
+            "EUR",
+        );
+        post_manual_pair(
+            &store,
+            "2026-01-10",
+            "Mouvement CHF",
+            &accounts["bank"],
+            &accounts["ar"],
+            500,
+            "CHF",
+        );
+
+        let historical = PeriodFilter {
+            date_from: Some("2025-01-01".into()),
+            date_to: Some("2025-12-31".into()),
+        };
+        let journal_error = store.get_journal(historical).unwrap_err().to_string();
+        assert!(journal_error.contains("EUR"));
+
+        let current = PeriodFilter {
+            date_from: Some("2026-01-01".into()),
+            date_to: Some("2026-12-31".into()),
+        };
+        assert_eq!(
+            store.get_journal(current.clone()).unwrap()["lines"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        let ledger_error = store
+            .get_ledger(LedgerInput {
+                account_id: accounts["bank"].clone(),
+                date_from: current.date_from.clone(),
+                date_to: current.date_to.clone(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(ledger_error.contains("EUR"));
+        let trial_error = store.get_trial_balance(current).unwrap_err().to_string();
+        assert!(trial_error.contains("EUR"));
+    }
+
+    #[test]
     fn accounting_starter_backfills_history_and_financial_events_fail_closed() {
         let (_temporary, store) = initialized_store();
         let client_id = value_id(
@@ -3555,6 +3918,9 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .as_str()
                 .map(ToOwned::to_owned),
             vat_payable_account_id: settings["vat_payable_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            vat_deferred_payable_account_id: settings["vat_deferred_payable_account_id"]
                 .as_str()
                 .map(ToOwned::to_owned),
             bank_account_id: settings["bank_account_id"].as_str().map(ToOwned::to_owned),
@@ -3813,6 +4179,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 ar_account_id: Some(accounts["ar"].clone()),
                 revenue_account_id: Some(accounts["revenue"].clone()),
                 vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
                 bank_account_id: Some(accounts["bank"].clone()),
                 expense_account_id: Some(accounts["expense"].clone()),
                 vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
@@ -4597,37 +4964,190 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(active_payment["journal_entry_is_active"].as_i64(), Some(1));
         assert_eq!(active_payment["journal_reversal_depth"].as_i64(), Some(0));
 
-        let reversal = store
+        let reversal_error = store
             .reverse_journal_entry(&journal_id, "2026-09-03", None)
-            .unwrap();
-        let reversed_workspace = store.get_workspace().unwrap();
-        let reversed_payment = reversed_workspace["payments"]
+            .unwrap_err();
+        assert!(reversal_error
+            .to_string()
+            .contains("encaissement client ne peut pas être extournée isolément"));
+        let protected_workspace = store.get_workspace().unwrap();
+        let protected_payment = protected_workspace["payments"]
             .as_array()
             .unwrap()
             .iter()
             .find(|payment| payment["id"] == first["id"])
             .unwrap();
         assert_eq!(
-            reversed_payment["journal_entry_is_active"].as_i64(),
-            Some(0)
-        );
-        assert_eq!(reversed_payment["journal_reversal_depth"].as_i64(), Some(1));
-
-        store
-            .reverse_journal_entry(reversal["id"].as_str().unwrap(), "2026-09-04", None)
-            .unwrap();
-        let restored_workspace = store.get_workspace().unwrap();
-        let restored_payment = restored_workspace["payments"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|payment| payment["id"] == first["id"])
-            .unwrap();
-        assert_eq!(
-            restored_payment["journal_entry_is_active"].as_i64(),
+            protected_payment["journal_entry_is_active"].as_i64(),
             Some(1)
         );
-        assert_eq!(restored_payment["journal_reversal_depth"].as_i64(), Some(2));
+        assert_eq!(
+            protected_payment["journal_reversal_depth"].as_i64(),
+            Some(0)
+        );
+        let invoice_journal_id: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT id FROM journal_entries WHERE source_type='invoice' AND source_id=? AND source_event='issue'",
+                rusqlite::params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let invoice_reversal_error = store
+            .reverse_journal_entry(&invoice_journal_id, "2026-09-03", None)
+            .unwrap_err();
+        assert!(invoice_reversal_error
+            .to_string()
+            .contains("facture encaissée ne peut pas être extournée isolément"));
+        let protected_state: (i64, String, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT invoice.paid_cents,invoice.status,
+                        (SELECT COUNT(*) FROM payments WHERE id=?2),
+                        (SELECT COUNT(*) FROM journal_entries WHERE reversal_of=?3)
+                 FROM invoices invoice WHERE invoice.id=?1",
+                rusqlite::params![invoice_id, first["id"].as_str().unwrap(), journal_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(protected_state, (12_345, "payee".into(), 1, 0));
+
+        // Une version antérieure à la garde pouvait avoir laissé un paiement
+        // métier inactif en extournant directement son écriture. Reproduire ce
+        // seul état historique par SQL, puis vérifier que Zentra autorise
+        // uniquement l'extourne de la compensation terminale pour le réparer.
+        let legacy_reversal_id = uuid::Uuid::new_v4().to_string();
+        {
+            let mut connection = store.connect().unwrap();
+            let tx = connection.transaction().unwrap();
+            tx.execute(
+                "INSERT INTO journal_entries(id,number,entry_date,description,source_type,source_id,source_event,status,reversal_of,created_at)
+                 VALUES(?1,'J-2026-LEGACY','2026-09-03','Extourne historique','journal_reversal',?2,'reverse','posted',?2,'2026-09-03T12:00:00Z')",
+                rusqlite::params![legacy_reversal_id, journal_id],
+            )
+            .unwrap();
+            let original_lines: Vec<(
+                String,
+                i64,
+                i64,
+                String,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+            )> = {
+                let mut statement = tx
+                    .prepare(
+                        "SELECT account_id,debit_cents,credit_cents,currency,memo,project_id,client_id,employee_id
+                         FROM journal_lines WHERE journal_entry_id=? ORDER BY rowid",
+                    )
+                    .unwrap();
+                statement
+                    .query_map(rusqlite::params![journal_id], |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                            row.get(7)?,
+                        ))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            };
+            for (account_id, debit, credit, currency, memo, project, client, employee) in
+                original_lines
+            {
+                tx.execute(
+                    "INSERT INTO journal_lines(id,journal_entry_id,account_id,debit_cents,credit_cents,currency,memo,project_id,client_id,employee_id,created_at)
+                     VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    rusqlite::params![
+                        uuid::Uuid::new_v4().to_string(),
+                        legacy_reversal_id,
+                        account_id,
+                        credit,
+                        debit,
+                        currency,
+                        memo,
+                        project,
+                        client,
+                        employee,
+                        "2026-09-03T12:00:00Z"
+                    ],
+                )
+                .unwrap();
+            }
+            tx.commit().unwrap();
+        }
+        let legacy_workspace = store.get_workspace().unwrap();
+        let inactive_payment = legacy_workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"] == first["id"])
+            .unwrap();
+        assert_eq!(
+            inactive_payment["journal_entry_is_active"].as_i64(),
+            Some(0)
+        );
+        assert_eq!(inactive_payment["journal_reversal_depth"].as_i64(), Some(1));
+
+        let repair = store
+            .reverse_journal_entry(
+                &legacy_reversal_id,
+                "2026-09-04",
+                Some("Rétablissement de l'encaissement historique".into()),
+            )
+            .unwrap();
+        assert_eq!(repair["entry"]["reversal_of"], legacy_reversal_id);
+        let repair_replay = store
+            .reverse_journal_entry(
+                &legacy_reversal_id,
+                "2026-09-04",
+                Some("Rétablissement de l'encaissement historique".into()),
+            )
+            .unwrap();
+        assert_eq!(repair_replay["id"], repair["id"]);
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM journal_entries WHERE reversal_of=?",
+                    rusqlite::params![legacy_reversal_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        let repaired_workspace = store.get_workspace().unwrap();
+        let repaired_payment = repaired_workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"] == first["id"])
+            .unwrap();
+        assert_eq!(
+            repaired_payment["journal_entry_is_active"].as_i64(),
+            Some(1)
+        );
+        assert_eq!(repaired_payment["journal_reversal_depth"].as_i64(), Some(2));
+        let repaired_invoice_state: (i64, String) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT paid_cents,status FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(repaired_invoice_state, (12_345, "payee".into()));
 
         let period = store
             .upsert_accounting_period(AccountingPeriodInput {

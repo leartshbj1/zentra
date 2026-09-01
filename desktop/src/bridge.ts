@@ -977,7 +977,7 @@ function settingsFromRaw(
       breakMinutes: 0,
       costCategories: [],
     },
-    payroll: extra.payroll ?? {
+    payroll: {
       enabled: false,
       fiduciaryValidated: false,
       avsFund: '',
@@ -988,6 +988,14 @@ function settingsFromRaw(
       payrollCanton: '',
       employeeRates: [],
       employerRates: [],
+      ...extra.payroll,
+      aanpEmployerCoverage: {
+        enabled: false,
+        reference: '',
+        effectiveFrom: '',
+        effectiveTo: '',
+        ...extra.payroll?.aanpEmployerCoverage,
+      },
     },
     backup: extra.backup ?? {
       automatic: false,
@@ -3019,6 +3027,9 @@ function accountingSettingsFromRaw(
     arAccountId: stringValue(row?.ar_account_id),
     revenueAccountId: stringValue(row?.revenue_account_id),
     vatPayableAccountId: stringValue(row?.vat_payable_account_id),
+    vatDeferredPayableAccountId: stringValue(
+      row?.vat_deferred_payable_account_id,
+    ),
     bankAccountId: stringValue(row?.bank_account_id),
     expenseAccountId: stringValue(row?.expense_account_id),
     vatReceivableAccountId: stringValue(row?.vat_receivable_account_id),
@@ -3364,7 +3375,7 @@ function journalEntryFromRaw(row: RawRecord): JournalEntry {
 }
 
 function journalLineFromRaw(row: RawRecord): JournalLine {
-  return {
+  const line: JournalLine = {
     id: stringValue(row.id),
     journalEntryId: stringValue(row.journal_entry_id),
     accountId: stringValue(row.account_id),
@@ -3380,6 +3391,16 @@ function journalLineFromRaw(row: RawRecord): JournalLine {
     clientId: nullableString(row.client_id),
     employeeId: nullableString(row.employee_id),
   };
+  if (row.running_net_debit_cents !== undefined) {
+    line.runningNetDebitCents = numberValue(row.running_net_debit_cents);
+    line.runningDebitBalanceCents = numberValue(
+      row.running_debit_balance_cents,
+    );
+    line.runningCreditBalanceCents = numberValue(
+      row.running_credit_balance_cents,
+    );
+  }
+  return line;
 }
 
 function statementRowFromRaw(row: RawRecord): StatementRow {
@@ -4913,12 +4934,17 @@ export const desktopApi = {
     draft: PayrollImportDraft,
     employeeId?: string,
     replaceExistingTemplate = false,
+    humanReviewAttested = false,
   ): Promise<Workspace> {
     await invoke('confirm_payroll_document_import', {
       input: {
         id,
         employee_id: employeeId || null,
         replace_existing_template: replaceExistingTemplate,
+        human_review_attested: humanReviewAttested,
+        human_review_attestation_version: humanReviewAttested
+          ? 'zentra.payroll-import.human-review.v1'
+          : '',
         draft: payrollImportDraftToRaw(draft),
       },
     });
@@ -5041,6 +5067,8 @@ export const desktopApi = {
           ar_account_id: settings.arAccountId || null,
           revenue_account_id: settings.revenueAccountId || null,
           vat_payable_account_id: settings.vatPayableAccountId || null,
+          vat_deferred_payable_account_id:
+            settings.vatDeferredPayableAccountId || null,
           bank_account_id: settings.bankAccountId || null,
           expense_account_id: settings.expenseAccountId || null,
           vat_receivable_account_id: settings.vatReceivableAccountId || null,
@@ -5102,6 +5130,7 @@ export const desktopApi = {
     return {
       entries: rawArray(raw.entries).map(journalEntryFromRaw),
       lines: rawArray(raw.lines).map(journalLineFromRaw),
+      currency: reportCurrencyFromRaw(raw.currency),
     };
   },
   async getLedger(
@@ -5114,9 +5143,27 @@ export const desktopApi = {
     return {
       account: accountFromRaw(raw.account as RawRecord),
       lines: rawArray(raw.lines).map(journalLineFromRaw),
+      currency: reportCurrencyFromRaw(raw.currency),
+      openingDebitCents: numberValue(raw.opening_debit_cents),
+      openingCreditCents: numberValue(raw.opening_credit_cents),
+      openingDebitBalanceCents: numberValue(
+        raw.opening_debit_balance_cents,
+      ),
+      openingCreditBalanceCents: numberValue(
+        raw.opening_credit_balance_cents,
+      ),
+      openingNetDebitCents: numberValue(raw.opening_net_debit_cents),
       debitCents: numberValue(raw.debit_cents),
       creditCents: numberValue(raw.credit_cents),
+      movementNetDebitCents: numberValue(raw.movement_net_debit_cents),
       netDebitCents: numberValue(raw.net_debit_cents),
+      closingDebitBalanceCents: numberValue(
+        raw.closing_debit_balance_cents,
+      ),
+      closingCreditBalanceCents: numberValue(
+        raw.closing_credit_balance_cents,
+      ),
+      closingNetDebitCents: numberValue(raw.closing_net_debit_cents),
     };
   },
   async getTrialBalance(filter: PeriodFilter): Promise<TrialBalanceReport> {
@@ -5125,15 +5172,38 @@ export const desktopApi = {
     });
     const rows: TrialBalanceRow[] = rawArray(raw.rows).map((row) => ({
       ...accountFromRaw(row),
+      openingDebitCents: numberValue(row.opening_debit_cents),
+      openingCreditCents: numberValue(row.opening_credit_cents),
+      openingDebitBalanceCents: numberValue(
+        row.opening_debit_balance_cents,
+      ),
+      openingCreditBalanceCents: numberValue(
+        row.opening_credit_balance_cents,
+      ),
+      openingNetDebitCents: numberValue(row.opening_net_debit_cents),
       debitCents: numberValue(row.debit_cents),
       creditCents: numberValue(row.credit_cents),
       debitBalanceCents: numberValue(row.debit_balance_cents),
       creditBalanceCents: numberValue(row.credit_balance_cents),
+      closingNetDebitCents: numberValue(row.closing_net_debit_cents),
     }));
     return {
       rows,
+      currency: reportCurrencyFromRaw(raw.currency),
+      openingDebitBalanceCents: numberValue(
+        raw.opening_debit_balance_cents,
+      ),
+      openingCreditBalanceCents: numberValue(
+        raw.opening_credit_balance_cents,
+      ),
       debitCents: numberValue(raw.debit_cents),
       creditCents: numberValue(raw.credit_cents),
+      closingDebitBalanceCents: numberValue(
+        raw.closing_debit_balance_cents,
+      ),
+      closingCreditBalanceCents: numberValue(
+        raw.closing_credit_balance_cents,
+      ),
       balanced: boolValue(raw.balanced),
     };
   },
@@ -5255,6 +5325,7 @@ export const desktopApi = {
     ).map(vatClassificationFromRaw);
   },
   async createVatAdjustment(input: {
+    requestId: string;
     adjustmentDate: string;
     category: VatAdjustmentCategory;
     amountCents: number;
@@ -5266,7 +5337,7 @@ export const desktopApi = {
     return vatAdjustmentFromRaw(
       await invoke('create_vat_adjustment', {
         input: {
-          id: null,
+          request_id: input.requestId.trim(),
           adjustment_date: input.adjustmentDate,
           category: input.category,
           amount_cents: input.amountCents,
@@ -5279,6 +5350,7 @@ export const desktopApi = {
     );
   },
   async reverseVatAdjustment(input: {
+    requestId: string;
     originalAdjustmentId: string;
     adjustmentDate: string;
     description: string;
@@ -5288,7 +5360,7 @@ export const desktopApi = {
     return vatAdjustmentFromRaw(
       await invoke('reverse_vat_adjustment', {
         input: {
-          id: null,
+          request_id: input.requestId.trim(),
           original_adjustment_id: input.originalAdjustmentId,
           adjustment_date: input.adjustmentDate,
           description: input.description,

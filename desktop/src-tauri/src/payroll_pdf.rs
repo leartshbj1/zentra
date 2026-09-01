@@ -11,6 +11,7 @@ use lopdf::{
 };
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 use crate::{
     branding::{load_pdf_logo_with_fallback, PdfLogo},
@@ -59,6 +60,8 @@ struct PayslipPdfData {
     payment_date: String,
     status: String,
     captured_at: String,
+    source_import_attested_at: String,
+    source_import_evidence_sha256: String,
     notes: String,
     lines: Vec<PayslipPdfLine>,
     gross_cents: i64,
@@ -290,6 +293,48 @@ fn pdf_data_from_values(
             &string_at(employee, "city"),
         ),
     ]);
+    let source_import_id = string_at(payslip, "source_payroll_import_id");
+    let source_import_evidence_json = string_at(payslip, "source_import_evidence_json");
+    let source_import_evidence_sha256 = string_at(payslip, "source_import_evidence_sha256");
+    let source_import_attested_at = if source_import_id.is_empty()
+        && source_import_evidence_json.is_empty()
+        && source_import_evidence_sha256.is_empty()
+    {
+        String::new()
+    } else {
+        if source_import_id.is_empty()
+            || source_import_evidence_json.is_empty()
+            || source_import_evidence_sha256.len() != 64
+        {
+            return Err(AppError::Validation(
+                "La preuve de contrôle humain liée à cette fiche est incomplète.".into(),
+            ));
+        }
+        let actual_sha256 = format!(
+            "{:x}",
+            Sha256::digest(source_import_evidence_json.as_bytes())
+        );
+        if actual_sha256 != source_import_evidence_sha256 {
+            return Err(AppError::Validation(
+                "La preuve de contrôle humain liée à cette fiche a été altérée.".into(),
+            ));
+        }
+        let evidence: Value = serde_json::from_str(&source_import_evidence_json).map_err(|_| {
+            AppError::Validation(
+                "La preuve de contrôle humain liée à cette fiche est illisible.".into(),
+            )
+        })?;
+        let attested_at = string_at(
+            evidence.get("human_review").unwrap_or(&Value::Null),
+            "attested_at",
+        );
+        if attested_at.is_empty() {
+            return Err(AppError::Validation(
+                "La preuve de contrôle humain ne contient pas son horodatage serveur.".into(),
+            ));
+        }
+        attested_at
+    };
 
     Ok(PayslipPdfData {
         company_name: string_at(issuer, "company_name"),
@@ -307,6 +352,8 @@ fn pdf_data_from_values(
         payment_date: string_at(payslip, "payment_date"),
         status: string_at(payslip, "status"),
         captured_at,
+        source_import_attested_at,
+        source_import_evidence_sha256,
         notes: string_at(payslip, "notes"),
         lines,
         gross_cents,
@@ -957,7 +1004,7 @@ fn render_footer(
     total_pages: usize,
 ) {
     line_segment(ops, MARGIN, 63.0, PAGE_WIDTH - 2.0 * MARGIN, 0.6, LINE);
-    let proof = if data.final_document {
+    let mut proof = if data.final_document {
         if data.captured_at.is_empty() {
             "Valeurs comptabilisées et figées localement".to_owned()
         } else {
@@ -969,6 +1016,13 @@ fn render_footer(
     } else {
         "Aperçu local — contrôle humain obligatoire avant comptabilisation".to_owned()
     };
+    if data.final_document && !data.source_import_evidence_sha256.is_empty() {
+        proof.push_str(&format!(
+            " · import contrôlé le {} · preuve {}…",
+            format_date_time(&data.source_import_attested_at),
+            &data.source_import_evidence_sha256[..12]
+        ));
+    }
     text(ops, MARGIN, 46.0, 6.7, "F1", MUTED, &proof);
     text_right(
         ops,
@@ -1338,6 +1392,61 @@ mod tests {
     }
 
     #[test]
+    fn imported_payslip_pdf_keeps_the_server_attestation_proof() {
+        let evidence = json!({
+            "schema":"zentra.payroll-import-confirmation.v1",
+            "source_import_id":"import-1",
+            "human_review":{
+                "attestation_version":"zentra.payroll-import.human-review.v1",
+                "attested_at":"2026-09-02T10:00:00Z"
+            }
+        })
+        .to_string();
+        let evidence_sha256 = format!("{:x}", Sha256::digest(evidence.as_bytes()));
+        let payslip = json!({
+            "period":"2026-08",
+            "payment_date":"2026-08-31",
+            "status":"comptabilise",
+            "source_payroll_import_id":"import-1",
+            "source_import_evidence_json":evidence,
+            "source_import_evidence_sha256":evidence_sha256,
+        });
+        let items = vec![json!({
+            "id":"salary",
+            "label":"Salaire brut",
+            "kind":"earning",
+            "amount_cents":500000
+        })];
+        let data = pdf_data_from_values(
+            &json!({"company_name":"Entreprise test"}),
+            &json!({"name":"Employé test"}),
+            &payslip,
+            items.clone(),
+            vec![],
+            "2026-09-02T10:30:00Z".into(),
+            true,
+        )
+        .expect("sealed imported payslip PDF data");
+        assert_eq!(data.source_import_attested_at, "2026-09-02T10:00:00Z");
+        assert_eq!(data.source_import_evidence_sha256, evidence_sha256);
+
+        let mut tampered = payslip;
+        tampered["source_import_evidence_json"] = json!("{\"tampered\":true}");
+        assert!(pdf_data_from_values(
+            &json!({"company_name":"Entreprise test"}),
+            &json!({"name":"Employé test"}),
+            &tampered,
+            items,
+            vec![],
+            "2026-09-02T10:30:00Z".into(),
+            true,
+        )
+        .expect_err("tampered proof must block the PDF")
+        .to_string()
+        .contains("altérée"));
+    }
+
+    #[test]
     fn tampered_immutable_logo_is_rejected_for_a_final_payslip() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let (staged_logo, branding_dir) = stage_then_tamper_logo(&directory);
@@ -1359,6 +1468,8 @@ mod tests {
             payment_date: "2026-08-31".into(),
             status: "comptabilise".into(),
             captured_at: "2026-08-31T12:00:00Z".into(),
+            source_import_attested_at: String::new(),
+            source_import_evidence_sha256: String::new(),
             notes: String::new(),
             lines: vec![PayslipPdfLine {
                 label: "Salaire mensuel".into(),
@@ -1431,6 +1542,8 @@ mod tests {
             payment_date: "2026-08-25".into(),
             status: "comptabilise".into(),
             captured_at: "2026-08-25T10:30:00Z".into(),
+            source_import_attested_at: "2026-08-25T10:00:00Z".into(),
+            source_import_evidence_sha256: "a".repeat(64),
             notes: "Paiement mensuel".into(),
             lines: vec![
                 PayslipPdfLine {

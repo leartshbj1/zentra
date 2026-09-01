@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rusqlite::{
     params, params_from_iter, types::Value as SqlValue, Connection, OptionalExtension, Transaction,
     TransactionBehavior,
@@ -20,6 +22,7 @@ struct AccountingMap {
     ar: String,
     revenue: String,
     vat_payable: String,
+    vat_deferred_payable: Option<String>,
     bank: String,
     expense: String,
     vat_receivable: String,
@@ -29,6 +32,12 @@ struct AccountingMap {
     social_payable: Option<String>,
     supplier_payable: Option<String>,
 }
+
+const VAT_DEFERRED_MEMO: &str = "TVA à régulariser · contre-prestations reçues";
+const VAT_CASH_RELEASE_MEMO: &str = "Reclassement TVA à régulariser";
+const VAT_CASH_DUE_MEMO: &str = "TVA due sur encaissement";
+const VAT_CREDIT_DEFERRED_MEMO: &str = "Extourne TVA à régulariser";
+const VAT_CREDIT_DUE_MEMO: &str = "Extourne TVA due encaissée";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct EntryLine {
@@ -52,6 +61,7 @@ type InvoicePostingRow = (
     Option<String>,
     Option<String>,
     Option<String>,
+    String,
 );
 
 fn payroll_accounting_mappings_required(connection: &Connection) -> AppResult<bool> {
@@ -301,7 +311,7 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let existing_configuration: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM accounting_settings WHERE enabled=1 OR ar_account_id IS NOT NULL OR revenue_account_id IS NOT NULL OR vat_payable_account_id IS NOT NULL OR bank_account_id IS NOT NULL OR expense_account_id IS NOT NULL OR vat_receivable_account_id IS NOT NULL OR wages_expense_account_id IS NOT NULL OR wages_payable_account_id IS NOT NULL OR social_expense_account_id IS NOT NULL OR social_payable_account_id IS NOT NULL OR supplier_payable_account_id IS NOT NULL)",
+            "SELECT EXISTS(SELECT 1 FROM accounting_settings WHERE enabled=1 OR ar_account_id IS NOT NULL OR revenue_account_id IS NOT NULL OR vat_payable_account_id IS NOT NULL OR vat_deferred_payable_account_id IS NOT NULL OR bank_account_id IS NOT NULL OR expense_account_id IS NOT NULL OR vat_receivable_account_id IS NOT NULL OR wages_expense_account_id IS NOT NULL OR wages_payable_account_id IS NOT NULL OR social_expense_account_id IS NOT NULL OR social_payable_account_id IS NOT NULL OR supplier_payable_account_id IS NOT NULL)",
             [],
             |row| row.get(0),
         )?;
@@ -333,6 +343,13 @@ impl LocalStore {
             (
                 "2200",
                 "TVA due",
+                "liability",
+                "credit",
+                "short_term_liabilities",
+            ),
+            (
+                "2201",
+                "TVA à régulariser",
                 "liability",
                 "credit",
                 "short_term_liabilities",
@@ -445,10 +462,10 @@ impl LocalStore {
             account_ids.push(id);
         }
         tx.execute(
-            "INSERT INTO accounting_settings(id,enabled,ar_account_id,revenue_account_id,vat_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id,supplier_payable_account_id,created_at,updated_at) VALUES(1,1,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=1,ar_account_id=excluded.ar_account_id,revenue_account_id=excluded.revenue_account_id,vat_payable_account_id=excluded.vat_payable_account_id,bank_account_id=excluded.bank_account_id,expense_account_id=excluded.expense_account_id,vat_receivable_account_id=excluded.vat_receivable_account_id,wages_expense_account_id=excluded.wages_expense_account_id,wages_payable_account_id=excluded.wages_payable_account_id,social_expense_account_id=excluded.social_expense_account_id,social_payable_account_id=excluded.social_payable_account_id,supplier_payable_account_id=excluded.supplier_payable_account_id,updated_at=excluded.updated_at",
+            "INSERT INTO accounting_settings(id,enabled,ar_account_id,revenue_account_id,vat_payable_account_id,vat_deferred_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id,supplier_payable_account_id,created_at,updated_at) VALUES(1,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=1,ar_account_id=excluded.ar_account_id,revenue_account_id=excluded.revenue_account_id,vat_payable_account_id=excluded.vat_payable_account_id,vat_deferred_payable_account_id=excluded.vat_deferred_payable_account_id,bank_account_id=excluded.bank_account_id,expense_account_id=excluded.expense_account_id,vat_receivable_account_id=excluded.vat_receivable_account_id,wages_expense_account_id=excluded.wages_expense_account_id,wages_payable_account_id=excluded.wages_payable_account_id,social_expense_account_id=excluded.social_expense_account_id,social_payable_account_id=excluded.social_payable_account_id,supplier_payable_account_id=excluded.supplier_payable_account_id,updated_at=excluded.updated_at",
             params![
                 account_ids[0],account_ids[1],account_ids[2],account_ids[3],account_ids[4],
-                account_ids[5],account_ids[6],account_ids[7],account_ids[8],account_ids[9],account_ids[10],now,now
+                account_ids[5],account_ids[6],account_ids[7],account_ids[8],account_ids[9],account_ids[10],account_ids[11],now,now
             ],
         )?;
         let synchronization = synchronize_accounting_history(&tx)?;
@@ -485,6 +502,11 @@ impl LocalStore {
             ));
         }
         let payroll_mappings_required = payroll_accounting_mappings_required(&tx)?;
+        let received_vat_mapping_required: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received')",
+            [],
+            |row| row.get(0),
+        )?;
         let mut ids = vec![
             input.ar_account_id.as_deref(),
             input.revenue_account_id.as_deref(),
@@ -494,6 +516,9 @@ impl LocalStore {
             input.vat_receivable_account_id.as_deref(),
             effective_supplier_payable.as_deref(),
         ];
+        if received_vat_mapping_required {
+            ids.push(input.vat_deferred_payable_account_id.as_deref());
+        }
         if payroll_mappings_required {
             ids.extend([
                 input.wages_expense_account_id.as_deref(),
@@ -509,7 +534,13 @@ impl LocalStore {
             })
         {
             return Err(AppError::Validation(if payroll_mappings_required {
-                "Les onze comptes de liaison doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
+                if received_vat_mapping_required {
+                    "Les douze comptes de liaison, dont la TVA à régulariser exigée par le mode reçu, doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
+                } else {
+                    "Les onze comptes de liaison doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
+                }
+            } else if received_vat_mapping_required {
+                "Les huit comptes de liaison hors paie, dont la TVA à régulariser exigée par le mode reçu, doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
             } else {
                 "Les sept comptes de liaison hors paie doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
             }));
@@ -597,16 +628,56 @@ impl LocalStore {
                     )));
                 }
             }
+            if let Some(deferred_account_id) = input
+                .vat_deferred_payable_account_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+            {
+                let (actual, active): (String, bool) = tx.query_row(
+                    "SELECT account_type,active FROM accounts WHERE id=?",
+                    params![deferred_account_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                if actual != "liability" || !active {
+                    return Err(AppError::Validation(
+                        "vat_deferred_payable_account_id doit référencer un compte de passif actif."
+                            .into(),
+                    ));
+                }
+                if input.vat_payable_account_id.as_deref() == Some(deferred_account_id) {
+                    return Err(AppError::Validation(
+                        "Les liaisons « TVA due » et « TVA à régulariser » doivent utiliser deux comptes distincts."
+                            .into(),
+                    ));
+                }
+            }
             validate_core_mapping_role_separation(
                 input.ar_account_id.as_deref(),
                 input.bank_account_id.as_deref(),
                 input.vat_receivable_account_id.as_deref(),
             )?;
+            if received_vat_mapping_required {
+                let incompatible_history: i64 = tx.query_row(
+                    "SELECT COUNT(*)
+                       FROM invoices invoice
+                       JOIN vat_profiles profile ON profile.form_of_reporting='received' AND profile.effective_from<=invoice.issue_date AND COALESCE(profile.effective_to,'9999-12-31')>=invoice.issue_date
+                       JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=invoice.id AND entry.source_event='issue' AND entry.reversal_of IS NULL
+                      WHERE invoice.type<>'avoir' AND invoice.vat_cents<>0
+                        AND NOT EXISTS(SELECT 1 FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo=?)",
+                    params![VAT_DEFERRED_MEMO],
+                    |row| row.get(0),
+                )?;
+                if incompatible_history != 0 {
+                    return Err(AppError::Validation(format!(
+                        "La comptabilité contient {incompatible_history} facture(s) d'une période en mode reçu dont la TVA a déjà été portée au compte TVA due à l'émission. La nouvelle liaison ne peut pas réécrire cet historique immuable; régularisez-le avec votre fiduciaire avant de poursuivre."
+                    )));
+                }
+            }
         }
         let now = now_iso();
         tx.execute(
-            "INSERT INTO accounting_settings(id,enabled,ar_account_id,revenue_account_id,vat_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id,supplier_payable_account_id,created_at,updated_at) VALUES(1,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,ar_account_id=excluded.ar_account_id,revenue_account_id=excluded.revenue_account_id,vat_payable_account_id=excluded.vat_payable_account_id,bank_account_id=excluded.bank_account_id,expense_account_id=excluded.expense_account_id,vat_receivable_account_id=excluded.vat_receivable_account_id,wages_expense_account_id=excluded.wages_expense_account_id,wages_payable_account_id=excluded.wages_payable_account_id,social_expense_account_id=excluded.social_expense_account_id,social_payable_account_id=excluded.social_payable_account_id,supplier_payable_account_id=excluded.supplier_payable_account_id,updated_at=excluded.updated_at",
-            params![input.enabled as i64,input.ar_account_id,input.revenue_account_id,input.vat_payable_account_id,input.bank_account_id,input.expense_account_id,input.vat_receivable_account_id,input.wages_expense_account_id,input.wages_payable_account_id,input.social_expense_account_id,input.social_payable_account_id,effective_supplier_payable,now,now],
+            "INSERT INTO accounting_settings(id,enabled,ar_account_id,revenue_account_id,vat_payable_account_id,vat_deferred_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id,supplier_payable_account_id,created_at,updated_at) VALUES(1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,ar_account_id=excluded.ar_account_id,revenue_account_id=excluded.revenue_account_id,vat_payable_account_id=excluded.vat_payable_account_id,vat_deferred_payable_account_id=excluded.vat_deferred_payable_account_id,bank_account_id=excluded.bank_account_id,expense_account_id=excluded.expense_account_id,vat_receivable_account_id=excluded.vat_receivable_account_id,wages_expense_account_id=excluded.wages_expense_account_id,wages_payable_account_id=excluded.wages_payable_account_id,social_expense_account_id=excluded.social_expense_account_id,social_payable_account_id=excluded.social_payable_account_id,supplier_payable_account_id=excluded.supplier_payable_account_id,updated_at=excluded.updated_at",
+            params![input.enabled as i64,input.ar_account_id,input.revenue_account_id,input.vat_payable_account_id,input.vat_deferred_payable_account_id,input.bank_account_id,input.expense_account_id,input.vat_receivable_account_id,input.wages_expense_account_id,input.wages_payable_account_id,input.social_expense_account_id,input.social_payable_account_id,effective_supplier_payable,now,now],
         )?;
         let record = one_json(&tx, "SELECT * FROM accounting_settings WHERE id=1", [])?;
         let synchronization = if input.enabled {
@@ -681,37 +752,12 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let original = one_json(&tx, "SELECT * FROM journal_entries WHERE id=?", params![id])?;
-        if matches!(
-            original["source_type"].as_str(),
-            Some("supplier_invoice" | "supplier_payment")
-        ) {
-            return Err(AppError::Validation(
-                "Une écriture fournisseur ne peut pas être extournée isolément. Utilisez le futur flux d’avoir ou de remboursement afin que le document, la dette et le journal restent cohérents."
-                    .into(),
-            ));
-        }
-        let conflicting_reversal: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE reversal_of=? AND NOT(source_type='journal_reversal' AND source_id=? AND source_event='reverse'))",
-            params![id, id],
-            |row| row.get(0),
-        )?;
-        if conflicting_reversal {
-            return Err(AppError::Validation(
-                "Cette écriture a déjà été extournée. Pour rétablir son effet, extournez l'écriture d'extourne au lieu de créer une seconde compensation."
-                    .into(),
-            ));
-        }
-        if entry_date < original["entry_date"].as_str().unwrap_or("") {
-            return Err(AppError::Validation(
-                "L'extourne ne peut pas précéder l'écriture originale.".into(),
-            ));
-        }
         let rows = query_all(
             &tx,
             "SELECT * FROM journal_lines WHERE journal_entry_id=? ORDER BY rowid",
             params![id],
         )?;
-        let lines = rows
+        let lines: Vec<EntryLine> = rows
             .into_iter()
             .map(|row| EntryLine {
                 account_id: row["account_id"].as_str().unwrap_or("").into(),
@@ -730,6 +776,121 @@ impl LocalStore {
         let label = description
             .filter(|v| !v.trim().is_empty())
             .unwrap_or_else(|| format!("Extourne {}", original["number"].as_str().unwrap_or("")));
+
+        // Un appel peut avoir été validé puis sa réponse perdue. Rejouer
+        // d'abord l'opération idempotente exacte permet à la validation
+        // centralisée de comparer date, libellé, parent et lignes avant que le
+        // garde métier n'interprète la chaîne désormais paire comme un nouvel
+        // essai d'extourne.
+        let exact_reversal_exists: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='journal_reversal' AND source_id=? AND source_event='reverse')",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if exact_reversal_exists {
+            let result = post_entry_with_reversal(
+                &tx,
+                entry_date,
+                &label,
+                "journal_reversal",
+                id,
+                "reverse",
+                lines,
+                Some(id),
+            )?;
+            tx.commit()?;
+            return Ok(result);
+        }
+        let protected_business_source: Option<(String, String, String, i64)> = tx
+            .query_row(
+                "WITH RECURSIVE ancestry(id,source_type,source_id,reversal_of,depth) AS (
+                   SELECT id,source_type,source_id,reversal_of,0
+                   FROM journal_entries WHERE id=?
+                   UNION ALL
+                   SELECT parent.id,parent.source_type,parent.source_id,parent.reversal_of,ancestry.depth+1
+                   FROM ancestry
+                   JOIN journal_entries parent ON parent.id=ancestry.reversal_of
+                 )
+                 SELECT source_type,source_id,id,depth FROM ancestry
+                 WHERE source_type IN ('payment','vat_cash_reclassification','invoice','supplier_invoice','supplier_payment')
+                 ORDER BY depth DESC LIMIT 1",
+                params![id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()?;
+        if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
+            protected_business_source
+        {
+            // Avant ce garde, une ancienne version pouvait laisser une écriture
+            // métier inactive en extournant sa racine. On autorise uniquement
+            // l'extourne de la dernière compensation d'une chaîne linéaire et
+            // impaire : cette opération rétablit l'effet attendu. Toute action
+            // qui rendrait une racine active inactive reste bloquée.
+            let restorative_legacy_reversal =
+                if matches!(source_type.as_str(), "payment" | "invoice") {
+                    let (max_depth, entry_count): (i64, i64) = tx.query_row(
+                        "WITH RECURSIVE reversal_chain(id,depth) AS (
+                       SELECT ?1,0
+                       UNION ALL
+                       SELECT child.id,reversal_chain.depth+1
+                       FROM reversal_chain
+                       JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+                     )
+                     SELECT COALESCE(MAX(depth),0),COUNT(*) FROM reversal_chain",
+                        params![root_entry_id],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    )?;
+                    max_depth % 2 == 1
+                        && selected_depth == max_depth
+                        && entry_count == max_depth + 1
+                } else {
+                    false
+                };
+            if matches!(
+                source_type.as_str(),
+                "payment" | "vat_cash_reclassification"
+            ) && !restorative_legacy_reversal
+            {
+                return Err(AppError::Validation(
+                    "Une écriture liée à un encaissement client ne peut pas être extournée isolément, y compris sa reclassification de TVA. Le paiement, le solde, la TVA et le rapprochement bancaire doivent rester cohérents. Utilisez un flux métier de remboursement ou d'avoir validé avec votre fiduciaire."
+                        .into(),
+                ));
+            }
+            if source_type == "invoice" {
+                let has_payment: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM payments WHERE invoice_id=?)",
+                    params![business_source_id],
+                    |row| row.get(0),
+                )?;
+                if has_payment && !restorative_legacy_reversal {
+                    return Err(AppError::Validation(
+                        "L'écriture d'une facture encaissée ne peut pas être extournée isolément. Le paiement, le solde et le statut de la facture ainsi que le rapprochement bancaire doivent rester cohérents. Utilisez un flux métier de remboursement ou d'avoir validé avec votre fiduciaire."
+                            .into(),
+                    ));
+                }
+            } else if source_type != "payment" {
+                return Err(AppError::Validation(
+                    "Une écriture fournisseur ne peut pas être extournée isolément. Utilisez le futur flux d’avoir ou de remboursement afin que le document, la dette et le journal restent cohérents."
+                        .into(),
+                ));
+            }
+        }
+        let conflicting_reversal: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE reversal_of=? AND NOT(source_type='journal_reversal' AND source_id=? AND source_event='reverse'))",
+            params![id, id],
+            |row| row.get(0),
+        )?;
+        if conflicting_reversal {
+            return Err(AppError::Validation(
+                "Cette écriture a déjà été extournée. Pour rétablir son effet, extournez l'écriture d'extourne au lieu de créer une seconde compensation."
+                    .into(),
+            ));
+        }
+        if entry_date < original["entry_date"].as_str().unwrap_or("") {
+            return Err(AppError::Validation(
+                "L'extourne ne peut pas précéder l'écriture originale.".into(),
+            ));
+        }
         let result = post_entry_with_reversal(
             &tx,
             entry_date,
@@ -748,6 +909,11 @@ impl LocalStore {
     pub fn get_journal(&self, filter: PeriodFilter) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
+        let (date_from, date_to) = report_bounds(&filter)?;
+        let report_currency = crate::accounting_closure::ensure_base_currency_for_ranges(
+            &connection,
+            &[(&date_from, &date_to)],
+        )?;
         let (where_sql, values) = period_clause(&filter, "je.entry_date")?;
         let entries = query_all(
             &connection,
@@ -755,7 +921,7 @@ impl LocalStore {
             params_from_iter(values),
         )?;
         let lines = query_all(&connection,&format!("SELECT jl.*,a.code AS account_code,a.name AS account_name,je.number AS entry_number,je.entry_date FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id JOIN journal_entries je ON je.id=jl.journal_entry_id {} ORDER BY je.entry_date,je.number,jl.rowid", period_join_clause(&filter,"je.entry_date")?.0),params_from_iter(period_join_clause(&filter,"je.entry_date")?.1))?;
-        Ok(json!({"entries":entries,"lines":lines}))
+        Ok(json!({"entries":entries,"lines":lines,"currency":report_currency}))
     }
 
     pub fn get_ledger(&self, input: LedgerInput) -> AppResult<Value> {
@@ -773,27 +939,127 @@ impl LocalStore {
             date_from: input.date_from,
             date_to: input.date_to,
         };
+        let (_, date_to) = report_bounds(&filter)?;
+        let report_currency = crate::accounting_closure::ensure_base_currency_for_ranges(
+            &connection,
+            &[("0001-01-01", &date_to)],
+        )?;
+        let (opening_debit_cents, opening_credit_cents): (i64, i64) = if let Some(date_from) =
+            filter.date_from.as_deref()
+        {
+            connection.query_row(
+                    "SELECT COALESCE(SUM(jl.debit_cents),0),COALESCE(SUM(jl.credit_cents),0) FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? AND je.entry_date<?",
+                    params![input.account_id, date_from],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?
+        } else {
+            (0, 0)
+        };
+        let opening_net_debit_cents = opening_debit_cents - opening_credit_cents;
         let (extra, mut values) = period_and_clause(&filter, "je.entry_date")?;
         values.insert(0, SqlValue::Text(input.account_id));
-        let lines=query_all(&connection,&format!("SELECT jl.*,je.number AS entry_number,je.entry_date,je.description FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? {extra} ORDER BY je.entry_date,je.number,jl.rowid"),params_from_iter(values))?;
+        let mut lines=query_all(&connection,&format!("SELECT jl.*,je.number AS entry_number,je.entry_date,je.description FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? {extra} ORDER BY je.entry_date,je.number,jl.rowid"),params_from_iter(values))?;
+        let mut running_net_debit_cents = opening_net_debit_cents;
+        for line in &mut lines {
+            running_net_debit_cents += line["debit_cents"].as_i64().unwrap_or(0)
+                - line["credit_cents"].as_i64().unwrap_or(0);
+            line["running_net_debit_cents"] = json!(running_net_debit_cents);
+            line["running_debit_balance_cents"] = json!(running_net_debit_cents.max(0));
+            line["running_credit_balance_cents"] = json!((-running_net_debit_cents).max(0));
+        }
         let debit: i64 = lines.iter().filter_map(|v| v["debit_cents"].as_i64()).sum();
         let credit: i64 = lines
             .iter()
             .filter_map(|v| v["credit_cents"].as_i64())
             .sum();
-        Ok(
-            json!({"account":account,"lines":lines,"debit_cents":debit,"credit_cents":credit,"net_debit_cents":debit-credit}),
-        )
+        let movement_net_debit_cents = debit - credit;
+        let closing_net_debit_cents = opening_net_debit_cents + movement_net_debit_cents;
+        Ok(json!({
+            "account":account,
+            "lines":lines,
+            "currency":report_currency,
+            "opening_debit_cents":opening_debit_cents,
+            "opening_credit_cents":opening_credit_cents,
+            "opening_debit_balance_cents":opening_net_debit_cents.max(0),
+            "opening_credit_balance_cents":(-opening_net_debit_cents).max(0),
+            "opening_net_debit_cents":opening_net_debit_cents,
+            "debit_cents":debit,
+            "credit_cents":credit,
+            "movement_net_debit_cents":movement_net_debit_cents,
+            "net_debit_cents":closing_net_debit_cents,
+            "closing_debit_balance_cents":closing_net_debit_cents.max(0),
+            "closing_credit_balance_cents":(-closing_net_debit_cents).max(0),
+            "closing_net_debit_cents":closing_net_debit_cents,
+        }))
     }
 
     pub fn get_trial_balance(&self, filter: PeriodFilter) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        let (extra, values) = period_join_clause(&filter, "je.entry_date")?;
-        let rows=query_all(&connection,&format!("SELECT a.id,a.code,a.name,a.account_type,a.normal_balance,a.report_section,COALESCE(SUM(jl.debit_cents),0) AS debit_cents,COALESCE(SUM(jl.credit_cents),0) AS credit_cents,MAX(COALESCE(SUM(jl.debit_cents),0)-COALESCE(SUM(jl.credit_cents),0),0) AS debit_balance_cents,MAX(COALESCE(SUM(jl.credit_cents),0)-COALESCE(SUM(jl.debit_cents),0),0) AS credit_balance_cents FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id {extra} GROUP BY a.id ORDER BY a.code"),params_from_iter(values))?;
+        let (date_from, date_to) = report_bounds(&filter)?;
+        let report_currency = crate::accounting_closure::ensure_base_currency_for_ranges(
+            &connection,
+            &[("0001-01-01", &date_to)],
+        )?;
+        let mut rows=query_all(
+            &connection,
+            "SELECT a.id,a.code,a.name,a.account_type,a.normal_balance,a.report_section,
+                    COALESCE(SUM(CASE WHEN je.entry_date<? THEN jl.debit_cents ELSE 0 END),0) AS opening_debit_cents,
+                    COALESCE(SUM(CASE WHEN je.entry_date<? THEN jl.credit_cents ELSE 0 END),0) AS opening_credit_cents,
+                    COALESCE(SUM(CASE WHEN je.entry_date BETWEEN ? AND ? THEN jl.debit_cents ELSE 0 END),0) AS debit_cents,
+                    COALESCE(SUM(CASE WHEN je.entry_date BETWEEN ? AND ? THEN jl.credit_cents ELSE 0 END),0) AS credit_cents
+             FROM accounts a
+             LEFT JOIN journal_lines jl ON jl.account_id=a.id
+             LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id
+             GROUP BY a.id ORDER BY a.code",
+            params![date_from,date_from,date_from,date_to,date_from,date_to],
+        )?;
+        let mut opening_debit_balance_cents = 0i64;
+        let mut opening_credit_balance_cents = 0i64;
+        let mut closing_debit_balance_cents = 0i64;
+        let mut closing_credit_balance_cents = 0i64;
+        for row in &mut rows {
+            let opening_net_debit_cents = row["opening_debit_cents"].as_i64().unwrap_or(0)
+                - row["opening_credit_cents"].as_i64().unwrap_or(0);
+            let closing_net_debit_cents = opening_net_debit_cents
+                + row["debit_cents"].as_i64().unwrap_or(0)
+                - row["credit_cents"].as_i64().unwrap_or(0);
+            let opening_debit = opening_net_debit_cents.max(0);
+            let opening_credit = (-opening_net_debit_cents).max(0);
+            let closing_debit = closing_net_debit_cents.max(0);
+            let closing_credit = (-closing_net_debit_cents).max(0);
+            row["opening_net_debit_cents"] = json!(opening_net_debit_cents);
+            row["opening_debit_balance_cents"] = json!(opening_debit);
+            row["opening_credit_balance_cents"] = json!(opening_credit);
+            row["debit_balance_cents"] = json!(closing_debit);
+            row["credit_balance_cents"] = json!(closing_credit);
+            row["closing_net_debit_cents"] = json!(closing_net_debit_cents);
+            opening_debit_balance_cents += opening_debit;
+            opening_credit_balance_cents += opening_credit;
+            closing_debit_balance_cents += closing_debit;
+            closing_credit_balance_cents += closing_credit;
+        }
+        rows.retain(|row| {
+            row["opening_debit_cents"].as_i64().unwrap_or(0) != 0
+                || row["opening_credit_cents"].as_i64().unwrap_or(0) != 0
+                || row["debit_cents"].as_i64().unwrap_or(0) != 0
+                || row["credit_cents"].as_i64().unwrap_or(0) != 0
+        });
         let debit: i64 = rows.iter().filter_map(|v| v["debit_cents"].as_i64()).sum();
         let credit: i64 = rows.iter().filter_map(|v| v["credit_cents"].as_i64()).sum();
-        Ok(json!({"rows":rows,"debit_cents":debit,"credit_cents":credit,"balanced":debit==credit}))
+        Ok(json!({
+            "rows":rows,
+            "currency":report_currency,
+            "opening_debit_balance_cents":opening_debit_balance_cents,
+            "opening_credit_balance_cents":opening_credit_balance_cents,
+            "debit_cents":debit,
+            "credit_cents":credit,
+            "closing_debit_balance_cents":closing_debit_balance_cents,
+            "closing_credit_balance_cents":closing_credit_balance_cents,
+            "balanced":debit==credit
+                && opening_debit_balance_cents==opening_credit_balance_cents
+                && closing_debit_balance_cents==closing_credit_balance_cents,
+        }))
     }
 
     pub fn get_income_statement(&self, filter: PeriodFilter) -> AppResult<Value> {
@@ -901,6 +1167,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
             JOIN accounts ar ON ar.id=s.ar_account_id AND ar.active=1 AND ar.account_type='asset'
             JOIN accounts rev ON rev.id=s.revenue_account_id AND rev.active=1 AND rev.account_type='revenue'
             JOIN accounts vatp ON vatp.id=s.vat_payable_account_id AND vatp.active=1 AND vatp.account_type='liability'
+            LEFT JOIN accounts vatd ON vatd.id=s.vat_deferred_payable_account_id AND vatd.active=1 AND vatd.account_type='liability'
             JOIN accounts bank ON bank.id=s.bank_account_id AND bank.active=1 AND bank.account_type='asset'
             JOIN accounts expense ON expense.id=s.expense_account_id AND expense.active=1 AND expense.account_type='expense'
             JOIN accounts vatr ON vatr.id=s.vat_receivable_account_id AND vatr.active=1 AND vatr.account_type='asset'
@@ -912,12 +1179,15 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
             WHERE s.id=1 AND s.enabled=1
               AND s.bank_account_id<>s.ar_account_id
               AND s.bank_account_id<>s.vat_receivable_account_id
-              AND s.ar_account_id<>s.vat_receivable_account_id)"
+              AND s.ar_account_id<>s.vat_receivable_account_id
+              AND (NOT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received')
+                   OR (vatd.id IS NOT NULL AND s.vat_deferred_payable_account_id<>s.vat_payable_account_id)))"
     } else {
         "SELECT EXISTS(SELECT 1 FROM accounting_settings s
             JOIN accounts ar ON ar.id=s.ar_account_id AND ar.active=1 AND ar.account_type='asset'
             JOIN accounts rev ON rev.id=s.revenue_account_id AND rev.active=1 AND rev.account_type='revenue'
             JOIN accounts vatp ON vatp.id=s.vat_payable_account_id AND vatp.active=1 AND vatp.account_type='liability'
+            LEFT JOIN accounts vatd ON vatd.id=s.vat_deferred_payable_account_id AND vatd.active=1 AND vatd.account_type='liability'
             JOIN accounts bank ON bank.id=s.bank_account_id AND bank.active=1 AND bank.account_type='asset'
             JOIN accounts expense ON expense.id=s.expense_account_id AND expense.active=1 AND expense.account_type='expense'
             JOIN accounts vatr ON vatr.id=s.vat_receivable_account_id AND vatr.active=1 AND vatr.account_type='asset'
@@ -925,17 +1195,19 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
             WHERE s.id=1 AND s.enabled=1
               AND s.bank_account_id<>s.ar_account_id
               AND s.bank_account_id<>s.vat_receivable_account_id
-              AND s.ar_account_id<>s.vat_receivable_account_id)"
+              AND s.ar_account_id<>s.vat_receivable_account_id
+              AND (NOT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received')
+                   OR (vatd.id IS NOT NULL AND s.vat_deferred_payable_account_id<>s.vat_payable_account_id)))"
     };
     let mapping_ready: bool = connection.query_row(mapping_ready_sql, [], |row| row.get(0))?;
     let configured_mappings: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM accounting_settings WHERE enabled=1 OR ar_account_id IS NOT NULL OR revenue_account_id IS NOT NULL OR vat_payable_account_id IS NOT NULL OR bank_account_id IS NOT NULL OR expense_account_id IS NOT NULL OR vat_receivable_account_id IS NOT NULL OR wages_expense_account_id IS NOT NULL OR wages_payable_account_id IS NOT NULL OR social_expense_account_id IS NOT NULL OR social_payable_account_id IS NOT NULL OR supplier_payable_account_id IS NOT NULL)",
+        "SELECT EXISTS(SELECT 1 FROM accounting_settings WHERE enabled=1 OR ar_account_id IS NOT NULL OR revenue_account_id IS NOT NULL OR vat_payable_account_id IS NOT NULL OR vat_deferred_payable_account_id IS NOT NULL OR bank_account_id IS NOT NULL OR expense_account_id IS NOT NULL OR vat_receivable_account_id IS NOT NULL OR wages_expense_account_id IS NOT NULL OR wages_payable_account_id IS NOT NULL OR social_expense_account_id IS NOT NULL OR social_payable_account_id IS NOT NULL OR supplier_payable_account_id IS NOT NULL)",
         [],
         |row| row.get(0),
     )?;
     let reversed_sources: i64 = connection.query_row(
         "WITH RECURSIVE chain(root_id,source_type,source_id,id,depth) AS (
-            SELECT id,source_type,source_id,id,0 FROM journal_entries WHERE source_type IN('invoice','payment','expense','payslip','supplier_invoice','supplier_payment')
+            SELECT id,source_type,source_id,id,0 FROM journal_entries WHERE source_type IN('invoice','payment','vat_cash_reclassification','expense','payslip','supplier_invoice','supplier_payment')
             UNION ALL
             SELECT chain.root_id,chain.source_type,chain.source_id,je.id,chain.depth+1 FROM chain JOIN journal_entries je ON je.reversal_of=chain.id
         ), roots AS (SELECT root_id,source_type,source_id,MAX(depth) AS max_depth FROM chain GROUP BY root_id,source_type,source_id)
@@ -1209,11 +1481,215 @@ fn posted_invoice_account(
     }
 }
 
+pub(crate) fn validate_received_vat_accounting_configuration(
+    connection: &Connection,
+    effective_from: &str,
+    effective_to: Option<&str>,
+) -> AppResult<()> {
+    let mapping: Option<(Option<String>, Option<String>)> = connection
+        .query_row(
+            "SELECT vat_payable_account_id,vat_deferred_payable_account_id FROM accounting_settings WHERE id=1 AND enabled=1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let Some((vat_payable, vat_deferred)) = mapping else {
+        return Ok(());
+    };
+    let vat_payable = vat_payable.filter(|value| !value.trim().is_empty());
+    let vat_deferred = vat_deferred.filter(|value| !value.trim().is_empty());
+    let valid_mapping = vat_payable
+        .as_deref()
+        .zip(vat_deferred.as_deref())
+        .is_some_and(|(due, deferred)| {
+            due != deferred
+                && connection
+                    .query_row(
+                        "SELECT COUNT(*)=2 FROM accounts WHERE id IN (?,?) AND active=1 AND account_type='liability'",
+                        params![due, deferred],
+                        |row| row.get::<_, bool>(0),
+                    )
+                    .unwrap_or(false)
+        });
+    if !valid_mapping {
+        return Err(AppError::Validation(
+            "Le mode « contre-prestations reçues » exige deux comptes de passif actifs et distincts : « TVA due » et « TVA à régulariser ». Configurez-les dans Comptabilité > Plan & liaisons avant d'activer ce profil TVA."
+                .into(),
+        ));
+    }
+    let incompatible_history: i64 = connection.query_row(
+        "SELECT COUNT(*)
+           FROM invoices invoice
+           JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=invoice.id AND entry.source_event='issue' AND entry.reversal_of IS NULL
+          WHERE invoice.type<>'avoir' AND invoice.vat_cents<>0
+            AND invoice.issue_date>=? AND (? IS NULL OR invoice.issue_date<=?)
+            AND NOT EXISTS(
+              SELECT 1 FROM journal_lines line
+               WHERE line.journal_entry_id=entry.id AND line.memo=?
+            )",
+        params![effective_from, effective_to, effective_to, VAT_DEFERRED_MEMO],
+        |row| row.get(0),
+    )?;
+    if incompatible_history != 0 {
+        return Err(AppError::Validation(format!(
+            "Le profil reçu est rétroactif sur {incompatible_history} facture(s) déjà comptabilisée(s) avec TVA due à l'émission. Zentra bloque cette activation : extournez et régularisez l'historique avec votre fiduciaire, ou choisissez une date d'effet future."
+        )));
+    }
+    Ok(())
+}
+
+fn invoice_uses_received_vat(tx: &Transaction<'_>, issue_date: &str) -> AppResult<bool> {
+    Ok(tx
+        .query_row(
+            "SELECT form_of_reporting FROM vat_profiles WHERE effective_from<=? AND COALESCE(effective_to,'9999-12-31')>=? ORDER BY effective_from DESC LIMIT 1",
+            params![issue_date, issue_date],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .is_some_and(|basis| basis == "received"))
+}
+
+#[derive(Debug)]
+struct CashVatState {
+    deferred_account: String,
+    invoice_total_cents: i64,
+    invoice_vat_cents: i64,
+    released_cents: i64,
+    credit_deferred_cents: i64,
+    due_by_account: BTreeMap<String, i64>,
+}
+
+impl CashVatState {
+    fn deferred_remaining(&self) -> AppResult<i64> {
+        self.invoice_vat_cents
+            .checked_sub(self.released_cents)
+            .and_then(|value| value.checked_sub(self.credit_deferred_cents))
+            .filter(|value| *value >= 0)
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "La ventilation historique de TVA reçue dépasse la TVA différée de la facture; l'opération est bloquée."
+                        .into(),
+                )
+            })
+    }
+}
+
+fn cash_vat_state(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<CashVatState>> {
+    let Some(deferred_account) =
+        posted_invoice_account(tx, invoice_id, VAT_DEFERRED_MEMO, "liability")?
+    else {
+        return Ok(None);
+    };
+    let (invoice_total_cents, invoice_vat_cents): (i64, i64) = tx.query_row(
+        "SELECT total_cents,vat_cents FROM invoices WHERE id=? AND type<>'avoir'",
+        params![invoice_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if invoice_total_cents <= 0 || invoice_vat_cents <= 0 {
+        return Err(AppError::Validation(
+            "La facture en mode reçu ne possède pas une base TVA positive cohérente.".into(),
+        ));
+    }
+    let released_cents: i64 = tx.query_row(
+        "SELECT COALESCE(SUM(line.debit_cents),0)
+           FROM journal_entries entry
+           JOIN payments payment ON payment.id=entry.source_id AND entry.source_type='vat_cash_reclassification'
+           JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
+          WHERE entry.reversal_of IS NULL AND payment.invoice_id=?",
+        params![VAT_CASH_RELEASE_MEMO, invoice_id],
+        |row| row.get(0),
+    )?;
+    let credit_deferred_cents: i64 = tx.query_row(
+        "SELECT COALESCE(SUM(line.debit_cents),0)
+           FROM invoices credit
+           JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL
+           JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
+          WHERE credit.type='avoir' AND credit.original_invoice_id=? AND credit.number IS NOT NULL AND credit.status<>'annulee'",
+        params![VAT_CREDIT_DEFERRED_MEMO, invoice_id],
+        |row| row.get(0),
+    )?;
+    let mut due_by_account = BTreeMap::new();
+    {
+        let mut statement = tx.prepare(
+            "SELECT line.account_id,COALESCE(SUM(line.credit_cents),0)
+               FROM journal_entries entry
+               JOIN payments payment ON payment.id=entry.source_id AND entry.source_type='vat_cash_reclassification'
+               JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
+              WHERE entry.reversal_of IS NULL AND payment.invoice_id=?
+              GROUP BY line.account_id ORDER BY line.account_id",
+        )?;
+        let rows = statement.query_map(params![VAT_CASH_DUE_MEMO, invoice_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        for row in rows {
+            let (account_id, amount) = row?;
+            due_by_account.insert(account_id, amount);
+        }
+    }
+    {
+        let mut statement = tx.prepare(
+            "SELECT line.account_id,COALESCE(SUM(line.debit_cents),0)
+               FROM invoices credit
+               JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL
+               JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
+              WHERE credit.type='avoir' AND credit.original_invoice_id=? AND credit.number IS NOT NULL AND credit.status<>'annulee'
+              GROUP BY line.account_id ORDER BY line.account_id",
+        )?;
+        let rows = statement.query_map(params![VAT_CREDIT_DUE_MEMO, invoice_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        for row in rows {
+            let (account_id, amount) = row?;
+            let remaining = due_by_account
+                .get(&account_id)
+                .copied()
+                .unwrap_or(0)
+                .checked_sub(amount)
+                .filter(|value| *value >= 0)
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "Un avoir historique extourne davantage de TVA due que les encaissements liés; l'opération est bloquée."
+                            .into(),
+                    )
+                })?;
+            due_by_account.insert(account_id, remaining);
+        }
+    }
+    due_by_account.retain(|_, amount| *amount > 0);
+    let state = CashVatState {
+        deferred_account,
+        invoice_total_cents,
+        invoice_vat_cents,
+        released_cents,
+        credit_deferred_cents,
+        due_by_account,
+    };
+    state.deferred_remaining()?;
+    Ok(Some(state))
+}
+
+fn rounded_proportion(amount: i64, numerator: i64, denominator: i64) -> AppResult<i64> {
+    if amount < 0 || numerator < 0 || denominator <= 0 || numerator > denominator {
+        return Err(AppError::Validation(
+            "La proportion de TVA reçue est incohérente; l'opération est bloquée.".into(),
+        ));
+    }
+    let product = i128::from(amount)
+        .checked_mul(i128::from(numerator))
+        .ok_or_else(|| AppError::Validation("Calcul proportionnel de TVA hors capacité.".into()))?;
+    let rounded = product
+        .checked_add(i128::from(denominator / 2))
+        .and_then(|value| value.checked_div(i128::from(denominator)))
+        .ok_or_else(|| AppError::Validation("Calcul proportionnel de TVA invalide.".into()))?;
+    i64::try_from(rounded)
+        .map_err(|_| AppError::Validation("Calcul proportionnel de TVA hors capacité.".into()))
+}
+
 fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Value>> {
     let Some(map) = accounting_map(tx)? else {
         return Ok(None);
     };
-    let (kind, total, net, vat, currency, project, client, number, original_invoice_id): InvoicePostingRow = tx.query_row("SELECT type,total_cents,total_cents-vat_cents,vat_cents,currency,project_id,client_id,number,original_invoice_id FROM invoices WHERE id=?",params![invoice_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?)))?;
+    let (kind, total, net, vat, currency, project, client, number, original_invoice_id, date): InvoicePostingRow = tx.query_row("SELECT type,total_cents,total_cents-vat_cents,vat_cents,currency,project_id,client_id,number,original_invoice_id,issue_date FROM invoices WHERE id=?",params![invoice_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?)))?;
     if number.is_none() {
         return Err(AppError::Validation(
             "Une facture doit être numérotée avant sa comptabilisation.".into(),
@@ -1241,7 +1717,15 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
     } else {
         None
     };
-    let reversal_vat = if kind == "avoir" {
+    let original_cash_vat = if kind == "avoir" {
+        match original_invoice_id.as_deref() {
+            Some(original) => cash_vat_state(tx, original)?,
+            None => None,
+        }
+    } else {
+        None
+    };
+    let reversal_vat = if kind == "avoir" && original_cash_vat.is_none() {
         match original_invoice_id.as_deref() {
             Some(original) => posted_invoice_account(tx, original, "TVA due", "liability")?,
             None => None,
@@ -1267,17 +1751,81 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
             "Extourne produit",
         );
         if vat != 0 {
-            push_line(
-                &mut lines,
-                reversal_vat.as_deref().unwrap_or(&map.vat_payable),
-                -vat,
-                0,
-                &currency,
-                project.clone(),
-                client.clone(),
-                None,
-                "Extourne TVA",
-            );
+            let credit_vat = vat.checked_neg().ok_or_else(|| {
+                AppError::Validation(
+                    "Le montant de TVA de l'avoir dépasse la capacité locale.".into(),
+                )
+            })?;
+            if let Some(cash_state) = original_cash_vat.as_ref() {
+                let later_payment_already_posted: bool = tx.query_row(
+                    "SELECT EXISTS(
+                       SELECT 1 FROM payments payment
+                       JOIN journal_entries entry ON entry.source_type='payment' AND entry.source_id=payment.id AND entry.source_event='invoice:'||payment.invoice_id AND entry.reversal_of IS NULL
+                       WHERE payment.invoice_id=? AND payment.date>?
+                    )",
+                    params![original_invoice_id.as_deref().unwrap_or(""), date],
+                    |row| row.get(0),
+                )?;
+                if later_payment_already_posted {
+                    return Err(AppError::Validation(
+                        "Cet avoir serait antidaté avant un encaissement déjà comptabilisé en mode reçu. L'émission est bloquée, car elle modifierait rétroactivement la ventilation de TVA; régularisez la chronologie avec votre fiduciaire."
+                            .into(),
+                    ));
+                }
+                let deferred_debit = credit_vat.min(cash_state.deferred_remaining()?);
+                if deferred_debit > 0 {
+                    push_line(
+                        &mut lines,
+                        &cash_state.deferred_account,
+                        deferred_debit,
+                        0,
+                        &currency,
+                        project.clone(),
+                        client.clone(),
+                        None,
+                        VAT_CREDIT_DEFERRED_MEMO,
+                    );
+                }
+                let mut due_debit = credit_vat - deferred_debit;
+                for (account_id, available) in &cash_state.due_by_account {
+                    let amount = due_debit.min(*available);
+                    if amount > 0 {
+                        push_line(
+                            &mut lines,
+                            account_id,
+                            amount,
+                            0,
+                            &currency,
+                            project.clone(),
+                            client.clone(),
+                            None,
+                            VAT_CREDIT_DUE_MEMO,
+                        );
+                        due_debit -= amount;
+                    }
+                    if due_debit == 0 {
+                        break;
+                    }
+                }
+                if due_debit != 0 {
+                    return Err(AppError::Validation(
+                        "La TVA de cet avoir dépasse la TVA différée et la TVA déjà devenue due sur les encaissements de la facture originale. L'avoir est bloqué pour éviter un solde TVA débiteur incohérent."
+                            .into(),
+                    ));
+                }
+            } else {
+                push_line(
+                    &mut lines,
+                    reversal_vat.as_deref().unwrap_or(&map.vat_payable),
+                    credit_vat,
+                    0,
+                    &currency,
+                    project.clone(),
+                    client.clone(),
+                    None,
+                    "Extourne TVA",
+                );
+            }
         }
         push_line(
             &mut lines,
@@ -1321,24 +1869,33 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
             );
         }
         if vat != 0 {
+            let received_basis = invoice_uses_received_vat(tx, &date)?;
+            let (vat_account, vat_memo) = if received_basis {
+                (
+                    map.vat_deferred_payable.as_deref().ok_or_else(|| {
+                        AppError::Validation(
+                            "Cette facture relève des contre-prestations reçues, mais aucun compte « TVA à régulariser » n'est configuré. L'émission est annulée; configurez Comptabilité > Plan & liaisons."
+                                .into(),
+                        )
+                    })?,
+                    VAT_DEFERRED_MEMO,
+                )
+            } else {
+                (map.vat_payable.as_str(), "TVA due")
+            };
             push_line(
                 &mut lines,
-                &map.vat_payable,
+                vat_account,
                 0,
                 vat,
                 &currency,
                 project,
                 client,
                 None,
-                "TVA due",
+                vat_memo,
             );
         }
     }
-    let date: String = tx.query_row(
-        "SELECT issue_date FROM invoices WHERE id=?",
-        params![invoice_id],
-        |r| r.get(0),
-    )?;
     Ok(Some(post_entry(
         tx,
         &date,
@@ -1346,6 +1903,130 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
         "invoice",
         invoice_id,
         "issue",
+        lines,
+    )?))
+}
+
+fn post_cash_vat_reclassification(
+    tx: &Transaction<'_>,
+    map: &AccountingMap,
+    payment_id: &str,
+) -> AppResult<Option<Value>> {
+    let has_already_posted_later_payment: bool = tx.query_row(
+        "SELECT EXISTS(
+           SELECT 1
+             FROM payments current
+             JOIN payments later ON later.invoice_id=current.invoice_id
+             JOIN journal_entries posted ON posted.source_type='payment' AND posted.source_id=later.id AND posted.source_event='invoice:'||later.invoice_id AND posted.reversal_of IS NULL
+            WHERE current.id=?
+              AND (later.date>current.date
+                   OR (later.date=current.date AND later.created_at>current.created_at)
+                   OR (later.date=current.date AND later.created_at=current.created_at AND later.id>current.id))
+        )",
+        params![payment_id],
+        |row| row.get(0),
+    )?;
+    if has_already_posted_later_payment {
+        return Err(AppError::Validation(
+            "Un encaissement plus récent de cette facture est déjà comptabilisé. Zentra bloque l'ajout antidaté, car il modifierait rétroactivement la ventilation proportionnelle de TVA; régularisez l'ordre avec votre fiduciaire."
+                .into(),
+        ));
+    }
+    let (invoice_id, date, currency, project, client, paid_total, credited_total): (
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+    ) = tx.query_row(
+        "SELECT invoice.id,payment.date,invoice.currency,invoice.project_id,invoice.client_id,
+                (SELECT COALESCE(SUM(other.amount_cents),0) FROM payments other
+                  WHERE other.invoice_id=invoice.id
+                    AND (other.date<payment.date
+                         OR (other.date=payment.date AND other.created_at<payment.created_at)
+                         OR (other.date=payment.date AND other.created_at=payment.created_at AND other.id<=payment.id))),
+                (SELECT COALESCE(SUM(-credit.total_cents),0)
+                   FROM invoices credit
+                   JOIN journal_entries credit_entry ON credit_entry.source_type='invoice' AND credit_entry.source_id=credit.id AND credit_entry.source_event='issue' AND credit_entry.reversal_of IS NULL
+                  WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id
+                    AND credit.number IS NOT NULL AND credit.status<>'annulee'
+                    AND credit.issue_date<=payment.date)
+           FROM payments payment JOIN invoices invoice ON invoice.id=payment.invoice_id
+          WHERE payment.id=?",
+        params![payment_id],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+            ))
+        },
+    )?;
+    let Some(state) = cash_vat_state(tx, &invoice_id)? else {
+        return Ok(None);
+    };
+    let deferred_remaining = state.deferred_remaining()?;
+    if deferred_remaining == 0 {
+        return Ok(None);
+    }
+    let settled = paid_total
+        .checked_add(credited_total)
+        .is_some_and(|settled_total| settled_total >= state.invoice_total_cents);
+    let allocation = if settled {
+        deferred_remaining
+    } else {
+        rounded_proportion(
+            state.invoice_vat_cents,
+            paid_total,
+            state.invoice_total_cents,
+        )?
+        .saturating_sub(state.released_cents)
+        .min(deferred_remaining)
+    };
+    if allocation == 0 {
+        return Ok(None);
+    }
+    if map.vat_payable == state.deferred_account {
+        return Err(AppError::Validation(
+            "Les comptes de TVA due et de TVA à régulariser sont identiques; l'encaissement est annulé avant toute écriture."
+                .into(),
+        ));
+    }
+    let lines = vec![
+        EntryLine {
+            account_id: state.deferred_account,
+            debit_cents: allocation,
+            credit_cents: 0,
+            currency: currency.clone(),
+            memo: Some(VAT_CASH_RELEASE_MEMO.into()),
+            project_id: project.clone(),
+            client_id: client.clone(),
+            employee_id: None,
+        },
+        EntryLine {
+            account_id: map.vat_payable.clone(),
+            debit_cents: 0,
+            credit_cents: allocation,
+            currency,
+            memo: Some(VAT_CASH_DUE_MEMO.into()),
+            project_id: project,
+            client_id: client,
+            employee_id: None,
+        },
+    ];
+    Ok(Some(post_entry(
+        tx,
+        &date,
+        "Reclassement TVA sur encaissement",
+        "vat_cash_reclassification",
+        payment_id,
+        &format!("invoice:{invoice_id}"),
         lines,
     )?))
 }
@@ -1383,7 +2064,7 @@ pub(crate) fn post_payment_if_enabled(
         None,
         "Règlement créance",
     );
-    Ok(Some(post_entry(
+    let journal = post_entry(
         tx,
         &date,
         "Paiement client",
@@ -1391,7 +2072,9 @@ pub(crate) fn post_payment_if_enabled(
         payment_id,
         &format!("invoice:{invoice_id}"),
         lines,
-    )?))
+    )?;
+    post_cash_vat_reclassification(tx, &map, payment_id)?;
+    Ok(Some(journal))
 }
 
 pub(crate) fn post_expense_if_enabled(
@@ -1971,8 +2654,9 @@ fn posted_wages_payable_account(
 
 fn account_is_referenced(tx: &Transaction<'_>, account_id: &str) -> AppResult<bool> {
     tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM journal_lines WHERE account_id=? UNION ALL SELECT 1 FROM accounting_settings WHERE ar_account_id=? OR revenue_account_id=? OR vat_payable_account_id=? OR bank_account_id=? OR expense_account_id=? OR vat_receivable_account_id=? OR wages_expense_account_id=? OR wages_payable_account_id=? OR social_expense_account_id=? OR social_payable_account_id=? OR supplier_payable_account_id=? UNION ALL SELECT 1 FROM supplier_invoice_items WHERE expense_account_id=? UNION ALL SELECT 1 FROM payroll_contribution_definitions WHERE liability_account_id=? OR expense_account_id=? UNION ALL SELECT 1 FROM payslip_contributions WHERE liability_account_id=? OR expense_account_id=? UNION ALL SELECT 1 FROM payslip_items WHERE posting_account_id=? OR expense_account_id=?)",
+        "SELECT EXISTS(SELECT 1 FROM journal_lines WHERE account_id=? UNION ALL SELECT 1 FROM accounting_settings WHERE ar_account_id=? OR revenue_account_id=? OR vat_payable_account_id=? OR vat_deferred_payable_account_id=? OR bank_account_id=? OR expense_account_id=? OR vat_receivable_account_id=? OR wages_expense_account_id=? OR wages_payable_account_id=? OR social_expense_account_id=? OR social_payable_account_id=? OR supplier_payable_account_id=? UNION ALL SELECT 1 FROM supplier_invoice_items WHERE expense_account_id=? UNION ALL SELECT 1 FROM payroll_contribution_definitions WHERE liability_account_id=? OR expense_account_id=? UNION ALL SELECT 1 FROM payslip_contributions WHERE liability_account_id=? OR expense_account_id=? UNION ALL SELECT 1 FROM payslip_items WHERE posting_account_id=? OR expense_account_id=?)",
         params![
+            account_id,
             account_id,
             account_id,
             account_id,
@@ -2059,7 +2743,7 @@ fn require_manual_payroll_account<'a>(
 }
 
 fn accounting_map(tx: &Transaction<'_>) -> AppResult<Option<AccountingMap>> {
-    let map = tx.query_row("SELECT ar_account_id,revenue_account_id,vat_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id,supplier_payable_account_id FROM accounting_settings WHERE id=1 AND enabled=1",[],|r|Ok(AccountingMap{ar:r.get(0)?,revenue:r.get(1)?,vat_payable:r.get(2)?,bank:r.get(3)?,expense:r.get(4)?,vat_receivable:r.get(5)?,wages_expense:r.get(6)?,wages_payable:r.get(7)?,social_expense:r.get(8)?,social_payable:r.get(9)?,supplier_payable:r.get(10)?})).optional()?;
+    let map = tx.query_row("SELECT ar_account_id,revenue_account_id,vat_payable_account_id,vat_deferred_payable_account_id,bank_account_id,expense_account_id,vat_receivable_account_id,wages_expense_account_id,wages_payable_account_id,social_expense_account_id,social_payable_account_id,supplier_payable_account_id FROM accounting_settings WHERE id=1 AND enabled=1",[],|r|Ok(AccountingMap{ar:r.get(0)?,revenue:r.get(1)?,vat_payable:r.get(2)?,vat_deferred_payable:r.get(3)?,bank:r.get(4)?,expense:r.get(5)?,vat_receivable:r.get(6)?,wages_expense:r.get(7)?,wages_payable:r.get(8)?,social_expense:r.get(9)?,social_payable:r.get(10)?,supplier_payable:r.get(11)?})).optional()?;
     if let Some(map) = &map {
         for (account_id, expected_type, label) in [
             (&map.ar, "asset", "Le compte clients"),
@@ -2078,6 +2762,19 @@ fn accounting_map(tx: &Transaction<'_>) -> AppResult<Option<AccountingMap>> {
                 &["liability"],
                 "Le compte de dettes fournisseurs",
             )?;
+        }
+        if let Some(account_id) = map.vat_deferred_payable.as_deref() {
+            validate_account_type(
+                tx,
+                account_id,
+                &["liability"],
+                "Le compte de TVA à régulariser",
+            )?;
+            if account_id == map.vat_payable {
+                return Err(AppError::Validation(
+                    "Les comptes de TVA due et de TVA à régulariser doivent être distincts.".into(),
+                ));
+            }
         }
         validate_core_mapping_role_separation(
             Some(map.ar.as_str()),
@@ -2119,7 +2816,6 @@ fn post_entry_with_reversal(
     lines: Vec<EntryLine>,
     reversal_of: Option<&str>,
 ) -> AppResult<Value> {
-    ensure_accounting_date_open(tx, date)?;
     if lines.len() < 2 {
         return Err(AppError::Validation(
             "Une écriture doit contenir au moins deux lignes.".into(),
@@ -2154,17 +2850,6 @@ fn post_entry_with_reversal(
             || (line.debit_cents == 0) == (line.credit_cents == 0)
         {
             return Err(AppError::Validation("Chaque ligne doit avoir un débit ou un crédit strictement positif, jamais les deux.".into()));
-        }
-        let exists: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM accounts WHERE id=? AND active=1)",
-            params![line.account_id],
-            |r| r.get(0),
-        )?;
-        if !exists {
-            return Err(AppError::Validation(format!(
-                "Compte actif introuvable : {}",
-                line.account_id
-            )));
         }
     }
     if let Some(existing) = tx
@@ -2212,6 +2897,20 @@ fn post_entry_with_reversal(
             )));
         }
         return journal_entry_json(tx, &existing);
+    }
+    ensure_accounting_date_open(tx, date)?;
+    for line in &lines {
+        let exists: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM accounts WHERE id=? AND active=1)",
+            params![line.account_id],
+            |r| r.get(0),
+        )?;
+        if !exists {
+            return Err(AppError::Validation(format!(
+                "Compte actif introuvable : {}",
+                line.account_id
+            )));
+        }
     }
     let year: i64 = date[0..4]
         .parse()
@@ -2541,6 +3240,86 @@ fn account_has_type(connection: &Connection, account_id: &str, expected: &str) -
     )?)
 }
 
+fn cash_vat_invoice_is_consistent(connection: &Connection, invoice_id: &str) -> AppResult<bool> {
+    let original = effective_postings(connection, "invoice", invoice_id, "issue")?;
+    let deferred_account = original.first().and_then(|posting| {
+        posting
+            .lines
+            .iter()
+            .find(|line| line.memo.as_deref() == Some(VAT_DEFERRED_MEMO))
+            .map(|line| line.account_id.as_str())
+    });
+    let reclassification_count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM journal_entries entry JOIN payments payment ON payment.id=entry.source_id WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=?",
+        params![invoice_id],
+        |row| row.get(0),
+    )?;
+    let Some(_deferred_account) = deferred_account else {
+        return Ok(reclassification_count == 0);
+    };
+    let (
+        total,
+        vat,
+        paid,
+        credited,
+        released,
+        due_created,
+        credit_deferred,
+        credit_due,
+    ): (i64, i64, i64, i64, i64, i64, i64, i64) = connection.query_row(
+        "SELECT invoice.total_cents,invoice.vat_cents,
+                (SELECT COALESCE(SUM(payment.amount_cents),0) FROM payments payment WHERE payment.invoice_id=invoice.id),
+                (SELECT COALESCE(SUM(-credit.total_cents),0) FROM invoices credit WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee'),
+                (SELECT COALESCE(SUM(line.debit_cents),0) FROM journal_entries entry JOIN payments payment ON payment.id=entry.source_id JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?2 WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=invoice.id),
+                (SELECT COALESCE(SUM(line.credit_cents),0) FROM journal_entries entry JOIN payments payment ON payment.id=entry.source_id JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?3 WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=invoice.id),
+                (SELECT COALESCE(SUM(line.debit_cents),0) FROM invoices credit JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?4 WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee'),
+                (SELECT COALESCE(SUM(line.debit_cents),0) FROM invoices credit JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?5 WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee')
+           FROM invoices invoice WHERE invoice.id=?1",
+        params![
+            invoice_id,
+            VAT_CASH_RELEASE_MEMO,
+            VAT_CASH_DUE_MEMO,
+            VAT_CREDIT_DEFERRED_MEMO,
+            VAT_CREDIT_DUE_MEMO
+        ],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+            ))
+        },
+    )?;
+    if total <= 0
+        || vat <= 0
+        || released != due_created
+        || released < 0
+        || credit_deferred < 0
+        || credit_due < 0
+        || credit_due > released
+        || released
+            .checked_add(credit_deferred)
+            .is_none_or(|allocated| allocated > vat)
+    {
+        return Ok(false);
+    }
+    let remaining_after_credits = vat - credit_deferred;
+    let settled = paid
+        .checked_add(credited)
+        .is_some_and(|settled_total| settled_total >= total);
+    let expected_release = if settled {
+        remaining_after_credits
+    } else {
+        rounded_proportion(vat, paid, total)?.min(remaining_after_credits)
+    };
+    Ok(released == expected_release)
+}
+
 fn semantic_posting_mismatches_in_range(
     connection: &Connection,
     date_from: &str,
@@ -2587,10 +3366,30 @@ fn semantic_posting_mismatches_in_range(
             } else {
                 Some("")
             };
-            let vat_account = if vat != 0 {
-                exact_line_account(posting, "Extourne TVA", -vat, 0)
+            let vat_lines = posting
+                .lines
+                .iter()
+                .filter(|line| {
+                    matches!(
+                        line.memo.as_deref(),
+                        Some("Extourne TVA")
+                            | Some(VAT_CREDIT_DEFERRED_MEMO)
+                            | Some(VAT_CREDIT_DUE_MEMO)
+                    )
+                })
+                .collect::<Vec<_>>();
+            let vat_debit = vat_lines
+                .iter()
+                .try_fold(0_i64, |sum, line| sum.checked_add(line.debit_cents));
+            let vat_lines_valid = if vat == 0 {
+                vat_lines.is_empty()
             } else {
-                Some("")
+                vat_debit == Some(-vat)
+                    && vat_lines.iter().all(|line| {
+                        line.credit_cents == 0
+                            && account_has_type(connection, &line.account_id, "liability")
+                                .unwrap_or(false)
+                    })
             };
             valid &= total < 0
                 && net <= 0
@@ -2602,15 +3401,33 @@ fn semantic_posting_mismatches_in_range(
                     account.is_empty()
                         || account_has_type(connection, account, "revenue").unwrap_or(false)
                 })
-                && vat_account.is_some_and(|account| {
-                    account.is_empty()
-                        || account_has_type(connection, account, "liability").unwrap_or(false)
-                });
-            if let Some(original_id) = original_invoice_id {
+                && vat_lines_valid;
+            if let Some(original_id) = original_invoice_id.as_deref() {
                 let original = effective_postings(connection, "invoice", &original_id, "issue")?;
+                let original_posting = original.first();
+                let original_deferred = original_posting.and_then(|entry| {
+                    entry
+                        .lines
+                        .iter()
+                        .find(|line| line.memo.as_deref() == Some(VAT_DEFERRED_MEMO))
+                });
+                let credit_basis_valid = if vat == 0 {
+                    true
+                } else if let Some(deferred_line) = original_deferred {
+                    vat_lines.iter().all(|line| {
+                        matches!(
+                            line.memo.as_deref(),
+                            Some(VAT_CREDIT_DEFERRED_MEMO) | Some(VAT_CREDIT_DUE_MEMO)
+                        ) && (line.memo.as_deref() != Some(VAT_CREDIT_DEFERRED_MEMO)
+                            || line.account_id == deferred_line.account_id)
+                    })
+                } else {
+                    vat_lines.len() == 1 && vat_lines[0].memo.as_deref() == Some("Extourne TVA")
+                };
                 valid &= original.len() == 1
+                    && credit_basis_valid
                     && ar
-                        == original.first().and_then(|entry| {
+                        == original_posting.and_then(|entry| {
                             entry
                                 .lines
                                 .iter()
@@ -2618,8 +3435,7 @@ fn semantic_posting_mismatches_in_range(
                                 .map(|line| line.account_id.as_str())
                         })
                     && revenue
-                        == original
-                            .first()
+                        == original_posting
                             .and_then(|entry| {
                                 entry
                                     .lines
@@ -2627,18 +3443,7 @@ fn semantic_posting_mismatches_in_range(
                                     .find(|line| line.memo.as_deref() == Some("Produit facturé"))
                                     .map(|line| line.account_id.as_str())
                             })
-                            .or(if net == 0 { Some("") } else { None })
-                    && vat_account
-                        == original
-                            .first()
-                            .and_then(|entry| {
-                                entry
-                                    .lines
-                                    .iter()
-                                    .find(|line| line.memo.as_deref() == Some("TVA due"))
-                                    .map(|line| line.account_id.as_str())
-                            })
-                            .or(if vat == 0 { Some("") } else { None });
+                            .or(if net == 0 { Some("") } else { None });
             }
         } else {
             let ar = exact_line_account(posting, "Créance client", total, 0);
@@ -2647,8 +3452,25 @@ fn semantic_posting_mismatches_in_range(
             } else {
                 Some("")
             };
+            let received_basis: bool = connection
+                .query_row(
+                    "SELECT form_of_reporting='received' FROM vat_profiles WHERE effective_from<=? AND COALESCE(effective_to,'9999-12-31')>=? ORDER BY effective_from DESC LIMIT 1",
+                    params![issue_date, issue_date],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .unwrap_or(false);
             let vat_account = if vat != 0 {
-                exact_line_account(posting, "TVA due", 0, vat)
+                exact_line_account(
+                    posting,
+                    if received_basis {
+                        VAT_DEFERRED_MEMO
+                    } else {
+                        "TVA due"
+                    },
+                    0,
+                    vat,
+                )
             } else {
                 Some("")
             };
@@ -2708,7 +3530,7 @@ fn semantic_posting_mismatches_in_range(
                 .find(|line| line.memo.as_deref() == Some("Créance client"))
                 .map(|line| line.account_id.as_str())
         });
-        let valid = posting.entry_date == date
+        let mut valid = posting.entry_date == date
             && amount > 0
             && posting_totals_match(posting, amount, &currency)
             && bank.is_some_and(|account| {
@@ -2718,6 +3540,52 @@ fn semantic_posting_mismatches_in_range(
             && bank != ar
             && original.len() == 1
             && ar == original_ar;
+        let original_deferred = original.first().and_then(|entry| {
+            entry
+                .lines
+                .iter()
+                .find(|line| line.memo.as_deref() == Some(VAT_DEFERRED_MEMO))
+                .map(|line| line.account_id.as_str())
+        });
+        let vat_postings = effective_postings(
+            connection,
+            "vat_cash_reclassification",
+            &id,
+            &format!("invoice:{invoice_id}"),
+        )?;
+        if let Some(deferred_account) = original_deferred {
+            let vat_posting_valid = match vat_postings.as_slice() {
+                [] => true,
+                [vat_posting] => {
+                    let release = vat_posting
+                        .lines
+                        .iter()
+                        .find(|line| line.memo.as_deref() == Some(VAT_CASH_RELEASE_MEMO));
+                    let due = vat_posting
+                        .lines
+                        .iter()
+                        .find(|line| line.memo.as_deref() == Some(VAT_CASH_DUE_MEMO));
+                    release.zip(due).is_some_and(|(release, due)| {
+                        vat_posting.entry_date == date
+                            && vat_posting.lines.len() == 2
+                            && release.account_id == deferred_account
+                            && release.debit_cents > 0
+                            && release.credit_cents == 0
+                            && due.debit_cents == 0
+                            && due.credit_cents == release.debit_cents
+                            && due.account_id != release.account_id
+                            && release.currency == currency
+                            && due.currency == currency
+                            && account_has_type(connection, &due.account_id, "liability")
+                                .unwrap_or(false)
+                    })
+                }
+                _ => false,
+            };
+            valid &= vat_posting_valid && cash_vat_invoice_is_consistent(connection, &invoice_id)?;
+        } else {
+            valid &= vat_postings.is_empty();
+        }
         if !valid {
             mismatches += 1;
         }
@@ -3021,6 +3889,24 @@ fn period_join_clause(filter: &PeriodFilter, column: &str) -> AppResult<(String,
 }
 fn period_and_clause(filter: &PeriodFilter, column: &str) -> AppResult<(String, Vec<SqlValue>)> {
     period_parts(filter, column, "AND")
+}
+fn report_bounds(filter: &PeriodFilter) -> AppResult<(String, String)> {
+    let date_from = filter
+        .date_from
+        .clone()
+        .unwrap_or_else(|| "0001-01-01".into());
+    let date_to = filter
+        .date_to
+        .clone()
+        .unwrap_or_else(|| "9999-12-31".into());
+    validate_date(&date_from, "date_from")?;
+    validate_date(&date_to, "date_to")?;
+    if date_from > date_to {
+        return Err(AppError::Validation(
+            "date_from doit précéder ou être égale à date_to.".into(),
+        ));
+    }
+    Ok((date_from, date_to))
 }
 fn period_parts(
     filter: &PeriodFilter,

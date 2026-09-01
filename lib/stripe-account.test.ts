@@ -114,6 +114,15 @@ describe('Stripe account readiness domain', () => {
     ).toBe('product');
   });
 
+  it('fails closed when Stripe does not return the expanded Product', () => {
+    const { price } = fixtures();
+    expect(
+      validate({
+        price: { ...price, product: null } as unknown as Stripe.Price,
+      }),
+    ).toBe('product');
+  });
+
   it('rejects pending Stripe Tax or a mode mismatch', () => {
     const { taxSettings } = fixtures();
     expect(

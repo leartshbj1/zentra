@@ -9,6 +9,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { useState } from 'react';
+import { formatChfCents } from '@/lib/site-format';
 
 const LEVELS = [
   {
@@ -61,13 +62,6 @@ function cents(value: string) {
   return Math.round(Number(normalized) * 100);
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('fr-CH', {
-    style: 'currency',
-    currency: 'CHF',
-  }).format(value / 100);
-}
-
 export function ReminderDemo() {
   const [invoiceNumber, setInvoiceNumber] = useState('F-2026-0042');
   const [clientName, setClientName] = useState('Atelier du Lac Sàrl');
@@ -99,7 +93,7 @@ export function ReminderDemo() {
 
   const preview = {
     subject: `${selected.subject} ${safeInvoiceNumber}`,
-    body: `Bonjour ${safeClientName},\n\n${selected.introduction} Le montant actuellement dû pour la facture ${safeInvoiceNumber}, échue le ${formatDate(dueDate)}, est de ${balanceCents === null ? 'un montant à contrôler' : formatMoney(balanceCents)}.\n\nMerci d’effectuer le règlement d’ici au ${formatDate(paymentDeadline)} ou de nous signaler tout paiement déjà réalisé.\n\nAvec nos salutations,\nVotre entreprise`,
+    body: `Bonjour ${safeClientName},\n\n${selected.introduction} Le montant actuellement dû pour la facture ${safeInvoiceNumber}, échue le ${formatDate(dueDate)}, est de ${balanceCents === null ? 'un montant à contrôler' : formatChfCents(balanceCents)}.\n\nMerci d’effectuer le règlement d’ici au ${formatDate(paymentDeadline)} ou de nous signaler tout paiement déjà réalisé.\n\nAvec nos salutations,\nVotre entreprise`,
   };
 
   return (
@@ -320,7 +314,7 @@ export function ReminderDemo() {
               </strong>
               <span className="mt-1 block text-xs text-[#68756d]">
                 {formatDate(reminderDate)} · solde{' '}
-                {balanceCents === null ? 'à contrôler' : formatMoney(balanceCents)}
+                {balanceCents === null ? 'à contrôler' : formatChfCents(balanceCents)}
               </span>
             </div>
             <div className="rounded-2xl border border-[#dde3de] bg-[#f7f9f7] p-4">

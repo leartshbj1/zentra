@@ -34,6 +34,10 @@ Sources primaires : [Code des obligations, art. 957a, 959a et 959b](https://www.
 - LPP, AAP, AANP, IJM, allocations familiales, impôt à la source et autres lignes
   restent explicitement configurés par le client, car ils dépendent notamment
   de la caisse, de l'assureur, du canton, du contrat ou de la situation du salarié.
+- AAP est toujours imposée côté employeur. AANP est côté salarié par défaut;
+  une part employeur n'est acceptée que si la configuration conserve une
+  convention plus favorable datée et que la définition utilise exactement
+  cette référence comme source sur une période incluse dans la convention.
 - Les taux librement saisis dans le questionnaire sont importés une seule fois
   comme définitions de catégorie `other`, sur base brute visible et modifiable.
   Les listes historiques du questionnaire sont ensuite vidées afin qu'une

@@ -13,7 +13,10 @@ use uuid::Uuid;
 
 use crate::{
     audit::append_audit,
-    database::{now_iso, query_all, query_record_tx, record_payment_in_transaction, LocalStore},
+    database::{
+        now_iso, payment_record_with_journal, query_all, query_record_tx,
+        record_payment_in_transaction, LocalStore,
+    },
     error::{AppError, AppResult},
     models::{
         AssociateBankAccountInput, ConfirmBankReconciliationInput,
@@ -1901,6 +1904,14 @@ mod tests {
                 "credit",
                 "short_term_liabilities",
             ),
+            (
+                "vat_deferred_payable",
+                "2201",
+                "TVA à régulariser",
+                "liability",
+                "credit",
+                "short_term_liabilities",
+            ),
             ("bank", "1020", "Banque", "asset", "debit", "current_assets"),
             (
                 "expense",
@@ -1980,6 +1991,7 @@ mod tests {
                 ar_account_id: Some(accounts["ar"].clone()),
                 revenue_account_id: Some(accounts["revenue"].clone()),
                 vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
                 bank_account_id: Some(accounts["bank"].clone()),
                 expense_account_id: Some(accounts["expense"].clone()),
                 vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
@@ -2644,8 +2656,21 @@ mod tests {
             invoice_id: invoice_id.clone(),
         };
         let first = store.confirm_bank_reconciliation(input.clone()).unwrap();
+        let journal_id = first["payment"]["journal_entry_id"]
+            .as_str()
+            .expect("payment journal proof")
+            .to_owned();
+        let reversal_error = store
+            .reverse_journal_entry(&journal_id, "2026-09-01", None)
+            .unwrap_err();
+        assert!(reversal_error
+            .to_string()
+            .contains("encaissement client ne peut pas être extournée isolément"));
         let retry = store.confirm_bank_reconciliation(input).unwrap();
         assert_eq!(first["payment"]["id"], retry["payment"]["id"]);
+        assert_eq!(retry["payment"]["journal_entry_id"], journal_id);
+        assert_eq!(retry["payment"]["journal_entry_is_active"], 1);
+        assert_eq!(retry["payment"]["journal_reversal_depth"], 0);
         let connection = store.connect().unwrap();
         let counts: (i64, i64, i64) = connection
             .query_row(
@@ -4638,7 +4663,11 @@ impl LocalStore {
             .into_iter()
             .next()
             .unwrap();
-            let payment = query_record_tx(&transaction, "payments", &payment_id)?;
+            // Une reprise CAMT doit fournir la même preuve comptable que la
+            // création initiale. Cela bloque aussi, sans réponse trompeuse, une
+            // ancienne base où l'écriture du paiement aurait été extournée
+            // isolément avant l'introduction du garde-fou métier.
+            let payment = payment_record_with_journal(&transaction, &payment_id)?;
             let invoice = query_record_tx(&transaction, "invoices", &invoice_id)?;
             transaction.commit()?;
             return Ok(

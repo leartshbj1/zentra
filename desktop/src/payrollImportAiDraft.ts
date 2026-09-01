@@ -129,6 +129,136 @@ function recordValue(value: unknown): RecordValue {
 const textValue = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const numberValue = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : 0;
 
+/**
+ * Les montants du contrat IA sont des centimes entiers. SmolVLM restitue
+ * toutefois parfois le montant imprimé (par exemple `CHF 6'500.00`) comme
+ * chaîne. Cette conversion reste volontairement étroite et n'interprète
+ * jamais une chaîne contenant un libellé ou une expression.
+ */
+function centsValue(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value) : 0;
+  if (typeof value !== 'string') return 0;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const cents = Number(trimmed);
+    return Number.isSafeInteger(cents) ? cents : 0;
+  }
+  const match = trimmed.match(/^(?:CHF\s*)?(\d{1,3}(?:['’\u00a0\u202f ]\d{3})+|\d+)(?:([.,])(\d{1,2}))?(?:\s*CHF)?$/i);
+  if (!match) return 0;
+  const francs = Number(match[1].replace(/['’\u00a0\u202f ]/g, ''));
+  const fraction = match[3] ? Number(match[3].padEnd(2, '0')) : 0;
+  const cents = francs * 100 + fraction;
+  return Number.isSafeInteger(cents) ? cents : 0;
+}
+
+/**
+ * Convertit uniquement la syntaxe de littéral objet fréquemment émise par le
+ * petit modèle (`'texte'`, `True`, `False`, `None`) en JSON. Il ne s'agit pas
+ * d'un évaluateur : aucun code, commentaire ou identifiant arbitraire n'est
+ * exécuté. Une apostrophe intérieure (D'Amico, 6'500.00) reste du contenu.
+ */
+function pythonLiteralToJson(raw: string): string {
+  let result = '';
+  let quote: 'single' | 'double' | null = null;
+  let escaped = false;
+  let singleRawStart = -1;
+  for (let index = 0; index < raw.length; index += 1) {
+    const character = raw[index];
+    if (quote === 'double') {
+      result += character;
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') quote = null;
+      continue;
+    }
+    if (quote === 'single') {
+      if (escaped) {
+        result += character === '"' ? '\\"' : character;
+        escaped = false;
+        continue;
+      }
+      if (character === '\\') {
+        result += '\\';
+        escaped = true;
+        continue;
+      }
+      if (character === "'") {
+        let lookahead = index + 1;
+        while (/\s/.test(raw[lookahead] ?? '')) lookahead += 1;
+        const next = raw[lookahead] ?? '';
+        if (!next || ':,}]'.includes(next)) {
+          result += '"';
+          quote = null;
+          singleRawStart = -1;
+        } else {
+          result += "'";
+        }
+        continue;
+      }
+      // Le modèle observé en E2E utilise la même apostrophe pour ouvrir la
+      // chaîne et comme séparateur de milliers, puis oublie parfois l'apostrophe
+      // finale : `'6'500.00,`. Fermer implicitement uniquement un montant pur
+      // à la virgule de propriété ou à l'accolade terminale.
+      if ((character === ',' || character === '}') && singleRawStart >= 0) {
+        const content = raw.slice(singleRawStart, index);
+        if (/^(?:CHF\s*)?\d{1,3}(?:['’\u00a0\u202f ]\d{3})+(?:[.,]\d{1,2})$/.test(content)) {
+          result += `"${character}`;
+          quote = null;
+          singleRawStart = -1;
+          continue;
+        }
+      }
+      if (character === '"') result += '\\"';
+      else if (character === '\n') result += '\\n';
+      else if (character === '\r') result += '\\r';
+      else if (character === '\t') result += '\\t';
+      else result += character;
+      continue;
+    }
+    if (character === '"') {
+      quote = 'double';
+      result += character;
+      continue;
+    }
+    if (character === "'") {
+      quote = 'single';
+      singleRawStart = index + 1;
+      result += '"';
+      continue;
+    }
+    const remainder = raw.slice(index);
+    const token = remainder.match(/^(True|False|None)(?![A-Za-z0-9_])/);
+    if (token && (index === 0 || !/[A-Za-z0-9_]/.test(raw[index - 1]))) {
+      result += token[1] === 'True' ? 'true' : token[1] === 'False' ? 'false' : 'null';
+      index += token[1].length - 1;
+      continue;
+    }
+    result += character;
+  }
+  return result;
+}
+
+function completePayrollEnvelope(candidate: RecordValue): RecordValue | null {
+  if (Object.keys(recordValue(candidate.employee)).length || Array.isArray(candidate.lines)) return candidate;
+  const keys = Object.keys(candidate);
+  const flatKeys = new Set(['employee_name', 'gross_cents', 'net_cents']);
+  const isKnownPartial = keys.length === 3
+    && keys.every((key) => flatKeys.has(key))
+    && textValue(candidate.employee_name)
+    && centsValue(candidate.gross_cents) > 0
+    && centsValue(candidate.net_cents) > 0;
+  if (!isKnownPartial) return null;
+  return {
+    employee: { name: candidate.employee_name },
+    period: '',
+    payment_date: '',
+    gross_cents: candidate.gross_cents,
+    net_cents: candidate.net_cents,
+    lines: [],
+    warnings: ['Sortie IA partielle normalisée : contrôlez le nom et les deux montants sur le document original.'],
+  };
+}
+
 function pageNumbers(value: unknown): number[] {
   const values = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
   return [...new Set(values
@@ -155,14 +285,17 @@ function parseJsonObject(raw: string): RecordValue {
   const starts = [...cleaned.matchAll(/\{/g)].map((match) => match.index ?? 0).reverse();
   for (const start of starts) {
     for (let end = cleaned.lastIndexOf('}'); end > start; end = cleaned.lastIndexOf('}', end - 1)) {
-      try {
-        const candidate = recordValue(JSON.parse(cleaned.slice(start, end + 1)) as unknown);
-        // Un objet imbriqué (par exemple `employee`) est lui aussi du JSON
-        // valide. N'accepter que l'enveloppe complète évite de perdre toutes
-        // les valeurs lors d'une lecture depuis la dernière accolade.
-        if (Object.keys(recordValue(candidate.employee)).length || Array.isArray(candidate.lines)) return candidate;
-      } catch {
-        // Continue with the previous closing brace; model output can contain a short prefix.
+      const rawCandidate = cleaned.slice(start, end + 1);
+      for (const serialized of [rawCandidate, pythonLiteralToJson(rawCandidate)]) {
+        try {
+          const candidate = completePayrollEnvelope(recordValue(JSON.parse(serialized) as unknown));
+          // Un objet imbriqué (par exemple `employee`) est lui aussi du JSON
+          // valide. N'accepter que l'enveloppe complète évite de perdre toutes
+          // les valeurs lors d'une lecture depuis la dernière accolade.
+          if (candidate) return candidate;
+        } catch {
+          // Continue with the normalized form or previous closing brace.
+        }
       }
     }
   }
@@ -197,7 +330,7 @@ export function parsePayrollAiJson(raw: string): ParsedPayrollAiDraft {
         kind: kind === 'deduction' || kind === 'reimbursement' || kind === 'non_gross_payment' || kind === 'employer'
           ? kind === 'non_gross_payment' ? 'reimbursement' : kind
           : 'earning',
-        amountCents: Math.max(0, numberValue(line.amount_cents ?? line.amountCents)),
+        amountCents: Math.max(0, centsValue(line.amount_cents ?? line.amountCents)),
         recurring: kind === 'earning' && line.recurring === true,
         confidenceBp: Math.min(10_000, Math.max(0, numberValue(line.confidence_bp ?? line.confidenceBp))),
       },
@@ -225,8 +358,8 @@ export function parsePayrollAiJson(raw: string): ParsedPayrollAiDraft {
     },
     period: textValue(parsed.period),
     paymentDate: textValue(parsed.payment_date ?? parsed.paymentDate),
-    grossCents: Math.max(0, numberValue(parsed.gross_cents ?? parsed.grossCents)),
-    netCents: Math.max(0, numberValue(parsed.net_cents ?? parsed.netCents)),
+    grossCents: Math.max(0, centsValue(parsed.gross_cents ?? parsed.grossCents)),
+    netCents: Math.max(0, centsValue(parsed.net_cents ?? parsed.netCents)),
     lines: parsedLines.map(({ draft: line }) => line),
     warnings: [
       ...(Array.isArray(parsed.warnings) ? parsed.warnings.map(textValue).filter(Boolean).slice(0, 30) : []),

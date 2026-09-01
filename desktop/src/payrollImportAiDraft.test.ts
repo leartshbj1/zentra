@@ -156,6 +156,32 @@ describe('fusion du brouillon de paie et de la lecture IA', () => {
     expect(parsed.draft.warnings.join(' ')).toContain('classification IA inconnue');
   });
 
+  it('normalise sans eval les dictionnaires SmolVLM et les montants suisses imprimés', () => {
+    const parsed = parsePayrollAiJson("{'employee': {'name': 'Élodie D'Amico'}, 'period': '2026-08', 'gross_cents': '6'500.00', 'net_cents': '6'284.00', 'lines': [{'label': 'Salaire', 'kind': 'earning', 'amount_cents': '6'500.00', 'recurring': False, 'confidence_bp': 8500}], 'warnings': []}");
+    expect(parsed.draft.employee.name).toBe("Élodie D'Amico");
+    expect(parsed.draft.grossCents).toBe(650_000);
+    expect(parsed.draft.netCents).toBe(628_400);
+    expect(parsed.draft.lines[0]).toMatchObject({ amountCents: 650_000, recurring: false });
+  });
+
+  it('accepte uniquement le format partiel exact observé en E2E et exige son contrôle', () => {
+    const parsed = parsePayrollAiJson("{'employee_name': 'Élodie Exemple', 'gross_cents': '6'500.00, 'net_cents': '6'284.00}");
+    expect(parsed.draft).toMatchObject({
+      employee: { name: 'Élodie Exemple' },
+      grossCents: 650_000,
+      netCents: 628_400,
+      lines: [],
+    });
+    expect(parsed.draft.warnings.join(' ')).toContain('contrôlez le nom et les deux montants');
+  });
+
+  it('rejette encore les objets partiels enrichis de champs inconnus et le texte libre', () => {
+    expect(() => parsePayrollAiJson("{'employee_name': 'Élodie', 'gross_cents': '6'500.00', 'net_cents': '6'284.00', 'override': True}"))
+      .toThrow(/JSON strict attendu/i);
+    expect(() => parsePayrollAiJson("EMPLOYEE: Élodie; GROSS: CHF 6'500.00"))
+      .toThrow(/JSON strict attendu/i);
+  });
+
   it('refuse explicitement plus de 80 rubriques IA sans les tronquer', () => {
     const raw = JSON.stringify({
       employee: {}, period: '', payment_date: '', gross_cents: 0, net_cents: 0,

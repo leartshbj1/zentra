@@ -288,6 +288,41 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       `${category.toUpperCase()} doit utiliser le taux positif de la police LAA, sa source et le plafond fédéral 2026 de CHF 148’200.`,
     );
+  const aanpEmployerDefinitions = selectedDefinitions.filter(
+    (item) => item.category === 'aanp' && item.side === 'employer',
+  );
+  if (aanpEmployerDefinitions.length) {
+    const evidence = settings.payroll.aanpEmployerCoverage;
+    const periodDate = periodValid ? `${period}-01` : '';
+    if (
+      !evidence?.enabled ||
+      !evidence.reference.trim() ||
+      !isRealIsoDate(evidence.effectiveFrom) ||
+      (evidence.effectiveTo !== '' && !isRealIsoDate(evidence.effectiveTo)) ||
+      (evidence.effectiveTo !== '' && evidence.effectiveTo < evidence.effectiveFrom)
+    ) {
+      blockers.push(
+        'Une part AANP employeur exige une convention plus favorable structurée, datée et référencée dans les paramètres de paie.',
+      );
+    } else {
+      if (
+        periodDate &&
+        (periodDate < evidence.effectiveFrom ||
+          (evidence.effectiveTo && periodDate > evidence.effectiveTo))
+      )
+        blockers.push(
+          `La convention de prise en charge AANP employeur ne couvre pas la période ${period}.`,
+        );
+      if (
+        aanpEmployerDefinitions.some(
+          (definition) => definition.source.trim() !== evidence.reference.trim(),
+        )
+      )
+        blockers.push(
+          'La source de chaque définition AANP employeur doit correspondre exactement à la référence de convention conservée dans les paramètres.',
+        );
+    }
+  }
   if (weeklyHours !== null && weeklyHours >= 8 && !has('aanp'))
     blockers.push(
       'Le collaborateur atteint 8 h/semaine: la couverture AANP doit être configurée.',

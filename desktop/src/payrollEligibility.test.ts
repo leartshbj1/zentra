@@ -215,6 +215,52 @@ describe('assujettissement par date', () => {
     );
   });
 
+  it('exige une convention structurée pour une part AANP employeur', () => {
+    const employerAanp = {
+      ...definition('AANP_EMPLOYER', 'aanp', 'employer', 100, 14_820_000),
+      source: 'Police LAA 2026, clause 8',
+    };
+    const definitions = [...federal, aap, employerAanp];
+    const selectedIds = new Set(definitions.map((item) => item.id));
+    const withoutEvidence = assessSwissPayrollEligibility({
+      employee,
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions,
+      selectedIds,
+    });
+    expect(withoutEvidence.blockers.join(' ')).toContain(
+      'convention plus favorable structurée',
+    );
+
+    const withEvidence = assessSwissPayrollEligibility({
+      employee,
+      settings: {
+        ...settings,
+        payroll: {
+          ...settings.payroll,
+          aanpEmployerCoverage: {
+            enabled: true,
+            reference: 'Police LAA 2026, clause 8',
+            effectiveFrom: '2026-01-01',
+            effectiveTo: '2026-12-31',
+          },
+        },
+      },
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions,
+      selectedIds,
+    });
+    expect(withEvidence.blockers.join(' ')).not.toContain(
+      'convention plus favorable structurée',
+    );
+    expect(withEvidence.blockers.join(' ')).not.toContain(
+      'source de chaque définition AANP employeur',
+    );
+  });
+
   it('conserve l’AC pendant le mois d’atteinte puis l’interdit le mois suivant', () => {
     const older = {
       ...employee,

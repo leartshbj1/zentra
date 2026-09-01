@@ -14,7 +14,17 @@ describe('dossier de clôture', () => {
     const checks = buildClosingChecks({
       filter: { dateFrom: '2026-01-01', dateTo: '2026-12-31' },
       period: { id: 'p', name: '2026', dateFrom: '2026-01-01', dateTo: '2026-12-31', status: 'closed', closedAt: '', createdAt: '', updatedAt: '' },
-      trial: { rows: [], debitCents: 0, creditCents: 0, balanced: true }, balance, income,
+      trial: {
+        rows: [],
+        currency,
+        openingDebitBalanceCents: 0,
+        openingCreditBalanceCents: 0,
+        debitCents: 0,
+        creditCents: 0,
+        closingDebitBalanceCents: 0,
+        closingCreditBalanceCents: 0,
+        balanced: true,
+      }, balance, income,
     });
     expect(closingReadiness(checks)).toBe('ready');
   });
