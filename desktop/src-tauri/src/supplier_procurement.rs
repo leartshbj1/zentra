@@ -10,7 +10,10 @@ use uuid::Uuid;
 use crate::{
     accounting::{ensure_accounting_date_open, post_entry, EntryLine},
     audit::append_audit,
-    database::{assign_document_number, now_iso, query_all, query_record_tx, LocalStore},
+    database::{
+        assign_document_number, build_issuer_snapshot, now_iso, query_all, query_record_tx,
+        LocalStore,
+    },
     error::{AppError, AppResult},
     models::{
         ApplySupplierCreditInput, CancelSupplierOrderRemainderInput, ConfirmSupplierOrderInput,
@@ -755,14 +758,24 @@ impl LocalStore {
             .as_str()
             .ok_or_else(|| AppError::Validation("La date de commande est absente.".into()))?;
         let number = assign_document_number(&tx, "supplier_orders", &id, "supplier_order", date)?;
+        let now = now_iso();
+        let issuer = build_issuer_snapshot(&tx)?;
+        let mut frozen_order = order
+            .as_object()
+            .cloned()
+            .ok_or_else(|| AppError::Validation("Commande fournisseur invalide.".into()))?;
+        frozen_order.remove("snapshot_json");
+        frozen_order.insert("number".into(), Value::String(number.clone()));
+        frozen_order.insert("status".into(), Value::String("confirmed".into()));
+        frozen_order.insert("confirmed_at".into(), Value::String(now.clone()));
         let snapshot = serde_json::to_string(&json!({
             "schema":"elyko.supplier_order_snapshot.v1",
-            "captured_at":now_iso(),
-            "order":order,
+            "captured_at":now.clone(),
+            "issuer":issuer,
+            "order":Value::Object(frozen_order),
             "lines":lines,
             "supplier":query_all(&tx,"SELECT * FROM suppliers WHERE id=?",params![order["supplier_id"].as_str().unwrap_or_default()])?.into_iter().next()
         }))?;
-        let now = now_iso();
         tx.execute(
             "UPDATE supplier_orders SET number=?,status='confirmed',snapshot_json=?,confirmed_at=?,updated_at=? WHERE id=? AND status='draft'",
             params![number,snapshot,now,now,id],

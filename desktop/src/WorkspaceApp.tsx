@@ -96,6 +96,7 @@ import { PayrollImportWizard } from './PayrollImportWizard';
 import { TimeBillingWizard } from './TimeBillingWizard';
 import {
   DeliveryNotePrintPreview,
+  SalesOrderPrintPreview,
   SalesOrdersScreen,
   SalesTabs,
   type SalesView,
@@ -234,6 +235,7 @@ type ModalState =
 type PrintTarget =
   | { entity: 'quotes'; value: Quote }
   | { entity: 'invoices'; value: Invoice; qr?: StoredSwissQrBill }
+  | { entity: 'sales_orders'; value: SalesOrder }
   | { entity: 'delivery_notes'; value: DeliveryNote; order: SalesOrder }
   | { entity: 'payslips'; value: Payslip }
   | null;
@@ -855,6 +857,8 @@ export function WorkspaceApp({
               variant="ghost"
               size="small"
               className="tour-launcher"
+              aria-label="Relancer le guide interactif"
+              title="Relancer le guide interactif"
               onClick={guidedTour.start}
             >
               <CircleHelp size={16} /> Guide
@@ -1137,6 +1141,9 @@ export function WorkspaceApp({
                 })
               }
               onIssueInvoice={issueInvoice}
+              onPrintOrder={(order) =>
+                setPrintTarget({ entity: 'sales_orders', value: order })
+              }
               onPrintDelivery={(note) => {
                 const order = workspace.salesOrders.find(
                   (item) => item.id === note.salesOrderId,
@@ -6557,6 +6564,14 @@ function PrintSheet({
       <DeliveryNotePrintPreview
         note={target.value}
         order={target.order}
+        workspace={workspace}
+        onClose={onClose}
+      />
+    );
+  if (target.entity === 'sales_orders')
+    return (
+      <SalesOrderPrintPreview
+        order={target.value}
         workspace={workspace}
         onClose={onClose}
       />

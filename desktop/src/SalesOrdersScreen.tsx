@@ -121,6 +121,7 @@ export function SalesOrdersScreen({
   onShowQuotes,
   onOpenInvoice,
   onIssueInvoice,
+  onPrintOrder,
   onPrintDelivery,
 }: {
   workspace: Workspace;
@@ -131,14 +132,19 @@ export function SalesOrdersScreen({
   onShowQuotes: () => void;
   onOpenInvoice: (invoice: Invoice) => void;
   onIssueInvoice: (invoice: Invoice) => void;
+  onPrintOrder: (order: SalesOrder) => void;
   onPrintDelivery: (note: DeliveryNote) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = workspace.salesOrders.find((order) => order.id === selectedId);
+  const selected = workspace.salesOrders.find(
+    (order) => order.id === selectedId,
+  );
   const filtered = useMemo(
     () =>
       workspace.salesOrders.filter((order) => {
-        const client = workspace.clients.find((item) => item.id === order.clientId);
+        const client = workspace.clients.find(
+          (item) => item.id === order.clientId,
+        );
         return searchText(
           [order.number, order.title, client?.company, client?.name],
           query,
@@ -158,6 +164,7 @@ export function SalesOrdersScreen({
         onBack={() => setSelectedId(null)}
         onOpenInvoice={onOpenInvoice}
         onIssueInvoice={onIssueInvoice}
+        onPrintOrder={onPrintOrder}
         onPrintDelivery={onPrintDelivery}
       />
     );
@@ -175,10 +182,38 @@ export function SalesOrdersScreen({
 
   return (
     <div className="stack-layout sales-orders-screen">
-      <div className="summary-strip order-summary-strip" aria-label="Résumé des commandes">
-        <div><span>À confirmer</span><strong>{workspace.salesOrders.filter((order) => order.status === 'draft').length}</strong></div>
-        <div><span>À exécuter</span><strong>{workspace.salesOrders.filter((order) => order.status === 'confirmed').length}</strong></div>
-        <div><span>Terminées</span><strong>{workspace.salesOrders.filter((order) => order.status === 'closed').length}</strong></div>
+      <div
+        className="summary-strip order-summary-strip"
+        aria-label="Résumé des commandes"
+      >
+        <div>
+          <span>À confirmer</span>
+          <strong>
+            {
+              workspace.salesOrders.filter((order) => order.status === 'draft')
+                .length
+            }
+          </strong>
+        </div>
+        <div>
+          <span>À exécuter</span>
+          <strong>
+            {
+              workspace.salesOrders.filter(
+                (order) => order.status === 'confirmed',
+              ).length
+            }
+          </strong>
+        </div>
+        <div>
+          <span>Terminées</span>
+          <strong>
+            {
+              workspace.salesOrders.filter((order) => order.status === 'closed')
+                .length
+            }
+          </strong>
+        </div>
       </div>
       <section className="panel sales-order-list-panel">
         <SectionHeading
@@ -188,7 +223,9 @@ export function SalesOrdersScreen({
         />
         <ul className="sales-order-list">
           {filtered.map((order) => {
-            const client = workspace.clients.find((item) => item.id === order.clientId);
+            const client = workspace.clients.find(
+              (item) => item.id === order.clientId,
+            );
             const progress = salesOrderProgress(order, workspace);
             const display = salesOrderDisplayStatus(order, workspace);
             return (
@@ -198,29 +235,48 @@ export function SalesOrdersScreen({
                   className="sales-order-card"
                   onClick={() => setSelectedId(order.id)}
                 >
-                <span className="sales-order-card__icon"><ClipboardCheck size={19} /></span>
-                <span className="sales-order-card__identity">
-                  <strong>{order.number || 'Commande à confirmer'}</strong>
-                  <small>{order.title}</small>
-                </span>
-                <span className="sales-order-card__client">
-                  <small>Client</small>
-                  <strong>{client?.company || client?.name || 'Client introuvable'}</strong>
-                </span>
-                <span className="sales-order-card__progress">
-                  <small>Livré {progress.deliveryPercent} % · Préparé {progress.invoicePreparedPercent} % · Émis {progress.invoicePercent} %</small>
-                  <i><span style={{ width: `${Math.min(progress.deliveryPercent, progress.invoicePercent)}%` }} /></i>
-                </span>
-                <span className="sales-order-card__total">{formatMoney(order.totalCents)}</span>
-                <StatusBadge status={display.status} label={display.label} />
-                <ArrowRight size={17} aria-hidden="true" />
+                  <span className="sales-order-card__icon">
+                    <ClipboardCheck size={19} />
+                  </span>
+                  <span className="sales-order-card__identity">
+                    <strong>{order.number || 'Commande à confirmer'}</strong>
+                    <small>{order.title}</small>
+                  </span>
+                  <span className="sales-order-card__client">
+                    <small>Client</small>
+                    <strong>
+                      {client?.company || client?.name || 'Client introuvable'}
+                    </strong>
+                  </span>
+                  <span className="sales-order-card__progress">
+                    <small>
+                      Livré {progress.deliveryPercent} % · Préparé{' '}
+                      {progress.invoicePreparedPercent} % · Émis{' '}
+                      {progress.invoicePercent} %
+                    </small>
+                    <i>
+                      <span
+                        style={{
+                          width: `${Math.min(progress.deliveryPercent, progress.invoicePercent)}%`,
+                        }}
+                      />
+                    </i>
+                  </span>
+                  <span className="sales-order-card__total">
+                    {formatMoney(order.totalCents)}
+                  </span>
+                  <StatusBadge status={display.status} label={display.label} />
+                  <ArrowRight size={17} aria-hidden="true" />
                 </button>
               </li>
             );
           })}
         </ul>
         {!filtered.length ? (
-          <EmptyState title="Aucun résultat" text="Aucune commande ne correspond à cette recherche." />
+          <EmptyState
+            title="Aucun résultat"
+            text="Aucune commande ne correspond à cette recherche."
+          />
         ) : null}
       </section>
     </div>
@@ -236,6 +292,7 @@ function SalesOrderDetail({
   onBack,
   onOpenInvoice,
   onIssueInvoice,
+  onPrintOrder,
   onPrintDelivery,
 }: {
   order: SalesOrder;
@@ -246,10 +303,13 @@ function SalesOrderDetail({
   onBack: () => void;
   onOpenInvoice: (invoice: Invoice) => void;
   onIssueInvoice: (invoice: Invoice) => void;
+  onPrintOrder: (order: SalesOrder) => void;
   onPrintDelivery: (note: DeliveryNote) => void;
 }) {
   const [deliveryOpen, setDeliveryOpen] = useState(false);
-  const [deliveryDraft, setDeliveryDraft] = useState<DeliveryNote | undefined>();
+  const [deliveryDraft, setDeliveryDraft] = useState<
+    DeliveryNote | undefined
+  >();
   const [deliveryIssueTarget, setDeliveryIssueTarget] =
     useState<DeliveryNote | null>(null);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
@@ -259,7 +319,9 @@ function SalesOrderDetail({
   const confirmRequestId = useRef(createId());
   const issueRequestIds = useRef(new Map<string, string>());
   const client = workspace.clients.find((item) => item.id === order.clientId);
-  const project = workspace.projects.find((item) => item.id === order.projectId);
+  const project = workspace.projects.find(
+    (item) => item.id === order.projectId,
+  );
   const progress = salesOrderProgress(order, workspace);
   const display = salesOrderDisplayStatus(order, workspace);
   const nextAction = nextSalesOrderAction(order, workspace);
@@ -270,11 +332,17 @@ function SalesOrderDetail({
     .filter((batch) => batch.salesOrderId === order.id)
     .map((batch) => ({
       batch,
-      invoice: workspace.invoices.find((invoice) => invoice.id === batch.invoiceId),
+      invoice: workspace.invoices.find(
+        (invoice) => invoice.id === batch.invoiceId,
+      ),
     }))
-    .filter((entry): entry is typeof entry & { invoice: Invoice } => Boolean(entry.invoice));
+    .filter((entry): entry is typeof entry & { invoice: Invoice } =>
+      Boolean(entry.invoice),
+    );
   const draftDelivery = notes.find((note) => note.status === 'draft');
-  const draftInvoice = batches.find((entry) => entry.invoice.status === 'draft')?.invoice;
+  const draftInvoice = batches.find(
+    (entry) => entry.invoice.status === 'draft',
+  )?.invoice;
   const canCancelOrder = canCancelSalesOrderCompletely(order, workspace);
   const cancellableRemainder = cancellableSalesOrderRemainder(order, workspace);
   const canCancelRemainder =
@@ -317,7 +385,12 @@ function SalesOrderDetail({
         );
         return;
       }
-      if (!window.confirm('Confirmer cette commande et réserver toutes les quantités suivies ?')) return;
+      if (
+        !window.confirm(
+          'Confirmer cette commande et réserver toutes les quantités suivies ?',
+        )
+      )
+        return;
       await act(
         () => desktopApi.confirmSalesOrder(confirmRequestId.current, order.id),
         'La commande est confirmée et les produits disponibles sont réservés.',
@@ -355,18 +428,43 @@ function SalesOrderDetail({
       <section className="panel sales-order-hero">
         <div>
           <p className="eyebrow">Commande client</p>
-          <h2>{order.number || 'À confirmer'} · {order.title}</h2>
-          <p>{client?.company || client?.name || 'Client introuvable'}{project ? ` · ${project.name}` : ''}</p>
+          <h2>
+            {order.number || 'À confirmer'} · {order.title}
+          </h2>
+          <p>
+            {client?.company || client?.name || 'Client introuvable'}
+            {project ? ` · ${project.name}` : ''}
+          </p>
         </div>
         <div className="sales-order-hero__meta">
           <StatusBadge status={display.status} label={display.label} />
           <strong>{formatMoney(order.totalCents)}</strong>
           <small>{formatDate(order.orderDate)}</small>
+          {order.status !== 'draft' ? (
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => onPrintOrder(order)}
+            >
+              <Printer size={14} /> Aperçu commande
+            </Button>
+          ) : null}
         </div>
       </section>
 
-      <section className="panel order-progress-panel" aria-label="Avancement de la commande">
-        <OrderProgress label="Livraison" percent={progress.deliveryPercent} detail={progress.deliveryLineCount ? `${progress.deliveryCompletedLines}/${progress.deliveryLineCount} lignes terminées` : 'Aucune livraison requise'} />
+      <section
+        className="panel order-progress-panel"
+        aria-label="Avancement de la commande"
+      >
+        <OrderProgress
+          label="Livraison"
+          percent={progress.deliveryPercent}
+          detail={
+            progress.deliveryLineCount
+              ? `${progress.deliveryCompletedLines}/${progress.deliveryLineCount} lignes terminées`
+              : 'Aucune livraison requise'
+          }
+        />
         <OrderProgress
           label="Factures émises"
           percent={progress.invoicePercent}
@@ -375,7 +473,9 @@ function SalesOrderDetail({
       </section>
 
       <section className="panel order-next-action">
-        <div className="order-next-action__icon"><NextActionIcon action={nextAction} /></div>
+        <div className="order-next-action__icon">
+          <NextActionIcon action={nextAction} />
+        </div>
         <div>
           <p className="eyebrow">Prochaine étape</p>
           <h3>{nextActionCopy[nextAction].title}</h3>
@@ -384,7 +484,11 @@ function SalesOrderDetail({
         {nextAction !== 'none' ? (
           <Button
             disabled={busy || readOnly}
-            title={readOnly ? 'Licence en lecture seule' : nextActionCopy[nextAction].button}
+            title={
+              readOnly
+                ? 'Licence en lecture seule'
+                : nextActionCopy[nextAction].button
+            }
             onClick={() => void runNextAction()}
           >
             {nextActionCopy[nextAction].button} <ArrowRight size={16} />
@@ -403,7 +507,9 @@ function SalesOrderDetail({
           {order.lines.map((line) => {
             const lineProgress = salesOrderLineProgress(order, line, workspace);
             const item = line.catalogItemId
-              ? workspace.catalogItems.find((catalogItem) => catalogItem.id === line.catalogItemId)
+              ? workspace.catalogItems.find(
+                  (catalogItem) => catalogItem.id === line.catalogItemId,
+                )
               : undefined;
             const stock = item
               ? availabilityForCatalogItem(
@@ -414,28 +520,86 @@ function SalesOrderDetail({
               : null;
             return (
               <article key={line.id} className="order-line-card">
-                <span className="order-line-card__icon">{line.fulfillmentMode === 'direct' ? <FileText size={18} /> : <Box size={18} />}</span>
+                <span className="order-line-card__icon">
+                  {line.fulfillmentMode === 'direct' ? (
+                    <FileText size={18} />
+                  ) : (
+                    <Box size={18} />
+                  )}
+                </span>
                 <div className="order-line-card__identity">
                   <strong>{line.description}</strong>
-                  <small>{formatCatalogQuantity(line.quantityMilli)} {line.unit} commandé · {formatMoney(line.lineTotalCents)}</small>
+                  <small>
+                    {formatCatalogQuantity(line.quantityMilli)} {line.unit}{' '}
+                    commandé · {formatMoney(line.lineTotalCents)}
+                  </small>
                 </div>
                 {stock && item?.trackStock ? (
                   <div className="order-line-stock">
-                    <small><span>En main</span><strong>{formatCatalogQuantity(stock.onHandMilli)}</strong></small>
-                    <small><span>Réservé</span><strong>{formatCatalogQuantity(stock.reservedMilli)}</strong></small>
-                    <small><span>Disponible</span><strong>{formatCatalogQuantity(stock.availableMilli)}</strong></small>
+                    <small>
+                      <span>En main</span>
+                      <strong>
+                        {formatCatalogQuantity(stock.onHandMilli)}
+                      </strong>
+                    </small>
+                    <small>
+                      <span>Réservé</span>
+                      <strong>
+                        {formatCatalogQuantity(stock.reservedMilli)}
+                      </strong>
+                    </small>
+                    <small>
+                      <span>Disponible</span>
+                      <strong>
+                        {formatCatalogQuantity(stock.availableMilli)}
+                      </strong>
+                    </small>
                   </div>
                 ) : (
                   <div className="order-line-stock order-line-stock--direct">
                     <ShieldCheck size={15} />
-                    <span>{line.fulfillmentMode === 'direct' ? 'Facturation directe' : 'Livraison sans stock suivi'}</span>
+                    <span>
+                      {line.fulfillmentMode === 'direct'
+                        ? 'Facturation directe'
+                        : 'Livraison sans stock suivi'}
+                    </span>
                   </div>
                 )}
                 <div className="order-line-progress-facts">
-                  <small><span>Livré</span><strong>{formatCatalogQuantity(lineProgress.deliveredQuantityMilli)}</strong></small>
-                  <small><span>Préparé en brouillon</span><strong>{formatCatalogQuantity(lineProgress.allocatedQuantityMilli)}</strong></small>
-                  <small><span>Réellement facturé</span><strong>{formatCatalogQuantity(lineProgress.invoicedQuantityMilli)}</strong></small>
-                  {line.fulfillmentMode === 'stocked_delivery' ? <small><span>Réservé pour cette ligne</span><strong>{formatCatalogQuantity(lineProgress.reservedQuantityMilli)}</strong></small> : null}
+                  <small>
+                    <span>Livré</span>
+                    <strong>
+                      {formatCatalogQuantity(
+                        lineProgress.deliveredQuantityMilli,
+                      )}
+                    </strong>
+                  </small>
+                  <small>
+                    <span>Préparé en brouillon</span>
+                    <strong>
+                      {formatCatalogQuantity(
+                        lineProgress.allocatedQuantityMilli,
+                      )}
+                    </strong>
+                  </small>
+                  <small>
+                    <span>Réellement facturé</span>
+                    <strong>
+                      {formatCatalogQuantity(
+                        lineProgress.invoicedQuantityMilli,
+                      )}
+                    </strong>
+                  </small>
+                  {line.fulfillmentMode === 'stocked_delivery' ? (
+                    <small>
+                      <span>Réservé pour cette ligne</span>
+                      <strong>
+                        {formatCatalogQuantity(
+                          lineProgress.reservedQuantityMilli,
+                        )}
+                      </strong>
+                    </small>
+                  ) : null}
                 </div>
               </article>
             );
@@ -446,52 +610,137 @@ function SalesOrderDetail({
       <div className="order-history-grid">
         <section className="panel order-history-card">
           <SectionHeading eyebrow="Logistique" title="Bons de livraison" />
-          {notes.length ? notes.map((note) => (
-            <article key={note.id}>
-              <div><Truck size={17} /><span><strong>{note.number || 'Brouillon de bon'}</strong><small>{formatDate(note.deliveryDate)} · {note.lines.length} ligne{note.lines.length > 1 ? 's' : ''}</small></span></div>
-              <StatusBadge status={note.status} label={note.status === 'reversed' ? 'Extourné' : undefined} />
-              <div className="order-history-actions">
-                {note.status === 'draft' && order.status === 'confirmed' ? (
-                  <>
+          {notes.length ? (
+            notes.map((note) => (
+              <article key={note.id}>
+                <div>
+                  <Truck size={17} />
+                  <span>
+                    <strong>{note.number || 'Brouillon de bon'}</strong>
+                    <small>
+                      {formatDate(note.deliveryDate)} · {note.lines.length}{' '}
+                      ligne{note.lines.length > 1 ? 's' : ''}
+                    </small>
+                  </span>
+                </div>
+                <StatusBadge
+                  status={note.status}
+                  label={note.status === 'reversed' ? 'Extourné' : undefined}
+                />
+                <div className="order-history-actions">
+                  {note.status === 'draft' && order.status === 'confirmed' ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        disabled={busy || readOnly}
+                        onClick={() => {
+                          setDeliveryDraft(note);
+                          setDeliveryOpen(true);
+                        }}
+                      >
+                        <FileText size={14} /> Modifier
+                      </Button>
+                      <Button
+                        size="small"
+                        disabled={busy || readOnly}
+                        onClick={() => setDeliveryIssueTarget(note)}
+                      >
+                        <CheckCircle2 size={14} /> Contrôler et émettre
+                      </Button>
+                    </>
+                  ) : null}
+                  {note.status === 'issued' ? (
                     <Button
-                      variant="secondary"
+                      variant="ghost"
+                      size="small"
+                      onClick={() => onPrintDelivery(note)}
+                    >
+                      <Printer size={14} /> Aperçu
+                    </Button>
+                  ) : null}
+                  {canReverseDeliveryNote(note, order, workspace) ? (
+                    <Button
+                      className="order-correction-button"
+                      variant="ghost"
                       size="small"
                       disabled={busy || readOnly}
-                      onClick={() => {
-                        setDeliveryDraft(note);
-                        setDeliveryOpen(true);
-                      }}
+                      onClick={() =>
+                        setCorrectionAction({ kind: 'reverse_delivery', note })
+                      }
                     >
-                      <FileText size={14} /> Modifier
+                      <RotateCcw size={14} /> Extourner
                     </Button>
-                    <Button
-                      size="small"
-                      disabled={busy || readOnly}
-                      onClick={() => setDeliveryIssueTarget(note)}
-                    >
-                      <CheckCircle2 size={14} /> Contrôler et émettre
-                    </Button>
-                  </>
-                ) : null}
-                {note.status === 'issued' ? <Button variant="ghost" size="small" onClick={() => onPrintDelivery(note)}><Printer size={14} /> Aperçu</Button> : null}
-                {canReverseDeliveryNote(note, order, workspace) ? <Button className="order-correction-button" variant="ghost" size="small" disabled={busy || readOnly} onClick={() => setCorrectionAction({ kind: 'reverse_delivery', note })}><RotateCcw size={14} /> Extourner</Button> : null}
-              </div>
-            </article>
-          )) : <p className="order-history-empty">Aucun bon de livraison préparé.</p>}
+                  ) : null}
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="order-history-empty">
+              Aucun bon de livraison préparé.
+            </p>
+          )}
         </section>
         <section className="panel order-history-card">
           <SectionHeading eyebrow="Finances" title="Factures liées" />
-          {batches.length ? batches.map(({ batch, invoice }) => (
-            <article key={batch.id}>
-              <div><Receipt size={17} /><span><strong>{invoice.number || (batch.role === 'final' ? 'Facture finale brouillon' : 'Situation brouillon')}</strong><small>{batch.role === 'final' ? 'Finale' : 'Partielle'} · {formatMoney(documentTotals(invoice.lines).totalCents)}</small></span></div>
-              <StatusBadge status={invoice.status} />
-              <div className="order-history-actions">
-                {invoice.status === 'draft' && order.status === 'confirmed' ? <Button size="small" disabled={busy || readOnly} onClick={() => onIssueInvoice(invoice)}><CheckCircle2 size={14} /> Émettre</Button> : null}
-                {invoice.status === 'draft' ? <Button className="order-correction-button" variant="ghost" size="small" disabled={busy || readOnly} onClick={() => setCorrectionAction({ kind: 'cancel_invoice', invoice })}><Trash2 size={14} /> Supprimer le brouillon</Button> : null}
-                <Button variant="ghost" size="small" onClick={() => onOpenInvoice(invoice)}>Contrôler</Button>
-              </div>
-            </article>
-          )) : <p className="order-history-empty">Aucune facture créée depuis cette commande.</p>}
+          {batches.length ? (
+            batches.map(({ batch, invoice }) => (
+              <article key={batch.id}>
+                <div>
+                  <Receipt size={17} />
+                  <span>
+                    <strong>
+                      {invoice.number ||
+                        (batch.role === 'final'
+                          ? 'Facture finale brouillon'
+                          : 'Situation brouillon')}
+                    </strong>
+                    <small>
+                      {batch.role === 'final' ? 'Finale' : 'Partielle'} ·{' '}
+                      {formatMoney(documentTotals(invoice.lines).totalCents)}
+                    </small>
+                  </span>
+                </div>
+                <StatusBadge status={invoice.status} />
+                <div className="order-history-actions">
+                  {invoice.status === 'draft' &&
+                  order.status === 'confirmed' ? (
+                    <Button
+                      size="small"
+                      disabled={busy || readOnly}
+                      onClick={() => onIssueInvoice(invoice)}
+                    >
+                      <CheckCircle2 size={14} /> Émettre
+                    </Button>
+                  ) : null}
+                  {invoice.status === 'draft' ? (
+                    <Button
+                      className="order-correction-button"
+                      variant="ghost"
+                      size="small"
+                      disabled={busy || readOnly}
+                      onClick={() =>
+                        setCorrectionAction({ kind: 'cancel_invoice', invoice })
+                      }
+                    >
+                      <Trash2 size={14} /> Supprimer le brouillon
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={() => onOpenInvoice(invoice)}
+                  >
+                    Contrôler
+                  </Button>
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="order-history-empty">
+              Aucune facture créée depuis cette commande.
+            </p>
+          )}
         </section>
       </div>
 
@@ -500,15 +749,34 @@ function SalesOrderDetail({
           <div>
             <p className="eyebrow">Correction contrôlée</p>
             <strong>Actions secondaires</strong>
-            <small>Un motif est obligatoire et l’historique déjà émis reste intact.</small>
+            <small>
+              Un motif est obligatoire et l’historique déjà émis reste intact.
+            </small>
           </div>
           {canCancelOrder ? (
-            <Button className="order-correction-button" variant="ghost" size="small" disabled={busy || readOnly} onClick={() => setCorrectionAction({ kind: 'cancel_order' })}>
+            <Button
+              className="order-correction-button"
+              variant="ghost"
+              size="small"
+              disabled={busy || readOnly}
+              onClick={() => setCorrectionAction({ kind: 'cancel_order' })}
+            >
               <Ban size={14} /> Annuler la commande
             </Button>
           ) : null}
           {canCancelRemainder ? (
-            <Button className="order-correction-button" variant="ghost" size="small" disabled={busy || readOnly} onClick={() => setCorrectionAction({ kind: 'cancel_remainder', lines: cancellableRemainder })}>
+            <Button
+              className="order-correction-button"
+              variant="ghost"
+              size="small"
+              disabled={busy || readOnly}
+              onClick={() =>
+                setCorrectionAction({
+                  kind: 'cancel_remainder',
+                  lines: cancellableRemainder,
+                })
+              }
+            >
               <Ban size={14} /> Annuler le reliquat
             </Button>
           ) : null}
@@ -542,7 +810,13 @@ function SalesOrderDetail({
         />
       ) : null}
       {invoiceOpen ? (
-        <OrderInvoiceWizard order={order} workspace={workspace} busy={busy} act={act} close={() => setInvoiceOpen(false)} />
+        <OrderInvoiceWizard
+          order={order}
+          workspace={workspace}
+          busy={busy}
+          act={act}
+          close={() => setInvoiceOpen(false)}
+        />
       ) : null}
       {correctionAction ? (
         <OrderCorrectionModal
@@ -557,11 +831,24 @@ function SalesOrderDetail({
   );
 }
 
-function OrderProgress({ label, percent, detail }: { label: string; percent: number; detail: string }) {
+function OrderProgress({
+  label,
+  percent,
+  detail,
+}: {
+  label: string;
+  percent: number;
+  detail: string;
+}) {
   return (
     <div className="order-progress">
-      <div><strong>{label}</strong><span>{percent} %</span></div>
-      <i aria-label={`${label} ${percent} %`}><span style={{ width: `${percent}%` }} /></i>
+      <div>
+        <strong>{label}</strong>
+        <span>{percent} %</span>
+      </div>
+      <i aria-label={`${label} ${percent} %`}>
+        <span style={{ width: `${percent}%` }} />
+      </i>
       <small>{detail}</small>
     </div>
   );
@@ -583,7 +870,9 @@ function DeliveryNoteIssueReview({
   onIssue: () => Promise<void>;
 }) {
   const client = workspace.clients.find((item) => item.id === order.clientId);
-  const project = workspace.projects.find((item) => item.id === order.projectId);
+  const project = workspace.projects.find(
+    (item) => item.id === order.projectId,
+  );
   const recipient = client?.company || client?.name || '';
   return (
     <Modal
@@ -608,7 +897,10 @@ function DeliveryNoteIssueReview({
             {note.reference ? ` · Référence ${note.reference}` : ''}
           </span>
         </div>
-        <div className="order-correction-impact" aria-label="Quantités à émettre">
+        <div
+          className="order-correction-impact"
+          aria-label="Quantités à émettre"
+        >
           {note.lines.map((deliveryLine) => {
             const orderLine = order.lines.find(
               (line) => line.id === deliveryLine.salesOrderLineId,
@@ -616,7 +908,9 @@ function DeliveryNoteIssueReview({
             return (
               <div key={deliveryLine.id}>
                 <span>
-                  {deliveryLine.description || orderLine?.description || 'Article'}
+                  {deliveryLine.description ||
+                    orderLine?.description ||
+                    'Article'}
                 </span>
                 <strong>
                   {formatCatalogQuantity(deliveryLine.quantityMilli)}{' '}
@@ -670,7 +964,8 @@ function OrderCorrectionModal({
           confirmation:
             'Confirmer l’annulation de toute la commande ? Cette action sera inscrite dans l’historique.',
           submit: 'Annuler la commande',
-          success: 'La commande a été annulée et ses réservations ont été libérées.',
+          success:
+            'La commande a été annulée et ses réservations ont été libérées.',
         }
       : action.kind === 'cancel_remainder'
         ? {
@@ -690,7 +985,8 @@ function OrderCorrectionModal({
               confirmation:
                 'Confirmer l’extourne du bon de livraison ? Le document original restera dans l’historique.',
               submit: 'Créer l’extourne',
-              success: 'Le bon de livraison a été extourné et le stock restauré.',
+              success:
+                'Le bon de livraison a été extourné et le stock restauré.',
             }
           : {
               title: 'Supprimer la facture brouillon',
@@ -748,7 +1044,10 @@ function OrderCorrectionModal({
         })}
       >
         {action.kind === 'cancel_remainder' ? (
-          <div className="order-correction-impact" aria-label="Reliquat à annuler">
+          <div
+            className="order-correction-impact"
+            aria-label="Reliquat à annuler"
+          >
             {action.lines.map((entry) => {
               const line = order.lines.find(
                 (candidate) => candidate.id === entry.salesOrderLineId,
@@ -776,13 +1075,11 @@ function OrderCorrectionModal({
             onChange={() => setClientError('')}
           />
         </Field>
-        <p className="stock-request-id">Requête idempotente · {requestId.current}</p>
+        <p className="stock-request-id">
+          Requête idempotente · {requestId.current}
+        </p>
         {clientError ? <ErrorPanel message={clientError} /> : null}
-        <FormActions
-          onCancel={close}
-          busy={busy}
-          submitLabel={copy.submit}
-        />
+        <FormActions onCancel={close} busy={busy} submitLabel={copy.submit} />
       </form>
     </Modal>
   );
@@ -795,14 +1092,52 @@ function NextActionIcon({ action }: { action: SalesOrderNextAction }) {
   return <CheckCircle2 size={21} />;
 }
 
-const nextActionCopy: Record<SalesOrderNextAction, { title: string; description: string; button: string }> = {
-  confirm: { title: 'Confirmer et réserver', description: 'Toutes les quantités stockées doivent être disponibles. La réservation est atomique.', button: 'Confirmer la commande' },
-  create_delivery: { title: 'Préparer le prochain bon', description: 'Les quantités restantes sont proposées; vous pouvez livrer seulement une partie.', button: 'Préparer la livraison' },
-  issue_delivery: { title: 'Contrôler puis émettre le bon', description: 'Relisez le destinataire et les quantités avant la sortie de stock définitive.', button: 'Contrôler le bon' },
-  create_partial_invoice: { title: 'Facturer les quantités livrées', description: 'Seules les quantités livrées et encore non facturées sont proposées.', button: 'Créer la facture suivante' },
-  create_final_invoice: { title: 'Créer la facture finale', description: 'Toutes les livraisons requises sont terminées. Le backend vérifiera qu’aucun reliquat ne manque.', button: 'Créer la facture finale' },
-  issue_invoice: { title: 'Contrôler le brouillon avant émission', description: 'Ouvrez directement la facture liée, puis revenez ici pour l’émettre après vérification.', button: 'Contrôler la facture' },
-  none: { title: 'Cycle terminé', description: 'Aucune action supplémentaire n’est requise pour cette commande.', button: '' },
+const nextActionCopy: Record<
+  SalesOrderNextAction,
+  { title: string; description: string; button: string }
+> = {
+  confirm: {
+    title: 'Confirmer et réserver',
+    description:
+      'Toutes les quantités stockées doivent être disponibles. La réservation est atomique.',
+    button: 'Confirmer la commande',
+  },
+  create_delivery: {
+    title: 'Préparer le prochain bon',
+    description:
+      'Les quantités restantes sont proposées; vous pouvez livrer seulement une partie.',
+    button: 'Préparer la livraison',
+  },
+  issue_delivery: {
+    title: 'Contrôler puis émettre le bon',
+    description:
+      'Relisez le destinataire et les quantités avant la sortie de stock définitive.',
+    button: 'Contrôler le bon',
+  },
+  create_partial_invoice: {
+    title: 'Facturer les quantités livrées',
+    description:
+      'Seules les quantités livrées et encore non facturées sont proposées.',
+    button: 'Créer la facture suivante',
+  },
+  create_final_invoice: {
+    title: 'Créer la facture finale',
+    description:
+      'Toutes les livraisons requises sont terminées. Le backend vérifiera qu’aucun reliquat ne manque.',
+    button: 'Créer la facture finale',
+  },
+  issue_invoice: {
+    title: 'Contrôler le brouillon avant émission',
+    description:
+      'Ouvrez directement la facture liée, puis revenez ici pour l’émettre après vérification.',
+    button: 'Contrôler la facture',
+  },
+  none: {
+    title: 'Cycle terminé',
+    description:
+      'Aucune action supplémentaire n’est requise pour cette commande.',
+    button: '',
+  },
 };
 
 function DeliveryNoteForm({
@@ -850,7 +1185,11 @@ function DeliveryNoteForm({
       : currentDate);
   return (
     <Modal
-      title={note ? 'Modifier le bon de livraison brouillon' : 'Préparer un bon de livraison'}
+      title={
+        note
+          ? 'Modifier le bon de livraison brouillon'
+          : 'Préparer un bon de livraison'
+      }
       description={
         note
           ? 'Corrigez les informations ou quantités, puis enregistrez. Aucun stock ne bougera avant le contrôle d’émission.'
@@ -875,7 +1214,9 @@ function DeliveryNoteForm({
               quantities[entry.salesOrderLineId] ?? '',
             );
             if (quantityMilli === null || quantityMilli <= 0) return [];
-            return [{ salesOrderLineId: entry.salesOrderLineId, quantityMilli }];
+            return [
+              { salesOrderLineId: entry.salesOrderLineId, quantityMilli },
+            ];
           });
           const exceeds = lines.find((line) => {
             const maximum = available.find(
@@ -884,11 +1225,15 @@ function DeliveryNoteForm({
             return maximum === undefined || line.quantityMilli > maximum;
           });
           if (!lines.length) {
-            setClientError('Conservez au moins une ligne avec une quantité positive.');
+            setClientError(
+              'Conservez au moins une ligne avec une quantité positive.',
+            );
             return;
           }
           if (exceeds) {
-            setClientError('Une quantité dépasse le reliquat livrable. Actualisez la commande et recommencez.');
+            setClientError(
+              'Une quantité dépasse le reliquat livrable. Actualisez la commande et recommencez.',
+            );
             return;
           }
           setClientError('');
@@ -920,24 +1265,48 @@ function DeliveryNoteForm({
               onChange={() => setClientError('')}
               onBlur={(event) =>
                 setClientError(
-                  deliveryDateValidationError(order.orderDate, event.target.value),
+                  deliveryDateValidationError(
+                    order.orderDate,
+                    event.target.value,
+                  ),
                 )
               }
               required
             />
           </Field>
-          <Field label="Référence" hint="Facultatif : tournée, chantier, référence client…">
-            <input name="reference" maxLength={200} defaultValue={note?.reference} />
+          <Field
+            label="Référence"
+            hint="Facultatif : tournée, chantier, référence client…"
+          >
+            <input
+              name="reference"
+              maxLength={200}
+              defaultValue={note?.reference}
+            />
           </Field>
         </div>
         <section className="guided-lines-section">
-          <header><Truck size={18} /><div><strong>Quantités de ce bon</strong><p>Une valeur vide exclut la ligne de cette livraison.</p></div></header>
+          <header>
+            <Truck size={18} />
+            <div>
+              <strong>Quantités de ce bon</strong>
+              <p>Une valeur vide exclut la ligne de cette livraison.</p>
+            </div>
+          </header>
           <div className="guided-line-list">
             {available.map((entry) => {
-              const line = order.lines.find((item) => item.id === entry.salesOrderLineId)!;
+              const line = order.lines.find(
+                (item) => item.id === entry.salesOrderLineId,
+              )!;
               return (
                 <label key={line.id} className="guided-line-row">
-                  <span><strong>{line.description}</strong><small>Reste {formatCatalogQuantity(entry.quantityMilli)} {line.unit}</small></span>
+                  <span>
+                    <strong>{line.description}</strong>
+                    <small>
+                      Reste {formatCatalogQuantity(entry.quantityMilli)}{' '}
+                      {line.unit}
+                    </small>
+                  </span>
                   <span className="guided-quantity-input">
                     <input
                       type="number"
@@ -946,7 +1315,10 @@ function DeliveryNoteForm({
                       step="0.001"
                       value={quantities[line.id] ?? ''}
                       onChange={(event) => {
-                        setQuantities((current) => ({ ...current, [line.id]: event.target.value }));
+                        setQuantities((current) => ({
+                          ...current,
+                          [line.id]: event.target.value,
+                        }));
                         setClientError('');
                       }}
                       aria-label={`Quantité livrée pour ${line.description}`}
@@ -959,17 +1331,29 @@ function DeliveryNoteForm({
           </div>
         </section>
         <Field label="Note logistique" wide>
-          <textarea name="notes" rows={3} maxLength={2_000} defaultValue={note?.notes} />
+          <textarea
+            name="notes"
+            rows={3}
+            maxLength={2_000}
+            defaultValue={note?.notes}
+          />
         </Field>
         <div className="info-strip">
           <ShieldCheck size={17} />
-          <span>Ce brouillon ne modifie aucun stock. Seule son émission contrôlée consommera les réservations et créera les sorties.</span>
+          <span>
+            Ce brouillon ne modifie aucun stock. Seule son émission contrôlée
+            consommera les réservations et créera les sorties.
+          </span>
         </div>
         {clientError ? <ErrorPanel message={clientError} /> : null}
         <FormActions
           onCancel={close}
           busy={busy}
-          submitLabel={note ? 'Enregistrer les corrections' : 'Enregistrer le bon brouillon'}
+          submitLabel={
+            note
+              ? 'Enregistrer les corrections'
+              : 'Enregistrer le bon brouillon'
+          }
         />
       </form>
     </Modal>
@@ -1000,7 +1384,12 @@ function OrderInvoiceWizard({
     [order, workspace],
   );
   const [quantities, setQuantities] = useState<Record<string, string>>(() =>
-    Object.fromEntries(defaults.map((entry) => [allocationKey(entry), String(entry.quantityMilli / 1_000)])),
+    Object.fromEntries(
+      defaults.map((entry) => [
+        allocationKey(entry),
+        String(entry.quantityMilli / 1_000),
+      ]),
+    ),
   );
   const [preview, setPreview] = useState<SalesOrderInvoicePreview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -1008,20 +1397,25 @@ function OrderInvoiceWizard({
   const [dateError, setDateError] = useState('');
   const [issueDate, setIssueDate] = useState(initialIssueDate);
   const [dueDate, setDueDate] = useState('');
-  const [serviceDateFrom, setServiceDateFrom] = useState(initialServiceDateFrom);
+  const [serviceDateFrom, setServiceDateFrom] = useState(
+    initialServiceDateFrom,
+  );
   const [serviceDateTo, setServiceDateTo] = useState(initialServiceDateTo);
   const requestId = useRef(createId());
   const previewRequestVersion = useRef(0);
 
   const selectedAllocations = (): InvoiceAllocationDraft[] =>
     defaults.flatMap((entry) => {
-      const quantityMilli = stockQuantityFromInput(quantities[allocationKey(entry)] ?? '');
+      const quantityMilli = stockQuantityFromInput(
+        quantities[allocationKey(entry)] ?? '',
+      );
       if (quantityMilli === null || quantityMilli <= 0) return [];
       return [{ ...entry, quantityMilli }];
     });
 
   const validateAllocations = (allocations: InvoiceAllocationDraft[]) => {
-    if (!allocations.length) return 'Conservez au moins une quantité à facturer.';
+    if (!allocations.length)
+      return 'Conservez au moins une quantité à facturer.';
     const excessive = allocations.some((allocation) => {
       const maximum = defaults.find(
         (entry) => allocationKey(entry) === allocationKey(allocation),
@@ -1055,7 +1449,9 @@ function OrderInvoiceWizard({
       return next;
     } catch (reason) {
       if (requestVersion !== previewRequestVersion.current) return null;
-      setClientError(errorMessage(reason, 'L’aperçu autoritaire n’a pas pu être calculé.'));
+      setClientError(
+        errorMessage(reason, 'L’aperçu autoritaire n’a pas pu être calculé.'),
+      );
       return null;
     } finally {
       if (requestVersion === previewRequestVersion.current)
@@ -1082,8 +1478,14 @@ function OrderInvoiceWizard({
 
   const fallbackTotal = defaults.reduce((total, entry) => {
     const line = order.lines.find((item) => item.id === entry.salesOrderLineId);
-    const quantityMilli = stockQuantityFromInput(quantities[allocationKey(entry)] ?? '') ?? 0;
-    return total + (line && line.quantityMilli ? Math.round((line.lineTotalCents * quantityMilli) / line.quantityMilli) : 0);
+    const quantityMilli =
+      stockQuantityFromInput(quantities[allocationKey(entry)] ?? '') ?? 0;
+    return (
+      total +
+      (line && line.quantityMilli
+        ? Math.round((line.lineTotalCents * quantityMilli) / line.quantityMilli)
+        : 0)
+    );
   }, 0);
   const invoiceDates = {
     issueDate,
@@ -1099,14 +1501,19 @@ function OrderInvoiceWizard({
 
   return (
     <Modal
-      title={preview ? `Créer la ${previewDocumentLabel.toLowerCase()}` : 'Créer la facture suivante'}
+      title={
+        preview
+          ? `Créer la ${previewDocumentLabel.toLowerCase()}`
+          : 'Créer la facture suivante'
+      }
       description="Le type n’est jamais choisi manuellement. Elyko décide entre situation et finale après contrôle des livraisons et allocations."
       onClose={close}
       wide
     >
       <form
         onSubmit={submitForm(async () => {
-          const nextDateError = salesOrderInvoiceDateValidationError(invoiceDates);
+          const nextDateError =
+            salesOrderInvoiceDateValidationError(invoiceDates);
           setDateError(nextDateError);
           if (nextDateError) return;
           const allocations = selectedAllocations();
@@ -1158,7 +1565,10 @@ function OrderInvoiceWizard({
               required
             />
           </Field>
-          <Field label="Échéance" hint="Laissez vide pour appliquer les conditions habituelles.">
+          <Field
+            label="Échéance"
+            hint="Laissez vide pour appliquer les conditions habituelles."
+          >
             <input
               name="dueDate"
               type="date"
@@ -1222,17 +1632,44 @@ function OrderInvoiceWizard({
           </Field>
         </div>
         <section className="guided-lines-section">
-          <header><Receipt size={18} /><div><strong>Quantités éligibles</strong><p>Une livraison ne peut être allouée qu’une fois. Réduisez une quantité pour une situation partielle.</p></div></header>
+          <header>
+            <Receipt size={18} />
+            <div>
+              <strong>Quantités éligibles</strong>
+              <p>
+                Une livraison ne peut être allouée qu’une fois. Réduisez une
+                quantité pour une situation partielle.
+              </p>
+            </div>
+          </header>
           <div className="guided-line-list">
             {defaults.map((entry) => {
-              const line = order.lines.find((item) => item.id === entry.salesOrderLineId)!;
+              const line = order.lines.find(
+                (item) => item.id === entry.salesOrderLineId,
+              )!;
               const note = entry.deliveryNoteLineId
-                ? workspace.deliveryNotes.find((item) => item.lines.some((deliveryLine) => deliveryLine.id === entry.deliveryNoteLineId))
+                ? workspace.deliveryNotes.find((item) =>
+                    item.lines.some(
+                      (deliveryLine) =>
+                        deliveryLine.id === entry.deliveryNoteLineId,
+                    ),
+                  )
                 : null;
               const key = allocationKey(entry);
               return (
                 <label key={key} className="guided-line-row">
-                  <span><strong>{line.description}</strong><small>{note?.number ? `${note.number} · ` : line.fulfillmentMode === 'direct' ? 'Direct · ' : ''}maximum {formatCatalogQuantity(entry.quantityMilli)} {line.unit}</small></span>
+                  <span>
+                    <strong>{line.description}</strong>
+                    <small>
+                      {note?.number
+                        ? `${note.number} · `
+                        : line.fulfillmentMode === 'direct'
+                          ? 'Direct · '
+                          : ''}
+                      maximum {formatCatalogQuantity(entry.quantityMilli)}{' '}
+                      {line.unit}
+                    </small>
+                  </span>
                   <span className="guided-quantity-input">
                     <input
                       type="number"
@@ -1241,7 +1678,10 @@ function OrderInvoiceWizard({
                       step="0.001"
                       value={quantities[key] ?? ''}
                       onChange={(event) => {
-                        setQuantities((current) => ({ ...current, [key]: event.target.value }));
+                        setQuantities((current) => ({
+                          ...current,
+                          [key]: event.target.value,
+                        }));
                         invalidatePreview();
                       }}
                       aria-label={`Quantité facturée pour ${line.description}`}
@@ -1259,27 +1699,253 @@ function OrderInvoiceWizard({
             <strong>{previewDocumentLabel}</strong>
           </div>
           <div>
-            <small>{preview ? 'Total TTC' : 'Estimation TTC à recalculer'}</small>
+            <small>
+              {preview ? 'Total TTC' : 'Estimation TTC à recalculer'}
+            </small>
             <strong>{formatMoney(preview?.totalCents ?? fallbackTotal)}</strong>
           </div>
-          <Button type="button" variant="secondary" size="small" disabled={previewBusy || busy} onClick={() => void refreshPreview()}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="small"
+            disabled={previewBusy || busy}
+            onClick={() => void refreshPreview()}
+          >
             {previewBusy ? 'Calcul…' : 'Recalculer l’aperçu'}
           </Button>
         </div>
         <div className="info-strip">
           <LockKeyhole size={17} />
-          <span>La création réserve ces quantités à la facturation, mais ne déstocke rien. Le stock a déjà été mouvementé par le bon de livraison.</span>
+          <span>
+            La création réserve ces quantités à la facturation, mais ne déstocke
+            rien. Le stock a déjà été mouvementé par le bon de livraison.
+          </span>
         </div>
-        {dateError || clientError ? <ErrorPanel message={dateError || clientError} /> : null}
-        <p className="stock-request-id">Requête idempotente · {requestId.current}</p>
-        <FormActions onCancel={close} busy={busy || previewBusy} disabled={Boolean(dateError || clientError)} submitLabel="Créer le brouillon contrôlé" />
+        {dateError || clientError ? (
+          <ErrorPanel message={dateError || clientError} />
+        ) : null}
+        <p className="stock-request-id">
+          Requête idempotente · {requestId.current}
+        </p>
+        <FormActions
+          onCancel={close}
+          busy={busy || previewBusy}
+          disabled={Boolean(dateError || clientError)}
+          submitLabel="Créer le brouillon contrôlé"
+        />
       </form>
     </Modal>
   );
 }
 
-function allocationKey(allocation: Pick<InvoiceAllocationDraft, 'salesOrderLineId' | 'deliveryNoteLineId'>) {
+function allocationKey(
+  allocation: Pick<
+    InvoiceAllocationDraft,
+    'salesOrderLineId' | 'deliveryNoteLineId'
+  >,
+) {
   return `${allocation.salesOrderLineId}:${allocation.deliveryNoteLineId ?? 'direct'}`;
+}
+
+export function SalesOrderPrintPreview({
+  order,
+  workspace,
+  onClose,
+}: {
+  order: SalesOrder;
+  workspace: Workspace;
+  onClose: () => void;
+}) {
+  const frozen = order.snapshot;
+  const document = frozen?.order ?? order;
+  const lines = frozen?.lines ?? order.lines;
+  const currentOrganization = workspace.settings!.organization;
+  const issuer = frozen?.issuer;
+  const issuerName = issuer?.companyName || currentOrganization.legalName;
+  const issuerLegalForm = issuer?.legalForm || currentOrganization.legalForm;
+  const issuerEmail = issuer?.email || currentOrganization.email;
+  const issuerPhone = issuer?.phone || currentOrganization.phone;
+  const issuerAddress = issuer
+    ? [
+        [issuer.addressLine1, issuer.buildingNumber].filter(Boolean).join(' '),
+        issuer.addressLine2,
+        [issuer.postalCode, issuer.city].filter(Boolean).join(' '),
+        issuer.country,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : [
+        [
+          currentOrganization.address.street,
+          currentOrganization.address.buildingNumber,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        [
+          currentOrganization.address.postalCode,
+          currentOrganization.address.city,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        currentOrganization.address.country,
+      ]
+        .filter(Boolean)
+        .join('\n');
+  const currentClient = workspace.clients.find(
+    (item) => item.id === document.clientId,
+  );
+  const customer = frozen?.customer;
+  const customerName =
+    customer?.company ||
+    customer?.name ||
+    currentClient?.company ||
+    currentClient?.name ||
+    'Client non disponible';
+  const customerAddress = customer
+    ? [
+        customer.addressLine1,
+        customer.addressLine2,
+        [customer.postalCode, customer.city].filter(Boolean).join(' '),
+        customer.canton,
+        customer.country,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : currentClient?.address || 'Adresse non renseignée';
+  const logoPath = issuer?.logoPath || currentOrganization.logoPath;
+  const logo = logoPath ? convertFileSrc(logoPath) : '';
+  return (
+    <div className="print-preview delivery-print-preview">
+      <div className="print-preview__toolbar">
+        <strong>Aperçu de la commande</strong>
+        <span>
+          {frozen
+            ? `Identité, destinataire et lignes figés le ${formatDate(frozen.capturedAt.slice(0, 10))}.`
+            : 'Ancienne commande sans snapshot complet · contrôlez les informations.'}
+        </span>
+        <Button variant="secondary" onClick={() => window.print()}>
+          <Printer size={16} /> Imprimer
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          Fermer
+        </Button>
+      </div>
+      <article className="print-sheet delivery-print-sheet sales-order-print-sheet">
+        <header className="delivery-print-header">
+          <div className="delivery-print-brand">
+            {logo ? (
+              <img src={logo} alt={`Logo ${issuerName}`} />
+            ) : (
+              <span>
+                <PackageCheck size={30} />
+              </span>
+            )}
+            <div>
+              <strong>{issuerName}</strong>
+              <small>{issuerLegalForm}</small>
+            </div>
+          </div>
+          <div className="delivery-print-title">
+            <span>COMMANDE CLIENT</span>
+            <strong>{document.number}</strong>
+          </div>
+        </header>
+        <div className="delivery-print-addresses">
+          <section>
+            <small>Émetteur</small>
+            <strong>{issuerName}</strong>
+            <p>
+              {issuerAddress.split('\n').map((line, index) => (
+                <span key={`${line}-${index}`}>
+                  {line}
+                  <br />
+                </span>
+              ))}
+            </p>
+            <p>
+              {issuerEmail}
+              {issuerPhone ? ` · ${issuerPhone}` : ''}
+            </p>
+          </section>
+          <section>
+            <small>Client</small>
+            <strong>{customerName}</strong>
+            <p>
+              {customerAddress.split('\n').map((line, index) => (
+                <span key={`${line}-${index}`}>
+                  {line}
+                  <br />
+                </span>
+              ))}
+            </p>
+          </section>
+        </div>
+        <div className="delivery-print-meta">
+          <div>
+            <span>Date</span>
+            <strong>{formatDate(document.orderDate)}</strong>
+          </div>
+          <div>
+            <span>Devise</span>
+            <strong>{document.currency}</strong>
+          </div>
+          <div>
+            <span>Total TTC</span>
+            <strong>{formatMoney(document.totalCents)}</strong>
+          </div>
+        </div>
+        <table className="delivery-print-table sales-order-print-table">
+          <thead>
+            <tr>
+              <th>Article / prestation</th>
+              <th>Quantité</th>
+              <th>Prix unitaire</th>
+              <th>Total TTC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.id}>
+                <td>
+                  <strong>{line.description}</strong>
+                  <small>
+                    {line.discountBp
+                      ? `Remise ${(line.discountBp / 100).toLocaleString('fr-CH')} % · TVA ${(line.vatBp / 100).toLocaleString('fr-CH')} %`
+                      : `TVA ${(line.vatBp / 100).toLocaleString('fr-CH')} %`}
+                  </small>
+                </td>
+                <td>
+                  {formatCatalogQuantity(line.quantityMilli)} {line.unit}
+                </td>
+                <td>{formatMoney(line.unitPriceCents)}</td>
+                <td>{formatMoney(line.lineTotalCents)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {document.notes || document.terms ? (
+          <section className="delivery-print-notes">
+            <small>Conditions et remarques</small>
+            <p>
+              {[document.notes, document.terms].filter(Boolean).join('\n\n')}
+            </p>
+          </section>
+        ) : null}
+        <footer className="delivery-print-footer">
+          <div>
+            <span>Validation entreprise</span>
+          </div>
+          <div>
+            <span>Acceptation client</span>
+          </div>
+          <p>
+            Cette commande reprend les prix et quantités acceptés. Les
+            livraisons et factures restent tracées séparément.
+          </p>
+        </footer>
+      </article>
+    </div>
+  );
 }
 
 export function DeliveryNotePrintPreview({
@@ -1293,61 +1959,205 @@ export function DeliveryNotePrintPreview({
   workspace: Workspace;
   onClose: () => void;
 }) {
-  const settings = workspace.settings!;
-  const organization = settings.organization;
-  const client = workspace.clients.find((item) => item.id === order.clientId);
-  const project = workspace.projects.find((item) => item.id === order.projectId);
-  const logo = organization.logoPath
-    ? convertFileSrc(organization.logoPath)
-    : '';
+  const frozen = note.snapshot;
+  const document = frozen?.deliveryNote ?? note;
+  const printedOrder = frozen?.order ?? order;
+  const lines = frozen?.lines ?? note.lines;
+  const currentOrganization = workspace.settings!.organization;
+  const issuer = frozen?.issuer;
+  const issuerName = issuer?.companyName || currentOrganization.legalName;
+  const issuerLegalForm = issuer?.legalForm || currentOrganization.legalForm;
+  const issuerEmail = issuer?.email || currentOrganization.email;
+  const issuerPhone = issuer?.phone || currentOrganization.phone;
+  const issuerAddress = issuer
+    ? [
+        [issuer.addressLine1, issuer.buildingNumber].filter(Boolean).join(' '),
+        issuer.addressLine2,
+        [issuer.postalCode, issuer.city].filter(Boolean).join(' '),
+        issuer.country,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : [
+        [
+          currentOrganization.address.street,
+          currentOrganization.address.buildingNumber,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        [
+          currentOrganization.address.postalCode,
+          currentOrganization.address.city,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        currentOrganization.address.country,
+      ]
+        .filter(Boolean)
+        .join('\n');
+  const currentClient = workspace.clients.find(
+    (item) => item.id === printedOrder.clientId,
+  );
+  const customer = frozen?.customer;
+  const customerName =
+    customer?.company ||
+    customer?.name ||
+    currentClient?.company ||
+    currentClient?.name ||
+    'Client non disponible';
+  const customerAddress = customer
+    ? [
+        customer.addressLine1,
+        customer.addressLine2,
+        [customer.postalCode, customer.city].filter(Boolean).join(' '),
+        customer.canton,
+        customer.country,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : currentClient?.address || 'Adresse non renseignée';
+  const project = workspace.projects.find(
+    (item) => item.id === printedOrder.projectId,
+  );
+  const logoPath = issuer?.logoPath || currentOrganization.logoPath;
+  const logo = logoPath ? convertFileSrc(logoPath) : '';
   return (
     <div className="print-preview delivery-print-preview">
       <div className="print-preview__toolbar">
         <strong>Aperçu du bon de livraison</strong>
-        <span>Document sans prix · vérifiez le destinataire et les quantités.</span>
-        <Button variant="secondary" onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
-        <Button variant="ghost" onClick={onClose}>Fermer</Button>
+        <span>
+          {frozen
+            ? 'Document figé · identité, destinataire et quantités conservés.'
+            : 'Ancien document sans snapshot complet · contrôlez les informations.'}
+        </span>
+        <Button variant="secondary" onClick={() => window.print()}>
+          <Printer size={16} /> Imprimer
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          Fermer
+        </Button>
       </div>
       <article className="print-sheet delivery-print-sheet">
         <header className="delivery-print-header">
           <div className="delivery-print-brand">
-            {logo ? <img src={logo} alt={`Logo ${organization.legalName}`} /> : <span><PackageCheck size={30} /></span>}
-            <div><strong>{organization.legalName}</strong><small>{organization.legalForm}</small></div>
+            {logo ? (
+              <img src={logo} alt={`Logo ${issuerName}`} />
+            ) : (
+              <span>
+                <PackageCheck size={30} />
+              </span>
+            )}
+            <div>
+              <strong>{issuerName}</strong>
+              <small>{issuerLegalForm}</small>
+            </div>
           </div>
-          <div className="delivery-print-title"><span>BON DE LIVRAISON</span><strong>{note.number}</strong></div>
+          <div className="delivery-print-title">
+            <span>BON DE LIVRAISON</span>
+            <strong>{document.number}</strong>
+          </div>
         </header>
         <div className="delivery-print-addresses">
           <section>
             <small>Expéditeur</small>
-            <strong>{organization.legalName}</strong>
-            <p>{organization.address.street} {organization.address.buildingNumber}<br />{organization.address.postalCode} {organization.address.city}<br />{organization.address.country}</p>
-            <p>{organization.email}{organization.phone ? ` · ${organization.phone}` : ''}</p>
+            <strong>{issuerName}</strong>
+            <p>
+              {issuerAddress.split('\n').map((line, index) => (
+                <span key={`${line}-${index}`}>
+                  {line}
+                  <br />
+                </span>
+              ))}
+            </p>
+            <p>
+              {issuerEmail}
+              {issuerPhone ? ` · ${issuerPhone}` : ''}
+            </p>
           </section>
           <section>
             <small>Destinataire</small>
-            <strong>{client?.company || client?.name || 'Client non disponible'}</strong>
-            <p>{client?.address || 'Adresse non renseignée'}</p>
-            {project ? <p><strong>Livraison / projet :</strong> {project.name}<br />{project.address}</p> : null}
+            <strong>{customerName}</strong>
+            <p>
+              {customerAddress.split('\n').map((line, index) => (
+                <span key={`${line}-${index}`}>
+                  {line}
+                  <br />
+                </span>
+              ))}
+            </p>
+            {project ? (
+              <p>
+                <strong>Livraison / projet :</strong> {project.name}
+                <br />
+                {project.address}
+              </p>
+            ) : null}
           </section>
         </div>
         <div className="delivery-print-meta">
-          <div><span>Date</span><strong>{formatDate(note.deliveryDate)}</strong></div>
-          <div><span>Commande</span><strong>{order.number || order.title}</strong></div>
-          <div><span>Référence</span><strong>{note.reference || '—'}</strong></div>
+          <div>
+            <span>Date</span>
+            <strong>{formatDate(document.deliveryDate)}</strong>
+          </div>
+          <div>
+            <span>Commande</span>
+            <strong>{printedOrder.number || printedOrder.title}</strong>
+          </div>
+          <div>
+            <span>Référence</span>
+            <strong>{document.reference || '—'}</strong>
+          </div>
         </div>
         <table className="delivery-print-table">
-          <thead><tr><th>Article / prestation</th><th>Quantité livrée</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Article / prestation</th>
+              <th>Quantité livrée</th>
+            </tr>
+          </thead>
           <tbody>
-            {note.lines.map((deliveryLine) => {
-              const orderLine = order.lines.find((line) => line.id === deliveryLine.salesOrderLineId);
-              return <tr key={deliveryLine.id}><td><strong>{deliveryLine.description || orderLine?.description || 'Article'}</strong>{orderLine?.catalogItemId ? <small>Référence catalogue liée</small> : null}</td><td>{formatCatalogQuantity(deliveryLine.quantityMilli)} {deliveryLine.unit || orderLine?.unit}</td></tr>;
+            {lines.map((deliveryLine) => {
+              const orderLine = order.lines.find(
+                (line) => line.id === deliveryLine.salesOrderLineId,
+              );
+              return (
+                <tr key={deliveryLine.id}>
+                  <td>
+                    <strong>
+                      {deliveryLine.description ||
+                        orderLine?.description ||
+                        'Article'}
+                    </strong>
+                    {orderLine?.catalogItemId ? (
+                      <small>Référence catalogue liée</small>
+                    ) : null}
+                  </td>
+                  <td>
+                    {formatCatalogQuantity(deliveryLine.quantityMilli)}{' '}
+                    {deliveryLine.unit || orderLine?.unit}
+                  </td>
+                </tr>
+              );
             })}
           </tbody>
         </table>
-        {note.notes ? <section className="delivery-print-notes"><small>Remarques</small><p>{note.notes}</p></section> : null}
+        {document.notes ? (
+          <section className="delivery-print-notes">
+            <small>Remarques</small>
+            <p>{document.notes}</p>
+          </section>
+        ) : null}
         <footer className="delivery-print-footer">
-          <div><span>Remis par</span></div><div><span>Reçu par / signature</span></div>
-          <p>Ce bon constate uniquement les quantités livrées. Il ne constitue pas une facture.</p>
+          <div>
+            <span>Remis par</span>
+          </div>
+          <div>
+            <span>Reçu par / signature</span>
+          </div>
+          <p>
+            Ce bon constate uniquement les quantités livrées. Il ne constitue
+            pas une facture.
+          </p>
         </footer>
       </article>
     </div>

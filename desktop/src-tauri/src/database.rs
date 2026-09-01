@@ -1482,7 +1482,16 @@ impl LocalStore {
         )?;
         let payments = query_all(
             connection,
-            "SELECT * FROM payments ORDER BY date DESC, created_at DESC",
+            "SELECT payment.*,
+                    entry.id AS journal_entry_id,
+                    entry.number AS journal_entry_number,
+                    entry.source_event AS journal_source_event
+             FROM payments payment
+             LEFT JOIN journal_entries entry
+               ON entry.source_type='payment'
+              AND entry.source_id=payment.id
+              AND entry.source_event='invoice:'||payment.invoice_id
+             ORDER BY payment.date DESC,payment.created_at DESC",
             [],
         )?;
         let bank_imports = query_all(
@@ -4359,7 +4368,11 @@ pub(crate) fn record_payment_in_transaction(
                 && existing["reference"].as_str() == reference.as_deref()
                 && existing["notes"].as_str() == notes.as_deref();
             if same_request {
-                return Ok(existing);
+                // Une reprise ne se contente pas de retrouver la ligne métier : elle
+                // revalide la preuve comptable historique sans la recalculer avec une
+                // configuration de comptes qui a pu changer depuis. Elle reste donc
+                // idempotente même après clôture de la période concernée.
+                return payment_record_with_journal(transaction, request_id);
             }
             return Err(AppError::Validation(
                 "Cet identifiant de reprise correspond déjà à un autre paiement. Rechargez la facture avant de réessayer."
@@ -4434,13 +4447,13 @@ pub(crate) fn record_payment_in_transaction(
         ],
     )?;
     refresh_invoice_payment_state(transaction, &input.invoice_id)?;
-    let record = query_record_tx(transaction, "payments", &id)?;
     let journal = post_payment_if_enabled(transaction, &id)?.ok_or_else(|| {
         AppError::Validation(
             "Activez la comptabilité et ses comptes de liaison avant d'enregistrer un paiement client. L'opération a été annulée sans modifier la facture."
                 .into(),
         )
     })?;
+    let record = payment_record_with_journal(transaction, &id)?;
     cancel_settled_reminders(transaction, &input.invoice_id)?;
     append_audit(
         transaction,
@@ -4449,6 +4462,82 @@ pub(crate) fn record_payment_in_transaction(
         &id,
         &json!({"payment":record.clone(),"journal":journal}),
     )?;
+    Ok(record)
+}
+
+/// Retourne la preuve de liaison comptable avec le paiement. Le lien reste
+/// dérivable du triplet immuable `(source_type, source_id, source_event)` du
+/// journal et ne dépend donc pas d'une donnée dupliquée dans `payments`.
+fn payment_record_with_journal(
+    transaction: &Transaction<'_>,
+    payment_id: &str,
+) -> AppResult<Value> {
+    let record = query_optional_tx(
+        transaction,
+        "SELECT payment.*,
+                entry.id AS journal_entry_id,
+                entry.number AS journal_entry_number,
+                entry.source_event AS journal_source_event
+         FROM payments payment
+         JOIN journal_entries entry
+           ON entry.source_type='payment'
+          AND entry.source_id=payment.id
+          AND entry.source_event='invoice:'||payment.invoice_id
+         WHERE payment.id=?",
+        params![payment_id],
+    )?
+    .ok_or_else(|| {
+        AppError::Validation(format!(
+            "Le paiement {payment_id} n'est pas relié à son écriture comptable attendue."
+        ))
+    })?;
+    let journal_id = record["journal_entry_id"]
+        .as_str()
+        .ok_or_else(|| AppError::Validation("Lien de journal du paiement invalide.".into()))?;
+    let valid: bool = transaction.query_row(
+        "WITH RECURSIVE reversal_chain(id,depth) AS (
+             SELECT ?1,0
+             UNION ALL
+             SELECT child.id,reversal_chain.depth+1
+             FROM reversal_chain
+             JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+         )
+         SELECT
+           entry.entry_date=payment.date
+           AND entry.description='Paiement client'
+           AND entry.reversal_of IS NULL
+           AND (SELECT MAX(depth) FROM reversal_chain)%2=0
+           AND (SELECT COUNT(*) FROM journal_lines line WHERE line.journal_entry_id=entry.id)=2
+           AND (SELECT COALESCE(SUM(line.debit_cents),0) FROM journal_lines line WHERE line.journal_entry_id=entry.id)=payment.amount_cents
+           AND (SELECT COALESCE(SUM(line.credit_cents),0) FROM journal_lines line WHERE line.journal_entry_id=entry.id)=payment.amount_cents
+           AND (SELECT COUNT(*)
+                FROM journal_lines line JOIN accounts account ON account.id=line.account_id
+                WHERE line.journal_entry_id=entry.id AND line.debit_cents=payment.amount_cents
+                  AND line.credit_cents=0 AND line.currency=invoice.currency
+                  AND line.memo='Encaissement' AND account.account_type='asset'
+                  AND line.project_id IS invoice.project_id AND line.client_id IS invoice.client_id
+                  AND line.employee_id IS NULL)=1
+           AND (SELECT COUNT(*)
+                FROM journal_lines line JOIN accounts account ON account.id=line.account_id
+                WHERE line.journal_entry_id=entry.id AND line.debit_cents=0
+                  AND line.credit_cents=payment.amount_cents AND line.currency=invoice.currency
+                  AND line.memo='Règlement créance' AND account.account_type='asset'
+                  AND line.project_id IS invoice.project_id AND line.client_id IS invoice.client_id
+                  AND line.employee_id IS NULL)=1
+         FROM payments payment
+         JOIN invoices invoice ON invoice.id=payment.invoice_id
+         JOIN journal_entries entry ON entry.id=?1
+         WHERE payment.id=?2 AND entry.source_type='payment'
+           AND entry.source_id=payment.id
+           AND entry.source_event='invoice:'||payment.invoice_id",
+        params![journal_id, payment_id],
+        |row| row.get(0),
+    )?;
+    if !valid {
+        return Err(AppError::Validation(format!(
+            "L'écriture comptable reliée au paiement {payment_id} n'est plus active, équilibrée ou conforme à sa source. La reprise est bloquée."
+        )));
+    }
     Ok(record)
 }
 
@@ -4597,7 +4686,7 @@ fn build_document_snapshot(
             document.insert(key.clone(), value.clone());
         }
     }
-    let settings=enrich_issuer_snapshot(query_optional_tx(transaction,"SELECT company_name,legal_form,owner_name,email,phone,address_line1,address_line2,postal_code,city,canton,country,uid_number,vat_number,vat_registered,iban,bank_name,currency,logo_path,extra_settings_json,noga_section,noga_division,activity_description,noga_detailed_code FROM settings WHERE id=1",[])?.ok_or(AppError::OnboardingRequired)?)?;
+    let settings = build_issuer_snapshot(transaction)?;
     let client = if let Some(client_id) = document.get("client_id").and_then(Value::as_str) {
         query_optional_tx(
             transaction,
@@ -4630,6 +4719,21 @@ fn build_document_snapshot(
     };
     Ok(
         json!({"schema":"helvichantier.document_snapshot.v1","captured_at":now_iso(),"issuer":settings,"customer":client,"document":Value::Object(document),"items":items,"qr_bill":qr_bill}),
+    )
+}
+
+/// Construit l'identité documentaire de l'entreprise à l'instant d'émission.
+/// Tous les documents finalisés partagent cette sélection, notamment le chemin
+/// du logo local immuable et le numéro de bâtiment conservé dans les réglages
+/// étendus.
+pub(crate) fn build_issuer_snapshot(transaction: &Transaction<'_>) -> AppResult<Value> {
+    enrich_issuer_snapshot(
+        query_optional_tx(
+            transaction,
+            "SELECT company_name,legal_form,owner_name,email,phone,address_line1,address_line2,postal_code,city,canton,country,uid_number,vat_number,vat_registered,iban,bank_name,currency,logo_path,extra_settings_json,noga_section,noga_division,activity_description,noga_detailed_code FROM settings WHERE id=1",
+            [],
+        )?
+        .ok_or(AppError::OnboardingRequired)?,
     )
 }
 

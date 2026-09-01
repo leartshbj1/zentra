@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Elyko
 
-État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.9.
+État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.10.
 
 Cette feuille de route compare Elyko aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Elyko reste une application Windows locale, avec les données conservées chez le client.
 
@@ -19,15 +19,15 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 
 | Lot | Fonctions attendues | État |
 | --- | --- | --- |
-| Socle local | installation Windows, configuration guidée, SQLite locale, sauvegardes, audit, mises à jour signées | Disponible ; Authenticode reste à acquérir |
-| Vente essentiel | clients, devis, acceptation, conversion en facture, facture QR, avoir, paiements, relances | Disponible ; automatisation d'envoi à compléter |
+| Socle local | installation Windows, configuration guidée, SQLite locale, sauvegardes, audit, mises à jour signées | Disponible ; guide relançable et updater avec reprise guidée en 1.10 ; Authenticode reste à acquérir |
+| Vente essentiel | clients, devis, acceptation, conversion en facture, facture QR, avoir, paiements, relances | Disponible ; logo et identité figés sur les documents émis, paiement lié et revalidé avec son écriture ; automatisation d'envoi à compléter |
 | Catalogue et stock | produits/services, prix, TVA, coûts, remises, stock minimal, mouvements, ajout aux devis/factures | Disponible : registre local immuable, réservation à la confirmation d'une commande de vente, sortie à l'émission du BL et entrée à l'émission d'une réception fournisseur ; l'extourne de la réception crée le mouvement inverse. Emplacements à venir |
 | Achats | fournisseurs, commandes, réceptions, factures et avoirs fournisseurs, justificatifs, rapprochement, échéances et paiements | Disponible : commande → réception partielle/complète → facture → rapprochement → paiement/comptabilité, avec avoir distinct imputable à une facture. Une facture se rapproche actuellement d'une seule commande ; multi-commandes et OCR des achats à venir |
 | Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible pour les crédits clients et débits fournisseurs ; périmètre détaillé ci-dessous |
 | Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Devis avec produits → commandes, BL partiels/complets et situations/finales par quantités ; prestations simples en facture directe ; acomptes par montant/pourcentage et récurrence à venir |
 | Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Disponible dans le périmètre 1.9 : profils et calcul TVA contrôlés, XML eCH-0217 v2.0.0 local, pré-clôture et dossier fiduciaire DRAFT/FINAL ; aucune transmission ni certification AFC/Olico |
 | Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, tâches, jalons, responsables, échéances, temps, coûts, rentabilité et temps approuvés vers facture disponibles |
-| Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Disponible en partie ; Swissdec/ELM non certifié |
+| Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Analyse multipage avec provenance visible et versions de taux non chevauchantes en 1.10 ; Swissdec/ELM non certifié |
 | Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Verrouillage de période et audit disponibles ; rôles locaux et accès fiduciaire simultané planifiés |
 | Écosystème | API locale, connecteurs isolés, compagnon mobile | Ultérieur |
 

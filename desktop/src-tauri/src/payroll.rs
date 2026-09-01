@@ -347,7 +347,16 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         validate_contribution_accounts(&tx, &input)?;
-        tx.execute("INSERT INTO payroll_contribution_definitions(id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active,liability_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET code=excluded.code,label=excluded.label,category=excluded.category,side=excluded.side,calculation_kind=excluded.calculation_kind,rate_bp=excluded.rate_bp,fixed_amount_cents=excluded.fixed_amount_cents,annual_ceiling_cents=excluded.annual_ceiling_cents,basis_kind=excluded.basis_kind,source=excluded.source,effective_from=excluded.effective_from,effective_to=excluded.effective_to,active=excluded.active,liability_account_id=excluded.liability_account_id,expense_account_id=excluded.expense_account_id,updated_at=excluded.updated_at",params![id,input.code.trim().to_uppercase(),input.label.trim(),input.category,input.side,input.calculation_kind,input.rate_bp,input.fixed_amount_cents,input.annual_ceiling_cents,input.basis_kind,input.source.trim(),input.effective_from,input.effective_to,input.active as i64,input.liability_account_id,input.expense_account_id,now,now])?;
+        let normalized_code = input.code.trim().to_uppercase();
+        validate_active_definition_version_window(
+            &tx,
+            &id,
+            &normalized_code,
+            input.active,
+            &input.effective_from,
+            input.effective_to.as_deref(),
+        )?;
+        tx.execute("INSERT INTO payroll_contribution_definitions(id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active,liability_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET code=excluded.code,label=excluded.label,category=excluded.category,side=excluded.side,calculation_kind=excluded.calculation_kind,rate_bp=excluded.rate_bp,fixed_amount_cents=excluded.fixed_amount_cents,annual_ceiling_cents=excluded.annual_ceiling_cents,basis_kind=excluded.basis_kind,source=excluded.source,effective_from=excluded.effective_from,effective_to=excluded.effective_to,active=excluded.active,liability_account_id=excluded.liability_account_id,expense_account_id=excluded.expense_account_id,updated_at=excluded.updated_at",params![id,normalized_code,input.label.trim(),input.category,input.side,input.calculation_kind,input.rate_bp,input.fixed_amount_cents,input.annual_ceiling_cents,input.basis_kind,input.source.trim(),input.effective_from,input.effective_to,input.active as i64,input.liability_account_id,input.expense_account_id,now,now])?;
         let record = tx.query_row(
             "SELECT * FROM payroll_contribution_definitions WHERE id=?",
             params![id],
@@ -1783,6 +1792,59 @@ fn validate_definition_input(i: &ContributionDefinitionInput) -> AppResult<()> {
     Ok(())
 }
 
+/// Les dates d'effet sont inclusives. Deux versions actives d'un même code ne
+/// doivent jamais être applicables au même jour : sinon l'interface peut
+/// présenter deux taux comme également valables et la sélection devient
+/// ambiguë au moment de figer la fiche.
+fn inclusive_date_windows_overlap(
+    first_from: &str,
+    first_to: Option<&str>,
+    second_from: &str,
+    second_to: Option<&str>,
+) -> bool {
+    first_to.is_none_or(|to| second_from <= to) && second_to.is_none_or(|to| first_from <= to)
+}
+
+fn validate_active_definition_version_window(
+    connection: &Connection,
+    definition_id: &str,
+    normalized_code: &str,
+    active: bool,
+    effective_from: &str,
+    effective_to: Option<&str>,
+) -> AppResult<()> {
+    if !active {
+        return Ok(());
+    }
+    let mut statement = connection.prepare(
+        "SELECT id,effective_from,effective_to FROM payroll_contribution_definitions \
+         WHERE active=1 AND UPPER(code)=? AND id<>? ORDER BY effective_from",
+    )?;
+    let versions = statement.query_map(params![normalized_code, definition_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?,
+        ))
+    })?;
+    for version in versions {
+        let (existing_id, existing_from, existing_to) = version?;
+        if inclusive_date_windows_overlap(
+            effective_from,
+            effective_to,
+            &existing_from,
+            existing_to.as_deref(),
+        ) {
+            return Err(AppError::Validation(format!(
+                "La version active {normalized_code} ({effective_from} à {}) chevauche la version {existing_id} ({existing_from} à {}). Fermez d'abord l'ancienne période ou désactivez l'une des versions.",
+                effective_to.unwrap_or("sans fin"),
+                existing_to.as_deref().unwrap_or("sans fin")
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn validate_contribution_accounts(
     connection: &Connection,
     input: &ContributionDefinitionInput,
@@ -1886,6 +1948,75 @@ fn profile_line(
 #[cfg(test)]
 mod laa_policy_tests {
     use super::*;
+
+    #[test]
+    fn contribution_version_windows_are_inclusive_and_allow_adjacent_years() {
+        assert!(inclusive_date_windows_overlap(
+            "2026-01-01",
+            Some("2026-12-31"),
+            "2026-12-31",
+            None
+        ));
+        assert!(!inclusive_date_windows_overlap(
+            "2026-01-01",
+            Some("2026-12-31"),
+            "2027-01-01",
+            Some("2027-12-31")
+        ));
+        assert!(inclusive_date_windows_overlap(
+            "2026-01-01",
+            None,
+            "2030-01-01",
+            None
+        ));
+    }
+
+    #[test]
+    fn active_contribution_versions_cannot_overlap_for_the_same_code() {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE payroll_contribution_definitions(\
+                   id TEXT PRIMARY KEY, code TEXT NOT NULL, effective_from TEXT NOT NULL,\
+                   effective_to TEXT, active INTEGER NOT NULL\
+                 );\
+                 INSERT INTO payroll_contribution_definitions\
+                   (id,code,effective_from,effective_to,active)\
+                 VALUES ('avs-2026','AVS_EMPLOYEE','2026-01-01','2026-12-31',1);",
+            )
+            .expect("minimal version table");
+
+        let overlap = validate_active_definition_version_window(
+            &connection,
+            "avs-copy",
+            "AVS_EMPLOYEE",
+            true,
+            "2026-06-01",
+            Some("2027-05-31"),
+        )
+        .expect_err("overlap must be refused")
+        .to_string();
+        assert!(overlap.contains("chevauche"));
+
+        validate_active_definition_version_window(
+            &connection,
+            "avs-2027",
+            "AVS_EMPLOYEE",
+            true,
+            "2027-01-01",
+            Some("2027-12-31"),
+        )
+        .expect("adjacent version must be accepted");
+        validate_active_definition_version_window(
+            &connection,
+            "draft-overlap",
+            "AVS_EMPLOYEE",
+            false,
+            "2026-06-01",
+            None,
+        )
+        .expect("an inactive draft may overlap until activation");
+    }
 
     #[test]
     fn laa_validation_requires_a_real_rate_source_and_the_federal_ceiling() {

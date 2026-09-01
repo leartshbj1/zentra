@@ -449,16 +449,16 @@ export default function DownloadPage() {
               Version {ELYKO_VERSION}
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-              Moins de ressaisie, plus de contrôles avant paiement.
+              Des preuves visibles avant chaque validation importante.
             </h2>
             <div className="mt-7 space-y-3">
               {[
-                'Devis avec produits → commande avec réservation du stock',
-                'BL partiels ou complets avec sortie de stock unique et traçable',
-                'Situation ou finale sur le livré; prestations directes sans BL',
-                'Import CAMT.053/.054 v04/v08 et détection locale des doublons',
-                'Rapprochement des crédits clients seulement après votre confirmation',
-                'Mises à jour intégrées vérifiées par signature Tauri/Ed25519',
+                'Import salarial multipage avec texte limité aux pages analysées',
+                'Boutons de provenance ouvrant directement la page originale',
+                'Logo, émetteur et destinataire figés sur les documents émis',
+                'Paiement, solde et écriture comptable enregistrés ensemble sans doublon',
+                'Guide relançable couvrant les 14 modules essentiels',
+                'Mise à jour intégrée en quatre étapes avec signature Ed25519',
               ].map((item) => (
                 <div
                   key={item}

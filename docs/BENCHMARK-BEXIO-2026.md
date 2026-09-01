@@ -16,20 +16,20 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Elyko 1.9 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Elyko 1.10 | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
-| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ; QR, avoirs et relances locales | acomptes par montant/pourcentage, récurrence et modèles FR/DE/IT | P0 |
+| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ; QR, avoirs et relances locales ; identité et logo figés sur les documents émis | acomptes par montant/pourcentage, récurrence et modèles FR/DE/IT | P0 |
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement → paiement et comptabilité ; avoir distinct validable et imputable à une facture | OCR des achats et rapprochement d'une facture avec plusieurs commandes | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
-| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et OCR local des documents de paie | assiettes réglementaires distinctes, barèmes officiels puis certification externe | P0 conformité — en cours |
+| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et analyse locale multipage avec provenance page par page ; aucune donnée sans preuve n’est promue automatiquement | barèmes officiels complets, certificats annuels puis certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
-| Sécurité | ISO 27001, 2FA, sauvegardes cloud | SQLite locale, DPAPI licence, backups et updater signé | chiffrement de base optionnel, rôles locaux et Authenticode | P0/P1 |
+| Sécurité | ISO 27001, 2FA, sauvegardes cloud | SQLite locale, DPAPI licence, sauvegardes et updater signé avec parcours de reprise guidé | chiffrement de base optionnel, rôles locaux et Authenticode | P0/P1 |
 
 ## Ordre d'implémentation retenu
 
@@ -48,10 +48,14 @@ présenter une prochaine action claire et garder chaque transformation traçable
    eCH-0217 v2.0.0 généré localement pour import manuel; pré-clôture avec
    empreinte SHA-256, verrouillage en deux étapes et dossier fiduciaire
    DRAFT/FINAL.
-5. **Automatiser sous contrôle** : récurrence, relances, OCR des achats et
+5. **Fiabiliser les preuves et la maintenance — livré en 1.10** : texte PDF
+   multipage limité aux pages analysées, provenance visible, rattachement paie
+   interdit sans page concordante, logo figé sur commandes et BL, reprise de
+   paiement revalidant l’écriture, guide complet et updater étape par étape.
+6. **Automatiser sous contrôle** : récurrence, relances, OCR des achats et
    règles bancaires proposent; l'utilisateur confirme les opérations
    financières ambiguës.
-6. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
+7. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer

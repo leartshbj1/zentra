@@ -432,6 +432,33 @@ export type SalesOrderLine = {
   fulfillmentMode: SalesOrderFulfillmentMode;
 };
 
+export type FrozenSalesOrderRecord = {
+  id: Identifier;
+  clientId: Identifier;
+  projectId: Identifier | null;
+  quoteId: Identifier | null;
+  number: string;
+  title: string;
+  status: SalesOrderStatus;
+  orderDate: string;
+  currency: string;
+  subtotalCents: number;
+  discountCents: number;
+  vatCents: number;
+  totalCents: number;
+  notes: string;
+  terms: string;
+  confirmedAt: string | null;
+};
+
+export type FrozenSalesOrderSnapshot = {
+  capturedAt: string;
+  issuer: FrozenIssuer;
+  customer: FrozenCustomer;
+  order: FrozenSalesOrderRecord;
+  lines: SalesOrderLine[];
+};
+
 export type SalesOrder = {
   id: Identifier;
   clientId: Identifier;
@@ -454,6 +481,7 @@ export type SalesOrder = {
   createdAt: string;
   updatedAt: string;
   lines: SalesOrderLine[];
+  snapshot?: FrozenSalesOrderSnapshot | null;
 };
 
 export type DeliveryNoteStatus = 'draft' | 'issued' | 'reversed';
@@ -466,6 +494,26 @@ export type DeliveryNoteLine = {
   quantityMilli: number;
   description: string;
   unit: string;
+};
+
+export type FrozenDeliveryNoteRecord = {
+  id: Identifier;
+  salesOrderId: Identifier;
+  number: string;
+  status: DeliveryNoteStatus;
+  deliveryDate: string;
+  reference: string;
+  notes: string;
+  issuedAt: string | null;
+};
+
+export type FrozenDeliveryNoteSnapshot = {
+  capturedAt: string;
+  issuer: FrozenIssuer;
+  customer: FrozenCustomer;
+  deliveryNote: FrozenDeliveryNoteRecord;
+  lines: DeliveryNoteLine[];
+  order: FrozenSalesOrderRecord;
 };
 
 export type DeliveryNote = {
@@ -481,6 +529,7 @@ export type DeliveryNote = {
   createdAt: string;
   updatedAt: string;
   lines: DeliveryNoteLine[];
+  snapshot?: FrozenDeliveryNoteSnapshot | null;
 };
 
 export type StockReservationEventType =
@@ -551,6 +600,9 @@ export type Payment = {
   amountCents: number;
   method: string;
   reference: string;
+  journalEntryId?: Identifier | null;
+  journalEntryNumber?: string;
+  journalSourceEvent?: string;
 };
 
 export type Employee = {

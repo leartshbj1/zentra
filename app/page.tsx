@@ -192,7 +192,7 @@ const capabilityRows = [
   [
     'Import paie multipage',
     'Disponible',
-    'PDF jusqu’à 12 pages, analyse locale par lots de trois et contrôle humain avant création.',
+    'PDF jusqu’à 12 pages, texte limité au lot analysé, provenance ouvrable page par page et contrôle humain avant création.',
   ],
   [
     'Catalogue & stock',
@@ -202,7 +202,7 @@ const capabilityRows = [
   [
     'Application',
     'Windows',
-    'Vraie application Windows 10/11 x64; le site de présentation est adapté au mobile.',
+    'Vraie application Windows 10/11 x64, guide relançable et mise à jour signée en quatre étapes; le site est adapté au mobile.',
   ],
 ] as const;
 
@@ -243,10 +243,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-19"
+              href="#lot-110"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.9
+              Nouveautés 1.10
             </a>
             <a
               href="#capacites"
@@ -294,11 +294,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-19"
+            href="#lot-110"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.9 · TVA et clôture sous contrôle
+            Elyko 1.10 · paie et documents vérifiables
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -363,6 +363,93 @@ export default function Home() {
           </div>
         </div>
         <HeroDashboard />
+      </section>
+
+      <section
+        id="lot-110"
+        className="scroll-mt-24 border-y border-[#d8d2c6] bg-[#fffaf1] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="lot-110-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
+                Elyko 1.10 · preuves visibles et parcours guidé
+              </p>
+              <h2
+                id="lot-110-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Chaque proposition montre d’où elle vient.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#6f6659] lg:justify-self-end">
+              L’import salarial rapproche le texte et l’image page par page,
+              les documents émis conservent leur identité visuelle et les
+              paiements restent reliés à leur écriture. Elyko guide l’utilisateur
+              sans transformer une incertitude en donnée comptable.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                icon: Users,
+                eyebrow: 'Paie locale',
+                title: 'La page source reste accessible.',
+                text: 'Pour un PDF multipage, chaque lot reçoit uniquement le texte de ses pages. Une identité ou une rubrique sans preuve concordante reste à confirmer.',
+              },
+              {
+                icon: FileCheck2,
+                eyebrow: 'Documents figés',
+                title: 'Le logo historique ne change plus.',
+                text: 'Commandes, bons de livraison, devis, factures et avoirs utilisent l’émetteur et le destinataire conservés lors de leur émission.',
+              },
+              {
+                icon: BookOpenCheck,
+                eyebrow: 'Paiement → journal',
+                title: 'Une seule opération, une preuve contrôlée.',
+                text: 'L’encaissement, le solde et l’écriture banque contre débiteurs sont enregistrés ensemble. Une reprise ne crée aucun doublon.',
+              },
+              {
+                icon: ShieldCheck,
+                eyebrow: 'Guide & maintenance',
+                title: 'Quatorze modules expliqués pas à pas.',
+                text: 'Le guide est relançable et accessible au clavier. L’updater distingue recherche, téléchargement, signature et installation Windows.',
+              },
+            ].map(({ icon: Icon, eyebrow, title, text }) => (
+              <article
+                key={title}
+                className="rounded-[24px] border border-[#ddd2c0] bg-white/80 p-6 shadow-[0_18px_45px_rgba(81,58,27,.06)]"
+              >
+                <Icon className="size-6 text-[#a8661e]" aria-hidden="true" />
+                <p className="mt-5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#8b6b3d]">
+                  {eyebrow}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-.025em] text-[#3f3528]">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-[#6f6659]">{text}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 rounded-[22px] border border-[#cad9ce] bg-[#edf5ef] p-5 text-sm leading-6 text-[#42604f] sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              <strong className="text-[#244a35]">Toujours local et contrôlé.</strong>{' '}
+              L’IA prépare un brouillon sur le PC ; elle ne valide ni le salaire,
+              ni un taux contractuel, ni une écriture à la place du client.
+            </p>
+            <a
+              href="/telecharger"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 font-semibold text-white transition hover:bg-[#24563f]"
+            >
+              Télécharger Elyko {ELYKO_VERSION}{' '}
+              <ArrowRight className="size-4" />
+            </a>
+          </div>
+        </div>
       </section>
 
       <CapabilityStory />

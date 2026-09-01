@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const links = [
   ['#logiciel', 'Voir le logiciel'],
-  ['#lot-19', 'Nouveautés 1.9'],
+  ['#lot-110', 'Nouveautés 1.10'],
   ['#capacites', 'Capacités'],
   ['#confidentialite', 'Données locales'],
   ['#tarif', 'Tarif'],

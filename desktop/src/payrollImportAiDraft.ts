@@ -270,6 +270,7 @@ export function reconcilePayrollAiPasses(primaryRaw: string, verifiedRaw: string
     if (agreedPages.length) provenanceFields[field] = agreedPages;
     else if (firstPages.length || secondPages.length) warnings.push(`Double lecture : la page source de « ${field} » n’est pas confirmée; contrôlez le document original.`);
   }
+  const unsourcedLineLabels: string[] = [];
   const provenanceLines = lines.map((line) => {
     const sameLine = (candidate: PayrollAiProvenance['lines'][number]) => normalizedText(candidate.label) === normalizedText(line.label)
       && candidate.kind === line.kind
@@ -277,9 +278,44 @@ export function reconcilePayrollAiPasses(primaryRaw: string, verifiedRaw: string
     const firstPages = primary.provenance.lines.find(sameLine)?.pages ?? [];
     const secondPages = verified.provenance.lines.find(sameLine)?.pages ?? [];
     const agreedPages = firstPages.filter((page) => secondPages.includes(page));
-    if (!agreedPages.length && (firstPages.length || secondPages.length)) warnings.push(`Double lecture : la page source de la rubrique « ${line.label} » n’est pas confirmée.`);
+    if (!agreedPages.length) unsourcedLineLabels.push(line.label);
     return { label: line.label, kind: line.kind, amountCents: line.amountCents, pages: agreedPages };
   });
+  if (unsourcedLineLabels.length) {
+    const preview = unsourcedLineLabels.slice(0, 6).map((label) => `« ${label} »`).join(', ');
+    const remainder = unsourcedLineLabels.length > 6 ? ` et ${unsourcedLineLabels.length - 6} autre(s)` : '';
+    warnings.push(`Double lecture : aucune page source concordante pour ${preview}${remainder}; ces rubriques restent des propositions faibles.`);
+  }
+
+  const linesWithEvidence = lines.map((line, index) => {
+    const source = provenanceLines[index];
+    return source?.pages.length
+      ? line
+      : { ...line, recurring: false, confidenceBp: Math.min(4_999, line.confidenceBp) };
+  });
+
+  const identityProvenance = [
+    [employeeNumber, 'employee.employee_number', 'numéro employé'],
+    [avsNumber, 'employee.avs_number', 'numéro AVS'],
+    [birthDate, 'employee.birth_date', 'date de naissance'],
+    [iban, 'employee.iban', 'IBAN employé'],
+  ] as const;
+  const identityWithoutSource = identityProvenance
+    .filter(([value, field]) => Boolean(value) && !(provenanceFields[field]?.length))
+    .map(([, , label]) => label);
+  if (identityWithoutSource.length) {
+    warnings.push(`Rattachement automatique désactivé : page source non confirmée pour ${identityWithoutSource.join(', ')}.`);
+  }
+
+  for (const [valuePresent, field, label] of [
+    [Boolean(period), 'period', 'période'],
+    [primary.draft.grossCents > 0 && verified.draft.grossCents > 0, 'gross_cents', 'brut imprimé'],
+    [primary.draft.netCents > 0 && verified.draft.netCents > 0, 'net_cents', 'net imprimé'],
+  ] as const) {
+    if (valuePresent && !(provenanceFields[field]?.length)) {
+      warnings.push(`Double lecture : la page source du ${label} n’est pas confirmée; comparez la valeur au document original.`);
+    }
+  }
 
   return {
     draft: {
@@ -302,12 +338,12 @@ export function reconcilePayrollAiPasses(primaryRaw: string, verifiedRaw: string
       paymentDate,
       grossCents: amountConsensus('brut', primary.draft.grossCents, verified.draft.grossCents),
       netCents: amountConsensus('net', primary.draft.netCents, verified.draft.netCents),
-      lines,
+      lines: linesWithEvidence,
       warnings: [...new Set(warnings)],
     },
     detected: { employmentRate: employmentRateAgrees, salaryMode: salaryModeAgrees },
     provenance: { fields: provenanceFields, lines: provenanceLines },
-    identity: { passes: 2, employeeNumber, avsNumber, birthDate, iban: normalizedIban(iban), conflicts: identityConflicts },
+    identity: { passes: identityWithoutSource.length ? 1 : 2, employeeNumber: identityWithoutSource.length ? '' : employeeNumber, avsNumber: identityWithoutSource.length ? '' : avsNumber, birthDate: identityWithoutSource.length ? '' : birthDate, iban: identityWithoutSource.length ? '' : normalizedIban(iban), conflicts: identityConflicts },
   };
 }
 
@@ -464,8 +500,17 @@ export function combinePayrollAiPageBatches(batches: PayrollAiPageBatch[]): Reco
     if (key) provenanceByPages.set(key, [...(provenanceByPages.get(key) ?? []), field]);
   }
   for (const [pages, fields] of provenanceByPages) warnings.push(`Provenance IA · p. ${pages} : ${fields.join(', ')}.`);
+  const lineLabelsByPages = new Map<string, string[]>();
   for (const line of provenance.lines) {
-    if (line.pages.length) warnings.push(`Provenance IA · rubrique « ${line.label} » : p. ${line.pages.join(', ')}.`);
+    if (!line.pages.length) continue;
+    const key = line.pages.join(',');
+    lineLabelsByPages.set(key, [...(lineLabelsByPages.get(key) ?? []), line.label]);
+  }
+  for (const [pages, labels] of lineLabelsByPages) {
+    const uniqueLabels = [...new Set(labels)];
+    const preview = uniqueLabels.slice(0, 8).map((label) => `« ${label} »`).join(', ');
+    const remainder = uniqueLabels.length > 8 ? ` et ${uniqueLabels.length - 8} autre(s)` : '';
+    warnings.push(`Provenance IA · p. ${pages} · rubriques : ${preview}${remainder}.`);
   }
   if (!Object.keys(provenance.fields).length && !provenance.lines.some((line) => line.pages.length)) {
     warnings.push('L’IA n’a pas fourni de page source fiable; comparez chaque valeur au document original.');

@@ -72,17 +72,33 @@ describe('fusion du brouillon de paie et de la lecture IA', () => {
     const primary = JSON.stringify({
       employee: { name: 'Alex Exemple', employee_number: 'E-001', avs_number: '756.9217.0769.85', iban: 'CH93 0076 2011 6238 5295 7', birth_date: '1990-01-02', employment_rate: 80, salary_mode: 'monthly' },
       period: '2026-08', payment_date: '2026-08-25', gross_cents: 500_000, net_cents: 450_000,
-      lines: [{ label: 'Salaire mensuel', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 9_100 }, { label: 'Retenues', kind: 'deduction', amount_cents: 50_000, recurring: false, confidence_bp: 8_800 }], warnings: [],
+      field_pages: { 'employee.employee_number': 1, 'employee.avs_number': 1, 'employee.iban': 1, 'employee.birth_date': 1, period: 1, payment_date: 1, gross_cents: 1, net_cents: 1 },
+      lines: [{ label: 'Salaire mensuel', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 9_100, source_page: 1 }, { label: 'Retenues', kind: 'deduction', amount_cents: 50_000, recurring: false, confidence_bp: 8_800, source_page: 1 }], warnings: [],
     });
     const verified = JSON.stringify({
       employee: { name: 'Alex Exemple', employee_number: 'E001', avs_number: '7569217076985', iban: 'CH9300762011623852957', birth_date: '1990-01-02', employment_rate: 80, salary_mode: 'monthly' },
       period: '2026-08', payment_date: '2026-08-25', gross_cents: 500_000, net_cents: 450_000,
-      lines: [{ label: 'Salaire mensuel', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 8_300 }, { label: 'Retenues', kind: 'deduction', amount_cents: 50_000, recurring: false, confidence_bp: 8_600 }], warnings: [],
+      field_pages: { 'employee.employee_number': 1, 'employee.avs_number': 1, 'employee.iban': 1, 'employee.birth_date': 1, period: 1, payment_date: 1, gross_cents: 1, net_cents: 1 },
+      lines: [{ label: 'Salaire mensuel', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 8_300, source_page: 1 }, { label: 'Retenues', kind: 'deduction', amount_cents: 50_000, recurring: false, confidence_bp: 8_600, source_page: 1 }], warnings: [],
     });
     const result = reconcilePayrollAiPasses(primary, verified);
     expect(result.identity).toMatchObject({ passes: 2, employeeNumber: 'E001', avsNumber: '7569217076985', birthDate: '1990-01-02', iban: 'CH9300762011623852957', conflicts: [] });
     expect(result.draft.lines[0]).toMatchObject({ amountCents: 500_000, recurring: true, confidenceBp: 8_300 });
     expect(result.detected).toEqual({ employmentRate: true, salaryMode: true });
+  });
+
+  it('désactive le rattachement fort et rabaisse une rubrique sans page source concordante', () => {
+    const raw = JSON.stringify({
+      employee: { name: 'Alex Exemple', avs_number: '756.9217.0769.85' },
+      period: '2026-08', payment_date: '', gross_cents: 500_000, net_cents: 500_000,
+      lines: [{ label: 'Salaire mensuel', kind: 'earning', amount_cents: 500_000, recurring: true, confidence_bp: 9_200 }],
+      warnings: [],
+    });
+    const result = reconcilePayrollAiPasses(raw, raw);
+    expect(result.identity).toMatchObject({ passes: 1, avsNumber: '' });
+    expect(result.draft.lines[0]).toMatchObject({ recurring: false, confidenceBp: 4_999 });
+    expect(result.draft.warnings.join(' ')).toContain('page source non confirmée');
+    expect(result.draft.warnings.join(' ')).toContain('propositions faibles');
   });
 
   it('écarte les identités, totaux et rubriques contradictoires', () => {

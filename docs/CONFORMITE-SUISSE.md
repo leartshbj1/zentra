@@ -43,7 +43,33 @@ Sources : [SIX — QR-bill](https://www.six-group.com/en/products-services/bank
 
 ## Salaires 2026
 
-Les taux nationaux 2026 sont AVS 4,35 %, AI 0,7 %, APG 0,25 % et AC 1,1 % jusqu’à CHF 148'200, pour le salarié comme pour l’employeur. Les primes LPP, AAP/AANP, IJM, allocations familiales et l’impôt à la source dépendent notamment de la caisse, de l’assureur, du canton, de l’âge et de l’employé ; elles doivent donc être paramétrées explicitement.
+Les taux nationaux 2026 sont AVS 4,35 %, AI 0,7 %, APG 0,25 % et
+AC 1,1 % jusqu’à CHF 148'200, pour le salarié comme pour l’employeur.
+La franchise AVS après l’âge de référence est de CHF 1'400 par mois et par
+employeur, soit CHF 16'800 par année complète ; la personne salariée peut y
+renoncer. Cette situation ne doit pas être déduite du sexe : la date d’âge de
+référence et la renonciation sont des données explicites.
+
+Pour la LPP obligatoire, les montants 2026 sont un seuil d’entrée de
+CHF 22'680, une déduction de coordination de CHF 26'460, un salaire coordonné
+minimal de CHF 3'780 et maximal de CHF 64'260. Ces montants ne permettent pas
+d’inventer une prime : le taux, la part salariée et la part employeur restent ceux
+du règlement de la caisse, l’employeur devant financer au moins autant que
+l’ensemble de ses salariés.
+
+Le gain assuré LAA est plafonné à CHF 148'200. L’assurance contre les accidents
+non professionnels s’applique lorsqu’une personne travaille au moins huit heures
+par semaine chez le même employeur. Les primes LPP, AAP/AANP, IJM, allocations
+familiales et l’impôt à la source dépendent notamment de la caisse, de
+l’assureur, du canton, de l’âge et de l’employé ; elles doivent donc être
+paramétrées explicitement avec leur source et leur période de validité. Il
+n’existe notamment aucun taux fédéral universel d’IJM à appliquer par défaut.
+
+Les allocations familiales minimales sont de CHF 215 par enfant et de CHF 268
+pour la formation, sous réserve de montants cantonaux plus élevés. Le seuil
+d’activité ouvrant le droit est de CHF 630 par mois ou CHF 7'560 par année. Une
+seule allocation est versée par enfant : Elyko doit donc demander une confirmation
+et ne jamais la déduire automatiquement du salaire.
 
 Contrôles logiciels attendus :
 
@@ -51,11 +77,15 @@ Contrôles logiciels attendus :
 - base, taux, part employé et part employeur visibles pour chaque cotisation ;
 - plafonds et périodes documentés ;
 - aucune retenue implicite ;
+- provenance et période de validité des taux de caisse, d’assureur, cantonaux ou
+  contractuels ;
+- alerte plutôt que calcul inventé lorsqu’un barème d’impôt à la source ou une
+  police d’assurance manque ;
 - fiche verrouillée après validation et correction par extourne ;
 - export et contrôle fiduciaire ;
 - aucune mention « Swissdec certifié » avant réussite de la procédure officielle ELM 6.0.
 
-Sources : [AVS/AI — taux 2026](https://www.ahv-iv.ch/fr/Formulaires/Listes-diverses/Tableau-synoptique-des-taux-de-cotisations-et-des-primes-applicables), [Swissdec — ELM 6.0](https://www.swissdec.ch/fr/elm).
+Sources : [AVS/AI — taux 2026](https://www.ahv-iv.ch/fr/Formulaires/Listes-diverses/Tableau-synoptique-des-taux-de-cotisations-et-des-primes-applicables), [AVS/AI — mémento 2.01](https://www.ahv-iv.ch/p/2.01.f), [OFAS — chiffres LPP 2026](https://www.bsv.admin.ch/dam/fr/sd-web/3jZGqTLgADbl/BPP_Chiffres_85_2026.pdf), [OFAS — prestations et conditions des allocations familiales](https://www.bsv.admin.ch/fr/allocations-familiales-prestations-et-conditions), [OFSP — assurance facultative d’indemnités journalières](https://www.bag.admin.ch/fr/assurance-maladie-lassurance-facultative-dindemnites-journalieres), [Suva — qui est assuré contre les accidents](https://www.suva.ch/fr-ch/assurance/assurance-accidents/assurance-accidents-laa/assurance-accidents-qui-est-assure), [Suva — gain assuré maximal](https://www.suva.ch/fr-ch/accident/prestations-de-la-suva/prestations-en-especes), [Swissdec — standards](https://www.swissdec.ch/fr/standards).
 
 ## Comptabilité
 

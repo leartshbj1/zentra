@@ -30,10 +30,13 @@ import type {
   FiduciaryPackageExport,
   FiduciaryPeriodFinalization,
   FrozenCustomer,
+  FrozenDeliveryNoteSnapshot,
   FrozenDocumentSnapshot,
   FrozenEmployee,
   FrozenIssuer,
   FrozenPayslipSnapshot,
+  FrozenSalesOrderRecord,
+  FrozenSalesOrderSnapshot,
   Invoice,
   IncomeStatementReport,
   JournalEntry,
@@ -777,6 +780,76 @@ function deliveryNoteLineFromRaw(row: RawRecord): DeliveryNoteLine {
   };
 }
 
+function frozenSalesOrderRecordFromRaw(row: RawRecord): FrozenSalesOrderRecord {
+  return {
+    id: stringValue(row.id),
+    clientId: stringValue(row.client_id),
+    projectId: nullableString(row.project_id),
+    quoteId: nullableString(row.quote_id),
+    number: stringValue(row.number),
+    title: stringValue(row.title) || 'Commande client',
+    status: salesOrderStatusFromRaw(row.status),
+    orderDate: stringValue(row.order_date),
+    currency: stringValue(row.currency) || 'CHF',
+    subtotalCents: numberValue(row.subtotal_cents),
+    discountCents: numberValue(row.discount_cents),
+    vatCents: numberValue(row.vat_cents),
+    totalCents: numberValue(row.total_cents),
+    notes: stringValue(row.notes),
+    terms: stringValue(row.terms),
+    confirmedAt: nullableString(row.confirmed_at),
+  };
+}
+
+function salesOrderSnapshotFromRaw(
+  value: unknown,
+  dataDir = '',
+): FrozenSalesOrderSnapshot | null {
+  const root = parsedSnapshot(value);
+  if (
+    !root ||
+    stringValue(root.schema) !== 'helvichantier.sales_order_snapshot.v1'
+  )
+    return null;
+  return {
+    capturedAt: stringValue(root.captured_at),
+    issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir),
+    customer: frozenCustomerFromRaw(recordValue(root.customer)),
+    order: frozenSalesOrderRecordFromRaw(recordValue(root.order)),
+    lines: rawArray(root.lines).map(salesOrderLineFromRaw),
+  };
+}
+
+function deliveryNoteSnapshotFromRaw(
+  value: unknown,
+  dataDir = '',
+): FrozenDeliveryNoteSnapshot | null {
+  const root = parsedSnapshot(value);
+  if (
+    !root ||
+    stringValue(root.schema) !== 'helvichantier.delivery_note_snapshot.v1'
+  )
+    return null;
+  const note = recordValue(root.delivery_note);
+  return {
+    capturedAt: stringValue(root.captured_at),
+    issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir),
+    customer: frozenCustomerFromRaw(recordValue(root.customer)),
+    deliveryNote: {
+      id: stringValue(note.id),
+      salesOrderId: stringValue(note.sales_order_id),
+      number: stringValue(note.number),
+      status: deliveryNoteStatusFromRaw(note.status),
+      deliveryDate: stringValue(note.delivery_date),
+      reference: stringValue(note.reference),
+      notes: stringValue(note.notes),
+      issuedAt: nullableString(note.issued_at),
+    },
+    lines: rawArray(root.lines).map(deliveryNoteLineFromRaw),
+    order: frozenSalesOrderRecordFromRaw(recordValue(root.order)),
+  };
+}
+
 function stockReservationEventFromRaw(row: RawRecord): StockReservationEvent {
   const rawEventType =
     stringValue(row.event_type) || stringValue(row.movement_type);
@@ -1422,6 +1495,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       createdAt: stringValue(row.created_at),
       updatedAt: stringValue(row.updated_at),
       lines: orderLines,
+      snapshot: salesOrderSnapshotFromRaw(row.snapshot_json, appState.data_dir),
     };
   });
   const deliveryNotes: DeliveryNote[] = (raw.delivery_notes ?? []).map(
@@ -1444,6 +1518,10 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         lines: deliveryNoteLines
           .filter((line) => line.deliveryNoteId === id)
           .sort((left, right) => left.position - right.position),
+        snapshot: deliveryNoteSnapshotFromRaw(
+          row.snapshot_json,
+          appState.data_dir,
+        ),
       };
     },
   );
@@ -1924,6 +2002,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     amountCents: numberValue(row.amount_cents),
     method: stringValue(row.method),
     reference: stringValue(row.reference),
+    journalEntryId: nullableString(row.journal_entry_id),
+    journalEntryNumber: stringValue(row.journal_entry_number),
+    journalSourceEvent: stringValue(row.journal_source_event),
   }));
   const timer = raw.active_timer;
   return {
@@ -2432,9 +2513,7 @@ function fiduciaryReviewFromRaw(value: unknown): FiduciaryClosingReview {
         originalName: stringValue(issue.original_name),
         issue: stringValue(issue.issue),
       })),
-      continuity: accountingContinuityFromRaw(
-        recordValue(checks.continuity),
-      ),
+      continuity: accountingContinuityFromRaw(recordValue(checks.continuity)),
     },
     summary: {
       journalEntries: numberValue(summary.journal_entries),
@@ -2460,9 +2539,7 @@ function vatProfileFromRaw(value: unknown): VatProfile {
     id: stringValue(row.id),
     effectiveFrom: stringValue(row.effective_from),
     effectiveTo: nullableString(row.effective_to),
-    reportingMethod: stringValue(
-      row.reporting_method,
-    ) as VatReportingMethod,
+    reportingMethod: stringValue(row.reporting_method) as VatReportingMethod,
     formOfReporting: stringValue(row.form_of_reporting) as VatReportingBasis,
     periodicity: stringValue(row.periodicity) as VatReportingPeriodicity,
     grossOrNet: stringValue(row.gross_or_net) as VatProfile['grossOrNet'],
@@ -2576,8 +2653,7 @@ function vatPreviewFromRaw(value: unknown): VatReturnPreview {
               recordValue(turnover.various_deduction).amount_cents,
             ),
             description: stringValue(
-              recordValue(turnover.various_deduction)
-                .description,
+              recordValue(turnover.various_deduction).description,
             ),
           }
         : null,
@@ -4428,8 +4504,7 @@ export const desktopApi = {
           tdfn_rate_bp: input.tdfnRateBp ?? null,
           afc_authorization_confirmed: input.afcAuthorizationConfirmed,
           notes: input.notes?.trim() || null,
-          close_previous_open_profile:
-            input.closePreviousOpenProfile ?? false,
+          close_previous_open_profile: input.closePreviousOpenProfile ?? false,
         },
       }),
     );

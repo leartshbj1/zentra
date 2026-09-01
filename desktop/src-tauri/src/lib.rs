@@ -2034,6 +2034,13 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
         assert_eq!(quote["number"], "D-2026-0007");
+        let quote_snapshot: serde_json::Value =
+            serde_json::from_str(quote["snapshot_json"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            quote_snapshot["issuer"]["logo_path"],
+            "C:\\donnees-locales\\logo-test.png"
+        );
+        assert_eq!(quote_snapshot["document"]["number"], "D-2026-0007");
         let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture originale","service_date_from":"2026-02-01","service_date_to":"2026-02-28"})).unwrap());
         store.create_record("invoice_items",json!({"invoice_id":invoice_id,"description":"Travaux","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
         let invoice = store
@@ -2083,6 +2090,13 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap();
         assert_eq!(credit["number"], "NC-2026-0030");
         assert_eq!(credit["total_cents"], -2500);
+        let credit_snapshot: serde_json::Value =
+            serde_json::from_str(credit["snapshot_json"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            credit_snapshot["issuer"]["logo_path"],
+            "C:\\logo-modifie.png"
+        );
+        assert_eq!(credit_snapshot["document"]["number"], "NC-2026-0030");
         let original_status: String = store
             .connect()
             .unwrap()
@@ -4124,6 +4138,192 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn fully_paid_invoice_is_posted_once_traceable_balanced_and_replay_safe() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client paiement final"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture entièrement réglée",
+                        "service_date_from":"2026-08-01",
+                        "service_date_to":"2026-08-31"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation réglée",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":12_345,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-09-01".into()),
+                Some("2026-09-30".into()),
+            )
+            .unwrap();
+        let request = RecordPaymentInput {
+            request_id: Some("08b98c9b-48d5-4756-8ef9-c6cae3f8db8c".into()),
+            invoice_id: invoice_id.clone(),
+            amount_cents: 12_345,
+            date: Some("2026-09-02".into()),
+            method: Some("Virement bancaire".into()),
+            reference: Some("ENC-FINAL-1".into()),
+            notes: Some("Règlement total".into()),
+        };
+        let first = store.record_payment(request.clone()).unwrap();
+        let journal_id = first["journal_entry_id"].as_str().unwrap().to_owned();
+        assert!(!journal_id.is_empty());
+        assert!(first["journal_entry_number"]
+            .as_str()
+            .is_some_and(|number| number.starts_with("J-2026-")));
+        assert_eq!(
+            first["journal_source_event"],
+            format!("invoice:{invoice_id}")
+        );
+
+        let connection = store.connect().unwrap();
+        let invoice_state: (i64, String) = connection
+            .query_row(
+                "SELECT paid_cents,status FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(invoice_state, (12_345, "payee".into()));
+        let proof: (i64, i64, i64, String, String, String) = connection
+            .query_row(
+                "SELECT COUNT(*),
+                        COALESCE(SUM(line.debit_cents),0),
+                        COALESCE(SUM(line.credit_cents),0),
+                        entry.source_type,entry.source_id,entry.source_event
+                 FROM journal_entries entry
+                 JOIN journal_lines line ON line.journal_entry_id=entry.id
+                 WHERE entry.id=?
+                 GROUP BY entry.id",
+                rusqlite::params![journal_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            proof,
+            (
+                2,
+                12_345,
+                12_345,
+                "payment".into(),
+                first["id"].as_str().unwrap().into(),
+                format!("invoice:{invoice_id}"),
+            )
+        );
+        let account_lines: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                    COALESCE(SUM(CASE WHEN account_id=? THEN debit_cents ELSE 0 END),0),
+                    COALESCE(SUM(CASE WHEN account_id=? THEN credit_cents ELSE 0 END),0)
+                 FROM journal_lines WHERE journal_entry_id=?",
+                rusqlite::params![accounts["bank"], accounts["ar"], journal_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(account_lines, (12_345, 12_345));
+        let audit_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE action='record' AND entity_type='payment' AND entity_id=?",
+                rusqlite::params![first["id"].as_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_count, 1);
+        drop(connection);
+
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: None,
+                name: "Encaissement clôturé".into(),
+                date_from: "2026-09-01".into(),
+                date_to: "2026-09-02".into(),
+            })
+            .unwrap();
+        store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap();
+
+        let replay = store.record_payment(request).unwrap();
+        assert_eq!(replay["id"], first["id"]);
+        assert_eq!(replay["journal_entry_id"], journal_id);
+        let workspace = store.get_workspace().unwrap();
+        let payment = workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"] == first["id"])
+            .unwrap();
+        assert_eq!(payment["journal_entry_id"], journal_id);
+        assert_eq!(
+            payment["journal_source_event"],
+            format!("invoice:{invoice_id}")
+        );
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM payments WHERE invoice_id=?",
+                    rusqlite::params![invoice_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM journal_entries WHERE source_type='payment' AND source_id=?",
+                    rusqlite::params![first["id"].as_str().unwrap()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_log WHERE action='record' AND entity_type='payment' AND entity_id=?",
+                    rusqlite::params![first["id"].as_str().unwrap()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
     fn closed_accounting_period_rejects_new_entries() {
         let (_temporary, store) = initialized_store();
         let accounts = accounting_accounts(&store);
@@ -5705,6 +5905,20 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         };
         let confirmed = store.confirm_supplier_order(confirm_input.clone()).unwrap();
         assert_eq!(confirmed["order"]["status"], "confirmed");
+        let supplier_order_snapshot: serde_json::Value =
+            serde_json::from_str(confirmed["order"]["snapshot_json"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            supplier_order_snapshot["issuer"]["logo_path"],
+            "C:\\donnees-locales\\logo-test.png"
+        );
+        assert_eq!(supplier_order_snapshot["order"]["status"], "confirmed");
+        assert_eq!(
+            supplier_order_snapshot["order"]["number"],
+            confirmed["order"]["number"]
+        );
+        assert!(supplier_order_snapshot["order"]
+            .get("snapshot_json")
+            .is_none());
         assert_eq!(
             store.confirm_supplier_order(confirm_input).unwrap()["idempotent"],
             true

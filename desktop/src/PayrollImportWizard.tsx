@@ -21,10 +21,13 @@ import {
   combinePayrollAiPageBatches,
   mergePayrollImportDraft,
   reconcilePayrollAiPasses,
+  type PayrollAiProvenance,
   type PayrollImportConfirmedAiFields,
 } from './payrollImportAiDraft';
 import { findStrongEmployeeMatch } from './payrollEmployeeMatching';
 import { payrollLocalAi, type PayrollAiMode, type PayrollAiProgress } from './payrollLocalAi';
+import { extractPayrollPdfTextByPage } from './payrollPdfText';
+import { payrollTextForPageBatch } from './payrollPdfTextUtils';
 import { assessPayrollDraft, payrollImportTotals } from './payrollImportQuality';
 import type {
   PayrollAiIdentityEvidence,
@@ -85,6 +88,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const [employeeLinkSources, setEmployeeLinkSources] = useState<Record<string, 'auto' | 'manual'>>(() => Object.fromEntries(initial.flatMap((item) => item.draft.review?.employeeLinkSource === 'auto' || item.draft.review?.employeeLinkSource === 'manual' ? [[item.id, item.draft.review.employeeLinkSource]] : [])));
   const [employeeMatchNotes, setEmployeeMatchNotes] = useState<Record<string, string>>(() => Object.fromEntries(initial.flatMap((item) => item.draft.review?.employeeLinkSource ? [[item.id, item.draft.review.employeeLinkSource === 'manual' ? 'Choix manuel restauré.' : 'Rattachement automatique restauré; contrôlez les identifiants.']] : [])));
   const [aiIdentityEvidence, setAiIdentityEvidence] = useState<Record<string, PayrollAiIdentityEvidence>>(() => Object.fromEntries(initial.flatMap((item) => item.draft.review?.aiIdentityEvidence ? [[item.id, item.draft.review.aiIdentityEvidence]] : [])));
+  const [aiProvenance, setAiProvenance] = useState<Record<string, PayrollAiProvenance>>({});
   const [replaceTemplates, setReplaceTemplates] = useState<Record<string, boolean>>({});
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [staging, setStaging] = useState(false);
@@ -97,6 +101,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const [localError, setLocalError] = useState('');
   const [documentDataUrl, setDocumentDataUrl] = useState('');
   const [pdfPages, setPdfPages] = useState<string[]>([]);
+  const [pdfTextPages, setPdfTextPages] = useState<string[]>([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [selectedPdfPage, setSelectedPdfPage] = useState(0);
   const [pdfPreviewError, setPdfPreviewError] = useState('');
@@ -124,6 +129,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     let cancelled = false;
     setDocumentDataUrl('');
     setPdfPages([]);
+    setPdfTextPages([]);
     setPdfPageCount(0);
     setSelectedPdfPage(0);
     setPdfPreviewError('');
@@ -134,8 +140,16 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         const dataUrl = `data:${mimeType};base64,${dataBase64}`;
         setDocumentDataUrl(dataUrl);
         if (active.mediaKind === 'pdf') {
-          const preview = await renderPdfPages(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES);
-          if (!cancelled) { setPdfPages(preview.pages); setPdfPageCount(preview.pageCount); }
+          const [previewResult, textResult] = await Promise.allSettled([
+            renderPdfPages(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES),
+            extractPayrollPdfTextByPage(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES),
+          ]);
+          if (previewResult.status === 'rejected') throw previewResult.reason;
+          if (!cancelled) {
+            setPdfPages(previewResult.value.pages);
+            setPdfPageCount(previewResult.value.pageCount);
+            setPdfTextPages(textResult.status === 'fulfilled' ? textResult.value.pages : []);
+          }
         }
       })
       .catch((reason) => { if (!cancelled) setPdfPreviewError(errorMessage(reason, "L’aperçu local du PDF n’a pas pu être rendu.")); });
@@ -219,14 +233,21 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       setAiProgress({ label: `Analyse locale de ${active.sourceName}`, percent: null });
       let visualPageCount = pdfPageCount;
       let imageUrls = active.mediaKind === 'pdf' ? pdfPages : documentDataUrl ? [await prepareImageForAnalysis(documentDataUrl)] : [];
+      let textPages = pdfTextPages;
       if (!imageUrls.length) {
         const { mimeType, dataBase64 } = await desktopApi.getPayrollDocumentPreview(active.id);
         if (active.mediaKind === 'pdf') {
-          const preview = await renderPdfPages(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES);
+          const [preview, pageText] = await Promise.all([
+            renderPdfPages(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES),
+            extractPayrollPdfTextByPage(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES)
+              .catch(() => ({ pageCount: 0, pages: [] as string[] })),
+          ]);
           imageUrls = preview.pages;
           visualPageCount = preview.pageCount;
+          textPages = pageText.pages;
           setPdfPages(preview.pages);
           setPdfPageCount(preview.pageCount);
+          setPdfTextPages(pageText.pages);
         } else {
           imageUrls = [await prepareImageForAnalysis(`data:${mimeType};base64,${dataBase64}`)];
         }
@@ -246,9 +267,11 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         setAiProgress({ label: `Lot ${batchNumber}/${totalBatches} · pages ${pageStart}–${pageEnd} · double lecture locale`, percent: Math.round(((batchNumber - 1) / totalBatches) * 100) });
         latestResult = await payrollLocalAi.analyze({
           imageUrls: batchImages,
-          // La couche texte globale n'est injectée qu'une fois. La répéter dans
-          // chaque lot créerait de faux doublons et une provenance trompeuse.
-          extractedText: imageUrls.length === 1 ? active.extractedText : '',
+          // PDF.js restitue la couche texte page par page : chaque lot ne voit
+          // que ses pages et ne peut donc attribuer une valeur lointaine au lot.
+          extractedText: active.mediaKind === 'pdf'
+            ? payrollTextForPageBatch(textPages, pageStart, pageEnd) || (imageUrls.length === 1 ? active.extractedText : '')
+            : active.extractedText,
           pageStart,
           pageEnd,
         });
@@ -275,6 +298,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       const confidenceBp = assessPayrollDraft(merged).scoreBp;
       const saved = await desktopApi.updatePayrollImportDraft(active.id, merged, `smolvlm-500m-${latestResult.mode}-multipage-double-read-${aiDraft.identity.passes}`, latestResult.modelVersion, confidenceBp);
       setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
+      setAiProvenance((current) => ({ ...current, [saved.id]: aiDraft.provenance }));
       setEmployeeLinks((current) => ({ ...current, [saved.id]: employeeId }));
       setEmployeeLinkSources((current) => ({ ...current, [saved.id]: employeeLinkSource }));
       setEmployeeMatchNotes((current) => ({ ...current, [saved.id]: preserveManualLink ? 'Collaborateur choisi manuellement; ce choix ne sera jamais remplacé par l’IA.' : match.reason }));
@@ -435,6 +459,19 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const existingTemplate = linkedEmployeeId ? workspace.employeePayrollTemplates.find((template) => template.employeeId === linkedEmployeeId) : undefined;
   const hasRecurringEarnings = Boolean(draft?.lines.some((line) => line.kind === 'earning' && line.recurring && line.amountCents > 0));
   const interactionBusy = confirming || aiBusy || savingDrafts;
+  const currentProvenance = active ? aiProvenance[active.id] : undefined;
+  const provenancePages = currentProvenance
+    ? [...new Set([
+      ...Object.values(currentProvenance.fields).flat(),
+      ...currentProvenance.lines.flatMap((line) => line.pages),
+    ])].sort((left, right) => left - right)
+    : [];
+  const sourcedLineCount = currentProvenance?.lines.filter((line) => line.pages.length).length ?? 0;
+  const evidencePagesForLine = (line: PayrollImportLineDraft) => currentProvenance?.lines.find((evidence) => (
+    evidence.kind === line.kind
+    && evidence.amountCents === line.amountCents
+    && normalizedIdentity(evidence.label) === normalizedIdentity(line.label)
+  ))?.pages ?? [];
 
   return <Modal title="Importer des fiches de salaire" description="Elyko effectue deux lectures locales indépendantes, compare leur consensus puis attend votre validation champ par champ." onClose={() => { if (!interactionBusy) void persistAndClose(); }} wide>
     <div className="payroll-import-shell">
@@ -454,15 +491,16 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         <div className="payroll-review-grid">
           <section className="payroll-source-pane">
             <header><span><FileSearch size={17} /> Document original</span><strong>copie locale SHA‑256</strong></header>
-            {active.mediaKind === 'image' && documentDataUrl ? <img src={documentDataUrl} alt={`Fiche importée ${active.sourceName}`} /> : active.mediaKind === 'pdf' && pdfPages.length ? <><img src={pdfPages[selectedPdfPage] ?? pdfPages[0]} alt={`Page ${selectedPdfPage + 1} de ${active.sourceName}`} />{pdfPages.length > 1 ? <div className="payroll-page-picker" aria-label="Pages du document">{pdfPages.map((page, index) => <button key={index} type="button" aria-current={selectedPdfPage === index ? 'page' : undefined} onClick={() => setSelectedPdfPage(index)}><img src={page} alt="" /><span>{index + 1}</span></button>)}</div> : null}{pdfPageCount > pdfPages.length ? <p className="payroll-page-note">{pdfPageCount} pages au total · analyse bloquée pour éviter d’ignorer les pages après la {pdfPages.length}. Séparez le fichier.</p> : <p className="payroll-page-note">{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''} · couverture visuelle complète, analysée par lots de trois.</p>}</> : <div className="payroll-pdf-loading">{pdfPreviewError ? <><AlertTriangle size={18} /><span>{pdfPreviewError}</span></> : <><LoaderCircle className="spin" size={18} /><span>Rendu local des pages…</span></>}</div>}
+            {active.mediaKind === 'image' && documentDataUrl ? <img src={documentDataUrl} alt={`Fiche importée ${active.sourceName}`} /> : active.mediaKind === 'pdf' && pdfPages.length ? <><img src={pdfPages[selectedPdfPage] ?? pdfPages[0]} alt={`Page ${selectedPdfPage + 1} de ${active.sourceName}`} />{pdfPages.length > 1 ? <div className="payroll-page-picker" aria-label="Pages du document">{pdfPages.map((page, index) => <button key={index} type="button" aria-current={selectedPdfPage === index ? 'page' : undefined} onClick={() => setSelectedPdfPage(index)}><img src={page} alt="" /><span>{index + 1}</span></button>)}</div> : null}{pdfPageCount > pdfPages.length ? <p className="payroll-page-note">{pdfPageCount} pages au total · analyse bloquée pour éviter d’ignorer les pages après la {pdfPages.length}. Séparez le fichier.</p> : <p className="payroll-page-note">{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''} · couverture visuelle complète par lots de trois · texte local disponible sur {pdfTextPages.filter(Boolean).length}/{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''}.</p>}</> : <div className="payroll-pdf-loading">{pdfPreviewError ? <><AlertTriangle size={18} /><span>{pdfPreviewError}</span></> : <><LoaderCircle className="spin" size={18} /><span>Rendu local des pages…</span></>}</div>}
             <div className="source-hash">{active.fileSha256.slice(0, 20)}…</div>
           </section>
           <section className="payroll-review-pane">
             <header><div><span>1</span><div><strong>Identité et période</strong><small>Valeurs proposées, toutes modifiables</small></div></div><Button type="button" variant="secondary" size="small" disabled={aiBusy || aiState === 'unavailable'} onClick={() => void analyzeCurrent()}>{aiBusy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />} {active.extractionEngine.startsWith('smolvlm') ? 'Relancer l’IA locale' : 'Analyser avec l’IA locale'}</Button></header>
             {aiState === 'unavailable' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Le moteur local n’est pas disponible. Vous pouvez quand même contrôler et compléter les données extraites du PDF.</span></div> : aiMode === 'wasm' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Mode CPU local actif : l’analyse peut prendre plusieurs minutes, mais aucun document ne quitte ce PC.</span></div> : null}
+            {currentProvenance ? <div className="payroll-evidence-summary"><div><ShieldCheck size={16} /><span><strong>{provenancePages.length} page{provenancePages.length > 1 ? 's' : ''} sourcée{provenancePages.length > 1 ? 's' : ''}</strong><small>Consensus des deux lectures uniquement</small></span></div><div><FileSearch size={16} /><span><strong>{sourcedLineCount}/{currentProvenance.lines.length} rubrique{sourcedLineCount > 1 ? 's' : ''} avec preuve</strong><small>Un clic sur « p. » ouvre la page originale</small></span></div></div> : null}
             <div className="form-grid payroll-review-fields"><Field label="Collaborateur" required><input value={draft.employee.name} onChange={(event) => patchEmployee({ name: event.target.value })} /></Field><Field label="N° employé"><input value={draft.employee.employeeNumber} onChange={(event) => patchEmployee({ employeeNumber: event.target.value })} /></Field><Field label="Fonction"><input value={draft.employee.role} onChange={(event) => patchEmployee({ role: event.target.value })} /></Field><Field label="Taux d’activité (%)" required><input type="number" min="1" max="100" value={draft.employee.employmentRate} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], employmentRate: true } })); patchEmployee({ employmentRate: Math.min(100, Math.max(1, event.target.valueAsNumber || 100)) }); }} /></Field><Field label="Période" required><input type="month" value={draft.period} onChange={(event) => updateDraft((current) => ({ ...current, period: event.target.value }))} /></Field><Field label="Date de paiement"><input type="date" value={draft.paymentDate} onChange={(event) => updateDraft((current) => ({ ...current, paymentDate: event.target.value }))} /></Field><Field label="N° AVS"><input value={draft.employee.avsNumber} onChange={(event) => patchEmployee({ avsNumber: event.target.value })} /></Field><Field label="IBAN de l’employé"><input value={draft.employee.iban} onChange={(event) => patchEmployee({ iban: event.target.value })} /></Field><Field label="Rue" wide><input value={draft.employee.addressLine1} onChange={(event) => patchEmployee({ addressLine1: event.target.value })} /></Field><Field label="Complément"><input value={draft.employee.addressLine2} onChange={(event) => patchEmployee({ addressLine2: event.target.value })} /></Field><Field label="NPA"><input value={draft.employee.postalCode} onChange={(event) => patchEmployee({ postalCode: event.target.value })} /></Field><Field label="Localité"><input value={draft.employee.city} onChange={(event) => patchEmployee({ city: event.target.value })} /></Field><Field label="Canton"><input maxLength={2} value={draft.employee.canton} onChange={(event) => patchEmployee({ canton: event.target.value.toUpperCase() })} /></Field><Field label="Mode de salaire"><select value={draft.employee.salaryMode} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], salaryMode: true } })); patchEmployee({ salaryMode: event.target.value as PayrollImportEmployeeDraft['salaryMode'] }); }}><option value="monthly">Mensuel</option><option value="hourly">Horaire</option></select></Field></div>
             <header className="payroll-lines-heading"><div><span>2</span><div><strong>Rubriques et montants</strong><small>L’IA ne choisit aucun taux légal à votre place</small></div></div><Button type="button" variant="secondary" size="small" onClick={() => updateDraft((current) => ({ ...current, lines: [...current.lines, { id: createId(), label: '', kind: 'earning', amountCents: 0, recurring: false, confidenceBp: 10_000 }] }))}><Plus size={14} /> Ajouter</Button></header>
-            <div className="imported-pay-lines">{draft.lines.map((line) => <div key={line.id}><select value={line.kind} onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, kind: event.target.value as PayrollImportLineDraft['kind'], recurring: event.target.value === 'earning' ? candidate.recurring : false } : candidate) }))}><option value="earning">Gain soumis au brut</option><option value="deduction">Retenue employé</option><option value="reimbursement">Remboursement hors brut</option><option value="employer">Charge employeur</option></select><input value={line.label} placeholder="Libellé" onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, label: event.target.value } : candidate) }))} /><label className="money-input"><input type="number" min="0" step="0.01" value={line.amountCents ? line.amountCents / 100 : ''} onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, amountCents: Math.round((event.target.valueAsNumber || 0) * 100) } : candidate) }))} /><span>CHF</span></label><small title="Confiance de transcription, sans effet sur votre validation humaine">IA {Math.round(line.confidenceBp / 100)} %</small><label className="recurring-check"><input type="checkbox" checked={line.recurring} disabled={line.kind !== 'earning'} onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, recurring: event.target.checked } : candidate) }))} /><span>Récurrent</span></label><Button type="button" variant="ghost" size="icon" onClick={() => updateDraft((current) => ({ ...current, lines: current.lines.filter((candidate) => candidate.id !== line.id) }))}><Trash2 size={15} /></Button></div>)}</div>
+            <div className="imported-pay-lines">{draft.lines.map((line) => { const pages = evidencePagesForLine(line); return <div key={line.id}><select value={line.kind} onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, kind: event.target.value as PayrollImportLineDraft['kind'], recurring: event.target.value === 'earning' ? candidate.recurring : false, confidenceBp: 10_000 } : candidate) }))}><option value="earning">Gain soumis au brut</option><option value="deduction">Retenue employé</option><option value="reimbursement">Remboursement hors brut</option><option value="employer">Charge employeur</option></select><input value={line.label} placeholder="Libellé" onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, label: event.target.value, confidenceBp: 10_000 } : candidate) }))} /><label className="money-input"><input type="number" min="0" step="0.01" value={line.amountCents ? line.amountCents / 100 : ''} onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, amountCents: Math.round((event.target.valueAsNumber || 0) * 100), confidenceBp: 10_000 } : candidate) }))} /><span>CHF</span></label><div className={`payroll-line-evidence ${pages.length ? 'has-source' : ''}`} title="Confiance de transcription, sans effet sur votre validation humaine"><span>{pages.length ? `IA ${Math.round(line.confidenceBp / 100)} %` : line.confidenceBp === 10_000 ? 'Saisi manuellement' : `IA ${Math.round(line.confidenceBp / 100)} % · sans page`}</span>{pages.map((page) => <button type="button" key={page} onClick={() => setSelectedPdfPage(Math.max(0, page - 1))} aria-label={`Afficher la page ${page} du document original`}>p. {page}</button>)}</div><label className="recurring-check"><input type="checkbox" checked={line.recurring} disabled={line.kind !== 'earning'} onChange={(event) => updateDraft((current) => ({ ...current, lines: current.lines.map((candidate) => candidate.id === line.id ? { ...candidate, recurring: event.target.checked } : candidate) }))} /><span>Récurrent</span></label><Button type="button" variant="ghost" size="icon" onClick={() => updateDraft((current) => ({ ...current, lines: current.lines.filter((candidate) => candidate.id !== line.id) }))}><Trash2 size={15} /></Button></div>; })}</div>
             <div className="form-grid payroll-review-fields"><Field label="Total brut imprimé" required><label className="money-input"><input type="number" min="0" step="0.01" value={draft.grossCents ? draft.grossCents / 100 : ''} onChange={(event) => updateDraft((current) => ({ ...current, grossCents: Math.round((event.target.valueAsNumber || 0) * 100) }))} /><span>CHF</span></label></Field><Field label="Net à payer imprimé" required><label className="money-input"><input type="number" min="0" step="0.01" value={draft.netCents ? draft.netCents / 100 : ''} onChange={(event) => updateDraft((current) => ({ ...current, netCents: Math.round((event.target.valueAsNumber || 0) * 100) }))} /><span>CHF</span></label></Field></div>
             <div className={`payroll-import-equation ${arithmeticOk ? 'is-valid' : 'is-error'}`}><div><span>Brut</span><strong>{formatMoney(calculated.gross)}</strong></div><i>−</i><div><span>Retenues</span><strong>{formatMoney(calculated.deductions)}</strong></div><i>+</i><div><span>Remboursements</span><strong>{formatMoney(calculated.reimbursements)}</strong></div><i>=</i><div><span>Net recalculé</span><strong>{formatMoney(calculated.net)}</strong></div><div className="printed-values"><span>Imprimé · brut {draft.grossCents ? formatMoney(draft.grossCents) : 'non détecté'}</span><span>Imprimé · net {draft.netCents ? formatMoney(draft.netCents) : 'non détecté'}</span></div>{arithmeticOk ? <CheckCircle2 size={19} /> : <AlertTriangle size={19} />}</div>
             {assessment ? <div className="payroll-quality"><header><div><strong>Contrôles déterministes</strong><small>Score d’extraction {Math.round(assessment.scoreBp / 100)} % · ce score ne remplace pas votre vérification</small></div><span>{reviewBlockers.length ? `${reviewBlockers.length} correction${reviewBlockers.length > 1 ? 's' : ''}` : 'Contrôles passés'}</span></header><div className="payroll-quality__checks">{assessment.checks.map((check) => <div className={check.ok ? 'is-valid' : 'is-error'} key={check.label}>{check.ok ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}<span><strong>{check.label}</strong><small>{check.detail}</small></span></div>)}</div>{reviewBlockers.length ? <div className="payroll-quality__blockers"><strong>À corriger avant confirmation</strong>{reviewBlockers.map((blocker) => <p key={blocker}><AlertTriangle size={14} /> {blocker}</p>)}</div> : null}</div> : null}

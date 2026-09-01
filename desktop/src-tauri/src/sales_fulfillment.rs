@@ -9,7 +9,10 @@ use uuid::Uuid;
 
 use crate::{
     audit::append_audit,
-    database::{assign_document_number, now_iso, query_all, query_record_tx, LocalStore},
+    database::{
+        assign_document_number, build_issuer_snapshot, now_iso, query_all, query_record_tx,
+        LocalStore,
+    },
     error::{AppError, AppResult},
     models::{
         CancelSalesOrderInput, CancelSalesOrderInvoiceDraftInput, CancelSalesOrderRemainderInput,
@@ -950,10 +953,22 @@ impl LocalStore {
             "clients",
             order.get("client_id").and_then(Value::as_str).unwrap_or(""),
         )?;
+        let issuer = build_issuer_snapshot(&transaction)?;
+        let mut frozen_order = order
+            .as_object()
+            .cloned()
+            .ok_or_else(|| AppError::Validation("Commande invalide.".into()))?;
+        frozen_order.remove("snapshot_json");
+        frozen_order.insert("number".into(), Value::String(number.clone()));
+        frozen_order.insert("status".into(), Value::String("confirmed".into()));
+        frozen_order.insert("confirmed_at".into(), Value::String(now.clone()));
         let snapshot_json = serde_json::to_string(&json!({
-            "order":order,
+            "schema":"helvichantier.sales_order_snapshot.v1",
+            "captured_at":now.clone(),
+            "issuer":issuer,
+            "customer":client,
+            "order":Value::Object(frozen_order),
             "lines":query_all(&transaction,"SELECT * FROM sales_order_lines WHERE sales_order_id=? ORDER BY position,created_at",params![sales_order_id])?,
-            "client":client
         }))?;
         transaction.execute(
             "UPDATE sales_orders SET number=?,status='confirmed',confirmed_at=?,snapshot_json=?,updated_at=? WHERE id=?",
@@ -1461,12 +1476,38 @@ impl LocalStore {
             "delivery_note",
             delivery_date,
         )?;
-        let snapshot_json = serde_json::to_string(&json!({
-            "delivery_note":note,
-            "lines":query_all(&transaction,"SELECT * FROM delivery_note_lines WHERE delivery_note_id=? ORDER BY position,created_at",params![delivery_note_id])?,
-            "order":query_record_tx(&transaction,"sales_orders",sales_order_id)?
-        }))?;
         let now = now_iso();
+        let issuer = build_issuer_snapshot(&transaction)?;
+        let mut frozen_note = note
+            .as_object()
+            .cloned()
+            .ok_or_else(|| AppError::Validation("Bon de livraison invalide.".into()))?;
+        frozen_note.remove("snapshot_json");
+        frozen_note.insert("number".into(), Value::String(number.clone()));
+        frozen_note.insert("status".into(), Value::String("issued".into()));
+        frozen_note.insert("issued_at".into(), Value::String(now.clone()));
+        let mut frozen_order = query_record_tx(&transaction, "sales_orders", sales_order_id)?
+            .as_object()
+            .cloned()
+            .ok_or_else(|| AppError::Validation("Commande du BL invalide.".into()))?;
+        frozen_order.remove("snapshot_json");
+        let customer = query_record_tx(
+            &transaction,
+            "clients",
+            frozen_order
+                .get("client_id")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        )?;
+        let snapshot_json = serde_json::to_string(&json!({
+            "schema":"helvichantier.delivery_note_snapshot.v1",
+            "captured_at":now.clone(),
+            "issuer":issuer,
+            "customer":customer,
+            "delivery_note":Value::Object(frozen_note),
+            "lines":query_all(&transaction,"SELECT * FROM delivery_note_lines WHERE delivery_note_id=? ORDER BY position,created_at",params![delivery_note_id])?,
+            "order":Value::Object(frozen_order)
+        }))?;
         transaction.execute(
             "UPDATE delivery_notes SET number=?,status='issued',issued_at=?,snapshot_json=?,updated_at=? WHERE id=?",
             params![number, now, snapshot_json, now, delivery_note_id],
@@ -1838,6 +1879,136 @@ macro_rules! sales_fulfillment_tests {
             })
             .unwrap();
         (delivery_note_id, delivery_note_line_id)
+    }
+
+    #[test]
+    fn confirmed_order_and_issued_delivery_freeze_the_company_logo_and_parties() {
+        let (_temporary, store) = initialized_store();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE settings SET legal_form='Sàrl',logo_path=? WHERE id=1",
+                params!["C:\\profil-local\\attachments\\branding\\logo-commande.png"],
+            )
+            .unwrap();
+        let (client_id, _catalog_item_id, sales_order_id, sales_order_line_id) =
+            tracked_order(&store, 1_000, 2_000);
+
+        let order_snapshot_json: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT snapshot_json FROM sales_orders WHERE id=?",
+                params![sales_order_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let order_snapshot: Value = serde_json::from_str(&order_snapshot_json).unwrap();
+        assert_eq!(
+            order_snapshot["schema"],
+            "helvichantier.sales_order_snapshot.v1"
+        );
+        assert_eq!(
+            order_snapshot["issuer"]["logo_path"],
+            "C:\\profil-local\\attachments\\branding\\logo-commande.png"
+        );
+        assert_eq!(order_snapshot["issuer"]["legal_form"], "Sàrl");
+        assert_eq!(order_snapshot["order"]["status"], "confirmed");
+        assert!(order_snapshot["order"]["number"]
+            .as_str()
+            .is_some_and(|number| !number.is_empty()));
+        assert_eq!(order_snapshot["customer"]["name"], "Client logistique");
+        assert_eq!(order_snapshot["lines"].as_array().unwrap().len(), 1);
+        assert!(order_snapshot["order"].get("snapshot_json").is_none());
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE settings SET logo_path=? WHERE id=1",
+                params!["C:\\profil-local\\attachments\\branding\\logo-livraison.png"],
+            )
+            .unwrap();
+        store
+            .update_record(
+                "clients",
+                &client_id,
+                json!({"name":"Client renommé avant livraison"}),
+            )
+            .unwrap();
+        let (delivery_note_id, _) = issue_delivery(
+            &store,
+            &sales_order_id,
+            &sales_order_line_id,
+            1_000,
+            "2026-01-15",
+        );
+        let delivery_snapshot_json: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT snapshot_json FROM delivery_notes WHERE id=?",
+                params![delivery_note_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let delivery_snapshot: Value =
+            serde_json::from_str(&delivery_snapshot_json).unwrap();
+        assert_eq!(
+            delivery_snapshot["schema"],
+            "helvichantier.delivery_note_snapshot.v1"
+        );
+        assert_eq!(
+            delivery_snapshot["issuer"]["logo_path"],
+            "C:\\profil-local\\attachments\\branding\\logo-livraison.png"
+        );
+        assert_eq!(
+            delivery_snapshot["customer"]["name"],
+            "Client renommé avant livraison"
+        );
+        assert_eq!(delivery_snapshot["delivery_note"]["status"], "issued");
+        assert!(delivery_snapshot["delivery_note"]["number"]
+            .as_str()
+            .is_some_and(|number| !number.is_empty()));
+        assert_eq!(
+            delivery_snapshot["order"]["number"],
+            order_snapshot["order"]["number"]
+        );
+        assert!(delivery_snapshot["order"].get("snapshot_json").is_none());
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE settings SET logo_path=? WHERE id=1",
+                params!["C:\\profil-local\\attachments\\branding\\logo-futur.png"],
+            )
+            .unwrap();
+        store
+            .update_record(
+                "clients",
+                &client_id,
+                json!({"name":"Client renommé après émission"}),
+            )
+            .unwrap();
+        let connection = store.connect().unwrap();
+        let unchanged_order: String = connection
+            .query_row(
+                "SELECT snapshot_json FROM sales_orders WHERE id=?",
+                params![sales_order_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let unchanged_delivery: String = connection
+            .query_row(
+                "SELECT snapshot_json FROM delivery_notes WHERE id=?",
+                params![delivery_note_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(unchanged_order, order_snapshot_json);
+        assert_eq!(unchanged_delivery, delivery_snapshot_json);
     }
 
     #[test]
