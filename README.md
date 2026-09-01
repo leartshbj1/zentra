@@ -19,15 +19,15 @@ Elyko réunit deux produits dans ce dépôt :
 
 - Abonnement Stripe Checkout hébergé, fixé côté serveur à 50 CHF par mois au moyen d’un Price stable; le navigateur ne choisit ni le prix ni le plan.
 - Stripe Billing émet les factures récurrentes, Stripe Tax calcule la fiscalité et le portail client donne accès aux factures, au moyen de paiement et à la résiliation en fin de période.
-- Webhook Stripe vérifié sur le corps brut, avec version API Clover, garde test/live et traitement D1 idempotent même en cas de livraisons concurrentes.
+- Webhook Stripe vérifié sur le corps brut, avec version API Dahlia, garde test/live et traitement D1 idempotent même en cas de livraisons concurrentes.
 - La licence n’est avancée que par une ligne Elyko non proratisée d’une `invoice.paid`; ni le succès visuel de Checkout ni le statut courant de l’abonnement ne prouvent seuls le paiement d’une période.
 - Jeton de licence Ed25519 à durée courte, lié à l’identifiant DPAPI d’une installation Windows.
 - Sans licence valide, l’application passe en lecture seule sans supprimer les données; sauvegarde et export restent disponibles.
 - Seuls l’état d’abonnement et l’identifiant d’installation sont traités côté serveur. Les clients, factures, salaires, heures, projets et chantiers restent dans SQLite sur le PC.
 
-Les secrets `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` et `LICENSE_SIGNING_KEY_PKCS8_B64URL` doivent exister uniquement dans les variables secrètes de l’hébergement. `STRIPE_PRICE_ID` contient l’identifiant non secret du Price mensuel stable. La licence propriétaire de recette, si elle est activée, est autorisée uniquement par l’empreinte de son couple licence/installation dans `OWNER_LICENSE_BINDING_SHA256`; le serveur réémet toujours un bail daté de l’heure serveur. `PUBLIC_SITE_URL` fixe l’origine publique HTTPS autorisée. Le webhook Stripe doit viser `/api/stripe/webhook` et être créé avec la version API `2026-02-25.clover`.
+Les secrets `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` et `LICENSE_SIGNING_KEY_PKCS8_B64URL` doivent exister uniquement dans les variables secrètes de l’hébergement. `STRIPE_PRICE_ID` contient l’identifiant non secret du Price mensuel stable. La licence propriétaire de recette, si elle est activée, est autorisée uniquement par l’empreinte de son couple licence/installation dans `OWNER_LICENSE_BINDING_SHA256`; le serveur réémet toujours un bail daté de l’heure serveur. `PUBLIC_SITE_URL` fixe l’origine publique HTTPS autorisée. Le webhook Stripe doit viser `/api/stripe/webhook` et être créé avec la version API `2026-08-26.dahlia`.
 
-Le guide de configuration, la liste exacte des événements et la recette sandbox se trouvent dans [docs/STRIPE-INTEGRATION.md](docs/STRIPE-INTEGRATION.md). Le SDK `stripe@20.4.1` est volontairement épinglé au dernier patch généré pour Clover; une migration vers une version globale plus récente doit faire évoluer l’API et les types ensemble.
+Le guide de configuration, la liste exacte des événements et la recette sandbox se trouvent dans [docs/STRIPE-INTEGRATION.md](docs/STRIPE-INTEGRATION.md). Le SDK `stripe@22.6.0` et la version d’API Dahlia sont épinglés ensemble afin que les objets reçus par le webhook correspondent exactement aux types compilés.
 
 ## Développement
 

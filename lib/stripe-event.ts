@@ -7,7 +7,7 @@ export function stripeReferenceId(value: StripeReference): string {
 }
 
 /**
- * Stripe no longer exposes `invoice.subscription` with Basil/Clover. Invoice
+ * Stripe no longer exposes `invoice.subscription` with Basil and later. Invoice
  * events must follow the typed parent relationship introduced in 2025.
  */
 export function subscriptionIdFromStripeEvent(event: Stripe.Event): string {
@@ -94,7 +94,8 @@ export function paidThroughFromInvoice(
       line.currency.toLowerCase() === 'chf' &&
       line.quantity === 1 &&
       line.subtotal === expected.unitAmount &&
-      line.pricing?.unit_amount_decimal === String(expected.unitAmount) &&
+      line.pricing?.unit_amount_decimal?.toString() ===
+        String(expected.unitAmount) &&
       Number.isSafeInteger(line.period.start) &&
       Number.isSafeInteger(line.period.end) &&
       line.period.end > line.period.start

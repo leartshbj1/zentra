@@ -21,7 +21,7 @@ import {
 export const LICENSE_PLAN = 'elyko-monthly-50-chf';
 export const LICENSE_PRICE_CHF_CENTS = 5_000;
 export const ACTIVATION_COOKIE = 'hc_activation_claim';
-export const STRIPE_API_VERSION = '2026-02-25.clover';
+export const STRIPE_API_VERSION = '2026-08-26.dahlia';
 export const STRIPE_PRICE_TAX_BEHAVIOR = 'inclusive';
 
 export type StripeCheckoutSession = Stripe.Checkout.Session;

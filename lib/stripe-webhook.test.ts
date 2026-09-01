@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { constructVerifiedStripeEvent } from './stripe-webhook';
 
 const client = new Stripe('sk_test_unit_only', {
-  apiVersion: '2026-02-25.clover',
+  apiVersion: '2026-08-26.dahlia',
 });
 const webhookSecret = 'whsec_unit_test_only';
 const now = Math.floor(Date.now() / 1000);
@@ -12,7 +12,7 @@ function body(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
     id: 'evt_unit',
     object: 'event',
-    api_version: '2026-02-25.clover',
+    api_version: '2026-08-26.dahlia',
     created: now,
     data: { object: { id: 'in_unit', object: 'invoice' } },
     livemode: false,
@@ -46,17 +46,17 @@ function verify(
     webhookSecret,
     toleranceSeconds: 300,
     expectedLivemode: false,
-    expectedApiVersion: '2026-02-25.clover',
+    expectedApiVersion: '2026-08-26.dahlia',
     ...overrides,
   });
 }
 
 describe('Stripe webhook verification', () => {
-  it('accepts an exactly signed Clover event in the expected mode', async () => {
+  it('accepts an exactly signed Dahlia event in the expected mode', async () => {
     const payload = body();
     await expect(verify(payload, signature(payload))).resolves.toMatchObject({
       id: 'evt_unit',
-      api_version: '2026-02-25.clover',
+      api_version: '2026-08-26.dahlia',
       livemode: false,
     });
   });

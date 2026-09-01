@@ -61,7 +61,7 @@ const expectedInvoice = {
 };
 
 describe('Stripe event routing', () => {
-  it('reads a Clover invoice subscription from parent.subscription_details', () => {
+  it('reads a Dahlia invoice subscription from parent.subscription_details', () => {
     expect(
       subscriptionIdFromStripeEvent(
         event('invoice.paid', {

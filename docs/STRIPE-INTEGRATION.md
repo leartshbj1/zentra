@@ -23,7 +23,7 @@ Créer dans le même environnement Stripe :
 - un code fiscal produit explicite adapté au logiciel téléchargeable pour entreprise, à faire valider par la fiduciaire avant production;
 - Stripe Tax actif, siège fiscal complet et enregistrements fiscaux appropriés;
 - le portail client par défaut actif, avec connexion de récupération par e-mail, historique des factures, changement du moyen de paiement et résiliation `at_period_end`;
-- un endpoint webhook vers `https://elyko.alb-leart1.chatgpt.site/api/stripe/webhook`, version `2026-02-25.clover`.
+- un endpoint webhook vers `https://elyko.alb-leart1.chatgpt.site/api/stripe/webhook`, version `2026-08-26.dahlia`.
 
 Événements à envoyer au webhook :
 
