@@ -16,17 +16,17 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Elyko 1.8 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Elyko 1.9 | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ; QR, avoirs et relances locales | acomptes par montant/pourcentage, récurrence et modèles FR/DE/IT | P0 |
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement → paiement et comptabilité ; avoir distinct validable et imputable à une facture | OCR des achats et rapprochement d'une facture avec plusieurs commandes | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
-| Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, clôture et continuité | assistant TVA complet, pièces sur écritures et export fiduciaire | P0 |
+| Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
 | Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et OCR local des documents de paie | assiettes réglementaires distinctes, barèmes officiels puis certification externe | P0 conformité — en cours |
-| Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes | dossier d'archive contrôlable et politique de conservation | P0 conformité |
+| Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
 | Sécurité | ISO 27001, 2FA, sauvegardes cloud | SQLite locale, DPAPI licence, backups et updater signé | chiffrement de base optionnel, rôles locaux et Authenticode | P0/P1 |
@@ -43,19 +43,28 @@ présenter une prochaine action claire et garder chaque transformation traçable
    écriture comptable, avec avoir fournisseur géré et imputé séparément. Les
    réceptions émises sont le seul événement de ce cycle qui entre les articles
    suivis en stock; leur extourne crée la sortie inverse.
-4. **Automatiser sous contrôle** : récurrence, relances, OCR des achats et
+4. **Clôturer proprement — livré en 1.9** : méthode TVA versionnée, classement
+   explicite des sources, ajustements avec extourne, aperçu contrôlable et XML
+   eCH-0217 v2.0.0 généré localement pour import manuel; pré-clôture avec
+   empreinte SHA-256, verrouillage en deux étapes et dossier fiduciaire
+   DRAFT/FINAL.
+5. **Automatiser sous contrôle** : récurrence, relances, OCR des achats et
    règles bancaires proposent; l'utilisateur confirme les opérations
    financières ambiguës.
-5. **Clôturer proprement** : assistant TVA, contrôles de continuité, dossier de
-   bouclement et exports pour la fiduciaire.
 6. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer
 
 - Elyko ne revendique aucune certification ou homologation AFC, Swissdec/ELM ou
-  Olico. Une fiche de salaire PDF, un rapport TVA ou des pièces hashées ne
-  remplacent pas ces validations externes.
+  Olico. Le XML eCH-0217 v2.0.0 est généré localement pour un import manuel dans
+  Décompte TVA pro : Elyko ne le transmet pas, et ne garantit ni son acceptation
+  ni le décompte final. L'utilisateur doit vérifier, compléter et soumettre le
+  décompte dans le Portail AFC.
+- Le dossier fiduciaire DRAFT/FINAL, son manifeste et ses empreintes SHA-256
+  facilitent une conservation et une révision orientées CO/Olico. Ils ne
+  constituent pas une certification Olico : la conformité finale dépend aussi
+  des processus, supports, accès, sauvegardes et migrations de l'entreprise.
 - Une connexion bancaire directe dépend de la banque, de ses autorisations et
   d'un contrat technique. L'import ISO 20022 local reste le socle fiable.
 - Un accès fiduciaire simultané et un compagnon mobile demandent une
@@ -78,6 +87,13 @@ présenter une prochaine action claire et garder chaque transformation traçable
   facture, l'avoir, le rapprochement, le paiement ou la comptabilisation ne
   modifient le stock. Seules l'émission d'une réception et son extourne créent
   respectivement l'entrée et le mouvement inverse pour les articles suivis.
+- Le centre TVA 1.9 bloque l'export lorsqu'un profil manque ou qu'une source
+  taxable reste non classée. Les choix de méthode effective ou TDFN/TaF, de
+  contre-prestations convenues ou reçues et de périodicité doivent correspondre
+  aux autorisations et à la situation réelles de l'entreprise.
+- Le statut FINAL indique qu'une période locale a été verrouillée après une
+  revue portant sur la même empreinte. Il ne signifie pas que la fiduciaire,
+  l'AFC ou une autre autorité a validé les comptes.
 
 ## Sources officielles
 
@@ -95,3 +111,10 @@ présenter une prochaine action claire et garder chaque transformation traçable
 - [Comptabilité salariale](https://www.bexio.com/fr-CH/comptabilite-salaire)
 - [Bexio Go](https://www.bexio.com/fr-CH/bexiogo?wizard=true)
 - [Documentation API](https://docs.bexio.com/)
+- [AFC — Taux de la TVA suisse](https://www.estv.admin.ch/fr/taux-de-la-tva-suisse)
+- [eCH-0217 v2.0.0 — Décompte TVA](https://www.ech.ch/fr/ech/ech-0217/2.0.0)
+- [Loi fédérale régissant la TVA (LTVA)](https://www.fedlex.admin.ch/eli/cc/2009/615/fr)
+- [Ordonnance régissant la TVA (OTVA)](https://www.fedlex.admin.ch/eli/cc/2009/828/fr)
+- [Code des obligations (CO)](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/fr)
+- [Ordonnance concernant la tenue et la conservation des livres de comptes (Olico)](https://www.fedlex.admin.ch/eli/cc/2002/216/fr)
+- [SECO — Conservation électronique des livres de comptes](https://www.kmu.admin.ch/fr/conservation-electronique-des-livres-de-comptes)

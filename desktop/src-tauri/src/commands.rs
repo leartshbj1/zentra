@@ -32,6 +32,12 @@ use crate::{
         TimerInput, UpdatePayrollImportDraftInput, ValidateSupplierCreditNoteInput,
     },
     swiss_qr,
+    vat_reporting::{
+        ExportVatReturnInput, ListVatAdjustmentsInput, ListVatReturnExportsInput,
+        ListVatSourceClassificationsInput, ReverseVatAdjustmentInput, VatAdjustment,
+        VatAdjustmentInput, VatProfile, VatProfileInput, VatReturnExport, VatReturnPreview,
+        VatReturnPreviewInput, VatSourceClassification, VatSourceClassificationInput,
+    },
 };
 
 fn app_version(app: &AppHandle) -> String {
@@ -757,7 +763,123 @@ pub fn upsert_accounting_period(
 pub fn close_accounting_period(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.close_accounting_period(&id).map_err(command_error)
+    let _ = id;
+    Err("La clôture directe est désactivée. Préparez un contrôle dans le dossier de clôture, puis confirmez le verrouillage avec son empreinte encore valide.".into())
+}
+#[tauri::command]
+pub fn prepare_fiduciary_pre_closing(
+    state: State<'_, LocalStore>,
+    filter: PeriodFilter,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .prepare_fiduciary_pre_closing(filter)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn finalize_accounting_period_with_review(
+    state: State<'_, LocalStore>,
+    period_id: String,
+    review_id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .finalize_accounting_period_with_review(&period_id, &review_id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn export_fiduciary_closing_zip(
+    state: State<'_, LocalStore>,
+    app: AppHandle,
+    review_id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .export_fiduciary_closing_zip(&review_id, &app_version(&app))
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn create_vat_profile(
+    state: State<'_, LocalStore>,
+    input: VatProfileInput,
+) -> Result<VatProfile, String> {
+    require_write(&state)?;
+    state.create_vat_profile(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn list_vat_profiles(state: State<'_, LocalStore>) -> Result<Vec<VatProfile>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_vat_profiles().map_err(command_error)
+}
+#[tauri::command]
+pub fn set_vat_source_classification(
+    state: State<'_, LocalStore>,
+    input: VatSourceClassificationInput,
+) -> Result<VatSourceClassification, String> {
+    require_write(&state)?;
+    state
+        .set_vat_source_classification(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn list_vat_source_classifications(
+    state: State<'_, LocalStore>,
+    input: ListVatSourceClassificationsInput,
+) -> Result<Vec<VatSourceClassification>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .list_vat_source_classifications(input)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn create_vat_adjustment(
+    state: State<'_, LocalStore>,
+    input: VatAdjustmentInput,
+) -> Result<VatAdjustment, String> {
+    require_write(&state)?;
+    state.create_vat_adjustment(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn reverse_vat_adjustment(
+    state: State<'_, LocalStore>,
+    input: ReverseVatAdjustmentInput,
+) -> Result<VatAdjustment, String> {
+    require_write(&state)?;
+    state.reverse_vat_adjustment(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn list_vat_adjustments(
+    state: State<'_, LocalStore>,
+    input: ListVatAdjustmentsInput,
+) -> Result<Vec<VatAdjustment>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_vat_adjustments(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn preview_vat_return(
+    state: State<'_, LocalStore>,
+    input: VatReturnPreviewInput,
+) -> Result<VatReturnPreview, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.preview_vat_return(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn export_vat_return_xml(
+    state: State<'_, LocalStore>,
+    input: ExportVatReturnInput,
+) -> Result<VatReturnExport, String> {
+    require_write(&state)?;
+    state.export_vat_return_xml(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn list_vat_return_exports(
+    state: State<'_, LocalStore>,
+    input: ListVatReturnExportsInput,
+) -> Result<Vec<VatReturnExport>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.list_vat_return_exports(input).map_err(command_error)
 }
 #[tauri::command]
 pub fn post_manual_journal_entry(

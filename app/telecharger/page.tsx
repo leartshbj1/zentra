@@ -580,7 +580,7 @@ export default function DownloadPage() {
               </article>
             ))}
             <div className="sm:col-span-2 rounded-2xl border border-[#efb157]/30 bg-[#efb157]/10 p-5 text-xs leading-6 text-white/72">
-              <strong className="text-white">Portée réglementaire :</strong> la paie est assistée localement mais non certifiée Swissdec/ELM; Elyko ne transmet pas de décompte TVA et ses rapports comptables ne remplacent pas la validation du bouclement par le responsable ou la fiduciaire.
+              <strong className="text-white">Portée réglementaire :</strong> la paie est assistée localement mais non certifiée Swissdec/ELM. Elyko génère un XML eCH-0217 v2.0.0 pour import manuel, sans transmission ni acceptation AFC garantie. Le dossier fiduciaire soutient un processus orienté CO/Olico, mais n’est pas certifié Olico et ne remplace pas la validation du bouclement.
             </div>
           </div>
         </div>

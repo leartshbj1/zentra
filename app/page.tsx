@@ -28,9 +28,11 @@ import { BrandMark } from '@/components/brand-mark';
 import { BusinessOperationsDemo } from '@/components/business-operations-demo';
 import { CapabilityStory } from '@/components/capability-story';
 import { HeroDashboard } from '@/components/hero-dashboard';
+import { MobileNavigation } from '@/components/mobile-navigation';
 import { PayrollLocalDemo } from '@/components/payroll-local-demo';
 import { ProductShowcase } from '@/components/product-showcase';
 import { PurchaseButton } from '@/components/purchase-button';
+import { VatClosingDemo } from '@/components/vat-closing-demo';
 import { ProductFlowDemo } from './product-flow-demo';
 import { ELYKO_VERSION } from '@/lib/downloads';
 import { cn } from '@/lib/utils';
@@ -75,6 +77,16 @@ const features = [
     icon: Users,
     title: 'Équipe & salaires',
     text: 'Importez d’anciennes fiches, contrôlez les champs proposés localement et générez des PDF détaillés avec vos taux validés.',
+  },
+  {
+    icon: BookOpenCheck,
+    title: 'Comptabilité & TVA',
+    text: 'Journal, grand livre, bilan, résultat et centre TVA avec export XML eCH-0217 contrôlé.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Clôture & fiduciaire',
+    text: 'Pré-clôture, empreinte des données, verrouillage explicite et dossier ZIP DRAFT ou FINAL.',
   },
 ];
 
@@ -163,6 +175,16 @@ const capabilityRows = [
     'Journal, grand livre, balance, bilan et résultat calculés depuis les écritures.',
   ],
   [
+    'TVA suisse',
+    'Disponible avec validation',
+    'Profils datés, classifications explicites, aperçu et XML eCH-0217 v2.0.0 pour import manuel.',
+  ],
+  [
+    'Clôture & dossier fiduciaire',
+    'Disponible avec validation',
+    'Contrôles, empreinte, verrouillage irréversible et ZIP DRAFT/FINAL avec manifeste SHA-256.',
+  ],
+  [
     'Paie suisse',
     'Assistée localement',
     'Import OCR/IA local, calculs contrôlés et PDF; Elyko n’est pas certifié Swissdec.',
@@ -221,10 +243,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-18"
+              href="#lot-19"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.8
+              Nouveautés 1.9
             </a>
             <a
               href="#capacites"
@@ -249,25 +271,7 @@ export default function Home() {
             </a>
           </nav>
           <div className="flex items-center gap-2">
-            <details className="site-mobile-nav group relative lg:hidden">
-              <summary
-                className="grid size-11 cursor-pointer list-none place-items-center rounded-full border border-[#d4d2ca] bg-white/75 text-[#294536]"
-                aria-label="Ouvrir le menu"
-              >
-                <Plus className="size-5 transition-transform group-open:rotate-45" />
-              </summary>
-              <nav
-                className="absolute right-0 top-[calc(100%+.65rem)] z-50 grid min-w-64 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
-                aria-label="Navigation mobile"
-              >
-                <a href="#logiciel">Voir le logiciel</a>
-                <a href="#lot-18">Nouveautés 1.8</a>
-                <a href="#capacites">Capacités</a>
-                <a href="#confidentialite">Données locales</a>
-                <a href="#tarif">Tarif</a>
-                <a href="mailto:leartshabija@gmail.com">Contact</a>
-              </nav>
-            </details>
+            <MobileNavigation />
             <a
               href="/telecharger"
               className={cn(
@@ -290,11 +294,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-18"
+            href="#lot-19"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.8 · achats fournisseurs sans ressaisie
+            Elyko 1.9 · TVA et clôture sous contrôle
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -303,9 +307,9 @@ export default function Home() {
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
             Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
-            projets, heures, salaires et comptabilité&nbsp;: Elyko centralise
-            votre gestion dans une application Windows, tandis que vos données
-            métier restent sur votre PC.
+            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;:
+            Elyko centralise votre gestion dans une application Windows, tandis
+            que vos données métier restent sur votre PC.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -364,8 +368,65 @@ export default function Home() {
       <CapabilityStory />
 
       <section
-        id="lot-18"
+        id="lot-19"
         className="scroll-mt-24 border-y border-[#d7ddd8] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="lot-19-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
+                Elyko 1.9 · TVA suisse et bouclement
+              </p>
+              <h2
+                id="lot-19-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Préparer, contrôler, puis seulement exporter ou clôturer.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#607068] lg:justify-self-end">
+              Le nouveau centre TVA relie les pièces locales à un traitement
+              explicite. Le dossier de clôture fige ensuite une preuve
+              vérifiable avant tout verrouillage irréversible.
+            </p>
+          </div>
+
+          <div className="mt-10">
+            <VatClosingDemo />
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <article className="rounded-[24px] border border-[#cbd8ce] bg-[#173d2c] p-6 text-white sm:p-7">
+              <BookOpenCheck className="size-6 text-[#efb157]" aria-hidden="true" />
+              <h3 className="mt-5 text-xl font-semibold">
+                Du journal jusqu’au dossier fiduciaire.
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-white/72">
+                Journal, grand livre, balance, bilan, résultat, index des pièces,
+                audit, manifeste et SHA-256 sont réunis dans un ZIP DRAFT ou
+                FINAL, sans effacer l’historique.
+              </p>
+            </article>
+            <article className="rounded-[24px] border border-[#d9d1c3] bg-[#fffaf1] p-6 sm:p-7">
+              <ShieldCheck className="size-6 text-[#a8661e]" aria-hidden="true" />
+              <h3 className="mt-5 text-xl font-semibold text-[#3f3528]">
+                Une portée réglementaire écrite noir sur blanc.
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-[#6f6455]">
+                Le XML est destiné à l’import manuel dans Décompte TVA pro. Le
+                dossier soutient un processus orienté CO/Olico, mais Elyko ne
+                revendique ni transmission AFC, ni acceptation, ni certification.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="lot-18"
+        className="scroll-mt-24 border-b border-[#ded9ce] bg-[#fffaf1] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
         aria-labelledby="lot-18-title"
       >
@@ -1122,8 +1183,9 @@ export default function Home() {
           <p className="mt-5 rounded-2xl border border-[#e1d4c0] bg-[#fff9ef] px-5 py-4 text-sm leading-6 text-[#70562f]">
             Elyko facture progressivement le livré des lignes concernées; les
             prestations simples peuvent rester en facture directe. Les acomptes
-            définis par montant ou pourcentage, la transmission TVA et l’envoi
-            automatique des relances restent des étapes suivantes.
+            définis par montant ou pourcentage et l’envoi automatique des
+            relances restent des étapes suivantes. L’import manuel du XML TVA
+            est disponible; Elyko ne transmet rien à l’AFC.
           </p>
           <div className="mt-10 flex flex-col items-start justify-between gap-5 rounded-[24px] bg-[#173d2c] p-6 text-white sm:flex-row sm:items-center sm:p-8">
             <div>
@@ -1296,6 +1358,8 @@ export default function Home() {
                   'Rentabilité par dossier',
                   'Salaires préparatoires',
                   'Comptabilité locale',
+                  'Centre TVA & export eCH',
+                  'Dossier de clôture fiduciaire',
                   'Sauvegarde & restauration',
                   'Mises à jour incluses',
                 ].map((item) => (
@@ -1402,11 +1466,11 @@ export default function Home() {
               ],
               [
                 'Elyko transmet-il un décompte TVA à l’AFC ?',
-                'Non. Les documents et écritures conservent leurs montants de TVA, mais Elyko ne prépare ni ne soumet encore de décompte TVA officiel. Faites contrôler votre traitement et votre décompte par une fiduciaire.',
+                'Non. Elyko génère localement un XML eCH-0217 v2.0.0 pour import manuel dans Décompte TVA pro. L’utilisateur vérifie, complète et soumet ensuite dans le Portail AFC; aucune transmission, acceptation ou certification n’est garantie par Elyko.',
               ],
               [
                 'Le bilan affiché constitue-t-il une clôture légale automatique ?',
-                'Non. Le bilan et le résultat sont calculés depuis les écritures locales. Les inventaires, amortissements, régularisations, annexes et décisions de bouclement doivent être préparés et validés par le responsable ou la fiduciaire.',
+                'Non. Elyko propose une revue SHA-256, un verrouillage explicite et un ZIP DRAFT ou FINAL contenant les états et contrôles. Le processus soutient une organisation orientée CO/Olico, mais ne constitue pas une certification Olico; inventaires, amortissements, régularisations, annexe et décisions restent à valider par le responsable ou la fiduciaire.',
               ],
             ].map(([question, answer]) => (
               <details key={question} className="group py-3">

@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Elyko
 
-État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.8.
+État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.9.
 
 Cette feuille de route compare Elyko aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Elyko reste une application Windows locale, avec les données conservées chez le client.
 
@@ -25,10 +25,10 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 | Achats | fournisseurs, commandes, réceptions, factures et avoirs fournisseurs, justificatifs, rapprochement, échéances et paiements | Disponible : commande → réception partielle/complète → facture → rapprochement → paiement/comptabilité, avec avoir distinct imputable à une facture. Une facture se rapproche actuellement d'une seule commande ; multi-commandes et OCR des achats à venir |
 | Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible pour les crédits clients et débits fournisseurs ; périmètre détaillé ci-dessous |
 | Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Devis avec produits → commandes, BL partiels/complets et situations/finales par quantités ; prestations simples en facture directe ; acomptes par montant/pourcentage et récurrence à venir |
-| Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Partiel ; validation fiduciaire requise |
+| Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Disponible dans le périmètre 1.9 : profils et calcul TVA contrôlés, XML eCH-0217 v2.0.0 local, pré-clôture et dossier fiduciaire DRAFT/FINAL ; aucune transmission ni certification AFC/Olico |
 | Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, tâches, jalons, responsables, échéances, temps, coûts, rentabilité et temps approuvés vers facture disponibles |
 | Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Disponible en partie ; Swissdec/ELM non certifié |
-| Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Planifié |
+| Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Verrouillage de période et audit disponibles ; rôles locaux et accès fiduciaire simultané planifiés |
 | Écosystème | API locale, connecteurs isolés, compagnon mobile | Ultérieur |
 
 ## Périmètre achats d'Elyko 1.8
@@ -53,6 +53,22 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 
 Cette portée volontairement bornée évite de présenter une lecture bancaire comme une comptabilisation certaine. Les mouvements importés, les liens de comptes, la décision de l'utilisateur et l'écriture résultante restent dans la base SQLite locale et ses sauvegardes.
 
+## Périmètre TVA d'Elyko 1.9
+
+- Un profil daté conserve la méthode réellement appliquée : méthode effective ou TDFN/TaF (`simpleTaxRateMethod`), contre-prestations convenues ou reçues, périodicité et présentation brute ou nette selon le cas. Une nouvelle version ne réécrit pas les périodes antérieures.
+- Le centre TVA prépare les chiffres utiles du décompte à partir des écritures locales. Les sources ambiguës ou non classées restent visibles et bloquent l'export : Elyko ne devine pas leur traitement fiscal.
+- Les ajustements sont journalisés. Une correction n'efface pas l'original : elle est extournée explicitement afin de conserver l'historique.
+- L'aperçu présente notamment les chiffres 200, 299 et le montant dû ou l'avoir estimé aux chiffres 500/510, avec le détail par taux ou activité. L'utilisateur reste responsable de la vérification des catégories, autorisations et justificatifs.
+- Elyko génère localement un fichier XML eCH-0217 v2.0.0 destiné à l'import **manuel** dans Décompte TVA pro. Le logiciel n'effectue aucune transmission à l'AFC et ne garantit ni l'acceptation du fichier, ni l'exactitude du décompte final, ni une certification. L'utilisateur vérifie, complète et soumet dans le Portail AFC.
+
+## Périmètre clôture et dossier fiduciaire d'Elyko 1.9
+
+- La clôture suit deux étapes : Elyko prépare d'abord une revue figée, affiche les contrôles et calcule une empreinte SHA-256; l'utilisateur peut ensuite faire vérifier le dossier avant de verrouiller définitivement la période.
+- Toute modification d'une écriture, d'une pièce ou d'un réglage pertinent invalide la revue précédente. Une clôture définitive exige une revue encore valable et une confirmation explicite du nom de la période.
+- Avant le verrouillage, l'export produit un dossier `DRAFT`. Après le verrouillage de la même période et sur la même empreinte, il produit un dossier `FINAL` comprenant les états comptables, index de pièces, audit, manifeste et fichier `SHA256SUMS`.
+- `FINAL` décrit uniquement l'état verrouillé dans Elyko. Il ne signifie pas que la fiduciaire, l'AFC ou une autre autorité a approuvé les comptes.
+- Ces fonctions soutiennent une organisation et une conservation orientées CO/Olico, mais Elyko n'est pas « certifié Olico ». La conformité dépend également des procédures internes, droits d'accès, supports de conservation, sauvegardes, migrations et contrôles de l'entreprise.
+
 ## Références officielles consultées
 
 - Fonctions : https://www.bexio.com/fr-CH/fonctions
@@ -67,6 +83,13 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 - ISO 20022 : https://www.bexio.com/fr-CH/iso20022
 - API : https://docs.bexio.com/
 - Comparatif des forfaits du 28 mai 2026 : https://cdn.www.bexio.com/assets/content_craft/documents/bexio/compare-packages-fr.pdf
+- AFC, taux de la TVA suisse : https://www.estv.admin.ch/fr/taux-de-la-tva-suisse
+- eCH-0217 v2.0.0, Décompte TVA : https://www.ech.ch/fr/ech/ech-0217/2.0.0
+- Loi fédérale régissant la TVA (LTVA) : https://www.fedlex.admin.ch/eli/cc/2009/615/fr
+- Ordonnance régissant la TVA (OTVA) : https://www.fedlex.admin.ch/eli/cc/2009/828/fr
+- Code des obligations (CO) : https://www.fedlex.admin.ch/eli/cc/27/317_321_377/fr
+- Ordonnance concernant la tenue et la conservation des livres de comptes (Olico) : https://www.fedlex.admin.ch/eli/cc/2002/216/fr
+- SECO, conservation électronique des livres de comptes : https://www.kmu.admin.ch/fr/conservation-electronique-des-livres-de-comptes
 - SIX, Swiss Payment Standards 2026 — Implementation Guidelines for Cash Management : https://www.six-group.com/dam/download/banking-services/standardization/sps/ig-cash-management-sps-2026-en.pdf
 - SIX, Swiss Payment Standards 2026 — Business Rules : https://www.six-group.com/dam/download/banking-services/standardization/sps/business-rules-sps-2026-en.pdf
 - SIX, standardisation des paiements suisses : https://www.six-group.com/en/products-services/banking-services/payment-standardization/swiss-payments.html
@@ -77,7 +100,7 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 1. Étendre le rapprochement fournisseur à une facture couvrant plusieurs commandes et ajouter un OCR d'achats avec contrôle humain.
 2. Ajouter les acomptes de vente définis par montant ou pourcentage, avec imputation explicite sur la facture finale.
 3. Ajouter récurrence, modèles multilingues et envoi de documents ou relances explicitement configuré par le client.
-4. Ajouter assistants de TVA et de bouclement, pièces sur écritures et exports fiduciaires ; aucune transmission ou certification AFC ne sera annoncée sans validation dédiée.
+4. Étendre les pièces liées aux écritures et préparer un échange fiduciaire chiffré, sans transformer cet échange en synchronisation implicite.
 5. Ajouter import/export de contacts, catégories, rôles locaux et accès fiduciaire contrôlé.
 
-Swissdec/ELM reste un programme de certification distinct : Elyko doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant que cette certification n'est pas obtenue. Les rapports TVA ne constituent ni une transmission ni une certification AFC, et les pièces hashées ne constituent pas une certification Olico.
+Swissdec/ELM reste un programme de certification distinct : Elyko doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant que cette certification n'est pas obtenue. Le XML eCH-0217 est un export local pour import manuel et ne constitue ni une transmission ni une certification AFC. Le dossier DRAFT/FINAL et ses empreintes SHA-256 soutiennent le contrôle et la conservation, sans constituer une certification Olico.

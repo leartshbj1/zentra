@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 21;
+pub const SCHEMA_VERSION: i64 = 22;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -70,6 +70,12 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "payslip_contributions",
     "payroll_document_imports",
     "employee_payroll_templates",
+    "vat_profiles",
+    "vat_source_classifications",
+    "vat_adjustments",
+    "vat_return_exports",
+    "closing_reviews",
+    "closing_package_exports",
     "license_state",
 ];
 
@@ -4155,4 +4161,148 @@ BEFORE UPDATE OF status ON supplier_receipts WHEN OLD.status='reversing' AND NEW
 BEGIN SELECT RAISE(ABORT,'supplier receipt reversal requires every exact inverse stock movement'); END;
 
 PRAGMA user_version=21;
+"#;
+
+/// Registre TVA et pré-clôture V22. La migration ne crée aucun profil, aucun
+/// décompte et aucune écriture de démonstration : chaque décision fiscale doit
+/// être renseignée explicitement par l'entreprise.
+pub const MIGRATION_V22_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS vat_profiles (
+  id TEXT PRIMARY KEY CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  effective_from TEXT NOT NULL CHECK (LENGTH(effective_from)=10 AND effective_from GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  effective_to TEXT CHECK (effective_to IS NULL OR (LENGTH(effective_to)=10 AND effective_to GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND effective_to>=effective_from)),
+  reporting_method TEXT NOT NULL CHECK (reporting_method IN ('effective','simple_tax_rate')),
+  form_of_reporting TEXT NOT NULL CHECK (form_of_reporting IN ('agreed','received')),
+  periodicity TEXT NOT NULL CHECK (periodicity IN ('monthly','quarterly','semiannual','annual')),
+  gross_or_net TEXT NOT NULL DEFAULT 'net' CHECK (gross_or_net IN ('net','gross')),
+  tdfn_activity_id TEXT CHECK (tdfn_activity_id IS NULL OR (LENGTH(tdfn_activity_id)=5 AND tdfn_activity_id NOT GLOB '*[^0-9]*')),
+  tdfn_rate_bp INTEGER CHECK (tdfn_rate_bp IS NULL OR tdfn_rate_bp BETWEEN 0 AND 10000),
+  afc_authorization_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (afc_authorization_confirmed IN (0,1)),
+  notes TEXT CHECK (notes IS NULL OR LENGTH(notes)<=20000),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (
+    (reporting_method='effective' AND tdfn_activity_id IS NULL AND tdfn_rate_bp IS NULL) OR
+    (reporting_method='simple_tax_rate' AND tdfn_activity_id IS NOT NULL AND tdfn_rate_bp IS NOT NULL AND afc_authorization_confirmed=1)
+  )
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vat_profiles_open_ended
+ON vat_profiles((effective_to IS NULL)) WHERE effective_to IS NULL;
+CREATE INDEX IF NOT EXISTS idx_vat_profiles_dates
+ON vat_profiles(effective_from,effective_to);
+
+CREATE TABLE IF NOT EXISTS vat_source_classifications (
+  id TEXT PRIMARY KEY CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  source_type TEXT NOT NULL CHECK (source_type IN ('invoice_item','supplier_invoice_item','expense')),
+  source_id TEXT NOT NULL CHECK (LENGTH(source_id) BETWEEN 1 AND 255),
+  treatment TEXT NOT NULL CHECK (treatment IN (
+    'taxable','supplies_to_foreign','supplies_abroad','transfer_notification','exempt','out_of_scope','opted',
+    'input_materials','input_investments','non_deductible'
+  )),
+  note TEXT CHECK (note IS NULL OR LENGTH(note)<=1000),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(source_type,source_id),
+  CHECK (
+    (source_type='invoice_item' AND treatment IN ('taxable','supplies_to_foreign','supplies_abroad','transfer_notification','exempt','out_of_scope','opted')) OR
+    (source_type IN ('supplier_invoice_item','expense') AND treatment IN ('input_materials','input_investments','non_deductible'))
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_vat_classifications_source
+ON vat_source_classifications(source_type,source_id);
+
+CREATE TABLE IF NOT EXISTS vat_adjustments (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  adjustment_date TEXT NOT NULL CHECK (LENGTH(adjustment_date)=10 AND adjustment_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  category TEXT NOT NULL CHECK (category IN (
+    'supplies_to_foreign','supplies_abroad','transfer_notification','supplies_exempt','reduction_of_consideration','various_deduction','opted',
+    'acquisition_tax','input_materials','input_investments','subsequent_input_tax','input_tax_corrections','input_tax_reductions','subsidies','donations'
+  )),
+  amount_cents INTEGER NOT NULL CHECK (amount_cents<>0 AND amount_cents BETWEEN -9000000000000000 AND 9000000000000000),
+  tax_rate_bp INTEGER CHECK (tax_rate_bp IS NULL OR tax_rate_bp BETWEEN 0 AND 10000),
+  description TEXT NOT NULL CHECK (LENGTH(TRIM(description)) BETWEEN 1 AND 500),
+  evidence_reference TEXT CHECK (evidence_reference IS NULL OR LENGTH(evidence_reference)<=500),
+  reverses_adjustment_id TEXT UNIQUE REFERENCES vat_adjustments(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_by TEXT NOT NULL CHECK (LENGTH(TRIM(created_by)) BETWEEN 1 AND 200),
+  created_at TEXT NOT NULL,
+  CHECK ((category='acquisition_tax' AND tax_rate_bp IS NOT NULL) OR (category<>'acquisition_tax' AND tax_rate_bp IS NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_vat_adjustments_date ON vat_adjustments(adjustment_date,sequence);
+CREATE TRIGGER IF NOT EXISTS vat_adjustments_reversal_guard
+BEFORE INSERT ON vat_adjustments WHEN NEW.reverses_adjustment_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM vat_adjustments original
+  WHERE original.id=NEW.reverses_adjustment_id AND original.category=NEW.category
+    AND original.amount_cents=-NEW.amount_cents
+    AND COALESCE(original.tax_rate_bp,-1)=COALESCE(NEW.tax_rate_bp,-1)
+    AND original.reverses_adjustment_id IS NULL
+    AND NOT EXISTS(SELECT 1 FROM vat_adjustments prior WHERE prior.reverses_adjustment_id=original.id)
+)
+BEGIN SELECT RAISE(ABORT,'invalid VAT adjustment reversal'); END;
+CREATE TRIGGER IF NOT EXISTS vat_adjustments_no_update
+BEFORE UPDATE ON vat_adjustments BEGIN SELECT RAISE(ABORT,'VAT adjustments are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS vat_adjustments_no_delete
+BEFORE DELETE ON vat_adjustments BEGIN SELECT RAISE(ABORT,'VAT adjustments are immutable'); END;
+
+CREATE TABLE IF NOT EXISTS vat_return_exports (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  profile_id TEXT NOT NULL REFERENCES vat_profiles(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  date_from TEXT NOT NULL CHECK (LENGTH(date_from)=10),
+  date_to TEXT NOT NULL CHECK (LENGTH(date_to)=10 AND date_to>=date_from),
+  submission_type TEXT NOT NULL CHECK (submission_type IN ('initial','correction','annual_reconciliation')),
+  source_sha256 TEXT NOT NULL CHECK (LENGTH(source_sha256)=64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'),
+  payload_json TEXT NOT NULL CHECK (LENGTH(payload_json) BETWEEN 2 AND 2000000),
+  xml_sha256 TEXT NOT NULL CHECK (LENGTH(xml_sha256)=64 AND xml_sha256 NOT GLOB '*[^0-9a-f]*'),
+  file_name TEXT NOT NULL CHECK (LENGTH(TRIM(file_name)) BETWEEN 1 AND 255),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vat_return_exports_period ON vat_return_exports(date_from,date_to,sequence DESC);
+CREATE TRIGGER IF NOT EXISTS vat_return_exports_no_update
+BEFORE UPDATE ON vat_return_exports BEGIN SELECT RAISE(ABORT,'VAT return exports are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS vat_return_exports_no_delete
+BEFORE DELETE ON vat_return_exports BEGIN SELECT RAISE(ABORT,'VAT return exports are immutable'); END;
+
+CREATE TABLE IF NOT EXISTS closing_reviews (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  accounting_period_id TEXT NOT NULL REFERENCES accounting_periods(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'prepared' CHECK (status IN ('prepared','consumed')),
+  source_sha256 TEXT NOT NULL CHECK (LENGTH(source_sha256)=64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'),
+  checks_json TEXT NOT NULL CHECK (LENGTH(checks_json) BETWEEN 2 AND 1000000),
+  report_json TEXT NOT NULL CHECK (LENGTH(report_json) BETWEEN 2 AND 4000000),
+  created_at TEXT NOT NULL,
+  consumed_at TEXT,
+  CHECK ((status='prepared' AND consumed_at IS NULL) OR (status='consumed' AND consumed_at IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_closing_reviews_period ON closing_reviews(accounting_period_id,sequence DESC);
+CREATE TRIGGER IF NOT EXISTS closing_reviews_update_guard
+BEFORE UPDATE ON closing_reviews WHEN NOT (
+  OLD.status='prepared' AND NEW.status='consumed' AND OLD.id=NEW.id
+  AND OLD.accounting_period_id=NEW.accounting_period_id AND OLD.source_sha256=NEW.source_sha256
+  AND OLD.checks_json=NEW.checks_json AND OLD.report_json=NEW.report_json
+  AND OLD.created_at=NEW.created_at AND NEW.consumed_at IS NOT NULL
+)
+BEGIN SELECT RAISE(ABORT,'invalid closing review transition'); END;
+CREATE TRIGGER IF NOT EXISTS closing_reviews_no_delete
+BEFORE DELETE ON closing_reviews BEGIN SELECT RAISE(ABORT,'closing reviews are immutable'); END;
+
+CREATE TABLE IF NOT EXISTS closing_package_exports (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  accounting_period_id TEXT NOT NULL REFERENCES accounting_periods(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  closing_review_id TEXT NOT NULL REFERENCES closing_reviews(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  package_status TEXT NOT NULL CHECK (package_status IN ('DRAFT','FINAL')),
+  source_sha256 TEXT NOT NULL CHECK (LENGTH(source_sha256)=64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'),
+  manifest_sha256 TEXT NOT NULL CHECK (LENGTH(manifest_sha256)=64 AND manifest_sha256 NOT GLOB '*[^0-9a-f]*'),
+  file_name TEXT NOT NULL CHECK (LENGTH(TRIM(file_name)) BETWEEN 1 AND 255),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_closing_package_exports_period ON closing_package_exports(accounting_period_id,sequence DESC);
+CREATE TRIGGER IF NOT EXISTS closing_package_exports_no_update
+BEFORE UPDATE ON closing_package_exports BEGIN SELECT RAISE(ABORT,'closing package exports are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS closing_package_exports_no_delete
+BEFORE DELETE ON closing_package_exports BEGIN SELECT RAISE(ABORT,'closing package exports are immutable'); END;
+
+PRAGMA user_version=22;
 "#;

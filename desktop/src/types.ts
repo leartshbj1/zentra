@@ -1558,6 +1558,242 @@ export type IncomeStatementReport = {
   previousProfitCents: number;
 };
 
+export type FiduciaryAttachmentIssue = {
+  attachmentId: Identifier;
+  originalName: string;
+  issue: string;
+};
+
+export type FiduciaryClosingReview = {
+  schema: 'elyko.fiduciary-pre-closing.v1';
+  reviewId: Identifier;
+  preparedAt: string;
+  period: AccountingPeriod;
+  sourceSha256: string;
+  packageStatusIfExported: 'DRAFT' | 'FINAL';
+  checks: {
+    readyForFinal: boolean;
+    journalBalanced: boolean;
+    balanceSheetBalanced: boolean;
+    auditChainValid: boolean;
+    attachmentsTotal: number;
+    attachmentsVerified: number;
+    attachmentIssues: FiduciaryAttachmentIssue[];
+    continuity: AccountingContinuity;
+  };
+  summary: {
+    journalEntries: number;
+    journalLines: number;
+    accountsWithActivity: number;
+    debitCents: number;
+    creditCents: number;
+    profitCents: number;
+    assetsCents: number;
+    liabilitiesCents: number;
+    equityCents: number;
+  };
+  disclaimer: string;
+};
+
+export type FiduciaryPackageExport = {
+  schema: 'elyko.fiduciary-package-export.v1';
+  exportId: Identifier;
+  reviewId: Identifier;
+  createdAt: string;
+  period: AccountingPeriod;
+  packageStatus: 'DRAFT' | 'FINAL';
+  sourceSha256: string;
+  manifestSha256: string;
+  fileName: string;
+  path: string;
+  fileCount: number;
+  disclaimer: string;
+};
+
+export type FiduciaryPeriodFinalization = {
+  schema: 'elyko.fiduciary-period-finalization.v1';
+  reviewId: Identifier;
+  sourceSha256: string;
+  period: AccountingPeriod;
+};
+
+export type VatReportingMethod = 'effective' | 'simple_tax_rate';
+export type VatReportingBasis = 'agreed' | 'received';
+export type VatReportingPeriodicity =
+  | 'monthly'
+  | 'quarterly'
+  | 'semiannual'
+  | 'annual';
+export type VatSubmissionType =
+  | 'initial'
+  | 'correction'
+  | 'annual_reconciliation';
+export type VatSourceType =
+  | 'invoice_item'
+  | 'supplier_invoice_item'
+  | 'expense';
+export type VatSourceTreatment =
+  | 'taxable'
+  | 'supplies_to_foreign'
+  | 'supplies_abroad'
+  | 'transfer_notification'
+  | 'exempt'
+  | 'out_of_scope'
+  | 'opted'
+  | 'input_materials'
+  | 'input_investments'
+  | 'non_deductible';
+export type VatAdjustmentCategory =
+  | 'supplies_to_foreign'
+  | 'supplies_abroad'
+  | 'transfer_notification'
+  | 'supplies_exempt'
+  | 'reduction_of_consideration'
+  | 'various_deduction'
+  | 'opted'
+  | 'acquisition_tax'
+  | 'input_materials'
+  | 'input_investments'
+  | 'subsequent_input_tax'
+  | 'input_tax_corrections'
+  | 'input_tax_reductions'
+  | 'subsidies'
+  | 'donations';
+
+export type VatProfile = {
+  id: Identifier;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  reportingMethod: VatReportingMethod;
+  formOfReporting: VatReportingBasis;
+  periodicity: VatReportingPeriodicity;
+  grossOrNet: 'net' | 'gross';
+  tdfnActivityId: string | null;
+  tdfnRateBp: number | null;
+  afcAuthorizationConfirmed: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VatSourceClassification = {
+  id: Identifier;
+  sourceType: VatSourceType;
+  sourceId: Identifier;
+  treatment: VatSourceTreatment;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VatAdjustment = {
+  sequence: number;
+  id: Identifier;
+  adjustmentDate: string;
+  category: VatAdjustmentCategory;
+  amountCents: number;
+  taxRateBp: number | null;
+  description: string;
+  evidenceReference: string;
+  reversesAdjustmentId: Identifier | null;
+  createdBy: string;
+  createdAt: string;
+};
+
+export type VatBlockingIssue = {
+  code: string;
+  message: string;
+  sourceType: VatSourceType | null;
+  sourceId: Identifier | null;
+};
+
+export type VatUnclassifiedSource = {
+  sourceType: VatSourceType;
+  sourceId: Identifier;
+  parentId: Identifier;
+  occurrenceDate: string;
+  description: string;
+  amountCents: number;
+  vatCents: number;
+  vatRateBp: number | null;
+};
+
+export type VatRateLine = {
+  taxRateBp: number;
+  turnoverCents: number;
+  calculatedTaxCents: number;
+  activityId?: string;
+};
+
+export type VatReturnPreview = {
+  standard: 'eCH-0217';
+  standardVersion: '2.0.0';
+  currency: 'CHF';
+  profile: VatProfile;
+  dateFrom: string;
+  dateTo: string;
+  submissionType: VatSubmissionType;
+  exportable: boolean;
+  blockingIssues: VatBlockingIssue[];
+  warnings: string[];
+  unclassifiedSources: VatUnclassifiedSource[];
+  sourceSha256: string;
+  turnoverComputation: {
+    totalConsiderationCents: number;
+    suppliesToForeignCountriesCents: number;
+    suppliesAbroadCents: number;
+    transferNotificationProcedureCents: number;
+    suppliesExemptFromTaxCents: number;
+    reductionOfConsiderationCents: number;
+    variousDeduction: { amountCents: number; description: string } | null;
+    taxableTurnoverCents: number;
+  };
+  effectiveReportingMethod: {
+    grossOrNet: 'net' | 'gross';
+    grossOrNetCode: number;
+    optedCents: number;
+    suppliesPerTaxRate: VatRateLine[];
+    acquisitionTax: VatRateLine[];
+    inputTaxMaterialAndServicesCents: number;
+    inputTaxInvestmentsCents: number;
+    subsequentInputTaxDeductionCents: number;
+    inputTaxCorrectionsCents: number;
+    inputTaxReductionsCents: number;
+    outputTaxCents: number;
+    acquisitionTaxCents: number;
+  } | null;
+  simpleTaxRateMethod: {
+    suppliesPerTaxRate: VatRateLine[];
+    acquisitionTax: VatRateLine[];
+    inputTaxCorrectionsCents: number;
+    outputTaxCents: number;
+    acquisitionTaxCents: number;
+  } | null;
+  payableTaxCents: number;
+  payableCode: '500' | '510';
+  otherFlowsOfFunds: { subsidiesCents: number; donationsCents: number };
+  sourceCount: number;
+  adjustmentCount: number;
+  transmissionWording: string;
+};
+
+export type VatReturnExport = {
+  sequence: number;
+  id: Identifier;
+  profileId: Identifier;
+  dateFrom: string;
+  dateTo: string;
+  submissionType: VatSubmissionType;
+  sourceSha256: string;
+  payload: VatReturnPreview;
+  xmlSha256: string;
+  fileName: string;
+  filePath: string;
+  createdAt: string;
+  transmissionStatus: 'not_transmitted';
+  transmissionWording: string;
+};
+
 export type ReminderSettings = { enabled: boolean; senderName: string };
 export type ReminderTemplate = {
   id: Identifier;

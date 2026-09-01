@@ -9,6 +9,7 @@ mod branding;
 mod commands;
 mod database;
 mod error;
+mod fiduciary_closing;
 mod installation;
 mod license;
 mod models;
@@ -26,6 +27,7 @@ mod supplier_procurement;
 mod swiss_payroll_rules;
 mod swiss_qr;
 mod time_billing;
+mod vat_reporting;
 
 use commands::*;
 use database::LocalStore;
@@ -121,6 +123,19 @@ pub fn run() {
             list_accounting_periods,
             upsert_accounting_period,
             close_accounting_period,
+            prepare_fiduciary_pre_closing,
+            finalize_accounting_period_with_review,
+            export_fiduciary_closing_zip,
+            create_vat_profile,
+            list_vat_profiles,
+            set_vat_source_classification,
+            list_vat_source_classifications,
+            create_vat_adjustment,
+            reverse_vat_adjustment,
+            list_vat_adjustments,
+            preview_vat_return,
+            export_vat_return_xml,
+            list_vat_return_exports,
             post_manual_journal_entry,
             reverse_journal_entry,
             get_accounting_dashboard,
@@ -1385,6 +1400,92 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap_err()
             .to_string()
             .contains("commencer par la division"));
+    }
+
+    #[test]
+    fn legacy_missing_iban_does_not_block_an_unrelated_noga_update() {
+        let (_temporary, store) = initialized_store();
+
+        for legacy_iban in [None, Some("")] {
+            store
+                .connect()
+                .unwrap()
+                .execute(
+                    "UPDATE settings SET iban=? WHERE id=1",
+                    rusqlite::params![legacy_iban],
+                )
+                .unwrap();
+
+            let updated = store
+                .update_settings(json!({
+                    "noga_section":"N",
+                    "noga_division":"71",
+                    "activity_description":"Architecture et ingénierie",
+                    "noga_detailed_code":"7112",
+                    "iban":legacy_iban
+                }))
+                .expect("a legacy missing IBAN in a full payload must not block a NOGA update");
+
+            assert_eq!(updated["noga_section"], "N");
+            assert_eq!(updated["noga_division"], "71");
+            let stored_iban: Option<String> = store
+                .connect()
+                .unwrap()
+                .query_row("SELECT iban FROM settings WHERE id=1", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(stored_iban, None);
+        }
+
+        assert!(store
+            .update_settings(json!({"iban":"CH00 INVALID"}))
+            .unwrap_err()
+            .to_string()
+            .contains("IBAN CH ou LI"));
+
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client sans IBAN"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture sans IBAN",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":194_900,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+
+        assert!(store
+            .issue_invoice(&invoice_id, Some("2026-09-01".into()), None)
+            .unwrap_err()
+            .to_string()
+            .contains("IBAN CH ou LI"));
+        let mut qr_bill = test_invoice_qr_bill(&invoice_id, "Facture sans IBAN");
+        qr_bill.bill.iban.clear();
+        assert!(store
+            .save_invoice_qr_bill(qr_bill)
+            .unwrap_err()
+            .to_string()
+            .contains("IBAN"));
     }
 
     #[test]

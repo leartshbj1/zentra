@@ -347,7 +347,7 @@ summary::-webkit-details-marker {
     animation: details-arrive 300ms ease-out both;
   }
 
-  .site-mobile-nav[open] > nav {
+  .site-mobile-nav[data-open='true'] > nav {
     animation: mobile-menu-arrive 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 

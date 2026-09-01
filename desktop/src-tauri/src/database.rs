@@ -42,8 +42,9 @@ use crate::{
         MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL,
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
-        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
-        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V22_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
+        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
+        SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -539,6 +540,11 @@ fn migrate_v21(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v22(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V22_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -874,6 +880,7 @@ impl LocalStore {
                 transaction.execute_batch(SCHEMA_SQL)?;
                 migrate_v20(&transaction)?;
                 migrate_v21(&transaction)?;
+                migrate_v22(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -961,7 +968,7 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
-            12..=20 => {}
+            12..=21 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -980,6 +987,7 @@ impl LocalStore {
             migrate_v19(&transaction)?;
             migrate_v20(&transaction)?;
             migrate_v21(&transaction)?;
+            migrate_v22(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -2118,7 +2126,9 @@ impl LocalStore {
             noga_detailed_code.as_deref(),
         )?;
         let effective_iban = effective_text("iban", current_iban).unwrap_or_default();
-        normalize_and_validate_iban(&effective_iban)?;
+        if !effective_iban.trim().is_empty() {
+            normalize_and_validate_iban(&effective_iban)?;
+        }
         let mut assignments = Vec::new();
         let mut values = Vec::new();
         for field in FIELDS {
@@ -4032,11 +4042,22 @@ fn normalize_settings_patch(object: &mut Map<String, Value>) -> AppResult<()> {
             "CHF",
         )?);
     }
-    if let Some(value) = object.get_mut("iban") {
-        let iban = value.as_str().ok_or_else(|| {
-            AppError::Validation("iban doit être une chaîne de caractères.".into())
-        })?;
-        *value = Value::String(normalize_and_validate_iban(iban)?);
+    match object.get("iban").cloned() {
+        Some(Value::String(iban)) if iban.trim().is_empty() => {
+            object.insert("iban".into(), Value::Null);
+        }
+        Some(Value::String(iban)) => {
+            object.insert(
+                "iban".into(),
+                Value::String(normalize_and_validate_iban(&iban)?),
+            );
+        }
+        Some(Value::Null) | None => {}
+        Some(_) => {
+            return Err(AppError::Validation(
+                "iban doit être une chaîne de caractères ou null.".into(),
+            ));
+        }
     }
     if let Some(value) = object.get_mut("noga_section") {
         let section = value.as_str().ok_or_else(|| {
@@ -4982,6 +5003,111 @@ mod v21_migration_tests {
             connection
                 .query_row(
                     "SELECT COUNT(*) FROM stock_movements WHERE id='movement-v20'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+}
+
+#[cfg(test)]
+mod v22_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_v21_to_v22_preserves_business_rows_and_seeds_no_compliance_data() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            tx.execute_batch(SCHEMA_SQL).unwrap();
+            migrate_v20(&tx).unwrap();
+            migrate_v21(&tx).unwrap();
+            tx.execute(
+                "INSERT INTO clients(id,name,created_at,updated_at) VALUES('client-v21','Client conservé V22','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            21
+        );
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v22(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT name FROM clients WHERE id='client-v21'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "Client conservé V22"
+        );
+        for table in [
+            "vat_profiles",
+            "vat_source_classifications",
+            "vat_adjustments",
+            "vat_return_exports",
+            "closing_reviews",
+            "closing_package_exports",
+        ] {
+            assert_eq!(
+                connection
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                0,
+                "{table} doit rester vide après migration"
+            );
+        }
+        connection.pragma_update(None, "user_version", 21).unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v22(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM clients WHERE id='client-v21'",
                     [],
                     |row| row.get::<_, i64>(0)
                 )

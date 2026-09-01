@@ -1,11 +1,11 @@
 {
-    "version":  "1.8.0",
-    "notes":  "Elyko 1.8 ajoute le cycle achats fournisseurs: commandes, réceptions partielles ou complètes, rapprochement facture-commande-réception, avoirs, paiements, stock et comptabilité sans ressaisie.",
-    "pub_date":  "2026-09-01T10:00:12.1045995+00:00",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmZXZGRHcXdBdEdOL0ZRbU96SWgreENCa253cXU4aHlVOUtmc1dWU0tLSC9UdmNzbEJTR0tXQWpubkhIdzMvbjM0OG1jMytHN2hyYitQcWFlWTlFQWdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjU2Nzg1CWZpbGU6RWx5a29fMS44LjBfeDY0LXNldHVwLmV4ZQpEQWVSZ0hPUGxOc3RlWUluWVlMTEFBNlIyaHRuR3RxWjZuV1BhdmNMUmx5RWlNWDQwYnNieDdQNEoyVEFkc2xaaVhQb1RSZU9sZWJCTElCcGNlUnFBdz09Cg==",
-                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.8.0_x64-setup.exe"
-                                         }
-                  }
+  "version": "1.9.0",
+  "notes": "Centre TVA suisse avec export XML eCH-0217 v2.0.0 pour import manuel, clôture contrôlée avec dossier fiduciaire DRAFT/FINAL, correctifs de migration et navigation mobile.",
+  "pub_date": "2026-09-01T11:43:07.6749398+00:00",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmNlMkFoRlpuY2lkU29JcTFEd3dGN252Z3NLQ2RtM2lYS0lMNTdnZlgvOWFLWGpIQWZRZHVhUzVBbVJaVDZibDl0cktWTTVCeGwzOEk3UDZKeDVKVWcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjYyOTE3CWZpbGU6RWx5a29fMS45LjBfeDY0LXNldHVwLmV4ZQpjUkR0cWZqcnhsRjJHcmxleVF4bEFFYkNKUUFadDVPajFYM0tvYU5ZVGFocmhscithMGhTVWdMYkhKOXF6VHZ1QUhZbExyM3lMVVN3WDNNMjkvM0xEUT09Cg==",
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.9.0_x64-setup.exe"
+    }
+  }
 }

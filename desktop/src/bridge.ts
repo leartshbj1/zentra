@@ -26,6 +26,9 @@ import type {
   EmployeePayrollTemplate,
   EntityKind,
   Expense,
+  FiduciaryClosingReview,
+  FiduciaryPackageExport,
+  FiduciaryPeriodFinalization,
   FrozenCustomer,
   FrozenDocumentSnapshot,
   FrozenEmployee,
@@ -102,6 +105,18 @@ import type {
   TimeBillingEntry,
   TrialBalanceReport,
   TrialBalanceRow,
+  VatAdjustment,
+  VatAdjustmentCategory,
+  VatProfile,
+  VatReportingBasis,
+  VatReportingMethod,
+  VatReportingPeriodicity,
+  VatReturnExport,
+  VatReturnPreview,
+  VatSourceClassification,
+  VatSourceTreatment,
+  VatSourceType,
+  VatSubmissionType,
   Workspace,
 } from './types';
 import {
@@ -2379,6 +2394,272 @@ function accountingContinuityFromRaw(
   };
 }
 
+function accountingPeriodFromRaw(row: RawRecord): AccountingPeriod {
+  return {
+    id: stringValue(row.id),
+    name: stringValue(row.name),
+    dateFrom: stringValue(row.date_from),
+    dateTo: stringValue(row.date_to),
+    status: stringValue(row.status) as AccountingPeriod['status'],
+    closedAt: stringValue(row.closed_at),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function fiduciaryReviewFromRaw(value: unknown): FiduciaryClosingReview {
+  const row = recordValue(value);
+  const checks = recordValue(row.checks);
+  const summary = recordValue(row.summary);
+  return {
+    schema: 'elyko.fiduciary-pre-closing.v1',
+    reviewId: stringValue(row.review_id),
+    preparedAt: stringValue(row.prepared_at),
+    period: accountingPeriodFromRaw(recordValue(row.period)),
+    sourceSha256: stringValue(row.source_sha256),
+    packageStatusIfExported: stringValue(
+      row.package_status_if_exported,
+    ) as FiduciaryClosingReview['packageStatusIfExported'],
+    checks: {
+      readyForFinal: boolValue(checks.ready_for_final),
+      journalBalanced: boolValue(checks.journal_balanced),
+      balanceSheetBalanced: boolValue(checks.balance_sheet_balanced),
+      auditChainValid: boolValue(checks.audit_chain_valid),
+      attachmentsTotal: numberValue(checks.attachments_total),
+      attachmentsVerified: numberValue(checks.attachments_verified),
+      attachmentIssues: rawArray(checks.attachment_issues).map((issue) => ({
+        attachmentId: stringValue(issue.attachment_id),
+        originalName: stringValue(issue.original_name),
+        issue: stringValue(issue.issue),
+      })),
+      continuity: accountingContinuityFromRaw(
+        recordValue(checks.continuity),
+      ),
+    },
+    summary: {
+      journalEntries: numberValue(summary.journal_entries),
+      journalLines: numberValue(summary.journal_lines),
+      accountsWithActivity: numberValue(summary.accounts_with_activity),
+      debitCents: numberValue(summary.debit_cents),
+      creditCents: numberValue(summary.credit_cents),
+      profitCents: numberValue(summary.profit_cents),
+      assetsCents: numberValue(summary.assets_cents),
+      liabilitiesCents: numberValue(summary.liabilities_cents),
+      equityCents: numberValue(summary.equity_cents),
+    },
+    disclaimer: stringValue(row.disclaimer),
+  };
+}
+
+const optionalNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+function vatProfileFromRaw(value: unknown): VatProfile {
+  const row = recordValue(value);
+  return {
+    id: stringValue(row.id),
+    effectiveFrom: stringValue(row.effective_from),
+    effectiveTo: nullableString(row.effective_to),
+    reportingMethod: stringValue(
+      row.reporting_method,
+    ) as VatReportingMethod,
+    formOfReporting: stringValue(row.form_of_reporting) as VatReportingBasis,
+    periodicity: stringValue(row.periodicity) as VatReportingPeriodicity,
+    grossOrNet: stringValue(row.gross_or_net) as VatProfile['grossOrNet'],
+    tdfnActivityId: nullableString(row.tdfn_activity_id),
+    tdfnRateBp: optionalNumber(row.tdfn_rate_bp),
+    afcAuthorizationConfirmed: boolValue(row.afc_authorization_confirmed),
+    notes: stringValue(row.notes),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function vatClassificationFromRaw(value: unknown): VatSourceClassification {
+  const row = recordValue(value);
+  return {
+    id: stringValue(row.id),
+    sourceType: stringValue(row.source_type) as VatSourceType,
+    sourceId: stringValue(row.source_id),
+    treatment: stringValue(row.treatment) as VatSourceTreatment,
+    note: stringValue(row.note),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function vatAdjustmentFromRaw(value: unknown): VatAdjustment {
+  const row = recordValue(value);
+  return {
+    sequence: numberValue(row.sequence),
+    id: stringValue(row.id),
+    adjustmentDate: stringValue(row.adjustment_date),
+    category: stringValue(row.category) as VatAdjustmentCategory,
+    amountCents: numberValue(row.amount_cents),
+    taxRateBp: optionalNumber(row.tax_rate_bp),
+    description: stringValue(row.description),
+    evidenceReference: stringValue(row.evidence_reference),
+    reversesAdjustmentId: nullableString(row.reverses_adjustment_id),
+    createdBy: stringValue(row.created_by),
+    createdAt: stringValue(row.created_at),
+  };
+}
+
+function vatRateLineFromRaw(value: unknown) {
+  const row = recordValue(value);
+  const activityId = stringValue(row.activity_id);
+  return {
+    taxRateBp: numberValue(row.tax_rate_bp),
+    turnoverCents: numberValue(row.turnover_cents),
+    calculatedTaxCents: numberValue(row.calculated_tax_cents),
+    ...(activityId ? { activityId } : {}),
+  };
+}
+
+function vatPreviewFromRaw(value: unknown): VatReturnPreview {
+  const row = recordValue(value);
+  const turnover = recordValue(row.turnover_computation);
+  const effective = row.effective_reporting_method
+    ? recordValue(row.effective_reporting_method)
+    : null;
+  const simple = row.simple_tax_rate_method
+    ? recordValue(row.simple_tax_rate_method)
+    : null;
+  const other = recordValue(row.other_flows_of_funds);
+  return {
+    standard: 'eCH-0217',
+    standardVersion: '2.0.0',
+    currency: 'CHF',
+    profile: vatProfileFromRaw(row.profile),
+    dateFrom: stringValue(row.date_from),
+    dateTo: stringValue(row.date_to),
+    submissionType: stringValue(row.submission_type) as VatSubmissionType,
+    exportable: boolValue(row.exportable),
+    blockingIssues: rawArray(row.blocking_issues).map((issue) => ({
+      code: stringValue(issue.code),
+      message: stringValue(issue.message),
+      sourceType: nullableString(issue.source_type) as VatSourceType | null,
+      sourceId: nullableString(issue.source_id),
+    })),
+    warnings: Array.isArray(row.warnings)
+      ? row.warnings.map(stringValue).filter(Boolean)
+      : [],
+    unclassifiedSources: rawArray(row.unclassified_sources).map((source) => ({
+      sourceType: stringValue(source.source_type) as VatSourceType,
+      sourceId: stringValue(source.source_id),
+      parentId: stringValue(source.parent_id),
+      occurrenceDate: stringValue(source.occurrence_date),
+      description: stringValue(source.description),
+      amountCents: numberValue(source.amount_cents),
+      vatCents: numberValue(source.vat_cents),
+      vatRateBp: optionalNumber(source.vat_rate_bp),
+    })),
+    sourceSha256: stringValue(row.source_sha256),
+    turnoverComputation: {
+      totalConsiderationCents: numberValue(turnover.total_consideration_cents),
+      suppliesToForeignCountriesCents: numberValue(
+        turnover.supplies_to_foreign_countries_cents,
+      ),
+      suppliesAbroadCents: numberValue(turnover.supplies_abroad_cents),
+      transferNotificationProcedureCents: numberValue(
+        turnover.transfer_notification_procedure_cents,
+      ),
+      suppliesExemptFromTaxCents: numberValue(
+        turnover.supplies_exempt_from_tax_cents,
+      ),
+      reductionOfConsiderationCents: numberValue(
+        turnover.reduction_of_consideration_cents,
+      ),
+      variousDeduction: turnover.various_deduction
+        ? {
+            amountCents: numberValue(
+              recordValue(turnover.various_deduction).amount_cents,
+            ),
+            description: stringValue(
+              recordValue(turnover.various_deduction)
+                .description,
+            ),
+          }
+        : null,
+      taxableTurnoverCents: numberValue(turnover.taxable_turnover_cents),
+    },
+    effectiveReportingMethod: effective
+      ? {
+          grossOrNet: stringValue(effective.gross_or_net) as 'net' | 'gross',
+          grossOrNetCode: numberValue(effective.gross_or_net_code),
+          optedCents: numberValue(effective.opted_cents),
+          suppliesPerTaxRate: rawArray(effective.supplies_per_tax_rate).map(
+            vatRateLineFromRaw,
+          ),
+          acquisitionTax: rawArray(effective.acquisition_tax).map(
+            vatRateLineFromRaw,
+          ),
+          inputTaxMaterialAndServicesCents: numberValue(
+            effective.input_tax_material_and_services_cents,
+          ),
+          inputTaxInvestmentsCents: numberValue(
+            effective.input_tax_investments_cents,
+          ),
+          subsequentInputTaxDeductionCents: numberValue(
+            effective.subsequent_input_tax_deduction_cents,
+          ),
+          inputTaxCorrectionsCents: numberValue(
+            effective.input_tax_corrections_cents,
+          ),
+          inputTaxReductionsCents: numberValue(
+            effective.input_tax_reductions_cents,
+          ),
+          outputTaxCents: numberValue(effective.output_tax_cents),
+          acquisitionTaxCents: numberValue(effective.acquisition_tax_cents),
+        }
+      : null,
+    simpleTaxRateMethod: simple
+      ? {
+          suppliesPerTaxRate: rawArray(simple.supplies_per_tax_rate).map(
+            vatRateLineFromRaw,
+          ),
+          acquisitionTax: rawArray(simple.acquisition_tax).map(
+            vatRateLineFromRaw,
+          ),
+          inputTaxCorrectionsCents: numberValue(
+            simple.input_tax_corrections_cents,
+          ),
+          outputTaxCents: numberValue(simple.output_tax_cents),
+          acquisitionTaxCents: numberValue(simple.acquisition_tax_cents),
+        }
+      : null,
+    payableTaxCents: numberValue(row.payable_tax_cents),
+    payableCode: stringValue(row.payable_code) as '500' | '510',
+    otherFlowsOfFunds: {
+      subsidiesCents: numberValue(other.subsidies_cents),
+      donationsCents: numberValue(other.donations_cents),
+    },
+    sourceCount: numberValue(row.source_count),
+    adjustmentCount: numberValue(row.adjustment_count),
+    transmissionWording: stringValue(row.transmission_wording),
+  };
+}
+
+function vatExportFromRaw(value: unknown): VatReturnExport {
+  const row = recordValue(value);
+  return {
+    sequence: numberValue(row.sequence),
+    id: stringValue(row.id),
+    profileId: stringValue(row.profile_id),
+    dateFrom: stringValue(row.date_from),
+    dateTo: stringValue(row.date_to),
+    submissionType: stringValue(row.submission_type) as VatSubmissionType,
+    sourceSha256: stringValue(row.source_sha256),
+    payload: vatPreviewFromRaw(row.payload),
+    xmlSha256: stringValue(row.xml_sha256),
+    fileName: stringValue(row.file_name),
+    filePath: stringValue(row.file_path),
+    createdAt: stringValue(row.created_at),
+    transmissionStatus: 'not_transmitted',
+    transmissionWording: stringValue(row.transmission_wording),
+  };
+}
+
 function accountingConfigurationFromRaw(
   value: unknown,
 ): AccountingConfigurationResult {
@@ -3894,16 +4175,7 @@ export const desktopApi = {
   },
   async listAccountingPeriods(): Promise<AccountingPeriod[]> {
     return rawArray(await invoke<unknown>('list_accounting_periods')).map(
-      (row) => ({
-        id: stringValue(row.id),
-        name: stringValue(row.name),
-        dateFrom: stringValue(row.date_from),
-        dateTo: stringValue(row.date_to),
-        status: stringValue(row.status) as AccountingPeriod['status'],
-        closedAt: stringValue(row.closed_at),
-        createdAt: stringValue(row.created_at),
-        updatedAt: stringValue(row.updated_at),
-      }),
+      accountingPeriodFromRaw,
     );
   },
   async upsertAccountingPeriod(input: {
@@ -3923,6 +4195,55 @@ export const desktopApi = {
   },
   async closeAccountingPeriod(id: string) {
     await invoke('close_accounting_period', { id });
+  },
+  async prepareFiduciaryPreClosing(
+    filter: PeriodFilter,
+  ): Promise<FiduciaryClosingReview> {
+    return fiduciaryReviewFromRaw(
+      await invoke('prepare_fiduciary_pre_closing', {
+        filter: periodFilterToRaw(filter),
+      }),
+    );
+  },
+  async finalizeAccountingPeriodWithReview(
+    periodId: string,
+    reviewId: string,
+  ): Promise<FiduciaryPeriodFinalization> {
+    const row = recordValue(
+      await invoke('finalize_accounting_period_with_review', {
+        periodId,
+        reviewId,
+      }),
+    );
+    return {
+      schema: 'elyko.fiduciary-period-finalization.v1',
+      reviewId: stringValue(row.review_id),
+      sourceSha256: stringValue(row.source_sha256),
+      period: accountingPeriodFromRaw(recordValue(row.period)),
+    };
+  },
+  async exportFiduciaryClosingZip(
+    reviewId: string,
+  ): Promise<FiduciaryPackageExport> {
+    const row = recordValue(
+      await invoke('export_fiduciary_closing_zip', { reviewId }),
+    );
+    return {
+      schema: 'elyko.fiduciary-package-export.v1',
+      exportId: stringValue(row.export_id),
+      reviewId: stringValue(row.review_id),
+      createdAt: stringValue(row.created_at),
+      period: accountingPeriodFromRaw(recordValue(row.period)),
+      packageStatus: stringValue(
+        row.package_status,
+      ) as FiduciaryPackageExport['packageStatus'],
+      sourceSha256: stringValue(row.source_sha256),
+      manifestSha256: stringValue(row.manifest_sha256),
+      fileName: stringValue(row.file_name),
+      path: stringValue(row.path),
+      fileCount: numberValue(row.file_count),
+      disclaimer: stringValue(row.disclaimer),
+    };
   },
   async configureAccounting(settings: AccountingSettings) {
     return accountingConfigurationFromRaw(
@@ -4079,6 +4400,168 @@ export const desktopApi = {
       previousExpenseCents: numberValue(raw.previous_expense_cents),
       previousProfitCents: numberValue(raw.previous_profit_cents),
     };
+  },
+  async createVatProfile(input: {
+    effectiveFrom: string;
+    effectiveTo?: string;
+    reportingMethod: VatReportingMethod;
+    formOfReporting: VatReportingBasis;
+    periodicity: VatReportingPeriodicity;
+    grossOrNet?: 'net' | 'gross';
+    tdfnActivityId?: string;
+    tdfnRateBp?: number;
+    afcAuthorizationConfirmed: boolean;
+    notes?: string;
+    closePreviousOpenProfile?: boolean;
+  }): Promise<VatProfile> {
+    return vatProfileFromRaw(
+      await invoke('create_vat_profile', {
+        input: {
+          id: null,
+          effective_from: input.effectiveFrom,
+          effective_to: input.effectiveTo || null,
+          reporting_method: input.reportingMethod,
+          form_of_reporting: input.formOfReporting,
+          periodicity: input.periodicity,
+          gross_or_net: input.grossOrNet || 'net',
+          tdfn_activity_id: input.tdfnActivityId || null,
+          tdfn_rate_bp: input.tdfnRateBp ?? null,
+          afc_authorization_confirmed: input.afcAuthorizationConfirmed,
+          notes: input.notes?.trim() || null,
+          close_previous_open_profile:
+            input.closePreviousOpenProfile ?? false,
+        },
+      }),
+    );
+  },
+  async listVatProfiles(): Promise<VatProfile[]> {
+    return rawArray(await invoke('list_vat_profiles')).map(vatProfileFromRaw);
+  },
+  async setVatSourceClassification(input: {
+    sourceType: VatSourceType;
+    sourceId: string;
+    treatment: VatSourceTreatment;
+    note?: string;
+  }): Promise<VatSourceClassification> {
+    return vatClassificationFromRaw(
+      await invoke('set_vat_source_classification', {
+        input: {
+          source_type: input.sourceType,
+          source_id: input.sourceId,
+          treatment: input.treatment,
+          note: input.note?.trim() || null,
+        },
+      }),
+    );
+  },
+  async listVatSourceClassifications(input?: {
+    sourceType?: VatSourceType;
+    sourceId?: string;
+  }): Promise<VatSourceClassification[]> {
+    return rawArray(
+      await invoke('list_vat_source_classifications', {
+        input: {
+          source_type: input?.sourceType || null,
+          source_id: input?.sourceId || null,
+        },
+      }),
+    ).map(vatClassificationFromRaw);
+  },
+  async createVatAdjustment(input: {
+    adjustmentDate: string;
+    category: VatAdjustmentCategory;
+    amountCents: number;
+    taxRateBp?: number;
+    description: string;
+    evidenceReference?: string;
+    createdBy: string;
+  }): Promise<VatAdjustment> {
+    return vatAdjustmentFromRaw(
+      await invoke('create_vat_adjustment', {
+        input: {
+          id: null,
+          adjustment_date: input.adjustmentDate,
+          category: input.category,
+          amount_cents: input.amountCents,
+          tax_rate_bp: input.taxRateBp ?? null,
+          description: input.description,
+          evidence_reference: input.evidenceReference?.trim() || null,
+          created_by: input.createdBy,
+        },
+      }),
+    );
+  },
+  async reverseVatAdjustment(input: {
+    originalAdjustmentId: string;
+    adjustmentDate: string;
+    description: string;
+    evidenceReference?: string;
+    createdBy: string;
+  }): Promise<VatAdjustment> {
+    return vatAdjustmentFromRaw(
+      await invoke('reverse_vat_adjustment', {
+        input: {
+          id: null,
+          original_adjustment_id: input.originalAdjustmentId,
+          adjustment_date: input.adjustmentDate,
+          description: input.description,
+          evidence_reference: input.evidenceReference?.trim() || null,
+          created_by: input.createdBy,
+        },
+      }),
+    );
+  },
+  async listVatAdjustments(filter: PeriodFilter): Promise<VatAdjustment[]> {
+    return rawArray(
+      await invoke('list_vat_adjustments', {
+        input: periodFilterToRaw(filter),
+      }),
+    ).map(vatAdjustmentFromRaw);
+  },
+  async previewVatReturn(input: {
+    dateFrom: string;
+    dateTo: string;
+    submissionType: VatSubmissionType;
+    profileId?: string;
+  }): Promise<VatReturnPreview> {
+    return vatPreviewFromRaw(
+      await invoke('preview_vat_return', {
+        input: {
+          date_from: input.dateFrom,
+          date_to: input.dateTo,
+          submission_type: input.submissionType,
+          profile_id: input.profileId || null,
+        },
+      }),
+    );
+  },
+  async exportVatReturnXml(input: {
+    dateFrom: string;
+    dateTo: string;
+    submissionType: VatSubmissionType;
+    profileId?: string;
+    businessReferenceId: string;
+    fileName?: string;
+  }): Promise<VatReturnExport> {
+    return vatExportFromRaw(
+      await invoke('export_vat_return_xml', {
+        input: {
+          date_from: input.dateFrom,
+          date_to: input.dateTo,
+          submission_type: input.submissionType,
+          profile_id: input.profileId || null,
+          business_reference_id: input.businessReferenceId,
+          file_name: input.fileName?.trim() || null,
+        },
+      }),
+    );
+  },
+  async listVatReturnExports(filter: PeriodFilter): Promise<VatReturnExport[]> {
+    return rawArray(
+      await invoke('list_vat_return_exports', {
+        input: periodFilterToRaw(filter),
+      }),
+    ).map(vatExportFromRaw);
   },
   async getReminderSettings(): Promise<ReminderSettings> {
     const row = await invoke<RawRecord | null>('get_reminder_settings');
