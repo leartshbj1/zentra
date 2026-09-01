@@ -1,6 +1,6 @@
 [package]
 name = "helvichantier"
-version = "1.11.0"
+version = "1.12.0"
 description = "Elyko - gestion d’entreprise locale et multisectorielle pour Windows"
 authors = ["Elyko"]
 edition = "2021"

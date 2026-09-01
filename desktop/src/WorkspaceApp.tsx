@@ -317,7 +317,9 @@ export function WorkspaceApp({
   const [notice, setNotice] = useState<Notice | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
-  const reminderScanStarted = useRef(false);
+  const [reminderRefreshSignal, setReminderRefreshSignal] = useState(0);
+  const reminderScanInFlight = useRef(false);
+  const reminderRequestIds = useRef(new Map<string, string>());
   const recurrenceScanInFlight = useRef(false);
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
@@ -470,31 +472,72 @@ export function WorkspaceApp({
     };
   }, [readOnly, recurrenceScheduleSignal, runRecurrenceScan]);
 
+  const runReminderScan = useCallback(async () => {
+    if (readOnly || reminderScanInFlight.current) return;
+    if (
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'hidden'
+    )
+      return;
+    reminderScanInFlight.current = true;
+    const asOf = todayIso();
+    try {
+      const reminderSettings = await desktopApi.getReminderSettings();
+      if (!reminderSettings.enabled) return;
+      let requestId = reminderRequestIds.current.get(asOf);
+      if (!requestId) {
+        requestId = createId();
+        reminderRequestIds.current.set(asOf, requestId);
+      }
+      const result = await desktopApi.scanDueReminders(requestId, asOf);
+      reminderRequestIds.current.delete(asOf);
+      setReminderRefreshSignal((value) => value + 1);
+      const reminderAnomalies = result.review.filter(
+        (item) => item.reason !== 'already_open' && item.reason !== 'cycle_stopped',
+      );
+      if (reminderAnomalies.length) {
+        setNotice({
+          tone: 'error',
+          text: `${reminderAnomalies.length} ancien${reminderAnomalies.length > 1 ? 's' : ''} cycle${reminderAnomalies.length > 1 ? 's' : ''} de relance exige${reminderAnomalies.length > 1 ? 'nt' : ''} un contrôle manuel. Aucune étape suivante n’a été créée.`,
+        });
+      } else if (result.created.length || result.cancelled.length) {
+        setNotice({
+          tone: 'success',
+          text: `${result.created.length} relance${result.created.length > 1 ? 's' : ''} à valider et ${result.cancelled.length} arrêtée${result.cancelled.length > 1 ? 's' : ''} après règlement. Aucun message n’a été envoyé.`,
+        });
+      }
+    } catch (reason) {
+      setNotice({
+        tone: 'error',
+        text: errorMessage(
+          reason,
+          'Le contrôle automatique local des échéances a échoué. Aucun message n’a été envoyé.',
+        ),
+      });
+    } finally {
+      reminderScanInFlight.current = false;
+    }
+  }, [readOnly]);
+
   useEffect(() => {
     if (readOnly) return;
-    if (reminderScanStarted.current) return;
-    reminderScanStarted.current = true;
-    let active = true;
-    void desktopApi
-      .getReminderSettings()
-      .then(async (reminderSettings) => {
-        if (reminderSettings.enabled)
-          await desktopApi.generateDueReminders(todayIso());
-      })
-      .catch((reason) => {
-        if (active)
-          setNotice({
-            tone: 'error',
-            text: errorMessage(
-              reason,
-              'Le contrôle automatique local des échéances a échoué.',
-            ),
-          });
-      });
-    return () => {
-      active = false;
+    const runWhenVisible = () => {
+      if (
+        typeof document === 'undefined' ||
+        document.visibilityState === 'visible'
+      )
+        void runReminderScan();
     };
-  }, [readOnly]);
+    runWhenVisible();
+    window.addEventListener('focus', runWhenVisible);
+    document.addEventListener('visibilitychange', runWhenVisible);
+    const interval = window.setInterval(runWhenVisible, 5 * 60 * 1000);
+    return () => {
+      window.removeEventListener('focus', runWhenVisible);
+      document.removeEventListener('visibilitychange', runWhenVisible);
+      window.clearInterval(interval);
+    };
+  }, [readOnly, runReminderScan]);
 
   async function act(
     action: () => Promise<Workspace>,
@@ -945,7 +988,8 @@ export function WorkspaceApp({
                 >
                   <Icon size={17} />
                   <span>{label}</span>
-                  {item.id === 'quotes' && overdue.length ? (
+                  {(item.id === 'quotes' || item.id === 'reminders') &&
+                  overdue.length ? (
                     <em>{overdue.length}</em>
                   ) : null}
                 </button>
@@ -1332,7 +1376,10 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'reminders' ? (
-            <RemindersScreen workspace={workspace} />
+            <RemindersScreen
+              readOnly={readOnly}
+              refreshSignal={reminderRefreshSignal}
+            />
           ) : null}
           {view === 'time' ? (
             <TimeScreen

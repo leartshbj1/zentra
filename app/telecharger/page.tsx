@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  BellRing,
   Building2,
   Check,
   Clock3,
@@ -34,7 +35,7 @@ import { PurchaseButton } from '@/components/purchase-button';
 export const metadata = {
   title: `Elyko pour Windows — Télécharger la version ${ELYKO_VERSION}`,
   description:
-    'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR et récurrentes supervisées, projets, salaires et comptabilité avec vos données sur votre PC.',
+    'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR, relances supervisées, projets, salaires et comptabilité avec vos données sur votre PC.',
   openGraph: {
     title: 'Elyko pour Windows',
     description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ELYKO_VERSION} disponible.`,
@@ -55,6 +56,11 @@ const capabilities = [
     icon: QrCode,
     title: 'Factures QR et récurrentes',
     text: 'Créez une facture unique ou planifiez des brouillons mensuels, trimestriels ou annuels ; l’émission et le QR restent à valider.',
+  },
+  {
+    icon: BellRing,
+    title: 'Relances supervisées',
+    text: 'Elyko prépare trois niveaux modifiables, recalcule le solde et bloque une facture soldée ; vous décidez toujours de l’action.',
   },
   {
     icon: FolderKanban,
@@ -477,16 +483,16 @@ export default function DownloadPage() {
               Version {ELYKO_VERSION}
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-              Vos factures récurrentes restent sous votre contrôle.
+              Les relances avancent sans partir seules.
             </h2>
             <div className="mt-7 space-y-3">
               {[
-                'Planification mensuelle, trimestrielle ou annuelle depuis une commande de prestations confirmée',
-                'Création locale de brouillons aux dates prévues, au démarrage et pendant l’utilisation',
-                'Contrôle obligatoire avant émission, QR, envoi et comptabilisation',
-                'Pause, reprise et arrêt définitif avec un état visible',
-                'Client, lignes et délai de paiement conservés dans le modèle',
-                'Une reprise du traitement ne duplique pas un brouillon déjà créé',
+                'Assistant de configuration en trois étapes avec identité et textes modifiables',
+                'Cycle conseillé à J+7, J+21 et J+35, sans présenter ces délais comme une obligation légale',
+                'Solde recalculé localement avant chaque aperçu, paiements partiels et avoirs déduits',
+                'Arrêt immédiat du cycle dès qu’une facture est soldée',
+                'Ouverture d’un e-mail prérempli, impression confirmée ou envoi manuel, sans SMTP automatique',
+                'Historique local immuable des préparations, décisions et preuves d’action',
               ].map((item) => (
                 <div
                   key={item}
@@ -504,7 +510,7 @@ export default function DownloadPage() {
                 [
                   HardDrive,
                   'Données sur le PC',
-                  'Clients, modèles récurrents, documents, salaires, heures et projets sont enregistrés localement.',
+                  'Clients, relances, documents, salaires, heures et projets sont enregistrés localement.',
                 ],
                 [
                   WifiOff,

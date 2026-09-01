@@ -42,9 +42,9 @@ use crate::{
         MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL,
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
-        MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL,
-        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
-        SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V2_SQL,
+        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
+        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -550,6 +550,145 @@ fn migrate_v23(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v24(transaction: &Transaction<'_>) -> AppResult<()> {
+    for (table, column, definition) in [
+        ("reminder_settings", "last_scan_at", "last_scan_at TEXT"),
+        (
+            "reminder_templates",
+            "payment_deadline_days",
+            "payment_deadline_days INTEGER NOT NULL DEFAULT 10 CHECK (payment_deadline_days BETWEEN 1 AND 90)",
+        ),
+        (
+            "reminders",
+            "payment_deadline_days",
+            "payment_deadline_days INTEGER NOT NULL DEFAULT 10 CHECK (payment_deadline_days BETWEEN 1 AND 90)",
+        ),
+    ] {
+        let columns = {
+            let mut statement = transaction.prepare(&format!("PRAGMA table_info({table})"))?;
+            let columns = statement
+                .query_map([], |row| row.get::<_, String>(1))?
+                .collect::<Result<HashSet<_>, _>>()?;
+            columns
+        };
+        if !columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+
+    // V23 stored the already-rendered subject and body on each reminder. Freeze
+    // the source template while it is still available so V24 can safely render
+    // a fresh balance and payment deadline after a partial payment. An orphaned
+    // legacy reminder gets a conservative neutral template instead of reusing a
+    // stale amount embedded in its rendered body.
+    let legacy_reminders = {
+        let mut statement = transaction.prepare(
+            r#"SELECT r.id,r.status,r.snapshot_json,t.subject,t.body,t.days_after_due,
+                      r.scheduled_date,i.due_date
+                 FROM reminders r
+                 JOIN invoices i ON i.id=r.invoice_id
+                 LEFT JOIN reminder_templates t ON t.id=r.template_id
+                WHERE r.status IN ('planned','due','completed')"#,
+        )?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<i64>>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    for (
+        id,
+        status,
+        raw_snapshot,
+        subject,
+        body,
+        template_days_after_due,
+        scheduled_date,
+        invoice_due_date,
+    ) in legacy_reminders
+    {
+        let mut snapshot = serde_json::from_str::<Value>(&raw_snapshot)
+            .unwrap_or_else(|_| json!({ "legacy_snapshot_json": raw_snapshot }));
+        if !snapshot.is_object() {
+            snapshot = json!({ "legacy_snapshot": snapshot });
+        }
+        let object = snapshot
+            .as_object_mut()
+            .ok_or_else(|| AppError::Validation("Snapshot de relance invalide.".into()))?;
+        if matches!(status.as_str(), "planned" | "due") {
+            object.entry("template_subject").or_insert_with(|| {
+                Value::String(
+                    subject.unwrap_or_else(|| "Relance · facture {invoice_number}".into()),
+                )
+            });
+            object.entry("template_body").or_insert_with(|| {
+                Value::String(body.unwrap_or_else(|| {
+                    "Bonjour {client_name},\n\nLe solde de {balance} relatif à la facture {invoice_number}, échue le {due_date}, reste ouvert. Merci d’effectuer le règlement d’ici au {payment_deadline} ou de nous contacter.\n\nAvec nos salutations,\n{sender_name}".into()
+                }))
+            });
+            object
+                .entry("template_recovered_during_v24_migration")
+                .or_insert(Value::Bool(true));
+            if let Some(days_after_due) = template_days_after_due {
+                object
+                    .entry("days_after_due")
+                    .or_insert_with(|| Value::Number(days_after_due.into()));
+            }
+        } else if status == "completed" && !object.contains_key("days_after_due") {
+            let parse_legacy_date = |value: &str| {
+                NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                    .ok()
+                    .filter(|date| date.format("%Y-%m-%d").to_string() == value)
+            };
+            let recovered_delay = invoice_due_date
+                .as_deref()
+                .and_then(|due_date| {
+                    Some((
+                        parse_legacy_date(due_date)?,
+                        parse_legacy_date(&scheduled_date)?,
+                    ))
+                })
+                .and_then(|(due_date, scheduled_date)| {
+                    let days = (scheduled_date - due_date).num_days();
+                    (days >= 0).then_some(days)
+                });
+            if let Some(days_after_due) = recovered_delay {
+                object.insert(
+                    "days_after_due".into(),
+                    Value::Number(days_after_due.into()),
+                );
+                object.insert(
+                    "days_after_due_recovered_from_schedule_v24".into(),
+                    Value::Bool(true),
+                );
+            } else {
+                object.insert("historical_delay_review_required".into(), Value::Bool(true));
+            }
+        }
+        object
+            .entry("payment_deadline_days")
+            .or_insert_with(|| Value::Number(10.into()));
+        transaction.execute(
+            "UPDATE reminders SET snapshot_json=? WHERE id=?",
+            params![serde_json::to_string(&snapshot)?, id],
+        )?;
+    }
+    transaction.execute_batch(MIGRATION_V24_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -887,6 +1026,7 @@ impl LocalStore {
                 migrate_v21(&transaction)?;
                 migrate_v22(&transaction)?;
                 migrate_v23(&transaction)?;
+                migrate_v24(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -974,7 +1114,7 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
-            12..=22 => {}
+            12..=23 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -995,6 +1135,7 @@ impl LocalStore {
             migrate_v21(&transaction)?;
             migrate_v22(&transaction)?;
             migrate_v23(&transaction)?;
+            migrate_v24(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1593,6 +1734,11 @@ impl LocalStore {
             "SELECT * FROM reminder_history ORDER BY occurred_at,rowid",
             [],
         )?;
+        let reminder_deliveries = query_all(
+            connection,
+            "SELECT * FROM reminder_deliveries ORDER BY sequence",
+            [],
+        )?;
         let payroll_contribution_definitions = query_all(
             connection,
             "SELECT * FROM payroll_contribution_definitions ORDER BY code,effective_from",
@@ -1667,6 +1813,7 @@ impl LocalStore {
             "quote_conversions":quote_conversions,
             "audit_log":audit_log,
         });
+        workspace["reminder_deliveries"] = json!(reminder_deliveries);
         workspace["time_billing_batches"] = json!(time_billing_batches);
         workspace["time_billing_entries"] = json!(time_billing_entries);
         workspace["bank_supplier_reconciliations"] = json!(bank_supplier_reconciliations);
@@ -5244,6 +5391,287 @@ mod v22_migration_tests {
                 .unwrap(),
             1
         );
+        assert_eq!(
+            connection
+                .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+}
+
+#[cfg(test)]
+mod v24_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_v23_to_v24_preserves_reminders_and_installs_empty_guarded_ledgers() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            tx.execute_batch(SCHEMA_SQL).unwrap();
+            migrate_v20(&tx).unwrap();
+            migrate_v21(&tx).unwrap();
+            migrate_v22(&tx).unwrap();
+            migrate_v23(&tx).unwrap();
+            tx.execute(
+                "INSERT INTO clients(id,name,email,created_at,updated_at) VALUES('client-v23','Client relance V23','client@example.ch','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO invoices(id,client_id,number,title,type,status,issue_date,due_date,currency,total_cents,paid_cents,created_at,updated_at) VALUES('invoice-v23','client-v23','F-2026-0001','Facture relance V23','standard','emise','2026-01-01','2026-01-31','CHF',12500,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminder_settings(id,enabled,sender_name,created_at,updated_at) VALUES(1,1,'Entreprise V23','2026-02-01T00:00:00Z','2026-02-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminder_templates(id,level,name,subject,body,days_after_due,active,created_at,updated_at) VALUES('template-v23',1,'Rappel V23','Facture {invoice_number}','Solde {balance_cents}',5,1,'2026-02-01T00:00:00Z','2026-02-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminders(id,invoice_id,template_id,level,scheduled_date,status,subject,body,invoice_number,currency,invoice_total_cents,balance_cents,snapshot_json,notes,created_at,updated_at) VALUES('reminder-v23','invoice-v23','template-v23',1,'2026-02-05','due','Facture F-2026-0001','Solde 12500','F-2026-0001','CHF',12500,12500,'{\"schema\":\"legacy-reminder-v23\"}','Note conservée','2026-02-05T00:00:00Z','2026-02-05T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminder_history(id,reminder_id,action,occurred_at,note) VALUES('history-v23','reminder-v23','created','2026-02-05T00:00:00Z','Historique conservé')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO invoices(id,client_id,number,title,type,status,issue_date,due_date,currency,total_cents,paid_cents,created_at,updated_at) VALUES('invoice-completed-v23','client-v23','F-2026-0002','Facture envoyée V23','standard','emise','2026-01-01','2026-01-31','CHF',9800,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminders(id,invoice_id,template_id,level,scheduled_date,status,subject,body,invoice_number,currency,invoice_total_cents,balance_cents,snapshot_json,notes,created_at,updated_at) VALUES('reminder-completed-v23','invoice-completed-v23','template-v23',1,'2026-02-10','completed','Facture F-2026-0002','Solde 9800','F-2026-0002','CHF',9800,9800,'{\"schema\":\"legacy-completed-v23\"}',NULL,'2026-02-10T00:00:00Z','2026-02-11T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminder_history(id,reminder_id,action,occurred_at,note) VALUES('history-sent-v23','reminder-completed-v23','sent_manually','2026-02-10T12:00:00Z','Envoi V23')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO reminder_history(id,reminder_id,action,occurred_at,note) VALUES('history-completed-v23','reminder-completed-v23','completed','2026-02-11T08:00:00Z','Traitée V23')",
+                [],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            23
+        );
+
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v24(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            24
+        );
+        let settings: (i64, String, Option<String>) = connection
+            .query_row(
+                "SELECT enabled,sender_name,last_scan_at FROM reminder_settings WHERE id=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(settings, (1, "Entreprise V23".into(), None));
+        let template: (String, i64, i64) = connection
+            .query_row(
+                "SELECT name,days_after_due,payment_deadline_days FROM reminder_templates WHERE id='template-v23'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(template, ("Rappel V23".into(), 5, 10));
+        let reminder: (String, String, i64, String) = connection
+            .query_row(
+                "SELECT status,notes,payment_deadline_days,snapshot_json FROM reminders WHERE id='reminder-v23'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(reminder.0, "due");
+        assert_eq!(reminder.1, "Note conservée");
+        assert_eq!(reminder.2, 10);
+        let migrated_snapshot: Value = serde_json::from_str(&reminder.3).unwrap();
+        assert_eq!(migrated_snapshot["schema"], "legacy-reminder-v23");
+        assert_eq!(
+            migrated_snapshot["template_subject"],
+            "Facture {invoice_number}"
+        );
+        assert_eq!(migrated_snapshot["template_body"], "Solde {balance_cents}");
+        assert_eq!(migrated_snapshot["days_after_due"], 5);
+        assert_eq!(migrated_snapshot["payment_deadline_days"], 10);
+        let completed_snapshot: String = connection
+            .query_row(
+                "SELECT snapshot_json FROM reminders WHERE id='reminder-completed-v23'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let completed_snapshot: Value = serde_json::from_str(&completed_snapshot).unwrap();
+        assert_eq!(
+            completed_snapshot["days_after_due"], 10,
+            "le délai V23 envoyé vient de scheduled_date - due_date, jamais du modèle mutable J+5"
+        );
+        assert_eq!(
+            completed_snapshot["days_after_due_recovered_from_schedule_v24"],
+            true
+        );
+        let history: (String, String) = connection
+            .query_row(
+                "SELECT action,note FROM reminder_history WHERE id='history-v23'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(history, ("created".into(), "Historique conservé".into()));
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM reminder_templates", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1,
+            "la migration ne doit semer aucun modèle supplémentaire"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM reminders", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2,
+            "la migration ne doit semer aucune relance supplémentaire"
+        );
+        for table in ["reminder_operation_requests", "reminder_deliveries"] {
+            assert_eq!(
+                connection
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                        row.get::<_, i64>(0)
+                    })
+                    .unwrap(),
+                0,
+                "{table} doit être créé vide"
+            );
+        }
+
+        assert!(connection
+            .execute(
+                "UPDATE reminder_history SET note='altéré' WHERE id='history-v23'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM reminder_history WHERE id='history-v23'", [])
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE reminders SET status='planned' WHERE id='reminder-v23'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE reminders SET status='completed' WHERE id='reminder-v23'",
+                [],
+            )
+            .is_err());
+        connection
+            .execute(
+                "INSERT INTO reminder_deliveries(id,request_id,reminder_id,action,prepared_on,current_balance_cents,payment_deadline_date,subject,body,payload_sha256,payload_json,created_at) VALUES('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','reminder-v23','manual_sent','2026-02-05',12500,'2026-02-15','Facture F-2026-0001','Solde 12500','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','{}','2026-02-05T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            connection
+                .execute(
+                    "UPDATE reminders SET status='completed' WHERE id='reminder-v23'",
+                    [],
+                )
+                .unwrap(),
+            1
+        );
+        assert!(connection
+            .execute(
+                "UPDATE reminders SET status='due' WHERE id='reminder-v23'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM reminders WHERE id='reminder-v23'", [])
+            .is_err());
+
+        connection
+            .execute(
+                "INSERT INTO reminder_operation_requests(request_id,operation,payload_sha256,payload_json,response_json,created_at) VALUES('11111111-1111-4111-8111-111111111111','scan',?1,'{}','{}','2026-02-05T00:00:00Z')",
+                params!["a".repeat(64)],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE reminder_operation_requests SET created_at='2026-02-06T00:00:00Z' WHERE request_id='11111111-1111-4111-8111-111111111111'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM reminder_operation_requests WHERE request_id='11111111-1111-4111-8111-111111111111'",
+                [],
+            )
+            .is_err());
+
+        connection
+            .execute(
+                "INSERT INTO reminder_deliveries(id,request_id,reminder_id,action,prepared_on,current_balance_cents,payment_deadline_date,subject,body,payload_sha256,payload_json,created_at) VALUES('22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','reminder-v23','print_confirmed','2026-02-05',12500,'2026-02-15','Facture F-2026-0001','Solde CHF 125.00',?1,'{}','2026-02-05T00:00:00Z')",
+                params!["b".repeat(64)],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE reminder_deliveries SET subject='altéré' WHERE id='22222222-2222-4222-8222-222222222222'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM reminder_deliveries WHERE id='22222222-2222-4222-8222-222222222222'",
+                [],
+            )
+            .is_err());
         assert_eq!(
             connection
                 .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))

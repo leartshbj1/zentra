@@ -18,19 +18,20 @@ use crate::{
         ContributionDefinitionInput, ConvertQuoteInput, ConvertQuoteToSalesOrderInput,
         CreateInvoiceFromTimeEntriesInput, CreateRecurrenceScheduleInput,
         CreateSalesOrderInvoiceInput, DeleteResult, GeneratePayslipPdfInput,
-        GenerateRecurrenceOccurrencesInput, IssueDeliveryNoteInput, IssueSupplierReceiptInput,
-        LedgerInput, ManualJournalInput, MarkReminderInput, OnboardingInput, OnboardingValidation,
-        PayPayslipInput, PeriodFilter, PostPayslipInput, PreviewSalesOrderInvoiceInput,
-        ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
-        ReminderActionInput, ReminderFilter, ReminderSettingsInput, ReminderTemplateInput,
-        ReverseDeliveryNoteInput, ReverseSupplierCreditAllocationInput,
-        ReverseSupplierReceiptInput, SaveDeliveryNoteDraftInput, SaveDocumentWithItemsInput,
-        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveProjectMilestoneInput,
-        SaveProjectTaskInput, SaveSalesOrderDraftInput, SaveSupplierCreditNoteDraftInput,
-        SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput,
-        SaveSupplierReceiptDraftInput, StagePayrollDocumentsInput, StockCorrectionInput,
-        StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation,
-        TimerInput, UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
+        GenerateRecurrenceOccurrencesInput, InstallReminderCycleInput, IssueDeliveryNoteInput,
+        IssueSupplierReceiptInput, LedgerInput, ManualJournalInput, MarkReminderInput,
+        OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter, PostPayslipInput,
+        PreviewSalesOrderInvoiceInput, ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput,
+        RecordSupplierPaymentInput, ReminderActionInput, ReminderFilter, ReminderPreviewInput,
+        ReminderSettingsInput, ReminderTemplateInput, ReverseDeliveryNoteInput,
+        ReverseSupplierCreditAllocationInput, ReverseSupplierReceiptInput,
+        SaveDeliveryNoteDraftInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
+        SavePayslipWithContributionsInput, SaveProjectMilestoneInput, SaveProjectTaskInput,
+        SaveSalesOrderDraftInput, SaveSupplierCreditNoteDraftInput, SaveSupplierInvoiceDraftInput,
+        SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput,
+        ScanRemindersInput, StagePayrollDocumentsInput, StockCorrectionInput, StockEntryInput,
+        StockExitInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
+        UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
         ValidateSupplierCreditNoteInput,
     },
     swiss_qr,
@@ -1003,6 +1004,15 @@ pub fn update_reminder_settings(
     state.update_reminder_settings(input).map_err(command_error)
 }
 #[tauri::command]
+pub fn install_reminder_cycle(
+    state: State<'_, LocalStore>,
+    input: InstallReminderCycleInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.install_reminder_cycle(input).map_err(command_error)
+}
+#[tauri::command]
 pub fn list_reminder_templates(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.list_reminder_templates().map_err(command_error)
@@ -1032,6 +1042,15 @@ pub fn generate_due_reminders(
     state.generate_due_reminders(as_of).map_err(command_error)
 }
 #[tauri::command]
+pub fn scan_due_reminders(
+    state: State<'_, LocalStore>,
+    input: ScanRemindersInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.scan_due_reminders(input).map_err(command_error)
+}
+#[tauri::command]
 pub fn list_reminders(
     state: State<'_, LocalStore>,
     filter: ReminderFilter,
@@ -1047,6 +1066,16 @@ pub fn get_reminder_history(
     let _guard = state.lock().map_err(command_error)?;
     state
         .get_reminder_history(&reminder_id)
+        .map_err(command_error)
+}
+#[tauri::command]
+pub fn preview_reminder_delivery(
+    state: State<'_, LocalStore>,
+    input: ReminderPreviewInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .preview_reminder_delivery(input)
         .map_err(command_error)
 }
 #[tauri::command]

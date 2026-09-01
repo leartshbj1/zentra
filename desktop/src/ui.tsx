@@ -266,6 +266,7 @@ const statusLabels: Record<string, string> = {
   closed: 'Clôturé',
   draft: 'Brouillon',
   issued: 'Émis',
+  due: 'À envoyer',
   accepted: 'Accepté',
   refused: 'Refusé',
   expired: 'Expiré',

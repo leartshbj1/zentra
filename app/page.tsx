@@ -2,19 +2,23 @@ import {
   ArrowRight,
   Banknote,
   BarChart3,
+  BellRing,
   BookOpenCheck,
   BriefcaseBusiness,
   Building2,
   Check,
+  CircleStop,
   Clock3,
   Database,
   FileCheck2,
   FileDown,
   FolderKanban,
   HardDrive,
+  History,
   Landmark,
   Laptop,
   LockKeyhole,
+  MailCheck,
   Plus,
   Package,
   Receipt,
@@ -33,6 +37,7 @@ import { PayrollLocalDemo } from '@/components/payroll-local-demo';
 import { ProductShowcase } from '@/components/product-showcase';
 import { PurchaseButton } from '@/components/purchase-button';
 import { RecurrenceDemo } from '@/components/recurrence-demo';
+import { ReminderDemo } from '@/components/reminder-demo';
 import { VatClosingDemo } from '@/components/vat-closing-demo';
 import { ProductFlowDemo } from './product-flow-demo';
 import { ELYKO_VERSION } from '@/lib/downloads';
@@ -58,6 +63,11 @@ const features = [
     icon: Receipt,
     title: 'Factures & paiements',
     text: 'Factures uniques ou récurrentes supervisées, situations, échéances, QR-facture suisse, avoirs et montants réellement encaissés.',
+  },
+  {
+    icon: BellRing,
+    title: 'Relances supervisées',
+    text: 'Trois niveaux configurables, solde revérifié après chaque paiement et historique local avant toute décision d’envoi.',
   },
   {
     icon: Clock3,
@@ -149,6 +159,11 @@ const capabilityRows = [
     'Vente complète',
     'Disponible',
     'Devis accepté, commande, réservation, BL partiel/complet, situation/finale, QR et paiements.',
+  ],
+  [
+    'Relances de factures',
+    'Disponible avec validation',
+    'Cycle explicite, paiements partiels, aperçu, e-mail prérempli, impression et preuve locale sans envoi automatique.',
   ],
   [
     'Projets & temps',
@@ -244,10 +259,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-111"
+              href="#lot-112"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.11
+              Nouveautés 1.12
             </a>
             <a
               href="#capacites"
@@ -295,11 +310,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-111"
+            href="#lot-112"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.11 · facturation récurrente supervisée
+            Elyko 1.12 · relances de factures supervisées
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -364,6 +379,96 @@ export default function Home() {
           </div>
         </div>
         <HeroDashboard />
+      </section>
+
+      <section
+        id="lot-112"
+        className="scroll-mt-24 border-y border-[#d4ddd6] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="lot-112-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
+                Elyko 1.12 · relances supervisées
+              </p>
+              <h2
+                id="lot-112-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Les relances avancent. Vous gardez le dernier mot.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#637168] lg:justify-self-end">
+              Elyko détecte localement les factures échues, prépare le bon
+              niveau et revérifie le solde juste avant l’action. Vous relisez le
+              document, choisissez le canal et confirmez vous-même l’envoi.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                icon: BellRing,
+                eyebrow: 'Cycle simple',
+                title: 'Trois niveaux prêts à adapter.',
+                text: 'Rappel amical à J+7, première relance à J+21 et dernière relance à J+35, avec délais et textes modifiables.',
+              },
+              {
+                icon: WalletCards,
+                eyebrow: 'Solde réel',
+                title: 'Les paiements partiels sont déduits.',
+                text: 'Le montant ouvert est recalculé avant l’aperçu. Une facture soldée arrête immédiatement le cycle.',
+              },
+              {
+                icon: History,
+                eyebrow: 'Preuve locale',
+                title: 'Chaque décision reste traçable.',
+                text: 'Brouillon, impression confirmée, envoi manuel ou arrêt sont conservés dans un historique immuable.',
+              },
+              {
+                icon: CircleStop,
+                eyebrow: 'Aucun automatisme risqué',
+                title: 'Ni e-mail ni poursuite sans vous.',
+                text: 'Le contrôle fonctionne quand Elyko est ouvert. L’application ne lance jamais seule une démarche de recouvrement.',
+              },
+            ].map(({ icon: Icon, eyebrow, title, text }) => (
+              <article
+                key={title}
+                className="interactive-card rounded-[24px] border border-[#d2ddd4] bg-white/85 p-6 shadow-[0_18px_45px_rgba(41,78,55,.06)]"
+              >
+                <Icon className="size-6 text-[#397150]" aria-hidden="true" />
+                <p className="mt-5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#52745f]">
+                  {eyebrow}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-.025em] text-[#294334]">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-[#627168]">{text}</p>
+              </article>
+            ))}
+          </div>
+
+          <ReminderDemo />
+
+          <div className="mt-5 grid gap-4 rounded-[22px] border border-[#decda8] bg-[#fff7e8] p-5 text-sm leading-6 text-[#6e572f] lg:grid-cols-[1fr_auto] lg:items-center">
+            <p>
+              <strong className="text-[#62471d]">Cadre suisse visible.</strong>{' '}
+              Une échéance dépassée ne signifie pas toujours que le débiteur est
+              juridiquement en demeure. Les modèles conseillés n’ajoutent ni
+              frais ni intérêt automatiquement ; le taux légal de 5&nbsp;% ne
+              doit être appliqué qu’après vérification des conditions du cas.
+              Elyko n’engage aucune poursuite.
+            </p>
+            <a
+              href="/telecharger"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 font-semibold text-white transition hover:bg-[#24563f]"
+            >
+              <MailCheck className="size-4" /> Télécharger Elyko {ELYKO_VERSION}
+            </a>
+          </div>
+        </div>
       </section>
 
       <section
@@ -1560,6 +1665,26 @@ export default function Home() {
               [
                 'L’import bancaire CAMT est-il déjà disponible ?',
                 'Oui. Vous pouvez importer localement des relevés CAMT.053 et CAMT.054 v04/v08. Les CAMT.054 servent à la revue; le CAMT.053 définitif est exigé avant de confirmer un crédit client ou un débit fournisseur. Aucune suggestion ne crée un paiement automatiquement.',
+              ],
+              [
+                'Elyko envoie-t-il les relances automatiquement ?',
+                'Non. Elyko prépare localement une relance à contrôler. Vous pouvez demander l’ouverture d’un e-mail prérempli dans votre logiciel de messagerie, imprimer le courrier ou confirmer un envoi déjà réalisé. Aucun e-mail ne part seul, et Elyko ne prétend pas qu’un brouillon a été créé si Windows ne l’ouvre pas.',
+              ],
+              [
+                'Que se passe-t-il lorsque l’application est fermée ?',
+                'Il n’existe pas de serveur Elyko qui surveille vos factures. Le contrôle reprend au prochain démarrage ou retour dans l’application, puis toutes les décisions restent à valider.',
+              ],
+              [
+                'Une facture payée peut-elle encore être relancée ?',
+                'Elyko revérifie le solde après les paiements et avoirs. Si le solde est nul, la relance ouverte est arrêtée avant la préparation ou l’envoi.',
+              ],
+              [
+                'Trois rappels sont-ils obligatoires en Suisse ?',
+                'Non, il n’existe pas de règle générale imposant trois rappels avant une poursuite. Une échéance dépassée ne suffit pas non plus toujours à établir la demeure. Elyko fournit un cycle pratique, sans remplacer l’examen du contrat ni un conseil juridique.',
+              ],
+              [
+                'Des frais ou intérêts sont-ils ajoutés automatiquement ?',
+                'Non. Les modèles conseillés n’ajoutent aucun frais ni intérêt. Le taux légal de 5 % suppose notamment que la demeure soit établie; toute application doit être décidée et vérifiée séparément.',
               ],
               [
                 'Le module salaire est-il certifié Swissdec ?',

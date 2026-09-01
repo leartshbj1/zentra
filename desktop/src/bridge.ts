@@ -68,7 +68,13 @@ import type {
   RecurrenceOccurrence,
   RecurrenceSchedule,
   Reminder,
+  ReminderActionResult,
+  ReminderDeliveryAction,
   ReminderHistory,
+  ReminderParty,
+  ReminderPreview,
+  ReminderScanResult,
+  ReminderSender,
   ReminderSettings,
   ReminderStatus,
   ReminderTemplate,
@@ -2574,6 +2580,8 @@ const rawArray = (value: unknown, key?: string): RawRecord[] => {
     return rawArray((value as RawRecord)[key]);
   return [];
 };
+const valueArray = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
 
 export function accountingFallbacksFromPostPayslip(
   value: unknown,
@@ -3029,7 +3037,7 @@ function numberRecord(value: unknown): Record<string, number> {
   );
 }
 
-function reminderTemplateFromRaw(row: RawRecord): ReminderTemplate {
+export function reminderTemplateFromRaw(row: RawRecord): ReminderTemplate {
   return {
     id: stringValue(row.id),
     level: numberValue(row.level),
@@ -3037,11 +3045,12 @@ function reminderTemplateFromRaw(row: RawRecord): ReminderTemplate {
     subject: stringValue(row.subject),
     body: stringValue(row.body),
     daysAfterDue: numberValue(row.days_after_due),
+    paymentDeadlineDays: numberValue(row.payment_deadline_days) || 10,
     active: boolValue(row.active),
   };
 }
 
-function reminderFromRaw(row: RawRecord): Reminder {
+export function reminderFromRaw(row: RawRecord): Reminder {
   return {
     id: stringValue(row.id),
     invoiceId: stringValue(row.invoice_id),
@@ -3059,6 +3068,105 @@ function reminderFromRaw(row: RawRecord): Reminder {
     currency: stringValue(row.currency) || 'CHF',
     invoiceTotalCents: numberValue(row.invoice_total_cents),
     balanceCents: numberValue(row.balance_cents),
+    paymentDeadlineDays: numberValue(row.payment_deadline_days) || 10,
+    liveBalanceCents:
+      row.live_balance_cents === null || row.live_balance_cents === undefined
+        ? null
+        : numberValue(row.live_balance_cents),
+    snapshotStale: boolValue(row.snapshot_stale),
+    clientEmail: stringValue(row.client_email),
+    clientAddressLine1: stringValue(row.client_address_line1),
+    clientAddressLine2: stringValue(row.client_address_line2),
+    clientPostalCode: stringValue(row.client_postal_code),
+    clientCity: stringValue(row.client_city),
+    clientCountry: stringValue(row.client_country),
+    lastDeliveryAction: stringValue(row.last_delivery_action),
+    lastDeliveryAt: stringValue(row.last_delivery_at),
+  };
+}
+
+function reminderPartyFromRaw(value: unknown): ReminderParty {
+  const row = recordValue(value);
+  return {
+    name: stringValue(row.name),
+    addressLine1: stringValue(row.address_line1),
+    addressLine2: stringValue(row.address_line2),
+    postalCode: stringValue(row.postal_code),
+    city: stringValue(row.city),
+    canton: stringValue(row.canton),
+    country: stringValue(row.country),
+  };
+}
+
+function reminderSenderFromRaw(value: unknown): ReminderSender {
+  const row = recordValue(value);
+  return {
+    ...reminderPartyFromRaw(row),
+    company: stringValue(row.company),
+    legalForm: stringValue(row.legal_form),
+    owner: stringValue(row.owner),
+    email: stringValue(row.email),
+    phone: stringValue(row.phone),
+    uidNumber: stringValue(row.uid_number),
+    logoPath: stringValue(row.logo_path),
+  };
+}
+
+export function reminderPreviewFromRaw(value: unknown): ReminderPreview {
+  const row = recordValue(value);
+  return {
+    reminderId: stringValue(row.reminder_id),
+    invoiceId: stringValue(row.invoice_id),
+    invoiceNumber: stringValue(row.invoice_number),
+    level: numberValue(row.level),
+    dueDate: stringValue(row.due_date),
+    scheduledDate: stringValue(row.scheduled_date),
+    preparedOn: stringValue(row.prepared_on),
+    paymentDeadlineDate: stringValue(row.payment_deadline_date),
+    paymentDeadlineDays: numberValue(row.payment_deadline_days),
+    currency: stringValue(row.currency) || 'CHF',
+    snapshotBalanceCents: numberValue(row.snapshot_balance_cents),
+    currentBalanceCents: numberValue(row.current_balance_cents),
+    snapshotStale: boolValue(row.snapshot_stale),
+    templateReviewRequired: boolValue(row.template_review_required),
+    recipientEmail: stringValue(row.recipient_email),
+    client: reminderPartyFromRaw(row.client),
+    sender: reminderSenderFromRaw(row.sender),
+    subject: stringValue(row.subject),
+    body: stringValue(row.body),
+    previewSha256: stringValue(row.preview_sha256),
+  };
+}
+
+export function reminderScanResultFromRaw(value: unknown): ReminderScanResult {
+  const row = recordValue(value);
+  return {
+    asOf: stringValue(row.as_of),
+    enabled: boolValue(row.enabled),
+    created: rawArray(row.created).map(reminderFromRaw),
+    cancelled: valueArray(row.cancelled).map(stringValue).filter(Boolean),
+    review: rawArray(row.review).map((item) => ({
+      invoiceId: stringValue(item.invoice_id),
+      reminderId: stringValue(item.reminder_id),
+      reason: stringValue(item.reason),
+    })),
+    idempotent: boolValue(row.idempotent),
+  };
+}
+
+export function reminderActionResultFromRaw(
+  value: unknown,
+): ReminderActionResult {
+  const row = recordValue(value);
+  const delivery = recordValue(row.delivery);
+  return {
+    blocked: boolValue(row.blocked),
+    reason: stringValue(row.reason),
+    reminder: row.reminder
+      ? reminderFromRaw(recordValue(row.reminder))
+      : null,
+    deliveryId: stringValue(delivery.id),
+    idempotent: boolValue(row.idempotent),
   };
 }
 
@@ -4834,6 +4942,29 @@ export const desktopApi = {
     return {
       enabled: boolValue(row?.enabled),
       senderName: stringValue(row?.sender_name),
+      lastScanAt: stringValue(row?.last_scan_at),
+    };
+  },
+  async installReminderCycle(requestId: string, senderName?: string) {
+    const row = recordValue(
+      await invoke<unknown>('install_reminder_cycle', {
+        input: {
+          request_id: requestId,
+          sender_name: senderName || null,
+        },
+      }),
+    );
+    const settingsRow = recordValue(row.settings);
+    return {
+      settings: {
+        enabled: boolValue(settingsRow.enabled),
+        senderName: stringValue(settingsRow.sender_name),
+        lastScanAt: stringValue(settingsRow.last_scan_at),
+      } satisfies ReminderSettings,
+      templates: rawArray(row.templates).map(reminderTemplateFromRaw),
+      createdLevels: valueArray(row.created_levels).map(numberValue),
+      skippedLevels: valueArray(row.skipped_levels).map(numberValue),
+      idempotent: boolValue(row.idempotent),
     };
   },
   async updateReminderSettings(settings: ReminderSettings) {
@@ -4860,6 +4991,7 @@ export const desktopApi = {
         subject: input.subject,
         body: input.body,
         days_after_due: input.daysAfterDue,
+        payment_deadline_days: input.paymentDeadlineDays,
         active: input.active,
       },
     });
@@ -4868,10 +5000,18 @@ export const desktopApi = {
     await invoke('delete_reminder_template', { id });
   },
   async generateDueReminders(asOf?: string) {
-    return rawArray(
-      await invoke<unknown>('generate_due_reminders', { asOf: asOf || null }),
-      'reminders',
-    ).map(reminderFromRaw);
+    const result = await this.scanDueReminders(crypto.randomUUID(), asOf);
+    return result.created;
+  },
+  async scanDueReminders(
+    requestId: string,
+    asOf?: string,
+  ): Promise<ReminderScanResult> {
+    return reminderScanResultFromRaw(
+      await invoke<unknown>('scan_due_reminders', {
+        input: { request_id: requestId, as_of: asOf || null },
+      }),
+    );
   },
   async listReminders(
     filter: {
@@ -4905,19 +5045,47 @@ export const desktopApi = {
       note: stringValue(row.note),
     }));
   },
+  async previewReminderDelivery(
+    id: string,
+    preparedOn?: string,
+  ): Promise<ReminderPreview> {
+    return reminderPreviewFromRaw(
+      await invoke<unknown>('preview_reminder_delivery', {
+        input: { id, prepared_on: preparedOn || null },
+      }),
+    );
+  },
   async markReminder(id: string, status: ReminderStatus, note?: string) {
-    await invoke('mark_reminder', {
-      input: { id, status, note: note || null },
-    });
+    return reminderFromRaw(
+      recordValue(
+        await invoke<unknown>('mark_reminder', {
+          input: { id, status, note: note || null },
+        }),
+      ),
+    );
   },
   async recordReminderAction(
-    id: string,
-    action: 'printed' | 'exported' | 'sent_manually' | 'note',
-    note?: string,
-  ) {
-    await invoke('record_reminder_action', {
-      input: { id, action, note: note || null },
-    });
+    input: {
+      requestId: string;
+      id: string;
+      action: ReminderDeliveryAction;
+      preparedOn?: string;
+      previewSha256: string;
+      note?: string;
+    },
+  ): Promise<ReminderActionResult> {
+    return reminderActionResultFromRaw(
+      await invoke<unknown>('record_reminder_action', {
+        input: {
+          request_id: input.requestId,
+          id: input.id,
+          action: input.action,
+          prepared_on: input.preparedOn || null,
+          preview_sha256: input.previewSha256,
+          note: input.note || null,
+        },
+      }),
+    );
   },
   async listPayrollContributionDefinitions(
     asOf?: string,

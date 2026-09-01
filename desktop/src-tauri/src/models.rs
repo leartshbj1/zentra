@@ -838,8 +838,35 @@ pub struct ReminderTemplateInput {
     pub subject: String,
     pub body: String,
     pub days_after_due: i64,
+    #[serde(default = "default_reminder_payment_deadline_days")]
+    pub payment_deadline_days: i64,
     #[serde(default = "default_true")]
     pub active: bool,
+}
+
+fn default_reminder_payment_deadline_days() -> i64 {
+    10
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallReminderCycleInput {
+    pub request_id: String,
+    #[serde(default)]
+    pub sender_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanRemindersInput {
+    pub request_id: String,
+    #[serde(default)]
+    pub as_of: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReminderPreviewInput {
+    pub id: String,
+    #[serde(default)]
+    pub prepared_on: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -864,8 +891,13 @@ pub struct MarkReminderInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReminderActionInput {
+    pub request_id: String,
     pub id: String,
     pub action: String,
+    #[serde(default)]
+    pub prepared_on: Option<String>,
+    #[serde(default)]
+    pub preview_sha256: Option<String>,
     #[serde(default)]
     pub note: Option<String>,
 }

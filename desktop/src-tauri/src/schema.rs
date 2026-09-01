@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 23;
+pub const SCHEMA_VERSION: i64 = 24;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -69,6 +69,8 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "reminder_settings",
     "reminders",
     "reminder_history",
+    "reminder_operation_requests",
+    "reminder_deliveries",
     "payroll_contribution_definitions",
     "payslip_contributions",
     "payroll_document_imports",
@@ -4571,4 +4573,78 @@ BEFORE INSERT ON sales_order_cancellation_lines WHEN EXISTS(
 BEGIN SELECT RAISE(ABORT,'active recurrence model cannot be partially cancelled'); END;
 
 PRAGMA user_version=23;
+"#;
+
+/// Relances supervisées V24. La migration conserve les modèles, relances et
+/// historiques existants, mais ne crée aucun cycle ni document commercial.
+pub const MIGRATION_V24_SQL: &str = r#"
+DROP TRIGGER IF EXISTS reminder_history_no_update;
+DROP TRIGGER IF EXISTS reminder_history_no_delete;
+DROP INDEX IF EXISTS idx_reminder_history_reminder;
+CREATE TABLE reminder_history_v24 (
+  id TEXT PRIMARY KEY,
+  reminder_id TEXT NOT NULL REFERENCES reminders(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  action TEXT NOT NULL CHECK (action IN ('created','due','completed','cancelled','printed','exported','mail_draft_created','sent_manually','refreshed','note')),
+  occurred_at TEXT NOT NULL,
+  note TEXT
+);
+INSERT INTO reminder_history_v24(id,reminder_id,action,occurred_at,note)
+SELECT id,reminder_id,action,occurred_at,note FROM reminder_history;
+DROP TABLE reminder_history;
+ALTER TABLE reminder_history_v24 RENAME TO reminder_history;
+CREATE INDEX idx_reminder_history_reminder ON reminder_history(reminder_id,occurred_at);
+CREATE TRIGGER reminder_history_no_update
+BEFORE UPDATE ON reminder_history BEGIN SELECT RAISE(ABORT,'reminder_history is immutable'); END;
+CREATE TRIGGER reminder_history_no_delete
+BEFORE DELETE ON reminder_history BEGIN SELECT RAISE(ABORT,'reminder_history is immutable'); END;
+
+CREATE TABLE IF NOT EXISTS reminder_operation_requests (
+  request_id TEXT PRIMARY KEY CHECK (LENGTH(request_id)=36),
+  operation TEXT NOT NULL CHECK (operation IN ('install_cycle','scan','record_action')),
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  payload_json TEXT NOT NULL CHECK (LENGTH(payload_json) BETWEEN 2 AND 100000),
+  response_json TEXT NOT NULL CHECK (LENGTH(response_json) BETWEEN 2 AND 4000000),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reminder_deliveries (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id)=36),
+  request_id TEXT NOT NULL UNIQUE CHECK (LENGTH(request_id)=36),
+  reminder_id TEXT NOT NULL REFERENCES reminders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  action TEXT NOT NULL CHECK (action IN ('print_confirmed','exported','mail_draft_created','manual_sent')),
+  prepared_on TEXT NOT NULL CHECK (LENGTH(prepared_on)=10),
+  recipient_email TEXT,
+  current_balance_cents INTEGER NOT NULL CHECK (current_balance_cents>0),
+  payment_deadline_date TEXT NOT NULL CHECK (LENGTH(payment_deadline_date)=10),
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  payload_json TEXT NOT NULL CHECK (LENGTH(payload_json) BETWEEN 2 AND 4000000),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reminder_deliveries_reminder ON reminder_deliveries(reminder_id,sequence);
+
+CREATE TRIGGER IF NOT EXISTS reminders_status_transition_guard
+BEFORE UPDATE OF status ON reminders WHEN NOT (
+  NEW.status=OLD.status OR
+  (OLD.status='planned' AND NEW.status IN ('due','cancelled')) OR
+  (OLD.status='due' AND NEW.status='cancelled') OR
+  (OLD.status='due' AND NEW.status='completed' AND EXISTS(
+    SELECT 1 FROM reminder_deliveries delivery
+    WHERE delivery.reminder_id=OLD.id AND delivery.action='manual_sent'
+  ))
+)
+BEGIN SELECT RAISE(ABORT,'invalid reminder status transition'); END;
+CREATE TRIGGER IF NOT EXISTS reminders_no_delete
+BEFORE DELETE ON reminders BEGIN SELECT RAISE(ABORT,'reminders are retained for traceability'); END;
+CREATE TRIGGER IF NOT EXISTS reminder_operation_requests_no_update
+BEFORE UPDATE ON reminder_operation_requests BEGIN SELECT RAISE(ABORT,'reminder operation requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reminder_operation_requests_no_delete
+BEFORE DELETE ON reminder_operation_requests BEGIN SELECT RAISE(ABORT,'reminder operation requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reminder_deliveries_no_update
+BEFORE UPDATE ON reminder_deliveries BEGIN SELECT RAISE(ABORT,'reminder deliveries are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reminder_deliveries_no_delete
+BEFORE DELETE ON reminder_deliveries BEGIN SELECT RAISE(ABORT,'reminder deliveries are immutable'); END;
+
+PRAGMA user_version=24;
 "#;

@@ -1918,7 +1918,11 @@ export type VatReturnExport = {
   transmissionWording: string;
 };
 
-export type ReminderSettings = { enabled: boolean; senderName: string };
+export type ReminderSettings = {
+  enabled: boolean;
+  senderName: string;
+  lastScanAt: string;
+};
 export type ReminderTemplate = {
   id: Identifier;
   level: number;
@@ -1926,6 +1930,7 @@ export type ReminderTemplate = {
   subject: string;
   body: string;
   daysAfterDue: number;
+  paymentDeadlineDays: number;
   active: boolean;
 };
 export type ReminderStatus = 'planned' | 'due' | 'completed' | 'cancelled';
@@ -1946,6 +1951,17 @@ export type Reminder = {
   currency: string;
   invoiceTotalCents: number;
   balanceCents: number;
+  paymentDeadlineDays: number;
+  liveBalanceCents: number | null;
+  snapshotStale: boolean;
+  clientEmail: string;
+  clientAddressLine1: string;
+  clientAddressLine2: string;
+  clientPostalCode: string;
+  clientCity: string;
+  clientCountry: string;
+  lastDeliveryAction: string;
+  lastDeliveryAt: string;
 };
 export type ReminderHistory = {
   id: Identifier;
@@ -1953,6 +1969,76 @@ export type ReminderHistory = {
   action: string;
   occurredAt: string;
   note: string;
+};
+
+export type ReminderScanResult = {
+  asOf: string;
+  enabled: boolean;
+  created: Reminder[];
+  cancelled: string[];
+  review: Array<{
+    invoiceId: Identifier;
+    reminderId: Identifier;
+    reason: 'already_open' | 'cycle_stopped' | string;
+  }>;
+  idempotent: boolean;
+};
+
+export type ReminderParty = {
+  name: string;
+  addressLine1: string;
+  addressLine2: string;
+  postalCode: string;
+  city: string;
+  canton: string;
+  country: string;
+};
+
+export type ReminderSender = ReminderParty & {
+  company: string;
+  legalForm: string;
+  owner: string;
+  email: string;
+  phone: string;
+  uidNumber: string;
+  logoPath: string;
+};
+
+export type ReminderPreview = {
+  reminderId: Identifier;
+  invoiceId: Identifier;
+  invoiceNumber: string;
+  level: number;
+  dueDate: string;
+  scheduledDate: string;
+  preparedOn: string;
+  paymentDeadlineDate: string;
+  paymentDeadlineDays: number;
+  currency: string;
+  snapshotBalanceCents: number;
+  currentBalanceCents: number;
+  snapshotStale: boolean;
+  templateReviewRequired: boolean;
+  recipientEmail: string;
+  client: ReminderParty;
+  sender: ReminderSender;
+  subject: string;
+  body: string;
+  previewSha256: string;
+};
+
+export type ReminderDeliveryAction =
+  | 'print_confirmed'
+  | 'exported'
+  | 'mail_draft_created'
+  | 'manual_sent';
+
+export type ReminderActionResult = {
+  blocked: boolean;
+  reason: string;
+  reminder: Reminder | null;
+  deliveryId: string;
+  idempotent: boolean;
 };
 
 export type ContributionCategory =

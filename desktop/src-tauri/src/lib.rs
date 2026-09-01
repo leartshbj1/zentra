@@ -150,12 +150,15 @@ pub fn run() {
             get_income_statement,
             get_reminder_settings,
             update_reminder_settings,
+            install_reminder_cycle,
             list_reminder_templates,
             upsert_reminder_template,
             delete_reminder_template,
             generate_due_reminders,
+            scan_due_reminders,
             list_reminders,
             get_reminder_history,
+            preview_reminder_delivery,
             mark_reminder,
             record_reminder_action,
             get_payroll_regulatory_profiles,
@@ -213,24 +216,27 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rusqlite::OptionalExtension;
     use serde_json::json;
+    use sha2::{Digest, Sha256};
 
     use crate::{
         attachments::AddSupplierInvoiceAttachmentInput,
-        database::LocalStore,
+        database::{now_iso, LocalStore},
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, ApplyPayrollInput,
             ApplySupplierCreditInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
             CancelSupplierOrderRemainderInput, CancelSupplierOrderRemainderLineInput,
             ConfirmSupplierOrderInput, ContributionDefinitionInput, ContributionSelectionInput,
-            ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, IssueSupplierReceiptInput,
-            ManualJournalInput, ManualJournalLineInput, MarkReminderInput, OnboardingInput,
-            PayPayslipInput, PayslipManualLineInput, PeriodFilter, PostPayslipInput,
-            ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
-            ReminderSettingsInput, ReminderTemplateInput, ReverseSupplierCreditAllocationInput,
-            ReverseSupplierReceiptInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
-            SavePayslipWithContributionsInput, SaveSupplierCreditNoteDraftInput,
-            SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput,
-            SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput, StockCorrectionInput,
+            ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, InstallReminderCycleInput,
+            IssueSupplierReceiptInput, ManualJournalInput, ManualJournalLineInput,
+            MarkReminderInput, OnboardingInput, PayPayslipInput, PayslipManualLineInput,
+            PeriodFilter, PostPayslipInput, ReclassifySupplierInvoiceExpenseInput,
+            RecordPaymentInput, RecordSupplierPaymentInput, ReminderActionInput,
+            ReminderPreviewInput, ReminderSettingsInput, ReminderTemplateInput,
+            ReverseSupplierCreditAllocationInput, ReverseSupplierReceiptInput,
+            SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SavePayslipWithContributionsInput,
+            SaveSupplierCreditNoteDraftInput, SaveSupplierInvoiceDraftInput,
+            SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput,
+            SaveSupplierReceiptDraftInput, ScanRemindersInput, StockCorrectionInput,
             StockEntryInput, StockExitInput, SupplierExpenseReclassificationLineInput,
             SupplierInvoiceLineInput, SupplierInvoiceMatchAllocationInput, SupplierOrderDraftInput,
             SupplierOrderLineInput, SupplierReceiptDraftInput, SupplierReceiptLineInput,
@@ -4429,9 +4435,21 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
-    fn reminders_are_local_idempotent_and_cancelled_when_settled() {
+    fn reminders_wait_between_levels_and_cancel_when_settled() {
         let (_temporary, store) = initialized_store();
         enable_accounting(&store);
+        let today = chrono::Local::now().date_naive();
+        let issue_date = today
+            .checked_sub_days(chrono::Days::new(60))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let due_date = today
+            .checked_sub_days(chrono::Days::new(30))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let as_of = today.format("%Y-%m-%d").to_string();
         let client_id = value_id(
             &store
                 .create_record("clients", json!({"name":"Client relance"}))
@@ -4440,11 +4458,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture échue","service_date_from":"2026-01-01","service_date_to":"2026-01-31"})).unwrap());
         store.create_record("invoice_items",json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
         store
-            .issue_invoice(
-                &invoice_id,
-                Some("2026-02-01".into()),
-                Some("2026-02-28".into()),
-            )
+            .issue_invoice(&invoice_id, Some(issue_date), Some(due_date))
             .unwrap();
         store
             .update_reminder_settings(ReminderSettingsInput {
@@ -4460,6 +4474,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 subject: "Facture {invoice_number}".into(),
                 body: "Solde {balance_cents}".into(),
                 days_after_due: 5,
+                payment_deadline_days: 10,
                 active: true,
             })
             .unwrap();
@@ -4471,37 +4486,92 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 subject: "Deuxième rappel {invoice_number}".into(),
                 body: "Solde inchangé {balance_cents}".into(),
                 days_after_due: 10,
+                payment_deadline_days: 10,
                 active: true,
             })
             .unwrap();
-        let first = store
-            .generate_due_reminders(Some("2026-12-31".into()))
-            .unwrap();
+        let first = store.generate_due_reminders(Some(as_of.clone())).unwrap();
         assert_eq!(first["created"].as_array().unwrap().len(), 1);
         assert_eq!(first["created"][0]["level"], 1);
         assert_eq!(first["created"][0]["balance_cents"], 10000);
-        let second = store
-            .generate_due_reminders(Some("2026-12-31".into()))
-            .unwrap();
+        let second = store.generate_due_reminders(Some(as_of.clone())).unwrap();
         assert_eq!(second["created"].as_array().unwrap().len(), 0);
-        store
+        let first_reminder_id = first["created"][0]["id"].as_str().unwrap().to_owned();
+        assert!(store
             .mark_reminder(MarkReminderInput {
-                id: first["created"][0]["id"].as_str().unwrap().into(),
+                id: first_reminder_id.clone(),
                 status: "completed".into(),
-                note: Some("Premier niveau traité localement".into()),
+                note: Some("Tentative de clôture sans preuve d’envoi".into()),
+            })
+            .is_err());
+        let preview = store
+            .preview_reminder_delivery(ReminderPreviewInput {
+                id: first_reminder_id.clone(),
+                prepared_on: Some(as_of.clone()),
             })
             .unwrap();
-        let third = store
-            .generate_due_reminders(Some("2026-12-31".into()))
+        store
+            .record_reminder_action(ReminderActionInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                id: first_reminder_id.clone(),
+                action: "manual_sent".into(),
+                prepared_on: Some(as_of.clone()),
+                preview_sha256: preview["preview_sha256"].as_str().map(str::to_owned),
+                note: Some("Premier niveau envoyé et confirmé".into()),
+            })
             .unwrap();
-        assert_eq!(third["created"].as_array().unwrap().len(), 1);
-        assert_eq!(third["created"][0]["level"], 2);
+        let third = store.generate_due_reminders(Some(as_of.clone())).unwrap();
+        assert_eq!(third["created"].as_array().unwrap().len(), 0);
+        {
+            let connection = store.connect().unwrap();
+            connection
+                .execute(
+                    "UPDATE reminders SET snapshot_json='{}' WHERE id=?",
+                    rusqlite::params![first_reminder_id],
+                )
+                .unwrap();
+            connection
+                .execute("DELETE FROM reminder_templates WHERE level=1", [])
+                .unwrap();
+        }
+        let legacy_without_delay = store.generate_due_reminders(Some(as_of.clone())).unwrap();
+        assert_eq!(legacy_without_delay["created"].as_array().unwrap().len(), 0);
+        assert!(legacy_without_delay["review"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["reason"] == "previous_delay_unknown"));
+
+        let settled_invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture réglée","service_date_from":"2026-01-01","service_date_to":"2026-01-31"})).unwrap());
+        store.create_record("invoice_items",json!({"invoice_id":settled_invoice_id,"description":"Deuxième prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
+        store
+            .issue_invoice(
+                &settled_invoice_id,
+                Some(
+                    today
+                        .checked_sub_days(chrono::Days::new(60))
+                        .unwrap()
+                        .format("%Y-%m-%d")
+                        .to_string(),
+                ),
+                Some(
+                    today
+                        .checked_sub_days(chrono::Days::new(30))
+                        .unwrap()
+                        .format("%Y-%m-%d")
+                        .to_string(),
+                ),
+            )
+            .unwrap();
+        let fourth = store.generate_due_reminders(Some(as_of.clone())).unwrap();
+        assert_eq!(fourth["created"].as_array().unwrap().len(), 1);
+        assert_eq!(fourth["created"][0]["invoice_id"], settled_invoice_id);
         store
             .record_payment(RecordPaymentInput {
                 request_id: None,
-                invoice_id: invoice_id.clone(),
+                invoice_id: settled_invoice_id.clone(),
                 amount_cents: 10000,
-                date: Some("2027-01-01".into()),
+                date: Some(as_of),
                 method: None,
                 reference: None,
                 notes: None,
@@ -4512,11 +4582,731 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap()
             .query_row(
                 "SELECT SUM(status='completed'),SUM(status='cancelled') FROM reminders WHERE invoice_id=?",
-                rusqlite::params![invoice_id],
+                rusqlite::params![settled_invoice_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        assert_eq!(statuses, (1, 1));
+        assert_eq!(statuses, (0, 1));
+    }
+
+    #[test]
+    fn reminder_cycle_is_explicit_idempotent_and_rejects_future_scans() {
+        let (_temporary, store) = initialized_store();
+        let before: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM reminder_templates", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(before, 0, "la migration ne doit pas semer de modèles");
+
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let input = InstallReminderCycleInput {
+            request_id: request_id.clone(),
+            sender_name: Some("Entreprise de test".into()),
+        };
+        let installed = store.install_reminder_cycle(input.clone()).unwrap();
+        assert_eq!(installed["idempotent"], false);
+        assert_eq!(installed["created_levels"], json!([1, 2, 3]));
+        assert_eq!(installed["templates"].as_array().unwrap().len(), 3);
+        assert_eq!(installed["settings"]["enabled"], true);
+
+        let replay = store.install_reminder_cycle(input).unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM reminder_templates", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        let conflict = store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id,
+                sender_name: Some("Autre expéditeur".into()),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(conflict.contains("déjà été utilisé"));
+
+        let tomorrow = chrono::Local::now()
+            .date_naive()
+            .checked_add_days(chrono::Days::new(1))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let future = store
+            .scan_due_reminders(ScanRemindersInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                as_of: Some(tomorrow),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(future.contains("futur"));
+    }
+
+    #[test]
+    fn reminder_cycle_installation_reactivates_defaults_and_rejects_global_conflicts() {
+        let (_temporary, store) = initialized_store();
+        for (level, days) in [(1, 7), (2, 21), (3, 35)] {
+            store
+                .upsert_reminder_template(ReminderTemplateInput {
+                    id: None,
+                    level,
+                    name: format!("Niveau {level}"),
+                    subject: "Facture {invoice_number}".into(),
+                    body: "Solde {balance}".into(),
+                    days_after_due: days,
+                    payment_deadline_days: 10,
+                    active: false,
+                })
+                .unwrap();
+        }
+        let installed = store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sender_name: Some("Entreprise de test".into()),
+            })
+            .unwrap();
+        assert_eq!(installed["created_levels"], json!([]));
+        assert_eq!(installed["reactivated_levels"], json!([1, 2, 3]));
+        assert!(installed["templates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|template| template["active"] == true));
+
+        let (_conflict_temporary, conflict_store) = initialized_store();
+        conflict_store
+            .upsert_reminder_template(ReminderTemplateInput {
+                id: None,
+                level: 4,
+                name: "Niveau conflictuel".into(),
+                subject: "Facture {invoice_number}".into(),
+                body: "Solde {balance}".into(),
+                days_after_due: 30,
+                payment_deadline_days: 10,
+                active: true,
+            })
+            .unwrap();
+        let error = conflict_store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sender_name: Some("Entreprise de test".into()),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("strictement croissants"));
+        let connection = conflict_store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM reminder_templates", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COALESCE(MAX(enabled),0) FROM reminder_settings",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn planned_reminder_becomes_due_only_during_its_local_scan() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let today = chrono::Local::now().date_naive();
+        let today_text = today.format("%Y-%m-%d").to_string();
+        let issue_date = today
+            .checked_sub_days(chrono::Days::new(10))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let due_date = today
+            .checked_sub_days(chrono::Days::new(7))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client planifié"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture planifiée",
+                        "service_date_from":issue_date,
+                        "service_date_to":issue_date
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0}),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some(issue_date), Some(due_date.clone()))
+            .unwrap();
+        store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sender_name: Some("Entreprise de test".into()),
+            })
+            .unwrap();
+        let reminder_id = uuid::Uuid::new_v4().to_string();
+        {
+            let connection = store.connect().unwrap();
+            let template_id: String = connection
+                .query_row(
+                    "SELECT id FROM reminder_templates WHERE level=1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let (number, total_cents, currency): (String, i64, String) = connection
+                .query_row(
+                    "SELECT number,total_cents,currency FROM invoices WHERE id=?",
+                    rusqlite::params![invoice_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO reminders(id,invoice_id,template_id,level,scheduled_date,status,subject,body,invoice_number,currency,invoice_total_cents,balance_cents,payment_deadline_days,snapshot_json,created_at,updated_at) VALUES(?,?,?,?,?,'planned',?,?,?,?,?,?,?,?,?,?)",
+                    rusqlite::params![reminder_id,invoice_id,template_id,1,today_text,"Facture planifiée","Solde ouvert",number,currency,total_cents,total_cents,10,json!({"days_after_due":7,"template_subject":"Facture {invoice_number}","template_body":"Solde {balance}"}).to_string(),now_iso(),now_iso()],
+                )
+                .unwrap();
+        }
+        let scan = store
+            .scan_due_reminders(ScanRemindersInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                as_of: Some(today_text),
+            })
+            .unwrap();
+        assert_eq!(scan["promoted"], json!([reminder_id]));
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM reminders WHERE id=?",
+                    rusqlite::params![reminder_id],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "due"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM reminder_history WHERE reminder_id=? AND action='due'",
+                    rusqlite::params![reminder_id],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn reminder_scan_blocks_a_next_level_with_a_shorter_historical_delay() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let today = chrono::Local::now().date_naive();
+        let today_text = today.format("%Y-%m-%d").to_string();
+        let issue_date = today
+            .checked_sub_days(chrono::Days::new(70))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let due_date = today
+            .checked_sub_days(chrono::Days::new(60))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client délai historique"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture délai historique",
+                        "service_date_from":issue_date,
+                        "service_date_to":issue_date
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0}),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some(issue_date), Some(due_date))
+            .unwrap();
+        store
+            .update_reminder_settings(ReminderSettingsInput {
+                enabled: true,
+                sender_name: Some("Entreprise".into()),
+            })
+            .unwrap();
+        store
+            .upsert_reminder_template(ReminderTemplateInput {
+                id: None,
+                level: 2,
+                name: "Niveau raccourci".into(),
+                subject: "Facture {invoice_number}".into(),
+                body: "Solde {balance}".into(),
+                days_after_due: 10,
+                payment_deadline_days: 10,
+                active: true,
+            })
+            .unwrap();
+        let reminder_id = uuid::Uuid::new_v4().to_string();
+        let occurred_at = format!("{today_text}T12:00:00+00:00");
+        {
+            let connection = store.connect().unwrap();
+            let (number, total_cents, currency): (String, i64, String) = connection
+                .query_row(
+                    "SELECT number,total_cents,currency FROM invoices WHERE id=?",
+                    rusqlite::params![invoice_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO reminders(id,invoice_id,template_id,level,scheduled_date,status,subject,body,invoice_number,currency,invoice_total_cents,balance_cents,payment_deadline_days,snapshot_json,created_at,updated_at) VALUES(?,?,NULL,1,?,'completed',?,?,?,?,?,?,10,?,?,?)",
+                    rusqlite::params![reminder_id,invoice_id,today_text,"Ancien rappel","Solde",number,currency,total_cents,total_cents,json!({"days_after_due":30}).to_string(),now_iso(),now_iso()],
+                )
+                .unwrap();
+            for action in ["sent_manually", "completed"] {
+                connection
+                    .execute(
+                        "INSERT INTO reminder_history(id,reminder_id,action,occurred_at,note) VALUES(?,?,?,?,NULL)",
+                        rusqlite::params![uuid::Uuid::new_v4().to_string(),reminder_id,action,occurred_at],
+                    )
+                    .unwrap();
+            }
+        }
+
+        let scan = store
+            .scan_due_reminders(ScanRemindersInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                as_of: Some(today_text),
+            })
+            .unwrap();
+        assert!(scan["created"].as_array().unwrap().is_empty());
+        assert!(scan["review"].as_array().unwrap().iter().any(|item| {
+            item["invoice_id"] == invoice_id && item["reason"] == "non_increasing_historical_delay"
+        }));
+    }
+
+    #[test]
+    fn legacy_manual_send_date_delays_the_next_level_even_if_completed_was_earlier() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let today = chrono::Local::now().date_naive();
+        let today_text = today.format("%Y-%m-%d").to_string();
+        let issue_date = today
+            .checked_sub_days(chrono::Days::new(50))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let due_date = today
+            .checked_sub_days(chrono::Days::new(40))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let completed_at = format!(
+            "{}T12:00:00+00:00",
+            today
+                .checked_sub_days(chrono::Days::new(12))
+                .unwrap()
+                .format("%Y-%m-%d")
+        );
+        let sent_at = format!(
+            "{}T12:00:00+00:00",
+            today
+                .checked_sub_days(chrono::Days::new(4))
+                .unwrap()
+                .format("%Y-%m-%d")
+        );
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client historique V23"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture historique V23",
+                        "service_date_from":issue_date,
+                        "service_date_to":issue_date
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0}),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some(issue_date), Some(due_date))
+            .unwrap();
+        store
+            .update_reminder_settings(ReminderSettingsInput {
+                enabled: true,
+                sender_name: Some("Entreprise".into()),
+            })
+            .unwrap();
+        store
+            .upsert_reminder_template(ReminderTemplateInput {
+                id: None,
+                level: 2,
+                name: "Niveau suivant".into(),
+                subject: "Facture {invoice_number}".into(),
+                body: "Solde {balance}".into(),
+                days_after_due: 40,
+                payment_deadline_days: 10,
+                active: true,
+            })
+            .unwrap();
+        let reminder_id = uuid::Uuid::new_v4().to_string();
+        {
+            let connection = store.connect().unwrap();
+            let (number, total_cents, currency): (String, i64, String) = connection
+                .query_row(
+                    "SELECT number,total_cents,currency FROM invoices WHERE id=?",
+                    rusqlite::params![invoice_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO reminders(id,invoice_id,template_id,level,scheduled_date,status,subject,body,invoice_number,currency,invoice_total_cents,balance_cents,payment_deadline_days,snapshot_json,created_at,updated_at) VALUES(?,?,NULL,1,?,'completed',?,?,?,?,?,?,10,?,?,?)",
+                    rusqlite::params![reminder_id,invoice_id,today_text,"Ancien rappel","Solde",number,currency,total_cents,total_cents,json!({"days_after_due":30}).to_string(),now_iso(),now_iso()],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO reminder_history(id,reminder_id,action,occurred_at,note) VALUES(?,?,'sent_manually',?,NULL)",
+                    rusqlite::params![uuid::Uuid::new_v4().to_string(),reminder_id,sent_at],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO reminder_history(id,reminder_id,action,occurred_at,note) VALUES(?,?,'completed',?,NULL)",
+                    rusqlite::params![uuid::Uuid::new_v4().to_string(),reminder_id,completed_at],
+                )
+                .unwrap();
+        }
+
+        let scan = store
+            .scan_due_reminders(ScanRemindersInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                as_of: Some(today_text),
+            })
+            .unwrap();
+        assert!(scan["created"].as_array().unwrap().is_empty());
+        assert!(scan["review"].as_array().unwrap().is_empty());
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM reminders WHERE invoice_id=? AND level=2",
+                    rusqlite::params![invoice_id],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn reminder_preview_revalidates_partial_payment_and_delivery_proof() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let today = chrono::Local::now().date_naive();
+        let today_text = today.format("%Y-%m-%d").to_string();
+        let client_id = value_id(
+            &store
+                .create_record(
+                    "clients",
+                    json!({
+                        "name":"Client réel",
+                        "company":"Client SA",
+                        "email":"finance@example.invalid",
+                        "address_line1":"Rue du Test 1",
+                        "postal_code":"1000",
+                        "city":"Lausanne"
+                    }),
+                )
+                .unwrap(),
+        );
+        let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture avec acompte","service_date_from":"2026-01-01","service_date_to":"2026-01-31"})).unwrap());
+        store.create_record("invoice_items",json!({"invoice_id":invoice_id,"description":"Prestation réelle","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
+        store
+            .issue_invoice(
+                &invoice_id,
+                Some(
+                    today
+                        .checked_sub_days(chrono::Days::new(60))
+                        .unwrap()
+                        .format("%Y-%m-%d")
+                        .to_string(),
+                ),
+                Some(
+                    today
+                        .checked_sub_days(chrono::Days::new(30))
+                        .unwrap()
+                        .format("%Y-%m-%d")
+                        .to_string(),
+                ),
+            )
+            .unwrap();
+        store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sender_name: Some("Entreprise de test".into()),
+            })
+            .unwrap();
+        let scan_input = ScanRemindersInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            as_of: Some(today_text.clone()),
+        };
+        let scan = store.scan_due_reminders(scan_input.clone()).unwrap();
+        assert_eq!(scan["created"].as_array().unwrap().len(), 1);
+        let scan_replay = store.scan_due_reminders(scan_input).unwrap();
+        assert_eq!(scan_replay["idempotent"], true);
+        let reminder_id = scan["created"][0]["id"].as_str().unwrap().to_owned();
+        let initial_preview = store
+            .preview_reminder_delivery(ReminderPreviewInput {
+                id: reminder_id.clone(),
+                prepared_on: Some(today_text.clone()),
+            })
+            .unwrap();
+        assert_eq!(initial_preview["current_balance_cents"], 10000);
+        let yesterday_text = today
+            .checked_sub_days(chrono::Days::new(1))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let stale_day_error = store
+            .record_reminder_action(ReminderActionInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                id: reminder_id.clone(),
+                action: "mail_draft_created".into(),
+                prepared_on: Some(yesterday_text),
+                preview_sha256: initial_preview["preview_sha256"]
+                    .as_str()
+                    .map(str::to_owned),
+                note: None,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(stale_day_error.contains("autre jour"));
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM reminder_deliveries", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        store
+            .update_record(
+                "clients",
+                &client_id,
+                json!({"address_line1":"","postal_code":"","city":""}),
+            )
+            .unwrap();
+        let cleared_address_preview = store
+            .preview_reminder_delivery(ReminderPreviewInput {
+                id: reminder_id.clone(),
+                prepared_on: Some(today_text.clone()),
+            })
+            .unwrap();
+        assert_eq!(cleared_address_preview["client"]["address_line1"], "");
+        assert_eq!(cleared_address_preview["client"]["postal_code"], "");
+        assert_eq!(cleared_address_preview["client"]["city"], "");
+
+        store
+            .record_payment(RecordPaymentInput {
+                request_id: Some(uuid::Uuid::new_v4().to_string()),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 2500,
+                date: Some(today_text.clone()),
+                method: Some("bank".into()),
+                reference: Some("ACOMPTE".into()),
+                notes: None,
+            })
+            .unwrap();
+        let listed = store.list_reminders(Default::default()).unwrap();
+        assert_eq!(listed[0]["live_balance_cents"], 7500);
+        assert_eq!(listed[0]["snapshot_stale"], 1);
+
+        let stale_error = store
+            .record_reminder_action(ReminderActionInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                id: reminder_id.clone(),
+                action: "mail_draft_created".into(),
+                prepared_on: Some(today_text.clone()),
+                preview_sha256: initial_preview["preview_sha256"]
+                    .as_str()
+                    .map(str::to_owned),
+                note: None,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(stale_error.contains("Actualisez"));
+
+        let refreshed = store
+            .preview_reminder_delivery(ReminderPreviewInput {
+                id: reminder_id.clone(),
+                prepared_on: Some(today_text.clone()),
+            })
+            .unwrap();
+        assert_eq!(refreshed["current_balance_cents"], 7500);
+        assert_eq!(refreshed["snapshot_stale"], true);
+        assert!(refreshed["body"].as_str().unwrap().contains("CHF 75.00"));
+
+        let draft_action = ReminderActionInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            id: reminder_id.clone(),
+            action: "mail_draft_created".into(),
+            prepared_on: Some(today_text.clone()),
+            preview_sha256: refreshed["preview_sha256"].as_str().map(str::to_owned),
+            note: None,
+        };
+        let drafted = store.record_reminder_action(draft_action.clone()).unwrap();
+        assert_eq!(drafted["blocked"], false);
+        assert_eq!(drafted["reminder"]["status"], "due");
+        let draft_replay = store.record_reminder_action(draft_action).unwrap();
+        assert_eq!(draft_replay["idempotent"], true);
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM reminder_deliveries WHERE reminder_id=?",
+                    rusqlite::params![reminder_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        let exported_workspace = store.get_workspace().unwrap();
+        assert_eq!(
+            exported_workspace["reminder_deliveries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            exported_workspace["reminder_deliveries"][0]["action"],
+            "mail_draft_created"
+        );
+        assert_eq!(
+            exported_workspace["reminder_deliveries"][0]["current_balance_cents"],
+            7500
+        );
+        assert!(
+            exported_workspace["reminder_deliveries"][0]["payload_sha256"]
+                .as_str()
+                .is_some_and(|value| value.len() == 64)
+        );
+
+        let sent = store
+            .record_reminder_action(ReminderActionInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                id: reminder_id.clone(),
+                action: "manual_sent".into(),
+                prepared_on: Some(today_text),
+                preview_sha256: refreshed["preview_sha256"].as_str().map(str::to_owned),
+                note: Some("E-mail envoyé depuis Outlook".into()),
+            })
+            .unwrap();
+        assert_eq!(sent["reminder"]["status"], "completed");
+        assert!(store
+            .mark_reminder(MarkReminderInput {
+                id: reminder_id,
+                status: "cancelled".into(),
+                note: Some("Tentative de retour arrière".into()),
+            })
+            .is_err());
+    }
+
+    #[test]
+    fn reminder_action_idempotent_replay_survives_a_stale_preparation_date() {
+        let (_temporary, store) = initialized_store();
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let yesterday = chrono::Local::now()
+            .date_naive()
+            .checked_sub_days(chrono::Days::new(1))
+            .unwrap()
+            .format("%Y-%m-%d")
+            .to_string();
+        let input = ReminderActionInput {
+            request_id: request_id.clone(),
+            id: uuid::Uuid::new_v4().to_string(),
+            action: "manual_sent".into(),
+            prepared_on: Some(yesterday),
+            preview_sha256: Some("a".repeat(64)),
+            note: Some("Envoi confirmé".into()),
+        };
+        let mut payload = serde_json::to_value(&input).unwrap();
+        payload.as_object_mut().unwrap().remove("request_id");
+        let payload_json = serde_json::to_string(&payload).unwrap();
+        let payload_sha256 = format!("{:x}", Sha256::digest(payload_json.as_bytes()));
+        let stored_response = json!({
+            "blocked": false,
+            "delivery": {"id": "preuve-déjà-enregistrée"},
+            "reminder": null,
+            "idempotent": false
+        })
+        .to_string();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "INSERT INTO reminder_operation_requests(request_id,operation,payload_sha256,payload_json,response_json,created_at) VALUES(?,?,?,?,?,?)",
+                rusqlite::params![request_id,"record_action",payload_sha256,payload_json,stored_response,now_iso()],
+            )
+            .unwrap();
+
+        let replay = store.record_reminder_action(input).unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["delivery"]["id"], "preuve-déjà-enregistrée");
     }
 
     #[test]
