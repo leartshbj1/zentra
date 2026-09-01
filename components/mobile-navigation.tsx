@@ -56,7 +56,7 @@ export function MobileNavigation() {
       {open ? (
         <nav
           id="elyko-mobile-navigation"
-          className="absolute right-0 top-[calc(100%+.65rem)] z-50 grid min-w-64 max-w-[calc(100vw-2.5rem)] gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
+          className="fixed inset-x-4 top-[4.75rem] z-50 grid min-w-0 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
           aria-label="Navigation mobile"
         >
           {links.map(([href, label]) => (
