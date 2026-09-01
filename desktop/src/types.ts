@@ -244,7 +244,14 @@ export type CatalogItem = {
 };
 
 export type StockMovementType = 'entry' | 'exit' | 'correction';
-export type StockMovementSource = 'manual' | 'invoice' | 'opening';
+export type StockMovementSource =
+  | 'manual'
+  | 'invoice'
+  | 'opening'
+  | 'delivery'
+  | 'delivery_reversal'
+  | 'receipt'
+  | 'receipt_reversal';
 
 export type StockMovement = {
   sequence: number;
@@ -261,6 +268,10 @@ export type StockMovement = {
   sourceType: StockMovementSource;
   invoiceId: Identifier | null;
   invoiceItemId: Identifier | null;
+  deliveryNoteId?: Identifier | null;
+  deliveryNoteLineId?: Identifier | null;
+  stockReceiptId?: Identifier | null;
+  stockReceiptLineId?: Identifier | null;
   createdAt: string;
 };
 
@@ -394,6 +405,143 @@ export type Invoice = {
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
   qrBill?: StoredSwissQrBill | null;
+};
+
+export type SalesOrderStatus = 'draft' | 'confirmed' | 'closed' | 'cancelled';
+export type SalesOrderFulfillmentMode =
+  | 'stocked_delivery'
+  | 'untracked_delivery'
+  | 'direct';
+
+export type SalesOrderLine = {
+  id: Identifier;
+  salesOrderId: Identifier;
+  catalogItemId: Identifier | null;
+  position: number;
+  description: string;
+  quantityMilli: number;
+  cancelledQuantityMilli: number;
+  unit: string;
+  unitPriceCents: number;
+  discountBp: number;
+  vatBp: number;
+  lineGrossCents: number;
+  lineNetCents: number;
+  lineVatCents: number;
+  lineTotalCents: number;
+  fulfillmentMode: SalesOrderFulfillmentMode;
+};
+
+export type SalesOrder = {
+  id: Identifier;
+  clientId: Identifier;
+  projectId: Identifier | null;
+  quoteId: Identifier | null;
+  number: string;
+  title: string;
+  status: SalesOrderStatus;
+  orderDate: string;
+  currency: string;
+  subtotalCents: number;
+  discountCents: number;
+  vatCents: number;
+  totalCents: number;
+  notes: string;
+  terms: string;
+  confirmedAt: string | null;
+  closedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines: SalesOrderLine[];
+};
+
+export type DeliveryNoteStatus = 'draft' | 'issued' | 'reversed';
+
+export type DeliveryNoteLine = {
+  id: Identifier;
+  deliveryNoteId: Identifier;
+  salesOrderLineId: Identifier;
+  position: number;
+  quantityMilli: number;
+  description: string;
+  unit: string;
+};
+
+export type DeliveryNote = {
+  id: Identifier;
+  salesOrderId: Identifier;
+  number: string;
+  status: DeliveryNoteStatus;
+  deliveryDate: string;
+  reference: string;
+  notes: string;
+  issuedAt: string | null;
+  reversedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines: DeliveryNoteLine[];
+};
+
+export type StockReservationEventType =
+  | 'reserve'
+  | 'delivery'
+  | 'release'
+  | 'restore';
+
+export type StockReservationEvent = {
+  sequence: number;
+  id: Identifier;
+  catalogItemId: Identifier;
+  salesOrderId: Identifier;
+  salesOrderLineId: Identifier;
+  deliveryNoteLineId: Identifier | null;
+  eventType: StockReservationEventType;
+  quantityDeltaMilli: number;
+  lineReservedAfterMilli: number;
+  catalogReservedAfterMilli: number;
+  reason: string;
+  createdAt: string;
+};
+
+export type SalesOrderInvoiceRole = 'partial' | 'final';
+
+export type SalesOrderInvoiceBatch = {
+  id: Identifier;
+  salesOrderId: Identifier;
+  invoiceId: Identifier;
+  role: SalesOrderInvoiceRole;
+  createdAt: string;
+};
+
+export type SalesOrderInvoiceAllocation = {
+  id: Identifier;
+  batchId: Identifier;
+  salesOrderLineId: Identifier;
+  deliveryNoteLineId: Identifier | null;
+  invoiceItemId: Identifier | null;
+  quantityMilli: number;
+  grossCentsSnapshot: number;
+  netCentsSnapshot: number;
+  vatCentsSnapshot: number;
+  totalCentsSnapshot: number;
+  createdAt: string;
+};
+
+export type StockAvailability = {
+  catalogItemId: Identifier;
+  onHandMilli: number;
+  reservedMilli: number;
+  availableMilli: number;
+};
+
+export type SalesOrderInvoicePreview = {
+  role: SalesOrderInvoiceRole;
+  subtotalCents: number;
+  discountCents: number;
+  vatCents: number;
+  totalCents: number;
+  blockers: string[];
 };
 
 export type Payment = {
@@ -959,6 +1107,12 @@ export type Workspace = {
   projectMilestones: ProjectMilestone[];
   projectTasks: ProjectTask[];
   quotes: Quote[];
+  salesOrders: SalesOrder[];
+  deliveryNotes: DeliveryNote[];
+  stockReservationEvents: StockReservationEvent[];
+  stockAvailability: StockAvailability[];
+  salesOrderInvoiceBatches: SalesOrderInvoiceBatch[];
+  salesOrderInvoiceAllocations: SalesOrderInvoiceAllocation[];
   invoices: Invoice[];
   payments: Payment[];
   employees: Employee[];

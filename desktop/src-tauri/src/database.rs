@@ -39,9 +39,10 @@ use crate::{
     schema::{
         MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V12_SQL, MIGRATION_V13_SQL,
         MIGRATION_V14_SQL, MIGRATION_V15_SQL, MIGRATION_V16_SQL, MIGRATION_V17_SQL,
-        MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL, MIGRATION_V2_SQL,
-        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
-        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL,
+        MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
+        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
+        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -410,6 +411,50 @@ fn migrate_v19(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v20(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(settings)")?;
+    let settings_columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    for (column, definition) in [
+        (
+            "sales_order_prefix",
+            "sales_order_prefix TEXT NOT NULL DEFAULT 'C'",
+        ),
+        (
+            "delivery_note_prefix",
+            "delivery_note_prefix TEXT NOT NULL DEFAULT 'BL'",
+        ),
+        (
+            "sales_order_start_number",
+            "sales_order_start_number INTEGER NOT NULL DEFAULT 1 CHECK (sales_order_start_number>0)",
+        ),
+        (
+            "delivery_note_start_number",
+            "delivery_note_start_number INTEGER NOT NULL DEFAULT 1 CHECK (delivery_note_start_number>0)",
+        ),
+    ] {
+        if !settings_columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE settings ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+
+    let mut statement = transaction.prepare("PRAGMA table_info(stock_movements)")?;
+    let stock_columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !stock_columns.contains("delivery_note_line_id") {
+        transaction.execute_batch(MIGRATION_V20_REBUILD_STOCK_SQL)?;
+    }
+    transaction.execute_batch(MIGRATION_V20_SQL)?;
+    transaction.execute_batch(MIGRATION_V20_STOCK_TRIGGERS_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -741,7 +786,10 @@ impl LocalStore {
         }
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         match current {
-            0 => transaction.execute_batch(SCHEMA_SQL)?,
+            0 => {
+                transaction.execute_batch(SCHEMA_SQL)?;
+                migrate_v20(&transaction)?;
+            }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
                 transaction.execute_batch(MIGRATION_V3_SQL)?;
@@ -828,7 +876,7 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
-            12..=18 => {}
+            12..=19 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -845,6 +893,7 @@ impl LocalStore {
             migrate_v17(&transaction)?;
             migrate_v18(&transaction)?;
             migrate_v19(&transaction)?;
+            migrate_v20(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1114,8 +1163,66 @@ impl LocalStore {
             connection,
             "SELECT sequence,id,source_key,request_id,catalog_item_id,movement_type,
                     quantity_delta_milli,balance_after_milli,reason,reference,movement_date,
-                    source_type,invoice_id,invoice_item_id,created_at
+                    source_type,invoice_id,invoice_item_id,delivery_note_id,delivery_note_line_id,
+                    reverses_stock_movement_id,created_at
              FROM stock_movements ORDER BY sequence DESC",
+            [],
+        )?;
+        let sales_orders = query_all(
+            connection,
+            "SELECT * FROM sales_orders ORDER BY order_date DESC,created_at DESC",
+            [],
+        )?;
+        let sales_order_lines = query_all(
+            connection,
+            "SELECT line.*,
+                    COALESCE((SELECT SUM(cancelled.quantity_milli) FROM sales_order_cancellation_lines cancelled WHERE cancelled.sales_order_line_id=line.id),0) AS cancelled_quantity_milli,
+                    COALESCE((SELECT SUM(delivery.quantity_milli) FROM delivery_note_lines delivery JOIN delivery_notes note ON note.id=delivery.delivery_note_id WHERE delivery.sales_order_line_id=line.id AND note.status='issued'),0) AS delivered_quantity_milli,
+                    COALESCE((SELECT SUM(allocation.quantity_milli) FROM sales_order_invoice_allocations allocation WHERE allocation.sales_order_line_id=line.id),0) AS invoiced_quantity_milli,
+                    COALESCE((SELECT SUM(event.quantity_delta_milli) FROM stock_reservation_events event WHERE event.sales_order_line_id=line.id),0) AS reserved_quantity_milli
+             FROM sales_order_lines line ORDER BY line.sales_order_id,line.position,line.created_at",
+            [],
+        )?;
+        let sales_order_cancellation_lines = query_all(
+            connection,
+            "SELECT * FROM sales_order_cancellation_lines ORDER BY created_at,rowid",
+            [],
+        )?;
+        let delivery_notes = query_all(
+            connection,
+            "SELECT * FROM delivery_notes ORDER BY delivery_date DESC,created_at DESC",
+            [],
+        )?;
+        let delivery_note_lines = query_all(
+            connection,
+            "SELECT * FROM delivery_note_lines ORDER BY delivery_note_id,position,created_at",
+            [],
+        )?;
+        let stock_reservation_events = query_all(
+            connection,
+            "SELECT * FROM stock_reservation_events ORDER BY sequence DESC",
+            [],
+        )?;
+        let sales_order_invoice_batches = query_all(
+            connection,
+            "SELECT * FROM sales_order_invoice_batches ORDER BY created_at DESC",
+            [],
+        )?;
+        let sales_order_invoice_allocations = query_all(
+            connection,
+            "SELECT * FROM sales_order_invoice_allocations ORDER BY batch_id,rowid",
+            [],
+        )?;
+        let stock_availability = query_all(
+            connection,
+            "SELECT item.id AS catalog_item_id,item.stock_quantity_milli AS on_hand_milli,
+                    COALESCE(SUM(event.quantity_delta_milli),0) AS reserved_milli,
+                    item.stock_quantity_milli-COALESCE(SUM(event.quantity_delta_milli),0) AS available_milli
+             FROM catalog_items item
+             LEFT JOIN stock_reservation_events event ON event.catalog_item_id=item.id
+             WHERE item.track_stock=1
+             GROUP BY item.id,item.stock_quantity_milli
+             ORDER BY item.name COLLATE NOCASE,item.id",
             [],
         )?;
         let invoice_qr_bills = query_all(
@@ -1344,6 +1451,15 @@ impl LocalStore {
         workspace["time_billing_entries"] = json!(time_billing_entries);
         workspace["bank_supplier_reconciliations"] = json!(bank_supplier_reconciliations);
         workspace["stock_movements"] = json!(stock_movements);
+        workspace["sales_orders"] = json!(sales_orders);
+        workspace["sales_order_lines"] = json!(sales_order_lines);
+        workspace["sales_order_cancellation_lines"] = json!(sales_order_cancellation_lines);
+        workspace["delivery_notes"] = json!(delivery_notes);
+        workspace["delivery_note_lines"] = json!(delivery_note_lines);
+        workspace["stock_reservation_events"] = json!(stock_reservation_events);
+        workspace["sales_order_invoice_batches"] = json!(sales_order_invoice_batches);
+        workspace["sales_order_invoice_allocations"] = json!(sales_order_invoice_allocations);
+        workspace["stock_availability"] = json!(stock_availability);
         workspace["project_milestones"] = json!(project_milestones);
         workspace["project_tasks"] = json!(project_tasks);
         workspace["schema_version"] = json!(SCHEMA_VERSION);
@@ -1662,6 +1778,10 @@ impl LocalStore {
         let previous = query_record_tx(&transaction, spec.table, id)?;
         if entity == "projects" {
             ensure_project_empty_before_delete(&transaction, id)?;
+        } else if entity == "clients" {
+            ensure_client_sales_empty_before_delete(&transaction, id)?;
+        } else if entity == "catalog_items" {
+            ensure_catalog_sales_empty_before_delete(&transaction, id)?;
         }
         ensure_record_mutable(&transaction, entity, &previous)?;
         let deleted = transaction.execute(
@@ -2089,6 +2209,25 @@ impl LocalStore {
         let stock_movements = crate::stock::apply_invoice_stock_movements(&transaction, id)?;
         let record = query_record_tx(&transaction, "invoices", id)?;
         let journal = post_invoice_if_enabled(&transaction, id)?;
+        let linked_sales_order: Option<(String, String)> = transaction
+            .query_row(
+                "SELECT sales_order_id,role FROM sales_order_invoice_batches WHERE invoice_id=?",
+                params![id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        if let Some((sales_order_id, role)) = linked_sales_order.as_ref() {
+            let closed = crate::sales_fulfillment::close_sales_order_if_fully_allocated(
+                &transaction,
+                sales_order_id,
+            )?;
+            if role == "final" && !closed {
+                return Err(AppError::Validation(
+                    "La facture finale ne couvre plus tout le reliquat de la commande; l'émission a été annulée."
+                        .into(),
+                ));
+            }
+        }
         if let Some(original) = original_invoice_id.as_deref() {
             refresh_invoice_payment_state(&transaction, original)?;
             cancel_settled_reminders(&transaction, original)?;
@@ -2176,6 +2315,33 @@ impl LocalStore {
                 "Ce devis a déjà été converti en facture {}.",
                 existing.unwrap_or_default()
             )));
+        }
+        let existing_order: Option<String> = transaction
+            .query_row(
+                "SELECT id FROM sales_orders WHERE quote_id=?",
+                params![input.quote_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(existing_order) = existing_order {
+            return Err(AppError::Validation(format!(
+                "Ce devis a déjà été converti en commande client {existing_order}."
+            )));
+        }
+        let contains_tracked_stock: bool = transaction.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM quote_items line
+               JOIN catalog_items item ON item.id=line.catalog_item_id
+               WHERE line.quote_id=? AND item.track_stock=1
+             )",
+            params![input.quote_id],
+            |row| row.get(0),
+        )?;
+        if contains_tracked_stock {
+            return Err(AppError::Validation(
+                "Ce devis contient un article suivi en stock. Convertissez-le en commande client puis émettez un bon de livraison avant de facturer."
+                    .into(),
+            ));
         }
         let issue_date = input
             .issue_date
@@ -2787,10 +2953,11 @@ fn ensure_record_mutable(
     record: &Value,
 ) -> AppResult<()> {
     let locked=match entity {
-        "quotes"|"invoices"=>record.get("number").and_then(Value::as_str).is_some_and(|v|!v.is_empty()),
+        "quotes"=>record.get("number").and_then(Value::as_str).is_some_and(|v|!v.is_empty()),
+        "invoices"=>record.get("number").and_then(Value::as_str).is_some_and(|v|!v.is_empty()) || record.get("id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT EXISTS(SELECT 1 FROM sales_order_invoice_batches WHERE invoice_id=?)",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
         "payments"=>true,
         "quote_items"=>record.get("quote_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL FROM quotes WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
-        "invoice_items"=>record.get("invoice_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL FROM invoices WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
+        "invoice_items"=>record.get("invoice_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT number IS NOT NULL OR EXISTS(SELECT 1 FROM sales_order_invoice_batches WHERE invoice_id=invoices.id) FROM invoices WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
         "payslips"=>record.get("status").and_then(Value::as_str).is_some_and(|v|matches!(v,"valide"|"comptabilise"|"paye")),
         "payslip_items"=>record.get("payslip_id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT status IN ('valide','comptabilise','paye') FROM payslips WHERE id=?",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
         "expenses"=>record.get("id").and_then(Value::as_str).is_some_and(|id|transaction.query_row("SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='expense' AND source_id=?)",params![id],|r|r.get::<_,bool>(0)).unwrap_or(true)),
@@ -2812,6 +2979,7 @@ fn ensure_project_empty_before_delete(
         ("time_entries", "temps saisis"),
         ("time_billing_batches", "lots de facturation des temps"),
         ("quotes", "devis"),
+        ("sales_orders", "commandes clients"),
         ("invoices", "factures clients"),
         ("expenses", "dépenses"),
         ("supplier_invoices", "factures fournisseurs"),
@@ -2839,6 +3007,45 @@ fn ensure_project_empty_before_delete(
             linked.join(", ")
         )))
     }
+}
+
+fn ensure_client_sales_empty_before_delete(
+    transaction: &Transaction<'_>,
+    client_id: &str,
+) -> AppResult<()> {
+    let orders: i64 = transaction.query_row(
+        "SELECT COUNT(*) FROM sales_orders WHERE client_id=?",
+        params![client_id],
+        |row| row.get(0),
+    )?;
+    if orders > 0 {
+        return Err(AppError::Validation(format!(
+            "Le client ne peut pas être supprimé car {orders} commande(s) client, leurs livraisons, réservations ou allocations y sont liées. Archivez le client à la place."
+        )));
+    }
+    Ok(())
+}
+
+fn ensure_catalog_sales_empty_before_delete(
+    transaction: &Transaction<'_>,
+    catalog_item_id: &str,
+) -> AppResult<()> {
+    let order_lines: i64 = transaction.query_row(
+        "SELECT COUNT(*) FROM sales_order_lines WHERE catalog_item_id=?",
+        params![catalog_item_id],
+        |row| row.get(0),
+    )?;
+    let reservation_events: i64 = transaction.query_row(
+        "SELECT COUNT(*) FROM stock_reservation_events WHERE catalog_item_id=?",
+        params![catalog_item_id],
+        |row| row.get(0),
+    )?;
+    if order_lines > 0 || reservation_events > 0 {
+        return Err(AppError::Validation(format!(
+            "L'article ne peut pas être supprimé car il est lié à {order_lines} ligne(s) de commande et {reservation_events} événement(s) de réservation/livraison. Archivez-le à la place."
+        )));
+    }
+    Ok(())
 }
 
 fn value_object(data: Value) -> AppResult<Map<String, Value>> {
@@ -3948,17 +4155,18 @@ pub(crate) fn record_payment_in_transaction(
             ));
         }
     }
-    let (total_cents, paid_cents, credited_cents, invoice_type, number): (
+    let (total_cents, paid_cents, credited_cents, invoice_type, number, issue_date): (
         i64,
         i64,
         i64,
         String,
         Option<String>,
+        Option<String>,
     ) = transaction
         .query_row(
-            "SELECT i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.number FROM invoices i WHERE i.id = ?",
+            "SELECT i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.number,i.issue_date FROM invoices i WHERE i.id = ?",
             params![input.invoice_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
         )
         .optional()?
         .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
@@ -3970,6 +4178,17 @@ pub(crate) fn record_payment_in_transaction(
     if number.is_none() {
         return Err(AppError::Validation(
             "La facture doit être émise avant tout paiement.".into(),
+        ));
+    }
+    let issue_date = issue_date
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            AppError::Validation("La facture émise n'a pas de date d'émission.".into())
+        })?;
+    if date < issue_date {
+        return Err(AppError::Validation(
+            "La date du paiement ne peut pas précéder la date d'émission de la facture. Un acompte antérieur doit suivre un flux d'avance distinct."
+                .into(),
         ));
     }
     if total_cents <= 0 {
@@ -4038,7 +4257,7 @@ pub(crate) fn refresh_invoice_payment_state(
     Ok(())
 }
 
-fn assign_document_number(
+pub(crate) fn assign_document_number(
     transaction: &Transaction<'_>,
     table: &str,
     id: &str,
@@ -4063,6 +4282,8 @@ fn assign_document_number(
         "quote" => ("quote_prefix", "quote_start_number"),
         "invoice" => ("invoice_prefix", "invoice_start_number"),
         "credit_note" => ("credit_note_prefix", "credit_note_start_number"),
+        "sales_order" => ("sales_order_prefix", "sales_order_start_number"),
+        "delivery_note" => ("delivery_note_prefix", "delivery_note_start_number"),
         _ => {
             return Err(AppError::Validation(
                 "Type de séquence documentaire invalide.".into(),

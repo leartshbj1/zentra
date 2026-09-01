@@ -19,6 +19,8 @@ import type {
   CalculatedPayrollContribution,
   CatalogItem,
   Client,
+  DeliveryNote,
+  DeliveryNoteLine,
   DocumentLine,
   Employee,
   EmployeePayrollTemplate,
@@ -63,10 +65,18 @@ import type {
   SecureUpdateEvent,
   SecureUpdateMetadata,
   SecureUpdaterPolicy,
+  SalesOrder,
+  SalesOrderFulfillmentMode,
+  SalesOrderInvoiceAllocation,
+  SalesOrderInvoiceBatch,
+  SalesOrderInvoicePreview,
+  SalesOrderLine,
   StatementRow,
   StatementScope,
   StockMovement,
   StockMovementType,
+  StockAvailability,
+  StockReservationEvent,
   StoredSwissQrBill,
   Supplier,
   SupplierInvoice,
@@ -123,6 +133,14 @@ type RawWorkspace = {
   project_tasks?: RawRecord[];
   quotes?: RawRecord[];
   quote_items?: RawRecord[];
+  sales_orders?: RawRecord[];
+  sales_order_lines?: RawRecord[];
+  delivery_notes?: RawRecord[];
+  delivery_note_lines?: RawRecord[];
+  stock_reservation_events?: RawRecord[];
+  stock_availability?: RawRecord[];
+  sales_order_invoice_batches?: RawRecord[];
+  sales_order_invoice_allocations?: RawRecord[];
   invoices?: RawRecord[];
   invoice_items?: RawRecord[];
   invoice_qr_bills?: RawRecord[];
@@ -626,6 +644,136 @@ const invoiceStatusFromRaw = (value: unknown): Invoice['status'] => {
   );
 };
 
+const salesOrderStatusFromRaw = (value: unknown): SalesOrder['status'] => {
+  const status = stringValue(value);
+  if (status === 'draft' || status === 'brouillon') return 'draft';
+  if (
+    status === 'confirmed' ||
+    status === 'confirme' ||
+    status === 'confirmee' ||
+    status === 'partially_delivered' ||
+    status === 'partiellement_livree' ||
+    status === 'delivered' ||
+    status === 'livree'
+  )
+    return 'confirmed';
+  if (status === 'closed' || status === 'cloture' || status === 'cloturee')
+    return 'closed';
+  if (status === 'cancelled' || status === 'annule' || status === 'annulee')
+    return 'cancelled';
+  return 'draft';
+};
+
+const fulfillmentModeFromRaw = (
+  value: unknown,
+  catalogItemId: string | null,
+): SalesOrderFulfillmentMode => {
+  const mode = stringValue(value);
+  if (
+    mode === 'stocked_delivery' ||
+    mode === 'stocked' ||
+    mode === 'tracked_product'
+  )
+    return 'stocked_delivery';
+  if (
+    mode === 'untracked_delivery' ||
+    mode === 'delivery' ||
+    mode === 'untracked_product'
+  )
+    return 'untracked_delivery';
+  if (mode === 'direct' || mode === 'service') return 'direct';
+  return catalogItemId ? 'untracked_delivery' : 'direct';
+};
+
+const deliveryNoteStatusFromRaw = (value: unknown): DeliveryNote['status'] => {
+  const status = stringValue(value);
+  if (status === 'issued' || status === 'emis' || status === 'emise')
+    return 'issued';
+  if (
+    status === 'reversed' ||
+    status === 'extourne' ||
+    status === 'extournee'
+  )
+    return 'reversed';
+  return 'draft';
+};
+
+function salesOrderLineFromRaw(row: RawRecord): SalesOrderLine {
+  const catalogItemId = nullableString(row.catalog_item_id);
+  const quantityMilli = numberValue(row.quantity_milli);
+  const unitPriceCents = numberValue(row.unit_price_cents);
+  const lineNetCents = numberValue(row.line_net_cents);
+  const lineVatCents = numberValue(row.line_vat_cents);
+  return {
+    id: stringValue(row.id),
+    salesOrderId:
+      stringValue(row.sales_order_id) || stringValue(row.order_id),
+    catalogItemId,
+    position: numberValue(row.position),
+    description: stringValue(row.description),
+    quantityMilli,
+    cancelledQuantityMilli: numberValue(row.cancelled_quantity_milli),
+    unit: stringValue(row.unit) || 'unité',
+    unitPriceCents,
+    discountBp: numberValue(row.discount_bp),
+    vatBp: numberValue(row.vat_bp),
+    lineGrossCents:
+      numberValue(row.line_gross_cents) ||
+      Math.round((quantityMilli * unitPriceCents) / 1_000),
+    lineNetCents,
+    lineVatCents,
+    lineTotalCents:
+      numberValue(row.line_total_cents) || lineNetCents + lineVatCents,
+    fulfillmentMode: fulfillmentModeFromRaw(
+      row.fulfillment_mode,
+      catalogItemId,
+    ),
+  };
+}
+
+function deliveryNoteLineFromRaw(row: RawRecord): DeliveryNoteLine {
+  return {
+    id: stringValue(row.id),
+    deliveryNoteId: stringValue(row.delivery_note_id),
+    salesOrderLineId:
+      stringValue(row.sales_order_line_id) || stringValue(row.order_line_id),
+    position: numberValue(row.position),
+    quantityMilli: numberValue(row.quantity_milli),
+    description: stringValue(row.description),
+    unit: stringValue(row.unit),
+  };
+}
+
+function stockReservationEventFromRaw(row: RawRecord): StockReservationEvent {
+  const rawEventType = stringValue(row.event_type) || stringValue(row.movement_type);
+  const eventType: StockReservationEvent['eventType'] =
+    rawEventType === 'delivery' ||
+    rawEventType === 'release' ||
+    rawEventType === 'restore'
+      ? rawEventType
+      : 'reserve';
+  return {
+    sequence: numberValue(row.sequence),
+    id: stringValue(row.id),
+    catalogItemId: stringValue(row.catalog_item_id),
+    salesOrderId:
+      stringValue(row.sales_order_id) || stringValue(row.order_id),
+    salesOrderLineId:
+      stringValue(row.sales_order_line_id) || stringValue(row.order_line_id),
+    deliveryNoteLineId: nullableString(row.delivery_note_line_id),
+    eventType,
+    quantityDeltaMilli: numberValue(row.quantity_delta_milli),
+    lineReservedAfterMilli:
+      numberValue(row.line_reserved_after_milli) ||
+      numberValue(row.reserved_after_milli),
+    catalogReservedAfterMilli:
+      numberValue(row.catalog_reserved_after_milli) ||
+      numberValue(row.total_reserved_after_milli),
+    reason: stringValue(row.reason),
+    createdAt: stringValue(row.created_at),
+  };
+}
+
 const planningStatusFromRaw = (value: unknown): ProjectTask['status'] => {
   const status = stringValue(value);
   if (
@@ -689,6 +837,20 @@ function catalogItemFromRaw(row: RawRecord): CatalogItem {
 function stockMovementFromRaw(row: RawRecord): StockMovement {
   const movementType = stringValue(row.movement_type);
   const sourceType = stringValue(row.source_type);
+  const reversesMovement = Boolean(stringValue(row.reverses_stock_movement_id));
+  const normalizedSource: StockMovement['sourceType'] =
+    sourceType === 'delivery' && reversesMovement
+      ? 'delivery_reversal'
+      : sourceType === 'receipt' && reversesMovement
+        ? 'receipt_reversal'
+        : sourceType === 'invoice' ||
+    sourceType === 'opening' ||
+    sourceType === 'delivery' ||
+    sourceType === 'delivery_reversal' ||
+    sourceType === 'receipt' ||
+    sourceType === 'receipt_reversal'
+      ? sourceType
+      : 'manual';
   return {
     sequence: numberValue(row.sequence),
     id: stringValue(row.id),
@@ -704,12 +866,13 @@ function stockMovementFromRaw(row: RawRecord): StockMovement {
     reason: stringValue(row.reason),
     reference: stringValue(row.reference) || null,
     movementDate: stringValue(row.movement_date),
-    sourceType:
-      sourceType === 'invoice' || sourceType === 'opening'
-        ? sourceType
-        : 'manual',
+    sourceType: normalizedSource,
     invoiceId: stringValue(row.invoice_id) || null,
     invoiceItemId: stringValue(row.invoice_item_id) || null,
+    deliveryNoteId: stringValue(row.delivery_note_id) || null,
+    deliveryNoteLineId: stringValue(row.delivery_note_line_id) || null,
+    stockReceiptId: stringValue(row.stock_receipt_id) || null,
+    stockReceiptLineId: stringValue(row.stock_receipt_line_id) || null,
     createdAt: stringValue(row.created_at),
   };
 }
@@ -918,6 +1081,12 @@ function documentSnapshotFromRaw(
 
 function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const quoteItems = raw.quote_items ?? [];
+  const salesOrderLines = (raw.sales_order_lines ?? []).map(
+    salesOrderLineFromRaw,
+  );
+  const deliveryNoteLines = (raw.delivery_note_lines ?? []).map(
+    deliveryNoteLineFromRaw,
+  );
   const invoiceItems = raw.invoice_items ?? [];
   const invoiceQrBills = raw.invoice_qr_bills ?? [];
   const payslipItems = raw.payslip_items ?? [];
@@ -963,6 +1132,36 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   }));
   const catalogItems = (raw.catalog_items ?? []).map(catalogItemFromRaw);
   const stockMovements = (raw.stock_movements ?? []).map(stockMovementFromRaw);
+  const stockReservationEvents = (raw.stock_reservation_events ?? []).map(
+    stockReservationEventFromRaw,
+  );
+  const stockAvailability: StockAvailability[] = raw.stock_availability?.length
+    ? raw.stock_availability.map((row) => {
+        const onHandMilli = numberValue(row.on_hand_milli);
+        const reservedMilli = numberValue(row.reserved_milli);
+        return {
+          catalogItemId: stringValue(row.catalog_item_id),
+          onHandMilli,
+          reservedMilli,
+          availableMilli:
+            row.available_milli === undefined
+              ? onHandMilli - reservedMilli
+              : numberValue(row.available_milli),
+        };
+      })
+    : catalogItems
+        .filter((item) => item.kind === 'product' && item.trackStock)
+        .map((item) => {
+          const reservedMilli = stockReservationEvents
+            .filter((event) => event.catalogItemId === item.id)
+            .reduce((total, event) => total + event.quantityDeltaMilli, 0);
+          return {
+            catalogItemId: item.id,
+            onHandMilli: item.stockQuantityMilli,
+            reservedMilli,
+            availableMilli: item.stockQuantityMilli - reservedMilli,
+          };
+        });
   const suppliers = (raw.suppliers ?? []).map(supplierFromRaw);
   const projects: Project[] = (raw.projects ?? []).map((row) => ({
     id: stringValue(row.id),
@@ -1034,6 +1233,103 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     notes: stringValue(row.notes),
     createdAt: stringValue(row.created_at),
     snapshot: documentSnapshotFromRaw(row.snapshot_json, appState.data_dir),
+  }));
+  const salesOrders: SalesOrder[] = (raw.sales_orders ?? []).map((row) => {
+    const id = stringValue(row.id);
+    const orderLines = salesOrderLines
+      .filter((line) => line.salesOrderId === id)
+      .sort((left, right) => left.position - right.position);
+    const subtotalCents = numberValue(row.subtotal_cents);
+    const vatCents = numberValue(row.vat_cents);
+    return {
+      id,
+      clientId: stringValue(row.client_id),
+      projectId: nullableString(row.project_id),
+      quoteId: nullableString(row.quote_id),
+      number: stringValue(row.number),
+      title: stringValue(row.title) || 'Commande client',
+      status: salesOrderStatusFromRaw(row.status),
+      orderDate: stringValue(row.order_date) || stringValue(row.issue_date),
+      currency: stringValue(row.currency) || 'CHF',
+      subtotalCents,
+      discountCents: numberValue(row.discount_cents),
+      vatCents,
+      totalCents:
+        numberValue(row.total_cents) ||
+        orderLines.reduce((total, line) => total + line.lineTotalCents, 0) ||
+        subtotalCents + vatCents,
+      notes: stringValue(row.notes),
+      terms: stringValue(row.terms),
+      confirmedAt: nullableString(row.confirmed_at),
+      closedAt: nullableString(row.closed_at),
+      cancelledAt: nullableString(row.cancelled_at),
+      createdAt: stringValue(row.created_at),
+      updatedAt: stringValue(row.updated_at),
+      lines: orderLines,
+    };
+  });
+  const deliveryNotes: DeliveryNote[] = (raw.delivery_notes ?? []).map((row) => {
+    const id = stringValue(row.id);
+    return {
+      id,
+      salesOrderId:
+        stringValue(row.sales_order_id) || stringValue(row.order_id),
+      number: stringValue(row.number),
+      status: deliveryNoteStatusFromRaw(row.status),
+      deliveryDate:
+        stringValue(row.delivery_date) || stringValue(row.issue_date),
+      reference: stringValue(row.reference),
+      notes: stringValue(row.notes),
+      issuedAt: nullableString(row.issued_at),
+      reversedAt: nullableString(row.reversed_at),
+      createdAt: stringValue(row.created_at),
+      updatedAt: stringValue(row.updated_at),
+      lines: deliveryNoteLines
+        .filter((line) => line.deliveryNoteId === id)
+        .sort((left, right) => left.position - right.position),
+    };
+  });
+  const salesOrderInvoiceBatches: SalesOrderInvoiceBatch[] = (
+    raw.sales_order_invoice_batches ?? []
+  ).map((row) => {
+    const rawRole = stringValue(row.role) || stringValue(row.invoice_role);
+    return {
+      id: stringValue(row.id),
+      salesOrderId:
+        stringValue(row.sales_order_id) || stringValue(row.order_id),
+      invoiceId: stringValue(row.invoice_id),
+      role:
+        rawRole === 'final' || rawRole === 'finale' ? 'final' : 'partial',
+      createdAt: stringValue(row.created_at),
+    };
+  });
+  const salesOrderInvoiceAllocations: SalesOrderInvoiceAllocation[] = (
+    raw.sales_order_invoice_allocations ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    batchId: stringValue(row.batch_id),
+    salesOrderLineId:
+      stringValue(row.sales_order_line_id) || stringValue(row.order_line_id),
+    deliveryNoteLineId: nullableString(row.delivery_note_line_id),
+    invoiceItemId: nullableString(row.invoice_item_id),
+    quantityMilli: numberValue(row.quantity_milli),
+    grossCentsSnapshot:
+      numberValue(row.gross_cents) ||
+      numberValue(row.gross_cents_snapshot) ||
+      numberValue(row.line_gross_cents),
+    netCentsSnapshot:
+      numberValue(row.net_cents) ||
+      numberValue(row.net_cents_snapshot) ||
+      numberValue(row.line_net_cents),
+    vatCentsSnapshot:
+      numberValue(row.vat_cents) ||
+      numberValue(row.vat_cents_snapshot) ||
+      numberValue(row.line_vat_cents),
+    totalCentsSnapshot:
+      numberValue(row.total_cents) ||
+      numberValue(row.total_cents_snapshot) ||
+      numberValue(row.line_total_cents),
+    createdAt: stringValue(row.created_at),
   }));
   const invoices: Invoice[] = (raw.invoices ?? []).map((row) => {
     const snapshot = documentSnapshotFromRaw(
@@ -1315,7 +1611,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   }));
   const timer = raw.active_timer;
   return {
-    schemaVersion: numberValue(raw.schema_version) || 19,
+    schemaVersion: numberValue(raw.schema_version) || 20,
     onboardingCompleted: appState.onboarding_completed,
     activityProfileRequired: boolValue(appState.activity_profile_required),
     settings: settingsFromRaw(raw.settings, appState.data_dir),
@@ -1327,6 +1623,12 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     projectMilestones,
     projectTasks,
     quotes,
+    salesOrders,
+    deliveryNotes,
+    stockReservationEvents,
+    stockAvailability,
+    salesOrderInvoiceBatches,
+    salesOrderInvoiceAllocations,
     invoices,
     payments,
     employees,
@@ -1364,7 +1666,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
 
 function emptyWorkspace(): Workspace {
   return {
-    schemaVersion: 19,
+    schemaVersion: 20,
     onboardingCompleted: false,
     activityProfileRequired: true,
     settings: null,
@@ -1376,6 +1678,12 @@ function emptyWorkspace(): Workspace {
     projectMilestones: [],
     projectTasks: [],
     quotes: [],
+    salesOrders: [],
+    deliveryNotes: [],
+    stockReservationEvents: [],
+    stockAvailability: [],
+    salesOrderInvoiceBatches: [],
+    salesOrderInvoiceAllocations: [],
     invoices: [],
     payments: [],
     employees: [],
@@ -2456,6 +2764,226 @@ export const desktopApi = {
   async convertQuote(quote: Quote) {
     await invoke('convert_quote_to_invoice', {
       input: { quote_id: quote.id, title: quote.title },
+    });
+    return loadWorkspace();
+  },
+  async convertQuoteToSalesOrder(requestId: string, quoteId: string) {
+    await invoke('convert_quote_to_sales_order', {
+      input: { request_id: requestId, quote_id: quoteId },
+    });
+    return loadWorkspace();
+  },
+  async saveSalesOrderDraft(input: {
+    id?: string;
+    clientId: string;
+    projectId?: string | null;
+    title: string;
+    orderDate: string;
+    currency?: string;
+    notes?: string;
+    terms?: string;
+    lines: Array<{
+      id?: string;
+      catalogItemId?: string | null;
+      position: number;
+      description: string;
+      quantityMilli: number;
+      unit: string;
+      unitPriceCents: number;
+      discountBp: number;
+      vatBp: number;
+      fulfillmentMode: SalesOrderFulfillmentMode;
+    }>;
+  }) {
+    await invoke('save_sales_order_draft', {
+      input: {
+        order: {
+          id: input.id ?? null,
+          client_id: input.clientId,
+          project_id: input.projectId ?? null,
+          title: input.title,
+          order_date: input.orderDate,
+          currency: input.currency || 'CHF',
+          notes: input.notes?.trim() || null,
+          terms: input.terms?.trim() || null,
+        },
+        lines: input.lines.map((line) => ({
+          id: line.id ?? null,
+          catalog_item_id: line.catalogItemId ?? null,
+          position: line.position,
+          description: line.description,
+          quantity_milli: line.quantityMilli,
+          unit: line.unit,
+          unit_price_cents: line.unitPriceCents,
+          discount_bp: line.discountBp,
+          vat_bp: line.vatBp,
+          fulfillment_mode: line.fulfillmentMode,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async confirmSalesOrder(requestId: string, salesOrderId: string) {
+    await invoke('confirm_sales_order', {
+      input: { request_id: requestId, sales_order_id: salesOrderId },
+    });
+    return loadWorkspace();
+  },
+  async cancelSalesOrder(
+    requestId: string,
+    salesOrderId: string,
+    reason: string,
+  ) {
+    await invoke('cancel_sales_order', {
+      input: {
+        request_id: requestId,
+        sales_order_id: salesOrderId,
+        reason: reason.trim(),
+      },
+    });
+    return loadWorkspace();
+  },
+  async cancelSalesOrderRemainder(
+    requestId: string,
+    salesOrderId: string,
+    reason: string,
+    lines: Array<{ salesOrderLineId: string; quantityMilli: number }>,
+  ) {
+    await invoke('cancel_sales_order_remainder', {
+      input: {
+        request_id: requestId,
+        sales_order_id: salesOrderId,
+        reason: reason.trim(),
+        lines: lines.map((line) => ({
+          sales_order_line_id: line.salesOrderLineId,
+          quantity_milli: line.quantityMilli,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async saveDeliveryNoteDraft(input: {
+    id?: string;
+    salesOrderId: string;
+    deliveryDate: string;
+    reference?: string;
+    notes?: string;
+    lines: Array<{ salesOrderLineId: string; quantityMilli: number }>;
+  }) {
+    await invoke('save_delivery_note_draft', {
+      input: {
+        delivery_note: {
+          id: input.id ?? null,
+          sales_order_id: input.salesOrderId,
+          delivery_date: input.deliveryDate,
+          reference: input.reference?.trim() || null,
+          notes: input.notes?.trim() || null,
+        },
+        lines: input.lines.map((line) => ({
+          sales_order_line_id: line.salesOrderLineId,
+          quantity_milli: line.quantityMilli,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async issueDeliveryNote(requestId: string, deliveryNoteId: string) {
+    await invoke('issue_delivery_note', {
+      input: { request_id: requestId, delivery_note_id: deliveryNoteId },
+    });
+    return loadWorkspace();
+  },
+  async reverseDeliveryNote(
+    requestId: string,
+    deliveryNoteId: string,
+    reason: string,
+  ) {
+    await invoke('reverse_delivery_note', {
+      input: {
+        request_id: requestId,
+        delivery_note_id: deliveryNoteId,
+        reason: reason.trim(),
+      },
+    });
+    return loadWorkspace();
+  },
+  async previewSalesOrderInvoice(input: {
+    salesOrderId: string;
+    allocations: Array<{
+      salesOrderLineId: string;
+      deliveryNoteLineId: string | null;
+      quantityMilli: number;
+    }>;
+  }): Promise<SalesOrderInvoicePreview> {
+    const response = recordValue(
+      await invoke<unknown>('preview_sales_order_invoice', {
+        input: {
+          sales_order_id: input.salesOrderId,
+          allocations: input.allocations.map((allocation) => ({
+            sales_order_line_id: allocation.salesOrderLineId,
+            delivery_note_line_id: allocation.deliveryNoteLineId,
+            quantity_milli: allocation.quantityMilli,
+          })),
+        },
+      }),
+    );
+    const raw = Object.keys(recordValue(response.preview)).length
+      ? recordValue(response.preview)
+      : response;
+    const rawRole = stringValue(raw.role) || stringValue(raw.invoice_role);
+    return {
+      role:
+        rawRole === 'final' || rawRole === 'finale' ? 'final' : 'partial',
+      subtotalCents: numberValue(raw.subtotal_cents),
+      discountCents: numberValue(raw.discount_cents),
+      vatCents: numberValue(raw.vat_cents),
+      totalCents: numberValue(raw.total_cents),
+      blockers: Array.isArray(raw.blockers)
+        ? raw.blockers.map((blocker) => stringValue(blocker)).filter(Boolean)
+        : [],
+    };
+  },
+  async createSalesOrderInvoice(input: {
+    requestId: string;
+    salesOrderId: string;
+    issueDate?: string;
+    dueDate?: string;
+    serviceDateFrom: string;
+    serviceDateTo: string;
+    allocations: Array<{
+      salesOrderLineId: string;
+      deliveryNoteLineId: string | null;
+      quantityMilli: number;
+    }>;
+  }) {
+    await invoke('create_sales_order_invoice', {
+      input: {
+        request_id: input.requestId,
+        sales_order_id: input.salesOrderId,
+        issue_date: input.issueDate || null,
+        due_date: input.dueDate || null,
+        service_date_from: input.serviceDateFrom,
+        service_date_to: input.serviceDateTo,
+        allocations: input.allocations.map((allocation) => ({
+          sales_order_line_id: allocation.salesOrderLineId,
+          delivery_note_line_id: allocation.deliveryNoteLineId,
+          quantity_milli: allocation.quantityMilli,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async cancelSalesOrderInvoiceDraft(
+    requestId: string,
+    invoiceId: string,
+    reason: string,
+  ) {
+    await invoke('cancel_sales_order_invoice_draft', {
+      input: {
+        request_id: requestId,
+        invoice_id: invoiceId,
+        reason: reason.trim(),
+      },
     });
     return loadWorkspace();
   },

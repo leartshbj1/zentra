@@ -16,15 +16,15 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Elyko 1.6 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Elyko 1.7 | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
-| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis → facture, QR, avoirs, relances locales | commandes, bons de livraison, facturation récurrente et modèles FR/DE/IT | P0 |
+| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ; QR, avoirs et relances locales | acomptes par montant/pourcentage, récurrence et modèles FR/DE/IT | P0 |
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | factures structurées, justificatifs, paiements et écritures | avoirs, OCR fournisseur, commandes/réceptions | P0 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, clôture et continuité | assistant TVA complet, pièces sur écritures et export fiduciaire | P0 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
-| Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue et registre immuable, sortie sur facture | réservé/disponible/préparé/livré et réception fournisseur | P0 |
+| Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de commande, en main/réservé/disponible et sortie sur BL sans double sortie à la facture | réception fournisseur et emplacements | P0 |
 | Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et OCR local | assiettes réglementaires distinctes, barèmes officiels puis certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes | dossier d'archive contrôlable et politique de conservation | P0 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
@@ -33,11 +33,12 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Ordre d'implémentation retenu
 
-1. **Planifier et exécuter** : jalons, tâches, responsables, échéances et temps
-   rattaché à une tâche.
-2. **Vendre sans ressaisie** : devis accepté → commande → livraison partielle ou
-   complète → acompte/situation/facture finale, sans double mouvement de stock.
-3. **Acheter sans ressaisie** : commande fournisseur → réception → facture ou
+1. **Planifier et exécuter — livré en 1.6** : jalons, tâches, responsables,
+   échéances et temps rattaché à une tâche.
+2. **Vendre sans ressaisie — livré en 1.7** : devis avec produits → commande →
+   livraison partielle ou complète → situation/facture finale par quantités,
+   sans double mouvement de stock; facture directe conservée pour les services.
+3. **Acheter sans ressaisie — prochain lot** : commande fournisseur → réception → facture ou
    avoir, avec pièce originale et écriture comptable.
 4. **Automatiser sous contrôle** : récurrence, relances, import bancaire et OCR
    proposent; l'utilisateur confirme les opérations financières ambiguës.
@@ -57,6 +58,9 @@ présenter une prochaine action claire et garder chaque transformation traçable
   démonstration.
 - Les cartes, crédits et services financiers de type bexio Pay ne font pas
   partie du cœur Elyko.
+- La version 1.7 facture progressivement le livré des lignes concernées et
+  facture directement les prestations sans BL. Elle ne crée pas encore un
+  acompte défini librement par montant ou pourcentage.
 
 ## Sources officielles
 
@@ -64,6 +68,8 @@ présenter une prochaine action claire et garder chaque transformation traçable
 - [Comparatif détaillé des forfaits, état au 28 mai 2026](https://cdn.www.bexio.com/assets/content_craft/documents/bexio/compare-packages-fr.pdf)
 - [Processus de vente et dépenses](https://www.bexio.com/fr-CH/gestion-des-processus-de-vente-et-des-depenses)
 - [Facturation](https://www.bexio.com/fr-CH/logiciel-de-facturation)
+- [Traitement des commandes](https://www.bexio.com/fr-CH/traitement-commande)
+- [Bulletins de livraison](https://www.bexio.com/fr-CH/bulletin-de-livraison)
 - [Achats et dépenses](https://www.bexio.com/fr-CH/gestion-des-depenses)
 - [Comptabilité](https://www.bexio.com/fr-CH/logiciel-de-comptabilite-pme)
 - [Banking](https://www.bexio.com/fr-CH/banking)

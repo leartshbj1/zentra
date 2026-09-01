@@ -122,6 +122,12 @@ describe('catalogue produits et services', () => {
     expect(stockBalanceAfter(product.stockQuantityMilli, 'exit', 1_500)).toBe(6_500);
     expect(stockBalanceAfter(product.stockQuantityMilli, 'correction', -8_000)).toBe(0);
     expect(stockMovementError(product, 'exit', 8_001)).toContain('Stock insuffisant');
+    expect(stockMovementError(product, 'exit', 4_001, 4_000)).toContain(
+      '4,000 mètre réservés aux commandes',
+    );
+    expect(stockMovementError(product, 'correction', -4_001, 4_000)).toContain(
+      'Stock insuffisant',
+    );
     expect(stockMovementError(product, 'correction', 0)).toContain('ne peut pas être égale à zéro');
     expect(stockMovementError(product, 'correction', -8_000)).toBe('');
     expect(stockMovementError(service, 'entry', 1_000)).toContain('Seuls les produits');

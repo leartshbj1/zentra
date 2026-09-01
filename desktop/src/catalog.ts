@@ -39,11 +39,14 @@ export function catalogItemToDocumentLine(item: CatalogItem, id = createId()): D
   };
 }
 
-export function isCatalogItemLowOnStock(item: CatalogItem): boolean {
+export function isCatalogItemLowOnStock(
+  item: CatalogItem,
+  availableMilli = item.stockQuantityMilli,
+): boolean {
   return item.kind === 'product'
     && item.trackStock
-    && (item.stockQuantityMilli === 0
-      || (item.reorderLevelMilli > 0 && item.stockQuantityMilli <= item.reorderLevelMilli));
+    && (availableMilli <= 0
+      || (item.reorderLevelMilli > 0 && availableMilli <= item.reorderLevelMilli));
 }
 
 export function catalogQuantityFromInput(value: FormDataEntryValue | null): number {
@@ -92,6 +95,7 @@ export function stockMovementError(
   item: CatalogItem,
   movementType: StockMovementType,
   enteredQuantityMilli: number | null,
+  reservedQuantityMilli = 0,
 ): string {
   if (item.kind !== 'product' || !item.trackStock) {
     return 'Seuls les produits avec suivi de stock acceptent un mouvement.';
@@ -112,8 +116,12 @@ export function stockMovementError(
     movementType,
     enteredQuantityMilli,
   );
-  if (balanceAfter < 0) {
-    return `Stock insuffisant : ${formatCatalogQuantity(item.stockQuantityMilli)} ${item.unit} disponible${item.stockQuantityMilli === 1_000 ? '' : 's'}.`;
+  if (balanceAfter < reservedQuantityMilli) {
+    const availableMilli = Math.max(
+      0,
+      item.stockQuantityMilli - reservedQuantityMilli,
+    );
+    return `Stock insuffisant : ${formatCatalogQuantity(availableMilli)} ${item.unit} disponible${availableMilli === 1_000 ? '' : 's'}. ${formatCatalogQuantity(reservedQuantityMilli)} ${item.unit} réservé${reservedQuantityMilli === 1_000 ? '' : 's'} aux commandes.`;
   }
   if (balanceAfter > MAX_STOCK_QUANTITY_MILLI) {
     return 'Le solde obtenu dépasse la capacité du registre de stock.';

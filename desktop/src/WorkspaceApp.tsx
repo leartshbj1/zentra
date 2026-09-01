@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleDollarSign,
+  ClipboardCheck,
   Clock3,
   Database,
   Download,
@@ -90,6 +91,12 @@ import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { PayrollImportWizard } from './PayrollImportWizard';
 import { TimeBillingWizard } from './TimeBillingWizard';
 import {
+  DeliveryNotePrintPreview,
+  SalesOrdersScreen,
+  SalesTabs,
+  type SalesView,
+} from './SalesOrdersScreen';
+import {
   ProjectPlanningPanel,
   type ProjectMilestoneDraft,
   type ProjectTaskDraft,
@@ -102,6 +109,7 @@ import type {
   BalanceSheetReport,
   Client,
   CatalogItem,
+  DeliveryNote,
   DocumentLine,
   Employee,
   EntityKind,
@@ -129,6 +137,7 @@ import type {
   ReminderHistory,
   ReminderSettings,
   ReminderTemplate,
+  SalesOrder,
   StockMovementType,
   StoredSwissQrBill,
   Supplier,
@@ -177,8 +186,9 @@ import {
   timerBlockReason,
   type WorkspacePrerequisites,
 } from './workflowGuards';
+import { availabilityForCatalogItem, quoteRequiresSalesOrder } from './orderFlow';
 
-type View = TourView;
+type View = TourView | 'orders';
 type ModalState =
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
@@ -188,6 +198,7 @@ type ModalState =
       item: CatalogItem;
       movementType: StockMovementType;
       requestId: string;
+      reservedMilli: number;
     }
   | { type: 'supplier'; item?: Supplier }
   | { type: 'project'; item?: Project }
@@ -216,6 +227,7 @@ type ModalState =
 type PrintTarget =
   | { entity: 'quotes'; value: Quote }
   | { entity: 'invoices'; value: Invoice; qr?: StoredSwissQrBill }
+  | { entity: 'delivery_notes'; value: DeliveryNote; order: SalesOrder }
   | { entity: 'payslips'; value: Payslip }
   | null;
 type Notice = { tone: 'success' | 'warning' | 'error'; text: string };
@@ -230,8 +242,7 @@ const navigation: Array<{
   { id: 'projects', label: 'Chantiers / projets', icon: FolderKanban },
   { id: 'clients', label: 'Clients', icon: UserRound },
   { id: 'catalog', label: 'Produits & services', icon: Package },
-  { id: 'quotes', label: 'Devis', icon: FileCheck2, group: 'Gestion' },
-  { id: 'invoices', label: 'Factures', icon: Receipt },
+  { id: 'quotes', label: 'Ventes', icon: BriefcaseBusiness, group: 'Gestion' },
   { id: 'reminders', label: 'Relances', icon: MessageSquareWarning },
   { id: 'time', label: 'Temps', icon: Clock3 },
   { id: 'team', label: 'Équipe & salaires', icon: Users },
@@ -253,8 +264,9 @@ const viewTitles: Record<View, [string, string]> = {
     'Produits & services',
     'Références réutilisables pour vos devis et factures',
   ],
-  quotes: ['Devis', 'Offres, lignes détaillées et conversion en facture'],
-  invoices: ['Factures', 'Émission, encaissements et soldes ouverts'],
+  quotes: ['Ventes', 'Devis, commandes, livraisons et factures sans ressaisie'],
+  orders: ['Ventes', 'Commandes, réservations et livraisons partielles'],
+  invoices: ['Ventes', 'Factures, encaissements et soldes ouverts'],
   reminders: [
     'Relances',
     'Échéances, niveaux et historique des actions locales',
@@ -293,6 +305,7 @@ export function WorkspaceApp({
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const reminderScanStarted = useRef(false);
   const actionInFlight = useRef(false);
+  const quoteOrderRequestIds = useRef(new Map<string, string>());
   const guidedTour = useGuidedTour();
   const navigateTour = useCallback((nextView: TourView) => {
     setView(nextView);
@@ -421,6 +434,25 @@ export function WorkspaceApp({
     }
   }
 
+  async function convertAcceptedQuoteToOrder(item: Quote) {
+    let requestId = quoteOrderRequestIds.current.get(item.id);
+    if (!requestId) {
+      requestId = createId();
+      quoteOrderRequestIds.current.set(item.id, requestId);
+    }
+    const converted = await act(
+      () => desktopApi.convertQuoteToSalesOrder(requestId!, item.id),
+      'La commande brouillon a été créée depuis le devis accepté. Contrôlez-la puis confirmez-la pour réserver le stock.',
+      false,
+    );
+    if (converted) {
+      quoteOrderRequestIds.current.delete(item.id);
+      setView('orders');
+      setSearch('');
+      setMenuOpen(false);
+    }
+  }
+
   async function postPayslip(item: Payslip) {
     if (readOnly) {
       setNotice({
@@ -485,6 +517,7 @@ export function WorkspaceApp({
       ['tâche', workspace.projectTasks.filter((row) => row.projectId === item.id).length],
       ['saisie de temps', workspace.timeEntries.filter((row) => row.projectId === item.id).length],
       ['devis', workspace.quotes.filter((row) => row.projectId === item.id).length],
+      ['commande', workspace.salesOrders.filter((row) => row.projectId === item.id).length],
       ['facture', workspace.invoices.filter((row) => row.projectId === item.id).length],
       ['dépense', workspace.expenses.filter((row) => row.projectId === item.id).length],
       ['facture fournisseur', workspace.supplierInvoices.filter((row) => row.projectId === item.id).length],
@@ -668,6 +701,7 @@ export function WorkspaceApp({
     'clients',
     'catalog',
     'quotes',
+    'orders',
     'invoices',
     'time',
     'team',
@@ -719,12 +753,16 @@ export function WorkspaceApp({
               item.id === 'projects'
                 ? `${terminology.moduleLabel} · ${terminology.pluralTitle}`
                 : item.label;
+            const active =
+              item.id === 'quotes'
+                ? view === 'quotes' || view === 'orders' || view === 'invoices'
+                : view === item.id;
             return (
               <div key={item.id}>
                 {item.group ? <p>{item.group}</p> : null}
                 <button
-                  aria-current={view === item.id ? 'page' : undefined}
-                  className={view === item.id ? 'is-active' : ''}
+                  aria-current={active ? 'page' : undefined}
+                  className={active ? 'is-active' : ''}
                   onClick={() => {
                     setView(item.id);
                     setSearch('');
@@ -733,7 +771,7 @@ export function WorkspaceApp({
                 >
                   <Icon size={17} />
                   <span>{label}</span>
-                  {item.id === 'invoices' && overdue.length ? (
+                  {item.id === 'quotes' && overdue.length ? (
                     <em>{overdue.length}</em>
                   ) : null}
                 </button>
@@ -881,6 +919,15 @@ export function WorkspaceApp({
         ) : null}
 
         <section className="page-content" key={view}>
+          {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
+            <SalesTabs
+              active={view as SalesView}
+              onChange={(next) => {
+                setView(next);
+                setSearch('');
+              }}
+            />
+          ) : null}
           {view === 'dashboard' ? (
             <Dashboard
               workspace={workspace}
@@ -971,6 +1018,8 @@ export function WorkspaceApp({
             <CatalogScreen
               items={workspace.catalogItems}
               movements={workspace.stockMovements}
+              reservationEvents={workspace.stockReservationEvents}
+              availabilityRows={workspace.stockAvailability}
               query={search}
               readOnly={readOnly}
               onQueryChange={setSearch}
@@ -982,6 +1031,11 @@ export function WorkspaceApp({
                   item,
                   movementType,
                   requestId: createId(),
+                  reservedMilli: availabilityForCatalogItem(
+                    item,
+                    workspace.stockReservationEvents,
+                    workspace.stockAvailability,
+                  ).reservedMilli,
                 })
               }
               onArchive={(item) => void archiveCatalogItem(item)}
@@ -1015,7 +1069,7 @@ export function WorkspaceApp({
                 void act(
                   () => desktopApi.updateQuoteStatus(item.id, status),
                   status === 'accepted'
-                    ? 'Le devis a été marqué accepté. Vous pouvez maintenant créer sa facture en un clic.'
+                    ? 'Le devis a été marqué accepté. Un produit passera par une commande et une livraison; un service peut être facturé directement.'
                     : status === 'refused'
                       ? 'Le devis a été marqué refusé.'
                       : 'Le devis a été marqué expiré.',
@@ -1023,10 +1077,35 @@ export function WorkspaceApp({
                 )
               }
               onConvert={(item) => void convertAcceptedQuote(item)}
+              onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
               onPrint={(item) =>
                 setPrintTarget({ entity: 'quotes', value: item })
               }
               onArchive={(item) => void archive('quotes', item.id, item.title)}
+            />
+          ) : null}
+          {view === 'orders' ? (
+            <SalesOrdersScreen
+              workspace={workspace}
+              query={search}
+              busy={busy}
+              readOnly={readOnly}
+              act={act}
+              onShowQuotes={() => {
+                setView('quotes');
+                setSearch('');
+              }}
+              onOpenInvoice={(invoice) =>
+                setModal({ type: 'document', entity: 'invoices', item: invoice })
+              }
+              onIssueInvoice={issueInvoice}
+              onPrintDelivery={(note) => {
+                const order = workspace.salesOrders.find(
+                  (item) => item.id === note.salesOrderId,
+                );
+                if (order)
+                  setPrintTarget({ entity: 'delivery_notes', value: note, order });
+              }}
             />
           ) : null}
           {view === 'invoices' ? (
@@ -1043,6 +1122,17 @@ export function WorkspaceApp({
               }
               onIssue={issueInvoice}
               onPayment={(item) => setModal({ type: 'payment', invoice: item })}
+              onOpenOrder={(orderId) => {
+                const order = workspace.salesOrders.find(
+                  (candidate) => candidate.id === orderId,
+                );
+                setView('orders');
+                setSearch(order?.number || order?.title || '');
+                setNotice({
+                  tone: 'warning',
+                  text: 'Cette facture brouillon est pilotée depuis sa commande. Émission et suppression y restent contrôlées.',
+                });
+              }}
               onPrint={(item) =>
                 item.type === 'credit_note'
                   ? setPrintTarget({ entity: 'invoices', value: item })
@@ -2257,6 +2347,7 @@ type DocumentsProps =
         status: 'accepted' | 'refused' | 'expired',
       ) => void;
       onConvert: (item: Quote) => void;
+      onCreateOrder: (item: Quote) => void;
       onPrint: (item: Quote) => void;
       onArchive: (item: Quote) => void;
       onPayment?: never;
@@ -2270,6 +2361,7 @@ type DocumentsProps =
       onCreate: () => void;
       onIssue: (item: Invoice) => void;
       onPayment: (item: Invoice) => void;
+      onOpenOrder: (orderId: string) => void;
       onPrint: (item: Invoice) => void;
       onArchive: (item: Invoice) => void;
       onConvert?: never;
@@ -2281,7 +2373,9 @@ type LooseDocumentsProps = {
   onEdit: (item: Quote | Invoice) => void;
   onIssue: (item: Quote | Invoice) => void;
   onConvert: (item: Quote) => void;
+  onCreateOrder: (item: Quote) => void;
   onPayment: (item: Invoice) => void;
+  onOpenOrder: (orderId: string) => void;
   onPrint: (item: Quote | Invoice) => void;
   onArchive: (item: Quote | Invoice) => void;
 };
@@ -2348,6 +2442,13 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
               const converted = workspace.invoices.some(
                 (invoice) => invoice.quoteId === quote.id,
               );
+              const convertedOrder = workspace.salesOrders.some(
+                (order) => order.quoteId === quote.id,
+              );
+              const requiresOrder = quoteRequiresSalesOrder(
+                quote,
+                workspace.catalogItems,
+              );
               return (
                 <tr key={quote.id}>
                   <td>
@@ -2380,6 +2481,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   <td>
                     <StatusBadge status={quote.status} />
                     {converted ? <small>Facture créée</small> : null}
+                    {convertedOrder ? <small>Commande créée</small> : null}
                   </td>
                   <td>
                     <div className="document-actions">
@@ -2455,16 +2557,25 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           </Button>
                         </>
                       ) : null}
-                      {quote.status === 'accepted' && !converted ? (
+                      {quote.status === 'accepted' && !converted && !convertedOrder ? (
                         <Button
                           variant="secondary"
                           size="small"
                           className="quote-convert-button"
                           disabled={busy}
-                          onClick={() => props.onConvert(quote)}
-                          title="Créer la facture brouillon unique"
+                          onClick={() =>
+                            requiresOrder
+                              ? props.onCreateOrder(quote)
+                              : props.onConvert(quote)
+                          }
+                          title={
+                            requiresOrder
+                              ? 'Créer la commande client et préparer la réservation'
+                              : 'Créer la facture brouillon du flux service simple'
+                          }
                         >
-                          <ArrowRight size={15} /> Créer la facture
+                          <ArrowRight size={15} />{' '}
+                          {requiresOrder ? 'Créer la commande' : 'Créer la facture'}
                         </Button>
                       ) : null}
                       {quote.status !== 'draft' ? (
@@ -2521,6 +2632,13 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                 ? invoicePaid(item.id, workspace.payments)
                 : 0;
             const invoice = entity === 'invoices' ? (item as Invoice) : null;
+            const linkedOrderBatch = invoice
+              ? workspace.salesOrderInvoiceBatches.find(
+                  (batch) => batch.invoiceId === invoice.id,
+                )
+              : undefined;
+            const linkedOrderDraftBatch =
+              item.status === 'draft' ? linkedOrderBatch : undefined;
             return (
               <tr key={item.id}>
                 <td>
@@ -2571,22 +2689,33 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                 ) : null}
                 <td>
                   <StatusBadge status={item.status} />
+                  {linkedOrderDraftBatch ? <small>Géré depuis la commande</small> : null}
                 </td>
                 <td>
                   <div className="document-actions">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() =>
+                      onClick={() => {
+                        if (linkedOrderDraftBatch) {
+                          props.onOpenOrder(linkedOrderDraftBatch.salesOrderId);
+                          return;
+                        }
                         entity === 'quotes'
                           ? props.onEdit(item as Quote)
-                          : props.onEdit(item as Invoice)
+                          : props.onEdit(item as Invoice);
+                      }}
+                      title={
+                        linkedOrderDraftBatch
+                          ? 'Voir la commande liée · brouillon non modifiable'
+                          : item.status === 'draft'
+                            ? 'Modifier'
+                            : 'Consulter'
                       }
-                      title={item.status === 'draft' ? 'Modifier' : 'Consulter'}
                     >
-                      <Pencil size={15} />
+                      {linkedOrderDraftBatch ? <ClipboardCheck size={15} /> : <Pencil size={15} />}
                     </Button>
-                    {item.status === 'draft' ? (
+                    {item.status === 'draft' && !linkedOrderDraftBatch ? (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -2640,7 +2769,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         <Printer size={15} />
                       </Button>
                     ) : null}
-                    {item.status === 'draft' ? (
+                    {item.status === 'draft' && !linkedOrderDraftBatch ? (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -4275,6 +4404,7 @@ function WorkspaceModal({
         item={state.item}
         movementType={state.movementType}
         requestId={state.requestId}
+        reservedMilli={state.reservedMilli}
         busy={busy}
         close={close}
         act={act}
@@ -4302,6 +4432,15 @@ function WorkspaceModal({
         quoteSource={state.quoteSource}
         workspace={workspace}
         busy={busy}
+        readOnlyReason={
+          state.entity === 'invoices' &&
+          state.item?.status === 'draft' &&
+          workspace.salesOrderInvoiceBatches.some(
+            (batch) => batch.invoiceId === state.item?.id,
+          )
+            ? 'Cette facture brouillon est générée depuis une commande client. Consultez-la ici; utilisez la fiche commande pour l’émettre ou supprimer le brouillon avec un motif.'
+            : undefined
+        }
         close={close}
         act={act}
       />
@@ -6352,6 +6491,15 @@ function PrintSheet({
   workspace: Workspace;
   onClose: () => void;
 }) {
+  if (target.entity === 'delivery_notes')
+    return (
+      <DeliveryNotePrintPreview
+        note={target.value}
+        order={target.order}
+        workspace={workspace}
+        onClose={onClose}
+      />
+    );
   if (target.entity === 'invoices')
     return (
       <InvoicePrintSheet

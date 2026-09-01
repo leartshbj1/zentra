@@ -21,9 +21,9 @@ const workflow = [
   {
     number: '02',
     icon: FileCheck2,
-    title: 'Le devis devient facture',
-    text: 'Après acceptation, Elyko reprend les lignes du devis, applique vos réglages et prépare la facture avec sa section de paiement.',
-    detail: 'Une conversion, sans double saisie.',
+    title: 'Le devis déclenche la suite',
+    text: 'Après acceptation, un devis avec produits prépare la commande, réserve le stock et guide la livraison. Une prestation simple peut rester en facture directe.',
+    detail: 'Une chaîne liée, sans double saisie ni double sortie.',
   },
   {
     number: '03',

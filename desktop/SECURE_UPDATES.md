@@ -60,8 +60,8 @@ $env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content -Raw (Join-Path $elykoSigningRoot '
 $env:ELYKO_UPDATER_ENDPOINT = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1 `
-  -Version 1.6.0 `
-  -PreviousVersion 1.5.0
+  -Version 1.7.0 `
+  -PreviousVersion 1.6.0
 ```
 
 Le script n’accepte que ces sorties canoniques :
@@ -89,13 +89,13 @@ Publier l’installateur et le manifeste sur HTTPS. La valeur `signature` est le
 
 ```json
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "notes": "Résumé contrôlé des changements.",
   "pub_date": "2026-09-01T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "CONTENU_EXACT_DU_FICHIER_SIG",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.6.0_x64-setup.exe"
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.7.0_x64-setup.exe"
     }
   }
 }

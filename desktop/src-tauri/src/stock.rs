@@ -477,8 +477,18 @@ pub(crate) fn apply_invoice_stock_movements(
         });
     }
 
-    for (catalog_item_id, (available, required)) in &requirements {
-        if required > available {
+    for (catalog_item_id, (on_hand, required)) in &requirements {
+        let reserved: i64 = transaction.query_row(
+            "SELECT COALESCE(SUM(quantity_delta_milli),0) FROM stock_reservation_events WHERE catalog_item_id=?",
+            params![catalog_item_id],
+            |row| row.get(0),
+        )?;
+        let available = on_hand.checked_sub(reserved).ok_or_else(|| {
+            AppError::Validation(format!(
+                "Le stock réservé de l'article {catalog_item_id} dépasse son stock physique."
+            ))
+        })?;
+        if *required > available {
             return Err(AppError::Validation(format!(
                 "Stock insuffisant pour l'article {catalog_item_id}: {available} millièmes disponibles, {required} requis."
             )));

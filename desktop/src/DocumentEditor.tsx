@@ -26,6 +26,7 @@ export function DocumentEditor({
   quoteSource,
   workspace,
   busy,
+  readOnlyReason,
   close,
   act,
 }: {
@@ -34,6 +35,7 @@ export function DocumentEditor({
   quoteSource?: Quote;
   workspace: Workspace;
   busy: boolean;
+  readOnlyReason?: string;
   close: () => void;
   act: ActionRunner;
 }) {
@@ -78,7 +80,9 @@ export function DocumentEditor({
   );
   const [localError, setLocalError] = useState('');
   const totals = documentTotals(lines);
-  const isLocked = Boolean(item && item.status !== 'draft');
+  const isLocked = Boolean(
+    item && (item.status !== 'draft' || readOnlyReason),
+  );
   const originalInvoices = workspace.invoices.filter(
     (invoice) =>
       invoice.id !== item?.id &&
@@ -114,7 +118,9 @@ export function DocumentEditor({
     <Modal
       title={`${item ? (isLocked ? 'Consulter' : 'Modifier') : 'Nouveau'} ${entity === 'quotes' ? 'devis' : invoiceType === 'credit_note' ? 'avoir' : 'document'}`}
       description={
-        isLocked
+        readOnlyReason
+          ? readOnlyReason
+          : isLocked
           ? 'Le document émis est verrouillé et ne peut pas être supprimé.'
           : 'Le numéro définitif est attribué uniquement lors de l’émission.'
       }
@@ -572,10 +578,14 @@ export function DocumentEditor({
           <div className="warning-card">
             <ShieldCheck size={19} />
             <div>
-              <strong>Document verrouillé</strong>
+              <strong>
+                {readOnlyReason
+                  ? 'Brouillon piloté depuis la commande'
+                  : 'Document verrouillé'}
+              </strong>
               <p>
-                Utilisez un avoir lié à la facture d’origine pour toute
-                correction.
+                {readOnlyReason ||
+                  'Utilisez un avoir lié à la facture d’origine pour toute correction.'}
               </p>
             </div>
           </div>

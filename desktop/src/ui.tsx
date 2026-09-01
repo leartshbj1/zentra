@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, FormEvent, ReactNode } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { AlertTriangle, Archive, ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
 
 export function Button({
@@ -96,6 +97,31 @@ export function EmptyState({
   );
 }
 
+const modalFocusableSelector = [
+  'a[href]',
+  'area[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'iframe',
+  'object',
+  'embed',
+  'summary',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function modalFocusableElements(dialog: HTMLElement) {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(modalFocusableSelector)).filter(
+    (element) =>
+      element.tabIndex >= 0 &&
+      !element.matches(':disabled') &&
+      !element.closest('[hidden], [aria-hidden="true"], [inert]') &&
+      element.getClientRects().length > 0,
+  );
+}
+
 export function Modal({
   title,
   description,
@@ -109,15 +135,95 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (!dialog || dialog.contains(document.activeElement)) return;
+
+      const focusableElements = modalFocusableElements(dialog);
+      const preferredFocus = dialog.querySelector<HTMLElement>(
+        '[autofocus], [data-modal-initial-focus]',
+      );
+      if (preferredFocus && focusableElements.includes(preferredFocus)) {
+        preferredFocus.focus({ preventScroll: true });
+        return;
+      }
+      dialog.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus({ preventScroll: true });
+      }
+    };
+  }, []);
+
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.defaultPrevented) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusableElements = modalFocusableElements(dialog);
+    if (!focusableElements.length) {
+      event.preventDefault();
+      dialog.focus({ preventScroll: true });
+      return;
+    }
+
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+    const activeElement = document.activeElement;
+    if (
+      event.shiftKey &&
+      (activeElement === firstFocusable ||
+        activeElement === dialog ||
+        !dialog.contains(activeElement))
+    ) {
+      event.preventDefault();
+      lastFocusable.focus();
+    } else if (
+      !event.shiftKey &&
+      (activeElement === lastFocusable ||
+        activeElement === dialog ||
+        !dialog.contains(activeElement))
+    ) {
+      event.preventDefault();
+      firstFocusable.focus();
+    }
+  }
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`modal ${wide ? 'modal--wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <section
+        ref={dialogRef}
+        className={`modal ${wide ? 'modal--wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
+      >
         <header className="modal__header">
           <div>
-            <h2>{title}</h2>
-            {description ? <p>{description}</p> : null}
+            <h2 id={titleId}>{title}</h2>
+            {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fermer">
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={`Fermer « ${title} »`}>
             <X size={19} />
           </Button>
         </header>

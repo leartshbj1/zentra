@@ -5,11 +5,14 @@ import {
   ArrowRight,
   CheckCircle2,
   FileCheck2,
+  PackageCheck,
   Receipt,
   RotateCcw,
+  Truck,
 } from 'lucide-react';
 
-type DemoStage = 'draft' | 'accepted' | 'invoice';
+const demoStages = ['draft', 'accepted', 'order', 'delivery', 'invoice'] as const;
+type DemoStage = (typeof demoStages)[number];
 
 function numberValue(value: string) {
   const parsed = Number(value.replace(',', '.'));
@@ -29,6 +32,7 @@ export function ProductFlowDemo() {
   const [unitPrice, setUnitPrice] = useState('');
   const [discount, setDiscount] = useState('');
   const [vatRate, setVatRate] = useState('');
+  const [deliveredQuantity, setDeliveredQuantity] = useState('');
   const [stage, setStage] = useState<DemoStage>('draft');
 
   const totals = useMemo(() => {
@@ -54,16 +58,52 @@ export function ProductFlowDemo() {
     };
   }, [discount, quantity, unitPrice, vatRate]);
 
+  const deliveredTotals = useMemo(() => {
+    const orderedQuantity = Math.max(0, numberValue(quantity));
+    const delivered = Math.min(
+      orderedQuantity,
+      Math.max(0, numberValue(deliveredQuantity)),
+    );
+    const unitPriceCents = Math.max(0, Math.round(numberValue(unitPrice) * 100));
+    const discountBp = Math.min(
+      10_000,
+      Math.max(0, Math.round(numberValue(discount) * 100)),
+    );
+    const vatBp = Math.max(0, Math.round(numberValue(vatRate) * 100));
+    const beforeDiscountCents = Math.round(delivered * unitPriceCents);
+    const discountCents = Math.round(
+      (beforeDiscountCents * discountBp) / 10_000,
+    );
+    const netCents = beforeDiscountCents - discountCents;
+    const vatCents = Math.round((netCents * vatBp) / 10_000);
+    return {
+      beforeDiscountCents,
+      discountCents,
+      netCents,
+      vatCents,
+      totalCents: netCents + vatCents,
+    };
+  }, [deliveredQuantity, discount, quantity, unitPrice, vatRate]);
+
   const complete =
     description.trim().length > 0 &&
     numberValue(quantity) > 0 &&
     unitPrice.trim() !== '' &&
     numberValue(unitPrice) >= 0 &&
     vatRate !== '';
-  const locked = stage === 'invoice';
+  const orderedQuantity = Math.max(0, numberValue(quantity));
+  const deliveredQuantityValue = Math.max(0, numberValue(deliveredQuantity));
+  const deliveryReady =
+    deliveredQuantityValue > 0 && deliveredQuantityValue <= orderedQuantity;
+  const fullDelivery =
+    deliveryReady && Math.abs(deliveredQuantityValue - orderedQuantity) < 0.000_001;
+  const deliveredStage = stage === 'delivery' || stage === 'invoice';
+  const displayedTotals = deliveredStage ? deliveredTotals : totals;
+  const locked = stage === 'order' || deliveredStage;
 
   function edit(setter: (value: string) => void, value: string) {
     setter(value);
+    setDeliveredQuantity('');
     setStage('draft');
   }
 
@@ -73,6 +113,7 @@ export function ProductFlowDemo() {
     setUnitPrice('');
     setDiscount('');
     setVatRate('');
+    setDeliveredQuantity('');
     setStage('draft');
   }
 
@@ -84,22 +125,24 @@ export function ProductFlowDemo() {
             Démonstration locale du site
           </p>
           <h3 className="mt-4 text-2xl font-semibold tracking-[-.04em]">
-            Du devis accepté à la facture, en un clic.
+            Du devis accepté à la facture, étape par étape.
           </h3>
           <p className="mt-4 text-sm leading-6 text-white/72">
-            Saisissez votre propre ligne. Cet exemple ne contient aucune donnée
-            d’entreprise préchargée.
+            Saisissez une ligne à livrer pour essayer le flux commande. Cet
+            exemple ne contient aucune donnée d’entreprise préchargée.
           </p>
           <ol className="mt-8 grid gap-3" aria-label="Étapes de la démonstration">
             {[
               ['draft', '1', 'Préparer le devis'],
               ['accepted', '2', 'Confirmer l’acceptation'],
-              ['invoice', '3', 'Créer la facture'],
+              ['order', '3', 'Créer la commande'],
+              ['delivery', '4', 'Émettre le BL'],
+              ['invoice', '5', 'Facturer le livré'],
             ].map(([id, number, label]) => {
-              const reached =
-                id === 'draft' ||
-                (id === 'accepted' && stage !== 'draft') ||
-                (id === 'invoice' && stage === 'invoice');
+              const stepIndex = demoStages.indexOf(id as DemoStage);
+              const currentIndex = demoStages.indexOf(stage);
+              const reached = currentIndex >= stepIndex;
+              const completed = currentIndex > stepIndex;
               return (
                 <li
                   key={id}
@@ -110,7 +153,7 @@ export function ProductFlowDemo() {
                   }`}
                 >
                   <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[#efb157] text-xs font-bold text-[#173d2c]">
-                    {reached && id !== 'draft' ? (
+                    {completed ? (
                       <CheckCircle2 className="size-4" />
                     ) : (
                       number
@@ -133,6 +176,10 @@ export function ProductFlowDemo() {
               <span className="grid size-10 place-items-center rounded-xl bg-[#e8f0ea] text-[#315f47]">
                 {stage === 'invoice' ? (
                   <Receipt className="size-5" />
+                ) : stage === 'delivery' ? (
+                  <Truck className="size-5" />
+                ) : stage === 'order' ? (
+                  <PackageCheck className="size-5" />
                 ) : (
                   <FileCheck2 className="size-5" />
                 )}
@@ -140,7 +187,13 @@ export function ProductFlowDemo() {
               <div>
                 <p className="font-semibold text-[#253b2f]">
                   {stage === 'invoice'
-                    ? 'Facture brouillon créée'
+                    ? fullDelivery
+                      ? 'Facture finale brouillon créée'
+                      : 'Facture de situation brouillon créée'
+                    : stage === 'delivery'
+                      ? 'Bon de livraison émis'
+                      : stage === 'order'
+                        ? 'Commande confirmée'
                     : stage === 'accepted'
                       ? 'Devis accepté'
                       : 'Nouveau devis'}
@@ -152,16 +205,22 @@ export function ProductFlowDemo() {
             </div>
             <span
               className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${
-                stage === 'invoice'
+                stage === 'invoice' || stage === 'delivery'
                   ? 'bg-[#e6f1e8] text-[#2f6847]'
-                  : stage === 'accepted'
+                  : stage === 'accepted' || stage === 'order'
                     ? 'bg-[#fff0d8] text-[#865819]'
                     : 'bg-[#eef0ed] text-[#58645d]'
               }`}
               aria-live="polite"
             >
               {stage === 'invoice'
-                ? 'FACTURE BROUILLON'
+                ? fullDelivery
+                  ? 'FACTURE FINALE'
+                  : 'FACTURE DE SITUATION'
+                : stage === 'delivery'
+                  ? 'BL ÉMIS'
+                  : stage === 'order'
+                    ? 'COMMANDE CONFIRMÉE'
                 : stage === 'accepted'
                   ? 'DEVIS ACCEPTÉ'
                   : 'DEVIS BROUILLON'}
@@ -170,7 +229,7 @@ export function ProductFlowDemo() {
 
           <fieldset disabled={locked} className="mt-6 grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2 text-xs font-semibold text-[#526159] sm:col-span-2">
-              Description de votre prestation
+              Article ou prestation à livrer
               <input
                 value={description}
                 onChange={(event) => edit(setDescription, event.target.value)}
@@ -231,25 +290,55 @@ export function ProductFlowDemo() {
             </label>
           </fieldset>
 
+          {stage === 'order' ? (
+            <div className="mt-6 grid gap-3 rounded-2xl border border-[#d8dfd9] bg-[#edf4ee] p-5 sm:grid-cols-[1fr_1.25fr] sm:items-end">
+              <label className="grid gap-2 text-xs font-semibold text-[#42604f]">
+                Quantité livrée sur {quantity}
+                <input
+                  value={deliveredQuantity}
+                  onChange={(event) => setDeliveredQuantity(event.target.value)}
+                  type="number"
+                  min="0.01"
+                  max={quantity}
+                  step="0.01"
+                  className="min-h-11 rounded-xl border border-[#bdcec1] bg-white px-3 text-sm font-normal text-[#1f3328] outline-none transition focus:border-[#59806a] focus:ring-3 focus:ring-[#59806a]/15"
+                />
+              </label>
+              <p className="text-xs leading-5 text-[#52695b]">
+                Elyko réserve la commande, puis limite la facture aux quantités
+                réellement livrées et encore non facturées.
+              </p>
+            </div>
+          ) : null}
+
+          {stage === 'delivery' ? (
+            <p className="mt-6 rounded-2xl border border-[#cfe0d2] bg-[#edf5ee] p-4 text-sm font-semibold text-[#35634a]" aria-live="polite">
+              BL émis pour {deliveredQuantity} sur {quantity}. La sortie de stock
+              est enregistrée une seule fois.
+            </p>
+          ) : null}
+
           <div className="mt-6 grid gap-5 rounded-2xl bg-[#f3f4f0] p-5 sm:grid-cols-[1fr_auto] sm:items-end">
             <dl className="grid gap-2 text-sm text-[#637068]">
               <div className="flex justify-between gap-4">
                 <dt>Sous-total</dt>
-                <dd>{money(totals.beforeDiscountCents)}</dd>
+                <dd>{money(displayedTotals.beforeDiscountCents)}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt>Remise</dt>
-                <dd>− {money(totals.discountCents)}</dd>
+                <dd>− {money(displayedTotals.discountCents)}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt>TVA</dt>
-                <dd>{money(totals.vatCents)}</dd>
+                <dd>{money(displayedTotals.vatCents)}</dd>
               </div>
             </dl>
             <div className="border-t border-[#d9dcd7] pt-4 text-right sm:min-w-44 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-              <span className="block text-xs text-[#6d7871]">Total TTC</span>
+              <span className="block text-xs text-[#6d7871]">
+                {deliveredStage ? 'Total livré à facturer' : 'Total TTC'}
+              </span>
               <strong className="mt-1 block text-2xl tracking-[-.04em] text-[#244231]">
-                {money(totals.totalCents)}
+                {money(displayedTotals.totalCents)}
               </strong>
             </div>
           </div>
@@ -274,14 +363,36 @@ export function ProductFlowDemo() {
             ) : stage === 'accepted' ? (
               <button
                 type="button"
+                onClick={() => {
+                  setDeliveredQuantity(quantity);
+                  setStage('order');
+                }}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white transition hover:bg-[#24563f]"
+              >
+                Créer la commande <ArrowRight className="size-4" />
+              </button>
+            ) : stage === 'order' ? (
+              <button
+                type="button"
+                disabled={!deliveryReady}
+                onClick={() => setStage('delivery')}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white transition hover:bg-[#24563f] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Émettre le bon de livraison <Truck className="size-4" />
+              </button>
+            ) : stage === 'delivery' ? (
+              <button
+                type="button"
                 onClick={() => setStage('invoice')}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white transition hover:bg-[#24563f]"
               >
-                Créer la facture <ArrowRight className="size-4" />
+                Créer la facture {fullDelivery ? 'finale' : 'de situation'}{' '}
+                <ArrowRight className="size-4" />
               </button>
             ) : (
               <p className="text-right text-sm font-semibold text-[#35694b]" aria-live="polite">
-                Conversion terminée sans ressaisie.
+                {fullDelivery ? 'Facture finale' : 'Situation'} créée sans
+                ressaisie ni double sortie de stock.
               </p>
             )}
           </div>

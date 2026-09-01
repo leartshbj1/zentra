@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 19;
+pub const SCHEMA_VERSION: i64 = 20;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -34,6 +34,15 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "attachments",
     "active_timers",
     "quote_conversions",
+    "sales_orders",
+    "sales_order_lines",
+    "sales_order_cancellation_lines",
+    "delivery_notes",
+    "delivery_note_lines",
+    "stock_reservation_events",
+    "sales_order_invoice_batches",
+    "sales_order_invoice_allocations",
+    "sales_operation_requests",
     "audit_log",
     "accounts",
     "accounting_settings",
@@ -2424,7 +2433,7 @@ WHERE item.track_stock=1
   AND item.stock_quantity_milli>0
   AND NOT EXISTS(
     SELECT 1 FROM stock_movements movement
-    WHERE movement.source_key='opening:' || item.id
+    WHERE movement.catalog_item_id=item.id
   );
 
 CREATE TRIGGER IF NOT EXISTS catalog_items_initial_stock_guard
@@ -2657,4 +2666,587 @@ WHEN NEW.status IN ('done','cancelled') AND OLD.status NOT IN ('done','cancelled
 BEGIN SELECT RAISE(ABORT,'task has an active timer'); END;
 
 PRAGMA user_version=19;
+"#;
+
+/// Registre commercial client V20. Les documents émis et les événements de
+/// réservation sont append-only. Aucune donnée métier n'est créée ici.
+pub const MIGRATION_V20_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS sales_orders (
+  id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL REFERENCES clients(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  project_id TEXT REFERENCES projects(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  quote_id TEXT UNIQUE REFERENCES quotes(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  number TEXT UNIQUE,
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 300),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','confirmed','closed','cancelled')),
+  order_date TEXT NOT NULL CHECK (LENGTH(order_date)=10 AND order_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency='CHF'),
+  subtotal_cents INTEGER NOT NULL DEFAULT 0 CHECK (subtotal_cents>=0),
+  discount_cents INTEGER NOT NULL DEFAULT 0 CHECK (discount_cents>=0),
+  vat_cents INTEGER NOT NULL DEFAULT 0 CHECK (vat_cents>=0),
+  total_cents INTEGER NOT NULL DEFAULT 0 CHECK (total_cents>=0),
+  notes TEXT CHECK (notes IS NULL OR LENGTH(notes)<=20000),
+  terms TEXT CHECK (terms IS NULL OR LENGTH(terms)<=20000),
+  snapshot_json TEXT,
+  confirmed_at TEXT,
+  closed_at TEXT,
+  cancelled_at TEXT,
+  cancellation_reason TEXT CHECK (cancellation_reason IS NULL OR LENGTH(cancellation_reason)<=500),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='draft' AND number IS NULL AND confirmed_at IS NULL AND closed_at IS NULL AND cancelled_at IS NULL) OR
+         (status='confirmed' AND number IS NOT NULL AND confirmed_at IS NOT NULL AND closed_at IS NULL AND cancelled_at IS NULL) OR
+         (status='closed' AND number IS NOT NULL AND confirmed_at IS NOT NULL AND closed_at IS NOT NULL AND cancelled_at IS NULL) OR
+         (status='cancelled' AND cancelled_at IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS sales_order_lines (
+  id TEXT PRIMARY KEY,
+  sales_order_id TEXT NOT NULL REFERENCES sales_orders(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  quote_item_id TEXT UNIQUE REFERENCES quote_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  position INTEGER NOT NULL DEFAULT 0 CHECK (position BETWEEN 0 AND 1000000),
+  description TEXT NOT NULL CHECK (LENGTH(TRIM(description)) BETWEEN 1 AND 10000),
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  unit TEXT NOT NULL CHECK (LENGTH(TRIM(unit)) BETWEEN 1 AND 100),
+  unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents BETWEEN 0 AND 9000000000000),
+  discount_bp INTEGER NOT NULL DEFAULT 0 CHECK (discount_bp BETWEEN 0 AND 10000),
+  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
+  line_net_cents INTEGER NOT NULL CHECK (line_net_cents>=0),
+  line_vat_cents INTEGER NOT NULL CHECK (line_vat_cents>=0),
+  line_total_cents INTEGER NOT NULL CHECK (line_total_cents>=0),
+  fulfillment_mode TEXT NOT NULL CHECK (fulfillment_mode IN ('stocked_delivery','untracked_delivery','direct')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sales_order_cancellation_lines (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL,
+  sales_order_id TEXT NOT NULL REFERENCES sales_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  sales_order_line_id TEXT NOT NULL REFERENCES sales_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli>0),
+  reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) BETWEEN 1 AND 500),
+  created_at TEXT NOT NULL,
+  UNIQUE(request_id,sales_order_line_id)
+);
+
+CREATE TABLE IF NOT EXISTS delivery_notes (
+  id TEXT PRIMARY KEY,
+  sales_order_id TEXT NOT NULL REFERENCES sales_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  number TEXT UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued','reversed')),
+  delivery_date TEXT NOT NULL CHECK (LENGTH(delivery_date)=10 AND delivery_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  reference TEXT CHECK (reference IS NULL OR LENGTH(reference)<=200),
+  notes TEXT CHECK (notes IS NULL OR LENGTH(notes)<=20000),
+  snapshot_json TEXT,
+  issued_at TEXT,
+  reversed_at TEXT,
+  reversal_reason TEXT CHECK (reversal_reason IS NULL OR LENGTH(reversal_reason)<=500),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='draft' AND number IS NULL AND issued_at IS NULL AND reversed_at IS NULL) OR
+         (status='issued' AND number IS NOT NULL AND issued_at IS NOT NULL AND reversed_at IS NULL) OR
+         (status='reversed' AND number IS NOT NULL AND issued_at IS NOT NULL AND reversed_at IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS delivery_note_lines (
+  id TEXT PRIMARY KEY,
+  delivery_note_id TEXT NOT NULL REFERENCES delivery_notes(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  sales_order_line_id TEXT NOT NULL REFERENCES sales_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 1000000),
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  description TEXT NOT NULL CHECK (LENGTH(TRIM(description)) BETWEEN 1 AND 10000),
+  unit TEXT NOT NULL CHECK (LENGTH(TRIM(unit)) BETWEEN 1 AND 100),
+  stock_movement_id TEXT UNIQUE REFERENCES stock_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  reversal_stock_movement_id TEXT UNIQUE REFERENCES stock_movements(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL,
+  UNIQUE(delivery_note_id,sales_order_line_id)
+);
+
+CREATE TABLE IF NOT EXISTS stock_reservation_events (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  catalog_item_id TEXT NOT NULL REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  sales_order_id TEXT NOT NULL REFERENCES sales_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  sales_order_line_id TEXT NOT NULL REFERENCES sales_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  delivery_note_line_id TEXT REFERENCES delivery_note_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  event_type TEXT NOT NULL CHECK (event_type IN ('reserve','delivery','release','restore')),
+  quantity_delta_milli INTEGER NOT NULL CHECK (quantity_delta_milli<>0),
+  line_reserved_after_milli INTEGER NOT NULL CHECK (line_reserved_after_milli>=0),
+  catalog_reserved_after_milli INTEGER NOT NULL CHECK (catalog_reserved_after_milli>=0),
+  reason TEXT CHECK (reason IS NULL OR LENGTH(reason)<=500),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sales_order_invoice_batches (
+  id TEXT PRIMARY KEY,
+  sales_order_id TEXT NOT NULL REFERENCES sales_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  invoice_id TEXT NOT NULL UNIQUE REFERENCES invoices(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('partial','final')),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sales_order_invoice_allocations (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL REFERENCES sales_order_invoice_batches(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  sales_order_line_id TEXT NOT NULL REFERENCES sales_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  delivery_note_line_id TEXT REFERENCES delivery_note_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  invoice_item_id TEXT NOT NULL UNIQUE REFERENCES invoice_items(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  gross_cents INTEGER NOT NULL CHECK (gross_cents>=0),
+  net_cents INTEGER NOT NULL CHECK (net_cents>=0),
+  vat_cents INTEGER NOT NULL CHECK (vat_cents>=0),
+  total_cents INTEGER NOT NULL CHECK (total_cents>=0),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sales_operation_requests (
+  request_id TEXT PRIMARY KEY CHECK (LENGTH(request_id)=36),
+  operation TEXT NOT NULL CHECK (LENGTH(operation) BETWEEN 1 AND 80),
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  result_entity_type TEXT NOT NULL,
+  result_entity_id TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_orders_client_date ON sales_orders(client_id,order_date DESC,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_project ON sales_orders(project_id,order_date DESC) WHERE project_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sales_order_lines_order ON sales_order_lines(sales_order_id,position,created_at);
+CREATE INDEX IF NOT EXISTS idx_sales_order_lines_catalog ON sales_order_lines(catalog_item_id) WHERE catalog_item_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_delivery_notes_order ON delivery_notes(sales_order_id,delivery_date,created_at);
+CREATE INDEX IF NOT EXISTS idx_delivery_note_lines_order_line ON delivery_note_lines(sales_order_line_id);
+CREATE INDEX IF NOT EXISTS idx_reservation_events_catalog ON stock_reservation_events(catalog_item_id,sequence);
+CREATE INDEX IF NOT EXISTS idx_reservation_events_line ON stock_reservation_events(sales_order_line_id,sequence);
+CREATE INDEX IF NOT EXISTS idx_sales_invoice_batches_order ON sales_order_invoice_batches(sales_order_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_sales_invoice_allocations_line ON sales_order_invoice_allocations(sales_order_line_id);
+
+CREATE TRIGGER IF NOT EXISTS quote_conversion_order_exclusion
+BEFORE INSERT ON quote_conversions
+WHEN EXISTS(SELECT 1 FROM sales_orders order_row WHERE order_row.quote_id=NEW.quote_id)
+BEGIN SELECT RAISE(ABORT,'quote already converted to sales order'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_quote_conversion_exclusion
+BEFORE INSERT ON sales_orders
+WHEN NEW.quote_id IS NOT NULL AND EXISTS(SELECT 1 FROM quote_conversions conversion WHERE conversion.quote_id=NEW.quote_id)
+BEGIN SELECT RAISE(ABORT,'quote already converted to invoice'); END;
+
+CREATE TRIGGER IF NOT EXISTS sales_order_lines_no_mutation_after_confirmation
+BEFORE UPDATE ON sales_order_lines
+WHEN (SELECT status FROM sales_orders WHERE id=OLD.sales_order_id)<>'draft'
+BEGIN SELECT RAISE(ABORT,'confirmed sales order lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_lines_no_delete_after_confirmation
+BEFORE DELETE ON sales_order_lines
+WHEN EXISTS(SELECT 1 FROM sales_orders order_row WHERE order_row.id=OLD.sales_order_id AND order_row.status<>'draft')
+BEGIN SELECT RAISE(ABORT,'confirmed sales order lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_note_lines_no_mutation_after_issue
+BEFORE UPDATE ON delivery_note_lines
+WHEN (SELECT status FROM delivery_notes WHERE id=OLD.delivery_note_id)<>'draft' AND (
+  NEW.delivery_note_id IS NOT OLD.delivery_note_id OR
+  NEW.sales_order_line_id IS NOT OLD.sales_order_line_id OR
+  NEW.position IS NOT OLD.position OR NEW.quantity_milli IS NOT OLD.quantity_milli OR
+  NEW.description IS NOT OLD.description OR NEW.unit IS NOT OLD.unit
+)
+BEGIN SELECT RAISE(ABORT,'issued delivery note lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_note_lines_no_delete_after_issue
+BEFORE DELETE ON delivery_note_lines
+WHEN EXISTS(SELECT 1 FROM delivery_notes note WHERE note.id=OLD.delivery_note_id AND note.status<>'draft')
+BEGIN SELECT RAISE(ABORT,'issued delivery note lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS issued_delivery_notes_no_delete
+BEFORE DELETE ON delivery_notes WHEN OLD.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'issued delivery notes are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS stock_reservation_events_no_update
+BEFORE UPDATE ON stock_reservation_events BEGIN SELECT RAISE(ABORT,'stock reservation events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS stock_reservation_events_no_delete
+BEFORE DELETE ON stock_reservation_events BEGIN SELECT RAISE(ABORT,'stock reservation events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_cancellations_no_update
+BEFORE UPDATE ON sales_order_cancellation_lines BEGIN SELECT RAISE(ABORT,'sales order cancellation events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_cancellations_no_delete
+BEFORE DELETE ON sales_order_cancellation_lines BEGIN SELECT RAISE(ABORT,'sales order cancellation events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_batches_no_update
+BEFORE UPDATE ON sales_order_invoice_batches BEGIN SELECT RAISE(ABORT,'sales order invoice batches are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_batches_no_delete
+BEFORE DELETE ON sales_order_invoice_batches
+WHEN EXISTS(SELECT 1 FROM invoices invoice WHERE invoice.id=OLD.invoice_id)
+BEGIN SELECT RAISE(ABORT,'sales order invoice batches are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_allocations_no_update
+BEFORE UPDATE ON sales_order_invoice_allocations BEGIN SELECT RAISE(ABORT,'sales order invoice allocations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_allocations_no_delete
+BEFORE DELETE ON sales_order_invoice_allocations
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch JOIN invoices invoice ON invoice.id=batch.invoice_id WHERE batch.id=OLD.batch_id)
+BEGIN SELECT RAISE(ABORT,'sales order invoice allocations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_link_guard
+BEFORE UPDATE ON invoices
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_id=OLD.id) AND (
+  NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR
+  NEW.quote_id IS NOT OLD.quote_id OR NEW.original_invoice_id IS NOT OLD.original_invoice_id OR
+  NEW.type IS NOT OLD.type OR NEW.currency IS NOT OLD.currency OR
+  NEW.subtotal_cents IS NOT OLD.subtotal_cents OR NEW.discount_cents IS NOT OLD.discount_cents OR
+  NEW.vat_cents IS NOT OLD.vat_cents OR NEW.total_cents IS NOT OLD.total_cents
+)
+BEGIN SELECT RAISE(ABORT,'sales order invoice linkage and totals are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_items_no_insert
+BEFORE INSERT ON invoice_items
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_id=NEW.invoice_id)
+BEGIN SELECT RAISE(ABORT,'sales order invoice lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_items_no_update
+BEFORE UPDATE ON invoice_items
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_id=OLD.invoice_id)
+BEGIN SELECT RAISE(ABORT,'sales order invoice lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_items_no_delete
+BEFORE DELETE ON invoice_items
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch JOIN invoices invoice ON invoice.id=batch.invoice_id WHERE batch.invoice_id=OLD.invoice_id)
+BEGIN SELECT RAISE(ABORT,'sales order invoice lines are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS sales_orders_insert_draft_guard
+BEFORE INSERT ON sales_orders WHEN NEW.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'sales orders must be created as drafts'); END;
+CREATE TRIGGER IF NOT EXISTS sales_orders_status_transition_guard
+BEFORE UPDATE OF status ON sales_orders
+WHEN NOT (
+  NEW.status=OLD.status OR
+  (OLD.status='draft' AND NEW.status IN ('confirmed','cancelled')) OR
+  (OLD.status='confirmed' AND NEW.status IN ('closed','cancelled'))
+)
+BEGIN SELECT RAISE(ABORT,'invalid sales order status transition'); END;
+CREATE TRIGGER IF NOT EXISTS sales_orders_confirmed_header_guard
+BEFORE UPDATE ON sales_orders
+WHEN OLD.status<>'draft' AND (
+  NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR
+  NEW.quote_id IS NOT OLD.quote_id OR NEW.number IS NOT OLD.number OR
+  NEW.title IS NOT OLD.title OR NEW.order_date IS NOT OLD.order_date OR
+  NEW.currency IS NOT OLD.currency OR NEW.subtotal_cents IS NOT OLD.subtotal_cents OR
+  NEW.discount_cents IS NOT OLD.discount_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR
+  NEW.total_cents IS NOT OLD.total_cents OR NEW.notes IS NOT OLD.notes OR
+  NEW.terms IS NOT OLD.terms OR NEW.snapshot_json IS NOT OLD.snapshot_json OR
+  NEW.confirmed_at IS NOT OLD.confirmed_at
+)
+BEGIN SELECT RAISE(ABORT,'confirmed sales order header is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_orders_confirmation_payload_guard
+BEFORE UPDATE ON sales_orders
+WHEN OLD.status='draft' AND NEW.status<>'draft' AND (
+  NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR
+  NEW.quote_id IS NOT OLD.quote_id OR NEW.title IS NOT OLD.title OR
+  NEW.order_date IS NOT OLD.order_date OR NEW.currency IS NOT OLD.currency OR
+  NEW.subtotal_cents IS NOT OLD.subtotal_cents OR NEW.discount_cents IS NOT OLD.discount_cents OR
+  NEW.vat_cents IS NOT OLD.vat_cents OR NEW.total_cents IS NOT OLD.total_cents OR
+  NEW.notes IS NOT OLD.notes OR NEW.terms IS NOT OLD.terms OR
+  (NEW.status='cancelled' AND (NEW.number IS NOT OLD.number OR NEW.snapshot_json IS NOT OLD.snapshot_json OR NEW.confirmed_at IS NOT OLD.confirmed_at))
+)
+BEGIN SELECT RAISE(ABORT,'sales order business fields cannot change during confirmation'); END;
+CREATE TRIGGER IF NOT EXISTS sales_orders_no_delete_after_draft
+BEFORE DELETE ON sales_orders WHEN OLD.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'confirmed sales orders are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_lines_insert_guard
+BEFORE INSERT ON sales_order_lines
+WHEN NOT EXISTS(SELECT 1 FROM sales_orders order_row WHERE order_row.id=NEW.sales_order_id AND order_row.status='draft')
+BEGIN SELECT RAISE(ABORT,'sales order lines require a draft order'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_lines_reparent_guard
+BEFORE UPDATE OF sales_order_id ON sales_order_lines
+WHEN NEW.sales_order_id<>OLD.sales_order_id OR
+     NOT EXISTS(SELECT 1 FROM sales_orders order_row WHERE order_row.id=NEW.sales_order_id AND order_row.status='draft')
+BEGIN SELECT RAISE(ABORT,'sales order lines cannot be reparented'); END;
+
+CREATE TRIGGER IF NOT EXISTS delivery_notes_insert_draft_guard
+BEFORE INSERT ON delivery_notes WHEN NEW.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'delivery notes must be created as drafts'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_notes_status_transition_guard
+BEFORE UPDATE OF status ON delivery_notes
+WHEN NOT (
+  NEW.status=OLD.status OR
+  (OLD.status='draft' AND NEW.status='issued') OR
+  (OLD.status='issued' AND NEW.status='reversed')
+)
+BEGIN SELECT RAISE(ABORT,'invalid delivery note status transition'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_notes_issued_header_guard
+BEFORE UPDATE ON delivery_notes
+WHEN OLD.status<>'draft' AND (
+  NEW.sales_order_id IS NOT OLD.sales_order_id OR NEW.number IS NOT OLD.number OR
+  NEW.delivery_date IS NOT OLD.delivery_date OR NEW.reference IS NOT OLD.reference OR
+  NEW.notes IS NOT OLD.notes OR NEW.snapshot_json IS NOT OLD.snapshot_json OR
+  NEW.issued_at IS NOT OLD.issued_at
+)
+BEGIN SELECT RAISE(ABORT,'issued delivery note header is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_notes_issue_payload_guard
+BEFORE UPDATE ON delivery_notes
+WHEN OLD.status='draft' AND NEW.status<>'draft' AND (
+  NEW.sales_order_id IS NOT OLD.sales_order_id OR
+  NEW.delivery_date IS NOT OLD.delivery_date OR NEW.reference IS NOT OLD.reference OR
+  NEW.notes IS NOT OLD.notes OR
+  (NEW.status='reversed' AND (NEW.number IS NOT OLD.number OR NEW.snapshot_json IS NOT OLD.snapshot_json OR NEW.issued_at IS NOT OLD.issued_at))
+)
+BEGIN SELECT RAISE(ABORT,'delivery note business fields cannot change during issue'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_note_lines_insert_guard
+BEFORE INSERT ON delivery_note_lines
+WHEN NOT EXISTS(
+  SELECT 1 FROM delivery_notes note JOIN sales_order_lines order_line ON order_line.id=NEW.sales_order_line_id
+  WHERE note.id=NEW.delivery_note_id AND note.status='draft'
+    AND order_line.sales_order_id=note.sales_order_id AND order_line.fulfillment_mode<>'direct'
+)
+BEGIN SELECT RAISE(ABORT,'delivery note lines require a draft note'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_note_lines_reparent_guard
+BEFORE UPDATE OF delivery_note_id ON delivery_note_lines
+WHEN NEW.delivery_note_id<>OLD.delivery_note_id OR
+     NOT EXISTS(SELECT 1 FROM delivery_notes note WHERE note.id=NEW.delivery_note_id AND note.status='draft')
+BEGIN SELECT RAISE(ABORT,'delivery note lines cannot be reparented'); END;
+CREATE TRIGGER IF NOT EXISTS delivery_note_lines_order_line_update_guard
+BEFORE UPDATE OF delivery_note_id,sales_order_line_id ON delivery_note_lines
+WHEN NOT EXISTS(
+  SELECT 1 FROM delivery_notes note JOIN sales_order_lines order_line ON order_line.id=NEW.sales_order_line_id
+  WHERE note.id=NEW.delivery_note_id AND note.status='draft'
+    AND order_line.sales_order_id=note.sales_order_id AND order_line.fulfillment_mode<>'direct'
+)
+BEGIN SELECT RAISE(ABORT,'delivery note line belongs to another sales order'); END;
+
+CREATE TRIGGER IF NOT EXISTS sales_operation_requests_insert_guard
+BEFORE INSERT ON sales_operation_requests
+WHEN NOT (
+  (NEW.result_entity_type='sales_order' AND EXISTS(SELECT 1 FROM sales_orders WHERE id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='delivery_note' AND EXISTS(SELECT 1 FROM delivery_notes WHERE id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='invoice' AND EXISTS(SELECT 1 FROM invoices WHERE id=NEW.result_entity_id))
+)
+BEGIN SELECT RAISE(ABORT,'invalid sales operation result'); END;
+CREATE TRIGGER IF NOT EXISTS sales_operation_requests_no_update
+BEFORE UPDATE ON sales_operation_requests BEGIN SELECT RAISE(ABORT,'sales operation requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS sales_operation_requests_no_delete
+BEFORE DELETE ON sales_operation_requests BEGIN SELECT RAISE(ABORT,'sales operation requests are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS stock_reservation_events_insert_guard
+BEFORE INSERT ON stock_reservation_events
+WHEN NOT EXISTS(
+       SELECT 1 FROM sales_order_lines line
+       JOIN sales_orders order_row ON order_row.id=line.sales_order_id
+       JOIN catalog_items item ON item.id=line.catalog_item_id
+       WHERE line.id=NEW.sales_order_line_id AND line.sales_order_id=NEW.sales_order_id
+         AND line.catalog_item_id=NEW.catalog_item_id AND line.fulfillment_mode='stocked_delivery'
+         AND item.track_stock=1 AND item.kind='product'
+     )
+  OR ((NEW.event_type IN ('reserve','restore')) AND NEW.quantity_delta_milli<=0)
+  OR ((NEW.event_type IN ('delivery','release')) AND NEW.quantity_delta_milli>=0)
+  OR NOT (
+       (NEW.event_type IN ('reserve','release') AND NEW.delivery_note_line_id IS NULL) OR
+       (NEW.event_type IN ('delivery','restore') AND NEW.delivery_note_line_id IS NOT NULL AND EXISTS(
+          SELECT 1 FROM delivery_note_lines delivery
+          JOIN delivery_notes note ON note.id=delivery.delivery_note_id
+          WHERE delivery.id=NEW.delivery_note_line_id
+            AND delivery.sales_order_line_id=NEW.sales_order_line_id
+            AND note.sales_order_id=NEW.sales_order_id
+       ))
+     )
+  OR NEW.line_reserved_after_milli<>(
+       COALESCE((SELECT SUM(prior.quantity_delta_milli) FROM stock_reservation_events prior WHERE prior.sales_order_line_id=NEW.sales_order_line_id),0)+NEW.quantity_delta_milli
+     )
+  OR NEW.catalog_reserved_after_milli<>(
+       COALESCE((SELECT SUM(prior.quantity_delta_milli) FROM stock_reservation_events prior WHERE prior.catalog_item_id=NEW.catalog_item_id),0)+NEW.quantity_delta_milli
+     )
+BEGIN SELECT RAISE(ABORT,'invalid stock reservation event'); END;
+
+CREATE TRIGGER IF NOT EXISTS sales_order_cancellations_insert_guard
+BEFORE INSERT ON sales_order_cancellation_lines
+WHEN LENGTH(NEW.request_id)<>36 OR NOT EXISTS(
+       SELECT 1 FROM sales_order_lines line JOIN sales_orders order_row ON order_row.id=line.sales_order_id
+       WHERE line.id=NEW.sales_order_line_id AND line.sales_order_id=NEW.sales_order_id
+         AND order_row.status IN ('draft','confirmed')
+         AND COALESCE((SELECT SUM(prior.quantity_milli) FROM sales_order_cancellation_lines prior WHERE prior.sales_order_line_id=line.id),0)+NEW.quantity_milli
+             <=line.quantity_milli-MAX(
+               COALESCE((SELECT SUM(delivery.quantity_milli) FROM delivery_note_lines delivery JOIN delivery_notes note ON note.id=delivery.delivery_note_id WHERE delivery.sales_order_line_id=line.id AND note.status='issued'),0),
+               COALESCE((SELECT SUM(allocation.quantity_milli) FROM sales_order_invoice_allocations allocation WHERE allocation.sales_order_line_id=line.id),0)
+             )
+     )
+BEGIN SELECT RAISE(ABORT,'invalid sales order cancellation line'); END;
+
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_batches_insert_guard
+BEFORE INSERT ON sales_order_invoice_batches
+WHEN NOT EXISTS(
+  SELECT 1 FROM sales_orders order_row JOIN invoices invoice ON invoice.id=NEW.invoice_id
+  WHERE order_row.id=NEW.sales_order_id AND order_row.status='confirmed'
+    AND invoice.status='brouillon' AND invoice.number IS NULL
+    AND invoice.client_id=order_row.client_id AND invoice.project_id IS order_row.project_id
+    AND invoice.currency=order_row.currency
+    AND ((NEW.role='partial' AND invoice.type='situation') OR (NEW.role='final' AND invoice.type='finale'))
+)
+BEGIN SELECT RAISE(ABORT,'invalid sales order invoice batch'); END;
+
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_allocations_insert_guard
+BEFORE INSERT ON sales_order_invoice_allocations
+WHEN NOT EXISTS(
+  SELECT 1 FROM sales_order_invoice_batches batch
+  JOIN sales_order_lines order_line ON order_line.sales_order_id=batch.sales_order_id
+  JOIN invoice_items item ON item.invoice_id=batch.invoice_id
+  WHERE batch.id=NEW.batch_id AND order_line.id=NEW.sales_order_line_id
+    AND item.id=NEW.invoice_item_id AND item.catalog_item_id IS order_line.catalog_item_id
+    AND ABS(item.quantity*1000.0-CAST(NEW.quantity_milli AS REAL))<=0.000001
+    AND item.line_net_cents=NEW.net_cents AND item.line_vat_cents=NEW.vat_cents
+    AND item.line_total_cents=NEW.total_cents AND NEW.total_cents=NEW.net_cents+NEW.vat_cents
+    AND NEW.gross_cents>=NEW.net_cents
+    AND COALESCE((SELECT SUM(prior.quantity_milli) FROM sales_order_invoice_allocations prior WHERE prior.sales_order_line_id=order_line.id),0)+NEW.quantity_milli
+        <=order_line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM sales_order_cancellation_lines cancelled WHERE cancelled.sales_order_line_id=order_line.id),0)
+    AND (
+      (order_line.fulfillment_mode='direct' AND NEW.delivery_note_line_id IS NULL) OR
+      (order_line.fulfillment_mode IN ('stocked_delivery','untracked_delivery') AND NEW.delivery_note_line_id IS NOT NULL AND EXISTS(
+        SELECT 1 FROM delivery_note_lines delivery JOIN delivery_notes note ON note.id=delivery.delivery_note_id
+        WHERE delivery.id=NEW.delivery_note_line_id AND delivery.sales_order_line_id=order_line.id
+          AND note.sales_order_id=batch.sales_order_id AND note.status='issued'
+          AND COALESCE((SELECT SUM(prior.quantity_milli) FROM sales_order_invoice_allocations prior WHERE prior.delivery_note_line_id=delivery.id),0)+NEW.quantity_milli<=delivery.quantity_milli
+      ))
+    )
+)
+BEGIN SELECT RAISE(ABORT,'invalid sales order invoice allocation'); END;
+
+CREATE TRIGGER IF NOT EXISTS payments_invoice_issue_date_guard
+BEFORE INSERT ON payments
+WHEN NOT EXISTS(
+  SELECT 1 FROM invoices invoice
+  WHERE invoice.id=NEW.invoice_id AND invoice.number IS NOT NULL
+    AND invoice.issue_date IS NOT NULL AND NEW.date>=invoice.issue_date
+)
+BEGIN SELECT RAISE(ABORT,'payment date precedes invoice issue date'); END;
+
+PRAGMA user_version=20;
+"#;
+
+/// Remplace la table V18 sans toucher à ses lignes ni à leurs séquences. Cette
+/// étape n'est exécutée que si les colonnes logistiques V20 sont absentes.
+pub const MIGRATION_V20_REBUILD_STOCK_SQL: &str = r#"
+DROP TRIGGER IF EXISTS catalog_items_initial_stock_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_kind_insert_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_kind_update_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_balance_guard;
+DROP TRIGGER IF EXISTS catalog_items_track_stock_history_guard;
+DROP TRIGGER IF EXISTS catalog_items_track_stock_enable_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_history_no_delete;
+DROP TRIGGER IF EXISTS stock_movements_insert_guard;
+DROP TRIGGER IF EXISTS stock_movements_apply_balance;
+DROP TRIGGER IF EXISTS stock_movements_no_update;
+DROP TRIGGER IF EXISTS stock_movements_no_delete;
+DROP TRIGGER IF EXISTS stock_invoice_no_unsafe_cancel;
+DROP INDEX IF EXISTS idx_stock_movements_catalog;
+DROP INDEX IF EXISTS idx_stock_movements_date;
+DROP INDEX IF EXISTS idx_stock_movements_invoice;
+DROP TABLE IF EXISTS stock_movements_v20;
+
+CREATE TABLE stock_movements_v20 (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  source_key TEXT NOT NULL UNIQUE CHECK (LENGTH(source_key) BETWEEN 1 AND 300),
+  request_id TEXT UNIQUE,
+  request_sha256 TEXT,
+  request_json TEXT,
+  catalog_item_id TEXT NOT NULL REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  movement_type TEXT NOT NULL CHECK (movement_type IN ('entry','exit','correction')),
+  quantity_delta_milli INTEGER NOT NULL CHECK (quantity_delta_milli<>0 AND quantity_delta_milli BETWEEN -9000000000000000 AND 9000000000000000),
+  balance_after_milli INTEGER NOT NULL CHECK (balance_after_milli BETWEEN 0 AND 9000000000000000),
+  reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) BETWEEN 1 AND 500),
+  reference TEXT CHECK (reference IS NULL OR LENGTH(reference)<=200),
+  movement_date TEXT NOT NULL CHECK (LENGTH(movement_date)=10 AND movement_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
+  source_type TEXT NOT NULL CHECK (source_type IN ('manual','invoice','opening','delivery')),
+  invoice_id TEXT REFERENCES invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  invoice_item_id TEXT UNIQUE REFERENCES invoice_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  delivery_note_id TEXT,
+  delivery_note_line_id TEXT,
+  reverses_stock_movement_id TEXT UNIQUE REFERENCES stock_movements_v20(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL CHECK (LENGTH(created_at) BETWEEN 1 AND 64),
+  CHECK ((movement_type='entry' AND quantity_delta_milli>0) OR (movement_type='exit' AND quantity_delta_milli<0) OR movement_type='correction'),
+  CHECK (
+    (source_type='manual' AND request_id IS NOT NULL AND request_sha256 IS NOT NULL AND request_json IS NOT NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND reverses_stock_movement_id IS NULL) OR
+    (source_type='invoice' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NOT NULL AND invoice_item_id IS NOT NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND reverses_stock_movement_id IS NULL AND movement_type='exit') OR
+    (source_type='opening' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND reverses_stock_movement_id IS NULL AND movement_type='correction' AND quantity_delta_milli>0) OR
+    (source_type='delivery' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NOT NULL AND delivery_note_line_id IS NOT NULL AND ((movement_type='exit' AND reverses_stock_movement_id IS NULL) OR (movement_type='entry' AND reverses_stock_movement_id IS NOT NULL)))
+  )
+);
+
+INSERT INTO stock_movements_v20(
+  sequence,id,source_key,request_id,request_sha256,request_json,catalog_item_id,
+  movement_type,quantity_delta_milli,balance_after_milli,reason,reference,
+  movement_date,source_type,invoice_id,invoice_item_id,delivery_note_id,
+  delivery_note_line_id,reverses_stock_movement_id,created_at
+)
+SELECT sequence,id,source_key,request_id,request_sha256,request_json,catalog_item_id,
+       movement_type,quantity_delta_milli,balance_after_milli,reason,reference,
+       movement_date,source_type,invoice_id,invoice_item_id,NULL,NULL,NULL,created_at
+FROM stock_movements ORDER BY sequence;
+
+DROP TABLE stock_movements;
+ALTER TABLE stock_movements_v20 RENAME TO stock_movements;
+"#;
+
+/// Déclencheurs du registre de stock après sa reconstruction V20.
+pub const MIGRATION_V20_STOCK_TRIGGERS_SQL: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_stock_movements_catalog ON stock_movements(catalog_item_id, sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_date ON stock_movements(movement_date DESC, sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_invoice ON stock_movements(invoice_id, sequence) WHERE invoice_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_stock_movements_delivery ON stock_movements(delivery_note_id, sequence) WHERE delivery_note_id IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS catalog_items_initial_stock_guard
+BEFORE INSERT ON catalog_items WHEN NEW.track_stock=1 AND NEW.stock_quantity_milli<>0
+BEGIN SELECT RAISE(ABORT,'tracked catalog items must start with zero stock'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_kind_insert_guard
+BEFORE INSERT ON catalog_items WHEN NEW.track_stock=1 AND NEW.kind<>'product'
+BEGIN SELECT RAISE(ABORT,'only products can be tracked in stock'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_kind_update_guard
+BEFORE UPDATE OF kind,track_stock ON catalog_items WHEN NEW.track_stock=1 AND NEW.kind<>'product'
+BEGIN SELECT RAISE(ABORT,'only products can be tracked in stock'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_balance_guard
+BEFORE UPDATE OF stock_quantity_milli ON catalog_items
+WHEN NEW.track_stock=1 AND NEW.stock_quantity_milli<>COALESCE((SELECT balance_after_milli FROM stock_movements WHERE catalog_item_id=NEW.id ORDER BY sequence DESC LIMIT 1),0)
+BEGIN SELECT RAISE(ABORT,'tracked stock can only change through stock movements'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_track_stock_history_guard
+BEFORE UPDATE OF track_stock ON catalog_items
+WHEN NEW.track_stock<>OLD.track_stock AND EXISTS(SELECT 1 FROM stock_movements WHERE catalog_item_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'stock tracking cannot change after the first movement'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_track_stock_enable_guard
+BEFORE UPDATE OF track_stock ON catalog_items WHEN OLD.track_stock=0 AND NEW.track_stock=1 AND NEW.stock_quantity_milli<>0
+BEGIN SELECT RAISE(ABORT,'stock tracking can only start from a zero balance'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_history_no_delete
+BEFORE DELETE ON catalog_items WHEN EXISTS(SELECT 1 FROM stock_movements WHERE catalog_item_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'catalog items with stock history are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS stock_movements_insert_guard
+BEFORE INSERT ON stock_movements
+WHEN NOT EXISTS(SELECT 1 FROM catalog_items item WHERE item.id=NEW.catalog_item_id AND item.track_stock=1 AND item.kind='product')
+ OR (NEW.request_id IS NOT NULL AND LENGTH(TRIM(NEW.request_id))<>36)
+ OR (NEW.request_sha256 IS NOT NULL AND (LENGTH(NEW.request_sha256)<>64 OR NEW.request_sha256 GLOB '*[^0-9a-f]*'))
+ OR (NEW.request_json IS NOT NULL AND (LENGTH(NEW.request_json)=0 OR LENGTH(NEW.request_json)>20000))
+ OR NOT (
+   (NEW.source_type='opening' AND NEW.id='opening:'||NEW.catalog_item_id AND NEW.source_key=NEW.id
+      AND NEW.quantity_delta_milli=NEW.balance_after_milli
+      AND NEW.quantity_delta_milli=(SELECT stock_quantity_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND NOT EXISTS(SELECT 1 FROM stock_movements prior WHERE prior.catalog_item_id=NEW.catalog_item_id))
+   OR (NEW.source_type='manual' AND NEW.source_key='manual:'||NEW.request_id
+      AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id))
+   OR (NEW.source_type='invoice' AND NEW.source_key='invoice:'||NEW.invoice_item_id
+      AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND EXISTS(SELECT 1 FROM invoices invoice JOIN invoice_items line ON line.invoice_id=invoice.id
+        WHERE invoice.id=NEW.invoice_id AND line.id=NEW.invoice_item_id AND line.catalog_item_id=NEW.catalog_item_id
+          AND invoice.number IS NOT NULL AND invoice.status IN ('emise','partiellement_payee','payee')
+          AND invoice.type='standard' AND NEW.movement_date=invoice.issue_date AND NEW.reference=invoice.number
+          AND line.quantity>0 AND ABS(line.quantity*1000.0-CAST(-NEW.quantity_delta_milli AS REAL))<=0.000001))
+   OR (NEW.source_type='delivery' AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND ((NEW.movement_type='exit' AND NEW.source_key='delivery:'||NEW.delivery_note_line_id AND NEW.reverses_stock_movement_id IS NULL
+        AND EXISTS(SELECT 1 FROM delivery_notes note JOIN delivery_note_lines line ON line.delivery_note_id=note.id
+          JOIN sales_order_lines order_line ON order_line.id=line.sales_order_line_id
+          WHERE note.id=NEW.delivery_note_id AND line.id=NEW.delivery_note_line_id AND note.status='issued'
+            AND order_line.catalog_item_id=NEW.catalog_item_id AND order_line.fulfillment_mode='stocked_delivery'
+            AND NEW.movement_date=note.delivery_date AND NEW.reference=note.number
+            AND line.quantity_milli=-NEW.quantity_delta_milli))
+       OR (NEW.movement_type='entry' AND NEW.source_key='delivery-reversal:'||NEW.delivery_note_line_id
+        AND EXISTS(SELECT 1 FROM delivery_notes note JOIN delivery_note_lines line ON line.delivery_note_id=note.id
+          JOIN stock_movements original ON original.id=NEW.reverses_stock_movement_id
+          WHERE note.id=NEW.delivery_note_id AND line.id=NEW.delivery_note_line_id AND note.status='reversed'
+            AND original.source_type='delivery' AND original.movement_type='exit'
+            AND original.delivery_note_line_id=line.id AND original.catalog_item_id=NEW.catalog_item_id
+            AND NEW.movement_date=note.delivery_date AND NEW.reference=note.number
+            AND NEW.quantity_delta_milli=-original.quantity_delta_milli))))
+ )
+BEGIN SELECT RAISE(ABORT,'invalid stock movement'); END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_apply_balance
+AFTER INSERT ON stock_movements WHEN NEW.source_type<>'opening'
+BEGIN UPDATE catalog_items SET stock_quantity_milli=NEW.balance_after_milli,updated_at=NEW.created_at WHERE id=NEW.catalog_item_id; END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_no_update
+BEFORE UPDATE ON stock_movements BEGIN SELECT RAISE(ABORT,'stock movements are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_no_delete
+BEFORE DELETE ON stock_movements BEGIN SELECT RAISE(ABORT,'stock movements are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS stock_invoice_no_unsafe_cancel
+BEFORE UPDATE OF status ON invoices
+WHEN NEW.status='annulee' AND OLD.status<>'annulee' AND EXISTS(SELECT 1 FROM stock_movements WHERE invoice_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'stock-bearing invoices cannot be cancelled without a dedicated reversal workflow'); END;
 "#;

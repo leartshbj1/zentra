@@ -300,6 +300,152 @@ pub struct ConvertQuoteInput {
     pub service_date_to: Option<String>,
 }
 
+/// Convertit un devis accepté en commande client brouillon. `request_id` est
+/// stable côté interface et rend l'opération rejouable sans doublon.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ConvertQuoteToSalesOrderInput {
+    pub request_id: String,
+    pub quote_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SalesOrderDraftInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub client_id: String,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    pub title: String,
+    pub order_date: String,
+    pub currency: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub terms: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SalesOrderLineInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub catalog_item_id: Option<String>,
+    pub position: i64,
+    pub description: String,
+    pub quantity_milli: i64,
+    pub unit: String,
+    pub unit_price_cents: i64,
+    #[serde(default)]
+    pub discount_bp: i64,
+    #[serde(default)]
+    pub vat_bp: i64,
+    pub fulfillment_mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveSalesOrderDraftInput {
+    pub order: SalesOrderDraftInput,
+    pub lines: Vec<SalesOrderLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ConfirmSalesOrderInput {
+    pub request_id: String,
+    pub sales_order_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelSalesOrderInput {
+    pub request_id: String,
+    pub sales_order_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelSalesOrderRemainderLineInput {
+    pub sales_order_line_id: String,
+    pub quantity_milli: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelSalesOrderRemainderInput {
+    pub request_id: String,
+    pub sales_order_id: String,
+    pub reason: String,
+    pub lines: Vec<CancelSalesOrderRemainderLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeliveryNoteDraftInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub sales_order_id: String,
+    pub delivery_date: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeliveryNoteLineInput {
+    pub sales_order_line_id: String,
+    pub quantity_milli: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveDeliveryNoteDraftInput {
+    pub delivery_note: DeliveryNoteDraftInput,
+    pub lines: Vec<DeliveryNoteLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IssueDeliveryNoteInput {
+    pub request_id: String,
+    pub delivery_note_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReverseDeliveryNoteInput {
+    pub request_id: String,
+    pub delivery_note_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SalesOrderInvoiceAllocationInput {
+    pub sales_order_line_id: String,
+    #[serde(default)]
+    pub delivery_note_line_id: Option<String>,
+    pub quantity_milli: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PreviewSalesOrderInvoiceInput {
+    pub sales_order_id: String,
+    pub allocations: Vec<SalesOrderInvoiceAllocationInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateSalesOrderInvoiceInput {
+    pub request_id: String,
+    pub sales_order_id: String,
+    #[serde(default)]
+    pub issue_date: Option<String>,
+    #[serde(default)]
+    pub due_date: Option<String>,
+    pub service_date_from: String,
+    pub service_date_to: String,
+    pub allocations: Vec<SalesOrderInvoiceAllocationInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelSalesOrderInvoiceDraftInput {
+    pub request_id: String,
+    pub invoice_id: String,
+    pub reason: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateInvoiceFromTimeEntriesInput {
     /// UUID stable généré avant l'appel. Une reprise strictement identique

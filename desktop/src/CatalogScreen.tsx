@@ -14,6 +14,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { availabilityForCatalogItem } from './orderFlow';
 import {
   catalogQuantityFromInput,
   catalogStockData,
@@ -32,6 +33,8 @@ import type {
   CatalogItem,
   StockMovement,
   StockMovementType,
+  StockAvailability,
+  StockReservationEvent,
   Workspace,
 } from './types';
 import {
@@ -61,6 +64,8 @@ type ActionRunner = (
 export function CatalogScreen({
   items,
   movements,
+  reservationEvents,
+  availabilityRows,
   query,
   readOnly,
   onQueryChange,
@@ -72,6 +77,8 @@ export function CatalogScreen({
 }: {
   items: CatalogItem[];
   movements: StockMovement[];
+  reservationEvents: StockReservationEvent[];
+  availabilityRows: StockAvailability[];
   query: string;
   readOnly: boolean;
   onQueryChange: (query: string) => void;
@@ -92,7 +99,11 @@ export function CatalogScreen({
   const trackedProducts = active.filter(
     (item) => item.kind === 'product' && item.trackStock,
   );
-  const lowStock = active.filter(isCatalogItemLowOnStock);
+  const availability = (item: CatalogItem) =>
+    availabilityForCatalogItem(item, reservationEvents, availabilityRows);
+  const lowStock = active.filter((item) =>
+    isCatalogItemLowOnStock(item, availability(item).availableMilli),
+  );
 
   return (
     <div className="stack-layout catalog-screen">
@@ -132,7 +143,7 @@ export function CatalogScreen({
               <p>
                 {lowStock
                   .slice(0, 4)
-                  .map((item) => `${item.name} (${formatCatalogQuantity(item.stockQuantityMilli)} ${item.unit})`)
+                  .map((item) => `${item.name} (${formatCatalogQuantity(availability(item).availableMilli)} ${item.unit} disponible)`)
                   .join(' · ')}
                 {lowStock.length > 4 ? ` · +${lowStock.length - 4}` : ''}
               </p>
@@ -181,8 +192,9 @@ export function CatalogScreen({
         {filtered.length ? (
           <div className="catalog-list" role="list">
             {filtered.map((item) => {
-              const low = isCatalogItemLowOnStock(item);
               const tracked = item.kind === 'product' && item.trackStock;
+              const stock = availability(item);
+              const low = isCatalogItemLowOnStock(item, stock.availableMilli);
               const itemMovements = stockMovementsForItem(movements, item.id);
               const historyOpen = historyItemId === item.id;
               const ItemIcon = item.kind === 'product' ? Box : Wrench;
@@ -216,16 +228,18 @@ export function CatalogScreen({
                     <small>Coût {formatMoney(item.purchaseCostCents)}</small>
                   </div>
                   <div className="catalog-item__stock">
-                    <span>{tracked ? 'Stock disponible' : 'Suivi de stock'}</span>
-                    <strong>
-                      {tracked
-                        ? `${formatCatalogQuantity(item.stockQuantityMilli)} ${item.unit}`
-                        : 'Non suivi'}
-                    </strong>
+                    <span>{tracked ? 'Quantités' : 'Suivi de stock'}</span>
+                    {tracked ? (
+                      <div className="catalog-stock-balances" aria-label={`Stock de ${item.name}`}>
+                        <small><span>En main</span><strong>{formatCatalogQuantity(stock.onHandMilli)}</strong></small>
+                        <small><span>Réservé</span><strong>{formatCatalogQuantity(stock.reservedMilli)}</strong></small>
+                        <small><span>Disponible</span><strong>{formatCatalogQuantity(stock.availableMilli)}</strong></small>
+                      </div>
+                    ) : <strong>Non suivi</strong>}
                     {low ? (
                       <small className="is-warning">
                         <AlertTriangle size={12} />
-                        {item.stockQuantityMilli === 0
+                        {stock.availableMilli <= 0
                           ? 'Rupture de stock'
                           : `Seuil ${formatCatalogQuantity(item.reorderLevelMilli)}`}
                       </small>
@@ -297,7 +311,7 @@ export function CatalogScreen({
                           <Button
                             variant="secondary"
                             size="small"
-                            disabled={readOnly || item.stockQuantityMilli === 0}
+                            disabled={readOnly || stock.availableMilli <= 0}
                             onClick={() => onStockMovement(item, 'exit')}
                           >
                             <ArrowUpToLine size={14} /> Sortie
@@ -400,6 +414,10 @@ function StockHistory({
 function stockMovementLabel(movement: StockMovement): string {
   if (movement.sourceType === 'opening') return 'Solde d’ouverture';
   if (movement.sourceType === 'invoice') return 'Sortie automatique · facture émise';
+  if (movement.sourceType === 'delivery') return 'Sortie automatique · bon de livraison';
+  if (movement.sourceType === 'delivery_reversal') return 'Retour · bon de livraison extourné';
+  if (movement.sourceType === 'receipt') return 'Entrée · réception fournisseur';
+  if (movement.sourceType === 'receipt_reversal') return 'Extourne · réception fournisseur';
   if (movement.movementType === 'entry') return 'Entrée manuelle';
   if (movement.movementType === 'exit') return 'Sortie manuelle';
   return 'Correction manuelle';
@@ -413,6 +431,7 @@ export function StockMovementForm({
   item,
   movementType,
   requestId,
+  reservedMilli = 0,
   busy,
   close,
   act,
@@ -420,6 +439,7 @@ export function StockMovementForm({
   item: CatalogItem;
   movementType: StockMovementType;
   requestId: string;
+  reservedMilli?: number;
   busy: boolean;
   close: () => void;
   act: ActionRunner;
@@ -428,7 +448,7 @@ export function StockMovementForm({
   const [clientError, setClientError] = useState('');
   const enteredQuantityMilli = stockQuantityFromInput(quantity);
   const validationError = quantity
-    ? stockMovementError(item, movementType, enteredQuantityMilli)
+    ? stockMovementError(item, movementType, enteredQuantityMilli, reservedMilli)
     : '';
   const balanceAfter = enteredQuantityMilli === null
     ? item.stockQuantityMilli
@@ -447,7 +467,12 @@ export function StockMovementForm({
         className="stock-movement-form"
         onSubmit={submitForm(async (form) => {
           const quantityMilli = stockQuantityFromInput(form.get('quantity'));
-          const error = stockMovementError(item, movementType, quantityMilli);
+          const error = stockMovementError(
+            item,
+            movementType,
+            quantityMilli,
+            reservedMilli,
+          );
           if (error || quantityMilli === null) {
             setClientError(error || 'La quantité est invalide.');
             return;
@@ -498,7 +523,7 @@ export function StockMovementForm({
                 type="number"
                 step="0.001"
                 min={movementType === 'correction' ? undefined : '0.001'}
-                max={movementType === 'exit' ? item.stockQuantityMilli / 1_000 : undefined}
+                max={movementType === 'exit' ? Math.max(0, item.stockQuantityMilli - reservedMilli) / 1_000 : undefined}
                 value={quantity}
                 onChange={(event) => {
                   setQuantity(event.target.value);
@@ -520,9 +545,9 @@ export function StockMovementForm({
             </Field>
           </div>
         </section>
-        <div className={`stock-balance-preview ${balanceAfter < 0 ? 'is-invalid' : ''}`}>
+        <div className={`stock-balance-preview ${balanceAfter < reservedMilli ? 'is-invalid' : ''}`}>
           <div>
-            <span>Solde actuel</span>
+            <span>En main actuellement</span>
             <strong>{formatCatalogQuantity(item.stockQuantityMilli)} {item.unit}</strong>
           </div>
           <span aria-hidden="true">→</span>
@@ -531,6 +556,11 @@ export function StockMovementForm({
             <strong>{formatCatalogQuantity(balanceAfter)} {item.unit}</strong>
           </div>
         </div>
+        {reservedMilli > 0 ? (
+          <p className="stock-request-id">
+            {formatCatalogQuantity(reservedMilli)} {item.unit} réservé aux commandes · disponible après mouvement : {formatCatalogQuantity(balanceAfter - reservedMilli)}
+          </p>
+        ) : null}
         <p className="stock-request-id">Requête idempotente · {requestId}</p>
         {clientError ? <ErrorPanel message={clientError} /> : null}
         <FormActions

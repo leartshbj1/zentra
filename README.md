@@ -51,6 +51,6 @@ La release embarque la clé publique versionnée dans `desktop/src-tauri/license
 
 ## Livraison Windows
 
-La version `1.6.0` est préparée avec un manifeste et une signature Tauri/Ed25519 pour les mises à jour intégrées. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+La version `1.7.0` est préparée avec un manifeste et une signature Tauri/Ed25519 pour les mises à jour intégrées. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
 
 La liaison de licence actuelle repose sur un identifiant d’installation aléatoire protégé par Windows DPAPI. Elle bloque le partage ordinaire du jeton et détecte les modifications usuelles, mais ce n’est pas une attestation matérielle : un administrateur local très avancé peut encore tenter de cloner cet identifiant ou de modifier le programme. Le durcissement commercial suivant consiste à utiliser une clé de périphérique non exportable TPM/CNG, un défi signé côté serveur et une signature Authenticode horodatée.

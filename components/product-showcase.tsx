@@ -10,6 +10,7 @@ import {
   FileText,
   FolderKanban,
   LayoutDashboard,
+  PackageCheck,
   QrCode,
   Receipt,
   ScanLine,
@@ -22,7 +23,7 @@ import { cn } from '@/lib/utils';
 
 const views = [
   { label: 'Pilotage', icon: LayoutDashboard },
-  { label: 'Devis → facture', icon: FileCheck2 },
+  { label: 'Vente complète', icon: FileCheck2 },
   { label: 'Projets', icon: FolderKanban },
   { label: 'Salaires', icon: Users },
   { label: 'Comptabilité', icon: BookOpenCheck },
@@ -93,14 +94,14 @@ function DocumentsView() {
           Flux sans double saisie
         </p>
         <h3 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
-          Un devis accepté devient une facture en un clic.
+          Du devis accepté à la facture, chaque étape reste liée.
         </h3>
         <div className="mt-7 space-y-2.5">
           {[
             [FileCheck2, 'Devis DV-2026-0042', 'Accepté'],
-            [Receipt, 'Facture FA-2026-0086', 'Créée'],
+            [PackageCheck, 'Commande CO-2026-0017', 'Livraison contrôlée'],
+            [Receipt, 'Facture finale FA-2026-0086', 'Créée'],
             [QrCode, 'Section paiement suisse', 'Ajoutée'],
-            [BookOpenCheck, 'Écriture comptable', 'Équilibrée'],
           ].map(([Icon, label, status], index) => (
             <div
               key={label as string}
@@ -125,7 +126,7 @@ function DocumentsView() {
           ))}
         </div>
         <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full bg-[#efaa3c] px-4 py-2 text-[11px] font-semibold leading-4 text-[#173d2c]">
-          Converti avec succès <ArrowRight className="size-3.5" />
+          Chaîne vérifiée <ArrowRight className="size-3.5" />
         </div>
       </div>
 

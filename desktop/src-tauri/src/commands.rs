@@ -10,17 +10,21 @@ use crate::{
     models::{
         AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
         ApplyPayrollInput, AssociateBankAccountInput, CalculateEmployeePayrollInput,
-        CalculatePayrollInput, CompleteOnboardingResult, ConfirmBankReconciliationInput,
-        ConfirmPayrollImportInput, ConfirmSupplierBankReconciliationInput,
-        ContributionDefinitionInput, ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput,
-        DeleteResult, GeneratePayslipPdfInput, LedgerInput, ManualJournalInput, MarkReminderInput,
-        OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter, PostPayslipInput,
-        RecordPaymentInput, RecordSupplierPaymentInput, ReminderActionInput, ReminderFilter,
-        ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
-        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveProjectMilestoneInput,
-        SaveProjectTaskInput, SaveSupplierInvoiceDraftInput, StagePayrollDocumentsInput,
-        StockCorrectionInput, StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload,
-        SwissQrValidation, TimerInput, UpdatePayrollImportDraftInput,
+        CalculatePayrollInput, CancelSalesOrderInput, CancelSalesOrderInvoiceDraftInput,
+        CancelSalesOrderRemainderInput, CompleteOnboardingResult, ConfirmBankReconciliationInput,
+        ConfirmPayrollImportInput, ConfirmSalesOrderInput, ConfirmSupplierBankReconciliationInput,
+        ContributionDefinitionInput, ConvertQuoteInput, ConvertQuoteToSalesOrderInput,
+        CreateInvoiceFromTimeEntriesInput, CreateSalesOrderInvoiceInput, DeleteResult,
+        GeneratePayslipPdfInput, IssueDeliveryNoteInput, LedgerInput, ManualJournalInput,
+        MarkReminderInput, OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter,
+        PostPayslipInput, PreviewSalesOrderInvoiceInput, RecordPaymentInput,
+        RecordSupplierPaymentInput, ReminderActionInput, ReminderFilter, ReminderSettingsInput,
+        ReminderTemplateInput, ReverseDeliveryNoteInput, SaveDeliveryNoteDraftInput,
+        SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SavePayslipWithContributionsInput,
+        SaveProjectMilestoneInput, SaveProjectTaskInput, SaveSalesOrderDraftInput,
+        SaveSupplierInvoiceDraftInput, StagePayrollDocumentsInput, StockCorrectionInput,
+        StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation,
+        TimerInput, UpdatePayrollImportDraftInput,
     },
     swiss_qr,
 };
@@ -417,6 +421,125 @@ pub fn convert_quote_to_invoice(
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.convert_quote_to_invoice(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn convert_quote_to_sales_order(
+    state: State<'_, LocalStore>,
+    input: ConvertQuoteToSalesOrderInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .convert_quote_to_sales_order(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_sales_order_draft(
+    state: State<'_, LocalStore>,
+    input: SaveSalesOrderDraftInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_sales_order_draft(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn confirm_sales_order(
+    state: State<'_, LocalStore>,
+    input: ConfirmSalesOrderInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.confirm_sales_order(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn cancel_sales_order(
+    state: State<'_, LocalStore>,
+    input: CancelSalesOrderInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.cancel_sales_order(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn cancel_sales_order_remainder(
+    state: State<'_, LocalStore>,
+    input: CancelSalesOrderRemainderInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .cancel_sales_order_remainder(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_delivery_note_draft(
+    state: State<'_, LocalStore>,
+    input: SaveDeliveryNoteDraftInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_delivery_note_draft(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn issue_delivery_note(
+    state: State<'_, LocalStore>,
+    input: IssueDeliveryNoteInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.issue_delivery_note(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn reverse_delivery_note(
+    state: State<'_, LocalStore>,
+    input: ReverseDeliveryNoteInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.reverse_delivery_note(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn preview_sales_order_invoice(
+    state: State<'_, LocalStore>,
+    input: PreviewSalesOrderInvoiceInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .preview_sales_order_invoice(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn create_sales_order_invoice(
+    state: State<'_, LocalStore>,
+    input: CreateSalesOrderInvoiceInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .create_sales_order_invoice(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn cancel_sales_order_invoice_draft(
+    state: State<'_, LocalStore>,
+    input: CancelSalesOrderInvoiceDraftInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .cancel_sales_order_invoice_draft(input)
+        .map_err(command_error)
 }
 
 #[tauri::command]

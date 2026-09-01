@@ -18,6 +18,7 @@ mod payroll_import;
 mod payroll_pdf;
 mod project_planning;
 mod reminders;
+mod sales_fulfillment;
 mod schema;
 mod stock;
 mod supplier_invoices;
@@ -84,6 +85,17 @@ pub fn run() {
             create_invoice_from_time_entries,
             update_quote_status,
             convert_quote_to_invoice,
+            convert_quote_to_sales_order,
+            save_sales_order_draft,
+            confirm_sales_order,
+            cancel_sales_order,
+            cancel_sales_order_remainder,
+            save_delivery_note_draft,
+            issue_delivery_note,
+            reverse_delivery_note,
+            preview_sales_order_invoice,
+            create_sales_order_invoice,
+            cancel_sales_order_invoice_draft,
             record_payment,
             list_accounts,
             upsert_account,
@@ -2073,6 +2085,20 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .create_record("clients", json!({"name":"Client conversion"}))
                 .unwrap(),
         );
+        let conversion_item_id = value_id(
+            &store
+                .create_record(
+                    "catalog_items",
+                    json!({
+                        "kind":"service",
+                        "name":"Prestation conversion",
+                        "unit":"heure",
+                        "sales_price_cents":8_000,
+                        "track_stock":false
+                    }),
+                )
+                .unwrap(),
+        );
         let quote_id = value_id(
             &store
                 .create_record(
@@ -2081,7 +2107,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 )
                 .unwrap(),
         );
-        store.create_record("quote_items",json!({"quote_id":quote_id,"catalog_item_id":catalog_item_id,"description":"Lot accepté","quantity":2,"unit":"heure","unit_price_cents":8000,"discount_bp":1250,"vat_bp":0})).unwrap();
+        store.create_record("quote_items",json!({"quote_id":quote_id,"catalog_item_id":conversion_item_id,"description":"Lot accepté","quantity":2,"unit":"heure","unit_price_cents":8000,"discount_bp":1250,"vat_bp":0})).unwrap();
         let archived_at = "2026-03-15T12:30:00Z";
         let archived_catalog_item = store
             .update_record(
@@ -2097,12 +2123,17 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(archived_catalog_item["archived_at"], archived_at);
         let workspace = store.get_workspace().unwrap();
         assert_eq!(
-            workspace["catalog_items"][0]["name"],
+            workspace["catalog_items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["id"] == catalog_item_id)
+                .unwrap()["name"],
             "Matériel catalogue renommé"
         );
         assert_eq!(
             workspace["quote_items"][0]["catalog_item_id"],
-            catalog_item_id
+            conversion_item_id
         );
         assert_eq!(workspace["quote_items"][0]["description"], "Lot accepté");
         assert_eq!(workspace["quote_items"][0]["unit_price_cents"], 8_000);
@@ -2142,7 +2173,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(converted["invoice_items"].as_array().unwrap().len(), 1);
         assert_eq!(
             converted["invoice_items"][0]["catalog_item_id"],
-            catalog_item_id
+            conversion_item_id
         );
         assert_eq!(converted["invoice_items"][0]["description"], "Lot accepté");
         assert_eq!(converted["invoice_items"][0]["unit_price_cents"], 8_000);

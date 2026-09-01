@@ -1443,14 +1443,19 @@ mod tests {
         )
     }
 
-    fn create_open_invoice(store: &LocalStore, amount_cents: i64, currency: &str) -> String {
+    fn create_open_invoice_of_type(
+        store: &LocalStore,
+        amount_cents: i64,
+        currency: &str,
+        invoice_type: &str,
+    ) -> String {
         let client = store
             .create_record("clients", json!({"name":"Client test"}))
             .unwrap();
         let invoice = store
             .create_record(
                 "invoices",
-                json!({"client_id":value_id(&client),"title":"Facture CAMT","currency":currency,"service_date_from":"2026-08-01","service_date_to":"2026-08-31"}),
+                json!({"client_id":value_id(&client),"title":"Facture CAMT","type":invoice_type,"currency":currency,"service_date_from":"2026-08-01","service_date_to":"2026-08-31"}),
             )
             .unwrap();
         let invoice_id = value_id(&invoice);
@@ -1470,8 +1475,17 @@ mod tests {
         invoice_id
     }
 
-    fn create_invoice(store: &LocalStore, amount_cents: i64, qrr: &str) -> String {
-        let invoice_id = create_open_invoice(store, amount_cents, "CHF");
+    fn create_open_invoice(store: &LocalStore, amount_cents: i64, currency: &str) -> String {
+        create_open_invoice_of_type(store, amount_cents, currency, "standard")
+    }
+
+    fn create_invoice_of_type(
+        store: &LocalStore,
+        amount_cents: i64,
+        qrr: &str,
+        invoice_type: &str,
+    ) -> String {
+        let invoice_id = create_open_invoice_of_type(store, amount_cents, "CHF", invoice_type);
         store
             .save_invoice_qr_bill(SaveInvoiceQrBillInput {
                 invoice_id: invoice_id.clone(),
@@ -1497,6 +1511,292 @@ mod tests {
             })
             .unwrap();
         invoice_id
+    }
+
+    fn create_invoice(store: &LocalStore, amount_cents: i64, qrr: &str) -> String {
+        create_invoice_of_type(store, amount_cents, qrr, "standard")
+    }
+
+    #[test]
+    fn customer_candidate_loader_allows_all_positive_payable_invoice_types() {
+        let (_temporary, store) = store();
+        let standard = create_open_invoice_of_type(&store, 10_000, "CHF", "standard");
+        let situation = create_open_invoice_of_type(&store, 11_000, "CHF", "situation");
+        let finale = create_open_invoice_of_type(&store, 12_000, "CHF", "finale");
+        let deposit = create_open_invoice_of_type(&store, 13_000, "CHF", "deposit");
+        let cancelled = create_open_invoice_of_type(&store, 14_000, "CHF", "standard");
+
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "UPDATE invoices SET status='annulee' WHERE id=?",
+                params![cancelled],
+            )
+            .unwrap();
+        let client_id: String = connection
+            .query_row(
+                "SELECT client_id FROM invoices WHERE id=?",
+                params![standard],
+                |row| row.get(0),
+            )
+            .unwrap();
+        drop(connection);
+
+        let credit_note = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "original_invoice_id":standard,
+                        "title":"Avoir CAMT",
+                        "type":"credit_note",
+                        "currency":"CHF",
+                        "service_date_from":"2026-08-01",
+                        "service_date_to":"2026-08-31"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({"invoice_id":credit_note,"description":"Correction","quantity":1,"unit":"forfait","unit_price_cents":1_000,"vat_bp":0}),
+            )
+            .unwrap();
+        store
+            .issue_invoice(
+                &credit_note,
+                Some("2026-08-31".into()),
+                Some("2026-08-31".into()),
+            )
+            .unwrap();
+
+        let zero_total = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture nulle importée",
+                        "type":"standard",
+                        "currency":"CHF",
+                        "service_date_from":"2026-08-01",
+                        "service_date_to":"2026-08-31"
+                    }),
+                )
+                .unwrap(),
+        );
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "UPDATE invoices SET number='TEST-ZERO',status='emise' WHERE id=?",
+                params![zero_total],
+            )
+            .unwrap();
+
+        let candidates = load_invoice_candidates(&connection).unwrap();
+        let candidate_ids = candidates
+            .iter()
+            .map(|candidate| candidate.id.as_str())
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            candidate_ids,
+            HashSet::from([
+                standard.as_str(),
+                deposit.as_str(),
+                situation.as_str(),
+                finale.as_str(),
+            ])
+        );
+        assert!(!candidate_ids.contains(cancelled.as_str()));
+        assert!(!candidate_ids.contains(credit_note.as_str()));
+        assert!(!candidate_ids.contains(zero_total.as_str()));
+    }
+
+    #[test]
+    fn payable_invoice_types_qrr_remain_confirmable_only_through_safe_camt_flow() {
+        for (invoice_type, qrr_seed, stable_reference) in [
+            ("standard", "170000", "C-STANDARD-17"),
+            ("deposit", "170003", "C-DEPOSIT-17"),
+            ("situation", "170001", "C-SITUATION-17"),
+            ("finale", "170002", "C-FINALE-17"),
+        ] {
+            let (temporary, store) = store();
+            enable_accounting(&store);
+            store
+                .associate_bank_account(AssociateBankAccountInput {
+                    account_id: STATEMENT_IBAN.into(),
+                    currency: "CHF".into(),
+                })
+                .unwrap();
+            let qrr = generate_qrr(qrr_seed).unwrap();
+            let invoice_id = create_invoice_of_type(&store, 10_000, &qrr, invoice_type);
+            let xml = fixture(
+                "053",
+                "08",
+                "BOOK",
+                "100.00",
+                stable_reference,
+                Some(&format!("D-{stable_reference}")),
+                Some("QRR"),
+                Some(&qrr),
+                false,
+                true,
+            );
+            store
+                .import_camt_file(&write_xml(
+                    temporary.path(),
+                    &format!("{invoice_type}.xml"),
+                    &xml,
+                ))
+                .unwrap();
+
+            let workspace = store.get_bank_workspace().unwrap();
+            let suggestion = &workspace["movements"][0]["suggestion"];
+            assert_eq!(suggestion["kind"], "automatic_exact");
+            assert_eq!(suggestion["confirmable"], true);
+            assert_eq!(suggestion["invoice_id"], invoice_id);
+            assert_eq!(suggestion["candidates"][0]["confirmable"], true);
+            let movement_id = workspace["movements"][0]["id"].as_str().unwrap();
+            let reconciliation = store
+                .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                    movement_id: movement_id.into(),
+                    invoice_id: invoice_id.clone(),
+                })
+                .unwrap();
+            assert_eq!(reconciliation["payment"]["invoice_id"], invoice_id);
+        }
+    }
+
+    #[test]
+    fn exact_qrr_before_invoice_issue_date_is_visible_but_never_confirmable() {
+        let (temporary, store) = store();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("170004").unwrap();
+        let invoice_id = create_invoice(&store, 10_000, &qrr);
+        let xml = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-QRR-BEFORE-ISSUE",
+            Some("D-QRR-BEFORE-ISSUE"),
+            Some("QRR"),
+            Some(&qrr),
+            false,
+            true,
+        )
+        .replace(
+            "<BookgDt><Dt>2026-08-31</Dt></BookgDt><ValDt><Dt>2026-08-30</Dt></ValDt>",
+            "<BookgDt><Dt>2026-07-31</Dt></BookgDt><ValDt><Dt>2026-07-30</Dt></ValDt>",
+        );
+        store
+            .import_camt_file(&write_xml(temporary.path(), "qrr-before-issue.xml", &xml))
+            .unwrap();
+
+        let workspace = store.get_bank_workspace().unwrap();
+        let movement = &workspace["movements"][0];
+        let suggestion = &movement["suggestion"];
+        let candidate = &suggestion["candidates"][0];
+        assert_eq!(suggestion["kind"], "review");
+        assert_eq!(suggestion["confirmable"], false);
+        assert_eq!(candidate["invoice_id"], invoice_id);
+        assert_eq!(candidate["issue_date"], "2026-08-01");
+        assert_eq!(candidate["bank_date"], "2026-07-31");
+        assert_eq!(candidate["date_relation"], "before_issue");
+        assert_eq!(candidate["confirmable"], false);
+        assert!(candidate["reason"]
+            .as_str()
+            .unwrap()
+            .contains("précède la date d’émission"));
+        assert!(suggestion["reason"]
+            .as_str()
+            .unwrap()
+            .contains("précède la date d’émission"));
+        assert!(store
+            .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                movement_id: movement["id"].as_str().unwrap().into(),
+                invoice_id,
+            })
+            .is_err());
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM payments", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn manual_candidate_before_invoice_issue_date_stays_review_only() {
+        let (temporary, store) = store();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let invoice_id = create_open_invoice(&store, 10_000, "CHF");
+        let xml = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-MANUAL-BEFORE-ISSUE",
+            Some("D-MANUAL-BEFORE-ISSUE"),
+            None,
+            None,
+            false,
+            true,
+        )
+        .replace(
+            "<BookgDt><Dt>2026-08-31</Dt></BookgDt><ValDt><Dt>2026-08-30</Dt></ValDt>",
+            "<BookgDt><Dt>2026-07-31</Dt></BookgDt><ValDt><Dt>2026-07-30</Dt></ValDt>",
+        );
+        store
+            .import_camt_file(&write_xml(
+                temporary.path(),
+                "manual-before-issue.xml",
+                &xml,
+            ))
+            .unwrap();
+
+        let workspace = store.get_bank_workspace().unwrap();
+        let movement = &workspace["movements"][0];
+        let suggestion = &movement["suggestion"];
+        let candidate = suggestion["candidates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|candidate| candidate["invoice_id"] == invoice_id)
+            .unwrap();
+        assert_eq!(suggestion["kind"], "manual");
+        assert_eq!(suggestion["confirmable"], false);
+        assert_eq!(candidate["date_relation"], "before_issue");
+        assert_eq!(candidate["confirmable"], false);
+        assert!(candidate["reason"]
+            .as_str()
+            .unwrap()
+            .contains("précède la date d’émission"));
+        assert!(suggestion["reason"]
+            .as_str()
+            .unwrap()
+            .contains("précède la date d’émission"));
+        assert!(store
+            .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                movement_id: movement["id"].as_str().unwrap().into(),
+                invoice_id,
+            })
+            .is_err());
     }
 
     fn debit_fixture(amount: &str, stable_reference: &str, qrr: Option<&str>) -> String {
@@ -3145,6 +3445,7 @@ mod tests {
 struct InvoiceCandidate {
     id: String,
     number: String,
+    issue_date: Option<String>,
     total_cents: i64,
     paid_cents: i64,
     credited_cents: i64,
@@ -3165,11 +3466,11 @@ impl InvoiceCandidate {
 
 fn load_invoice_candidates(connection: &rusqlite::Connection) -> AppResult<Vec<InvoiceCandidate>> {
     let mut statement = connection.prepare(
-        "SELECT i.id,i.number,i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.currency,q.input_json,c.name,c.company FROM invoices i LEFT JOIN invoice_qr_bills q ON q.invoice_id=i.id LEFT JOIN clients c ON c.id=i.client_id WHERE i.type='standard' AND i.number IS NOT NULL AND i.status<>'annulee' ORDER BY i.issue_date DESC,i.created_at DESC",
+        "SELECT i.id,i.number,i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.currency,i.issue_date,q.input_json,c.name,c.company FROM invoices i LEFT JOIN invoice_qr_bills q ON q.invoice_id=i.id LEFT JOIN clients c ON c.id=i.client_id WHERE i.type IN ('standard','acompte','situation','finale') AND i.total_cents>0 AND i.number IS NOT NULL AND i.status<>'annulee' ORDER BY i.issue_date DESC,i.created_at DESC",
     )?;
     let candidates = statement
         .query_map([], |row| {
-            let input_json: Option<String> = row.get(6)?;
+            let input_json: Option<String> = row.get(7)?;
             let qr_bill = input_json
                 .as_deref()
                 .and_then(|value| serde_json::from_str::<Value>(value).ok());
@@ -3185,11 +3486,12 @@ fn load_invoice_candidates(connection: &rusqlite::Connection) -> AppResult<Vec<I
                 .map(|value| {
                     normalize_reference(reference_type.as_deref().unwrap_or("NON"), value)
                 });
-            let person: Option<String> = row.get(7)?;
-            let company: Option<String> = row.get(8)?;
+            let person: Option<String> = row.get(8)?;
+            let company: Option<String> = row.get(9)?;
             Ok(InvoiceCandidate {
                 id: row.get(0)?,
                 number: row.get(1)?,
+                issue_date: row.get(6)?,
                 total_cents: row.get(2)?,
                 paid_cents: row.get(3)?,
                 credited_cents: row.get(4)?,
@@ -3321,6 +3623,7 @@ fn candidate_json(
     invoice: &InvoiceCandidate,
     movement_amount: i64,
     movement_currency: &str,
+    payment_date: Option<&str>,
     base_eligible: bool,
     reason: &str,
 ) -> Value {
@@ -3335,13 +3638,41 @@ fn candidate_json(
         ("partial", true)
     };
     let currency_safe = invoice.currency == movement_currency;
+    let (date_relation, date_safe, date_reason) = match (
+        payment_date,
+        invoice
+            .issue_date
+            .as_deref()
+            .filter(|value| !value.is_empty()),
+    ) {
+        (None, _) => (
+            "missing_bank_date",
+            false,
+            "Le mouvement ne contient aucune date bancaire utilisable.",
+        ),
+        (_, None) => (
+            "missing_issue_date",
+            false,
+            "La facture ne contient aucune date d’émission vérifiable.",
+        ),
+        (Some(payment_date), Some(issue_date)) if payment_date < issue_date => (
+            "before_issue",
+            false,
+            "La date bancaire précède la date d’émission de la facture.",
+        ),
+        _ => ("valid", true, reason),
+    };
     json!({
         "invoice_id": invoice.id,
         "invoice_number": invoice.number,
+        "issue_date": invoice.issue_date,
+        "bank_date": payment_date,
+        "date_relation": date_relation,
+        "date_safe": date_safe,
         "remaining_cents": remaining,
         "amount_relation": if currency_safe { amount_relation } else { "currency_mismatch" },
-        "reason": if currency_safe { reason.to_owned() } else { "La devise du mouvement ne correspond pas à celle de la facture.".to_owned() },
-        "confirmable": base_eligible && amount_safe && currency_safe,
+        "reason": if !currency_safe { "La devise du mouvement ne correspond pas à celle de la facture." } else { date_reason },
+        "confirmable": base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
 
@@ -3644,9 +3975,9 @@ fn suggestion_for_movement(
         .get("reversal")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let has_bank_date = movement_field(movement, "booking_date")
-        .or_else(|| movement_field(movement, "value_date"))
-        .is_some();
+    let bank_date =
+        movement_field(movement, "booking_date").or_else(|| movement_field(movement, "value_date"));
+    let has_bank_date = bank_date.is_some();
     let single_transaction = movement_tx_detail_count(movement) == 1;
     let account_currency_matches = movement_currency == account_currency;
     let has_stable_dedup_key = movement_field(movement, "strong_key").is_some();
@@ -3685,6 +4016,7 @@ fn suggestion_for_movement(
                         invoice,
                         amount,
                         movement_currency,
+                        bank_date,
                         base_eligible,
                         "Référence QR structurée identique.",
                     )
@@ -3693,6 +4025,7 @@ fn suggestion_for_movement(
             if matches.len() == 1 {
                 let candidate = &candidates[0];
                 let confirmable = candidate["confirmable"].as_bool().unwrap_or(false);
+                let date_safe = candidate["date_safe"].as_bool().unwrap_or(false);
                 let relation = candidate["amount_relation"].as_str().unwrap_or("review");
                 let kind = if confirmable && relation == "exact" {
                     "automatic_exact"
@@ -3725,6 +4058,10 @@ fn suggestion_for_movement(
                     "La facture est déjà soldée."
                 } else if relation == "currency_mismatch" {
                     "La devise du mouvement ne correspond pas à la facture."
+                } else if !date_safe {
+                    candidate["reason"]
+                        .as_str()
+                        .unwrap_or("La date bancaire n’est pas compatible avec la date d’émission.")
                 } else {
                     "Référence QR structurée unique et montant contrôlé."
                 };
@@ -3740,9 +4077,15 @@ fn suggestion_for_movement(
             let confirmable = candidates
                 .iter()
                 .any(|candidate| candidate["confirmable"].as_bool() == Some(true));
+            let all_date_blocked = candidates
+                .iter()
+                .all(|candidate| candidate["date_safe"].as_bool() == Some(false));
+            let date_reason = candidates
+                .iter()
+                .find_map(|candidate| candidate["reason"].as_str());
             return Ok(json!({
                 "kind":"review",
-                "reason":if booked && !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else { "La même référence QR est liée à plusieurs factures : choisissez explicitement." },
+                "reason":if booked && !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else if all_date_blocked { date_reason.unwrap_or("La date bancaire n’est compatible avec aucune facture proposée.") } else { "La même référence QR est liée à plusieurs factures : choisissez explicitement." },
                 "confirmable":confirmable,
                 "invoice_id":Value::Null,
                 "invoice_number":Value::Null,
@@ -3817,15 +4160,28 @@ fn suggestion_for_movement(
         let candidates = manual_matches
             .iter()
             .map(|(invoice, reason)| {
-                candidate_json(invoice, amount, movement_currency, base_eligible, reason)
+                candidate_json(
+                    invoice,
+                    amount,
+                    movement_currency,
+                    bank_date,
+                    base_eligible,
+                    reason,
+                )
             })
             .collect::<Vec<_>>();
         let confirmable = candidates
             .iter()
             .any(|candidate| candidate["confirmable"].as_bool() == Some(true));
+        let all_date_blocked = candidates
+            .iter()
+            .all(|candidate| candidate["date_safe"].as_bool() == Some(false));
+        let date_reason = candidates
+            .iter()
+            .find_map(|candidate| candidate["reason"].as_str());
         return Ok(json!({
             "kind":if booked && !final_statement { "review" } else if single_transaction { "manual" } else { "review" },
-            "reason": if !booked { "Mouvement en attente (PDNG) : aucune confirmation possible." } else if !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else if !credit { "Débit bancaire : aucun encaissement client possible." } else if reversal { "Extourne bancaire détectée : elle reste visible mais ne peut pas encaisser une facture." } else if !has_bank_date { "Le mouvement BOOK ne contient aucune date bancaire utilisable." } else if !single_transaction { "Écriture collective : les candidats restent informatifs et ne sont pas confirmables." } else if !has_stable_dedup_key { "Aucun identifiant bancaire stable : rapprochement bloqué pour éviter un double encaissement." } else if !account_linked { "Compte bancaire non associé : vérifiez-le avant toute confirmation." } else if !account_currency_matches { "Devise du mouvement différente de celle du compte : gestion FX requise." } else if structured_valid { "Référence structurée valide mais inconnue : choisissez explicitement une facture ouverte compatible." } else { "Choisissez explicitement une facture ouverte compatible." },
+            "reason": if !booked { "Mouvement en attente (PDNG) : aucune confirmation possible." } else if !final_statement { "Importez le relevé camt.053 définitif avant de confirmer ce mouvement." } else if !credit { "Débit bancaire : aucun encaissement client possible." } else if reversal { "Extourne bancaire détectée : elle reste visible mais ne peut pas encaisser une facture." } else if !has_bank_date { "Le mouvement BOOK ne contient aucune date bancaire utilisable." } else if !single_transaction { "Écriture collective : les candidats restent informatifs et ne sont pas confirmables." } else if !has_stable_dedup_key { "Aucun identifiant bancaire stable : rapprochement bloqué pour éviter un double encaissement." } else if !account_linked { "Compte bancaire non associé : vérifiez-le avant toute confirmation." } else if !account_currency_matches { "Devise du mouvement différente de celle du compte : gestion FX requise." } else if all_date_blocked { date_reason.unwrap_or("La date bancaire n’est compatible avec aucune facture proposée.") } else if structured_valid { "Référence structurée valide mais inconnue : choisissez explicitement une facture ouverte compatible." } else { "Choisissez explicitement une facture ouverte compatible." },
             "confirmable":confirmable,
             "invoice_id": if manual_matches.len()==1 { json!(manual_matches[0].0.id) } else { Value::Null },
             "invoice_number": if manual_matches.len()==1 { json!(manual_matches[0].0.number) } else { Value::Null },

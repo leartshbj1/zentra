@@ -50,8 +50,8 @@ export const metadata = {
 const capabilities = [
   {
     icon: FileCheck2,
-    title: 'Devis et factures',
-    text: 'Transformez un devis accepté en facture sans ressaisir les lignes.',
+    title: 'Devis, commandes et BL',
+    text: 'Les devis avec produits deviennent des commandes livrables; les prestations simples peuvent rester en facture directe.',
   },
   {
     icon: QrCode,
@@ -131,8 +131,8 @@ export default function DownloadPage() {
             <span className="text-[#b66b18]">dans une seule application.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-8 text-[#667169]">
-            Catalogue, devis, factures QR, fournisseurs, import CAMT, projets,
-            heures, salaires et comptabilité&nbsp;: installez Elyko sur votre PC
+            Catalogue, devis, commandes, BL, factures QR, fournisseurs, import
+            CAMT, projets, heures, salaires et comptabilité&nbsp;: installez Elyko sur votre PC
             et travaillez avec vos propres données, dans une interface pensée
             pour votre activité.
           </p>
@@ -453,8 +453,9 @@ export default function DownloadPage() {
             </h2>
             <div className="mt-7 space-y-3">
               {[
-                'Catalogue local de produits et services avec remises par ligne',
-                'Fournisseurs, achats à payer, échéances et règlement comptabilisé',
+                'Devis avec produits → commande avec réservation du stock',
+                'BL partiels ou complets avec sortie de stock unique et traçable',
+                'Situation ou finale sur le livré; prestations directes sans BL',
                 'Import CAMT.053/.054 v04/v08 et détection locale des doublons',
                 'Rapprochement des crédits clients seulement après votre confirmation',
                 'Mises à jour intégrées vérifiées par signature Tauri/Ed25519',
