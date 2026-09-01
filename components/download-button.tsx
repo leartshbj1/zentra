@@ -3,8 +3,8 @@
 import { CheckCircle2, Download, RotateCw } from 'lucide-react';
 import { useState } from 'react';
 import {
-  ELYKO_INSTALLER_NAME,
-  ELYKO_INSTALLER_PATH,
+  ZENTRA_INSTALLER_NAME,
+  ZENTRA_INSTALLER_PATH,
 } from '@/lib/downloads';
 import { cn } from '@/lib/utils';
 
@@ -20,7 +20,7 @@ export function DownloadButton({
   return (
     <div className={cn(!compact && 'w-full max-w-xl', className)}>
       <a
-        href={ELYKO_INSTALLER_PATH}
+        href={ZENTRA_INSTALLER_PATH}
         download
         onClick={() => setStarted(true)}
         className={cn(
@@ -30,7 +30,7 @@ export function DownloadButton({
       >
         <Download className="size-4.5 shrink-0" />
         <span className="min-w-0 leading-5">
-          Télécharger Elyko{compact ? '' : ' pour Windows'}
+          Télécharger Zentra{compact ? '' : ' pour Windows'}
         </span>
       </a>
 
@@ -43,14 +43,14 @@ export function DownloadButton({
             <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#397550]" />
             <div>
               <p className="text-sm font-semibold text-[#274b36]">
-                Elyko est en cours de téléchargement
+                Zentra est en cours de téléchargement
               </p>
               <p className="mt-1 text-xs leading-5 text-[#587161]">
-                Ouvrez <strong>{ELYKO_INSTALLER_NAME}</strong> depuis vos
+                Ouvrez <strong>{ZENTRA_INSTALLER_NAME}</strong> depuis vos
                 téléchargements, puis suivez l’assistant d’installation.
               </p>
               <a
-                href={ELYKO_INSTALLER_PATH}
+                href={ZENTRA_INSTALLER_PATH}
                 download
                 className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-[#315f46] underline underline-offset-4"
               >

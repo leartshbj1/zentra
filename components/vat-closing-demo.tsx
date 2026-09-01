@@ -14,7 +14,7 @@ const stages = [
     id: 'preparer',
     label: '1. Préparer',
     eyebrow: 'Aperçu contrôlable',
-    title: 'Elyko demande une décision au lieu de deviner.',
+    title: 'Zentra demande une décision au lieu de deviner.',
     text: 'Chaque vente, achat ou dépense pertinente reçoit un traitement TVA explicite. Une source ambiguë reste visible et bloque l’export tant qu’elle n’est pas classée.',
     icon: ShieldAlert,
     facts: [
@@ -28,7 +28,7 @@ const stages = [
     label: '2. Exporter',
     eyebrow: 'eCH-0217 v2.0.0',
     title: 'Un XML local prêt pour votre contrôle.',
-    text: 'Elyko calcule en centimes, produit le fichier XML et son empreinte SHA-256. Vous l’importez manuellement dans Décompte TVA pro, puis vous vérifiez, complétez et soumettez dans le Portail AFC.',
+    text: 'Zentra calcule en centimes, produit le fichier XML et son empreinte SHA-256. Vous l’importez manuellement dans Décompte TVA pro, puis vous vérifiez, complétez et soumettez dans le Portail AFC.',
     icon: FileDown,
     facts: [
       ['Fichier', 'XML UTF-8 sans BOM'],
@@ -41,7 +41,7 @@ const stages = [
     label: '3. Clôturer',
     eyebrow: 'Revue en deux temps',
     title: 'La période n’est verrouillée qu’après les contrôles.',
-    text: 'Journal, bilan, continuité, chaîne d’audit et pièces sont revérifiés. Elyko produit ensuite un dossier fiduciaire DRAFT ou FINAL avec manifeste, sommes de contrôle et historique lisible.',
+    text: 'Journal, bilan, continuité, chaîne d’audit et pièces sont revérifiés. Zentra produit ensuite un dossier fiduciaire DRAFT ou FINAL avec manifeste, sommes de contrôle et historique lisible.',
     icon: LockKeyhole,
     facts: [
       ['Avant', 'Pré-clôture révisable'],

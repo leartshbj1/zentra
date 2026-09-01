@@ -24,25 +24,25 @@ import {
 import { BrandMark } from '@/components/brand-mark';
 import { DownloadButton } from '@/components/download-button';
 import {
-  ELYKO_INSTALLER_CHECKSUM_PATH,
-  ELYKO_INSTALLER_NAME,
-  ELYKO_INSTALLER_SHA256,
-  ELYKO_INSTALLER_SIZE_MIB,
-  ELYKO_VERSION,
+  ZENTRA_INSTALLER_CHECKSUM_PATH,
+  ZENTRA_INSTALLER_NAME,
+  ZENTRA_INSTALLER_SHA256,
+  ZENTRA_INSTALLER_SIZE_MIB,
+  ZENTRA_VERSION,
 } from '@/lib/downloads';
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: `Elyko pour Windows — Télécharger la version ${ELYKO_VERSION}`,
+  title: `Zentra pour Windows — Télécharger la version ${ZENTRA_VERSION}`,
   description:
-    'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR, relances supervisées, projets, salaires et comptabilité avec vos données sur votre PC.',
+    'Installez Zentra sur Windows 10 ou 11 pour gérer devis, factures QR, relances supervisées, projets, salaires et comptabilité avec vos données sur votre PC.',
   openGraph: {
-    title: 'Elyko pour Windows',
-    description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ELYKO_VERSION} disponible.`,
+    title: 'Zentra pour Windows',
+    description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ZENTRA_VERSION} disponible.`,
   },
   twitter: {
-    title: 'Elyko pour Windows',
-    description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ELYKO_VERSION} disponible.`,
+    title: 'Zentra pour Windows',
+    description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ZENTRA_VERSION} disponible.`,
   },
 };
 
@@ -60,7 +60,7 @@ const capabilities = [
   {
     icon: BellRing,
     title: 'Relances supervisées',
-    text: 'Elyko prépare trois niveaux modifiables, recalcule le solde et bloque une facture soldée ; vous décidez toujours de l’action.',
+    text: 'Zentra prépare trois niveaux modifiables, recalcule le solde et bloque une facture soldée ; vous décidez toujours de l’action.',
   },
   {
     icon: FolderKanban,
@@ -107,10 +107,10 @@ export default function DownloadPage() {
           <a
             href="/"
             className="flex min-h-11 items-center gap-2.5"
-            aria-label="Elyko, accueil"
+            aria-label="Zentra, accueil"
           >
             <BrandMark className="size-9" />
-            <span className="font-semibold tracking-[-.03em]">Elyko</span>
+            <span className="font-semibold tracking-[-.03em]">Zentra</span>
           </a>
           <a
             href="/"
@@ -127,7 +127,7 @@ export default function DownloadPage() {
         <div data-reveal="left">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
             <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-            Elyko pour Windows · version {ELYKO_VERSION}
+            Zentra pour Windows · version {ZENTRA_VERSION}
           </div>
           <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
             Toute votre entreprise,
@@ -137,7 +137,7 @@ export default function DownloadPage() {
           <p className="mt-6 max-w-xl text-lg leading-8 text-[#667169]">
             Catalogue, devis, commandes, BL, factures QR uniques ou récurrentes
             supervisées, fournisseurs, import CAMT, projets, heures, salaires et
-            comptabilité&nbsp;: installez Elyko sur votre PC et travaillez avec
+            comptabilité&nbsp;: installez Zentra sur votre PC et travaillez avec
             vos propres données, dans une interface pensée pour votre activité.
           </p>
 
@@ -148,7 +148,7 @@ export default function DownloadPage() {
             href="/#logiciel"
             className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#315f47] underline decoration-[#c98a34] underline-offset-4"
           >
-            Voir Elyko en action <ArrowRight className="size-4" />
+            Voir Zentra en action <ArrowRight className="size-4" />
           </a>
 
           <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#5d6b63]">
@@ -156,7 +156,7 @@ export default function DownloadPage() {
               <Laptop className="size-3.5" /> Windows 10/11
             </span>
             <span>64 bits</span>
-            <span>{ELYKO_INSTALLER_SIZE_MIB} Mio</span>
+            <span>{ZENTRA_INSTALLER_SIZE_MIB} Mio</span>
             <span>50 CHF / mois</span>
           </div>
           <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
@@ -174,7 +174,7 @@ export default function DownloadPage() {
           <div className="installer-window overflow-hidden rounded-[26px] border border-[#cfd6d0] bg-white shadow-[0_38px_100px_rgba(20,52,36,.2)]">
             <div className="flex h-11 items-center justify-between border-b border-[#dfe4df] bg-[#fbfcfb] px-4">
               <div className="flex items-center gap-2 text-[11px] font-semibold text-[#354a3e]">
-                <BrandMark className="size-5" /> Installation d’Elyko
+                <BrandMark className="size-5" /> Installation de Zentra
               </div>
               <div className="flex h-full items-center text-[13px] text-[#647169]">
                 <span className="grid h-full w-9 place-items-center">—</span>
@@ -191,7 +191,7 @@ export default function DownloadPage() {
                   Votre espace de gestion
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
-                  Elyko
+                  Zentra
                 </h2>
                 <p className="mt-4 text-sm leading-6 text-white/76">
                   Une installation guidée, puis un questionnaire adapté à votre
@@ -214,15 +214,15 @@ export default function DownloadPage() {
                   Prêt à installer
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-.035em] text-[#22382a]">
-                  Elyko sur cet ordinateur
+                  Zentra sur cet ordinateur
                 </h2>
                 <p className="mt-3 text-xs leading-5 text-[#758078]">
-                  L’assistant installe Elyko et crée les éléments nécessaires au
+                  L’assistant installe Zentra et crée les éléments nécessaires au
                   lancement depuis le menu Démarrer.
                 </p>
                 <div className="mt-7 space-y-4 text-[11px]">
                   {[
-                    ['Version', ELYKO_VERSION],
+                    ['Version', ZENTRA_VERSION],
                     ['Architecture', 'Windows x64'],
                     ['Emplacement', 'Applications de l’utilisateur'],
                     ['Données métier', 'Stockage local'],
@@ -244,7 +244,7 @@ export default function DownloadPage() {
                   </div>
                   <div className="mt-4 flex justify-end">
                     <span className="inline-flex min-h-10 items-center rounded-lg bg-[#173d2c] px-5 text-[11px] font-semibold text-white">
-                      Installer Elyko
+                      Installer Zentra
                     </span>
                   </div>
                 </div>
@@ -280,12 +280,12 @@ export default function DownloadPage() {
               [
                 Laptop,
                 'Installateur .exe',
-                'Un installateur Windows x64 ajoute Elyko aux applications et au menu Démarrer, avec sa propre fenêtre de bureau.',
+                'Un installateur Windows x64 ajoute Zentra aux applications et au menu Démarrer, avec sa propre fenêtre de bureau.',
               ],
               [
                 Database,
                 'Données métier locales',
-                'La base SQLite et les justificatifs restent dans le dossier Elyko de ce PC; ils ne sont pas hébergés sur un compte Elyko.',
+                'La base SQLite et les justificatifs restent dans le dossier Zentra de ce PC; ils ne sont pas hébergés sur un compte Zentra.',
               ],
               [
                 WifiOff,
@@ -318,7 +318,7 @@ export default function DownloadPage() {
           <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Dans Elyko
+                Dans Zentra
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                 Votre gestion quotidienne, réunie.
@@ -364,7 +364,7 @@ export default function DownloadPage() {
               De l’installation à votre premier document.
             </h2>
             <p className="mt-5 text-lg leading-8 text-[#68746c]">
-              Le parcours suit un ordre clair. Vous installez Elyko, activez
+              Le parcours suit un ordre clair. Vous installez Zentra, activez
               votre licence, puis configurez l’entreprise avec vos informations
               réelles.
             </p>
@@ -373,14 +373,14 @@ export default function DownloadPage() {
             {[
               [
                 '01',
-                'Téléchargez Elyko',
-                'Récupérez la dernière version depuis le site officiel Elyko.',
+                'Téléchargez Zentra',
+                'Récupérez la dernière version depuis le site officiel Zentra.',
                 Laptop,
               ],
               [
                 '02',
                 'Ouvrez l’application',
-                'Lancez l’installation, puis ouvrez Elyko depuis le menu Démarrer.',
+                'Lancez l’installation, puis ouvrez Zentra depuis le menu Démarrer.',
                 Sparkles,
               ],
               [
@@ -427,14 +427,14 @@ export default function DownloadPage() {
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_.8fr] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">
-              Licence Elyko
+              Licence Zentra
             </p>
             <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
               L’application complète pour 50 CHF par mois.
             </h2>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
               Le paiement est traité par Stripe. La licence signée est liée à
-              l’identifiant d’installation affiché par Elyko, tandis que vos
+              l’identifiant d’installation affiché par Zentra, tandis que vos
               données métier restent sur votre PC. La première activation et les
               renouvellements vérifient uniquement le jeton par HTTPS.
             </p>
@@ -457,14 +457,16 @@ export default function DownloadPage() {
               <span className="pb-1 text-sm text-white/76">/ mois</span>
             </div>
             <p className="mt-3 text-xs leading-5 text-white/74">
-              Installez d’abord Elyko afin de récupérer l’identifiant demandé
-              pendant l’activation.
+              Installez d’abord Zentra afin de récupérer l’identifiant demandé
+              pendant l’activation. Abonnement renouvelé mensuellement, taxes
+              comprises lorsqu’elles sont applicables, résiliable pour la fin de
+              la période en cours.
             </p>
             <div className="mt-7">
               <PurchaseButton compact />
             </div>
             <a
-              href="mailto:leartshabija@gmail.com?subject=Elyko%20-%20activation"
+              href="mailto:leartshabija@gmail.com?subject=Zentra%20-%20activation"
               className="mt-3 flex min-h-12 items-center justify-center rounded-full border border-white/15 px-5 text-center text-sm font-semibold text-white"
             >
               Besoin d’aide pour l’activation
@@ -480,7 +482,7 @@ export default function DownloadPage() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-              Version {ELYKO_VERSION}
+              Version {ZENTRA_VERSION}
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
               Les relances avancent sans partir seules.
@@ -542,15 +544,15 @@ export default function DownloadPage() {
               </summary>
               <div className="space-y-4 border-t border-[#e5e1d8] px-5 py-5 text-xs leading-6 text-[#5f6c64]">
                 <p>
-                  <strong>Fichier :</strong> {ELYKO_INSTALLER_NAME} ·{' '}
-                  {ELYKO_INSTALLER_SIZE_MIB} Mio · Windows x64
+                  <strong>Fichier :</strong> {ZENTRA_INSTALLER_NAME} ·{' '}
+                  {ZENTRA_INSTALLER_SIZE_MIB} Mio · Windows x64
                 </p>
                 <p>
                   <strong>SHA-256 :</strong>{' '}
-                  <code className="break-all">{ELYKO_INSTALLER_SHA256}</code> ·{' '}
+                  <code className="break-all">{ZENTRA_INSTALLER_SHA256}</code> ·{' '}
                   <a
                     className="font-semibold underline underline-offset-3"
-                    href={ELYKO_INSTALLER_CHECKSUM_PATH}
+                    href={ZENTRA_INSTALLER_CHECKSUM_PATH}
                   >
                     télécharger l’empreinte
                   </a>
@@ -559,11 +561,11 @@ export default function DownloadPage() {
                   <RefreshCcw className="mt-0.5 size-4 shrink-0" />
                   <p>
                     <strong>Mises à jour intégrées et signées.</strong> La
-                    version {ELYKO_VERSION} embarque la clé publique Elyko et
+                    version {ZENTRA_VERSION} embarque la clé publique Zentra et
                     vérifie la signature de chaque futur installateur avant de
                     proposer son installation. Si une ancienne version ne
                     propose pas la mise à jour intégrée, installez{' '}
-                    {ELYKO_VERSION} manuellement depuis cette page.
+                    {ZENTRA_VERSION} manuellement depuis cette page.
                   </p>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">
@@ -572,7 +574,7 @@ export default function DownloadPage() {
                     <strong>Information Windows.</strong> Cette version n’est
                     pas encore signée avec un certificat Authenticode. Windows
                     peut afficher « Éditeur inconnu ». Utilisez uniquement le
-                    fichier provenant du site officiel Elyko et contrôlez son
+                    fichier provenant du site officiel Zentra et contrôlez son
                     empreinte. L’installation de WebView2 peut demander une
                     connexion Internet si ce composant manque sur le PC.
                   </p>
@@ -609,7 +611,7 @@ export default function DownloadPage() {
             </h2>
             <p className="mt-5 text-sm leading-6 text-white/72">
               Si le PC est perdu ou son disque devient illisible sans sauvegarde
-              externe, Elyko ne peut pas récupérer vos données depuis un
+              externe, Zentra ne peut pas récupérer vos données depuis un
               serveur, puisqu’elles n’y ont jamais été envoyées.
             </p>
           </div>
@@ -644,7 +646,7 @@ export default function DownloadPage() {
             <div className="sm:col-span-2 rounded-2xl border border-[#efb157]/30 bg-[#efb157]/10 p-5 text-xs leading-6 text-white/72">
               <strong className="text-white">Portée réglementaire :</strong> la
               paie est assistée localement mais non certifiée Swissdec/ELM.
-              Elyko génère un XML eCH-0217 v2.0.0 pour import manuel, sans
+              Zentra génère un XML eCH-0217 v2.0.0 pour import manuel, sans
               transmission ni acceptation AFC garantie. Le dossier fiduciaire
               soutient un processus orienté CO/Olico, mais n’est pas certifié
               Olico et ne remplace pas la validation du bouclement.
@@ -657,7 +659,7 @@ export default function DownloadPage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs text-[#607068] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <BrandMark className="size-7" />
-            <strong className="text-[#2a3d31]">Elyko</strong>
+            <strong className="text-[#2a3d31]">Zentra</strong>
             <span>pour les entreprises suisses</span>
           </div>
           <div className="flex flex-wrap gap-5">

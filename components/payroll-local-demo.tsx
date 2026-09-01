@@ -144,7 +144,7 @@ export function PayrollLocalDemo() {
             </div>
           </div>
           <p className="mt-5 text-xs leading-5 text-white/74">
-            Les fichiers PDF et images sont copiés dans l’espace local Elyko. Aucun document de paie n’est envoyé, ni à Elyko ni au fournisseur du modèle.
+            Les fichiers PDF et images sont copiés dans l’espace local Zentra. Aucun document de paie n’est envoyé, ni à Zentra ni au fournisseur du modèle.
           </p>
         </div>
 
@@ -164,7 +164,7 @@ export function PayrollLocalDemo() {
               <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-[#24372c]">
                 {[
                   'Ajoutez plusieurs fiches en une seule fois.',
-                  'Elyko propose les champs localement.',
+                  'Zentra propose les champs localement.',
                   'Comparez toujours avec le document.',
                   'Créez un modèle, pas une vérité automatique.',
                 ][active]}
@@ -189,7 +189,7 @@ export function PayrollLocalDemo() {
                 ))}
                 <p className="rounded-xl bg-[#eef3ef] p-3 text-[11px] leading-5 text-[#506158]">
                   Les pages sont rendues sur le PC. Pour un PDF long, la couche
-                  texte complète reste utilisée et Elyko indique clairement les
+                  texte complète reste utilisée et Zentra indique clairement les
                   pages analysées visuellement.
                 </p>
               </div>
@@ -221,7 +221,7 @@ export function PayrollLocalDemo() {
               <div>
                 <div className="flex items-center justify-between rounded-xl bg-[#e9f2eb] p-4">
                   <div>
-                    <p className="text-[11px] text-[#536b5f]">Résultat dans Elyko</p>
+                    <p className="text-[11px] text-[#536b5f]">Résultat dans Zentra</p>
                     <strong className="mt-1 block text-sm text-[#2e523e]">Fiche d’août · À contrôler</strong>
                   </div>
                   <Check className="size-5 text-[#3e7b55]" />
@@ -248,7 +248,7 @@ export function PayrollLocalDemo() {
               </button>
             ) : (
               <a
-                href="/downloads/exemple-fiche-salaire-elyko.pdf"
+                href="/downloads/exemple-fiche-salaire-zentra.pdf"
                 className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#e79b2f] px-5 text-xs font-semibold text-[#203127] transition hover:bg-[#efaa3c]"
               >
                 Voir le PDF exemple <FileDown className="size-3.5" />

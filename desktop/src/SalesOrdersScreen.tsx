@@ -239,7 +239,7 @@ export function SalesOrdersScreen({
         <SectionHeading
           eyebrow="Exécution commerciale"
           title="Commandes client"
-          description="Chaque commande montre ce qui est réservé, livré et facturé. Elyko propose une seule prochaine action à la fois."
+          description="Chaque commande montre ce qui est réservé, livré et facturé. Zentra propose une seule prochaine action à la fois."
         />
         <ul className="sales-order-list">
           {filtered.map((order) => {
@@ -652,7 +652,7 @@ function SalesOrderDetail({
           );
           if (!invoice) {
             setClientError(
-              'La facture liée à cette occurrence est introuvable. Relancez Elyko puis contrôlez la sauvegarde locale.',
+              'La facture liée à cette occurrence est introuvable. Relancez Zentra puis contrôlez la sauvegarde locale.',
             );
             return;
           }
@@ -1697,7 +1697,7 @@ function OrderInvoiceWizard({
           ? `Créer la ${previewDocumentLabel.toLowerCase()}`
           : 'Créer la facture suivante'
       }
-      description="Le type n’est jamais choisi manuellement. Elyko décide entre situation et finale après contrôle des livraisons et allocations."
+      description="Le type n’est jamais choisi manuellement. Zentra décide entre situation et finale après contrôle des livraisons et allocations."
       onClose={close}
       wide
     >

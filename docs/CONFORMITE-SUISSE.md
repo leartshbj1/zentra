@@ -1,4 +1,4 @@
-# Matrice de conformité suisse — Elyko
+# Matrice de conformité suisse — Zentra
 
 Cette matrice sert de base de recette. Elle ne remplace ni une certification Swissdec, ni la validation d’une fiduciaire, ni le contrôle du PDF QR par le portail SIX.
 
@@ -43,33 +43,165 @@ Sources : [SIX — QR-bill](https://www.six-group.com/en/products-services/bank
 
 ## Salaires 2026
 
-Les taux nationaux 2026 sont AVS 4,35 %, AI 0,7 %, APG 0,25 % et
-AC 1,1 % jusqu’à CHF 148'200, pour le salarié comme pour l’employeur.
-La franchise AVS après l’âge de référence est de CHF 1'400 par mois et par
-employeur, soit CHF 16'800 par année complète ; la personne salariée peut y
-renoncer. Cette situation ne doit pas être déduite du sexe : la date d’âge de
-référence et la renonciation sont des données explicites.
+Les règles ci-dessous reflètent les sources officielles disponibles au
+1er septembre 2026. Tous les paramètres doivent rester versionnés par date de
+validité ; les taux de caisse, d’assureur et les barèmes cantonaux ne peuvent pas
+être remplacés par une valeur nationale supposée.
 
-Pour la LPP obligatoire, les montants 2026 sont un seuil d’entrée de
-CHF 22'680, une déduction de coordination de CHF 26'460, un salaire coordonné
-minimal de CHF 3'780 et maximal de CHF 64'260. Ces montants ne permettent pas
-d’inventer une prime : le taux, la part salariée et la part employeur restent ceux
-du règlement de la caisse, l’employeur devant financer au moins autant que
-l’ensemble de ses salariés.
+### AVS, AI, APG et AC
 
-Le gain assuré LAA est plafonné à CHF 148'200. L’assurance contre les accidents
-non professionnels s’applique lorsqu’une personne travaille au moins huit heures
-par semaine chez le même employeur. Les primes LPP, AAP/AANP, IJM, allocations
-familiales et l’impôt à la source dépendent notamment de la caisse, de
-l’assureur, du canton, de l’âge et de l’employé ; elles doivent donc être
-paramétrées explicitement avec leur source et leur période de validité. Il
-n’existe notamment aucun taux fédéral universel d’IJM à appliquer par défaut.
+- Pour chaque partie, salarié et employeur, les taux 2026 sont AVS 4,35 %,
+  AI 0,7 %, APG 0,25 % et AC 1,1 %. L’AC est prélevée jusqu’au gain annuel
+  maximal assuré de CHF 148'200.
+- L’obligation AVS/AI/APG commence le 1er janvier de l’année qui suit celle du
+  17e anniversaire. Après l’âge de référence, l’AVS/AI/APG restent dues, mais
+  pas l’AC. La date de l’âge de référence doit être une donnée explicite : le
+  relèvement transitoire prévoit 64 ans et 3 mois pour les femmes nées en 1961,
+  64 ans et 6 mois pour 1962, 64 ans et 9 mois pour 1963, puis 65 ans dès
+  l’année de naissance 1964.
+- Après l’âge de référence, la franchise est de CHF 16'800 par année civile
+  complète et par employeur. Pour une activité inférieure à un an, elle est de
+  CHF 1'400 par mois civil entier ou entamé. Le salarié peut y renoncer
+  séparément pour chaque employeur ; il doit l’annoncer au plus tard lors du
+  premier salaire concerné. La décision vaut pour toute l’année civile et est
+  reconduite si aucun changement n’est annoncé. L’année où l’âge de référence
+  est atteint, seule la part correspondant au salaire versé dès le mois suivant
+  peut bénéficier de la franchise.
+- Si le salaire d’un emploi ne dépasse pas CHF 2'500 sur l’année civile, les
+  cotisations ne sont en principe prélevées qu’à la demande de l’assuré. Le test
+  doit porter sur le cumul réel par emploi, année et employeur, pas sur une
+  extrapolation mensuelle.
+- Exceptions au salaire minime : les emplois dans un ménage sont cotisants quel
+  que soit le revenu, sauf jusqu’au 31 décembre de l’année des 25 ans lorsque le
+  salaire ne dépasse pas CHF 750 par année et par employeur ; les emplois dans
+  les domaines artistiques et médiatiques énumérés par le mémento 2.01 sont
+  toujours cotisants.
+- La déclaration de salaire AVS définitive doit parvenir à la caisse au plus tard
+  le 30 janvier suivant la fin de l’année de cotisation.
 
-Les allocations familiales minimales sont de CHF 215 par enfant et de CHF 268
-pour la formation, sous réserve de montants cantonaux plus élevés. Le seuil
-d’activité ouvrant le droit est de CHF 630 par mois ou CHF 7'560 par année. Une
-seule allocation est versée par enfant : Elyko doit donc demander une confirmation
-et ne jamais la déduire automatiquement du salaire.
+Sources : [AVS/AI — tableau synoptique, état au 1er janvier 2026](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf), [AVS/AI — mémento 2.01, état au 1er janvier 2026](https://www.ahv-iv.ch/p/2.01.f).
+
+### LPP
+
+- Les montants obligatoires valables dès le 1er janvier 2026 sont : seuil
+  d’entrée CHF 22'680, déduction de coordination CHF 26'460, limite supérieure
+  du salaire annuel CHF 90'720, salaire coordonné minimal CHF 3'780 et salaire
+  coordonné maximal CHF 64'260.
+- L’assurance obligatoire couvre d’abord les risques décès et invalidité dès le
+  1er janvier suivant le 17e anniversaire ; l’épargne vieillesse commence le
+  1er janvier suivant le 24e anniversaire. La durée du contrat, le salaire
+  annualisé et les exceptions légales doivent aussi être contrôlés.
+- Les bonifications de vieillesse légales de 7 %, 10 %, 15 % et 18 % selon
+  les classes d’âge 25–34, 35–44, 45–54 et 55–65 portent sur le salaire
+  coordonné : ce ne sont pas des retenues salariales universelles. Le règlement
+  de l’institution fixe les cotisations effectives et leur répartition ; la
+  contribution totale de l’employeur doit être au moins égale à celle de
+  l’ensemble de ses salariés.
+
+Source : [OFAS — montants AVS/AI/APG/PC/LPP valables dès le 1er janvier 2026](https://www.bsv.admin.ch/dam/fr/sd-web/sAgdISSXenMT/f_Betr%C3%A4ge%202026.pdf).
+
+### LAA, allocations familiales, IJM et impôt à la source
+
+- Sous réserve des exclusions légales, les salariés doivent être couverts pour
+  les accidents et maladies professionnels. La couverture des accidents non
+  professionnels s’applique à partir de huit heures de travail hebdomadaires
+  chez le même employeur.
+- Le gain assuré LAA est plafonné à CHF 148'200 par année, soit CHF 406 par
+  jour. La prime AAP est à la
+  charge de l’employeur ; la prime AANP est en principe à la charge du salarié,
+  sous réserve d’une convention plus favorable. Le taux réel dépend du profil
+  transmis par l’assureur, de la classe de risque et de l’année. Les assurances
+  complémentaires LAA et IJM sont contractuelles : aucun taux fédéral universel
+  ne doit être prérempli.
+- Les minima fédéraux des allocations familiales sont CHF 215 par mois pour
+  l’allocation pour enfant et CHF 268 pour l’allocation de formation. Le seuil
+  d’activité est CHF 630 par mois ou CHF 7'560 par année. Les montants, les
+  contributions CAF, les droits et l’ordre de priorité dépendent du canton et de
+  la caisse ; une seule allocation est versée par enfant. La participation du
+  salarié au financement dans le canton du Valais est de 0,13 % de la masse
+  salariale en 2026 et doit rester un paramètre cantonal daté.
+- Il n’existe pas de taux national unique d’impôt à la source. Le calcul exige
+  notamment le canton compétent, le code-barème, l’état civil, le nombre
+  d’enfants, l’appartenance religieuse lorsque pertinente, le taux d’occupation,
+  les autres activités ou revenus déterminants et la période de paie. Les barèmes
+  cantonaux officiels 2026 et leur format doivent être importés et datés ; le
+  montant retenu doit figurer sur la fiche.
+
+Sources : [Suva — personnes assurées selon la LAA](https://www.suva.ch/fr-ch/assurance/assurance-accidents/assurance-accidents-laa/assurance-accidents-qui-est-assure), [Suva — gain assuré maximal](https://www.suva.ch/fr-ch/accident/prestations-de-la-suva/prestations-en-especes), [Suva — déclaration des salaires et profil d’assurance](https://www.suva.ch/fr-ch/assurance/salaires-et-primes/declaration-des-salaires), [OFAS — allocations familiales, prestations et conditions](https://www.bsv.admin.ch/fr/allocations-familiales-prestations-et-conditions), [OFAS — montants cantonaux 2026](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf), [AFC — impôt à la source](https://www.estv.admin.ch/fr/impot-a-la-source), [AFC — publication des barèmes 2026](https://www.estv.admin.ch/fr/newnsb/oVGe4ukuBCkl).
+
+### Fiche de salaire et certificat annuel — formulaire 11
+
+Le décompte remis au salarié lors du paiement du salaire et le certificat de
+salaire annuel sont deux documents différents. L’art. 323b CO exige un décompte
+écrit lors du paiement, sans imposer un modèle graphique fédéral unique. Le
+certificat de salaire/attestation de rentes (formulaire 11) suit en revanche le
+guide AFC/CSI, valable dès le 1er janvier 2026.
+
+Exigences d’implémentation pour le formulaire 11 :
+
+- produire en principe un certificat par employé et par année civile, avec
+  l’ensemble des prestations et avantages appréciables en argent ; l’établir
+  immédiatement en cas de départ ou de décès ;
+- conserver les données d’identité, le numéro AVS et la date de naissance, la
+  période de salaire, les cases de transport/repas, les rubriques 1 à 15, les
+  totaux bruts et nets, les cotisations, l’impôt à la source, les frais, les
+  observations, le lieu, la date et la personne responsable ; le certificat est
+  signé sauf s’il est établi de manière entièrement automatisée ;
+- gérer les rectificatifs sans effacer l’original et signaler les certificats
+  multiples conformément au guide ;
+- remettre le certificat à l’employé et envoyer aussi un exemplaire directement
+  à l’administration fiscale dans les cantons de Bâle-Ville, Berne, Fribourg,
+  Jura, Neuchâtel, Soleure, Valais et Vaud. L’envoi direct est facultatif à
+  Lucerne.
+
+Sources : [Fedlex — Code des obligations](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/fr), [AFC/CSI — guide du formulaire 11 valable dès le 1er janvier 2026](https://www.estv.admin.ch/dam/fr/sd-web/afP1GDFr8gE3/dbst-form-lohna-wegleitung-2026-fr.pdf), [AFC — certificat de salaire et attestation de rentes](https://www.estv.admin.ch/fr/certificat-de-salaire-et-attestation-de-rentes).
+
+### Swissdec ELM 5 et ELM 6
+
+ELM est une norme de transmission et un programme de certification de logiciel,
+pas une certification automatique de la comptabilité salariale de l’entreprise.
+Son utilisation n’est pas une obligation légale générale : les déclarations
+restent obligatoires dans leur domaine, mais des portails ou procédures propres
+aux destinataires peuvent exister. Si ELM est utilisé, les contraintes de version
+ci-dessous s’appliquent :
+
+- ELM 4.0 pouvait encore transmettre l’impôt à la source de l’année 2025
+  jusqu’au 31 mars 2026 et les autres domaines jusqu’au 30 juin 2026. Les
+  déclarations d’impôt à la source portant sur les salaires 2026 exigent
+  ELM 5.0 ou une version ultérieure ;
+- ELM 5.1 est nécessaire pour transmettre la renonciation volontaire à la
+  franchise AVS ;
+- ELM 5.3 est nécessaire pour le cas des travailleurs frontaliers de France et
+  deviendra obligatoire pour ce cas d’usage en 2027 ;
+- Swissdec a publié les directives ELM 6.0 le 6 mars 2026 ; elles sont valables
+  depuis le 1er avril 2026 et consolident les versions mineures 5.1 à 5.5. Les
+  premières déclarations productives basées sur les nouvelles versions majeures
+  sont attendues dès janvier 2027.
+
+Conséquence produit : Zentra ne génère ni fichier ni transmission ELM et n’est
+pas un logiciel certifié Swissdec. Si une implémentation 2026 est lancée, le
+noyau de paie doit rester indépendant du schéma. ELM 5.0 suffit aux
+transmissions classiques, mais la cible produit minimale recommandée est
+ELM 5.1 afin de couvrir la renonciation à la franchise AVS, ou ELM 5.3 pour les
+frontaliers de France ; une voie ELM 6 peut être préparée en parallèle pour
+2027. Aucune mention
+« certifié Swissdec », aucun logo et aucune promesse de transmission ne doivent
+être publiés avant la certification officielle de la version exacte du produit
+et des domaines concernés, puis sa présence dans la liste Swissdec.
+
+Sources : [Swissdec — ELM](https://www.swissdec.ch/fr/elm), [Swissdec — arrêt d’ELM 4.0 et exigences 5.1/5.3](https://www.swissdec.ch/fr/abschaltung-elm-4-0), [Swissdec — publication d’ELM 6.0 et calendrier](https://www.swissdec.ch/fr/blog/normes-11/publication-des-nouvelles-versions-majeures-des-normes-swissdec-133), [Swissdec — concepteurs ERP certifiés](https://www.swissdec.ch/fr/certified-erp/), [Swissdec — destinataires de données](https://www.swissdec.ch/data-receiver).
+
+### Limites actuelles de Zentra pour la paie
+
+- La fiche de salaire PDF est un décompte interne détaillé ; elle ne remplace
+  ni le formulaire 11 annuel ni les déclarations aux caisses, assureurs et
+  autorités.
+- Zentra ne génère pas encore le formulaire 11 et ne réalise aucun envoi direct
+  aux administrations fiscales cantonales.
+- Zentra n’intègre pas un moteur officiel complet de barèmes d’impôt à la source :
+  le montant issu du barème cantonal doit être saisi et sa référence conservée.
+- Zentra ne génère et ne transmet aucune déclaration ELM et n’est certifié sur
+  aucun domaine Swissdec.
 
 Contrôles logiciels attendus :
 
@@ -83,13 +215,46 @@ Contrôles logiciels attendus :
   police d’assurance manque ;
 - fiche verrouillée après validation et correction par extourne ;
 - export et contrôle fiduciaire ;
-- aucune mention « Swissdec certifié » avant réussite de la procédure officielle ELM 6.0.
-
-Sources : [AVS/AI — taux 2026](https://www.ahv-iv.ch/fr/Formulaires/Listes-diverses/Tableau-synoptique-des-taux-de-cotisations-et-des-primes-applicables), [AVS/AI — mémento 2.01](https://www.ahv-iv.ch/p/2.01.f), [OFAS — chiffres LPP 2026](https://www.bsv.admin.ch/dam/fr/sd-web/3jZGqTLgADbl/BPP_Chiffres_85_2026.pdf), [OFAS — prestations et conditions des allocations familiales](https://www.bsv.admin.ch/fr/allocations-familiales-prestations-et-conditions), [OFSP — assurance facultative d’indemnités journalières](https://www.bag.admin.ch/fr/assurance-maladie-lassurance-facultative-dindemnites-journalieres), [Suva — qui est assuré contre les accidents](https://www.suva.ch/fr-ch/assurance/assurance-accidents/assurance-accidents-laa/assurance-accidents-qui-est-assure), [Suva — gain assuré maximal](https://www.suva.ch/fr-ch/accident/prestations-de-la-suva/prestations-en-especes), [Swissdec — standards](https://www.swissdec.ch/fr/standards).
+- aucune revendication de conformité, certification ou transmission automatique
+  tant que le contrôle ou la certification externe correspondant n’existe pas.
 
 ## Comptabilité
 
-La comptabilité doit permettre de constater les transactions et la situation économique, produire les comptes annuels et conserver les pièces comptables pendant au moins dix ans lorsque le régime complet du Code des obligations s’applique.
+Le régime complet des art. 957 et suivants CO s’applique aux personnes morales,
+sous réserve des exceptions prévues pour certaines associations et fondations,
+ainsi qu’aux entreprises individuelles et sociétés de personnes ayant réalisé
+au moins CHF 500'000 de chiffre d’affaires lors du dernier exercice. En dessous
+de CHF 500'000, ces entreprises individuelles et sociétés de personnes doivent
+au minimum tenir une comptabilité des recettes, des dépenses et du patrimoine.
+Les obligations spéciales de la forme juridique, de la fiscalité, de la TVA ou
+d’une branche restent réservées.
+
+Sous le régime complet, la comptabilité doit permettre de constater les
+transactions et la situation économique. Le rapport de gestion comprend les
+comptes annuels — bilan, compte de résultat et annexe — et doit être établi puis
+soumis à l’organe compétent dans les six mois suivant la fin de l’exercice. Un
+inventaire et les pièces justificatives sont nécessaires. Des allègements ou
+documents supplémentaires peuvent s’appliquer selon la forme et la taille ; ils
+ne doivent pas être déduits automatiquement du seul chiffre d’affaires.
+
+### Conservation CO/Olico et TVA
+
+- Les livres et pièces comptables ainsi que les rapports de gestion et de
+  révision se conservent dix ans à partir de la fin de l’exercice. Un exemplaire
+  imprimé et signé du rapport de gestion et du rapport de révision doit être
+  conservé.
+- Les supports électroniques sont admis si le lien avec les transactions est
+  garanti et si la lecture et la vérification restent possibles pendant tout le
+  délai. Un support non modifiable ne doit pas permettre une modification ou un
+  effacement indétectable.
+- Sur un support modifiable, l’intégrité doit être garantie par des procédés
+  techniques ; le moment de l’enregistrement doit pouvoir être prouvé sans
+  falsification et les protocoles, journaux de connexions et données utiles
+  doivent aussi être conservés. Une sauvegarde cloud, à elle seule, n’est pas un
+  support non modifiable.
+- Pour la TVA, les documents commerciaux en relation avec des biens immobiliers
+  se conservent vingt ans ; le délai peut se prolonger si la prescription absolue
+  de la créance fiscale n’est pas encore acquise.
 
 Contrôles logiciels attendus :
 
@@ -98,9 +263,29 @@ Contrôles logiciels attendus :
 - bilan et compte de résultat selon un plan comptable paramétrable ;
 - clôture de période et périodes verrouillées ;
 - pièces et écritures validées non supprimables ; extourne traçable ;
-- export complet pour la fiduciaire et conservation locale.
+- export complet pour la fiduciaire et conservation locale ;
+- dossier de clôture comprenant l’inventaire, les états, l’annexe légale, les
+  pièces et les validations applicables à l’entité ;
+- politique de conservation paramétrée par catégorie, date de départ, durée,
+  gel, preuve d’intégrité, test de restauration et migration lisible.
 
-Sources : [Portail PME — comptabilité obligatoire](https://www.kmu.admin.ch/fr/comptabilite-obligatoire-lobligation-de-tenir-une-comptabilite), [Portail PME — compte de résultat](https://www.kmu.admin.ch/fr/compte-de-resultat-calculer-la-performance-de-son-entreprise).
+### Limites actuelles de Zentra pour la comptabilité
+
+Zentra fournit une partie double, un journal et un grand livre, des états, des
+écritures immuables corrigées par extourne, le verrouillage de période, une
+chaîne d’audit, des pièces jointes, des sauvegardes et un dossier de clôture.
+Ces fonctions assistent un processus orienté CO/Olico, mais ne prouvent pas à
+elles seules sa conformité juridique.
+
+La version actuelle n’établit pas l’annexe légale, n’impose pas automatiquement
+les durées de conservation, ne fournit pas un support WORM ni un horodatage
+externe infalsifiable, et ne valide pas les inventaires, amortissements,
+régularisations, évaluations, décisions d’approbation ou exigences propres à
+l’entité. Un « bilan totalement conforme » ne doit donc pas être revendiqué sans
+constitution du dossier complet et validation du responsable ou de la
+fiduciaire.
+
+Sources : [Fedlex — Code des obligations, art. 957 ss](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/fr), [Portail PME — comptabilité obligatoire](https://www.kmu.admin.ch/fr/comptabilite-obligatoire-lobligation-de-tenir-une-comptabilite), [Portail PME — conservation électronique](https://www.kmu.admin.ch/fr/conservation-electronique-des-livres-de-comptes), [Fedlex — Olico](https://www.fedlex.admin.ch/eli/cc/2002/216/fr), [AFC — questions et réponses TVA sur les délais de conservation](https://www.estv.admin.ch/fr/questions-et-reponses).
 
 ## Relances
 

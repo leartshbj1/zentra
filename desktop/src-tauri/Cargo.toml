@@ -1,8 +1,8 @@
 [package]
 name = "helvichantier"
-version = "1.12.0"
-description = "Elyko - gestion d’entreprise locale et multisectorielle pour Windows"
-authors = ["Elyko"]
+version = "1.13.0"
+description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows"
+authors = ["Zentra"]
 edition = "2021"
 rust-version = "1.88"
 
@@ -11,7 +11,7 @@ name = "helvichantier_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "Elyko"
+name = "Zentra"
 path = "src/main.rs"
 
 [build-dependencies]
@@ -29,6 +29,7 @@ lopdf = "0.38"
 minisign-verify = "0.2"
 pdf-extract = "0.10"
 quick-xml = "0.41"
+qrcode = { version = "0.14", default-features = false }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream", "system-proxy"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

@@ -4,15 +4,54 @@ export type StripeAccountReadinessProblem =
   | 'price'
   | 'product'
   | 'tax'
-  | 'portal';
+  | 'portal'
+  | 'webhook';
+
+export function isTrustedStripePortalLoginUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname === 'billing.stripe.com' &&
+      !url.username &&
+      !url.password &&
+      url.pathname.startsWith('/p/login/')
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function stripePortalConfigurationIsReady(
+  portal: Stripe.BillingPortal.Configuration | undefined,
+  expectedLivemode: boolean,
+) {
+  return Boolean(
+    portal &&
+    portal.active &&
+    portal.is_default &&
+    portal.livemode === expectedLivemode &&
+    portal.login_page.enabled &&
+    isTrustedStripePortalLoginUrl(portal.login_page.url) &&
+    portal.features.invoice_history.enabled &&
+    portal.features.payment_method_update.enabled &&
+    portal.features.subscription_cancel.enabled &&
+    portal.features.subscription_cancel.mode === 'at_period_end',
+  );
+}
 
 export function stripeAccountReadinessProblem(input: {
   price: Stripe.Price;
   taxSettings: Stripe.Tax.Settings;
   portal: Stripe.BillingPortal.Configuration | undefined;
+  webhook: Stripe.WebhookEndpoint;
   expectedLivemode: boolean;
   unitAmount: number;
   taxBehavior: 'inclusive' | 'exclusive';
+  expectedWebhookUrl: string;
+  expectedApiVersion: string;
+  requiredWebhookEvents: readonly string[];
 }): StripeAccountReadinessProblem | null {
   const { price, taxSettings, portal } = input;
   if (
@@ -53,19 +92,21 @@ export function stripeAccountReadinessProblem(input: {
     return 'tax';
   }
 
-  if (
-    !portal ||
-    !portal.active ||
-    !portal.is_default ||
-    portal.livemode !== input.expectedLivemode ||
-    !portal.login_page.enabled ||
-    !portal.login_page.url ||
-    !portal.features.invoice_history.enabled ||
-    !portal.features.payment_method_update.enabled ||
-    !portal.features.subscription_cancel.enabled ||
-    portal.features.subscription_cancel.mode !== 'at_period_end'
-  ) {
+  if (!stripePortalConfigurationIsReady(portal, input.expectedLivemode)) {
     return 'portal';
+  }
+
+  const enabledEvents = new Set<string>(input.webhook.enabled_events);
+  const allEvents = enabledEvents.has('*');
+  if (
+    input.webhook.status !== 'enabled' ||
+    input.webhook.livemode !== input.expectedLivemode ||
+    input.webhook.url !== input.expectedWebhookUrl ||
+    input.webhook.api_version !== input.expectedApiVersion ||
+    (!allEvents &&
+      input.requiredWebhookEvents.some((event) => !enabledEvents.has(event)))
+  ) {
+    return 'webhook';
   }
   return null;
 }

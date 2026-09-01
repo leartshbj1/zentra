@@ -1,5 +1,8 @@
 [CmdletBinding()]
 param(
+    # Ce chemin historique contient la clé qui signe déjà les versions Elyko.
+    # Il doit rester stable pour que les anciennes installations puissent
+    # authentifier les mises à jour Zentra.
     [string] $SigningRoot = (Join-Path $env:LOCALAPPDATA 'Elyko\release-signing'),
     [string] $Endpoint = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
 )

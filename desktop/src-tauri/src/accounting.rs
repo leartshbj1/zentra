@@ -23,10 +23,10 @@ struct AccountingMap {
     bank: String,
     expense: String,
     vat_receivable: String,
-    wages_expense: String,
-    wages_payable: String,
-    social_expense: String,
-    social_payable: String,
+    wages_expense: Option<String>,
+    wages_payable: Option<String>,
+    social_expense: Option<String>,
+    social_payable: Option<String>,
     supplier_payable: Option<String>,
 }
 
@@ -53,6 +53,18 @@ type InvoicePostingRow = (
     Option<String>,
     Option<String>,
 );
+
+fn payroll_accounting_mappings_required(connection: &Connection) -> AppResult<bool> {
+    connection
+        .query_row(
+            "SELECT COALESCE(json_extract(extra_settings_json,'$.payroll.enabled'),0)=1
+                OR EXISTS(SELECT 1 FROM payslips WHERE status IN('comptabilise','paye'))
+             FROM settings WHERE id=1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(Into::into)
+}
 
 impl LocalStore {
     pub fn list_accounting_periods(&self) -> AppResult<Value> {
@@ -408,7 +420,7 @@ impl LocalStore {
                 }
                 if actual_name.trim() != name {
                     return Err(AppError::Validation(format!(
-                        "Le compte {code} existe déjà sous le nom « {actual_name} ». Elyko refuse de lui attribuer automatiquement le rôle « {name} » : choisissez vos comptes de liaison manuellement."
+                        "Le compte {code} existe déjà sous le nom « {actual_name} ». Zentra refuse de lui attribuer automatiquement le rôle « {name} » : choisissez vos comptes de liaison manuellement."
                     )));
                 }
                 tx.execute(
@@ -472,26 +484,35 @@ impl LocalStore {
                     .into(),
             ));
         }
-        let ids = [
+        let payroll_mappings_required = payroll_accounting_mappings_required(&tx)?;
+        let mut ids = vec![
             input.ar_account_id.as_deref(),
             input.revenue_account_id.as_deref(),
             input.vat_payable_account_id.as_deref(),
             input.bank_account_id.as_deref(),
             input.expense_account_id.as_deref(),
             input.vat_receivable_account_id.as_deref(),
-            input.wages_expense_account_id.as_deref(),
-            input.wages_payable_account_id.as_deref(),
-            input.social_expense_account_id.as_deref(),
-            input.social_payable_account_id.as_deref(),
             effective_supplier_payable.as_deref(),
         ];
+        if payroll_mappings_required {
+            ids.extend([
+                input.wages_expense_account_id.as_deref(),
+                input.wages_payable_account_id.as_deref(),
+                input.social_expense_account_id.as_deref(),
+                input.social_payable_account_id.as_deref(),
+            ]);
+        }
         if input.enabled
             && ids.iter().any(|id| match id {
                 None => true,
                 Some(value) => value.trim().is_empty(),
             })
         {
-            return Err(AppError::Validation("Tous les comptes de liaison doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()));
+            return Err(AppError::Validation(if payroll_mappings_required {
+                "Les onze comptes de liaison doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
+            } else {
+                "Les sept comptes de liaison hors paie doivent être explicitement sélectionnés avant d'activer la comptabilité.".into()
+            }));
         }
         for id in ids.iter().flatten() {
             let active: bool = tx
@@ -506,7 +527,7 @@ impl LocalStore {
             }
         }
         if input.enabled {
-            for (id, expected, label) in [
+            let mut typed_mappings = vec![
                 (input.ar_account_id.as_deref(), "asset", "ar_account_id"),
                 (
                     input.revenue_account_id.as_deref(),
@@ -530,31 +551,36 @@ impl LocalStore {
                     "vat_receivable_account_id",
                 ),
                 (
-                    input.wages_expense_account_id.as_deref(),
-                    "expense",
-                    "wages_expense_account_id",
-                ),
-                (
-                    input.wages_payable_account_id.as_deref(),
-                    "liability",
-                    "wages_payable_account_id",
-                ),
-                (
-                    input.social_expense_account_id.as_deref(),
-                    "expense",
-                    "social_expense_account_id",
-                ),
-                (
-                    input.social_payable_account_id.as_deref(),
-                    "liability",
-                    "social_payable_account_id",
-                ),
-                (
                     effective_supplier_payable.as_deref(),
                     "liability",
                     "supplier_payable_account_id",
                 ),
-            ] {
+            ];
+            if payroll_mappings_required {
+                typed_mappings.extend([
+                    (
+                        input.wages_expense_account_id.as_deref(),
+                        "expense",
+                        "wages_expense_account_id",
+                    ),
+                    (
+                        input.wages_payable_account_id.as_deref(),
+                        "liability",
+                        "wages_payable_account_id",
+                    ),
+                    (
+                        input.social_expense_account_id.as_deref(),
+                        "expense",
+                        "social_expense_account_id",
+                    ),
+                    (
+                        input.social_payable_account_id.as_deref(),
+                        "liability",
+                        "social_payable_account_id",
+                    ),
+                ]);
+            }
+            for (id, expected, label) in typed_mappings {
                 let Some(id) = id.filter(|value| !value.trim().is_empty()) else {
                     return Err(AppError::Validation(format!(
                         "{label} doit être sélectionné."
@@ -571,6 +597,11 @@ impl LocalStore {
                     )));
                 }
             }
+            validate_core_mapping_role_separation(
+                input.ar_account_id.as_deref(),
+                input.bank_account_id.as_deref(),
+                input.vat_receivable_account_id.as_deref(),
+            )?;
         }
         let now = now_iso();
         tx.execute(
@@ -864,7 +895,8 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         [],
         |row| row.get(0),
     )?;
-    let mapping_ready: bool = connection.query_row(
+    let payroll_mappings_required = payroll_accounting_mappings_required(connection)?;
+    let mapping_ready_sql = if payroll_mappings_required {
         "SELECT EXISTS(SELECT 1 FROM accounting_settings s
             JOIN accounts ar ON ar.id=s.ar_account_id AND ar.active=1 AND ar.account_type='asset'
             JOIN accounts rev ON rev.id=s.revenue_account_id AND rev.active=1 AND rev.account_type='revenue'
@@ -877,10 +909,25 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
             JOIN accounts social_expense ON social_expense.id=s.social_expense_account_id AND social_expense.active=1 AND social_expense.account_type='expense'
             JOIN accounts social_payable ON social_payable.id=s.social_payable_account_id AND social_payable.active=1 AND social_payable.account_type='liability'
             JOIN accounts supplier_payable ON supplier_payable.id=s.supplier_payable_account_id AND supplier_payable.active=1 AND supplier_payable.account_type='liability'
-            WHERE s.id=1 AND s.enabled=1)",
-        [],
-        |row| row.get(0),
-    )?;
+            WHERE s.id=1 AND s.enabled=1
+              AND s.bank_account_id<>s.ar_account_id
+              AND s.bank_account_id<>s.vat_receivable_account_id
+              AND s.ar_account_id<>s.vat_receivable_account_id)"
+    } else {
+        "SELECT EXISTS(SELECT 1 FROM accounting_settings s
+            JOIN accounts ar ON ar.id=s.ar_account_id AND ar.active=1 AND ar.account_type='asset'
+            JOIN accounts rev ON rev.id=s.revenue_account_id AND rev.active=1 AND rev.account_type='revenue'
+            JOIN accounts vatp ON vatp.id=s.vat_payable_account_id AND vatp.active=1 AND vatp.account_type='liability'
+            JOIN accounts bank ON bank.id=s.bank_account_id AND bank.active=1 AND bank.account_type='asset'
+            JOIN accounts expense ON expense.id=s.expense_account_id AND expense.active=1 AND expense.account_type='expense'
+            JOIN accounts vatr ON vatr.id=s.vat_receivable_account_id AND vatr.active=1 AND vatr.account_type='asset'
+            JOIN accounts supplier_payable ON supplier_payable.id=s.supplier_payable_account_id AND supplier_payable.active=1 AND supplier_payable.account_type='liability'
+            WHERE s.id=1 AND s.enabled=1
+              AND s.bank_account_id<>s.ar_account_id
+              AND s.bank_account_id<>s.vat_receivable_account_id
+              AND s.ar_account_id<>s.vat_receivable_account_id)"
+    };
+    let mapping_ready: bool = connection.query_row(mapping_ready_sql, [], |row| row.get(0))?;
     let configured_mappings: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM accounting_settings WHERE enabled=1 OR ar_account_id IS NOT NULL OR revenue_account_id IS NOT NULL OR vat_payable_account_id IS NOT NULL OR bank_account_id IS NOT NULL OR expense_account_id IS NOT NULL OR vat_receivable_account_id IS NOT NULL OR wages_expense_account_id IS NOT NULL OR wages_payable_account_id IS NOT NULL OR social_expense_account_id IS NOT NULL OR social_payable_account_id IS NOT NULL OR supplier_payable_account_id IS NOT NULL)",
         [],
@@ -1436,6 +1483,54 @@ pub(crate) fn post_payslip_if_enabled(
     let Some(map) = accounting_map(tx)? else {
         return Ok(None);
     };
+    let wages_expense = map.wages_expense.as_deref().ok_or_else(|| {
+        AppError::Validation(
+            "Le compte de charges salariales doit être configuré avant de comptabiliser une fiche de salaire."
+                .into(),
+        )
+    })?;
+    let wages_payable = map.wages_payable.as_deref().ok_or_else(|| {
+        AppError::Validation(
+            "Le compte de salaires à payer doit être configuré avant de comptabiliser une fiche de salaire."
+                .into(),
+        )
+    })?;
+    let social_expense = map.social_expense.as_deref().ok_or_else(|| {
+        AppError::Validation(
+            "Le compte de charges sociales doit être configuré avant de comptabiliser une fiche de salaire."
+                .into(),
+        )
+    })?;
+    let social_payable = map.social_payable.as_deref().ok_or_else(|| {
+        AppError::Validation(
+            "Le compte de cotisations à payer doit être configuré avant de comptabiliser une fiche de salaire."
+                .into(),
+        )
+    })?;
+    validate_account_type(
+        tx,
+        wages_expense,
+        &["expense"],
+        "Le compte de charges salariales",
+    )?;
+    validate_account_type(
+        tx,
+        wages_payable,
+        &["liability"],
+        "Le compte de salaires à payer",
+    )?;
+    validate_account_type(
+        tx,
+        social_expense,
+        &["expense"],
+        "Le compte de charges sociales",
+    )?;
+    validate_account_type(
+        tx,
+        social_payable,
+        &["liability"],
+        "Le compte de cotisations à payer",
+    )?;
     let (gross,deductions,net,employer,employee):(i64,i64,i64,i64,String)=tx.query_row("SELECT gross_cents,deductions_cents,net_cents,employer_costs_cents,employee_id FROM payslips WHERE id=?",params![payslip_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
     let reimbursements: i64 = tx.query_row(
         "SELECT COALESCE(SUM(amount_cents),0) FROM payslip_items WHERE payslip_id=? AND kind='reimbursement'",
@@ -1461,7 +1556,7 @@ pub(crate) fn post_payslip_if_enabled(
     let mut fallbacks = Vec::new();
     push_line(
         &mut lines,
-        &map.wages_expense,
+        wages_expense,
         gross,
         0,
         &currency,
@@ -1473,7 +1568,7 @@ pub(crate) fn post_payslip_if_enabled(
     if net > 0 {
         push_line(
             &mut lines,
-            &map.wages_payable,
+            wages_payable,
             0,
             net,
             &currency,
@@ -1509,7 +1604,7 @@ pub(crate) fn post_payslip_if_enabled(
         let liability = liability_account_id
             .as_deref()
             .filter(|account| !account.trim().is_empty())
-            .unwrap_or(&map.social_payable);
+            .unwrap_or(social_payable);
         validate_account_type(
             tx,
             liability,
@@ -1523,7 +1618,7 @@ pub(crate) fn post_payslip_if_enabled(
             fallbacks.push(json!({
                 "contribution": label,
                 "field": "liability_account_id",
-                "account_id": map.social_payable,
+                "account_id": social_payable,
                 "reason": "Compte créancier non figé : utilisation du compte général de cotisations dues."
             }));
         }
@@ -1565,7 +1660,7 @@ pub(crate) fn post_payslip_if_enabled(
                 let expense = expense_account_id
                     .as_deref()
                     .filter(|account| !account.trim().is_empty())
-                    .unwrap_or(&map.social_expense);
+                    .unwrap_or(social_expense);
                 validate_account_type(
                     tx,
                     expense,
@@ -1579,7 +1674,7 @@ pub(crate) fn post_payslip_if_enabled(
                     fallbacks.push(json!({
                         "contribution": label,
                         "field": "expense_account_id",
-                        "account_id": map.social_expense,
+                        "account_id": social_expense,
                         "reason": "Compte de charge non figé : utilisation du compte général de charges sociales."
                     }));
                 }
@@ -1973,22 +2068,6 @@ fn accounting_map(tx: &Transaction<'_>) -> AppResult<Option<AccountingMap>> {
             (&map.bank, "asset", "Le compte bancaire"),
             (&map.expense, "expense", "Le compte de charges"),
             (&map.vat_receivable, "asset", "Le compte de TVA préalable"),
-            (
-                &map.wages_expense,
-                "expense",
-                "Le compte de charges salariales",
-            ),
-            (&map.wages_payable, "liability", "Le compte de salaires dus"),
-            (
-                &map.social_expense,
-                "expense",
-                "Le compte de charges sociales",
-            ),
-            (
-                &map.social_payable,
-                "liability",
-                "Le compte de cotisations dues",
-            ),
         ] {
             validate_account_type(tx, account_id, &[expected_type], label)?;
         }
@@ -2000,6 +2079,11 @@ fn accounting_map(tx: &Transaction<'_>) -> AppResult<Option<AccountingMap>> {
                 "Le compte de dettes fournisseurs",
             )?;
         }
+        validate_core_mapping_role_separation(
+            Some(map.ar.as_str()),
+            Some(map.bank.as_str()),
+            Some(map.vat_receivable.as_str()),
+        )?;
     }
     Ok(map)
 }
@@ -2047,6 +2131,22 @@ fn post_entry_with_reversal(
         return Err(AppError::Validation(format!(
             "Écriture déséquilibrée : débits {debit}, crédits {credit}."
         )));
+    }
+    if source_type != "manual" && reversal_of.is_none() {
+        let mut sides = std::collections::BTreeMap::<&str, (i64, i64)>::new();
+        for line in &lines {
+            let totals = sides.entry(line.account_id.as_str()).or_default();
+            totals.0 = totals.0.saturating_add(line.debit_cents);
+            totals.1 = totals.1.saturating_add(line.credit_cents);
+        }
+        if let Some((account_id, _)) = sides
+            .iter()
+            .find(|(_, (account_debit, account_credit))| *account_debit > 0 && *account_credit > 0)
+        {
+            return Err(AppError::Validation(format!(
+                "L'écriture automatique utiliserait le même compte {account_id} au débit et au crédit. Corrigez les comptes de liaison avant de poursuivre."
+            )));
+        }
     }
     for line in &lines {
         if line.debit_cents < 0
@@ -2108,7 +2208,7 @@ fn post_entry_with_reversal(
             || existing_lines != lines
         {
             return Err(AppError::Validation(format!(
-                "Une écriture existe déjà pour {source_type}/{source_id}/{source_event}, mais sa date, son libellé ou ses lignes diffèrent. Elyko bloque la reprise pour éviter une fausse idempotence."
+                "Une écriture existe déjà pour {source_type}/{source_id}/{source_event}, mais sa date, son libellé ou ses lignes diffèrent. Zentra bloque la reprise pour éviter une fausse idempotence."
             )));
         }
         return journal_entry_json(tx, &existing);
@@ -2133,6 +2233,35 @@ fn post_entry_with_reversal(
         tx.execute("INSERT INTO journal_lines(id,journal_entry_id,account_id,debit_cents,credit_cents,currency,memo,project_id,client_id,employee_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),id,line.account_id,line.debit_cents,line.credit_cents,line.currency,line.memo,line.project_id,line.client_id,line.employee_id,now])?;
     }
     journal_entry_json(tx, &id)
+}
+
+fn validate_core_mapping_role_separation(
+    ar_account_id: Option<&str>,
+    bank_account_id: Option<&str>,
+    vat_receivable_account_id: Option<&str>,
+) -> AppResult<()> {
+    let roles = [
+        (ar_account_id, "Créances clients"),
+        (bank_account_id, "Banque"),
+        (vat_receivable_account_id, "TVA préalable"),
+    ];
+    for left in 0..roles.len() {
+        for right in (left + 1)..roles.len() {
+            if roles[left]
+                .0
+                .zip(roles[right].0)
+                .is_some_and(|(left_id, right_id)| {
+                    !left_id.trim().is_empty() && left_id == right_id
+                })
+            {
+                return Err(AppError::Validation(format!(
+                    "Les liaisons « {} » et « {} » doivent utiliser deux comptes distincts.",
+                    roles[left].1, roles[right].1
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn journal_entry_json(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
@@ -2586,6 +2715,7 @@ fn semantic_posting_mismatches_in_range(
                 account_has_type(connection, account, "asset").unwrap_or(false)
             })
             && ar.is_some()
+            && bank != ar
             && original.len() == 1
             && ar == original_ar;
         if !valid {
@@ -2646,7 +2776,8 @@ fn semantic_posting_mismatches_in_range(
             })
             && bank.is_some_and(|account| {
                 account_has_type(connection, account, "asset").unwrap_or(false)
-            });
+            })
+            && (vat == 0 || vat_line != bank);
         if !valid {
             mismatches += 1;
         }

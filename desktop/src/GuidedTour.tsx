@@ -52,7 +52,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'dashboard',
     eyebrow: 'Bienvenue',
     title: 'Votre activité réelle, au même endroit',
-    text: 'Elyko démarre vide. Les indicateurs se construisent uniquement à partir de vos clients, projets, heures, documents et paiements. Commencez par l’action utile à votre entreprise.',
+    text: 'Zentra démarre vide. Les indicateurs se construisent uniquement à partir de vos clients, projets, heures, documents et paiements. Commencez par l’action utile à votre entreprise.',
     target: '.topbar__title',
   },
   {
@@ -84,7 +84,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'quotes',
     eyebrow: 'Vente',
     title: 'Passez du devis accepté à la facture',
-    text: 'Émettez le devis, enregistrez son acceptation puis convertissez-le. Elyko conserve la liaison et empêche une double conversion.',
+    text: 'Émettez le devis, enregistrez son acceptation puis convertissez-le. Zentra conserve la liaison et empêche une double conversion.',
     target: '.page-header',
   },
   {
@@ -92,7 +92,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'orders',
     eyebrow: 'Facturation récurrente',
     title: 'Planifiez, puis contrôlez chaque brouillon',
-    text: 'Ouvrez une commande confirmée en CHF composée de prestations directes, choisissez son rythme et son délai de paiement. Elyko prépare les échéances localement quand l’application est ouverte, sans jamais les émettre, les envoyer ou les comptabiliser seul.',
+    text: 'Ouvrez une commande confirmée en CHF composée de prestations directes, choisissez son rythme et son délai de paiement. Zentra prépare les échéances localement quand l’application est ouverte, sans jamais les émettre, les envoyer ou les comptabiliser seul.',
     target: '.page-header',
   },
   {
@@ -108,7 +108,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'reminders',
     eyebrow: 'Relances',
     title: 'Traitez les échéances sans perdre le contrôle',
-    text: 'Elyko identifie les factures concernées selon vos niveaux de relance. Vérifiez les montants, dates et destinataires avant l’envoi.',
+    text: 'Zentra identifie les factures concernées selon vos niveaux de relance. Vérifiez les montants, dates et destinataires avant l’envoi.',
     target: '.reminder-toolbar',
   },
   {
@@ -124,7 +124,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'team',
     eyebrow: 'Équipe et paie',
     title: 'Importez, contrôlez puis confirmez',
-    text: 'La lecture documentaire fonctionne sur ce PC et prépare un brouillon. Elyko signale les incohérences ; vous confirmez la personne, la période et chaque montant avant l’enregistrement.',
+    text: 'La lecture documentaire fonctionne sur ce PC et prépare un brouillon. Zentra signale les incohérences ; vous confirmez la personne, la période et chaque montant avant l’enregistrement.',
     target: '.payroll-panel',
   },
   {
@@ -140,7 +140,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'bank',
     eyebrow: 'Banque locale',
     title: 'Importez un CAMT, puis confirmez',
-    text: 'Elyko lit le relevé XML sur ce PC et propose des rapprochements. Associez explicitement le compte et confirmez chaque opération.',
+    text: 'Zentra lit le relevé XML sur ce PC et propose des rapprochements. Associez explicitement le compte et confirmez chaque opération.',
     target: '.bank-hero',
   },
   {
@@ -148,7 +148,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'reports',
     eyebrow: 'Pilotage',
     title: 'Lisez des rapports issus de vos saisies',
-    text: 'Les marges et durées apparaissent seulement lorsque des données réelles existent. Elyko affiche les bases de calcul pour faciliter le contrôle.',
+    text: 'Les marges et durées apparaissent seulement lorsque des données réelles existent. Zentra affiche les bases de calcul pour faciliter le contrôle.',
     target: '.page-header',
   },
   {
@@ -163,7 +163,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     id: 'settings',
     view: 'settings',
     eyebrow: 'Sécurité et maintenance',
-    title: 'Sauvegardez et maintenez Elyko',
+    title: 'Sauvegardez et maintenez Zentra',
     text: 'Réglez l’identité de l’entreprise, les paramètres métier et les sauvegardes. Le bloc de maintenance recherche et installe les mises à jour signées sans désinstallation manuelle.',
     target: '.app-updater',
   },

@@ -123,7 +123,7 @@ describe('Stripe environment guardrails', () => {
 });
 
 describe('Paid invoice entitlement', () => {
-  it('uses the exact non-prorated Elyko invoice-line period', () => {
+  it('uses the exact non-prorated Zentra invoice-line period', () => {
     expect(
       paidThroughFromInvoice(
         paidInvoice({ period_end: 1_999_999_999 }),
@@ -232,7 +232,7 @@ describe('Paid invoice entitlement', () => {
       },
     ],
   ])(
-    'rejects an invoice that cannot prove a paid Elyko period',
+    'rejects an invoice that cannot prove a paid Zentra period',
     (invoice, line) => {
       expect(
         paidThroughFromInvoice(paidInvoice(invoice, line), expectedInvoice),

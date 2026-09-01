@@ -107,7 +107,7 @@ pub(crate) fn resolve_statement_scope(
 }
 
 /// Refuse monetary aggregation whenever lines use a different currency from the local books.
-/// Elyko has no exchange-rate ledger yet, so silently treating EUR cents as CHF cents would make
+/// Zentra has no exchange-rate ledger yet, so silently treating EUR cents as CHF cents would make
 /// the statements materially wrong.
 pub(crate) fn ensure_base_currency_for_ranges(
     connection: &Connection,
@@ -120,7 +120,7 @@ pub(crate) fn ensure_base_currency_for_ranges(
     )?;
     if base_currency != "CHF" {
         return Err(AppError::Validation(format!(
-            "Clôture bloquée : la monnaie de tenue est {base_currency}. Elyko ne produit pas encore les contre-valeurs CHF et la documentation des cours de conversion requises pour des comptes suisses."
+            "Clôture bloquée : la monnaie de tenue est {base_currency}. Zentra ne produit pas encore les contre-valeurs CHF et la documentation des cours de conversion requises pour des comptes suisses."
         )));
     }
 

@@ -169,7 +169,7 @@ export function ClosingFolder({
 
     <section className="closing-workflow" aria-labelledby="closing-workflow-title">
       <header>
-        <div><span>Deux étapes vérifiables</span><h3 id="closing-workflow-title">Préparer, contrôler, puis verrouiller</h3><p>Chaque contrôle reçoit une empreinte SHA-256. Si une écriture, une pièce ou un réglage change, Elyko refuse d’utiliser l’ancien contrôle.</p></div>
+        <div><span>Deux étapes vérifiables</span><h3 id="closing-workflow-title">Préparer, contrôler, puis verrouiller</h3><p>Chaque contrôle reçoit une empreinte SHA-256. Si une écriture, une pièce ou un réglage change, Zentra refuse d’utiliser l’ancien contrôle.</p></div>
         <Button disabled={busy || !period || !filter.dateFrom || !filter.dateTo} onClick={() => void prepareReview()}><Fingerprint size={16} /> {review ? 'Repréparer le contrôle' : 'Préparer le contrôle'}</Button>
       </header>
       {!period ? <div className="closing-inline-warning"><AlertTriangle size={18} /><p>Enregistrez puis sélectionnez un exercice exact pour créer une pré-clôture traçable.</p></div> : null}

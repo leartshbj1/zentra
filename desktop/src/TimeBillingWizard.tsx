@@ -92,7 +92,7 @@ export function TimeBillingWizard({
   return (
     <Modal
       title="Facturer les heures"
-      description="Choisissez les heures approuvées. Elyko crée une facture brouillon et réserve chaque saisie pour empêcher toute double facturation."
+      description="Choisissez les heures approuvées. Zentra crée une facture brouillon et réserve chaque saisie pour empêcher toute double facturation."
       onClose={close}
       wide
     >

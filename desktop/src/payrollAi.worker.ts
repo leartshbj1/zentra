@@ -7,9 +7,7 @@ import {
   load_image,
 } from '@huggingface/transformers';
 import type { ProgressInfo } from '@huggingface/transformers';
-
-const MODEL_ID = 'HuggingFaceTB/SmolVLM-500M-Instruct';
-const MODEL_VERSION = 'a7da5b986cb59b408707209984f360a5f4ad7e47';
+import { PAYROLL_AI_MODEL_ID as MODEL_ID, PAYROLL_AI_MODEL_REVISION as MODEL_VERSION } from './payrollAiModel';
 
 type WorkerRequest =
   | { type: 'check' }
@@ -107,7 +105,7 @@ async function analyze(requestId: string, imageUrls: string[] = [], extractedTex
       [processor, model] = await getEngine();
     } catch (error) {
       // Une coupure réseau ou un cache incomplet ne doit pas condamner toutes
-      // les relances jusqu'au prochain redémarrage d'Elyko.
+      // les relances jusqu'au prochain redémarrage de Zentra.
       resetEngine();
       throw error;
     }

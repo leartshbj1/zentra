@@ -40,7 +40,7 @@ export function stripeSecretKeyLivemode(secretKey: string): boolean | null {
   return null;
 }
 
-export type ElykoInvoiceValidation = {
+export type ZentraInvoiceValidation = {
   subscriptionId: string;
   priceId: string;
   unitAmount: number;
@@ -48,7 +48,7 @@ export type ElykoInvoiceValidation = {
 };
 
 /**
- * Returns the exact service-period end covered by a paid Elyko invoice.
+ * Returns the exact service-period end covered by a paid Zentra invoice.
  *
  * This deliberately never relies on the Subscription's current period. Stripe
  * can deliver an old invoice event after the Subscription has already moved to
@@ -56,7 +56,7 @@ export type ElykoInvoiceValidation = {
  */
 export function paidThroughFromInvoice(
   invoice: Stripe.Invoice,
-  expected: ElykoInvoiceValidation,
+  expected: ZentraInvoiceValidation,
 ): number | null {
   if (
     invoice.status !== 'paid' ||

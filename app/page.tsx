@@ -28,7 +28,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
-import { BrandMark } from '@/components/brand-mark';
+import { BrandWordmark } from '@/components/brand-mark';
 import { BusinessOperationsDemo } from '@/components/business-operations-demo';
 import { CapabilityStory } from '@/components/capability-story';
 import { HeroDashboard } from '@/components/hero-dashboard';
@@ -40,7 +40,7 @@ import { RecurrenceDemo } from '@/components/recurrence-demo';
 import { ReminderDemo } from '@/components/reminder-demo';
 import { VatClosingDemo } from '@/components/vat-closing-demo';
 import { ProductFlowDemo } from './product-flow-demo';
-import { ELYKO_VERSION } from '@/lib/downloads';
+import { ZENTRA_VERSION } from '@/lib/downloads';
 import { cn } from '@/lib/utils';
 
 const features = [
@@ -120,7 +120,7 @@ const localPromises = [
   {
     icon: LockKeyhole,
     title: 'Aucun espace cloud métier',
-    text: 'L’application n’envoie pas vos données d’entreprise vers un serveur Elyko.',
+    text: 'L’application n’envoie pas vos données d’entreprise vers un serveur Zentra.',
   },
 ];
 
@@ -203,7 +203,7 @@ const capabilityRows = [
   [
     'Paie suisse',
     'Assistée localement',
-    'Import OCR/IA local, calculs contrôlés et PDF; Elyko n’est pas certifié Swissdec.',
+    'Import OCR/IA local, calculs contrôlés et PDF; Zentra n’est pas certifié Swissdec.',
   ],
   [
     'Import paie multipage',
@@ -237,10 +237,9 @@ export default function Home() {
           <a
             href="#accueil"
             className="flex min-h-11 items-center gap-2.5"
-            aria-label="Elyko, accueil"
+            aria-label="Zentra, accueil"
           >
-            <BrandMark className="size-9 shadow-sm" />
-            <span className="font-semibold tracking-[-0.03em]">Elyko</span>
+            <BrandWordmark className="w-[6.9rem]" />
           </a>
           <nav
             className="hidden items-center gap-6 text-sm text-[#4f5c54] lg:flex"
@@ -259,10 +258,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-112"
+              href="#lot-113"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.12
+              Nouveautés 1.13
             </a>
             <a
               href="#capacites"
@@ -296,7 +295,7 @@ export default function Home() {
               )}
             >
               <span className="sr-only min-[390px]:not-sr-only">
-                Télécharger Elyko
+                Télécharger Zentra
               </span>
               <FileDown className="size-4 shrink-0" />
             </a>
@@ -310,11 +309,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-112"
+            href="#lot-113"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.12 · relances de factures supervisées
+            Zentra 1.13 · identité, paie locale et gestion renforcées
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -323,7 +322,7 @@ export default function Home() {
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
             Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
-            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;: Elyko
+            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;: Zentra
             centralise votre gestion dans une application Windows, tandis que
             vos données métier restent sur votre PC.
           </p>
@@ -335,7 +334,7 @@ export default function Home() {
                 'h-12 rounded-full bg-[#e79b2f] px-6 text-[#1f281f] shadow-[0_10px_30px_rgba(201,117,21,.2)] hover:bg-[#f1aa42]',
               )}
             >
-              Télécharger Elyko <ArrowRight className="size-4" />
+              Télécharger Zentra <ArrowRight className="size-4" />
             </a>
             <a
               href="#logiciel"
@@ -344,7 +343,7 @@ export default function Home() {
                 'hidden h-12 rounded-full border-[#cfcabf] bg-white/60 px-6 sm:inline-flex',
               )}
             >
-              Voir Elyko en action
+              Voir Zentra en action
             </a>
           </div>
           <a
@@ -382,26 +381,26 @@ export default function Home() {
       </section>
 
       <section
-        id="lot-112"
+        id="lot-113"
         className="scroll-mt-24 border-y border-[#d4ddd6] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
-        aria-labelledby="lot-112-title"
+        aria-labelledby="lot-113-title"
       >
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
-                Elyko 1.12 · relances supervisées
+                Relances de factures supervisées
               </p>
               <h2
-                id="lot-112-title"
+                id="lot-113-title"
                 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
               >
                 Les relances avancent. Vous gardez le dernier mot.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#637168] lg:justify-self-end">
-              Elyko détecte localement les factures échues, prépare le bon
+              Zentra détecte localement les factures échues, prépare le bon
               niveau et revérifie le solde juste avant l’action. Vous relisez le
               document, choisissez le canal et confirmez vous-même l’envoi.
             </p>
@@ -431,7 +430,7 @@ export default function Home() {
                 icon: CircleStop,
                 eyebrow: 'Aucun automatisme risqué',
                 title: 'Ni e-mail ni poursuite sans vous.',
-                text: 'Le contrôle fonctionne quand Elyko est ouvert. L’application ne lance jamais seule une démarche de recouvrement.',
+                text: 'Le contrôle fonctionne quand Zentra est ouvert. L’application ne lance jamais seule une démarche de recouvrement.',
               },
             ].map(({ icon: Icon, eyebrow, title, text }) => (
               <article
@@ -459,13 +458,13 @@ export default function Home() {
               juridiquement en demeure. Les modèles conseillés n’ajoutent ni
               frais ni intérêt automatiquement ; le taux légal de 5&nbsp;% ne
               doit être appliqué qu’après vérification des conditions du cas.
-              Elyko n’engage aucune poursuite.
+              Zentra n’engage aucune poursuite.
             </p>
             <a
               href="/telecharger"
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 font-semibold text-white transition hover:bg-[#24563f]"
             >
-              <MailCheck className="size-4" /> Télécharger Elyko {ELYKO_VERSION}
+              <MailCheck className="size-4" /> Télécharger Zentra {ZENTRA_VERSION}
             </a>
           </div>
         </div>
@@ -481,18 +480,18 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Elyko 1.11 · facturation récurrente supervisée
+                Zentra 1.11 · facturation récurrente supervisée
               </p>
               <h2
                 id="lot-111-title"
                 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
               >
-                Planifiez. Elyko prépare. Vous décidez.
+                Planifiez. Zentra prépare. Vous décidez.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6f6659] lg:justify-self-end">
               À partir d’une commande de prestations confirmée, choisissez un
-              rythme mensuel, trimestriel ou annuel. Aux dates prévues, Elyko
+              rythme mensuel, trimestriel ou annuel. Aux dates prévues, Zentra
               crée uniquement des brouillons locaux&nbsp;: vous gardez la main
               sur l’émission, le QR, l’envoi et la comptabilisation.
             </p>
@@ -516,7 +515,7 @@ export default function Home() {
                 icon: HardDrive,
                 eyebrow: 'Automatisation locale',
                 title: 'Les échéances sont préparées sur ce PC.',
-                text: 'Elyko vérifie les modèles actifs au démarrage et pendant son utilisation. Aucun service cloud ne fabrique vos factures.',
+                text: 'Zentra vérifie les modèles actifs au démarrage et pendant son utilisation. Aucun service cloud ne fabrique vos factures.',
               },
               {
                 icon: ShieldCheck,
@@ -549,7 +548,7 @@ export default function Home() {
                 Toujours local et contrôlé.
               </strong>{' '}
               Le planning, les modèles et les brouillons restent dans la base
-              locale Elyko. La démonstration ci-dessus fonctionne uniquement
+              locale Zentra. La démonstration ci-dessus fonctionne uniquement
               dans votre navigateur&nbsp;: elle n’enregistre et n’envoie aucune
               donnée, et ne crée aucune facture réelle.
             </p>
@@ -557,7 +556,7 @@ export default function Home() {
               href="/telecharger"
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 font-semibold text-white transition hover:bg-[#24563f]"
             >
-              Télécharger Elyko {ELYKO_VERSION}{' '}
+              Télécharger Zentra {ZENTRA_VERSION}{' '}
               <ArrowRight className="size-4" />
             </a>
           </div>
@@ -576,7 +575,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
-                Elyko 1.9 · TVA suisse et bouclement
+                Zentra 1.9 · TVA suisse et bouclement
               </p>
               <h2
                 id="lot-19-title"
@@ -621,7 +620,7 @@ export default function Home() {
               </h3>
               <p className="mt-3 text-sm leading-7 text-[#6f6455]">
                 Le XML est destiné à l’import manuel dans Décompte TVA pro. Le
-                dossier soutient un processus orienté CO/Olico, mais Elyko ne
+                dossier soutient un processus orienté CO/Olico, mais Zentra ne
                 revendique ni transmission AFC, ni acceptation, ni
                 certification.
               </p>
@@ -640,7 +639,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
-                Elyko 1.8 · nouveau cycle fournisseur
+                Zentra 1.8 · nouveau cycle fournisseur
               </p>
               <h2
                 id="lot-18-title"
@@ -732,7 +731,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.76fr_1.24fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
-                Elyko 1.7 · nouveau flux de vente
+                Zentra 1.7 · nouveau flux de vente
               </p>
               <h2
                 id="lot-17-title"
@@ -742,7 +741,7 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
-              Depuis la version 1.7, Elyko relie le devis, la commande, la
+              Depuis la version 1.7, Zentra relie le devis, la commande, la
               réservation, le bon de livraison et la facture. Chaque écran
               montre une seule prochaine action et conserve les corrections dans
               l’audit.
@@ -784,7 +783,7 @@ export default function Home() {
                 La facture suit uniquement ce qui est livrable.
               </h3>
               <p className="mt-4 text-sm leading-7 text-[#606c64]">
-                Pour les lignes à livrer, Elyko propose les quantités livrées et
+                Pour les lignes à livrer, Zentra propose les quantités livrées et
                 non encore facturées. Une livraison partielle prépare une
                 situation; les prestations directes restent facturables sans BL.
               </p>
@@ -804,7 +803,7 @@ export default function Home() {
           </div>
 
           <p className="mt-5 rounded-2xl border border-[#c9d9cd] bg-[#eef7f0] px-5 py-4 text-sm leading-6 text-[#315e47]">
-            Inclus dans Elyko {ELYKO_VERSION}. La facturation progressive porte
+            Inclus dans Zentra {ZENTRA_VERSION}. La facturation progressive porte
             actuellement sur les quantités livrées pour les articles concernés;
             les prestations directes n’exigent pas de BL. Les acomptes libres
             par montant ou pourcentage seront ajoutés dans un lot distinct.
@@ -824,7 +823,7 @@ export default function Home() {
                 Explorez l’interface
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                Voyez exactement comment Elyko travaille.
+                Voyez exactement comment Zentra travaille.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#66736b] lg:justify-self-end">
@@ -880,7 +879,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Disponible dans Elyko
+                Disponible dans Zentra
               </p>
               <h2
                 id="catalogue-achats-title"
@@ -960,7 +959,7 @@ export default function Home() {
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#efb157]/35 bg-[#efb157]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.1em] text-[#f2bd6d]">
                   <span className="size-1.5 rounded-full bg-[#efb157]" />
-                  Disponible dans Elyko {ELYKO_VERSION}
+                  Disponible dans Zentra {ZENTRA_VERSION}
                 </span>
                 <Landmark
                   className="mt-7 size-7 text-[#efb157]"
@@ -973,7 +972,7 @@ export default function Home() {
               <div>
                 <p className="text-base leading-7 text-white/75">
                   Importez sur votre PC les relevés CAMT.053 ou CAMT.054 de
-                  votre banque. Elyko détecte les doublons et propose les
+                  votre banque. Zentra détecte les doublons et propose les
                   factures clients correspondant aux crédits et les factures
                   fournisseurs correspondant aux débits. Un CAMT.054 reste en
                   revue&nbsp;: aucun paiement ne peut être confirmé sans le
@@ -1040,7 +1039,7 @@ export default function Home() {
             </div>
             <div className="max-w-2xl lg:justify-self-end">
               <p className="text-lg leading-8 text-[#68736c]">
-                Importez plusieurs PDF ou images. Elyko lit d’abord le texte
+                Importez plusieurs PDF ou images. Zentra lit d’abord le texte
                 disponible, puis peut utiliser SmolVLM localement pour proposer
                 les champs, associer la fiche à un collaborateur et préparer une
                 fiche « à contrôler ».
@@ -1084,7 +1083,7 @@ export default function Home() {
           </div>
           <p className="mt-5 text-xs leading-5 text-[#7a746b]">
             Le modèle officiel SmolVLM-500M-Instruct utilisé ici n’est pas
-            spécifiquement affiné pour la paie suisse. Elyko n’est pas certifié
+            spécifiquement affiné pour la paie suisse. Zentra n’est pas certifié
             Swissdec.
           </p>
         </div>
@@ -1176,7 +1175,7 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-white/76 lg:justify-self-end">
-              Elyko installe l’application et sa base sur votre ordinateur. La
+              Zentra installe l’application et sa base sur votre ordinateur. La
               gestion quotidienne ne dépend pas d’un navigateur ni d’une
               connexion permanente. Internet sert uniquement à la première
               activation, au renouvellement de licence et aux mises à jour.
@@ -1242,7 +1241,7 @@ export default function Home() {
           <div className="grid gap-7 lg:grid-cols-[.76fr_1.24fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Ce que fait vraiment Elyko
+                Ce que fait vraiment Zentra
               </p>
               <h2
                 id="capacites-title"
@@ -1259,7 +1258,7 @@ export default function Home() {
           </div>
           <div
             className="capability-table mt-10 overflow-x-auto rounded-[24px] border border-[#d4dad5] bg-white sm:mt-14"
-            aria-label="Tableau des capacités Elyko"
+            aria-label="Tableau des capacités Zentra"
           >
             <table className="w-full min-w-[760px] border-collapse text-left">
               <thead>
@@ -1328,7 +1327,7 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
-              Elyko conserve l’origine des informations à chaque étape. Le devis
+              Zentra conserve l’origine des informations à chaque étape. Le devis
               avec produits devient une commande; la réservation, le BL, la
               facture et le paiement restent reliés. Une prestation simple peut
               conserver le flux direct. L’utilisateur confirme les étapes
@@ -1387,11 +1386,11 @@ export default function Home() {
             ))}
           </div>
           <p className="mt-5 rounded-2xl border border-[#e1d4c0] bg-[#fff9ef] px-5 py-4 text-sm leading-6 text-[#70562f]">
-            Elyko facture progressivement le livré des lignes concernées; les
+            Zentra facture progressivement le livré des lignes concernées; les
             prestations simples peuvent rester en facture directe. Les acomptes
             définis par montant ou pourcentage et l’envoi automatique des
             relances restent des étapes suivantes. L’import manuel du XML TVA
-            est disponible; Elyko ne transmet rien à l’AFC.
+            est disponible; Zentra ne transmet rien à l’AFC.
           </p>
           <div className="mt-10 flex flex-col items-start justify-between gap-5 rounded-[24px] bg-[#173d2c] p-6 text-white sm:flex-row sm:items-center sm:p-8">
             <div>
@@ -1531,7 +1530,7 @@ export default function Home() {
               Un prix simple
             </p>
             <h2 className="mt-4 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">
-              Tout Elyko. 50 CHF par mois.
+              Tout Zentra. 50 CHF par mois.
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#5f6962]">
               Une licence Windows pour gérer l’activité, avec les mises à jour
@@ -1547,8 +1546,10 @@ export default function Home() {
                 <span className="pb-1 text-sm text-[#5f6962]">/ mois</span>
               </div>
               <p className="mt-3 text-sm text-[#5f6962]">
-                Montant mensuel fixé côté serveur et encaissé sur la page
-                sécurisée Stripe.
+                Montant mensuel fixé côté serveur, taxes comprises lorsqu’elles
+                sont applicables, et encaissé sur la page sécurisée Stripe.
+                Renouvellement automatique chaque mois, résiliable depuis le
+                portail client pour la fin de la période en cours.
               </p>
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {[
@@ -1580,10 +1581,10 @@ export default function Home() {
               <div>
                 <Laptop className="size-7 text-[#efaa3c]" />
                 <h3 className="mt-6 text-2xl font-semibold tracking-tight">
-                  L’application Elyko pour Windows.
+                  L’application Zentra pour Windows.
                 </h3>
                 <p className="mt-4 text-sm leading-6 text-white/75">
-                  Téléchargez Elyko, souscrivez sur la page sécurisée Stripe
+                  Téléchargez Zentra, souscrivez sur la page sécurisée Stripe
                   puis validez une fois la licence signée sur votre PC. Seul le
                   jeton de licence est vérifié en ligne&nbsp;: vos données
                   métier ne quittent pas l’ordinateur.
@@ -1595,10 +1596,10 @@ export default function Home() {
                   href="/telecharger"
                   className="flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 text-center text-sm font-semibold leading-5 text-white"
                 >
-                  Télécharger Elyko <FileDown className="size-4 shrink-0" />
+                  Télécharger Zentra <FileDown className="size-4 shrink-0" />
                 </a>
                 <a
-                  href="mailto:leartshabija@gmail.com?subject=Activer%20Elyko"
+                  href="mailto:leartshabija@gmail.com?subject=Activer%20Zentra"
                   className="flex min-h-12 items-center justify-center rounded-full border border-white/15 px-5 py-3 text-center text-sm font-semibold leading-5 text-white"
                 >
                   Contacter le service commercial
@@ -1635,8 +1636,8 @@ export default function Home() {
           <div className="divide-y divide-[#ddd8cd]">
             {[
               [
-                'Sur quels appareils Elyko fonctionne-t-il ?',
-                'Elyko est disponible pour Windows 10 et Windows 11 64 bits. L’application fonctionne dans sa propre fenêtre et la gestion quotidienne ne dépend pas d’un onglet de navigateur.',
+                'Sur quels appareils Zentra fonctionne-t-il ?',
+                'Zentra est disponible pour Windows 10 et Windows 11 64 bits. L’application fonctionne dans sa propre fenêtre et la gestion quotidienne ne dépend pas d’un onglet de navigateur.',
               ],
               [
                 'Où sont enregistrées mes données ?',
@@ -1667,20 +1668,20 @@ export default function Home() {
                 'Oui. Vous pouvez importer localement des relevés CAMT.053 et CAMT.054 v04/v08. Les CAMT.054 servent à la revue; le CAMT.053 définitif est exigé avant de confirmer un crédit client ou un débit fournisseur. Aucune suggestion ne crée un paiement automatiquement.',
               ],
               [
-                'Elyko envoie-t-il les relances automatiquement ?',
-                'Non. Elyko prépare localement une relance à contrôler. Vous pouvez demander l’ouverture d’un e-mail prérempli dans votre logiciel de messagerie, imprimer le courrier ou confirmer un envoi déjà réalisé. Aucun e-mail ne part seul, et Elyko ne prétend pas qu’un brouillon a été créé si Windows ne l’ouvre pas.',
+                'Zentra envoie-t-il les relances automatiquement ?',
+                'Non. Zentra prépare localement une relance à contrôler. Vous pouvez demander l’ouverture d’un e-mail prérempli dans votre logiciel de messagerie, imprimer le courrier ou confirmer un envoi déjà réalisé. Aucun e-mail ne part seul, et Zentra ne prétend pas qu’un brouillon a été créé si Windows ne l’ouvre pas.',
               ],
               [
                 'Que se passe-t-il lorsque l’application est fermée ?',
-                'Il n’existe pas de serveur Elyko qui surveille vos factures. Le contrôle reprend au prochain démarrage ou retour dans l’application, puis toutes les décisions restent à valider.',
+                'Il n’existe pas de serveur Zentra qui surveille vos factures. Le contrôle reprend au prochain démarrage ou retour dans l’application, puis toutes les décisions restent à valider.',
               ],
               [
                 'Une facture payée peut-elle encore être relancée ?',
-                'Elyko revérifie le solde après les paiements et avoirs. Si le solde est nul, la relance ouverte est arrêtée avant la préparation ou l’envoi.',
+                'Zentra revérifie le solde après les paiements et avoirs. Si le solde est nul, la relance ouverte est arrêtée avant la préparation ou l’envoi.',
               ],
               [
                 'Trois rappels sont-ils obligatoires en Suisse ?',
-                'Non, il n’existe pas de règle générale imposant trois rappels avant une poursuite. Une échéance dépassée ne suffit pas non plus toujours à établir la demeure. Elyko fournit un cycle pratique, sans remplacer l’examen du contrat ni un conseil juridique.',
+                'Non, il n’existe pas de règle générale imposant trois rappels avant une poursuite. Une échéance dépassée ne suffit pas non plus toujours à établir la demeure. Zentra fournit un cycle pratique, sans remplacer l’examen du contrat ni un conseil juridique.',
               ],
               [
                 'Des frais ou intérêts sont-ils ajoutés automatiquement ?',
@@ -1691,12 +1692,12 @@ export default function Home() {
                 'Non. Il prépare localement les éléments avec les montants et taux que vous contrôlez, mais ne transmet pas de déclaration ELM. Une validation par votre fiduciaire reste indispensable.',
               ],
               [
-                'Elyko transmet-il un décompte TVA à l’AFC ?',
-                'Non. Elyko génère localement un XML eCH-0217 v2.0.0 pour import manuel dans Décompte TVA pro. L’utilisateur vérifie, complète et soumet ensuite dans le Portail AFC; aucune transmission, acceptation ou certification n’est garantie par Elyko.',
+                'Zentra transmet-il un décompte TVA à l’AFC ?',
+                'Non. Zentra génère localement un XML eCH-0217 v2.0.0 pour import manuel dans Décompte TVA pro. L’utilisateur vérifie, complète et soumet ensuite dans le Portail AFC; aucune transmission, acceptation ou certification n’est garantie par Zentra.',
               ],
               [
                 'Le bilan affiché constitue-t-il une clôture légale automatique ?',
-                'Non. Elyko propose une revue SHA-256, un verrouillage explicite et un ZIP DRAFT ou FINAL contenant les états et contrôles. Le processus soutient une organisation orientée CO/Olico, mais ne constitue pas une certification Olico; inventaires, amortissements, régularisations, annexe et décisions restent à valider par le responsable ou la fiduciaire.',
+                'Non. Zentra propose une revue SHA-256, un verrouillage explicite et un ZIP DRAFT ou FINAL contenant les états et contrôles. Le processus soutient une organisation orientée CO/Olico, mais ne constitue pas une certification Olico; inventaires, amortissements, régularisations, annexe et décisions restent à valider par le responsable ou la fiduciaire.',
               ],
             ].map(([question, answer]) => (
               <details key={question} className="group py-3">
@@ -1720,7 +1721,7 @@ export default function Home() {
               Prêt à travailler avec vos vrais chiffres&nbsp;?
             </p>
             <h2 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight tracking-[-.045em] sm:text-4xl">
-              Installez Elyko sur votre PC Windows.
+              Installez Zentra sur votre PC Windows.
             </h2>
           </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0">
@@ -1728,10 +1729,10 @@ export default function Home() {
               href="/telecharger"
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
             >
-              Télécharger Elyko <ArrowRight className="size-4" />
+              Télécharger Zentra <ArrowRight className="size-4" />
             </a>
             <a
-              href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Elyko"
+              href="mailto:leartshabija@gmail.com?subject=Demande%20de%20devis%20Zentra"
               className="inline-flex h-12 items-center justify-center rounded-full border border-[#173d2c]/20 px-6 text-sm font-semibold"
             >
               Demander une offre
@@ -1743,8 +1744,7 @@ export default function Home() {
       <footer className="border-t border-[#ddd8cd] px-5 py-8 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs text-[#5f6962] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <BrandMark className="size-7 shrink-0" />
-            <strong className="text-[#27382e]">Elyko</strong>
+            <BrandWordmark className="w-20 shrink-0" />
             <span className="basis-full leading-5 min-[430px]:basis-auto">
               Gestion d’entreprise multisectorielle suisse sur Windows
             </span>

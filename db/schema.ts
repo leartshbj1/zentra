@@ -94,6 +94,15 @@ export const stripeEvents = sqliteTable(
   ],
 );
 
+export const stripeWebhookProofs = sqliteTable('stripe_webhook_proofs', {
+  endpointId: text('endpoint_id').primaryKey(),
+  secretSha256: text('secret_sha256').notNull(),
+  livemode: integer('livemode', { mode: 'boolean' }).notNull(),
+  apiVersion: text('api_version').notNull(),
+  lastVerifiedEventId: text('last_verified_event_id').notNull(),
+  verifiedAt: integer('verified_at').notNull(),
+});
+
 export const checkoutRateLimits = sqliteTable(
   'checkout_rate_limits',
   {

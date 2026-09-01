@@ -1,7 +1,12 @@
 import Stripe from 'stripe';
+import { LICENSE_PLAN, LICENSE_PRICE_CHF_CENTS } from '@/lib/license-constants';
+import { RequestBodyError } from '@/lib/request-body';
 import { database, stripeConfiguration } from '@/lib/runtime';
-import { stripeAccountReadinessProblem } from '@/lib/stripe-account';
-import { buildElykoCheckoutParams } from '@/lib/stripe-checkout';
+import {
+  stripeAccountReadinessProblem,
+  stripePortalConfigurationIsReady,
+} from '@/lib/stripe-account';
+import { buildZentraCheckoutParams } from '@/lib/stripe-checkout';
 import {
   CLAIM_STRIPE_EVENT_SQL,
   COMPLETE_STRIPE_EVENT_SQL,
@@ -10,6 +15,7 @@ import {
   UPSERT_SUBSCRIPTION_SQL,
 } from '@/lib/stripe-sql';
 import { constructVerifiedStripeEvent } from '@/lib/stripe-webhook';
+import { UPSERT_STRIPE_WEBHOOK_PROOF_SQL } from '@/lib/stripe-webhook-proof';
 import {
   paidThroughFromInvoice,
   stripeReferenceId,
@@ -18,11 +24,23 @@ import {
   type StripeReference,
 } from '@/lib/stripe-event';
 
-export const LICENSE_PLAN = 'elyko-monthly-50-chf';
-export const LICENSE_PRICE_CHF_CENTS = 5_000;
+export { LICENSE_PLAN, LICENSE_PRICE_CHF_CENTS } from '@/lib/license-constants';
 export const ACTIVATION_COOKIE = 'hc_activation_claim';
 export const STRIPE_API_VERSION = '2026-08-26.dahlia';
 export const STRIPE_PRICE_TAX_BEHAVIOR = 'inclusive';
+export const REQUIRED_STRIPE_WEBHOOK_EVENTS = [
+  'customer.created',
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+  'invoice.paid',
+  'invoice.payment_failed',
+  'invoice.payment_action_required',
+  'invoice.finalization_failed',
+  'invoice.marked_uncollectible',
+  'invoice.voided',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+] as const;
 
 export type StripeCheckoutSession = Stripe.Checkout.Session;
 export type StripeSubscription = Stripe.Subscription;
@@ -38,11 +56,12 @@ export class PublicError extends Error {
 }
 
 export function jsonError(reason: unknown) {
-  const status = reason instanceof PublicError ? reason.status : 500;
-  const message =
-    reason instanceof PublicError
-      ? reason.message
-      : 'Le service de paiement est momentanément indisponible.';
+  const publicReason =
+    reason instanceof PublicError || reason instanceof RequestBodyError;
+  const status = publicReason ? reason.status : 500;
+  const message = publicReason
+    ? reason.message
+    : 'Le service de paiement est momentanément indisponible.';
   return Response.json(
     { error: message },
     { status, headers: noStoreHeaders() },
@@ -106,10 +125,10 @@ async function stripeOperation<T>(name: string, action: () => Promise<T>) {
 export async function createCheckoutSession(origin: string, claimHash: string) {
   const { priceId } = stripeConfiguration();
   if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
-    throw new PublicError('Le prix Stripe Elyko n’est pas configuré.', 503);
+    throw new PublicError('Le prix Stripe Zentra n’est pas configuré.', 503);
   const session = await stripeOperation('checkout.sessions.create', () =>
     stripe().checkout.sessions.create(
-      buildElykoCheckoutParams({
+      buildZentraCheckoutParams({
         origin,
         claimHash,
         priceId,
@@ -151,36 +170,74 @@ export async function retrieveInvoice(invoiceId: string) {
   );
 }
 
-export async function assertConfiguredStripeAccount() {
-  const { priceId, secretKey } = stripeConfiguration();
-  const expectedLivemode = stripeSecretKeyLivemode(secretKey);
-  if (expectedLivemode === null)
-    throw new PublicError('La clé serveur Stripe est invalide.', 503);
-  if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
-    throw new PublicError('Le prix Stripe Elyko n’est pas configuré.', 503);
-
-  const [price, taxSettings, portalConfigurations] = await Promise.all([
-    stripeOperation('prices.retrieve', () =>
-      stripe().prices.retrieve(priceId, { expand: ['product'] }),
-    ),
-    stripeOperation('tax.settings.retrieve', () =>
-      stripe().tax.settings.retrieve(),
-    ),
-    stripeOperation('billingPortal.configurations.list', () =>
+async function defaultStripePortalConfiguration() {
+  const configurations = await stripeOperation(
+    'billingPortal.configurations.list',
+    () =>
       stripe().billingPortal.configurations.list({
         active: true,
         is_default: true,
         limit: 1,
       }),
-    ),
-  ]);
+  );
+  return configurations.data[0];
+}
+
+export async function assertConfiguredStripePortalLoginUrl() {
+  const expectedLivemode = stripeSecretKeyLivemode(
+    stripeConfiguration().secretKey,
+  );
+  if (expectedLivemode === null)
+    throw new PublicError('La clé serveur Stripe est invalide.', 503);
+  const portal = await defaultStripePortalConfiguration();
+  if (!stripePortalConfigurationIsReady(portal, expectedLivemode)) {
+    throw new PublicError(
+      'Le portail client Stripe doit permettre la connexion par e-mail, les factures, le moyen de paiement et la résiliation en fin de période.',
+      503,
+    );
+  }
+  return portal!.login_page.url!;
+}
+
+export async function assertConfiguredStripeAccount() {
+  const { priceId, secretKey, siteUrl, webhookEndpointId } =
+    stripeConfiguration();
+  const expectedLivemode = stripeSecretKeyLivemode(secretKey);
+  if (expectedLivemode === null)
+    throw new PublicError('La clé serveur Stripe est invalide.', 503);
+  if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
+    throw new PublicError('Le prix Stripe Zentra n’est pas configuré.', 503);
+  if (!/^we_[A-Za-z0-9_]+$/.test(webhookEndpointId))
+    throw new PublicError(
+      'L’endpoint webhook Stripe n’est pas configuré.',
+      503,
+    );
+
+  const [price, taxSettings, portalConfigurations, webhook] = await Promise.all(
+    [
+      stripeOperation('prices.retrieve', () =>
+        stripe().prices.retrieve(priceId, { expand: ['product'] }),
+      ),
+      stripeOperation('tax.settings.retrieve', () =>
+        stripe().tax.settings.retrieve(),
+      ),
+      defaultStripePortalConfiguration(),
+      stripeOperation('webhookEndpoints.retrieve', () =>
+        stripe().webhookEndpoints.retrieve(webhookEndpointId),
+      ),
+    ],
+  );
   const readinessProblem = stripeAccountReadinessProblem({
     price,
     taxSettings,
-    portal: portalConfigurations.data[0],
+    portal: portalConfigurations,
+    webhook,
     expectedLivemode,
     unitAmount: LICENSE_PRICE_CHF_CENTS,
     taxBehavior: STRIPE_PRICE_TAX_BEHAVIOR,
+    expectedWebhookUrl: `${siteUrl.replace(/\/$/, '')}/api/stripe/webhook`,
+    expectedApiVersion: STRIPE_API_VERSION,
+    requiredWebhookEvents: REQUIRED_STRIPE_WEBHOOK_EVENTS,
   });
   if (readinessProblem) {
     throw new PublicError(
@@ -188,10 +245,15 @@ export async function assertConfiguredStripeAccount() {
         ? 'Stripe Tax n’est pas entièrement activé.'
         : readinessProblem === 'portal'
           ? 'Le portail client Stripe doit permettre la connexion par e-mail, les factures, le moyen de paiement et la résiliation en fin de période.'
-          : 'Le produit Stripe Elyko doit être actif, facturé 50 CHF par mois, taxe comprise, avec un code fiscal explicite.',
+          : readinessProblem === 'webhook'
+            ? 'Le webhook Stripe doit être actif, lié à cette adresse Zentra, utiliser la version API attendue et recevoir tous les événements obligatoires.'
+            : 'Le produit Stripe Zentra doit être actif, facturé 50 CHF par mois, taxe comprise, avec un code fiscal explicite.',
       503,
     );
   }
+  return {
+    portalLoginUrl: portalConfigurations!.login_page.url!,
+  };
 }
 
 export async function createPortalSession(
@@ -228,14 +290,14 @@ export function validatePaidSubscription(
     throw new PublicError('Le premier paiement n’est pas confirmé.', 402);
   if (session.metadata?.plan !== LICENSE_PLAN) {
     throw new PublicError(
-      'Cet abonnement ne correspond pas au produit Elyko.',
+      'Cet abonnement ne correspond pas au produit Zentra.',
       403,
     );
   }
-  return validateActiveElykoSubscription(subscription);
+  return validateActiveZentraSubscription(subscription);
 }
 
-export function validateActiveElykoSubscription(
+export function validateActiveZentraSubscription(
   subscription: StripeSubscription,
 ) {
   if (subscription.status !== 'active')
@@ -243,7 +305,7 @@ export function validateActiveElykoSubscription(
   const item = elykoSubscriptionItem(subscription);
   if (!item) {
     throw new PublicError(
-      'L’abonnement ne correspond pas au plan Elyko à 50 CHF/mois.',
+      'L’abonnement ne correspond pas au plan Zentra à 50 CHF/mois.',
       403,
     );
   }
@@ -280,14 +342,14 @@ function elykoSubscriptionItem(subscription: StripeSubscription) {
   return item.current_period_end ? item : null;
 }
 
-export function validatePaidElykoInvoice(
+export function validatePaidZentraInvoice(
   invoice: Stripe.Invoice,
   subscription: StripeSubscription,
 ) {
   const item = elykoSubscriptionItem(subscription);
   if (!item) {
     throw new PublicError(
-      'La facture ne correspond pas au produit Elyko.',
+      'La facture ne correspond pas au produit Zentra.',
       403,
     );
   }
@@ -299,7 +361,7 @@ export function validatePaidElykoInvoice(
   });
   if (!paidThrough) {
     throw new PublicError(
-      'La facture Stripe ne couvre pas une période Elyko payée valide.',
+      'La facture Stripe ne couvre pas une période Zentra payée valide.',
       402,
     );
   }
@@ -393,7 +455,7 @@ export async function assertActivationClaim(
     attempt.expires_at < Math.floor(Date.now() / 1000)
   ) {
     throw new PublicError(
-      'Cette demande d’activation a expiré. Contactez le support Elyko.',
+      'Cette demande d’activation a expiré. Contactez le support Zentra.',
       401,
     );
   }
@@ -509,6 +571,32 @@ export async function verifyStripeEvent(
   }
 }
 
+export async function recordVerifiedStripeWebhook(event: StripeEvent) {
+  const { secretKey, webhookSecret, webhookEndpointId } = stripeConfiguration();
+  const expectedLivemode = stripeSecretKeyLivemode(secretKey);
+  if (
+    expectedLivemode === null ||
+    event.livemode !== expectedLivemode ||
+    event.api_version !== STRIPE_API_VERSION ||
+    !/^evt_[A-Za-z0-9_]+$/.test(event.id) ||
+    !/^we_[A-Za-z0-9_]+$/.test(webhookEndpointId) ||
+    !/^whsec_[A-Za-z0-9]+$/.test(webhookSecret)
+  ) {
+    throw new PublicError('La preuve du webhook Stripe est invalide.', 503);
+  }
+  await database()
+    .prepare(UPSERT_STRIPE_WEBHOOK_PROOF_SQL)
+    .bind(
+      webhookEndpointId,
+      await sha256(webhookSecret),
+      expectedLivemode ? 1 : 0,
+      STRIPE_API_VERSION,
+      event.id,
+      Math.floor(Date.now() / 1000),
+    )
+    .run();
+}
+
 export async function upsertSubscription(
   subscription: StripeSubscription,
   session: StripeCheckoutSession | null = null,
@@ -523,7 +611,7 @@ export async function upsertSubscription(
   const item = elykoSubscriptionItem(subscription);
   if (!item)
     throw new PublicError(
-      'Cet abonnement ne correspond pas au produit Elyko.',
+      'Cet abonnement ne correspond pas au produit Zentra.',
       403,
     );
   await database()
@@ -619,12 +707,15 @@ export async function persistStripeEvent(event: StripeEvent) {
         : null;
       const paidThrough =
         event.type === 'invoice.paid' && invoice
-          ? validatePaidElykoInvoice(invoice, subscription)
+          ? validatePaidZentraInvoice(invoice, subscription)
           : undefined;
       const paidInvoiceId = paidThrough ? invoice?.id : undefined;
       const isFailure = [
         'invoice.payment_failed',
+        'invoice.payment_action_required',
         'invoice.finalization_failed',
+        'invoice.marked_uncollectible',
+        'invoice.voided',
       ].includes(event.type);
       await upsertSubscription(subscription, session, {
         paidInvoiceId,

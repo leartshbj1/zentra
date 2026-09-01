@@ -56,7 +56,7 @@ Sources primaires : [OFAS, aperçu des cotisations](https://www.bsv.admin.ch/fr/
   la facture est un brouillon, puis il est figé dans la base et dans le snapshot
   documentaire à l'émission. Une facture émise issue d'une ancienne version et
   dépourvue de QR peut recevoir une première valeur, ensuite figée et auditée.
-- Le profil QRR d’Elyko est volontairement limité au CHF. Le backend
+- Le profil QRR de Zentra est volontairement limité au CHF. Le backend
   produit le payload SPC 2.3 mais pas le QR
   graphique/PDF; l'UI doit encoder en mode binaire, correction `M`, taille
   imprimée 46 x 46 mm avec la croix suisse officielle.
@@ -71,10 +71,13 @@ Sources primaires : [SIX QR-facture](https://www.six-group.com/fr/products-servi
   Windows (ou dans le chemin local absolu explicitement fourni par
   `HELVICHANTIER_DATA_DIR`).
 - `HELVICHANTIER_DATA_DIR` est un réglage local de développement/support. Quand
-  il pointe hors de `APPLOCALDATA`, Elyko ajoute au protocole d’aperçu uniquement
+  il pointe hors de `APPLOCALDATA`, Zentra ajoute au protocole d’aperçu uniquement
   le dossier exact `attachments/branding`, sans récursion et sans donner accès au
   reste du profil ni au disque. Les logos y sont toujours validés puis copiés sous
   un nom immuable dérivé de leur SHA-256 avant affichage.
+- Le nom `HELVICHANTIER_DATA_DIR` est conservé comme identifiant technique
+  historique afin de ne pas casser les postes et scripts de support existants;
+  il ne correspond plus au nom commercial, qui est Zentra.
 - Le backend ne contient aucun client HTTP, aucune télémétrie, aucun envoi de
   relance et aucune donnée métier de démonstration. `sent_manually` est seulement
   une trace locale déclarative.

@@ -98,7 +98,7 @@ export function buildClosingChecks(input: {
       label: 'Affectation des résultats antérieurs',
       detail: balance?.unallocatedPriorResultsCents === 0
         ? 'Aucun résultat historique non affecté n’est détecté hors de l’exercice.'
-        : 'Un résultat antérieur subsiste dans les comptes de charges/produits. Contrôlez son affectation aux fonds propres; Elyko ne la comptabilise pas automatiquement.',
+        : 'Un résultat antérieur subsiste dans les comptes de charges/produits. Contrôlez son affectation aux fonds propres; Zentra ne la comptabilise pas automatiquement.',
     },
     {
       id: 'comparison',

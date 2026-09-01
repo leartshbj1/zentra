@@ -21,6 +21,7 @@ mod project_planning;
 mod recurrence;
 mod reminders;
 mod sales_fulfillment;
+mod sales_pdf;
 mod schema;
 mod stock;
 mod supplier_invoices;
@@ -173,6 +174,7 @@ pub fn run() {
             post_payslip,
             pay_payslip,
             generate_payslip_pdf,
+            generate_sales_document_pdf,
             stage_payroll_documents,
             list_payroll_document_imports,
             get_payroll_document_preview,
@@ -206,7 +208,7 @@ pub fn run() {
             open_data_folder,
         ])
         .run(tauri::generate_context!())
-        .expect("Elyko n'a pas pu démarrer");
+        .expect("Zentra n'a pas pu démarrer");
 }
 
 #[cfg(test)]
@@ -226,21 +228,22 @@ mod tests {
             ApplySupplierCreditInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
             CancelSupplierOrderRemainderInput, CancelSupplierOrderRemainderLineInput,
             ConfirmSupplierOrderInput, ContributionDefinitionInput, ContributionSelectionInput,
-            ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, InstallReminderCycleInput,
-            IssueSupplierReceiptInput, ManualJournalInput, ManualJournalLineInput,
-            MarkReminderInput, OnboardingInput, PayPayslipInput, PayslipManualLineInput,
-            PeriodFilter, PostPayslipInput, ReclassifySupplierInvoiceExpenseInput,
-            RecordPaymentInput, RecordSupplierPaymentInput, ReminderActionInput,
-            ReminderPreviewInput, ReminderSettingsInput, ReminderTemplateInput,
-            ReverseSupplierCreditAllocationInput, ReverseSupplierReceiptInput,
-            SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SavePayslipWithContributionsInput,
-            SaveSupplierCreditNoteDraftInput, SaveSupplierInvoiceDraftInput,
-            SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput,
-            SaveSupplierReceiptDraftInput, ScanRemindersInput, StockCorrectionInput,
-            StockEntryInput, StockExitInput, SupplierExpenseReclassificationLineInput,
-            SupplierInvoiceLineInput, SupplierInvoiceMatchAllocationInput, SupplierOrderDraftInput,
-            SupplierOrderLineInput, SupplierReceiptDraftInput, SupplierReceiptLineInput,
-            SwissQrBillInput, SwissQrParty, ValidateSupplierCreditNoteInput,
+            ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, GenerateSalesDocumentPdfInput,
+            InstallReminderCycleInput, IssueSupplierReceiptInput, ManualJournalInput,
+            ManualJournalLineInput, MarkReminderInput, OnboardingInput, PayPayslipInput,
+            PayslipManualLineInput, PeriodFilter, PostPayslipInput,
+            ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
+            ReminderActionInput, ReminderPreviewInput, ReminderSettingsInput,
+            ReminderTemplateInput, ReverseSupplierCreditAllocationInput,
+            ReverseSupplierReceiptInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
+            SavePayslipWithContributionsInput, SaveSupplierCreditNoteDraftInput,
+            SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput,
+            SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput, ScanRemindersInput,
+            StockCorrectionInput, StockEntryInput, StockExitInput,
+            SupplierExpenseReclassificationLineInput, SupplierInvoiceLineInput,
+            SupplierInvoiceMatchAllocationInput, SupplierOrderDraftInput, SupplierOrderLineInput,
+            SupplierReceiptDraftInput, SupplierReceiptLineInput, SwissQrBillInput, SwissQrParty,
+            ValidateSupplierCreditNoteInput,
         },
         schema::{BUSINESS_TABLES, SCHEMA_SQL, SCHEMA_VERSION},
     };
@@ -295,6 +298,17 @@ mod tests {
             .to_owned()
     }
 
+    fn test_client(name: &str) -> serde_json::Value {
+        json!({
+            "name": name,
+            "address_line1": "Rue du Client",
+            "address_line2": "7",
+            "postal_code": "1000",
+            "city": "Lausanne",
+            "country": "CH"
+        })
+    }
+
     fn initialized_store() -> (tempfile::TempDir, LocalStore) {
         let temporary = tempfile::tempdir().expect("temporary directory");
         let store = LocalStore::initialize(temporary.path().join("profile"))
@@ -308,7 +322,7 @@ mod tests {
     fn time_billing_fixture(store: &LocalStore) -> (String, String, String) {
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client heures"}))
+                .create_record("clients", test_client("Client heures"))
                 .unwrap(),
         );
         let project_id = value_id(
@@ -450,16 +464,23 @@ mod tests {
             bill: SwissQrBillInput {
                 iban: "CH4431999123000889012".into(),
                 creditor: SwissQrParty {
-                    name: "Robert Schneider AG".into(),
-                    street: "Rue du Lac".into(),
-                    building_number: "1268".into(),
-                    postal_code: "2501".into(),
-                    city: "Biel".into(),
+                    name: "Entreprise de test".into(),
+                    street: "Adresse de test".into(),
+                    building_number: "17B".into(),
+                    postal_code: "1000".into(),
+                    city: "Ville test".into(),
                     country: "CH".into(),
                 },
                 amount_cents: Some(194_900),
                 currency: "CHF".into(),
-                debtor: None,
+                debtor: Some(SwissQrParty {
+                    name: "Client QR".into(),
+                    street: "Rue du Client".into(),
+                    building_number: "7".into(),
+                    postal_code: "1000".into(),
+                    city: "Lausanne".into(),
+                    country: "CH".into(),
+                }),
                 reference_type: "QRR".into(),
                 reference: "210000000003139471430009017".into(),
                 unstructured_message: message.into(),
@@ -590,6 +611,139 @@ mod tests {
             })
             .expect("configure accounting");
         a
+    }
+
+    #[test]
+    fn accounting_requires_seven_core_mappings_until_payroll_is_enabled() {
+        let (_temporary, store) = initialized_store();
+        let accounts = accounting_accounts(&store);
+        let core_only = || AccountingSettingsInput {
+            enabled: true,
+            ar_account_id: Some(accounts["ar"].clone()),
+            revenue_account_id: Some(accounts["revenue"].clone()),
+            vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+            bank_account_id: Some(accounts["bank"].clone()),
+            expense_account_id: Some(accounts["expense"].clone()),
+            vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
+            wages_expense_account_id: None,
+            wages_payable_account_id: None,
+            social_expense_account_id: None,
+            social_payable_account_id: None,
+            supplier_payable_account_id: Some(accounts["supplier_payable"].clone()),
+        };
+
+        store.configure_accounting(core_only()).unwrap();
+        assert_eq!(
+            store.get_accounting_continuity().unwrap()["mapping_ready"],
+            true
+        );
+        let mut duplicated_asset_role = core_only();
+        duplicated_asset_role.bank_account_id = duplicated_asset_role.ar_account_id.clone();
+        let duplicate_error = store
+            .configure_accounting(duplicated_asset_role)
+            .unwrap_err();
+        assert!(duplicate_error.to_string().contains("comptes distincts"));
+
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "UPDATE settings SET extra_settings_json=json_set(extra_settings_json,'$.payroll.enabled',1) WHERE id=1",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        assert_eq!(
+            store.get_accounting_continuity().unwrap()["mapping_ready"],
+            false
+        );
+        let error = store.configure_accounting(core_only()).unwrap_err();
+        assert!(error.to_string().contains("onze comptes"));
+    }
+
+    #[test]
+    fn automatic_journal_refuses_the_same_account_on_both_sides() {
+        let (_temporary, store) = initialized_store();
+        let accounts = accounting_accounts(&store);
+        let mut connection = store.connect().unwrap();
+        let transaction = connection.transaction().unwrap();
+        let common = crate::accounting::EntryLine {
+            account_id: accounts["bank"].clone(),
+            debit_cents: 10_000,
+            credit_cents: 0,
+            currency: "CHF".into(),
+            memo: Some("Encaissement".into()),
+            project_id: None,
+            client_id: None,
+            employee_id: None,
+        };
+        let error = crate::accounting::post_entry(
+            &transaction,
+            "2026-09-01",
+            "Paiement invalide",
+            "payment",
+            "payment-same-account",
+            "invoice:invoice-1",
+            vec![
+                common.clone(),
+                crate::accounting::EntryLine {
+                    debit_cents: 0,
+                    credit_cents: 10_000,
+                    ..common
+                },
+            ],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("même compte"));
+    }
+
+    #[test]
+    fn payslip_posting_revalidates_stale_payroll_mapping_types() {
+        let (_temporary, store) = initialized_store();
+        let accounts = accounting_accounts(&store);
+        store
+            .configure_accounting(AccountingSettingsInput {
+                enabled: true,
+                ar_account_id: Some(accounts["ar"].clone()),
+                revenue_account_id: Some(accounts["revenue"].clone()),
+                vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                bank_account_id: Some(accounts["bank"].clone()),
+                expense_account_id: Some(accounts["expense"].clone()),
+                vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
+                wages_expense_account_id: Some(accounts["bank"].clone()),
+                wages_payable_account_id: Some(accounts["bank"].clone()),
+                social_expense_account_id: Some(accounts["bank"].clone()),
+                social_payable_account_id: Some(accounts["bank"].clone()),
+                supplier_payable_account_id: Some(accounts["supplier_payable"].clone()),
+            })
+            .unwrap();
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé garde-fou"}))
+                .unwrap(),
+        );
+        let mut connection = store.connect().unwrap();
+        connection
+            .execute(
+                "UPDATE settings SET extra_settings_json=json_set(extra_settings_json,'$.payroll.enabled',1) WHERE id=1",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,created_at,updated_at) VALUES('payslip-stale-mapping',?,'2026-09','valide',10000,0,10000,0,'2026-09-30T00:00:00Z','2026-09-30T00:00:00Z')",
+                rusqlite::params![employee_id],
+            )
+            .unwrap();
+        let transaction = connection.transaction().unwrap();
+        let error = crate::accounting::post_payslip_if_enabled(
+            &transaction,
+            "payslip-stale-mapping",
+            "2026-09-30",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("charges salariales"));
+        assert!(error.to_string().contains("type expense"));
     }
 
     #[test]
@@ -1605,7 +1759,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     fn document_totals_and_numbers_are_computed_locally() {
         let (_temporary, store) = initialized_store();
         let client = store
-            .create_record("clients", json!({"name": "Client vérifié"}))
+            .create_record("clients", test_client("Client vérifié"))
             .expect("create client");
         let client_id = value_id(&client);
         let quote = store
@@ -1817,7 +1971,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .create_record("clients", json!({"name": "Client à sauvegarder"}))
             .expect("create client");
         let client_id = value_id(&client);
-        let backup_path = temporary.path().join("recette.elyko");
+        let backup_path = temporary.path().join("recette.zentra");
         store
             .create_backup(Some(backup_path.to_string_lossy().into_owned()), "1.0.0")
             .expect("create backup");
@@ -1875,6 +2029,39 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 ["address"]["buildingNumber"],
             "17B"
         );
+    }
+
+    #[test]
+    fn successful_backup_persists_readiness_across_store_reload() {
+        let (temporary, store) = initialized_store();
+        let profile = store.data_dir.clone();
+        let configured_folder = temporary.path().join("sauvegardes-configurees");
+        std::fs::create_dir_all(&configured_folder).unwrap();
+
+        let saved_path = store
+            .create_backup(
+                Some(configured_folder.to_string_lossy().into_owned()),
+                "1.13.0",
+            )
+            .expect("create atomic backup and readiness proof");
+        drop(store);
+
+        let reloaded = LocalStore::initialize(profile).expect("reload local profile");
+        let workspace = reloaded.get_workspace().expect("reload workspace");
+        let status = &workspace["backup_status"];
+        let recorded_at = status["last_success_at"]
+            .as_str()
+            .expect("RFC3339 backup timestamp");
+        let recorded_path = status["last_path"].as_str().expect("persisted backup path");
+
+        chrono::DateTime::parse_from_rfc3339(recorded_at).expect("valid RFC3339 timestamp");
+        assert_eq!(recorded_path, saved_path);
+        assert_eq!(
+            std::path::Path::new(recorded_path).parent(),
+            Some(configured_folder.as_path()),
+            "the readiness proof must refer to the configured folder",
+        );
+        assert_eq!(status["next_scheduled_at"], serde_json::Value::Null);
     }
 
     #[test]
@@ -1960,7 +2147,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         );
         assert!(trigger_rejects_update.is_err());
 
-        let backup_path = temporary.path().join("qr-frozen.elyko");
+        let backup_path = temporary.path().join("qr-frozen.zentra");
         store
             .create_backup(Some(backup_path.to_string_lossy().into_owned()), "1.0.0")
             .unwrap();
@@ -1974,6 +2161,133 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             store.get_workspace().unwrap()["invoice_qr_bills"][0]["invoice_id"],
             invoice_id
         );
+    }
+
+    #[test]
+    fn post_issue_qr_supplement_matches_final_parties_iban_and_audit_on_every_path() {
+        let (temporary, store) = initialized_store();
+        store
+            .connect()
+            .unwrap()
+            .execute("UPDATE settings SET logo_path=NULL WHERE id=1", [])
+            .unwrap();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client QR"))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id": client_id,
+                        "title": "Facture supplément QR",
+                        "service_date_from": "2026-08-01",
+                        "service_date_to": "2026-08-31"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id": invoice_id,
+                    "description": "Prestation réelle",
+                    "quantity": 1,
+                    "unit": "forfait",
+                    "unit_price_cents": 194_900,
+                    "vat_bp": 0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-09-01".into()),
+                Some("2026-09-30".into()),
+            )
+            .unwrap();
+
+        let mut wrong_iban = test_invoice_qr_bill(&invoice_id, "IBAN altéré");
+        wrong_iban.bill.iban = "CH9300762011623852957".into();
+        assert!(store
+            .save_invoice_qr_bill(wrong_iban)
+            .unwrap_err()
+            .to_string()
+            .contains("IBAN"));
+
+        let mut wrong_creditor = test_invoice_qr_bill(&invoice_id, "Partie altérée");
+        wrong_creditor.bill.creditor.name = "Autre titulaire".into();
+        assert!(store
+            .save_invoice_qr_bill(wrong_creditor)
+            .unwrap_err()
+            .to_string()
+            .contains("créancier"));
+
+        let mut leaked_address_line2 = test_invoice_qr_bill(&invoice_id, "Complément concaténé");
+        leaked_address_line2.bill.creditor.street = "Adresse de test\nComplément interdit".into();
+        let leaked_error = store
+            .save_invoice_qr_bill(leaked_address_line2)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            leaked_error.contains("créancier") || leaked_error.contains("caractère non admis"),
+            "{leaked_error}"
+        );
+
+        let mut wrong_debtor = test_invoice_qr_bill(&invoice_id, "Débiteur altéré");
+        wrong_debtor.bill.debtor.as_mut().unwrap().building_number = "99".into();
+        assert!(store
+            .save_invoice_qr_bill(wrong_debtor)
+            .unwrap_err()
+            .to_string()
+            .contains("débiteur"));
+
+        let saved = store
+            .save_invoice_qr_bill(test_invoice_qr_bill(
+                &invoice_id,
+                "Supplément post-émission",
+            ))
+            .unwrap();
+        assert_eq!(saved["frozen"], true);
+        assert_eq!(
+            store.get_invoice_qr_bill(&invoice_id).unwrap()["payload"],
+            saved["payload"]
+        );
+
+        let pdf_path = temporary.path().join("supplement-qr-final.pdf");
+        let export = store
+            .generate_sales_document_pdf(GenerateSalesDocumentPdfInput {
+                entity: "invoices".into(),
+                document_id: invoice_id.clone(),
+                destination_path: pdf_path.to_string_lossy().into_owned(),
+            })
+            .unwrap();
+        assert_eq!(export["final_document"], true);
+        assert_eq!(export["has_qr"], true);
+        assert!(pdf_path.is_file());
+
+        let mut corrupted = test_invoice_qr_bill(&invoice_id, "Corruption locale").bill;
+        corrupted.creditor.name = "Créancier corrompu".into();
+        let corrupted_json = serde_json::to_string(&corrupted).unwrap();
+        let connection = store.connect().unwrap();
+        connection
+            .execute_batch("DROP TRIGGER invoice_qr_bills_frozen_no_update;")
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE invoice_qr_bills SET input_json=? WHERE invoice_id=?",
+                rusqlite::params![corrupted_json, invoice_id],
+            )
+            .unwrap();
+        drop(connection);
+        assert!(store
+            .get_invoice_qr_bill(&invoice_id)
+            .unwrap_err()
+            .to_string()
+            .contains("créancier"));
     }
 
     #[test]
@@ -2118,7 +2432,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap();
         assert_eq!(original_status, "emise");
         let excessive_payment = store.record_payment(RecordPaymentInput {
-            request_id: None,
+            request_id: uuid::Uuid::new_v4().to_string(),
             invoice_id: invoice_id.clone(),
             amount_cents: 7501,
             date: Some("2026-03-03".into()),
@@ -2129,7 +2443,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert!(excessive_payment.unwrap_err().to_string().contains("solde"));
         store
             .record_payment(RecordPaymentInput {
-                request_id: None,
+                request_id: uuid::Uuid::new_v4().to_string(),
                 invoice_id: invoice_id.clone(),
                 amount_cents: 7500,
                 date: Some("2026-03-03".into()),
@@ -2232,7 +2546,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .is_err());
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client conversion"}))
+                .create_record("clients", test_client("Client conversion"))
                 .unwrap(),
         );
         let conversion_item_id = value_id(
@@ -2949,7 +3263,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let accounts = enable_accounting(&store);
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client comptable"}))
+                .create_record("clients", test_client("Client comptable"))
                 .unwrap(),
         );
         let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture comptable","service_date_from":"2026-06-01","service_date_to":"2026-06-30"})).unwrap());
@@ -2962,7 +3276,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
         let payment_request = RecordPaymentInput {
-            request_id: Some("f2f0cc34-f7b5-4a1f-943e-89149e59bd43".into()),
+            request_id: "f2f0cc34-f7b5-4a1f-943e-89149e59bd43".into(),
             invoice_id: invoice_id.clone(),
             amount_cents: 4000,
             date: Some("2026-07-05".into()),
@@ -3133,7 +3447,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let (_temporary, store) = initialized_store();
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client continuité"}))
+                .create_record("clients", test_client("Client continuité"))
                 .unwrap(),
         );
         let invoice_id = value_id(
@@ -3160,7 +3474,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
 
         let blocked = store
             .record_payment(RecordPaymentInput {
-                request_id: Some("728e28c4-8525-49c2-9cca-c661e4c072ca".into()),
+                request_id: "728e28c4-8525-49c2-9cca-c661e4c072ca".into(),
                 invoice_id: invoice_id.clone(),
                 amount_cents: 25_000,
                 date: Some("2026-09-10".into()),
@@ -3192,7 +3506,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         );
         let paid = store
             .record_payment(RecordPaymentInput {
-                request_id: Some("728e28c4-8525-49c2-9cca-c661e4c072ca".into()),
+                request_id: "728e28c4-8525-49c2-9cca-c661e4c072ca".into(),
                 invoice_id: invoice_id.clone(),
                 amount_cents: 25_000,
                 date: Some("2026-09-10".into()),
@@ -3570,7 +3884,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: Some(1_000),
                 annual_ceiling_cents: None,
                 basis_kind: "gross".into(),
-                source: "Contrôle comptable Elyko".into(),
+                source: "Contrôle comptable Zentra".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: None,
                 active: true,
@@ -4073,7 +4387,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         enable_accounting(&store);
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client transactionnel"}))
+                .create_record("clients", test_client("Client transactionnel"))
                 .unwrap(),
         );
         let invoice_id = value_id(
@@ -4110,7 +4424,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap();
 
         let result = store.record_payment(RecordPaymentInput {
-            request_id: Some("d3f1d8d7-b113-4714-9660-b43799d8b9e2".into()),
+            request_id: "d3f1d8d7-b113-4714-9660-b43799d8b9e2".into(),
             invoice_id: invoice_id.clone(),
             amount_cents: 10_000,
             date: Some("2026-07-05".into()),
@@ -4153,7 +4467,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let accounts = enable_accounting(&store);
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client paiement final"}))
+                .create_record("clients", test_client("Client paiement final"))
                 .unwrap(),
         );
         let invoice_id = value_id(
@@ -4190,7 +4504,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
         let request = RecordPaymentInput {
-            request_id: Some("08b98c9b-48d5-4756-8ef9-c6cae3f8db8c".into()),
+            request_id: "08b98c9b-48d5-4756-8ef9-c6cae3f8db8c".into(),
             invoice_id: invoice_id.clone(),
             amount_cents: 12_345,
             date: Some("2026-09-02".into()),
@@ -4272,6 +4586,48 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap();
         assert_eq!(audit_count, 1);
         drop(connection);
+
+        let active_workspace = store.get_workspace().unwrap();
+        let active_payment = active_workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"] == first["id"])
+            .unwrap();
+        assert_eq!(active_payment["journal_entry_is_active"].as_i64(), Some(1));
+        assert_eq!(active_payment["journal_reversal_depth"].as_i64(), Some(0));
+
+        let reversal = store
+            .reverse_journal_entry(&journal_id, "2026-09-03", None)
+            .unwrap();
+        let reversed_workspace = store.get_workspace().unwrap();
+        let reversed_payment = reversed_workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"] == first["id"])
+            .unwrap();
+        assert_eq!(
+            reversed_payment["journal_entry_is_active"].as_i64(),
+            Some(0)
+        );
+        assert_eq!(reversed_payment["journal_reversal_depth"].as_i64(), Some(1));
+
+        store
+            .reverse_journal_entry(reversal["id"].as_str().unwrap(), "2026-09-04", None)
+            .unwrap();
+        let restored_workspace = store.get_workspace().unwrap();
+        let restored_payment = restored_workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"] == first["id"])
+            .unwrap();
+        assert_eq!(
+            restored_payment["journal_entry_is_active"].as_i64(),
+            Some(1)
+        );
+        assert_eq!(restored_payment["journal_reversal_depth"].as_i64(), Some(2));
 
         let period = store
             .upsert_accounting_period(AccountingPeriodInput {
@@ -4452,7 +4808,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let as_of = today.format("%Y-%m-%d").to_string();
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client relance"}))
+                .create_record("clients", test_client("Client relance"))
                 .unwrap(),
         );
         let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture échue","service_date_from":"2026-01-01","service_date_to":"2026-01-31"})).unwrap());
@@ -4568,7 +4924,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(fourth["created"][0]["invoice_id"], settled_invoice_id);
         store
             .record_payment(RecordPaymentInput {
-                request_id: None,
+                request_id: uuid::Uuid::new_v4().to_string(),
                 invoice_id: settled_invoice_id.clone(),
                 amount_cents: 10000,
                 date: Some(as_of),
@@ -4738,7 +5094,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .to_string();
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client planifié"}))
+                .create_record("clients", test_client("Client planifié"))
                 .unwrap(),
         );
         let invoice_id = value_id(
@@ -4841,7 +5197,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .to_string();
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client délai historique"}))
+                .create_record("clients", test_client("Client délai historique"))
                 .unwrap(),
         );
         let invoice_id = value_id(
@@ -4955,7 +5311,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         );
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client historique V23"}))
+                .create_record("clients", test_client("Client historique V23"))
                 .unwrap(),
         );
         let invoice_id = value_id(
@@ -5161,7 +5517,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
 
         store
             .record_payment(RecordPaymentInput {
-                request_id: Some(uuid::Uuid::new_v4().to_string()),
+                request_id: uuid::Uuid::new_v4().to_string(),
                 invoice_id: invoice_id.clone(),
                 amount_cents: 2500,
                 date: Some(today_text.clone()),
@@ -7071,7 +7427,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .is_err());
         drop(connection);
-        let backup_path = temporary.path().join("supplier-procurement-v21.elyko");
+        let backup_path = temporary.path().join("supplier-procurement-v21.zentra");
         store
             .create_backup(Some(backup_path.to_string_lossy().into_owned()), "1.8.0")
             .unwrap();
@@ -8572,7 +8928,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let (_temporary, store) = initialized_store();
         let client_id = value_id(
             &store
-                .create_record("clients", json!({"name":"Client stock"}))
+                .create_record("clients", test_client("Client stock"))
                 .unwrap(),
         );
         let first_item_id = tracked_product(&store, "Produit A", 1_000);

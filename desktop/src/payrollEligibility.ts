@@ -206,7 +206,7 @@ export function assessSwissPayrollEligibility(input: {
     );
   if (!employee.birthDate)
     blockers.push(
-      'La date de naissance manque; Elyko ne peut pas contrôler AVS, AC et LPP.',
+      'La date de naissance manque; Zentra ne peut pas contrôler AVS, AC et LPP.',
     );
   else if (!birthDateValid)
     blockers.push(
@@ -237,7 +237,7 @@ export function assessSwissPayrollEligibility(input: {
     );
   if (inReferenceAgeReviewWindow && !referenceOverrideValid)
     blockers.push(
-      'Dès 64 ans, renseignez une date/validation explicite de l’âge de référence confirmée par la caisse ou la fiduciaire; Elyko ne la déduit pas du sexe.',
+      'Dès 64 ans, renseignez une date/validation explicite de l’âge de référence confirmée par la caisse ou la fiduciaire; Zentra ne la déduit pas du sexe.',
     );
   if (avsLiable && referenceAgeReached !== true && !federalProfile.acComplete)
     blockers.push(
@@ -257,7 +257,7 @@ export function assessSwissPayrollEligibility(input: {
     );
   if (referenceAgeReached === true && employee.avsAllowanceWaived === false)
     warnings.push(
-      'Franchise AVS conservée: saisissez la base AVS avant franchise; Elyko déduira automatiquement CHF 1’400 pour ce mois, dans la limite de CHF 16’800/an et par employeur.',
+      'Franchise AVS conservée: saisissez la base AVS avant franchise; Zentra déduira automatiquement CHF 1’400 pour ce mois, dans la limite de CHF 16’800/an et par employeur.',
     );
   if (referenceAgeReached === true && employee.avsAllowanceWaived === true)
     warnings.push(
@@ -321,7 +321,7 @@ export function assessSwissPayrollEligibility(input: {
     );
   if (has('source_tax'))
     blockers.push(
-      'L’impôt à la source ne peut pas être validé avec un taux linéaire Elyko; utilisez un montant issu du barème cantonal officiel puis conservez sa référence.',
+      'L’impôt à la source ne peut pas être validé avec un taux linéaire Zentra; utilisez un montant issu du barème cantonal officiel puis conservez sa référence.',
     );
   if (!settings.payroll.avsFund.trim() && has('avs_ai_apg'))
     blockers.push('La caisse AVS doit être renseignée avant validation.');
@@ -332,7 +332,7 @@ export function assessSwissPayrollEligibility(input: {
       employee.acOpeningBasisCents == null)
   )
     blockers.push(
-      `Confirmez sur la fiche collaborateur la base d’ouverture AC ${periodValid ? year : 'de l’année'} (zéro compris); Elyko ajoutera automatiquement les bases des fiches antérieures.`,
+      `Confirmez sur la fiche collaborateur la base d’ouverture AC ${periodValid ? year : 'de l’année'} (zéro compris); Zentra ajoutera automatiquement les bases des fiches antérieures.`,
     );
   if (grossCents > 0 && grossCents * 12 <= 250_000)
     warnings.push(

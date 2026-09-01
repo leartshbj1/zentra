@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Archive, BookOpen, CheckCircle2, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, X } from 'lucide-react';
 import { desktopApi } from './bridge';
+import {
+  accountingEntryFocusFilter,
+  type AccountingEntryFocus,
+} from './PaymentAccountingProofs';
 import type { Account, AccountingContinuity, AccountingPeriod, AccountingSettings, BalanceSheetReport, IncomeStatementReport, JournalEntry, JournalReport, LedgerReport, PeriodFilter, StatementRow, TrialBalanceReport, Workspace } from './types';
 import { createId, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { Button, EmptyState, ErrorPanel, Field, SectionHeading, StatusBadge, submitForm } from './ui';
@@ -10,6 +14,10 @@ import { VatCenter } from './VatCenter';
 
 type Tab = 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods';
 type JournalDraftLine = { id: string; accountId: string; debitCents: number; creditCents: number; memo: string; projectId: string; clientId: string; employeeId: string };
+type ActiveEntryFocus = {
+  target: AccountingEntryFocus;
+  outsidePaymentDate: boolean;
+};
 
 const emptyAccountingSettings: AccountingSettings = {
   enabled: false,
@@ -50,18 +58,21 @@ const emptyContinuity: AccountingContinuity = {
   totalAnomalies: 0,
 };
 
-const mappingFields: Array<[keyof AccountingSettings, string]> = [
+const coreMappingFields: Array<[keyof AccountingSettings, string]> = [
   ['arAccountId', 'Créances clients'],
   ['revenueAccountId', 'Produits de facturation'],
   ['vatPayableAccountId', 'TVA due'],
   ['bankAccountId', 'Banque'],
   ['expenseAccountId', 'Charges / dépenses'],
   ['vatReceivableAccountId', 'TVA préalable'],
+  ['supplierPayableAccountId', 'Dettes fournisseurs · requis pour valider les achats'],
+];
+
+const payrollMappingFields: Array<[keyof AccountingSettings, string]> = [
   ['wagesExpenseAccountId', 'Charges de salaires'],
   ['wagesPayableAccountId', 'Salaires à payer'],
   ['socialExpenseAccountId', 'Charges sociales employeur'],
   ['socialPayableAccountId', 'Cotisations sociales à payer'],
-  ['supplierPayableAccountId', 'Dettes fournisseurs · requis pour valider les achats'],
 ];
 
 const reportSections: Array<[Account['reportSection'], string]> = [
@@ -70,7 +81,16 @@ const reportSections: Array<[Account['reportSection'], string]> = [
 
 const newJournalLine = (): JournalDraftLine => ({ id: createId(), accountId: '', debitCents: 0, creditCents: 0, memo: '', projectId: '', clientId: '', employeeId: '' });
 
-export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void }) {
+export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void }) {
+  const payrollMappingsRequired = Boolean(workspace.settings?.payroll.enabled)
+    || (workspace.payslips ?? []).some((payslip) => ['posted', 'paid'].includes(payslip.status));
+  const mappingFields = payrollMappingsRequired
+    ? [...coreMappingFields, ...payrollMappingFields]
+    : coreMappingFields;
+  const mappingCountLabel = payrollMappingsRequired ? 'onze' : 'sept';
+  const mappingDescription = payrollMappingsRequired
+    ? 'Les onze liaisons sont obligatoires, car la paie est active ou possède déjà un historique comptabilisé. Les périodes ouvertes sont rattrapées dans l’ordre; les exercices clôturés restent intacts.'
+    : 'Sept liaisons hors paie sont obligatoires. Les quatre comptes salaires et cotisations deviendront requis uniquement si la paie est activée; les exercices clôturés restent intacts.';
   const [tab, setTab] = useState<Tab>('journal');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [settings, setSettings] = useState<AccountingSettings>(emptyAccountingSettings);
@@ -91,6 +111,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [activeEntryFocus, setActiveEntryFocus] = useState<ActiveEntryFocus | null>(null);
   const reportRequest = useRef(0);
   const actionRequest = useRef(0);
 
@@ -99,6 +120,12 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
   const credit = entryLines.reduce((sum, line) => sum + line.creditCents, 0);
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
+  const focusedEntryAvailable = Boolean(
+    activeEntryFocus &&
+      journal?.entries.some(
+        (entry) => entry.id === activeEntryFocus.target.entryId,
+      ),
+  );
 
   async function run(action: () => Promise<void>, success?: string) {
     const request = ++actionRequest.current;
@@ -159,7 +186,89 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
     }
   }
 
-  useEffect(() => { void run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }); }, []);
+  useEffect(() => {
+    if (focusEntry) return;
+    void run(async () => {
+      const accountId = await loadBase();
+      await refreshReports(filter, accountId);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!focusEntry) return;
+    const preferredFilter = accountingEntryFocusFilter(focusEntry);
+    setTab('journal');
+    setPeriodId('');
+    setFilter(preferredFilter);
+    setActiveEntryFocus({
+      target: focusEntry,
+      outsidePaymentDate:
+        focusEntry.accountingState !== 'active' || !preferredFilter.dateFrom,
+    });
+
+    void run(async () => {
+      const accountId = await loadBase();
+      let resolvedFilter = preferredFilter;
+      let targetJournal = await desktopApi.getJournal(resolvedFilter);
+      let outsidePaymentDate =
+        focusEntry.accountingState !== 'active' || !preferredFilter.dateFrom;
+
+      if (
+        !targetJournal.entries.some((entry) => entry.id === focusEntry.entryId) &&
+        preferredFilter.dateFrom
+      ) {
+        resolvedFilter = {};
+        targetJournal = await desktopApi.getJournal(resolvedFilter);
+        outsidePaymentDate = true;
+      }
+
+      if (!targetJournal.entries.some((entry) => entry.id === focusEntry.entryId)) {
+        setActiveEntryFocus(null);
+        onFocusHandled();
+        throw new Error(
+          `L’écriture ${focusEntry.entryNumber} liée à cet encaissement n’a pas été retrouvée dans le journal local. Ouvrez « Plan & liaisons » pour contrôler la continuité comptable.`,
+        );
+      }
+
+      setActiveEntryFocus({ target: focusEntry, outsidePaymentDate });
+      setFilter(resolvedFilter);
+      await refreshReports(resolvedFilter, accountId);
+    }, `Écriture ${focusEntry.entryNumber} affichée dans le journal.`);
+  }, [focusEntry]);
+
+  useEffect(() => {
+    const target = activeEntryFocus?.target;
+    if (
+      !target ||
+      tab !== 'journal' ||
+      !focusedEntryAvailable
+    )
+      return;
+
+    let focusedNode: HTMLElement | null = null;
+    const frame = window.requestAnimationFrame(() => {
+      const node = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-journal-entry-id]'),
+      ).find((candidate) => candidate.dataset.journalEntryId === target.entryId);
+      if (!node || node.dataset.journalEntryId !== target.entryId) return;
+      focusedNode = node;
+      node.classList.add('is-targeted-entry');
+      node.setAttribute('aria-current', 'true');
+      const reduceMotion =
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      node.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'center',
+      });
+      node.focus({ preventScroll: true });
+      onFocusHandled();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      focusedNode?.classList.remove('is-targeted-entry');
+      focusedNode?.removeAttribute('aria-current');
+    };
+  }, [activeEntryFocus, focusedEntryAvailable, onFocusHandled, tab]);
 
   async function reloadAll(success?: string) { await run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }, success); }
 
@@ -188,7 +297,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
   }
 
   async function saveMapping() {
-    if (settings.enabled && mappingFields.some(([key]) => !String(settings[key]))) { setError('Sélectionnez explicitement chacun des onze comptes de liaison essentiels avant l’activation.'); return; }
+    if (settings.enabled && mappingFields.some(([key]) => !String(settings[key]))) { setError(`Sélectionnez explicitement chacun des ${mappingCountLabel} comptes de liaison requis avant l’activation.`); return; }
     await run(async () => {
       const result = await desktopApi.configureAccounting(settings);
       const [accountId, nextWorkspace] = await Promise.all([loadBase(), desktopApi.loadWorkspace()]);
@@ -205,7 +314,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
   }
 
   async function installStarter() {
-    if (!window.confirm('Créer et activer les 11 comptes essentiels Elyko ? Cette base n’est pas un plan comptable exhaustif et doit être contrôlée par votre fiduciaire.')) return;
+    if (!window.confirm('Créer et activer les 11 comptes essentiels Zentra ? Cette base n’est pas un plan comptable exhaustif et doit être contrôlée par votre fiduciaire.')) return;
     await run(async () => {
       const result = await desktopApi.installSwissAccountingStarter();
       const [accountId, nextWorkspace] = await Promise.all([loadBase(), desktopApi.loadWorkspace()]);
@@ -248,7 +357,9 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
     <section className="accounting-toolbar panel"><div className="tab-strip" role="tablist" aria-label="Sections de la comptabilité">{tabs.map(([id, label, icon]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{icon}{label}</button>)}</div><div className="accounting-filters"><select value={periodId} disabled={busy} aria-label="Exercice ou période comptable" onChange={(event) => choosePeriod(event.target.value)}><option value="">Période libre</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.status === 'closed' ? 'clôturé' : 'ouvert'}</option>)}</select><input type="date" value={filter.dateFrom ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateFrom: event.target.value || undefined })} aria-label="Date de début de la période" /><input type="date" value={filter.dateTo ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateTo: event.target.value || undefined })} aria-label="Date de fin de la période" /><span className={`report-state ${reportState === 'Clôturé' ? 'is-closed' : ''}`} role="status" aria-live="polite">{busy ? 'Actualisation…' : reportState}</span><Button variant="secondary" size="small" disabled={busy} onClick={() => void run(() => refreshReports(), 'Les états ont été actualisés.')}><RefreshCw size={15} /> Actualiser</Button></div></section>
     {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
 
-    {tab === 'journal' ? <section className="panel"><SectionHeading eyebrow="Partie double" title="Journal chronologique" description="Chaque écriture validée est immuable et équilibrée; une correction passe par une extourne traçable." action={<Button disabled={!settings.enabled || busy} onClick={() => setEntryOpen((value) => !value)}><Plus size={15} /> Saisir une écriture</Button>} />{!settings.enabled ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité non activée</strong><p>Créez le plan comptable et sélectionnez les onze comptes de liaison.</p></div></div> : null}{entryOpen ? <form className="accounting-entry-form" onSubmit={submitForm(postEntry)}><div className="form-grid"><Field label="Date" required><input name="entryDate" type="date" defaultValue={todayIso()} required /></Field><Field label="Description" required wide><input name="description" required /></Field></div><JournalLinesEditor lines={entryLines} accounts={activeAccounts} workspace={workspace} onPatch={patchLine} onAdd={() => setEntryLines((current) => [...current, newJournalLine()])} onRemove={(id) => setEntryLines((current) => current.length > 2 ? current.filter((line) => line.id !== id) : current)} /><div className={`entry-balance ${debit === credit && debit > 0 ? 'is-balanced' : ''}`}><span>Débits {formatMoney(debit)}</span><span>Crédits {formatMoney(credit)}</span><strong>{debit === credit && debit > 0 ? 'Équilibrée' : `Écart ${formatMoney(Math.abs(debit - credit))}`}</strong></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setEntryOpen(false)}>Annuler</Button><Button type="submit" disabled={busy || debit <= 0 || debit !== credit}>Comptabiliser</Button></div></form> : null}{reversalTarget ? <form className="accounting-entry-form reversal-form" onSubmit={submitForm(reverseEntry)}><div><strong>Extourner {reversalTarget.number}</strong><p>L’écriture originale restera intacte. Une nouvelle écriture inverse sera créée et liée.</p></div><div className="form-grid"><Field label="Date de l’extourne" required><input name="entryDate" type="date" min={reversalTarget.entryDate} defaultValue={todayIso()} required /></Field><Field label="Description"><input name="description" placeholder={`Extourne ${reversalTarget.number}`} /></Field></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setReversalTarget(null)}>Annuler</Button><Button type="submit" disabled={busy}><RotateCcw size={15} /> Créer l’extourne</Button></div></form> : null}{journal?.entries.length ? <JournalTable report={journal} onReverse={setReversalTarget} /> : <EmptyState icon={<BookOpen />} title="Journal vide" text="Aucune écriture réelle n’a encore été comptabilisée pour cette période." />}</section> : null}
+    {tab === 'journal' && activeEntryFocus && focusedEntryAvailable ? <div className={`report-callout accounting-entry-focus ${activeEntryFocus.outsidePaymentDate ? 'is-warning' : ''}`} role="status"><BookOpen size={20} /><div><strong>Écriture {activeEntryFocus.target.entryNumber} liée à l’encaissement</strong><p>{activeEntryFocus.target.accountingState === 'reversed' ? 'L’écriture originale est mise en évidence et le journal reste en période libre afin de rendre toute la chaîne d’extournes visible. L’effet comptable net de cet encaissement est actuellement annulé.' : activeEntryFocus.target.accountingState === 'restored' ? `L’effet comptable net est rétabli après ${activeEntryFocus.target.reversalDepth ?? 'plusieurs'} extournes. Le journal reste en période libre afin de rendre toute la chaîne visible.` : activeEntryFocus.target.accountingState === 'unknown' ? 'Le lien existe, mais l’état ou la profondeur de sa chaîne d’extournes n’a pas pu être établi de façon fiable. Le journal reste en période libre pour permettre le contrôle.' : activeEntryFocus.outsidePaymentDate ? 'Le lien exact a été retrouvé en période libre, hors du jour indiqué par le paiement. Contrôlez la date depuis « Plan & liaisons ».' : `Le journal est limité au ${formatDate(activeEntryFocus.target.entryDate)} et l’écriture correspondante est mise en évidence ci-dessous.`}</p></div></div> : null}
+
+    {tab === 'journal' ? <section className="panel"><SectionHeading eyebrow="Partie double" title="Journal chronologique" description="Chaque écriture validée est immuable et équilibrée; une correction passe par une extourne traçable." action={<Button disabled={!settings.enabled || busy} onClick={() => setEntryOpen((value) => !value)}><Plus size={15} /> Saisir une écriture</Button>} />{!settings.enabled ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité non activée</strong><p>Créez le plan comptable et sélectionnez les {mappingCountLabel} comptes de liaison requis.</p></div></div> : null}{entryOpen ? <form className="accounting-entry-form" onSubmit={submitForm(postEntry)}><div className="form-grid"><Field label="Date" required><input name="entryDate" type="date" defaultValue={todayIso()} required /></Field><Field label="Description" required wide><input name="description" required /></Field></div><JournalLinesEditor lines={entryLines} accounts={activeAccounts} workspace={workspace} onPatch={patchLine} onAdd={() => setEntryLines((current) => [...current, newJournalLine()])} onRemove={(id) => setEntryLines((current) => current.length > 2 ? current.filter((line) => line.id !== id) : current)} /><div className={`entry-balance ${debit === credit && debit > 0 ? 'is-balanced' : ''}`}><span>Débits {formatMoney(debit)}</span><span>Crédits {formatMoney(credit)}</span><strong>{debit === credit && debit > 0 ? 'Équilibrée' : `Écart ${formatMoney(Math.abs(debit - credit))}`}</strong></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setEntryOpen(false)}>Annuler</Button><Button type="submit" disabled={busy || debit <= 0 || debit !== credit}>Comptabiliser</Button></div></form> : null}{reversalTarget ? <form className="accounting-entry-form reversal-form" onSubmit={submitForm(reverseEntry)}><div><strong>Extourner {reversalTarget.number}</strong><p>L’écriture originale restera intacte. Une nouvelle écriture inverse sera créée et liée.</p></div><div className="form-grid"><Field label="Date de l’extourne" required><input name="entryDate" type="date" min={reversalTarget.entryDate} defaultValue={todayIso()} required /></Field><Field label="Description"><input name="description" placeholder={`Extourne ${reversalTarget.number}`} /></Field></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setReversalTarget(null)}>Annuler</Button><Button type="submit" disabled={busy}><RotateCcw size={15} /> Créer l’extourne</Button></div></form> : null}{journal?.entries.length ? <JournalTable report={journal} onReverse={setReversalTarget} /> : <EmptyState icon={<BookOpen />} title="Journal vide" text="Aucune écriture réelle n’a encore été comptabilisée pour cette période." />}</section> : null}
 
     {tab === 'ledger' ? <section className="panel"><SectionHeading eyebrow="Mouvements par compte" title="Grand livre" /><div className="ledger-picker"><Field label="Compte"><select value={selectedAccountId} disabled={busy} onChange={(event) => { const id = event.target.value; setSelectedAccountId(id); if (id) void run(() => refreshReports(filter, id)); else setLedger(null); }}><option value="">Choisir un compte</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.code} · {account.name}</option>)}</select></Field></div>{ledger?.lines.length ? <><div className="summary-strip"><div><span>Débit</span><strong>{formatMoney(ledger.debitCents)}</strong></div><div><span>Crédit</span><strong>{formatMoney(ledger.creditCents)}</strong></div><div><span>Solde débiteur net</span><strong>{formatMoney(ledger.netDebitCents)}</strong></div></div><JournalLineTable lines={ledger.lines} /></> : <EmptyState icon={<ListChecks />} title="Aucun mouvement" text={selectedAccountId ? 'Ce compte ne présente aucun mouvement pour la période.' : 'Choisissez un compte du plan comptable.'} />}</section> : null}
 
@@ -260,8 +371,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange }: { workspace: 
     {tab === 'closing' ? <ClosingFolder filter={filter} period={selectedPeriod} trial={trial} balance={balance} income={income} onAccountingChanged={() => reloadAll('Les états et le statut de l’exercice ont été actualisés.')} /> : null}
 
     {tab === 'accounts' ? <div className="stack-layout">
-      {continuity.closedHistoryRequiresOpening > 0 ? <div className="report-callout is-warning"><LockKeyhole size={20} /><div><strong>{continuity.closedHistoryRequiresOpening} opération{continuity.closedHistoryRequiresOpening > 1 ? 's' : ''} appartiennent à des exercices clôturés</strong><p>Elyko ne déplace jamais leur chiffre d’affaires, TVA ou charges dans l’exercice courant. Activez la chaîne future, puis faites valider les soldes d’ouverture par votre fiduciaire. {continuity.totalAnomalies > continuity.closedHistoryRequiresOpening ? `${continuity.totalAnomalies - continuity.closedHistoryRequiresOpening} autre(s) anomalie(s) restent aussi à traiter.` : ''}</p></div></div> : continuity.enabled && !continuity.mappingReady ? <div className="report-callout is-warning"><RefreshCw size={20} /><div><strong>Comptabilité active mais liaisons incomplètes</strong><p>Vérifiez les onze comptes actifs avant la prochaine opération financière.{continuity.totalAnomalies > 1 ? ` ${continuity.totalAnomalies - 1} autre(s) point(s) de continuité restent à traiter.` : ''}</p></div></div> : continuity.totalAnomalies > 0 ? <div className="report-callout is-warning"><RefreshCw size={20} /><div><strong>{continuity.totalAnomalies} anomalie{continuity.totalAnomalies > 1 ? 's' : ''} de continuité à traiter</strong><p>À intégrer dans une période ouverte : {continuity.totalMissing}. Écritures dont la date, le montant, la devise ou le compte lié diffèrent de la source : {continuity.semanticPostingMismatches}. Sources extournées ou incohérentes : {continuity.reversedSources + continuity.cancelledActivePostings}. Paiements liés à une facture annulée : {continuity.cancelledInvoicePayments}. Paiements de salaire sans date : {continuity.undatedPayslipPayments}. Liens de journal hérités à contrôler : {continuity.payslipPaymentLinksMissing}. Aucune correction n’est inventée silencieusement.</p></div></div> : continuity.enabled && continuity.mappingReady ? <div className="report-callout"><ShieldCheck size={20} /><div><strong>Chaîne comptable continue</strong><p>Aucune facture, dépense payée, paie ou transaction client ne manque dans le journal; leurs dates, montants, devises et comptes liés correspondent aux opérations d’origine.</p></div></div> : null}
-      <div className="settings-layout"><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Plan comptable" title="Comptes" description="Utilisez votre plan réel ou démarrez avec les onze comptes essentiels, puis faites-les contrôler par votre fiduciaire." action={<div className="settings-inline-actions">{continuity.starterAvailable ? <Button variant="secondary" disabled={busy} onClick={() => void installStarter()}><Landmark size={15} /> Installer la base essentielle</Button> : null}<Button onClick={() => setAccountDraft({ code: '', name: '' })}><Plus size={15} /> Nouveau compte</Button></div>} />{accountDraft ? <form className="account-inline-form" onSubmit={submitForm(saveAccount)}><Field label="Code" required><input name="code" defaultValue={accountDraft.code} required /></Field><Field label="Nom" required><input name="name" defaultValue={accountDraft.name} required /></Field><Field label="Type" required><select name="accountType" defaultValue={accountDraft.accountType ?? ''} required><option value="">Choisir</option><option value="asset">Actif</option><option value="liability">Passif</option><option value="equity">Fonds propres</option><option value="revenue">Produit</option><option value="expense">Charge</option></select></Field><Field label="Rubrique des états" required><select name="reportSection" defaultValue={accountDraft.reportSection ?? ''} required><option value="">Choisir</option>{reportSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Solde normal" required><select name="normalBalance" defaultValue={accountDraft.normalBalance ?? ''} required><option value="">Choisir</option><option value="debit">Débit</option><option value="credit">Crédit</option></select></Field><label className="check-card"><input name="active" type="checkbox" defaultChecked={accountDraft.active ?? true} /><span><strong>Compte actif</strong></span></label><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setAccountDraft(null)}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{accounts.length ? <div className="account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.code}</strong><span>{account.name}</span><small>{reportSections.find(([value]) => value === account.reportSection)?.[1] || account.reportSection} · solde {account.normalBalance}</small></div><StatusBadge status={account.active ? 'validated' : 'incomplete'} /><Button variant="ghost" size="small" onClick={() => setAccountDraft(account)}>Modifier</Button><Button variant="ghost" size="icon" onClick={() => { if (window.confirm(`Supprimer le compte ${account.code} ?`)) void run(async () => { await desktopApi.deleteAccount(account.id); const accountId = await loadBase(); await refreshReports(filter, accountId); }, 'Le compte inutilisé a été supprimé.'); }}><Archive size={15} /></Button></article>)}</div> : <EmptyState title="Plan comptable vide" text="Installez la base essentielle ou créez votre plan réel avant d’activer les écritures automatiques." />}</section><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Automatisation" title="Comptes de liaison" description="Les onze liaisons sont obligatoires. Les périodes ouvertes sont rattrapées dans l’ordre; les exercices clôturés restent intacts et sont signalés pour une reprise de soldes d’ouverture." /><label className="module-toggle module-toggle--compact"><input type="checkbox" checked={settings.enabled} disabled={continuity.enabled && continuity.journalEntryCount > 0} onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))} /><span><Landmark size={19} /><strong>Comptabilité active</strong><small>{continuity.enabled && continuity.journalEntryCount > 0 ? 'Verrouillée après la première écriture pour préserver la continuité' : settings.enabled ? 'Chaque opération financière produit son écriture' : 'Activez-la avant d’encaisser ou de payer un achat'}</small></span></label><div className="form-grid">{mappingFields.map(([key, label]) => <Field key={key} label={label} required={settings.enabled}><select value={String(settings[key])} onChange={(event) => setSettings((current) => ({ ...current, [key]: event.target.value }))} required={settings.enabled}><option value="">Choisir un compte</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></Field>)}</div><Button disabled={busy} onClick={() => void saveMapping()}>Enregistrer et vérifier la continuité</Button></section></div>
+      {continuity.closedHistoryRequiresOpening > 0 ? <div className="report-callout is-warning"><LockKeyhole size={20} /><div><strong>{continuity.closedHistoryRequiresOpening} opération{continuity.closedHistoryRequiresOpening > 1 ? 's' : ''} appartiennent à des exercices clôturés</strong><p>Zentra ne déplace jamais leur chiffre d’affaires, TVA ou charges dans l’exercice courant. Activez la chaîne future, puis faites valider les soldes d’ouverture par votre fiduciaire. {continuity.totalAnomalies > continuity.closedHistoryRequiresOpening ? `${continuity.totalAnomalies - continuity.closedHistoryRequiresOpening} autre(s) anomalie(s) restent aussi à traiter.` : ''}</p></div></div> : continuity.enabled && !continuity.mappingReady ? <div className="report-callout is-warning"><RefreshCw size={20} /><div><strong>Comptabilité active mais liaisons incomplètes</strong><p>Vérifiez les {mappingCountLabel} comptes actifs avant la prochaine opération financière.{continuity.totalAnomalies > 1 ? ` ${continuity.totalAnomalies - 1} autre(s) point(s) de continuité restent à traiter.` : ''}</p></div></div> : continuity.totalAnomalies > 0 ? <div className="report-callout is-warning"><RefreshCw size={20} /><div><strong>{continuity.totalAnomalies} anomalie{continuity.totalAnomalies > 1 ? 's' : ''} de continuité à traiter</strong><p>À intégrer dans une période ouverte : {continuity.totalMissing}. Écritures dont la date, le montant, la devise ou le compte lié diffèrent de la source : {continuity.semanticPostingMismatches}. Sources extournées ou incohérentes : {continuity.reversedSources + continuity.cancelledActivePostings}. Paiements liés à une facture annulée : {continuity.cancelledInvoicePayments}. Paiements de salaire sans date : {continuity.undatedPayslipPayments}. Liens de journal hérités à contrôler : {continuity.payslipPaymentLinksMissing}. Aucune correction n’est inventée silencieusement.</p></div></div> : continuity.enabled && continuity.mappingReady ? <div className="report-callout"><ShieldCheck size={20} /><div><strong>Chaîne comptable continue</strong><p>Aucune facture, dépense payée, paie ou transaction client ne manque dans le journal; leurs dates, montants, devises et comptes liés correspondent aux opérations d’origine.</p></div></div> : null}
+      <div className="settings-layout"><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Plan comptable" title="Comptes" description="Utilisez votre plan réel ou installez la base essentielle adaptée aux modules actifs, puis faites-la contrôler par votre fiduciaire." action={<div className="settings-inline-actions">{continuity.starterAvailable ? <Button variant="secondary" disabled={busy} onClick={() => void installStarter()}><Landmark size={15} /> Installer la base essentielle</Button> : null}<Button onClick={() => setAccountDraft({ code: '', name: '' })}><Plus size={15} /> Nouveau compte</Button></div>} />{accountDraft ? <form className="account-inline-form" onSubmit={submitForm(saveAccount)}><Field label="Code" required><input name="code" defaultValue={accountDraft.code} required /></Field><Field label="Nom" required><input name="name" defaultValue={accountDraft.name} required /></Field><Field label="Type" required><select name="accountType" defaultValue={accountDraft.accountType ?? ''} required><option value="">Choisir</option><option value="asset">Actif</option><option value="liability">Passif</option><option value="equity">Fonds propres</option><option value="revenue">Produit</option><option value="expense">Charge</option></select></Field><Field label="Rubrique des états" required><select name="reportSection" defaultValue={accountDraft.reportSection ?? ''} required><option value="">Choisir</option>{reportSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Solde normal" required><select name="normalBalance" defaultValue={accountDraft.normalBalance ?? ''} required><option value="">Choisir</option><option value="debit">Débit</option><option value="credit">Crédit</option></select></Field><label className="check-card"><input name="active" type="checkbox" defaultChecked={accountDraft.active ?? true} /><span><strong>Compte actif</strong></span></label><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setAccountDraft(null)}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{accounts.length ? <div className="account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.code}</strong><span>{account.name}</span><small>{reportSections.find(([value]) => value === account.reportSection)?.[1] || account.reportSection} · solde {account.normalBalance}</small></div><StatusBadge status={account.active ? 'validated' : 'incomplete'} /><Button variant="ghost" size="small" onClick={() => setAccountDraft(account)}>Modifier</Button><Button variant="ghost" size="icon" onClick={() => { if (window.confirm(`Supprimer le compte ${account.code} ?`)) void run(async () => { await desktopApi.deleteAccount(account.id); const accountId = await loadBase(); await refreshReports(filter, accountId); }, 'Le compte inutilisé a été supprimé.'); }}><Archive size={15} /></Button></article>)}</div> : <EmptyState title="Plan comptable vide" text="Installez la base essentielle ou créez votre plan réel avant d’activer les écritures automatiques." />}</section><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Automatisation" title="Comptes de liaison" description={mappingDescription} /><label className="module-toggle module-toggle--compact"><input type="checkbox" checked={settings.enabled} disabled={continuity.enabled && continuity.journalEntryCount > 0} onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))} /><span><Landmark size={19} /><strong>Comptabilité active</strong><small>{continuity.enabled && continuity.journalEntryCount > 0 ? 'Verrouillée après la première écriture pour préserver la continuité' : settings.enabled ? continuity.mappingReady ? 'Chaque opération financière produit son écriture' : 'Vérifiez et enregistrez tous les comptes de liaison requis' : 'Activez-la avant d’encaisser ou de payer un achat'}</small></span></label><div className="form-grid">{mappingFields.map(([key, label]) => <Field key={key} label={label} required={settings.enabled}><select value={String(settings[key])} onChange={(event) => setSettings((current) => ({ ...current, [key]: event.target.value }))} required={settings.enabled}><option value="">Choisir un compte</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></Field>)}</div><Button disabled={busy} onClick={() => void saveMapping()}>Enregistrer et vérifier la continuité</Button></section></div>
     </div> : null}
 
     {tab === 'periods' ? <AccountingPeriods periods={periods} busy={busy} onRefresh={async (message) => { await reloadAll(message); }} onError={setError} /> : null}
@@ -274,7 +385,7 @@ function JournalLinesEditor({ lines, accounts, workspace, onPatch, onAdd, onRemo
 }
 
 function JournalTable({ report, onReverse }: { report: JournalReport; onReverse: (entry: JournalEntry) => void }) {
-  return <div className="journal-entry-list">{report.entries.map((entry) => { const alreadyReversed = entry.hasReversal; const canReverse = !alreadyReversed; return <article key={entry.id}><header><div><strong>{entry.number}</strong><span>{formatDate(entry.entryDate)}</span></div><p>{entry.description}</p><small>{entry.reversalOf ? 'Écriture d’extourne' : entry.sourceType === 'manual' ? 'Saisie manuelle' : `Origine : ${entry.sourceType} · toute extourne automatique restera signalée jusqu’à correction métier`}</small>{canReverse ? <Button variant="ghost" size="small" onClick={() => onReverse(entry)}><RotateCcw size={14} /> Extourner</Button> : <span className="locked-label"><CheckCircle2 size={13} /> Extournée</span>}</header><JournalLineTable lines={report.lines.filter((line) => line.journalEntryId === entry.id)} /></article>; })}</div>;
+  return <div className="journal-entry-list">{report.entries.map((entry) => { const alreadyReversed = entry.hasReversal; const canReverse = !alreadyReversed; return <article key={entry.id} data-journal-entry-id={entry.id} tabIndex={-1}><header><div><strong>{entry.number}</strong><span>{formatDate(entry.entryDate)}</span></div><p>{entry.description}</p><small>{entry.reversalOf ? 'Écriture d’extourne' : entry.sourceType === 'manual' ? 'Saisie manuelle' : `Origine : ${entry.sourceType} · toute extourne automatique restera signalée jusqu’à correction métier`}</small>{canReverse ? <Button variant="ghost" size="small" onClick={() => onReverse(entry)}><RotateCcw size={14} /> Extourner</Button> : <span className="locked-label"><CheckCircle2 size={13} /> Extournée</span>}</header><JournalLineTable lines={report.lines.filter((line) => line.journalEntryId === entry.id)} /></article>; })}</div>;
 }
 
 function JournalLineTable({ lines }: { lines: JournalReport['lines'] }) {

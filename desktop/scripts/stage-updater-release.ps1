@@ -14,7 +14,7 @@ param(
 
     [string] $OutputRoot,
     [string] $DownloadBaseUrl = 'https://elyko.alb-leart1.chatgpt.site/downloads',
-    [string] $Notes = 'Version stable Elyko.',
+    [string] $Notes = 'Version stable Zentra.',
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string] $PreviousVersion,
@@ -76,20 +76,20 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot 'outputs\updater-releases'
 }
 
-$artifactPaths = Get-ElykoUpdaterArtifactPaths -DesktopRoot $desktopRoot -Version $Version
-$applicationExe = Resolve-ElykoCanonicalArtifactPath `
+$artifactPaths = Get-ZentraUpdaterArtifactPaths -DesktopRoot $desktopRoot -Version $Version
+$applicationExe = Resolve-ZentraCanonicalArtifactPath `
     -ProvidedPath $ApplicationExePath `
     -ExpectedPath $artifactPaths.Application `
-    -Label 'Exécutable Elyko'
-$installer = Resolve-ElykoCanonicalArtifactPath `
+    -Label 'Exécutable Zentra'
+$installer = Resolve-ZentraCanonicalArtifactPath `
     -ProvidedPath $InstallerPath `
     -ExpectedPath $artifactPaths.Installer `
     -Label 'Installateur NSIS'
-$signature = Resolve-ElykoCanonicalArtifactPath `
+$signature = Resolve-ZentraCanonicalArtifactPath `
     -ProvidedPath $SignaturePath `
     -ExpectedPath $artifactPaths.Signature `
     -Label "Signature Tauri directe de l’installateur NSIS"
-$provenancePath = Resolve-ElykoCanonicalArtifactPath `
+$provenancePath = Resolve-ZentraCanonicalArtifactPath `
     -ProvidedPath $BuildProvenancePath `
     -ExpectedPath $artifactPaths.Provenance `
     -Label 'Preuve du build updater'
@@ -132,7 +132,7 @@ if (-not $AllowDirtyWorktree) {
     }
 }
 
-$expectedInstallerName = "Elyko_${Version}_x64-setup.exe"
+$expectedInstallerName = "Zentra_${Version}_x64-setup.exe"
 if ([System.IO.Path]::GetFileName($installer) -ne $expectedInstallerName) {
     throw "Nom d’installateur incohérent : attendu $expectedInstallerName."
 }
@@ -163,7 +163,7 @@ if ($endpoint.Trim() -ne $expectedEndpoint) {
     throw "Endpoint incohérent : le build doit embarquer $expectedEndpoint."
 }
 
-Assert-ElykoUpdaterBuildProvenance `
+Assert-ZentraUpdaterBuildProvenance `
     -Paths $artifactPaths `
     -Version $Version `
     -Identifier $tauriConfig.identifier `
@@ -181,7 +181,7 @@ if (-not $applicationText.Contains($publicKey.Trim())) {
     throw "L’exécutable ne contient pas la clé publique attendue; rebuild updater obligatoire."
 }
 
-Assert-ValidAuthenticode $applicationExe 'Exécutable Elyko'
+Assert-ValidAuthenticode $applicationExe 'Exécutable Zentra'
 Assert-ValidAuthenticode $installer 'Installateur NSIS'
 
 Push-Location (Join-Path $desktopRoot 'src-tauri')
@@ -195,11 +195,11 @@ try {
 }
 
 [IO.Directory]::CreateDirectory($outputRootFull) | Out-Null
-$releaseDirectory = Join-Path $outputRootFull "Elyko-$Version-windows-x64"
+$releaseDirectory = Join-Path $outputRootFull "Zentra-$Version-windows-x64"
 if (Test-Path -LiteralPath $releaseDirectory) {
     throw "Le lot existe déjà et ne sera pas écrasé : $releaseDirectory"
 }
-$partialDirectory = Join-Path $outputRootFull ".Elyko-$Version-partial-$([Guid]::NewGuid().ToString('N'))"
+$partialDirectory = Join-Path $outputRootFull ".Zentra-$Version-partial-$([Guid]::NewGuid().ToString('N'))"
 [IO.Directory]::CreateDirectory($partialDirectory) | Out-Null
 
 try {

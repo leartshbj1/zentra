@@ -1,8 +1,8 @@
 {
-  "name": "elyko-desktop",
-  "version": "1.12.0",
+  "name": "zentra-desktop",
+  "version": "1.13.0",
   "private": true,
-  "description": "Application Windows locale de gestion d’entreprise multisectorielle Elyko",
+  "description": "Application Windows locale de gestion d’entreprise multisectorielle Zentra",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",

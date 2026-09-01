@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-function Get-ElykoUpdaterArtifactPaths {
+function Get-ZentraUpdaterArtifactPaths {
     param(
         [Parameter(Mandatory = $true)]
         [string] $DesktopRoot,
@@ -15,7 +15,7 @@ function Get-ElykoUpdaterArtifactPaths {
     $releaseRoot = [IO.Path]::GetFullPath(
         (Join-Path $desktopRootFull "src-tauri\target\$target\release")
     )
-    $installerName = "Elyko_${Version}_x64-setup.exe"
+    $installerName = "Zentra_${Version}_x64-setup.exe"
     $installer = [IO.Path]::GetFullPath(
         (Join-Path $releaseRoot "bundle\nsis\$installerName")
     )
@@ -23,7 +23,7 @@ function Get-ElykoUpdaterArtifactPaths {
     [pscustomobject]@{
         Target = $target
         ReleaseRoot = $releaseRoot
-        Application = [IO.Path]::GetFullPath((Join-Path $releaseRoot 'Elyko.exe'))
+        Application = [IO.Path]::GetFullPath((Join-Path $releaseRoot 'Zentra.exe'))
         Installer = $installer
         Signature = "$installer.sig"
         Provenance = [IO.Path]::GetFullPath(
@@ -32,7 +32,7 @@ function Get-ElykoUpdaterArtifactPaths {
     }
 }
 
-function Test-ElykoSamePath {
+function Test-ZentraSamePath {
     param(
         [Parameter(Mandatory = $true)] [string] $Left,
         [Parameter(Mandatory = $true)] [string] $Right
@@ -45,7 +45,7 @@ function Test-ElykoSamePath {
     )
 }
 
-function Resolve-ElykoCanonicalArtifactPath {
+function Resolve-ZentraCanonicalArtifactPath {
     param(
         [AllowNull()] [AllowEmptyString()] [string] $ProvidedPath,
         [Parameter(Mandatory = $true)] [string] $ExpectedPath,
@@ -61,13 +61,13 @@ function Resolve-ElykoCanonicalArtifactPath {
         throw "$Label introuvable : $candidate"
     }
     $resolved = (Resolve-Path -LiteralPath $candidate).Path
-    if (-not (Test-ElykoSamePath $resolved $ExpectedPath)) {
+    if (-not (Test-ZentraSamePath $resolved $ExpectedPath)) {
         throw "$Label refusé : seul le chemin canonique du build frais est accepté ($ExpectedPath)."
     }
     return $resolved
 }
 
-function Get-ElykoTextSha256 {
+function Get-ZentraTextSha256 {
     param([Parameter(Mandatory = $true)] [string] $Text)
 
     $algorithm = [Security.Cryptography.SHA256]::Create()
@@ -79,13 +79,13 @@ function Get-ElykoTextSha256 {
     }
 }
 
-function Get-ElykoFileSha256 {
+function Get-ZentraFileSha256 {
     param([Parameter(Mandatory = $true)] [string] $Path)
 
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToUpperInvariant()
 }
 
-function Write-ElykoUpdaterBuildProvenance {
+function Write-ZentraUpdaterBuildProvenance {
     param(
         [Parameter(Mandatory = $true)] $Paths,
         [Parameter(Mandatory = $true)] [string] $Version,
@@ -105,7 +105,7 @@ function Write-ElykoUpdaterBuildProvenance {
         }
     }
 
-    if (-not (Test-ElykoSamePath $Paths.Signature "$($Paths.Installer).sig")) {
+    if (-not (Test-ZentraSamePath $Paths.Signature "$($Paths.Installer).sig")) {
         throw "La signature Tauri doit être le fichier .exe.sig de l’installateur NSIS."
     }
 
@@ -118,18 +118,18 @@ function Write-ElykoUpdaterBuildProvenance {
         build_started_at = $BuildStartedAt.ToString('o')
         build_completed_at = $buildCompletedAt.ToString('o')
         endpoint = $Endpoint.Trim()
-        public_key_sha256 = (Get-ElykoTextSha256 ($PublicKey.Trim()))
+        public_key_sha256 = (Get-ZentraTextSha256 ($PublicKey.Trim()))
         application = [ordered]@{
             path = [IO.Path]::GetFullPath($Paths.Application)
-            sha256 = (Get-ElykoFileSha256 $Paths.Application)
+            sha256 = (Get-ZentraFileSha256 $Paths.Application)
         }
         installer = [ordered]@{
             path = [IO.Path]::GetFullPath($Paths.Installer)
-            sha256 = (Get-ElykoFileSha256 $Paths.Installer)
+            sha256 = (Get-ZentraFileSha256 $Paths.Installer)
         }
         signature = [ordered]@{
             path = [IO.Path]::GetFullPath($Paths.Signature)
-            sha256 = (Get-ElykoFileSha256 $Paths.Signature)
+            sha256 = (Get-ZentraFileSha256 $Paths.Signature)
         }
     }
 
@@ -150,7 +150,7 @@ function Write-ElykoUpdaterBuildProvenance {
     return $Paths.Provenance
 }
 
-function Assert-ElykoUpdaterBuildProvenance {
+function Assert-ZentraUpdaterBuildProvenance {
     param(
         [Parameter(Mandatory = $true)] $Paths,
         [Parameter(Mandatory = $true)] [string] $Version,
@@ -171,7 +171,7 @@ function Assert-ElykoUpdaterBuildProvenance {
         throw "La preuve de build ne correspond pas à la version, la cible ou l’identifiant attendus."
     }
     if ($provenance.endpoint -ne $Endpoint.Trim() -or
-        $provenance.public_key_sha256 -ne (Get-ElykoTextSha256 ($PublicKey.Trim()))) {
+        $provenance.public_key_sha256 -ne (Get-ZentraTextSha256 ($PublicKey.Trim()))) {
         throw 'La preuve de build ne correspond pas à la configuration updater compilée.'
     }
 
@@ -195,10 +195,10 @@ function Assert-ElykoUpdaterBuildProvenance {
         @{ Label = 'signature Tauri'; ActualPath = $Paths.Signature; Recorded = $provenance.signature }
     )
     foreach ($check in $checks) {
-        if (-not (Test-ElykoSamePath $check.ActualPath $check.Recorded.path)) {
+        if (-not (Test-ZentraSamePath $check.ActualPath $check.Recorded.path)) {
             throw "La preuve référence un autre $($check.Label)."
         }
-        $currentHash = Get-ElykoFileSha256 $check.ActualPath
+        $currentHash = Get-ZentraFileSha256 $check.ActualPath
         if ($currentHash -ne $check.Recorded.sha256) {
             throw "Le SHA-256 du $($check.Label) a changé depuis le build frais."
         }
@@ -207,7 +207,7 @@ function Assert-ElykoUpdaterBuildProvenance {
         }
     }
 
-    if (-not (Test-ElykoSamePath $Paths.Signature "$($Paths.Installer).sig")) {
+    if (-not (Test-ZentraSamePath $Paths.Signature "$($Paths.Installer).sig")) {
         throw "La signature fournie n’est pas le .exe.sig direct de l’installateur NSIS."
     }
 }

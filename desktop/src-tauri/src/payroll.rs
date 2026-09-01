@@ -23,8 +23,10 @@ use crate::{
 };
 
 const CH_2026_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf";
+const CH_2026_FAMILY_ALLOWANCE_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf";
+const VALAIS_2026_EMPLOYEE_CAF_RATE_BP: i64 = 13;
 const SETTINGS_RATE_ID_PREFIX: &str = "settings-rate-";
-const SETTINGS_RATE_SOURCE: &str = "Questionnaire local Elyko (saisie client)";
+const SETTINGS_RATE_SOURCE: &str = "Questionnaire local Zentra (saisie client)";
 
 #[derive(Debug)]
 struct Definition {
@@ -345,6 +347,7 @@ impl LocalStore {
         let now = now_iso();
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
+        validate_definition_configuration_policy(&connection, &input)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         validate_contribution_accounts(&tx, &input)?;
         let normalized_code = input.code.trim().to_uppercase();
@@ -731,7 +734,7 @@ impl LocalStore {
                 .or_else(|| requested_date.map(ToOwned::to_owned))
                 .ok_or_else(|| {
                     AppError::Validation(
-                        "Renseignez la date réelle du paiement historique; Elyko ne peut pas l'inventer."
+                        "Renseignez la date réelle du paiement historique; Zentra ne peut pas l'inventer."
                             .into(),
                     )
                 })?;
@@ -1082,6 +1085,7 @@ fn calculate(
                 def.code
             )));
         }
+        validate_persisted_definition_policy(connection, &def)?;
         let mut basis = match (def.basis_kind.as_str(), selection.basis_cents) {
             ("gross", _) => gross,
             (_, Some(value)) => value,
@@ -1158,7 +1162,7 @@ fn calculate(
                 .is_some_and(|provided| provided != expected_ytd)
             {
                 return Err(AppError::Validation(format!(
-                    "Le cumul annuel AC de {} doit être celui calculé localement par Elyko: {} centimes (ouverture confirmée et périodes antérieures), pas {:?}.",
+                    "Le cumul annuel AC de {} doit être celui calculé localement par Zentra: {} centimes (ouverture confirmée et périodes antérieures), pas {:?}.",
                     def.code, expected_ytd, selection.year_to_date_basis_cents
                 )));
             }
@@ -1552,7 +1556,7 @@ fn validate_validated_swiss_payslip(
     }
     if !period.starts_with("2026-") {
         return Err(AppError::Validation(
-            "Elyko ne possède un profil fédéral figé que pour 2026; chargez et contrôlez le profil officiel de l’année avant validation."
+            "Zentra ne possède un profil fédéral figé que pour 2026; chargez et contrôlez le profil officiel de l’année avant validation."
                 .into(),
         ));
     }
@@ -1741,6 +1745,134 @@ fn load_employee_payroll_context(
 fn load_definition(connection: &Connection, id: &str) -> AppResult<Definition> {
     connection.query_row("SELECT id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,liability_account_id,expense_account_id FROM payroll_contribution_definitions WHERE id=? AND active=1",params![id],|r|Ok(Definition{id:r.get(0)?,code:r.get(1)?,label:r.get(2)?,category:r.get(3)?,side:r.get(4)?,calculation_kind:r.get(5)?,rate_bp:r.get(6)?,fixed_amount_cents:r.get(7)?,annual_ceiling_cents:r.get(8)?,basis_kind:r.get(9)?,source:r.get(10)?,effective_from:r.get(11)?,effective_to:r.get(12)?,liability_account_id:r.get(13)?,expense_account_id:r.get(14)?})).optional()?.ok_or_else(||AppError::NotFound(format!("payroll_contribution_definitions/{id}")))
 }
+
+/// Verrouille les côtés légaux certains même pour une définition historique
+/// créée avant l'ajout de ces contrôles. Le modèle actuel ne possède aucun
+/// champ structuré permettant de conserver la preuve d'une convention plus
+/// favorable pour l'AANP. Accepter une simple chaîne libre `source` comme
+/// preuve serait ambigu; Zentra bloque donc la part employeur jusqu'à ce que
+/// cette preuve soit modélisée et vérifiable.
+fn validate_statutory_contribution_side(category: &str, side: &str) -> AppResult<()> {
+    match (category, side) {
+        ("aap", "employee") => Err(AppError::Validation(
+            "La prime accidents professionnels AAP est exclusivement à la charge de l’employeur et ne peut jamais être retenue au salarié."
+                .into(),
+        )),
+        ("aanp", "employer") => Err(AppError::Validation(
+            "Zentra ne dispose pas encore d’un champ structuré permettant de prouver une convention plus favorable qui met l’AANP à la charge de l’employeur. Par sécurité, configurez cette prime côté salarié."
+                .into(),
+        )),
+        _ => Ok(()),
+    }
+}
+
+fn configured_payroll_canton(connection: &Connection) -> AppResult<Option<String>> {
+    let settings_json: String = connection.query_row(
+        "SELECT extra_settings_json FROM settings WHERE id=1",
+        [],
+        |row| row.get(0),
+    )?;
+    let settings: Value = serde_json::from_str(&settings_json).map_err(|_| {
+        AppError::Validation("La configuration locale de paie est illisible.".into())
+    })?;
+    Ok(settings
+        .pointer("/payroll/payrollCanton")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_uppercase))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_employee_family_allowance_policy(
+    category: &str,
+    side: &str,
+    calculation_kind: &str,
+    rate_bp: Option<i64>,
+    source: &str,
+    effective_from: &str,
+    effective_to: Option<&str>,
+    payroll_canton: Option<&str>,
+) -> AppResult<()> {
+    if category != "family_allowance" || side != "employee" {
+        return Ok(());
+    }
+    if payroll_canton
+        .map(str::trim)
+        .map(str::to_uppercase)
+        .as_deref()
+        != Some("VS")
+    {
+        return Err(AppError::Validation(
+            "Une contribution CAF côté salarié n’est admise qu’en Valais. Renseignez explicitement VS comme canton de paie ou placez la contribution côté employeur."
+                .into(),
+        ));
+    }
+    if calculation_kind != "rate" || rate_bp != Some(VALAIS_2026_EMPLOYEE_CAF_RATE_BP) {
+        return Err(AppError::Validation(
+            "En Valais, la contribution CAF côté salarié doit utiliser le taux officiel 2026 de 0,13 %."
+                .into(),
+        ));
+    }
+    if !source.contains(CH_2026_FAMILY_ALLOWANCE_SOURCE) {
+        return Err(AppError::Validation(
+            "La contribution CAF salarié Valais 2026 doit citer le tableau cantonal officiel 2026 comme source."
+                .into(),
+        ));
+    }
+    if effective_from != "2026-01-01" || effective_to != Some("2026-12-31") {
+        return Err(AppError::Validation(
+            "La contribution CAF salarié Valais connue par Zentra est valable uniquement du 01.01.2026 au 31.12.2026; créez une version datée distincte pour une autre année."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_definition_configuration_policy(
+    connection: &Connection,
+    input: &ContributionDefinitionInput,
+) -> AppResult<()> {
+    let payroll_canton = if input.category == "family_allowance" && input.side == "employee" {
+        configured_payroll_canton(connection)?
+    } else {
+        None
+    };
+    validate_employee_family_allowance_policy(
+        &input.category,
+        &input.side,
+        &input.calculation_kind,
+        input.rate_bp,
+        &input.source,
+        &input.effective_from,
+        input.effective_to.as_deref(),
+        payroll_canton.as_deref(),
+    )
+}
+
+fn validate_persisted_definition_policy(
+    connection: &Connection,
+    definition: &Definition,
+) -> AppResult<()> {
+    validate_statutory_contribution_side(&definition.category, &definition.side)?;
+    let payroll_canton =
+        if definition.category == "family_allowance" && definition.side == "employee" {
+            configured_payroll_canton(connection)?
+        } else {
+            None
+        };
+    validate_employee_family_allowance_policy(
+        &definition.category,
+        &definition.side,
+        &definition.calculation_kind,
+        definition.rate_bp,
+        &definition.source,
+        &definition.effective_from,
+        definition.effective_to.as_deref(),
+        payroll_canton.as_deref(),
+    )
+}
+
 fn validate_definition_input(i: &ContributionDefinitionInput) -> AppResult<()> {
     if i.code.trim().is_empty() || i.label.trim().is_empty() || i.source.trim().is_empty() {
         return Err(AppError::Validation(
@@ -1768,6 +1900,7 @@ fn validate_definition_input(i: &ContributionDefinitionInput) -> AppResult<()> {
             "side doit être employee ou employer.".into(),
         ));
     }
+    validate_statutory_contribution_side(&i.category, &i.side)?;
     if !matches!(
         i.basis_kind.as_str(),
         "gross" | "ahv_salary" | "coordinated" | "custom"
@@ -2036,5 +2169,165 @@ mod laa_policy_tests {
         ] {
             assert!(validate_official_laa_group(&[invalid], "aap").is_err());
         }
+    }
+
+    #[test]
+    fn statutory_sides_block_employee_aap_and_unproven_employer_aanp() {
+        assert!(validate_statutory_contribution_side("aap", "employer").is_ok());
+        let aap_error = validate_statutory_contribution_side("aap", "employee")
+            .expect_err("AAP employee deduction must be refused")
+            .to_string();
+        assert!(aap_error.contains("ne peut jamais être retenue"));
+
+        assert!(validate_statutory_contribution_side("aanp", "employee").is_ok());
+        let aanp_error = validate_statutory_contribution_side("aanp", "employer")
+            .expect_err("AANP employer needs structured convention evidence")
+            .to_string();
+        assert!(aanp_error.contains("champ structuré"));
+    }
+
+    #[test]
+    fn employee_caf_is_limited_to_the_official_valais_2026_profile() {
+        let valid = || {
+            validate_employee_family_allowance_policy(
+                "family_allowance",
+                "employee",
+                "rate",
+                Some(13),
+                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                "2026-01-01",
+                Some("2026-12-31"),
+                Some("VS"),
+            )
+        };
+        valid().expect("official Valais profile must be accepted");
+        assert!(validate_employee_family_allowance_policy(
+            "family_allowance",
+            "employer",
+            "rate",
+            Some(200),
+            "Taux de la caisse",
+            "2026-01-01",
+            None,
+            Some("VD"),
+        )
+        .is_ok());
+
+        for invalid in [
+            (
+                Some("VD"),
+                Some(13),
+                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                "2026-01-01",
+                Some("2026-12-31"),
+            ),
+            (
+                Some("VS"),
+                Some(14),
+                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                "2026-01-01",
+                Some("2026-12-31"),
+            ),
+            (
+                Some("VS"),
+                Some(13),
+                "Caisse sans source officielle",
+                "2026-01-01",
+                Some("2026-12-31"),
+            ),
+            (
+                Some("VS"),
+                Some(13),
+                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                "2025-01-01",
+                Some("2026-12-31"),
+            ),
+            (
+                Some("VS"),
+                Some(13),
+                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                "2026-01-01",
+                None,
+            ),
+        ] {
+            assert!(validate_employee_family_allowance_policy(
+                "family_allowance",
+                "employee",
+                "rate",
+                invalid.1,
+                invalid.2,
+                invalid.3,
+                invalid.4,
+                invalid.0,
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn calculation_rechecks_legacy_definitions_against_side_and_canton_policy() {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE settings(id INTEGER PRIMARY KEY,extra_settings_json TEXT NOT NULL);\
+                 INSERT INTO settings(id,extra_settings_json) VALUES(1,'{\"payroll\":{\"payrollCanton\":\"VS\"}}');\
+                 CREATE TABLE payroll_contribution_definitions(\
+                   id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,category TEXT NOT NULL,\
+                   side TEXT NOT NULL,calculation_kind TEXT NOT NULL,rate_bp INTEGER,\
+                   fixed_amount_cents INTEGER,annual_ceiling_cents INTEGER,basis_kind TEXT NOT NULL,\
+                   source TEXT NOT NULL,effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,\
+                   liability_account_id TEXT,expense_account_id TEXT\
+                 );\
+                 INSERT INTO payroll_contribution_definitions(\
+                   id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,\
+                   annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active\
+                 ) VALUES(\
+                   'legacy','AAP_LEGACY','AAP historique','aap','employee','rate',100,NULL,NULL,\
+                   'gross','Police LAA','2026-01-01','2026-12-31',1\
+                 );",
+            )
+            .expect("minimal payroll policy schema");
+        let selections = [ContributionSelectionInput {
+            definition_id: "legacy".into(),
+            basis_cents: None,
+            year_to_date_basis_cents: None,
+        }];
+
+        let aap_error = calculate(&connection, "2026-06", 500_000, &selections, None)
+            .expect_err("legacy employee AAP must be blocked at calculation")
+            .to_string();
+        assert!(aap_error.contains("ne peut jamais être retenue"));
+
+        connection
+            .execute(
+                "UPDATE payroll_contribution_definitions SET code='AANP_LEGACY',category='aanp',side='employer' WHERE id='legacy'",
+                [],
+            )
+            .expect("switch legacy definition to AANP");
+        let aanp_error = calculate(&connection, "2026-06", 500_000, &selections, None)
+            .expect_err("legacy employer AANP must be blocked without structured proof")
+            .to_string();
+        assert!(aanp_error.contains("champ structuré"));
+
+        connection
+            .execute(
+                "UPDATE payroll_contribution_definitions SET code='CAF_VS_2026',category='family_allowance',side='employee',rate_bp=13,source=?,effective_from='2026-01-01',effective_to='2026-12-31' WHERE id='legacy'",
+                params![CH_2026_FAMILY_ALLOWANCE_SOURCE],
+            )
+            .expect("switch legacy definition to official Valais CAF");
+        let valais = calculate(&connection, "2026-06", 500_000, &selections, None)
+            .expect("official employee CAF must calculate in Valais");
+        assert_eq!(valais["employee_deductions_cents"], 650);
+
+        connection
+            .execute(
+                "UPDATE settings SET extra_settings_json='{\"payroll\":{\"payrollCanton\":\"VD\"}}' WHERE id=1",
+                [],
+            )
+            .expect("switch payroll canton");
+        let canton_error = calculate(&connection, "2026-06", 500_000, &selections, None)
+            .expect_err("employee CAF outside Valais must be blocked")
+            .to_string();
+        assert!(canton_error.contains("qu’en Valais"));
     }
 }

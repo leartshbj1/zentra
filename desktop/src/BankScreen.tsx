@@ -279,7 +279,7 @@ export function BankScreen({
 
   async function associate(account: BankAccountLink) {
     if (readOnly || busy) return;
-    if (!window.confirm(`Associer le compte « ${account.accountId} » (${account.currency}) à cette entreprise ?\n\nCette confirmation crée uniquement un lien dans Elyko sur ce PC. Aucun accès bancaire n’est ouvert et aucun mouvement n’est rapproché automatiquement.`)) return;
+    if (!window.confirm(`Associer le compte « ${account.accountId} » (${account.currency}) à cette entreprise ?\n\nCette confirmation crée uniquement un lien dans Zentra sur ce PC. Aucun accès bancaire n’est ouvert et aucun mouvement n’est rapproché automatiquement.`)) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -320,7 +320,7 @@ export function BankScreen({
     const invoice = workspace.invoices.find((candidate) => candidate.id === invoiceId);
     const candidate = candidateForInvoice(movement, invoiceId);
     const invoiceLabel = invoice?.number || candidate?.invoiceNumber || 'facture sélectionnée';
-    if (!window.confirm(`Confirmer le rapprochement de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} avec la facture ${invoiceLabel} ?\n\nElyko va enregistrer le paiement et son écriture bancaire dans la même transaction locale. Si un contrôle échoue, aucune donnée ne sera modifiée.`)) return;
+    if (!window.confirm(`Confirmer le rapprochement de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} avec la facture ${invoiceLabel} ?\n\nZentra va enregistrer le paiement et son écriture bancaire dans la même transaction locale. Si un contrôle échoue, aucune donnée ne sera modifiée.`)) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -349,7 +349,7 @@ export function BankScreen({
     const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
     const invoiceLabel = invoice?.reference || candidate?.reference || 'facture fournisseur sélectionnée';
     const supplierLabel = invoice?.supplierName || candidate?.supplierName || 'le fournisseur';
-    if (!window.confirm(`Confirmer la sortie de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} pour ${supplierLabel}, facture ${invoiceLabel} ?\n\nElyko va enregistrer le paiement fournisseur et son écriture bancaire dans la même transaction locale. Si un contrôle échoue, aucune donnée ne sera modifiée.`)) return;
+    if (!window.confirm(`Confirmer la sortie de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} pour ${supplierLabel}, facture ${invoiceLabel} ?\n\nZentra va enregistrer le paiement fournisseur et son écriture bancaire dans la même transaction locale. Si un contrôle échoue, aucune donnée ne sera modifiée.`)) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -382,7 +382,7 @@ export function BankScreen({
   return <div className="stack-layout bank-screen">
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
-      <div><p className="eyebrow">ISO 20022 · traitement local</p><h2>Rapprochez vos encaissements et règlements en gardant le contrôle.</h2><p>Importez un XML CAMT fourni par votre banque. Elyko distingue les entrées clients des sorties fournisseurs, sans connexion au compte ni paiement créé avant votre confirmation.</p></div>
+      <div><p className="eyebrow">ISO 20022 · traitement local</p><h2>Rapprochez vos encaissements et règlements en gardant le contrôle.</h2><p>Importez un XML CAMT fourni par votre banque. Zentra distingue les entrées clients des sorties fournisseurs, sans connexion au compte ni paiement créé avant votre confirmation.</p></div>
       <Button disabled={busy || readOnly} onClick={() => void importStatement()} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur ce PC'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>
 
@@ -404,7 +404,7 @@ export function BankScreen({
     {bank.accounts.length ? <section className="bank-accounts" aria-label="Comptes détectés dans les relevés">
       {bank.accounts.map((account) => <article className={account.linked ? 'is-linked' : 'is-unlinked'} key={`${account.accountId}-${account.currency}`}>
         <span>{account.linked ? <ShieldCheck size={18} /> : <Unlink size={18} />}</span>
-        <div><strong>{account.linked ? 'Compte associé à cette entreprise' : 'Associer ce compte à cette entreprise'}</strong><p>{account.accountId} · {account.currency} · {account.movementCount} mouvement{account.movementCount > 1 ? 's' : ''}</p><small>{account.linked ? account.linkSource === 'settings_iban' ? 'Correspond à l’IBAN configuré dans Elyko.' : 'Association locale confirmée manuellement.' : 'Le relevé reste visible, mais ses propositions sont bloquées.'}</small></div>
+        <div><strong>{account.linked ? 'Compte associé à cette entreprise' : 'Associer ce compte à cette entreprise'}</strong><p>{account.accountId} · {account.currency} · {account.movementCount} mouvement{account.movementCount > 1 ? 's' : ''}</p><small>{account.linked ? account.linkSource === 'settings_iban' ? 'Correspond à l’IBAN configuré dans Zentra.' : 'Association locale confirmée manuellement.' : 'Le relevé reste visible, mais ses propositions sont bloquées.'}</small></div>
         {!account.linked ? <Button variant="secondary" size="small" disabled={busy || readOnly} onClick={() => void associate(account)}><Link2 size={14} /> Associer ce compte</Button> : account.linkSource === 'explicit' ? <Button variant="ghost" size="small" disabled={busy || readOnly} onClick={() => void dissociate(account)}><Unlink size={14} /> Dissocier</Button> : null}
       </article>)}
     </section> : null}

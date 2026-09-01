@@ -282,7 +282,7 @@ export function ReminderDemo() {
                 Aucun message ne serait préparé.
               </strong>
               <p className="mt-2 text-sm leading-6">
-                Elyko revérifie le solde au dernier moment, arrête la relance et
+                Zentra revérifie le solde au dernier moment, arrête la relance et
                 conserve l’événement dans l’historique local.
               </p>
             </div>

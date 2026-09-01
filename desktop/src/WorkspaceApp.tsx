@@ -67,10 +67,15 @@ import {
   X,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
-import { BrandMark } from './BrandMark';
+import { salesPdfSuggestedFileName } from './salesPdfExport';
+import { BrandMark, BrandWordmark } from './BrandMark';
 import { AccountingScreen } from './AccountingScreen';
 import { AppUpdater } from './AppUpdater';
 import { BusinessProfileFields } from './BusinessProfileEditor';
+import {
+  PaymentAccountingProofs,
+  type AccountingEntryFocus,
+} from './PaymentAccountingProofs';
 import { RemindersScreen } from './RemindersScreen';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
@@ -93,6 +98,11 @@ import { BankScreen } from './BankScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { PayrollImportWizard } from './PayrollImportWizard';
+import {
+  SETTINGS_READINESS_TARGETS,
+  SetupReadinessCenter,
+  buildSetupReadiness,
+} from './SetupReadinessCenter';
 import { TimeBillingWizard } from './TimeBillingWizard';
 import {
   DeliveryNotePrintPreview,
@@ -317,6 +327,8 @@ export function WorkspaceApp({
   const [notice, setNotice] = useState<Notice | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
+  const [accountingEntryFocus, setAccountingEntryFocus] =
+    useState<AccountingEntryFocus | null>(null);
   const [reminderRefreshSignal, setReminderRefreshSignal] = useState(0);
   const reminderScanInFlight = useRef(false);
   const reminderRequestIds = useRef(new Map<string, string>());
@@ -327,10 +339,21 @@ export function WorkspaceApp({
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const guidedTour = useGuidedTour();
   const navigateTour = useCallback((nextView: TourView) => {
+    setAccountingEntryFocus(null);
     setView(nextView);
     setSearch('');
     setMenuOpen(false);
   }, []);
+  const openAccountingEntry = useCallback((focus: AccountingEntryFocus) => {
+    setAccountingEntryFocus(focus);
+    setView('accounting');
+    setSearch('');
+    setMenuOpen(false);
+  }, []);
+  const clearAccountingEntryFocus = useCallback(
+    () => setAccountingEntryFocus(null),
+    [],
+  );
   const settings = workspace.settings!;
   const terminology = projectTerminology(settings.business.nogaSection);
   const recurrenceScheduleSignal = workspace.recurrenceSchedules
@@ -575,12 +598,6 @@ export function WorkspaceApp({
   }
 
   function issueInvoice(item: Invoice) {
-    const capacityError =
-      item.type === 'credit_note' ? null : invoicePrintCapacityError(item);
-    if (capacityError) {
-      setNotice({ tone: 'error', text: capacityError });
-      return;
-    }
     if (
       !window.confirm(
         'Émettre cette facture maintenant ? Le numéro, les lignes, le client, les dates et les montants seront figés. Toute correction ultérieure devra passer par un avoir et une nouvelle facture.',
@@ -946,9 +963,8 @@ export function WorkspaceApp({
     <div className="desktop-app">
       <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
         <div className="sidebar__brand">
-          <BrandMark size={36} />
-          <div>
-            <strong>Elyko</strong>
+          <div className="sidebar__wordmark">
+            <BrandWordmark />
             <small>Gestion locale</small>
           </div>
           <Button
@@ -981,6 +997,7 @@ export function WorkspaceApp({
                   aria-current={active ? 'page' : undefined}
                   className={active ? 'is-active' : ''}
                   onClick={() => {
+                    setAccountingEntryFocus(null);
                     setView(item.id);
                     setSearch('');
                     setMenuOpen(false);
@@ -1020,7 +1037,7 @@ export function WorkspaceApp({
               <Menu size={20} />
             </Button>
             <div>
-              <p>Elyko local</p>
+              <p>Zentra local</p>
               <h1>{title[0]}</h1>
             </div>
           </div>
@@ -1356,6 +1373,7 @@ export function WorkspaceApp({
               }
               onIssue={issueInvoice}
               onPayment={(item) => setModal({ type: 'payment', invoice: item })}
+              onOpenPaymentJournal={openAccountingEntry}
               onOpenOrder={(orderId) => {
                 setOrderToOpenId(orderId);
                 setView('orders');
@@ -1488,6 +1506,8 @@ export function WorkspaceApp({
             <AccountingScreen
               workspace={workspace}
               onWorkspaceChange={setWorkspace}
+              focusEntry={accountingEntryFocus}
+              onFocusHandled={clearAccountingEntryFocus}
             />
           ) : null}
           {view === 'settings' ? (
@@ -1497,6 +1517,10 @@ export function WorkspaceApp({
               setBusy={setBusy}
               onWorkspace={setWorkspace}
               onNotice={setNotice}
+              onOpenAccounting={() => {
+                setView('accounting');
+                setSearch('');
+              }}
             />
           ) : null}
         </section>
@@ -2595,6 +2619,7 @@ type DocumentsProps =
       onPrint: (item: Quote) => void;
       onArchive: (item: Quote) => void;
       onPayment?: never;
+      onOpenPaymentJournal?: never;
     }
   | {
       entity: 'invoices';
@@ -2605,6 +2630,7 @@ type DocumentsProps =
       onCreate: () => void;
       onIssue: (item: Invoice) => void;
       onPayment: (item: Invoice) => void;
+      onOpenPaymentJournal: (focus: AccountingEntryFocus) => void;
       onOpenOrder: (orderId: string) => void;
       onPrint: (item: Invoice) => void;
       onArchive: (item: Invoice) => void;
@@ -2619,6 +2645,7 @@ type LooseDocumentsProps = {
   onConvert: (item: Quote) => void;
   onCreateOrder: (item: Quote) => void;
   onPayment: (item: Invoice) => void;
+  onOpenPaymentJournal: (focus: AccountingEntryFocus) => void;
   onOpenOrder: (orderId: string) => void;
   onPrint: (item: Quote | Invoice) => void;
   onArchive: (item: Quote | Invoice) => void;
@@ -2947,6 +2974,13 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           ? formatMoney(paid)
                           : '—'}
                     </strong>
+                    {invoice?.type !== 'credit_note' ? (
+                      <PaymentAccountingProofs
+                        invoiceId={item.id}
+                        payments={workspace.payments}
+                        onOpenJournal={props.onOpenPaymentJournal}
+                      />
+                    ) : null}
                   </td>
                 ) : null}
                 <td>
@@ -3371,7 +3405,7 @@ function TeamScreen({
             <strong>Ancien paiement de salaire à régulariser</strong>
             <p>
               La fiche {legacyPaymentToRepair.period} est marquée payée, mais sa
-              date ou son lien comptable manque. Indiquez la date réelle; Elyko
+              date ou son lien comptable manque. Indiquez la date réelle; Zentra
               créera ou reliera l’écriture sans modifier les montants
               historiques.
             </p>
@@ -3736,17 +3770,35 @@ function SettingsScreen({
   setBusy,
   onWorkspace,
   onNotice,
+  onOpenAccounting,
 }: {
   workspace: Workspace;
   busy: boolean;
   setBusy: (value: boolean) => void;
   onWorkspace: Dispatch<SetStateAction<Workspace | null>>;
   onNotice: (value: Notice | null) => void;
+  onOpenAccounting: () => void;
 }) {
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
   const [vatDraft, setVatDraft] = useState('');
   const org = settings.organization;
   const billing = settings.billing;
+  const accountingReadiness = buildSetupReadiness(workspace, settings).steps.find(
+    (item) => item.id === 'accounting',
+  )!;
+
+  function navigateToSetting(targetId: string) {
+    const target = document.getElementById(targetId);
+    if (!(target instanceof HTMLElement)) return;
+    const reducedMotion = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    target.scrollIntoView({
+      behavior: reducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+    target.focus({ preventScroll: true });
+  }
 
   async function execute(action: () => Promise<Workspace>, success: string) {
     setBusy(true);
@@ -3892,6 +3944,11 @@ function SettingsScreen({
 
   return (
     <div className="settings-layout">
+      <SetupReadinessCenter
+        workspace={workspace}
+        settings={settings}
+        onNavigate={navigateToSetting}
+      />
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Activité"
@@ -3924,7 +3981,11 @@ function SettingsScreen({
           </Button>
         </div>
       </section>
-      <section className="panel settings-card settings-card--wide">
+      <section
+        id={SETTINGS_READINESS_TARGETS.identity}
+        className="panel settings-card settings-card--wide settings-scroll-target"
+        tabIndex={-1}
+      >
         <SectionHeading
           eyebrow="Documents"
           title="Entreprise et facturation"
@@ -4005,7 +4066,7 @@ function SettingsScreen({
             <div className="company-logo-setting__copy">
               <strong>Logo de l’entreprise</strong>
               <p>
-                PNG, JPEG ou WebP · 8 Mo maximum. Elyko vérifie l’image puis en
+                PNG, JPEG ou WebP · 8 Mo maximum. Zentra vérifie l’image puis en
                 conserve une copie locale versionnée, incluse dans vos
                 sauvegardes.
               </p>
@@ -4096,6 +4157,18 @@ function SettingsScreen({
                 required
               />
             </Field>
+            <div
+              id={SETTINGS_READINESS_TARGETS.billing}
+              className="settings-form-subheading settings-scroll-target"
+              tabIndex={-1}
+            >
+              <p className="eyebrow">Facturation</p>
+              <h3>Banque, numérotation et TVA</h3>
+              <span>
+                Ces données alimentent les devis, factures, avoirs et
+                QR-factures créés localement.
+              </span>
+            </div>
             <Field label="IDE / UID">
               <input name="uidNumber" defaultValue={org.uidNumber} />
             </Field>
@@ -4299,6 +4372,47 @@ function SettingsScreen({
         </Button>
       </section>
 
+      <section
+        id={SETTINGS_READINESS_TARGETS.accounting}
+        className="panel settings-card settings-card--wide settings-scroll-target"
+        tabIndex={-1}
+      >
+        <SectionHeading
+          eyebrow="Comptabilité"
+          title="Activation et comptes de liaison"
+          description="Le centre lit l’activation et les onze liaisons réellement enregistrées dans la base locale."
+          action={
+            <Button type="button" variant="secondary" onClick={onOpenAccounting}>
+              <Landmark size={16} /> Ouvrir la comptabilité
+            </Button>
+          }
+        />
+        <div
+          className={`settings-readiness-status ${accountingReadiness.ready ? 'is-ready' : 'is-incomplete'}`}
+          role="status"
+        >
+          <span>
+            {accountingReadiness.ready ? (
+              <CheckCircle2 size={20} aria-hidden="true" />
+            ) : (
+              <Landmark size={20} aria-hidden="true" />
+            )}
+          </span>
+          <div>
+            <strong>
+              {accountingReadiness.ready
+                ? 'Comptabilité préparée'
+                : 'Comptabilité à compléter'}
+            </strong>
+            <p>{accountingReadiness.summary}</p>
+          </div>
+        </div>
+        <p className="settings-copy">
+          Ce statut décrit uniquement la configuration technique. Il ne valide
+          ni le plan comptable, ni les écritures, ni leur traitement fiscal.
+        </p>
+      </section>
+
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Temps et coûts"
@@ -4447,7 +4561,11 @@ function SettingsScreen({
 
       <PayrollContributionsPanel />
 
-      <section className="panel settings-card settings-card--wide">
+      <section
+        id={SETTINGS_READINESS_TARGETS.payroll}
+        className="panel settings-card settings-card--wide settings-scroll-target"
+        tabIndex={-1}
+      >
         <SectionHeading
           eyebrow="Paie"
           title="Organismes et validation"
@@ -4547,11 +4665,15 @@ function SettingsScreen({
       </section>
 
       <AppUpdater />
-      <section className="panel settings-card">
+      <section
+        id={SETTINGS_READINESS_TARGETS.backup}
+        className="panel settings-card settings-scroll-target"
+        tabIndex={-1}
+      >
         <SectionHeading
           eyebrow="Protection"
           title="Sauvegardes manuelles"
-          description="Les nouvelles sauvegardes utilisent .elyko; les anciennes archives .hchantier restent importables."
+          description="Les nouvelles sauvegardes utilisent .zentra; les archives .elyko et .hchantier restent importables."
         />
         <div className="security-status">
           <span>
@@ -4563,6 +4685,29 @@ function SettingsScreen({
           </div>
           <i />
         </div>
+        <label className="check-card settings-backup-confirmation">
+          <input
+            type="checkbox"
+            checked={settings.backup.recoveryConfirmed}
+            disabled={busy}
+            onChange={(event) =>
+              setSettings((current) => ({
+                ...current,
+                backup: {
+                  ...current.backup,
+                  recoveryConfirmed: event.target.checked,
+                },
+              }))
+            }
+          />
+          <span>
+            <strong>Stratégie de récupération confirmée</strong>
+            <small>
+              Je conserverai au moins une sauvegarde récente dans un
+              emplacement distinct et sûr.
+            </small>
+          </span>
+        </label>
         <div className="settings-actions">
           <Button
             variant="secondary"
@@ -4580,6 +4725,18 @@ function SettingsScreen({
             onClick={() => void restore()}
           >
             <RefreshCw size={16} /> Restaurer
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={busy || !settings.backup.folder}
+            onClick={() =>
+              void execute(
+                () => desktopApi.saveSettings(settings),
+                'La stratégie de sauvegarde a été enregistrée.',
+              )
+            }
+          >
+            <CheckCircle2 size={16} /> Enregistrer la stratégie
           </Button>
         </div>
         {settings.backup.folder ? (
@@ -5489,8 +5646,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Base AC avant Elyko (CHF)"
-            hint="Base déjà acquise hors Elyko durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucune."
+            label="Base AC avant Zentra (CHF)"
+            hint="Base déjà acquise hors Zentra durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucune."
           >
             <input
               name="acOpeningBasis"
@@ -5507,7 +5664,7 @@ function EmployeeForm({
           </Field>
           <Field
             label="Date confirmée d’atteinte de l’âge de référence"
-            hint="Renseignez uniquement la date confirmée par la caisse ou la fiduciaire. L’AC reste due pendant ce mois; l’exemption et la franchise AVS commencent le mois civil suivant. Elyko ne déduit jamais cette date du sexe."
+            hint="Renseignez uniquement la date confirmée par la caisse ou la fiduciaire. L’AC reste due pendant ce mois; l’exemption et la franchise AVS commencent le mois civil suivant. Zentra ne déduit jamais cette date du sexe."
           >
             <input
               name="referenceAgeDate"
@@ -5955,7 +6112,7 @@ function PaymentForm({
             <div>
               <strong>Comptabilité requise avant l’encaissement</strong>
               <p>
-                Elyko ne modifiera ni le solde ni la facture sans écriture
+                Zentra ne modifiera ni le solde ni la facture sans écriture
                 comptable. Activez les liaisons; les anciennes factures seront
                 rattrapées sans doublon.
               </p>
@@ -6117,7 +6274,7 @@ function PayslipPaymentForm({
           <Landmark size={17} />
           <span>
             {repairingLegacy
-              ? 'Elyko conserve les montants historiques et crée ou retrouve uniquement le lien comptable manquant. La date déjà enregistrée ne peut pas être remplacée.'
+              ? 'Zentra conserve les montants historiques et crée ou retrouve uniquement le lien comptable manquant. La date déjà enregistrée ne peut pas être remplacée.'
               : 'Cette action débite les salaires à payer, crédite la banque et verrouille définitivement la date et la référence.'}
           </span>
         </div>
@@ -6373,6 +6530,7 @@ function quoteForPrint(quote: Quote): Quote {
     title: frozen.document.title,
     issueDate: frozen.document.issueDate,
     validUntil: frozen.document.validUntil,
+    currency: frozen.document.currency,
     lines: frozen.items,
     notes: frozen.document.notes,
   };
@@ -6393,25 +6551,10 @@ function invoiceForPrint(invoice: Invoice): Invoice {
     dueDate: frozen.document.dueDate,
     serviceDateFrom: frozen.document.serviceDateFrom,
     serviceDateTo: frozen.document.serviceDateTo,
+    currency: frozen.document.currency,
     lines: frozen.items,
     notes: frozen.document.notes,
   };
-}
-
-function invoicePrintCapacityError(source: Invoice): string | null {
-  const invoice = invoiceForPrint(source);
-  const descriptionRows = invoice.lines.reduce(
-    (sum, line) =>
-      sum + Math.max(1, Math.ceil(line.description.trim().length / 62)),
-    0,
-  );
-  const vatRows = vatBreakdown(invoice.lines).length;
-  const noteRows = Math.ceil((invoice.notes?.length ?? 0) / 88);
-  const estimatedMillimetres =
-    82 + descriptionRows * 6 + vatRows * 5 + noteRows * 4;
-  return estimatedMillimetres > 178
-    ? 'Cette facture est trop longue pour tenir de façon sûre au-dessus de la bande QR de 105 mm. Réduisez ou regroupez les lignes, puis réémettez un document adapté; l’impression est bloquée pour éviter toute troncature.'
-    : null;
 }
 
 function QrPrintForm({
@@ -6440,12 +6583,20 @@ function QrPrintForm({
   const [loadingStored, setLoadingStored] = useState(!initialStored);
   const [referenceType, setReferenceType] = useState<
     SwissQrBillInput['referenceType'] | ''
-  >('');
+  >(initialStored?.input.referenceType ?? '');
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const amountCents = documentTotals(printedInvoice.lines).totalCents;
-  const capacityError = invoicePrintCapacityError(invoice);
+  const qrCurrency = printedInvoice.currency === 'CHF' || printedInvoice.currency === 'EUR'
+    ? printedInvoice.currency
+    : null;
+  // Le champ `street` peut contenir address_line1 puis address_line2 séparés
+  // par un retour à la ligne dans les anciens profils. Le payload SPC exige la
+  // rue canonique uniquement; le complément ne doit jamais y être concaténé.
+  const creditorStreet = settings.organization.address.street
+    .split(/\r?\n/, 1)[0]
+    .trim();
 
   useEffect(() => {
     if (initialStored) return;
@@ -6453,7 +6604,10 @@ function QrPrintForm({
     void desktopApi
       .getInvoiceQrBill(invoice.id)
       .then((value) => {
-        if (active) setStored(value);
+        if (active) {
+          setStored(value);
+          setReferenceType(value?.input.referenceType ?? '');
+        }
       })
       .catch((reason) => {
         if (active)
@@ -6483,7 +6637,7 @@ function QrPrintForm({
       </Modal>
     );
 
-  if (stored) {
+  if (stored?.frozenAt) {
     const input = stored.input;
     return (
       <Modal
@@ -6492,12 +6646,6 @@ function QrPrintForm({
         onClose={close}
         wide
       >
-        {capacityError ? (
-          <div className="qr-validation qr-validation--error">
-            <strong>Impression bloquée</strong>
-            <p>{capacityError}</p>
-          </div>
-        ) : null}
         <div className="qr-preflight">
           <section>
             <span>CRÉANCIER FIGÉ</span>
@@ -6549,10 +6697,7 @@ function QrPrintForm({
           <Button variant="secondary" onClick={close}>
             Fermer
           </Button>
-          <Button
-            disabled={Boolean(capacityError)}
-            onClick={() => onReady(invoice, stored)}
-          >
+          <Button onClick={() => onReady(invoice, stored)}>
             <Printer size={16} /> Ouvrir l’aperçu figé
           </Button>
         </div>
@@ -6562,21 +6707,25 @@ function QrPrintForm({
 
   return (
     <Modal
-      title="Créer la QR-facture suisse"
-      description="Cette première version sera validée, enregistrée et figée localement pour toutes les réimpressions."
+      title={stored ? 'Mettre à jour la QR-facture brouillon' : 'Créer la QR-facture suisse'}
+      description={stored ? 'Cette QR reste modifiable tant que la facture est brouillon. Elle sera revalidée et figée lors de l’émission.' : 'La QR est enregistrée comme brouillon, puis revalidée et figée lors de l’émission de la facture.'}
       onClose={close}
       wide
     >
       <form
         onSubmit={submitForm(async (form) => {
-          if (!client || !referenceType || capacityError) return;
+          if (!client || !referenceType) return;
+          if (!qrCurrency) {
+            setErrors(['La QR-facture suisse accepte uniquement les devises CHF et EUR.']);
+            return;
+          }
           const input: SwissQrBillInput = {
             iban: settings.billing.iban,
             creditor: {
               name:
                 settings.billing.accountHolder ||
                 settings.organization.legalName,
-              street: settings.organization.address.street,
+              street: creditorStreet,
               buildingNumber:
                 settings.organization.address.buildingNumber ?? '',
               postalCode: settings.organization.address.postalCode,
@@ -6584,7 +6733,7 @@ function QrPrintForm({
               country: settings.organization.address.country.toUpperCase(),
             },
             amountCents,
-            currency: 'CHF',
+            currency: qrCurrency,
             debtor: {
               name: client.company || client.name,
               street: client.addressLine1 ?? '',
@@ -6631,12 +6780,6 @@ function QrPrintForm({
           }
         })}
       >
-        {capacityError ? (
-          <div className="qr-validation qr-validation--error">
-            <strong>Impression bloquée</strong>
-            <p>{capacityError}</p>
-          </div>
-        ) : null}
         <div className="qr-preflight">
           <section>
             <span>CRÉANCIER DU SNAPSHOT</span>
@@ -6645,7 +6788,7 @@ function QrPrintForm({
                 settings.organization.legalName}
             </strong>
             <p>
-              {settings.organization.address.street}{' '}
+              {creditorStreet}{' '}
               {settings.organization.address.buildingNumber}
               <br />
               {settings.organization.address.postalCode}{' '}
@@ -6682,7 +6825,6 @@ function QrPrintForm({
                 )
               }
               required
-              disabled={Boolean(capacityError)}
             >
               <option value="">Choisir selon votre IBAN</option>
               <option value="QRR">QRR · référence QR 27 chiffres</option>
@@ -6699,7 +6841,7 @@ function QrPrintForm({
               }
               required
             >
-              <input name="reference" required />
+              <input name="reference" defaultValue={stored?.input.reference ?? ''} required />
             </Field>
           ) : null}
           <Field
@@ -6707,14 +6849,14 @@ function QrPrintForm({
             wide
             hint="La longueur est contrôlée selon la norme SIX."
           >
-            <textarea name="message" rows={3} />
+            <textarea name="message" rows={3} defaultValue={stored?.input.unstructuredMessage ?? ''} />
           </Field>
           <Field
             label="Informations de facture structurées"
             wide
             hint="Facultatif; ne renseignez que si votre format est conforme."
           >
-            <input name="billInformation" />
+            <input name="billInformation" defaultValue={stored?.input.billInformation ?? ''} />
           </Field>
         </div>
         {errors.length ? (
@@ -6736,17 +6878,92 @@ function QrPrintForm({
         <div className="info-strip">
           <LockKeyhole size={17} />
           <span>
-            Après validation, le payload SPC sera figé et réutilisé à
-            l’identique; aucune donnée QR ne sera régénérée librement.
+            Tant que la facture est brouillon, ce payload peut être régénéré.
+            À l’émission, Zentra le compare au total, à la devise et aux parties,
+            puis le fige pour toutes les réimpressions.
           </span>
         </div>
         <FormActions
           onCancel={close}
-          busy={busy || Boolean(capacityError)}
-          submitLabel="Valider, figer et ouvrir l’aperçu"
+          busy={busy}
+          submitLabel={stored ? 'Mettre à jour et ouvrir l’aperçu' : 'Enregistrer et ouvrir l’aperçu'}
         />
       </form>
     </Modal>
+  );
+}
+
+function SalesPdfExportControl({
+  entity,
+  documentId,
+  suggestedFileName,
+  idleMessage,
+}: {
+  entity: 'quotes' | 'invoices';
+  documentId: string;
+  suggestedFileName: string;
+  idleMessage: string;
+}) {
+  const [exporting, setExporting] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  const exportPdf = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setFailed(false);
+    setFeedback('');
+    try {
+      const result = await desktopApi.exportSalesDocumentPdf(
+        entity,
+        documentId,
+        suggestedFileName,
+      );
+      if (result) {
+        setFeedback(
+          `${result.finalDocument ? 'PDF final' : 'PDF brouillon'} enregistré (${result.pages} ${result.pages > 1 ? 'pages' : 'page'}) : ${result.path}`,
+        );
+      }
+    } catch (reason) {
+      setFailed(true);
+      setFeedback(
+        errorMessage(
+          reason,
+          "Le PDF local n'a pas pu être généré. Vérifiez les données du document et le chemin choisi.",
+        ),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <>
+      <span
+        role={failed ? 'alert' : 'status'}
+        title={feedback || idleMessage}
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {feedback || idleMessage}
+      </span>
+      <Button
+        variant="secondary"
+        disabled={exporting}
+        onClick={() => void exportPdf()}
+      >
+        {exporting ? (
+          <LoaderCircle className="spin" size={16} />
+        ) : (
+          <Download size={16} />
+        )}{' '}
+        {exporting ? 'Génération…' : 'Exporter le PDF'}
+      </Button>
+    </>
   );
 }
 
@@ -6811,10 +7028,15 @@ function PrintSheet({
     <div className="print-preview">
       <div className="print-preview__toolbar">
         <strong>Aperçu d’impression</strong>
-        <span>Vérifiez les informations avant impression.</span>
-        <Button variant="secondary" onClick={() => window.print()}>
-          <Printer size={16} /> Imprimer
-        </Button>
+        <SalesPdfExportControl
+          entity="quotes"
+          documentId={source.id}
+          suggestedFileName={salesPdfSuggestedFileName(
+            'quotes',
+            document.number,
+          )}
+          idleMessage="PDF local A4 déterministe · vérifiez les informations avant export."
+        />
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X size={18} />
         </Button>
@@ -7237,7 +7459,7 @@ function PrintHeader({
           ) : (
             <BrandMark size={24} />
           )}
-          <span>Elyko</span>
+          <span>Zentra</span>
         </div>
         <strong>{org.legalName}</strong>
         <p>
@@ -7317,33 +7539,31 @@ function InvoicePrintSheet({
     invoice.serviceDateFrom === invoice.serviceDateTo
       ? formatDate(invoice.serviceDateFrom)
       : `${formatDate(invoice.serviceDateFrom)} → ${formatDate(invoice.serviceDateTo)}`;
-  const capacityError = invoicePrintCapacityError(sourceInvoice);
+  const exportDescription = sourceInvoice.snapshot
+    ? `Document figé le ${formatDateTime(sourceInvoice.snapshot.capturedAt)} · pagination A4 automatique.`
+    : qr
+      ? 'QR-facture validée localement · pagination A4 automatique.'
+      : invoice.type === 'credit_note'
+        ? 'Avoir sans section de paiement · pagination A4 automatique.'
+        : 'Facture sans section QR · pagination A4 automatique.';
   return (
     <div className="print-preview">
       <div className="print-preview__toolbar">
         <strong>Aperçu d’impression</strong>
-        <span>
-          {capacityError ||
-            (sourceInvoice.snapshot
-              ? `Document figé le ${formatDateTime(sourceInvoice.snapshot.capturedAt)}`
-              : qr
-                ? 'QR-facture validée localement.'
-                : invoice.type === 'credit_note'
-                  ? 'Avoir sans section de paiement.'
-                  : 'Facture sans section QR.')}
-        </span>
-        <Button
-          variant="secondary"
-          disabled={Boolean(capacityError)}
-          onClick={() => window.print()}
-        >
-          <Printer size={16} /> Imprimer
-        </Button>
+        <SalesPdfExportControl
+          entity="invoices"
+          documentId={sourceInvoice.id}
+          suggestedFileName={salesPdfSuggestedFileName(
+            'invoices',
+            invoice.number,
+            invoice.type === 'credit_note',
+          )}
+          idleMessage={exportDescription}
+        />
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X size={18} />
         </Button>
       </div>
-      {capacityError ? <ErrorPanel message={capacityError} /> : null}
       <article className={`print-sheet ${qr ? 'print-sheet--qr' : ''}`}>
         <div className="print-invoice-body">
           <PrintHeader

@@ -284,7 +284,7 @@ async fn download_update_artifact(
     on_event: &Channel<SecureUpdateEvent>,
 ) -> Result<Vec<u8>, String> {
     let client = reqwest::Client::builder()
-        .user_agent(format!("Elyko-Updater/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("Zentra-Updater/{}", env!("CARGO_PKG_VERSION")))
         .https_only(true)
         .redirect(Policy::limited(MAX_REDIRECTS))
         .timeout(DOWNLOAD_TIMEOUT)

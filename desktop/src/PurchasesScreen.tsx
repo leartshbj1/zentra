@@ -230,7 +230,7 @@ function SupplierInvoiceAttachments({ invoice, canEdit, busy, act }: { invoice?:
       if (!sourcePath) return;
       await act(
         () => desktopApi.addSupplierInvoiceAttachment(invoice.id, sourcePath),
-        'Le justificatif a été copié et vérifié dans les données locales Elyko.',
+        'Le justificatif a été copié et vérifié dans les données locales Zentra.',
         false,
       );
     } catch (reason) {
@@ -424,7 +424,7 @@ export function SupplierPaymentForm({ invoice, busy, close, act }: { invoice: Su
         <Field label="Référence"><input name="reference" maxLength={200} /></Field>
         <Field label="Note" wide><textarea name="notes" rows={3} maxLength={2_000} /></Field>
       </div>
-      <div className="info-strip"><WalletCards size={17} /><span>Elyko enregistre le règlement et l’écriture comptable ensemble. Aucun virement n’est envoyé à la banque.</span></div>
+      <div className="info-strip"><WalletCards size={17} /><span>Zentra enregistre le règlement et l’écriture comptable ensemble. Aucun virement n’est envoyé à la banque.</span></div>
       <FormActions onCancel={close} busy={busy} disabled={amountCents <= 0 || amountCents > invoice.balanceCents} submitLabel={amountCents === invoice.balanceCents ? 'Enregistrer et solder' : 'Enregistrer le paiement partiel'} />
     </form>
   </Modal>;
@@ -449,7 +449,7 @@ export function LegacyExpenseDetail({ expense, workspace, close }: { expense: Ex
 }
 
 export function SupplierForm({ item, busy, close, act }: { item?: Supplier; busy: boolean; close: () => void; act: ActionRunner }) {
-  return <Modal title={item ? `Modifier ${item.name}` : 'Nouveau fournisseur'} description="Ces coordonnées restent dans la base locale Elyko et servent à accélérer la saisie des achats." onClose={close} wide>
+  return <Modal title={item ? `Modifier ${item.name}` : 'Nouveau fournisseur'} description="Ces coordonnées restent dans la base locale Zentra et servent à accélérer la saisie des achats." onClose={close} wide>
     <form onSubmit={submitForm(async (form) => {
       const data = {
         name: String(form.get('name')).trim(),

@@ -344,7 +344,7 @@ pub(crate) fn record_supplier_payment_in_transaction(
             || existing_notes != notes
         {
             return Err(AppError::Validation(format!(
-                "L’identifiant de paiement {request_id} existe déjà avec d’autres données. Elyko bloque le doublon."
+                "L’identifiant de paiement {request_id} existe déjà avec d’autres données. Zentra bloque le doublon."
             )));
         }
         let result = supplier_invoice_bundle(tx, &invoice_id)?;

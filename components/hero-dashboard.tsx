@@ -28,7 +28,7 @@ export function HeroDashboard() {
         <div className="flex h-11 items-center justify-between border-b border-[#dfe4df] bg-white/90 px-4">
           <div className="flex items-center gap-2 text-[11px] font-semibold text-[#34473c]">
             <BrandMark className="size-5 rounded-md" />
-            Elyko
+            Zentra
           </div>
           <div className="flex h-full items-center text-[13px] text-[#5f6c65]">
             <span className="grid h-full w-9 place-items-center">—</span>
@@ -183,7 +183,7 @@ export function HeroDashboard() {
       </div>
       <div className="hero-proof-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#d4dcd5] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#365044] shadow-lg sm:left-auto sm:right-6">
         <ShieldCheck className="size-3.5 text-[#3c7452]" />
-        Interface Elyko · données d’exemple
+        Interface Zentra · données d’exemple
       </div>
     </div>
   );

@@ -998,7 +998,7 @@ export function DetailedPayslipForm({
                           <div className="info-strip">
                             <ShieldCheck size={16} />
                             <span>
-                              Le cumul AC est calculé côté Rust : base d’ouverture confirmée du collaborateur + bases AC des fiches Elyko antérieures de la même année.
+                              Le cumul AC est calculé côté Rust : base d’ouverture confirmée du collaborateur + bases AC des fiches Zentra antérieures de la même année.
                             </span>
                           </div>
                         ) : null}

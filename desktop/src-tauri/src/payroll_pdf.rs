@@ -13,7 +13,7 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
 
 use crate::{
-    branding::{load_pdf_logo, load_pdf_logo_with_fallback, PdfLogo},
+    branding::{load_pdf_logo_with_fallback, PdfLogo},
     database::{query_all, row_to_json_public, LocalStore},
     error::{AppError, AppResult},
     models::GeneratePayslipPdfInput,
@@ -358,9 +358,13 @@ fn render_payslip_pdf(
     let pages_id = document.new_object_id();
     let regular_font = add_font(&mut document, "Helvetica");
     let bold_font = add_font(&mut document, "Helvetica-Bold");
-    let logo = branding_dir
-        .and_then(|directory| load_pdf_logo_with_fallback(&data.logo_path, directory))
-        .or_else(|| load_pdf_logo(&data.logo_path));
+    let logo = load_document_logo(&data.logo_path, branding_dir);
+    if data.final_document && !data.logo_path.is_empty() && logo.is_none() {
+        return Err(AppError::Validation(
+            "Le logo figé de cette fiche de salaire est introuvable ou altéré. Restaurez le fichier de marque avant l'export final."
+                .into(),
+        ));
+    }
     let logo_object = logo
         .as_ref()
         .map(|image| add_logo_image(&mut document, image));
@@ -415,7 +419,7 @@ fn render_payslip_pdf(
     let info_id = document.add_object(dictionary! {
         "Title" => pdf_literal(&format!("Fiche de salaire {} — {}", data.period, data.employee_name)),
         "Author" => pdf_literal(&data.company_name),
-        "Creator" => pdf_literal("Elyko — paie locale"),
+        "Creator" => pdf_literal("Zentra — paie locale"),
         "Subject" => pdf_literal(if data.final_document { "Fiche de salaire comptabilisée" } else { "Aperçu de fiche de salaire à contrôler" }),
     });
     document.trailer.set("Root", catalog_id);
@@ -431,6 +435,16 @@ fn render_payslip_pdf(
         return Err(error);
     }
     Ok(total_pages)
+}
+
+/// Charge un logo de document sans jamais contourner le condensat porté par
+/// les noms immuables `logo-<sha256>.<ext>`. Pour un ancien chemin non hashé,
+/// `load_pdf_logo_with_fallback` conserve volontairement le comportement
+/// historique de chargement direct.
+fn load_document_logo(raw_path: &str, branding_dir: Option<&Path>) -> Option<PdfLogo> {
+    let original = Path::new(raw_path.trim());
+    let verification_dir = branding_dir.or_else(|| original.parent())?;
+    load_pdf_logo_with_fallback(raw_path, verification_dir)
 }
 
 /// La hauteur d'une table dépend à la fois du nombre de rubriques et des
@@ -569,7 +583,7 @@ fn render_page(
         9.0,
         "F2",
         BLUE,
-        "ELYKO · PAIE LOCALE",
+        "ZENTRA · PAIE LOCALE",
     );
     text_right(
         &mut ops,
@@ -963,7 +977,7 @@ fn render_footer(
         6.7,
         "F1",
         MUTED,
-        &format!("Elyko · {page_number}/{total_pages}"),
+        &format!("Zentra · {page_number}/{total_pages}"),
     );
 }
 
@@ -1258,6 +1272,29 @@ fn format_date_time(value: &str) -> String {
 mod tests {
     use super::*;
 
+    fn stage_then_tamper_logo(directory: &tempfile::TempDir) -> (String, PathBuf) {
+        let store = LocalStore::initialize(directory.path().join("profile")).expect("store");
+        let source = directory.path().join("source-logo.png");
+        image::DynamicImage::new_rgba8(64, 32)
+            .save_with_format(&source, image::ImageFormat::Png)
+            .expect("write original logo");
+        let staged = store
+            .stage_company_logo(source.to_str().expect("source path"))
+            .expect("stage immutable logo");
+        image::DynamicImage::new_rgba8(80, 40)
+            .save_with_format(&staged, image::ImageFormat::Png)
+            .expect("replace immutable logo with another valid image");
+        assert!(
+            crate::branding::load_pdf_logo(&staged).is_some(),
+            "the altered file stays a valid image, so only its digest can reject it"
+        );
+        let branding_dir = Path::new(&staged)
+            .parent()
+            .expect("branding directory")
+            .to_path_buf();
+        (staged, branding_dir)
+    }
+
     fn sample_line(index: usize, kind: &str) -> PayslipPdfLine {
         PayslipPdfLine {
             label: format!("Rubrique {index}"),
@@ -1298,6 +1335,71 @@ mod tests {
             payslip_status_label("comptabilise", true),
             "DOCUMENT FINAL · COMPTABILISÉ"
         );
+    }
+
+    #[test]
+    fn tampered_immutable_logo_is_rejected_for_a_final_payslip() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let (staged_logo, branding_dir) = stage_then_tamper_logo(&directory);
+        assert!(load_document_logo(&staged_logo, None).is_none());
+        let destination = directory.path().join("fiche-finale.pdf");
+        let data = PayslipPdfData {
+            company_name: "Entreprise test".into(),
+            logo_path: staged_logo,
+            company_address: vec!["Rue du Test 1".into(), "1000 Lausanne".into()],
+            uid_number: "CHE-123.456.789".into(),
+            employee_name: "Employé test".into(),
+            employee_number: "E-001".into(),
+            employee_role: "Spécialiste".into(),
+            employee_address: vec!["Rue de l'Employé 2".into(), "1200 Genève".into()],
+            avs_number: "756.1234.5678.97".into(),
+            employee_iban: "CH93 0076 2011 6238 5295 7".into(),
+            employment_rate: 100,
+            period: "2026-08".into(),
+            payment_date: "2026-08-31".into(),
+            status: "comptabilise".into(),
+            captured_at: "2026-08-31T12:00:00Z".into(),
+            notes: String::new(),
+            lines: vec![PayslipPdfLine {
+                label: "Salaire mensuel".into(),
+                kind: "earning".into(),
+                amount_cents: 500_000,
+                detail: "Élément salarial contrôlé".into(),
+            }],
+            gross_cents: 500_000,
+            deductions_cents: 0,
+            reimbursements_cents: 0,
+            net_cents: 500_000,
+            employer_costs_cents: 0,
+            final_document: true,
+        };
+
+        let error = render_payslip_pdf(&destination, &data, Some(&branding_dir))
+            .expect_err("a final payslip must reject an altered immutable logo");
+        assert!(error.to_string().contains("introuvable ou altéré"));
+        assert!(!destination.exists());
+
+        fs::remove_file(&data.logo_path).expect("remove immutable logo");
+        let missing_destination = directory.path().join("fiche-logo-manquant.pdf");
+        let error = render_payslip_pdf(&missing_destination, &data, Some(&branding_dir))
+            .expect_err("a final payslip must reject a missing immutable logo");
+        assert!(error.to_string().contains("introuvable ou altéré"));
+        assert!(!missing_destination.exists());
+    }
+
+    #[test]
+    fn legacy_non_hashed_payslip_logo_remains_loadable() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let logo_path = directory.path().join("ancien-logo.png");
+        image::DynamicImage::new_rgba8(64, 32)
+            .save_with_format(&logo_path, image::ImageFormat::Png)
+            .expect("write legacy logo");
+
+        assert!(load_document_logo(
+            logo_path.to_str().expect("legacy logo path"),
+            Some(directory.path()),
+        )
+        .is_some());
     }
 
     #[test]

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { issueLicense } from '@/lib/license-token';
+import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   activationCookieName,
   assertActivationClaim,
@@ -13,7 +14,7 @@ import {
   retrieveInvoice,
   retrieveSubscription,
   upsertSubscription,
-  validatePaidElykoInvoice,
+  validatePaidZentraInvoice,
   validatePaidSubscription,
 } from '@/lib/stripe';
 
@@ -22,10 +23,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     requireSameOrigin(request);
-    const body = (await request.json()) as {
-      sessionId?: unknown;
-      installationId?: unknown;
-    };
+    const body = await readJsonObjectWithinLimit(request, 16_384);
     const sessionId =
       typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
     const installationId =
@@ -47,7 +45,7 @@ export async function POST(request: Request) {
     if (!paidInvoiceId)
       throw new PublicError('La facture Stripe payée est absente.', 502);
     const paidInvoice = await retrieveInvoice(paidInvoiceId);
-    const paidThrough = validatePaidElykoInvoice(paidInvoice, subscription);
+    const paidThrough = validatePaidZentraInvoice(paidInvoice, subscription);
     await upsertSubscription(subscription, session, {
       paidInvoiceId,
       paidThrough,

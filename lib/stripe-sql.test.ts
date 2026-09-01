@@ -24,7 +24,7 @@ function write(settlement: Settlement) {
     'cus_elyko',
     null,
     null,
-    'Entreprise Elyko',
+    'Entreprise Zentra',
     'price_elyko',
     'active',
     2_000,

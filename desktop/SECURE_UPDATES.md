@@ -1,4 +1,4 @@
-# Mises à jour intégrées Elyko
+# Mises à jour intégrées Zentra
 
 Le code de l’application contient le flux complet de recherche, téléchargement et installation Tauri 2. Il reste volontairement inactif si une édition n’a pas été construite avec une clé publique et un manifeste HTTPS valides. Cette fermeture par défaut évite qu’un poste client ou le rendu web puisse substituer sa propre source de mise à jour.
 
@@ -11,16 +11,22 @@ Références officielles :
 
 La clé privée ne doit jamais être ajoutée à Git, au site ou à l’application installée.
 
-- `ELYKO_UPDATER_PUBLIC_KEY` : contenu exact en base64 du fichier public produit par `tauri signer generate`. Elyko décode et contrôle le document Minisign public avant d’activer le canal; cette valeur publique est intégrée à l’exécutable.
+- `ELYKO_UPDATER_PUBLIC_KEY` : contenu exact en base64 du fichier public produit par `tauri signer generate`. Zentra décode et contrôle le document Minisign public avant d’activer le canal; cette valeur publique est intégrée à l’exécutable.
 - `ELYKO_UPDATER_ENDPOINT` : URL HTTPS du manifeste stable, par exemple `https://elyko.alb-leart1.chatgpt.site/downloads/latest.json`. Elle est intégrée à l’exécutable et ne peut pas être changée par le frontend.
 - `TAURI_SIGNING_PRIVATE_KEY` : chemin ou contenu de la clé privée, injecté uniquement dans l’environnement du poste ou du runner de publication.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` : mot de passe de cette clé, injecté uniquement comme secret de publication.
 
 La paire Tauri sert à authentifier les archives de mise à jour. Elle ne remplace pas un certificat Authenticode Windows, recommandé séparément pour l’identité de l’éditeur et SmartScreen.
 
+Les noms de variables `ELYKO_UPDATER_*`, le nom des fichiers de clé et l’URL
+`elyko.alb-leart1.chatgpt.site` sont des identifiants techniques historiques.
+Ils restent inchangés afin que les versions déjà installées continuent à
+recevoir les mises à jour Zentra. Ils ne désignent plus le nom commercial du
+produit et ne doivent pas être renommés lors d’une publication.
+
 La liaison de licence de cette version utilise un UUID d’installation protégé par DPAPI et une validation HTTPS signée. Elle ne constitue pas une attestation matérielle TPM/CNG et ne garantit donc pas une résistance absolue face à un administrateur local capable de cloner l’identifiant ou de modifier l’exécutable. Une future édition durcie devra enregistrer une clé non exportable TPM/CNG, prouver sa possession par défi serveur et associer sa clé publique à la licence.
 
-Sur le poste de publication du propriétaire, `scripts/build-local-signed-updater.ps1` sait charger la paire située dans `%LOCALAPPDATA%\Elyko\release-signing`. Le mot de passe n’est pas stocké en clair : son blob est protégé par Windows DPAPI et ne peut être déchiffré que par le même compte Windows. Le script efface les quatre variables sensibles de son processus dans un bloc `finally`.
+Sur le poste de publication du propriétaire, `scripts/build-local-signed-updater.ps1` charge la paire existante dans le dossier historique `%LOCALAPPDATA%\Elyko\release-signing`. Cette paire signe déjà les versions distribuées : la déplacer ou la régénérer romprait la chaîne de confiance des installations existantes. Le mot de passe n’est pas stocké en clair : son blob est protégé par Windows DPAPI et ne peut être déchiffré que par le même compte Windows. Le script efface les quatre variables sensibles de son processus dans un bloc `finally`.
 
 ## Création de la paire, une seule fois par le propriétaire
 
@@ -55,20 +61,20 @@ uniquement la clé **publique** et l’endpoint dans le processus courant, puis
 préparez le lot dans les 24 heures suivant ce build frais :
 
 ```powershell
-$elykoSigningRoot = Join-Path $env:LOCALAPPDATA 'Elyko\release-signing'
-$env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content -Raw (Join-Path $elykoSigningRoot 'elyko-updater.key.pub')).Trim()
+$historicalSigningRoot = Join-Path $env:LOCALAPPDATA 'Elyko\release-signing'
+$env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content -Raw (Join-Path $historicalSigningRoot 'elyko-updater.key.pub')).Trim()
 $env:ELYKO_UPDATER_ENDPOINT = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1 `
-  -Version 1.12.0 `
-  -PreviousVersion 1.11.0
+  -Version 1.13.0 `
+  -PreviousVersion 1.12.0
 ```
 
 Le script n’accepte que ces sorties canoniques :
 
-- `target/x86_64-pc-windows-gnu/release/Elyko.exe` ;
-- `target/x86_64-pc-windows-gnu/release/bundle/nsis/Elyko_<version>_x64-setup.exe` ;
-- le fichier direct `Elyko_<version>_x64-setup.exe.sig` produit par Tauri 2 ;
+- `target/x86_64-pc-windows-gnu/release/Zentra.exe` ;
+- `target/x86_64-pc-windows-gnu/release/bundle/nsis/Zentra_<version>_x64-setup.exe` ;
+- le fichier direct `Zentra_<version>_x64-setup.exe.sig` produit par Tauri 2 ;
 - la preuve JSON du même build.
 
 Les anciens paramètres de chemin restent tolérés pour l’automatisation, mais toute valeur différente de ces chemins exacts est refusée. Le staging recalcule chaque SHA-256 et rejette aussi un fichier remplacé après la création de la preuve. L’EXE autonome sert seulement aux contrôles de configuration et d’Authenticode : il ne peut plus servir de témoin pour publier un autre NSIS ancien ou renommé. La vérification Ed25519 porte directement sur le NSIS et son `.exe.sig`, conformément au format d’artefact updater de Tauri 2.
@@ -89,13 +95,13 @@ Publier l’installateur et le manifeste sur HTTPS. La valeur `signature` est le
 
 ```json
 {
-  "version": "1.12.0",
+  "version": "1.13.0",
   "notes": "Résumé contrôlé des changements.",
   "pub_date": "2026-09-01T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "CONTENU_EXACT_DU_FICHIER_SIG",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.12.0_x64-setup.exe"
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.13.0_x64-setup.exe"
     }
   }
 }

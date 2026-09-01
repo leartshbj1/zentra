@@ -185,8 +185,7 @@ fn default_true() -> bool {
 pub struct RecordPaymentInput {
     /// Identifiant stable généré par l'interface avant l'appel. Une reprise avec
     /// le même identifiant et les mêmes données retourne le paiement existant.
-    #[serde(default)]
-    pub request_id: Option<String>,
+    pub request_id: String,
     pub invoice_id: String,
     pub amount_cents: i64,
     #[serde(default)]
@@ -1012,6 +1011,13 @@ pub struct GeneratePayslipPdfInput {
     pub destination_path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateSalesDocumentPdfInput {
+    pub entity: String,
+    pub document_id: String,
+    pub destination_path: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PayrollImportEmployeeDraft {
     #[serde(default)]
@@ -1053,6 +1059,10 @@ fn default_salary_mode() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PayrollImportLineDraft {
     #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub source_ref: String,
+    #[serde(default)]
     pub label: String,
     #[serde(default)]
     pub kind: String,
@@ -1081,6 +1091,18 @@ pub struct PayrollImportAiIdentityEvidence {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PayrollConfirmedRecurringLine {
+    #[serde(default)]
+    pub line_id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub amount_cents: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PayrollImportReviewState {
     #[serde(default)]
     pub ai_identity_evidence: Option<PayrollImportAiIdentityEvidence>,
@@ -1088,6 +1110,22 @@ pub struct PayrollImportReviewState {
     pub employee_id: String,
     #[serde(default)]
     pub employee_link_source: String,
+    /// Source explicite des valeurs afin qu'une relance IA puisse remplacer
+    /// ses anciennes propositions sans écraser les corrections humaines.
+    #[serde(default)]
+    pub ai_fields: Vec<String>,
+    #[serde(default)]
+    pub ai_line_keys: Vec<String>,
+    #[serde(default)]
+    pub ai_warnings: Vec<String>,
+    #[serde(default)]
+    pub manual_fields: Vec<String>,
+    #[serde(default)]
+    pub manual_line_keys: Vec<String>,
+    #[serde(default)]
+    pub suppressed_line_keys: Vec<String>,
+    #[serde(default)]
+    pub confirmed_recurring_lines: Vec<PayrollConfirmedRecurringLine>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1110,6 +1148,65 @@ pub struct PayrollImportDraft {
     pub review: Option<PayrollImportReviewState>,
 }
 
+/// Trace locale, versionnée et structurée d'une analyse documentaire de paie.
+/// Elle décrit comment le brouillon a été obtenu; elle ne constitue pas une
+/// validation légale ou comptable de la fiche importée.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PayrollAnalysisFieldProvenance {
+    pub field: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub pages: Vec<i64>,
+    #[serde(default)]
+    pub pass_indexes: Vec<i64>,
+    #[serde(default)]
+    pub confidence_bp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PayrollAnalysisLineProvenance {
+    pub line_index: i64,
+    pub label: String,
+    pub kind: String,
+    pub amount_cents: i64,
+    #[serde(default)]
+    pub pages: Vec<i64>,
+    #[serde(default)]
+    pub pass_indexes: Vec<i64>,
+    #[serde(default)]
+    pub confidence_bp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PayrollAnalysisConflict {
+    pub target: String,
+    #[serde(default)]
+    pub values: Vec<String>,
+    #[serde(default)]
+    pub pages: Vec<i64>,
+    #[serde(default)]
+    pub pass_indexes: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PayrollAnalysisManifest {
+    pub schema_version: i64,
+    pub model_id: String,
+    pub model_revision: String,
+    pub input_sha256: String,
+    #[serde(default)]
+    pub analyzed_pages: Vec<i64>,
+    pub passes: i64,
+    #[serde(default)]
+    pub field_provenance: Vec<PayrollAnalysisFieldProvenance>,
+    #[serde(default)]
+    pub line_provenance: Vec<PayrollAnalysisLineProvenance>,
+    #[serde(default)]
+    pub conflicts: Vec<PayrollAnalysisConflict>,
+    pub analyzed_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StagePayrollDocumentsInput {
     pub paths: Vec<String>,
@@ -1124,6 +1221,14 @@ pub struct UpdatePayrollImportDraftInput {
     pub engine_version: Option<String>,
     #[serde(default)]
     pub confidence_bp: i64,
+    /// Absent pour les anciennes versions du frontend. La couche métier
+    /// réconcilie alors la trace stockée avec les seules valeurs inchangées.
+    #[serde(default)]
+    pub analysis_manifest: Option<PayrollAnalysisManifest>,
+    /// Abandon intégral explicite de la trace. Une correction humaine normale
+    /// utilise la réconciliation partielle et ne positionne pas ce drapeau.
+    #[serde(default)]
+    pub clear_analysis_manifest: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1148,7 +1253,7 @@ pub struct SwissQrParty {
     pub country: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SwissQrBillInput {
     pub iban: String,
     pub creditor: SwissQrParty,

@@ -114,7 +114,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
             className="block text-sm font-semibold"
             htmlFor="installation-id"
           >
-            Identifiant d’installation affiché dans Elyko
+            Identifiant d’installation affiché dans Zentra
           </label>
           <input
             id="installation-id"
@@ -168,7 +168,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
             {copied ? 'Copié' : 'Copier le jeton'}
           </button>
           <p className="mt-3 text-xs leading-5 text-[#617067]">
-            Collez ce jeton dans Elyko. La signature est vérifiée localement,
+            Collez ce jeton dans Zentra. La signature est vérifiée localement,
             sans transmettre vos données métier.
           </p>
         </div>
@@ -186,7 +186,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           href="/telecharger"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#e7a33a] px-4 text-sm font-semibold text-[#173d2c]"
         >
-          <Download className="size-4" /> Télécharger Elyko
+          <Download className="size-4" /> Télécharger Zentra
         </a>
         <button
           type="button"

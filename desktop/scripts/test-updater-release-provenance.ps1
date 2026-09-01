@@ -11,18 +11,18 @@ $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) "elyko-updater-provenance-
 
 try {
     $desktopRoot = Join-Path $temporaryRoot 'desktop'
-    $paths = Get-ElykoUpdaterArtifactPaths -DesktopRoot $desktopRoot -Version '9.9.9'
+    $paths = Get-ZentraUpdaterArtifactPaths -DesktopRoot $desktopRoot -Version '9.9.9'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $paths.Application)) | Out-Null
     [IO.Directory]::CreateDirectory((Split-Path -Parent $paths.Installer)) | Out-Null
     [IO.File]::WriteAllBytes($paths.Application, [byte[]](1, 2, 3, 4))
     [IO.File]::WriteAllBytes($paths.Installer, [byte[]](5, 6, 7, 8))
     [IO.File]::WriteAllText($paths.Signature, 'c2lnbmF0dXJl', [Text.UTF8Encoding]::new($false))
 
-    $renamedOldInstaller = Join-Path $temporaryRoot 'Elyko_9.9.9_x64-setup.exe'
+    $renamedOldInstaller = Join-Path $temporaryRoot 'Zentra_9.9.9_x64-setup.exe'
     [IO.File]::WriteAllBytes($renamedOldInstaller, [byte[]](9, 9, 9))
     $renamedRejected = $false
     try {
-        [void](Resolve-ElykoCanonicalArtifactPath `
+        [void](Resolve-ZentraCanonicalArtifactPath `
             -ProvidedPath $renamedOldInstaller `
             -ExpectedPath $paths.Installer `
             -Label 'Installateur NSIS')
@@ -38,7 +38,7 @@ try {
 
     $endpoint = 'https://example.invalid/downloads/latest.json'
     $publicKey = 'public-key-test'
-    $provenance = Write-ElykoUpdaterBuildProvenance `
+    $provenance = Write-ZentraUpdaterBuildProvenance `
         -Paths $paths `
         -Version '9.9.9' `
         -Identifier 'ch.helvichantier.desktop' `
@@ -46,7 +46,7 @@ try {
         -PublicKey $publicKey `
         -BuildStartedAt ([DateTimeOffset]::UtcNow.AddMinutes(-1))
 
-    Assert-ElykoUpdaterBuildProvenance `
+    Assert-ZentraUpdaterBuildProvenance `
         -Paths $paths `
         -Version '9.9.9' `
         -Identifier 'ch.helvichantier.desktop' `
@@ -57,7 +57,7 @@ try {
     [IO.File]::WriteAllBytes($paths.Installer, [byte[]](8, 7, 6, 5))
     $tamperRejected = $false
     try {
-        Assert-ElykoUpdaterBuildProvenance `
+        Assert-ZentraUpdaterBuildProvenance `
             -Paths $paths `
             -Version '9.9.9' `
             -Identifier 'ch.helvichantier.desktop' `

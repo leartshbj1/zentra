@@ -13,6 +13,7 @@ import type {
   AppSettings,
   Attachment,
   BalanceSheetReport,
+  BackupStatus,
   BankReconciliationResult,
   BankSupplierReconciliationResult,
   BankWorkspace,
@@ -52,6 +53,7 @@ import type {
   Payslip,
   PayslipContributionSnapshot,
   PayslipLine,
+  PayrollAnalysisManifest,
   PayrollDocumentImport,
   PayrollImportDraft,
   PayrollCalculation,
@@ -144,6 +146,11 @@ import {
   supplierBankConfirmationPayload,
 } from './bank';
 import { expensePaymentStatusFromRaw } from './purchases';
+import {
+  pdfDestinationPath,
+  salesPdfInvokeInput,
+  type SalesPdfEntity,
+} from './salesPdfExport';
 
 type RawRecord = Record<string, unknown>;
 type AppState = {
@@ -207,6 +214,7 @@ type RawWorkspace = {
   supplier_expense_reclassifications?: RawRecord[];
   supplier_expense_reclassification_lines?: RawRecord[];
   supplier_payments?: RawRecord[];
+  accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
   payslip_items?: RawRecord[];
@@ -215,6 +223,7 @@ type RawWorkspace = {
   payments?: RawRecord[];
   active_timer?: RawRecord | null;
   accounting_settings?: RawRecord | null;
+  backup_status?: RawRecord | null;
 };
 
 const stringValue = (value: unknown): string =>
@@ -227,6 +236,17 @@ const recordValue = (value: unknown): RawRecord =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as RawRecord)
     : {};
+
+export function backupStatusFromRaw(value: unknown): BackupStatus {
+  const row = recordValue(value);
+  return {
+    lastSuccessAt:
+      stringValue(row.last_success_at ?? row.lastSuccessAt) || null,
+    lastPath: stringValue(row.last_path ?? row.lastPath) || null,
+    nextScheduledAt:
+      stringValue(row.next_scheduled_at ?? row.nextScheduledAt) || null,
+  };
+}
 
 /**
  * Les sauvegardes conservent les logos hashés mais une restauration sur un autre
@@ -380,6 +400,12 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
   const employeeLinkSource = stringValue(
     review.employee_link_source ?? review.employeeLinkSource,
   );
+  const reviewStrings = (snakeName: string, camelName: string) => {
+    const value = review[snakeName] ?? review[camelName];
+    return Array.isArray(value)
+      ? [...new Set(value.map(stringValue).map((item) => item.trim()).filter(Boolean))]
+      : [];
+  };
   const reviewState = Object.keys(review).length
     ? {
         aiIdentityEvidence: Object.keys(evidence).length
@@ -399,6 +425,31 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
         employeeLinkSource === 'manual'
           ? employeeLinkSource
           : '') as 'auto' | 'manual' | '',
+        aiFields: reviewStrings('ai_fields', 'aiFields'),
+        aiLineKeys: reviewStrings('ai_line_keys', 'aiLineKeys'),
+        aiWarnings: reviewStrings('ai_warnings', 'aiWarnings'),
+        manualFields: reviewStrings('manual_fields', 'manualFields'),
+        manualLineKeys: reviewStrings('manual_line_keys', 'manualLineKeys'),
+        suppressedLineKeys: reviewStrings(
+          'suppressed_line_keys',
+          'suppressedLineKeys',
+        ),
+        confirmedRecurringLines: (Array.isArray(
+          review.confirmed_recurring_lines ?? review.confirmedRecurringLines,
+        ) ? (review.confirmed_recurring_lines ?? review.confirmedRecurringLines) as unknown[] : [])
+          .map(recordValue)
+          .flatMap((line) => {
+            const label = stringValue(line.label).trim();
+            const amountCents = Math.trunc(numberValue(line.amount_cents ?? line.amountCents));
+            return label && stringValue(line.kind) === 'earning' && amountCents > 0
+              ? [{
+                  lineId: stringValue(line.line_id ?? line.lineId) || undefined,
+                  label,
+                  kind: 'earning' as const,
+                  amountCents,
+                }]
+              : [];
+          }),
       }
     : undefined;
   return {
@@ -433,6 +484,7 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
     netCents: numberValue(root.net_cents ?? root.netCents),
     lines: lines.map((line, index) => ({
       id: stringValue(line.id) || `import-line-${index}`,
+      sourceRef: stringValue(line.source_ref ?? line.sourceRef) || undefined,
       label: stringValue(line.label),
       kind: payslipLineKindFromRaw(line.kind),
       amountCents: numberValue(line.amount_cents ?? line.amountCents),
@@ -446,6 +498,295 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
   };
 }
 
+function strictIntegerList(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  allowEmpty = false,
+): number[] | undefined {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0))
+    return undefined;
+  if (
+    value.some(
+      (item) =>
+        typeof item !== 'number' ||
+        !Number.isSafeInteger(item) ||
+        item < minimum ||
+        item > maximum,
+    )
+  ) {
+    return undefined;
+  }
+  const numbers = value as number[];
+  if (new Set(numbers).size !== numbers.length) return undefined;
+  return [...numbers].sort((left, right) => left - right);
+}
+
+const validManifestText = (value: unknown, maximum: number): string | null => {
+  if (typeof value !== 'string' || value !== value.trim()) return null;
+  if (!value || value.length > maximum || /[\u0000-\u001f\u007f]/.test(value))
+    return null;
+  return value;
+};
+
+const validManifestTarget = (value: unknown): string | null => {
+  const target = validManifestText(value, 160);
+  return target && /^[A-Za-z0-9._\[\]-]+$/.test(target) ? target : null;
+};
+
+const payrollManifestFieldTargets = new Set([
+  'employee.name',
+  'employee.employee_number',
+  'employee.role',
+  'employee.address',
+  'employee.birth_date',
+  'employee.avs_number',
+  'employee.iban',
+  'employee.employment_rate',
+  'employee.salary_mode',
+  'period',
+  'payment_date',
+  'gross_cents',
+  'net_cents',
+]);
+
+export function payrollAnalysisManifestFromRaw(
+  value: unknown,
+): PayrollAnalysisManifest | undefined {
+  const root =
+    typeof value === 'string'
+      ? (parsedSnapshot(value) ?? {})
+      : recordValue(value);
+  if (!Object.keys(root).length) return undefined;
+  const schemaVersion = root.schema_version ?? root.schemaVersion;
+  const modelId = validManifestText(root.model_id ?? root.modelId, 200);
+  const modelRevision = validManifestText(
+    root.model_revision ?? root.modelRevision,
+    200,
+  );
+  const inputSha256 = validManifestText(
+    root.input_sha256 ?? root.inputSha256,
+    64,
+  );
+  const analyzedPages = strictIntegerList(
+    root.analyzed_pages ?? root.analyzedPages,
+    1,
+    12,
+  );
+  const passes = root.passes;
+  const analyzedAt = validManifestText(
+    root.analyzed_at ?? root.analyzedAt,
+    64,
+  );
+  const timestampPattern =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+  if (
+    schemaVersion !== 1 ||
+    !modelId ||
+    !modelRevision ||
+    !inputSha256 ||
+    !/^[0-9a-f]{64}$/.test(inputSha256) ||
+    !analyzedPages ||
+    typeof passes !== 'number' ||
+    !Number.isSafeInteger(passes) ||
+    passes < 1 ||
+    passes > 4 ||
+    !analyzedAt ||
+    !timestampPattern.test(analyzedAt) ||
+    Number.isNaN(Date.parse(analyzedAt))
+  ) {
+    return undefined;
+  }
+  const analyzedPageSet = new Set(analyzedPages);
+
+  const fieldProvenance: PayrollAnalysisManifest['fieldProvenance'] = [];
+  const rawFieldProvenance =
+    root.field_provenance ?? root.fieldProvenance;
+  if (!Array.isArray(rawFieldProvenance) || rawFieldProvenance.length > 256)
+    return undefined;
+  const fieldTargets = new Set<string>();
+  for (const value of rawFieldProvenance) {
+    const row = recordValue(value);
+    // V1 historique ne liait pas la page à une valeur. Conserver le reste du
+    // manifeste, mais ne jamais restaurer cette ancienne indication ambiguë.
+    if (row.value === undefined) continue;
+    const field = validManifestTarget(row.field);
+    const fieldValue = validManifestText(row.value, 500);
+    const pages = strictIntegerList(row.pages, 1, 12);
+    const passIndexes = strictIntegerList(
+      row.pass_indexes ?? row.passIndexes,
+      1,
+      passes,
+    );
+    const confidenceBp = row.confidence_bp ?? row.confidenceBp;
+    if (
+      !field ||
+      !payrollManifestFieldTargets.has(field) ||
+      !fieldValue ||
+      fieldTargets.has(field) ||
+      !pages ||
+      pages.some((page) => !analyzedPageSet.has(page)) ||
+      !passIndexes ||
+      typeof confidenceBp !== 'number' ||
+      !Number.isSafeInteger(confidenceBp) ||
+      confidenceBp < 0 ||
+      confidenceBp > 10_000
+    ) {
+      return undefined;
+    }
+    fieldTargets.add(field);
+    fieldProvenance.push({
+      field,
+      value: fieldValue,
+      pages,
+      passIndexes,
+      confidenceBp,
+    });
+  }
+
+  const lineProvenance: PayrollAnalysisManifest['lineProvenance'] = [];
+  const rawLineProvenance = root.line_provenance ?? root.lineProvenance;
+  if (!Array.isArray(rawLineProvenance) || rawLineProvenance.length > 512)
+    return undefined;
+  const lineIndexes = new Set<number>();
+  for (const value of rawLineProvenance) {
+    const row = recordValue(value);
+    const lineIndex = row.line_index ?? row.lineIndex;
+    const label = validManifestText(row.label, 200);
+    const rawKind = row.kind;
+    const amountCents = row.amount_cents ?? row.amountCents;
+    const pages = strictIntegerList(row.pages, 1, 12);
+    const passIndexes = strictIntegerList(
+      row.pass_indexes ?? row.passIndexes,
+      1,
+      passes,
+    );
+    const confidenceBp = row.confidence_bp ?? row.confidenceBp;
+    if (
+      typeof lineIndex !== 'number' ||
+      !Number.isSafeInteger(lineIndex) ||
+      lineIndex < 0 ||
+      lineIndexes.has(lineIndex) ||
+      !label ||
+      typeof rawKind !== 'string' ||
+      !['earning', 'deduction', 'reimbursement', 'employer'].includes(
+        rawKind,
+      ) ||
+      typeof amountCents !== 'number' ||
+      !Number.isSafeInteger(amountCents) ||
+      amountCents < 0 ||
+      !pages ||
+      pages.some((page) => !analyzedPageSet.has(page)) ||
+      !passIndexes ||
+      typeof confidenceBp !== 'number' ||
+      !Number.isSafeInteger(confidenceBp) ||
+      confidenceBp < 0 ||
+      confidenceBp > 10_000
+    ) {
+      return undefined;
+    }
+    lineIndexes.add(lineIndex);
+    lineProvenance.push({
+      lineIndex,
+      label,
+      kind: rawKind as PayslipLine['kind'],
+      amountCents,
+      pages,
+      passIndexes,
+      confidenceBp,
+    });
+  }
+
+  const conflicts: PayrollAnalysisManifest['conflicts'] = [];
+  if (!Array.isArray(root.conflicts) || root.conflicts.length > 128)
+    return undefined;
+  const conflictTargets = new Set<string>();
+  for (const value of root.conflicts) {
+    const row = recordValue(value);
+    const target = validManifestTarget(row.target);
+    const values = Array.isArray(row.values)
+      ? row.values.map((item) => validManifestText(item, 250))
+      : [];
+    const pages = strictIntegerList(row.pages, 1, 12);
+    const passIndexes = strictIntegerList(
+      row.pass_indexes ?? row.passIndexes,
+      1,
+      passes,
+    );
+    if (
+      !target ||
+      !payrollManifestFieldTargets.has(target) ||
+      fieldTargets.has(target) ||
+      conflictTargets.has(target) ||
+      values.length < 2 ||
+      values.length > 8 ||
+      values.some((item) => !item) ||
+      new Set(values).size !== values.length ||
+      !pages ||
+      pages.some((page) => !analyzedPageSet.has(page)) ||
+      !passIndexes
+    ) {
+      return undefined;
+    }
+    conflictTargets.add(target);
+    conflicts.push({
+      target,
+      values: values as string[],
+      pages,
+      passIndexes,
+    });
+  }
+
+  return {
+    schemaVersion,
+    modelId,
+    modelRevision,
+    inputSha256,
+    analyzedPages,
+    passes,
+    fieldProvenance,
+    lineProvenance,
+    conflicts,
+    analyzedAt,
+  };
+}
+
+export function payrollAnalysisManifestToRaw(
+  manifest: PayrollAnalysisManifest,
+): RawRecord {
+  return {
+    schema_version: manifest.schemaVersion,
+    model_id: manifest.modelId,
+    model_revision: manifest.modelRevision,
+    input_sha256: manifest.inputSha256,
+    analyzed_pages: manifest.analyzedPages,
+    passes: manifest.passes,
+    field_provenance: manifest.fieldProvenance.map((provenance) => ({
+      field: provenance.field,
+      value: provenance.value,
+      pages: provenance.pages,
+      pass_indexes: provenance.passIndexes,
+      confidence_bp: provenance.confidenceBp,
+    })),
+    line_provenance: manifest.lineProvenance.map((provenance) => ({
+      line_index: provenance.lineIndex,
+      label: provenance.label,
+      kind: provenance.kind,
+      amount_cents: provenance.amountCents,
+      pages: provenance.pages,
+      pass_indexes: provenance.passIndexes,
+      confidence_bp: provenance.confidenceBp,
+    })),
+    conflicts: manifest.conflicts.map((conflict) => ({
+      target: conflict.target,
+      values: conflict.values,
+      pages: conflict.pages,
+      pass_indexes: conflict.passIndexes,
+    })),
+    analyzed_at: manifest.analyzedAt,
+  };
+}
+
 function payrollImportFromRaw(row: RawRecord): PayrollDocumentImport {
   return {
     id: stringValue(row.id),
@@ -454,10 +795,15 @@ function payrollImportFromRaw(row: RawRecord): PayrollDocumentImport {
     fileSha256: stringValue(row.file_sha256),
     mediaKind: stringValue(row.media_kind) === 'image' ? 'image' : 'pdf',
     fileSize: numberValue(row.file_size),
+    pageCount: Math.max(0, Math.trunc(numberValue(row.page_count))),
     extractionEngine: stringValue(row.extraction_engine),
     engineVersion: stringValue(row.engine_version),
     extractedText: stringValue(row.extracted_text),
     draft: payrollImportDraftFromRaw(row.draft_json),
+    analysisManifest:
+      payrollAnalysisManifestFromRaw(
+        row.analysis_manifest_json ?? row.analysisManifest,
+      ) ?? null,
     confidenceBp: numberValue(row.confidence_bp),
     status: (['needs_review', 'confirmed', 'rejected', 'error'].includes(
       stringValue(row.status),
@@ -1564,8 +1910,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     clientId: stringValue(row.client_id),
     projectId: stringValue(row.project_id) || null,
     title: stringValue(row.title),
-    issueDate: stringValue(row.issue_date),
-    validUntil: stringValue(row.valid_until),
+      issueDate: stringValue(row.issue_date),
+      validUntil: stringValue(row.valid_until),
+      currency: stringValue(row.currency) || 'CHF',
     status: quoteStatusFromRaw(row.status),
     lines: quoteItems
       .filter((item) => stringValue(item.quote_id) === stringValue(row.id))
@@ -1718,6 +2065,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       dueDate: stringValue(row.due_date),
       serviceDateFrom: stringValue(row.service_date_from),
       serviceDateTo: stringValue(row.service_date_to),
+      currency: stringValue(row.currency) || 'CHF',
       status: invoiceStatusFromRaw(row.status),
       lines: invoiceItems
         .filter((item) => stringValue(item.invoice_id) === stringValue(row.id))
@@ -2123,6 +2471,21 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     journalEntryId: nullableString(row.journal_entry_id),
     journalEntryNumber: stringValue(row.journal_entry_number),
     journalSourceEvent: stringValue(row.journal_source_event),
+    journalEntryIsActive:
+      row.journal_entry_is_active === undefined ||
+      row.journal_entry_is_active === null
+        ? undefined
+        : boolValue(row.journal_entry_is_active),
+    journalReversalDepth:
+      row.journal_reversal_depth === undefined ||
+      row.journal_reversal_depth === null
+        ? undefined
+        : numberValue(row.journal_reversal_depth),
+    journalEntrySemanticallyValid:
+      row.journal_entry_semantically_valid === undefined ||
+      row.journal_entry_semantically_valid === null
+        ? undefined
+        : boolValue(row.journal_entry_semantically_valid),
   }));
   const timer = raw.active_timer;
   return {
@@ -2176,14 +2539,11 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     payslips,
     payrollImports,
     employeePayrollTemplates,
+    accounts: (raw.accounts ?? []).map(accountFromRaw),
     accountingSettings: raw.accounting_settings
       ? accountingSettingsFromRaw(raw.accounting_settings)
       : null,
-    backupStatus: {
-      lastSuccessAt: null,
-      lastPath: null,
-      nextScheduledAt: null,
-    },
+    backupStatus: backupStatusFromRaw(raw.backup_status),
   };
 }
 
@@ -2228,6 +2588,7 @@ function emptyWorkspace(): Workspace {
     payslips: [],
     payrollImports: [],
     employeePayrollTemplates: [],
+    accounts: [],
     accountingSettings: null,
     backupStatus: {
       lastSuccessAt: null,
@@ -2542,6 +2903,8 @@ function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {
     gross_cents: draft.grossCents,
     net_cents: draft.netCents,
     lines: draft.lines.map((line) => ({
+      id: line.id,
+      source_ref: line.sourceRef ?? '',
       label: line.label,
       kind: line.kind,
       amount_cents: line.amountCents,
@@ -2564,9 +2927,49 @@ function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {
             conflicts: draft.review.aiIdentityEvidence.conflicts,
           }
         : null,
+      ai_fields: draft.review.aiFields ?? [],
+      ai_line_keys: draft.review.aiLineKeys ?? [],
+      ai_warnings: draft.review.aiWarnings ?? [],
+      manual_fields: draft.review.manualFields ?? [],
+      manual_line_keys: draft.review.manualLineKeys ?? [],
+      suppressed_line_keys: draft.review.suppressedLineKeys ?? [],
+      confirmed_recurring_lines: (draft.review.confirmedRecurringLines ?? []).map((line) => ({
+        line_id: line.lineId ?? '',
+        label: line.label,
+        kind: line.kind,
+        amount_cents: line.amountCents,
+      })),
     };
   }
   return raw;
+}
+
+export function updatePayrollImportDraftMutation(
+  id: string,
+  draft: PayrollImportDraft,
+  extractionEngine: string,
+  engineVersion: string,
+  confidenceBp: number,
+  analysisManifest?: PayrollAnalysisManifest | null,
+) {
+  const input: RawRecord = {
+    id,
+    draft: payrollImportDraftToRaw(draft),
+    extraction_engine: extractionEngine,
+    engine_version: engineVersion || null,
+    confidence_bp: confidenceBp,
+  };
+  // Une propriété absente maintient la compatibilité avec les anciens appels.
+  // `null` reste réservé à un abandon intégral explicitement demandé.
+  if (analysisManifest === null) {
+    input.clear_analysis_manifest = true;
+  } else if (analysisManifest) {
+    input.analysis_manifest = payrollAnalysisManifestToRaw(analysisManifest);
+  }
+  return {
+    command: 'update_payroll_import_draft' as const,
+    args: { input },
+  };
 }
 
 const nullableString = (value: unknown): string | null =>
@@ -4231,7 +4634,17 @@ export const desktopApi = {
     });
     return loadWorkspace();
   },
-  async addPayment(invoiceId: string, data: Record<string, unknown>) {
+  async addPayment(
+    invoiceId: string,
+    data: {
+      requestId: string;
+      amountCents: number;
+      date: string;
+      method: string;
+      reference: string;
+      notes: string;
+    },
+  ) {
     await invoke('record_payment', {
       input: { invoice_id: invoiceId, ...toBackendData(data) },
     });
@@ -4412,9 +4825,12 @@ export const desktopApi = {
     chooseFile({
       multiple: false,
       directory: false,
-      title: 'Choisir une sauvegarde Elyko',
+      title: 'Choisir une sauvegarde Zentra',
       filters: [
-        { name: 'Sauvegarde Elyko', extensions: ['elyko', 'hchantier'] },
+        {
+          name: 'Sauvegarde Zentra',
+          extensions: ['zentra', 'elyko', 'hchantier'],
+        },
       ],
     }),
   async restoreBackup(source: string) {
@@ -4425,10 +4841,6 @@ export const desktopApi = {
     if (format !== 'json')
       throw new Error('L’export CSV sera disponible depuis chaque liste.');
     return { path: await invoke<string>('export_json', {}) };
-  },
-  async printDocument(entity: 'quotes' | 'invoices' | 'payslips', id: string) {
-    window.print();
-    return { entity, id };
   },
   chooseBackupFolder: () =>
     chooseFile({
@@ -4483,16 +4895,17 @@ export const desktopApi = {
     extractionEngine: string,
     engineVersion: string,
     confidenceBp: number,
+    analysisManifest?: PayrollAnalysisManifest | null,
   ): Promise<PayrollDocumentImport> {
-    const row = await invoke<RawRecord>('update_payroll_import_draft', {
-      input: {
-        id,
-        draft: payrollImportDraftToRaw(draft),
-        extraction_engine: extractionEngine,
-        engine_version: engineVersion || null,
-        confidence_bp: confidenceBp,
-      },
-    });
+    const mutation = updatePayrollImportDraftMutation(
+      id,
+      draft,
+      extractionEngine,
+      engineVersion,
+      confidenceBp,
+      analysisManifest,
+    );
+    const row = await invoke<RawRecord>(mutation.command, mutation.args);
     return payrollImportFromRaw(row);
   },
   async confirmPayrollDocumentImport(
@@ -5289,6 +5702,42 @@ export const desktopApi = {
       path: stringValue(raw.path),
       pages: numberValue(raw.pages),
       finalDocument: boolValue(raw.final_document),
+    };
+  },
+  async exportSalesDocumentPdf(
+    entity: SalesPdfEntity,
+    documentId: string,
+    suggestedFileName: string,
+  ): Promise<{
+    path: string;
+    pages: number;
+    finalDocument: boolean;
+    hasQr: boolean;
+    documentType: 'quote' | 'invoice' | 'credit_note';
+  } | null> {
+    const selected = await chooseSaveFile({
+      title:
+        entity === 'quotes'
+          ? 'Enregistrer le devis PDF'
+          : 'Enregistrer la facture PDF',
+      defaultPath: suggestedFileName,
+      filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
+    });
+    if (!selected) return null;
+    const destinationPath = pdfDestinationPath(selected);
+    const raw = await invoke<RawRecord>(
+      'generate_sales_document_pdf',
+      salesPdfInvokeInput(entity, documentId, destinationPath),
+    );
+    return {
+      path: stringValue(raw.path),
+      pages: numberValue(raw.pages),
+      finalDocument: boolValue(raw.final_document),
+      hasQr: boolValue(raw.has_qr),
+      documentType: stringValue(raw.document_type) as
+        | 'quote'
+        | 'invoice'
+        | 'credit_note',
     };
   },
   async saveInvoiceQrBill(

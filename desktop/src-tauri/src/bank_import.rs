@@ -1450,7 +1450,17 @@ mod tests {
         invoice_type: &str,
     ) -> String {
         let client = store
-            .create_record("clients", json!({"name":"Client test"}))
+            .create_record(
+                "clients",
+                json!({
+                    "name":"Client test",
+                    "address_line1":"Rue du Client",
+                    "address_line2":"7",
+                    "postal_code":"1000",
+                    "city":"Lausanne",
+                    "country":"CH"
+                }),
+            )
             .unwrap();
         let invoice = store
             .create_record(
@@ -1492,16 +1502,23 @@ mod tests {
                 bill: SwissQrBillInput {
                     iban: "CH4431999123000889012".into(),
                     creditor: SwissQrParty {
-                        name: "Entreprise CAMT de test".into(),
-                        street: "Rue locale".into(),
-                        building_number: "1".into(),
+                        name: "Banque locale".into(),
+                        street: "Rue locale 1".into(),
+                        building_number: String::new(),
                         postal_code: "1000".into(),
                         city: "Lausanne".into(),
                         country: "CH".into(),
                     },
                     amount_cents: Some(amount_cents),
                     currency: "CHF".into(),
-                    debtor: None,
+                    debtor: Some(SwissQrParty {
+                        name: "Client test".into(),
+                        street: "Rue du Client".into(),
+                        building_number: "7".into(),
+                        postal_code: "1000".into(),
+                        city: "Lausanne".into(),
+                        country: "CH".into(),
+                    }),
                     reference_type: "QRR".into(),
                     reference: qrr.into(),
                     unstructured_message: String::new(),
@@ -2859,7 +2876,7 @@ mod tests {
         let paid_id = create_open_invoice(&store, 10_000, "CHF");
         store
             .record_payment(RecordPaymentInput {
-                request_id: None,
+                request_id: Uuid::new_v4().to_string(),
                 invoice_id: paid_id.clone(),
                 amount_cents: 10_000,
                 date: Some("2026-08-20".into()),
@@ -4674,7 +4691,7 @@ impl LocalStore {
         let payment = record_payment_in_transaction(
             &transaction,
             RecordPaymentInput {
-                request_id: Some(movement_id.clone()),
+                request_id: movement_id.clone(),
                 invoice_id: invoice_id.clone(),
                 amount_cents,
                 date: Some(payment_date),

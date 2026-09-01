@@ -10,7 +10,7 @@ import {
   Receipt,
   ShieldCheck,
 } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const catalogItems = [
   {
@@ -49,7 +49,10 @@ type DemoMode = 'quote' | 'purchase';
 type PurchaseStatus = 'ordered' | 'received' | 'matched' | 'paid';
 
 export function BusinessOperationsDemo() {
-  const baseId = useId().replace(/:/g, '');
+  // Cette démonstration n'est montée qu'une fois sur la page d'accueil. Des
+  // identifiants fixes gardent les relations ARIA stables entre le rendu RSC
+  // et l'hydratation du navigateur.
+  const baseId = 'zentra-business-operations';
   const [mode, setMode] = useState<DemoMode>('quote');
   const [catalogItemId, setCatalogItemId] = useState(catalogItems[0].id);
   const [quantity, setQuantity] = useState(2);
@@ -137,7 +140,7 @@ export function BusinessOperationsDemo() {
       <div
         className="grid grid-cols-2 gap-1 border-b border-[#d9e0da] bg-[#e6ece7] p-1.5"
         role="tablist"
-        aria-label="Choisir une démonstration Elyko"
+        aria-label="Choisir une démonstration Zentra"
       >
         <button
           id={baseId + '-quote-tab'}
@@ -260,7 +263,7 @@ export function BusinessOperationsDemo() {
           </div>
 
           <p className="mt-5 rounded-xl bg-[#f4f1e9] p-3 text-xs leading-5 text-[#6c624f]">
-            Elyko copie le libellé, l’unité, le prix et la TVA dans la ligne du
+            Zentra copie le libellé, l’unité, le prix et la TVA dans la ligne du
             devis. La ligne reste modifiable sans changer la référence du
             catalogue.
           </p>
@@ -443,7 +446,7 @@ export function BusinessOperationsDemo() {
                   Confirmer le paiement avec la date du jour ?
                 </p>
                 <p className="mt-1 text-xs leading-5 text-[#776443]">
-                  Dans Elyko, une écriture devient immuable si la comptabilité
+                  Dans Zentra, une écriture devient immuable si la comptabilité
                   est activée. Ici, rien n’est enregistré.
                 </p>
                 <div className="mt-4 flex flex-col gap-2 min-[420px]:flex-row">
@@ -480,7 +483,7 @@ export function BusinessOperationsDemo() {
             ) : purchaseStatus === 'received' ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs leading-5 text-[#6c776f]">
-                  Elyko compare quantité, prix HT et TVA avec la commande et la
+                  Zentra compare quantité, prix HT et TVA avec la commande et la
                   réception avant validation.
                 </p>
                 <button

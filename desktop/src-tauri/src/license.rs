@@ -25,7 +25,8 @@ use crate::{
     models::LicenseTokenPayload,
 };
 
-pub const LICENSE_PLAN: &str = "helvichantier-monthly-50-chf";
+pub const LICENSE_PLAN: &str = "zentra-monthly-50-chf";
+const LEGACY_LICENSE_PLANS: &[&str] = &["elyko-monthly-50-chf", "helvichantier-monthly-50-chf"];
 pub const LICENSE_PRICE_CHF_CENTS: i64 = 5_000;
 const TOKEN_VERSION: u8 = 2;
 const LICENSE_KEY_ID: &str = "hc-prod-v1";
@@ -65,7 +66,7 @@ struct LicenseClockAnchor {
 
 // Défense en profondeur contre une remise à zéro partielle de SQLite : cette
 // preuve DPAPI n'est ni une DRM « incrackable », ni une identité serveur. Un
-// administrateur local peut toujours supprimer toutes les données Elyko ; le
+// administrateur local peut toujours supprimer toutes les données Zentra ; le
 // service HTTPS reste l'autorité pour rétablir une installation déjà utilisée.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -174,7 +175,7 @@ impl LocalStore {
                     .into(),
             )),
             LicenseRefreshOutcome::Unrecognized => return Err(AppError::Validation(
-                "Le service Elyko ne reconnaît pas ce jeton. Vérifiez-le ou contactez le support."
+                "Le service Zentra ne reconnaît pas ce jeton. Vérifiez-le ou contactez le support."
                     .into(),
             )),
         };
@@ -182,7 +183,7 @@ impl LocalStore {
         self.validate_installation_binding(&payload)?;
         if payload.license_id != snapshot.candidate_license_id {
             return Err(AppError::Validation(
-                "Le service Elyko a retourné une autre licence que celle demandée. Aucune activation n’a été enregistrée."
+                "Le service Zentra a retourné une autre licence que celle demandée. Aucune activation n’a été enregistrée."
                     .into(),
             ));
         }
@@ -369,7 +370,7 @@ impl LocalStore {
             LicenseServerAccess::Unrecognized => (
                 "invalid",
                 true,
-                "Cette activation n’est plus reconnue par le service Elyko. Contactez le support.",
+                "Cette activation n’est plus reconnue par le service Zentra. Contactez le support.",
             ),
             LicenseServerAccess::Active => {
                 let (status, read_only) = evaluate(
@@ -478,7 +479,10 @@ impl LocalStore {
                         || anchor.server_access != LicenseServerAccess::Active
                         || clock_rolled_back(&anchor, Utc::now(), today).unwrap_or(true)
                 });
-        expires_soon || anchor_requires_refresh
+        // A legacy Zentra token remains valid during the product-name
+        // migration, but is renewed online as soon as possible so the server
+        // can reissue the canonical Zentra plan without locking out customers.
+        payload.plan != LICENSE_PLAN || expires_soon || anchor_requires_refresh
     }
 
     fn claim_automatic_refresh(&self, license_id: &str, now_utc: DateTime<Utc>) -> AppResult<bool> {
@@ -552,7 +556,7 @@ impl LocalStore {
     ) -> AppResult<LicenseClockAnchor> {
         if clock_anchor_version == 0 {
             return Err(AppError::Validation(
-                "Cette licence provient d’une ancienne version d’Elyko. Une vérification en ligne est nécessaire une seule fois pour sécuriser ce PC. Cliquez sur « Renouveler la licence »."
+                "Cette licence provient d’une ancienne version de Zentra. Une vérification en ligne est nécessaire une seule fois pour sécuriser ce PC. Cliquez sur « Renouveler la licence »."
                     .into(),
             ));
         }
@@ -845,7 +849,7 @@ async fn request_refreshed_license(token: &str) -> AppResult<LicenseRefreshOutco
         .redirect(Policy::none())
         .connect_timeout(REFRESH_CONNECT_TIMEOUT)
         .timeout(REFRESH_TOTAL_TIMEOUT)
-        .user_agent(format!("Elyko-License/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("Zentra-License/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|_| AppError::Validation("Le client HTTPS de licence est indisponible.".into()))?;
     let response = client
@@ -897,7 +901,7 @@ async fn request_refreshed_license(token: &str) -> AppResult<LicenseRefreshOutco
     }
     match status {
         StatusCode::PAYMENT_REQUIRED => Ok(LicenseRefreshOutcome::Inactive),
-        // Seule la réponse métier 403 de l'API Elyko signifie que le couple
+        // Seule la réponse métier 403 de l'API Zentra signifie que le couple
         // licence/installation n'existe plus. Un 400/401 peut provenir d'une
         // évolution de protocole ou d'une configuration intermédiaire : dans
         // ce cas le bail local valable doit rester strictement inchangé.
@@ -964,7 +968,7 @@ fn validated_refresh_endpoint() -> AppResult<reqwest::Url> {
         || endpoint.fragment().is_some()
     {
         return Err(AppError::Validation(
-            "L’URL de renouvellement intégrée ne respecte pas la politique Elyko.".into(),
+            "L’URL de renouvellement intégrée ne respecte pas la politique Zentra.".into(),
         ));
     }
     Ok(endpoint)
@@ -1011,6 +1015,10 @@ fn verify_token_with_key(token: &str, key: &[u8; 32]) -> AppResult<LicenseTokenP
     validate_payload(&payload)?;
     Ok(payload)
 }
+fn supported_license_plan(plan: &str) -> bool {
+    plan == LICENSE_PLAN || LEGACY_LICENSE_PLANS.contains(&plan)
+}
+
 fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
     if payload.token_version != TOKEN_VERSION {
         return Err(AppError::Validation(
@@ -1020,9 +1028,10 @@ fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
     if payload.license_id.trim().is_empty() {
         return Err(AppError::Validation("license_id est obligatoire.".into()));
     }
-    if payload.plan != LICENSE_PLAN || payload.price_chf_cents != LICENSE_PRICE_CHF_CENTS {
+    if !supported_license_plan(&payload.plan) || payload.price_chf_cents != LICENSE_PRICE_CHF_CENTS
+    {
         return Err(AppError::Validation(
-            "Le jeton ne correspond pas au plan Elyko à 50 CHF/mois.".into(),
+            "Le jeton ne correspond pas au plan Zentra à 50 CHF/mois.".into(),
         ));
     }
     let installation_id = uuid::Uuid::parse_str(&payload.installation_id)
@@ -1162,6 +1171,22 @@ mod tests {
         let mut tampered = token;
         tampered.push('A');
         assert!(verify_token_with_key(&tampered, &signing.verifying_key().to_bytes()).is_err());
+    }
+
+    #[test]
+    fn legacy_plan_is_accepted_only_for_migration_and_refreshes_immediately() {
+        let signing = SigningKey::from_bytes(&[8_u8; 32]);
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (mut payload, _) = current_token(&store, &signing, "lic-legacy-plan");
+        for legacy_plan in LEGACY_LICENSE_PLANS {
+            payload.plan = (*legacy_plan).into();
+            assert!(validate_payload(&payload).is_ok());
+            assert!(store.refresh_is_due(&payload));
+        }
+
+        payload.plan = "another-product".into();
+        assert!(validate_payload(&payload).is_err());
     }
 
     #[test]

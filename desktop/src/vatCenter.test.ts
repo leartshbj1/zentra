@@ -28,7 +28,7 @@ describe('assistant TVA', () => {
         '2026-03-31',
         'correction',
       ),
-    ).toBe('ELYKO-20260101-20260331-RECT');
+    ).toBe('ZENTRA-20260101-20260331-RECT');
   });
 
   it('explique que la concordance contient uniquement les différences', () => {

@@ -103,7 +103,7 @@ describe('contrat frontend des relances supervisées', () => {
         country: 'CH',
       },
       sender: {
-        name: 'Elyko Test',
+        name: 'Zentra Test',
         company: 'Entreprise SA',
         logo_path: 'C:/branding/logo.png',
       },

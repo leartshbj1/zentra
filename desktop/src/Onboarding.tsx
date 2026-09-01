@@ -22,7 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
-import { BrandMark } from './BrandMark';
+import { BrandWordmark } from './BrandMark';
 import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
 import { createId, errorMessage } from './utils';
 import { Button, ErrorPanel, Field } from './ui';
@@ -242,7 +242,7 @@ export function Onboarding({
         const serverIssues = preflight.issues.map((issue) => ({ ...issue, step: Number(issue.step) }));
         setBackendIssues(serverIssues);
         setValidatedSteps([1, 2, 3, 4, 5]);
-        setError('Elyko a trouvé une information à corriger. Votre brouillon est conservé sur ce PC.');
+        setError('Zentra a trouvé une information à corriger. Votre brouillon est conservé sur ce PC.');
         if (serverIssues[0]) focusIssue(serverIssues[0]);
         return;
       }
@@ -286,8 +286,10 @@ export function Onboarding({
     <div className="onboarding">
       <aside className="onboarding__rail">
         <div className="onboarding__brand">
-          <BrandMark size={38} />
-          <div><strong>Elyko</strong><small>Application Windows</small></div>
+          <div className="onboarding__wordmark">
+            <BrandWordmark />
+            <small>Application Windows</small>
+          </div>
         </div>
         <div className="onboarding__promise">
           <LockKeyhole size={22} />
@@ -336,7 +338,7 @@ export function Onboarding({
           </section>
 
           {currentIssues.length ? <ValidationSummary issues={currentIssues} onSelect={focusIssue} /> : null}
-          {busy && savePhase ? <div className="setup-saving" role="status"><span><LoaderCircle className="spin" size={20} /></span><div><strong>{savePhase}</strong><p>Ne fermez pas Elyko. Cette opération reste entièrement locale.</p></div></div> : null}
+          {busy && savePhase ? <div className="setup-saving" role="status"><span><LoaderCircle className="spin" size={20} /></span><div><strong>{savePhase}</strong><p>Ne fermez pas Zentra. Cette opération reste entièrement locale.</p></div></div> : null}
           {error && !currentIssues.length ? <ErrorPanel title="Configuration non enregistrée" message={error} /> : null}
 
           {step > 0 ? (
@@ -373,7 +375,7 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
           <span><BriefcaseBusiness size={25} /></span><div><strong>Créer mon entreprise</strong><p>Configurer l’identité, la facturation, le temps, la paie et les sauvegardes.</p></div><ArrowRight size={20} />
         </button>
         <button className="setup-choice" onClick={onRestore} disabled={busy}>
-          <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>Reprendre une archive Elyko ou une ancienne sauvegarde .hchantier provenant d’un autre ordinateur.</p></div><FolderOpen size={20} />
+          <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>Reprendre une archive .zentra, .elyko ou .hchantier provenant d’un autre ordinateur.</p></div><FolderOpen size={20} />
         </button>
       </div>
       <div className="local-facts">
@@ -418,7 +420,7 @@ function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCat
           <div className="company-logo-setting__preview">{org.logoPath ? <img src={convertFileSrc(org.logoPath)} alt={`Logo de ${org.legalName || 'l’entreprise'}`} /> : <Building2 size={30} />}</div>
           <div className="company-logo-setting__copy">
             <strong>Logo de l’entreprise</strong>
-            <p>Facultatif · PNG, JPEG ou WebP, 8 Mo maximum. Elyko vérifie l’image et en conserve une copie locale pour vos devis, factures et fiches de salaire.</p>
+            <p>Facultatif · PNG, JPEG ou WebP, 8 Mo maximum. Zentra vérifie l’image et en conserve une copie locale pour vos devis, factures et fiches de salaire.</p>
             <div className="settings-inline-actions">
               <Button type="button" variant="secondary" disabled={choosingLogo} onClick={() => void chooseLogo()}>
                 {choosingLogo ? <LoaderCircle className="spin" size={16} /> : <FolderOpen size={16} />} {choosingLogo ? 'Vérification…' : org.logoPath ? 'Remplacer le logo' : 'Choisir le logo'}
@@ -467,7 +469,7 @@ function BillingStep({ settings, setSettings, vatText, setVatText, issues }: { s
   }
   return (
     <div>
-      <StepHeader eyebrow="Étape 2 sur 5" title="Facturation suisse" text="Vous décidez des numéros, délais et taux. Elyko n’invente aucune règle comptable." />
+      <StepHeader eyebrow="Étape 2 sur 5" title="Facturation suisse" text="Vous décidez des numéros, délais et taux. Zentra n’invente aucune règle comptable." />
       <div className="form-grid setup-form">
         <Field label="IBAN ou QR-IBAN" hint="21 caractères pour un IBAN suisse ou liechtensteinois; les espaces sont retirés automatiquement." required wide error={issues['billing.iban']}><input data-field="billing.iban" aria-invalid={Boolean(issues['billing.iban'])} value={billing.iban} onChange={(e) => patch({ iban: e.target.value.toUpperCase() })} onBlur={() => patch({ iban: normalizeIban(billing.iban) })} autoFocus /></Field>
         <Field label="Titulaire du compte" required wide error={issues['billing.accountHolder']}><input data-field="billing.accountHolder" aria-invalid={Boolean(issues['billing.accountHolder'])} value={billing.accountHolder} onChange={(e) => patch({ accountHolder: e.target.value })} /></Field>
@@ -568,7 +570,7 @@ function ConfirmationStep({ settings, onEdit }: { settings: AppSettings; onEdit:
   const org = settings.organization;
   return (
     <div>
-      <StepHeader eyebrow="Prêt à démarrer" title="Vérifiez votre configuration" text="Seules les informations ci-dessous seront créées. Toutes les listes métier commenceront vides." />
+      <StepHeader eyebrow="Profil initial" title="Vérifiez votre configuration" text="Seules les informations ci-dessous seront enregistrées. Après cette étape, le centre de préparation vous guidera pour activer la comptabilité et créer votre première sauvegarde." />
       <div className="review-grid"><ReviewCard title="Entreprise" onEdit={() => onEdit(1)} rows={[["Raison sociale", org.legalName], ["Responsable", org.contactName], ["Adresse", `${org.address.street}${org.address.buildingNumber ? ` ${org.address.buildingNumber}` : ''}, ${org.address.postalCode} ${org.address.city}`], ["Logo", org.logoPath ? 'Copie locale configurée' : 'Non configuré'], ["TVA", org.vatRegistered ? `Assujettie · ${org.vatNumber || org.uidNumber}` : 'Non assujettie']]} /><ReviewCard title="Activité" onEdit={() => onEdit(1)} rows={[["Section NOGA", settings.business.nogaSection], ["Division NOGA", settings.business.nogaDivision], ["Activité précise", settings.business.activityDescription], ["Code détaillé", settings.business.nogaDetailedCode || 'Non renseigné']]} /><ReviewCard title="Facturation" onEdit={() => onEdit(2)} rows={[["Compte", settings.billing.iban], ["Numérotation devis", `${settings.billing.quotePrefix} · prochain ${settings.billing.nextQuoteNumber}`], ["Numérotation factures", `${settings.billing.invoicePrefix} · prochain ${settings.billing.nextInvoiceNumber}`], ["TVA", settings.billing.vatRatesBp.length ? settings.billing.vatRatesBp.map((rate) => `${(rate / 100).toLocaleString('fr-CH')} %`).join(', ') : 'Sans TVA'], ["Délais", `${settings.billing.paymentTermsDays} jours · devis ${settings.billing.quoteValidityDays} jours`]]} /><ReviewCard title="Temps & coûts" onEdit={() => onEdit(3)} rows={[["Semaine", `${settings.work.workWeekHours} heures`], ["Journée", `${settings.work.dailyHours} heures · pause ${settings.work.breakMinutes} min`], ["Arrondi", settings.work.roundingMinutes ? `${settings.work.roundingMinutes} min` : 'Aucun'], ["Catégories", settings.work.costCategories.join(', ')]]} /><ReviewCard title="Paie" onEdit={() => onEdit(4)} rows={[["Module", settings.payroll.enabled ? settings.payroll.fiduciaryValidated ? 'Activé · configuration contrôlée' : 'Activé · validation fiduciaire requise' : 'Désactivé'], ["Caisse AVS", settings.payroll.enabled ? settings.payroll.avsFund : '—'], ["Taux saisis", settings.payroll.enabled ? `${settings.payroll.employeeRates.length} salarié · ${settings.payroll.employerRates.length} employeur` : 'Aucun']]} /><ReviewCard title="Données" onEdit={() => onEdit(5)} rows={[["Stockage", 'Uniquement sur cet ordinateur'], ["Sauvegarde", 'Manuelle, à votre initiative'], ["Dossier", settings.backup.folder]]} /></div>
       <div className="zero-data"><Check size={19} /><div><strong>Démarrage propre confirmé</strong><p>0 client · 0 chantier ou projet · 0 devis · 0 facture · 0 salarié · 0 montant simulé</p></div></div>
     </div>

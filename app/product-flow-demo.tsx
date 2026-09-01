@@ -305,7 +305,7 @@ export function ProductFlowDemo() {
                 />
               </label>
               <p className="text-xs leading-5 text-[#52695b]">
-                Elyko réserve la commande, puis limite la facture aux quantités
+                Zentra réserve la commande, puis limite la facture aux quantités
                 réellement livrées et encore non facturées.
               </p>
             </div>

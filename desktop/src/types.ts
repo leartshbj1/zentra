@@ -366,6 +366,7 @@ export type Quote = {
   title: string;
   issueDate: string;
   validUntil: string;
+  currency: string;
   status: QuoteStatus;
   lines: DocumentLine[];
   notes: string;
@@ -399,6 +400,7 @@ export type Invoice = {
   dueDate: string;
   serviceDateFrom: string;
   serviceDateTo: string;
+  currency: string;
   status: InvoiceStatus;
   lines: DocumentLine[];
   notes: string;
@@ -673,6 +675,12 @@ export type Payment = {
   journalEntryId?: Identifier | null;
   journalEntryNumber?: string;
   journalSourceEvent?: string;
+  /** État net de la chaîne d'extournes: false après 1, true après 2, etc. */
+  journalEntryIsActive?: boolean;
+  /** Profondeur maximale de la chaîne d'extournes: 0 si aucune extourne. */
+  journalReversalDepth?: number;
+  /** Preuve recalculée au chargement: date, montant, devise, lignes et comptes correspondent. */
+  journalEntrySemanticallyValid?: boolean;
 };
 
 export type Employee = {
@@ -700,9 +708,9 @@ export type Employee = {
   employmentRate: number;
   /** Horaire contractuel explicite; utilisé pour la décision AANP de 8 h/semaine. */
   contractualWeeklyMinutes: number | null;
-  /** Année pour laquelle la base AC antérieure à Elyko a été confirmée. */
+  /** Année pour laquelle la base AC antérieure à Zentra a été confirmée. */
   acOpeningYear: number | null;
-  /** Base AC déjà acquise hors Elyko au début de l'année, y compris zéro confirmé. */
+  /** Base AC déjà acquise hors Zentra au début de l'année, y compris zéro confirmé. */
   acOpeningBasisCents: number | null;
   salaryMode: 'hourly' | 'monthly';
   grossSalaryCents: number;
@@ -1295,6 +1303,8 @@ export type PayrollImportEmployeeDraft = {
 
 export type PayrollImportLineDraft = {
   id: Identifier;
+  /** Référence stable de l'occurrence OCR entre deux relances locales. */
+  sourceRef?: string;
   label: string;
   kind: PayslipLine['kind'];
   amountCents: number;
@@ -1322,10 +1332,75 @@ export type PayrollAiIdentityEvidence = {
   conflicts: string[];
 };
 
+export type PayrollConfirmedRecurringLine = {
+  /** Ligne exacte cochée; absent uniquement dans les anciens brouillons. */
+  lineId?: Identifier;
+  label: string;
+  kind: 'earning';
+  amountCents: number;
+};
+
 export type PayrollImportReviewState = {
   aiIdentityEvidence?: PayrollAiIdentityEvidence;
   employeeId: Identifier;
   employeeLinkSource: 'auto' | 'manual' | '';
+  /** Champs dont la valeur courante provient de la dernière analyse IA. */
+  aiFields?: string[];
+  /** Rubriques ajoutées par la dernière analyse IA, identifiées sans leur montant. */
+  aiLineKeys?: string[];
+  /** Avertissements produits par la dernière exécution IA. */
+  aiWarnings?: string[];
+  /** Champs réellement modifiés par la personne et prioritaires aux relances IA. */
+  manualFields?: string[];
+  /** Rubriques réellement modifiées ou ajoutées par la personne. */
+  manualLineKeys?: string[];
+  /** Rubriques supprimées manuellement, à ne pas recréer lors d'une relance IA. */
+  suppressedLineKeys?: string[];
+  /** Gains dont la case « Récurrent » a été cochée explicitement. */
+  confirmedRecurringLines?: PayrollConfirmedRecurringLine[];
+};
+
+export type PayrollAnalysisFieldProvenance = {
+  field: string;
+  /** Valeur canonique du brouillon à laquelle les pages sont liées. */
+  value: string;
+  pages: number[];
+  passIndexes: number[];
+  confidenceBp: number;
+};
+
+export type PayrollAnalysisLineProvenance = {
+  lineIndex: number;
+  label: string;
+  kind: PayslipLine['kind'];
+  amountCents: number;
+  pages: number[];
+  passIndexes: number[];
+  confidenceBp: number;
+};
+
+export type PayrollAnalysisConflict = {
+  target: string;
+  values: string[];
+  pages: number[];
+  passIndexes: number[];
+};
+
+/**
+ * Trace locale de l'analyse OCR/VLM. Elle documente la provenance du
+ * brouillon; elle ne remplace pas le contrôle humain de la fiche de salaire.
+ */
+export type PayrollAnalysisManifest = {
+  schemaVersion: number;
+  modelId: string;
+  modelRevision: string;
+  inputSha256: string;
+  analyzedPages: number[];
+  passes: number;
+  fieldProvenance: PayrollAnalysisFieldProvenance[];
+  lineProvenance: PayrollAnalysisLineProvenance[];
+  conflicts: PayrollAnalysisConflict[];
+  analyzedAt: string;
 };
 
 export type PayrollDocumentImport = {
@@ -1335,10 +1410,12 @@ export type PayrollDocumentImport = {
   fileSha256: string;
   mediaKind: 'pdf' | 'image';
   fileSize: number;
+  pageCount: number;
   extractionEngine: string;
   engineVersion: string;
   extractedText: string;
   draft: PayrollImportDraft;
+  analysisManifest: PayrollAnalysisManifest | null;
   confidenceBp: number;
   status: 'needs_review' | 'confirmed' | 'rejected' | 'error';
   errorMessage: string;
@@ -1435,6 +1512,7 @@ export type Workspace = {
   payslips: Payslip[];
   payrollImports: PayrollDocumentImport[];
   employeePayrollTemplates: EmployeePayrollTemplate[];
+  accounts: Account[];
   accountingSettings: AccountingSettings | null;
   backupStatus: BackupStatus;
 };

@@ -18,21 +18,21 @@ use crate::{
         ContributionDefinitionInput, ConvertQuoteInput, ConvertQuoteToSalesOrderInput,
         CreateInvoiceFromTimeEntriesInput, CreateRecurrenceScheduleInput,
         CreateSalesOrderInvoiceInput, DeleteResult, GeneratePayslipPdfInput,
-        GenerateRecurrenceOccurrencesInput, InstallReminderCycleInput, IssueDeliveryNoteInput,
-        IssueSupplierReceiptInput, LedgerInput, ManualJournalInput, MarkReminderInput,
-        OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter, PostPayslipInput,
-        PreviewSalesOrderInvoiceInput, ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput,
-        RecordSupplierPaymentInput, ReminderActionInput, ReminderFilter, ReminderPreviewInput,
-        ReminderSettingsInput, ReminderTemplateInput, ReverseDeliveryNoteInput,
-        ReverseSupplierCreditAllocationInput, ReverseSupplierReceiptInput,
-        SaveDeliveryNoteDraftInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
-        SavePayslipWithContributionsInput, SaveProjectMilestoneInput, SaveProjectTaskInput,
-        SaveSalesOrderDraftInput, SaveSupplierCreditNoteDraftInput, SaveSupplierInvoiceDraftInput,
-        SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput,
-        ScanRemindersInput, StagePayrollDocumentsInput, StockCorrectionInput, StockEntryInput,
-        StockExitInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
-        UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
-        ValidateSupplierCreditNoteInput,
+        GenerateRecurrenceOccurrencesInput, GenerateSalesDocumentPdfInput,
+        InstallReminderCycleInput, IssueDeliveryNoteInput, IssueSupplierReceiptInput, LedgerInput,
+        ManualJournalInput, MarkReminderInput, OnboardingInput, OnboardingValidation,
+        PayPayslipInput, PeriodFilter, PostPayslipInput, PreviewSalesOrderInvoiceInput,
+        ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
+        ReminderActionInput, ReminderFilter, ReminderPreviewInput, ReminderSettingsInput,
+        ReminderTemplateInput, ReverseDeliveryNoteInput, ReverseSupplierCreditAllocationInput,
+        ReverseSupplierReceiptInput, SaveDeliveryNoteDraftInput, SaveDocumentWithItemsInput,
+        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveProjectMilestoneInput,
+        SaveProjectTaskInput, SaveSalesOrderDraftInput, SaveSupplierCreditNoteDraftInput,
+        SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput,
+        SaveSupplierReceiptDraftInput, ScanRemindersInput, StagePayrollDocumentsInput,
+        StockCorrectionInput, StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload,
+        SwissQrValidation, TimerInput, UpdatePayrollImportDraftInput,
+        UpdateRecurrenceScheduleInput, ValidateSupplierCreditNoteInput,
     },
     swiss_qr,
     vat_reporting::{
@@ -1212,6 +1212,17 @@ pub fn generate_payslip_pdf(
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.generate_payslip_pdf(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn generate_sales_document_pdf(
+    state: State<'_, LocalStore>,
+    input: GenerateSalesDocumentPdfInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .generate_sales_document_pdf(input)
+        .map_err(command_error)
 }
 
 #[tauri::command]

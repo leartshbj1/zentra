@@ -7,7 +7,7 @@ describe('reprise du brouillon de configuration', () => {
       ...initialOnboardingSettings,
       organization: {
         ...initialOnboardingSettings.organization,
-        logoPath: 'C:\\Profil\\Elyko\\attachments\\branding\\logo-test.png',
+        logoPath: 'C:\\Profil\\Zentra\\attachments\\branding\\logo-test.png',
         address: {
           ...initialOnboardingSettings.organization.address,
           buildingNumber: '14A',
@@ -15,7 +15,7 @@ describe('reprise du brouillon de configuration', () => {
       },
     });
 
-    expect(restored.organization.logoPath).toBe('C:\\Profil\\Elyko\\attachments\\branding\\logo-test.png');
+    expect(restored.organization.logoPath).toBe('C:\\Profil\\Zentra\\attachments\\branding\\logo-test.png');
     expect(restored.organization.address.buildingNumber).toBe('14A');
   });
 

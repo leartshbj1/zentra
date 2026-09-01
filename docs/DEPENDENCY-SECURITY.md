@@ -6,7 +6,7 @@ Le contrôle reproductible des dépendances de production se lance depuis la rac
 pnpm audit:prod
 ```
 
-Les alertes `GHSA-w3rx-r6r6-pgpr` et `GHSA-5p2g-fcmc-qvqq` sont ignorées par cette commande uniquement après application du patch versionné `patches/image-size@2.0.2.patch`. Au 31 août 2026, le registre ne propose pas la version corrigée 2.0.3 annoncée par les avis. Le patch retire les gestionnaires HEIF, ICNS, JXL et JXL-stream de la table des formats détectables. Elyko n’utilise aucun de ces formats pour les métadonnées du site; PNG, JPEG et SVG restent pris en charge.
+Les alertes `GHSA-w3rx-r6r6-pgpr` et `GHSA-5p2g-fcmc-qvqq` sont ignorées par cette commande uniquement après application du patch versionné `patches/image-size@2.0.2.patch`. Au 31 août 2026, le registre ne propose pas la version corrigée 2.0.3 annoncée par les avis. Le patch retire les gestionnaires HEIF, ICNS, JXL et JXL-stream de la table des formats détectables. Zentra n’utilise aucun de ces formats pour les métadonnées du site; PNG, JPEG et SVG restent pris en charge.
 
 Références :
 

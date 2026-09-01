@@ -50,7 +50,7 @@ export function App() {
     return (
       <main className="splash-screen">
         <div className="splash-logo"><BrandMark size={58} /></div>
-        <h1>Elyko</h1>
+        <h1>Zentra</h1>
         <p>Ouverture de votre espace local sécurisé…</p>
         <LoaderCircle className="spin" size={22} />
       </main>

@@ -1,26 +1,34 @@
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
-import { LICENSE_PUBLIC_KEY_B64URL } from '@/lib/license-constants';
+import {
+  LICENSE_KEY_ID,
+  LICENSE_PLAN,
+  LICENSE_PRICE_CHF_CENTS,
+  LICENSE_PUBLIC_KEY_B64URL,
+  LICENSE_TOKEN_VERSION,
+  isSupportedLicensePlan,
+} from '@/lib/license-constants';
 import {
   base64Url,
   fromBase64Url,
-  LICENSE_PLAN,
-  LICENSE_PRICE_CHF_CENTS,
   paidEntitlementForSubscription,
   PublicError,
+  referenceId,
+  retrieveInvoice,
   retrieveSubscription,
   upsertSubscription,
-  validateActiveElykoSubscription,
+  validateActiveZentraSubscription,
+  validatePaidZentraInvoice,
 } from '@/lib/stripe';
 
 const INSTALLATION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type LicensePayload = {
-  token_version: 2;
+  token_version: typeof LICENSE_TOKEN_VERSION;
   license_id: string;
   installation_id: string;
   jti: string;
-  kid: 'hc-prod-v1';
+  kid: typeof LICENSE_KEY_ID;
   customer_name: string | null;
   plan: string;
   price_chf_cents: number;
@@ -121,11 +129,11 @@ export async function issueLicense(input: {
     .bind(licenseId, input.subscriptionId, input.installationId, now, now)
     .run();
   const payload: LicensePayload = {
-    token_version: 2,
+    token_version: LICENSE_TOKEN_VERSION,
     license_id: licenseId,
     installation_id: input.installationId,
     jti: crypto.randomUUID(),
-    kid: 'hc-prod-v1',
+    kid: LICENSE_KEY_ID,
     customer_name: input.customerName,
     plan: LICENSE_PLAN,
     price_chf_cents: LICENSE_PRICE_CHF_CENTS,
@@ -162,9 +170,12 @@ async function refreshIdentityFromToken(token: string) {
       new TextDecoder('utf-8', { fatal: true }).decode(fromBase64Url(parts[0])),
     ) as Partial<LicensePayload>;
     if (
-      payload.token_version !== 2 ||
+      payload.token_version !== LICENSE_TOKEN_VERSION ||
       !/^lic_[0-9a-f-]{36}$/i.test(payload.license_id ?? '') ||
-      !INSTALLATION_ID.test(payload.installation_id ?? '')
+      !INSTALLATION_ID.test(payload.installation_id ?? '') ||
+      !isSupportedLicensePlan(payload.plan) ||
+      payload.price_chf_cents !== LICENSE_PRICE_CHF_CENTS ||
+      payload.kid !== LICENSE_KEY_ID
     ) {
       throw new Error('invalid payload');
     }
@@ -220,12 +231,12 @@ export async function refreshLicense(token: string) {
       const now = Math.floor(Date.now() / 1000);
       const refreshedOwnerPayload: LicensePayload = {
         ...payload,
-        token_version: 2,
+        token_version: LICENSE_TOKEN_VERSION,
         license_id: licenseId,
         installation_id: installationId,
         jti: crypto.randomUUID(),
-        kid: 'hc-prod-v1',
-        customer_name: 'Licence propriétaire Elyko',
+        kid: LICENSE_KEY_ID,
+        customer_name: 'Licence propriétaire Zentra',
         plan: LICENSE_PLAN,
         price_chf_cents: LICENSE_PRICE_CHF_CENTS,
         issued_at: new Date().toISOString(),
@@ -249,13 +260,28 @@ export async function refreshLicense(token: string) {
     .first<{ subscription_id: string }>();
   if (!activation) {
     throw new PublicError(
-      'Cette activation n’est pas reconnue. Contactez le support Elyko.',
+      'Cette activation n’est pas reconnue. Contactez le support Zentra.',
       403,
     );
   }
   const subscription = await retrieveSubscription(activation.subscription_id);
-  validateActiveElykoSubscription(subscription);
-  await upsertSubscription(subscription);
+  validateActiveZentraSubscription(subscription);
+  const latestInvoiceId = referenceId(subscription.latest_invoice);
+  if (!latestInvoiceId) {
+    throw new PublicError(
+      'La dernière facture Stripe de cet abonnement est absente.',
+      502,
+    );
+  }
+  const latestInvoice = await retrieveInvoice(latestInvoiceId);
+  const paidThrough = validatePaidZentraInvoice(latestInvoice, subscription);
+  await upsertSubscription(subscription, null, {
+    paidInvoiceId: latestInvoice.id,
+    paidThrough,
+    paidAt:
+      latestInvoice.status_transitions?.paid_at ??
+      Math.floor(Date.now() / 1000),
+  });
   const entitlement = await paidEntitlementForSubscription(subscription.id);
   return issueLicense({
     subscriptionId: subscription.id,

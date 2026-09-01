@@ -6,6 +6,8 @@ use std::{
 };
 
 use rusqlite::{backup::Backup, params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use uuid::Uuid;
 use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
@@ -24,6 +26,19 @@ const ATTACHMENTS_PREFIX: &str = "attachments/";
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 const MAX_DATABASE_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_ATTACHMENTS_BYTES: u64 = 50 * 1024 * 1024 * 1024;
+const BACKUP_STATUS_FILE: &str = "backup-status.json";
+const BACKUP_STATUS_FORMAT: &str = "elyko-backup-status";
+const BACKUP_STATUS_VERSION: u32 = 1;
+const MAX_BACKUP_STATUS_BYTES: u64 = 16 * 1024;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+struct BackupStatusProof {
+    format: String,
+    format_version: u32,
+    last_success_at: String,
+    last_path: String,
+}
 
 #[derive(Clone, Copy)]
 struct ArchiveExtractionLimits {
@@ -134,9 +149,83 @@ impl LocalStore {
         app_version: &str,
     ) -> AppResult<String> {
         let destination =
-            self.resolve_output_path(destination, &self.backups_dir, "sauvegarde", "elyko")?;
+            self.resolve_output_path(destination, &self.backups_dir, "sauvegarde", "zentra")?;
         self.create_backup_at(&destination, app_version)?;
+        // La preuve de préparation n'est publiée qu'une fois l'archive finale
+        // synchronisée puis installée atomiquement par `create_backup_at`.
+        self.persist_successful_backup(&destination)?;
         Ok(destination.to_string_lossy().into_owned())
+    }
+
+    pub(crate) fn backup_status(&self) -> Value {
+        let Some(proof) = self.load_backup_status() else {
+            return json!({
+                "last_success_at": Value::Null,
+                "last_path": Value::Null,
+                "next_scheduled_at": Value::Null,
+            });
+        };
+        json!({
+            "last_success_at": proof.last_success_at,
+            "last_path": proof.last_path,
+            "next_scheduled_at": Value::Null,
+        })
+    }
+
+    fn backup_status_path(&self) -> PathBuf {
+        self.data_dir.join(BACKUP_STATUS_FILE)
+    }
+
+    fn persist_successful_backup(&self, destination: &Path) -> AppResult<()> {
+        let metadata = fs::metadata(destination)?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(AppError::Validation(
+                "La sauvegarde finale n'est pas un fichier local valide.".into(),
+            ));
+        }
+        let proof = BackupStatusProof {
+            format: BACKUP_STATUS_FORMAT.into(),
+            format_version: BACKUP_STATUS_VERSION,
+            last_success_at: now_iso(),
+            last_path: destination.to_string_lossy().into_owned(),
+        };
+        let mut temporary = tempfile::Builder::new()
+            .prefix(".backup-status-")
+            .suffix(".tmp")
+            .tempfile_in(&self.data_dir)?;
+        serde_json::to_writer_pretty(temporary.as_file_mut(), &proof)?;
+        temporary.as_file_mut().write_all(b"\n")?;
+        temporary.as_file_mut().sync_all()?;
+        temporary
+            .persist(self.backup_status_path())
+            .map_err(|error| AppError::Io(error.error))?;
+        Ok(())
+    }
+
+    fn load_backup_status(&self) -> Option<BackupStatusProof> {
+        let path = self.backup_status_path();
+        let metadata = fs::metadata(&path).ok()?;
+        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_BACKUP_STATUS_BYTES {
+            return None;
+        }
+        let file = File::open(path).ok()?;
+        let mut bytes = Vec::new();
+        file.take(MAX_BACKUP_STATUS_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .ok()?;
+        if bytes.len() as u64 > MAX_BACKUP_STATUS_BYTES {
+            return None;
+        }
+        let proof: BackupStatusProof = serde_json::from_slice(&bytes).ok()?;
+        if proof.format != BACKUP_STATUS_FORMAT
+            || proof.format_version != BACKUP_STATUS_VERSION
+            || chrono::DateTime::parse_from_rfc3339(&proof.last_success_at).is_err()
+            || proof.last_path.trim().is_empty()
+            || !Path::new(&proof.last_path).is_file()
+        {
+            return None;
+        }
+        Some(proof)
     }
 
     pub fn export_json(&self, destination: Option<String>, app_version: &str) -> AppResult<String> {
@@ -176,10 +265,12 @@ impl LocalStore {
             .extension()
             .and_then(|value| value.to_str())
             .unwrap_or_default();
-        if !extension.eq_ignore_ascii_case("elyko") && !extension.eq_ignore_ascii_case("hchantier")
+        if !extension.eq_ignore_ascii_case("zentra")
+            && !extension.eq_ignore_ascii_case("elyko")
+            && !extension.eq_ignore_ascii_case("hchantier")
         {
             return Err(AppError::Validation(
-                "La restauration exige un fichier .elyko ou une ancienne sauvegarde .hchantier."
+                "La restauration exige un fichier .zentra, .elyko ou une ancienne sauvegarde .hchantier."
                     .into(),
             ));
         }
@@ -200,7 +291,8 @@ impl LocalStore {
         validate_database(&extracted_database)?;
 
         let safety_path = if self.database_path.is_file() {
-            let safety_path = unique_default_path(&self.backups_dir, "avant-restauration", "elyko");
+            let safety_path =
+                unique_default_path(&self.backups_dir, "avant-restauration", "zentra");
             self.create_backup_at(&safety_path, app_version)?;
             Some(safety_path)
         } else {
@@ -251,7 +343,7 @@ impl LocalStore {
             destination
                 .extension()
                 .and_then(|value| value.to_str())
-                .unwrap_or("elyko"),
+                .unwrap_or("zentra"),
             Uuid::new_v4()
         ));
         let archive_file = create_new_file(&temporary_archive)?;
@@ -570,7 +662,7 @@ fn validate_database(path: &Path) -> AppResult<()> {
         connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if user_version > SCHEMA_VERSION {
         return Err(AppError::Validation(format!(
-            "La sauvegarde nécessite une version plus récente d’Elyko ({user_version})."
+            "La sauvegarde nécessite une version plus récente de Zentra ({user_version})."
         )));
     }
     let settings_table: bool = connection.query_row(
@@ -580,7 +672,7 @@ fn validate_database(path: &Path) -> AppResult<()> {
     )?;
     if !settings_table {
         return Err(AppError::Validation(
-            "La sauvegarde ne contient pas le schéma Elyko attendu.".into(),
+            "La sauvegarde ne contient pas le schéma Zentra attendu.".into(),
         ));
     }
     let foreign_key_errors: i64 =
@@ -678,12 +770,12 @@ fn ensure_safe_relative(path: &Path) -> AppResult<()> {
 
 fn unique_default_path(directory: &Path, label: &str, extension: &str) -> PathBuf {
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let preferred = directory.join(format!("Elyko-{label}-{timestamp}.{extension}"));
+    let preferred = directory.join(format!("Zentra-{label}-{timestamp}.{extension}"));
     if !preferred.exists() {
         return preferred;
     }
     directory.join(format!(
-        "Elyko-{label}-{timestamp}-{}.{}",
+        "Zentra-{label}-{timestamp}-{}.{}",
         Uuid::new_v4(),
         extension
     ))
@@ -742,7 +834,7 @@ mod tests {
                     format!("token-{license_id}"),
                     license_id,
                     "Entreprise test",
-                    "helvichantier-monthly-50-chf",
+                    crate::license::LICENSE_PLAN,
                     5_000,
                     "2026-08-30T00:00:00Z",
                     "2026-08-30",
@@ -795,6 +887,73 @@ mod tests {
             .unwrap();
         assert_eq!(snapshot_count, 0);
         assert_eq!(stored_license_id(&store).as_deref(), Some("lic-local-only"));
+    }
+
+    #[test]
+    fn new_backups_use_zentra_extension_and_legacy_extensions_remain_readable() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+
+        let current = PathBuf::from(store.create_backup(None, "1.13.0").unwrap());
+        assert_eq!(
+            current.extension().and_then(|value| value.to_str()),
+            Some("zentra")
+        );
+        store
+            .restore_backup(current.to_str().unwrap(), "1.13.0")
+            .unwrap();
+
+        for extension in ["elyko", "hchantier"] {
+            let legacy = temporary.path().join(format!("legacy.{extension}"));
+            fs::copy(&current, &legacy).unwrap();
+            store
+                .restore_backup(legacy.to_str().unwrap(), "1.13.0")
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn failed_backup_never_publishes_or_replaces_a_success_proof() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let failed_destination = temporary.path().join("deja-present.zentra");
+        fs::write(&failed_destination, b"ne pas remplacer").unwrap();
+
+        assert!(store
+            .create_backup(
+                Some(failed_destination.to_string_lossy().into_owned()),
+                "1.13.0",
+            )
+            .is_err());
+        assert_eq!(store.backup_status()["last_success_at"], Value::Null);
+
+        let successful_destination = temporary.path().join("valide.zentra");
+        store
+            .create_backup(
+                Some(successful_destination.to_string_lossy().into_owned()),
+                "1.13.0",
+            )
+            .unwrap();
+        let replacement_destination = temporary.path().join("valide-2.zentra");
+        store
+            .create_backup(
+                Some(replacement_destination.to_string_lossy().into_owned()),
+                "1.13.0",
+            )
+            .expect("atomically replace the previous success proof");
+        let successful_status = store.backup_status();
+        assert_eq!(
+            successful_status["last_path"],
+            replacement_destination.to_string_lossy().as_ref()
+        );
+
+        assert!(store
+            .create_backup(
+                Some(failed_destination.to_string_lossy().into_owned()),
+                "1.13.0",
+            )
+            .is_err());
+        assert_eq!(store.backup_status(), successful_status);
     }
 
     #[test]

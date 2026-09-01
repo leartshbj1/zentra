@@ -315,7 +315,7 @@ impl LocalStore {
 
         fs::create_dir_all(&self.exports_dir)?;
         let file_name = format!(
-            "elyko-dossier-fiduciaire-{}-{}-{}-{}-{}.zip",
+            "zentra-dossier-fiduciaire-{}-{}-{}-{}-{}.zip",
             date_from,
             date_to,
             package_status.to_ascii_lowercase(),
@@ -866,12 +866,12 @@ fn build_payload_members(
     let date_from = period["date_from"].as_str().unwrap_or("");
     let date_to = period["date_to"].as_str().unwrap_or("");
     let readme = format!(
-        "DOSSIER DE CLÔTURE FIDUCIAIRE ELYKO\r\n\
+        "DOSSIER DE CLÔTURE FIDUCIAIRE ZENTRA\r\n\
          =====================================\r\n\r\n\
          Statut du paquet : {package_status}\r\n\
          Exercice : {period_name} ({date_from} au {date_to})\r\n\
          Créé le : {created_at}\r\n\
-         Version Elyko : {app_version}\r\n\
+         Version Zentra : {app_version}\r\n\
          Empreinte source SHA-256 : {}\r\n\r\n\
          PORTÉE DU STATUT\r\n\
          DRAFT signifie que l'exercice n'est pas verrouillé ou que la revue comporte un blocage.\r\n\

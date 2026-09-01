@@ -21,28 +21,28 @@ const socialImage = metadataBase
 
 export const metadata: Metadata = {
   ...(metadataBase ? { metadataBase } : {}),
-  title: 'Elyko — Gestion d’entreprise multisectorielle en Suisse',
+  title: 'Zentra — Gestion d’entreprise multisectorielle en Suisse',
   description:
     'L’application Windows locale pour piloter catalogue, devis, factures, fournisseurs, achats, import CAMT, projets, salaires et comptabilité dans tous les secteurs NOGA 2025.',
-  applicationName: 'Elyko',
+  applicationName: 'Zentra',
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',
     locale: 'fr_CH',
-    title: 'Elyko — Toute votre entreprise, dans une seule application',
+    title: 'Zentra — Toute votre entreprise, dans une seule application',
     description:
       'Le logiciel Windows suisse multisectoriel pour gérer catalogue, devis, factures, fournisseurs, achats, import CAMT, projets et comptabilité avec les données sur votre PC.',
     ...(socialImage
       ? {
           images: [
-            { url: socialImage, width: 1200, height: 630, alt: 'Elyko' },
+            { url: socialImage, width: 1200, height: 630, alt: 'Zentra' },
           ],
         }
       : {}),
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Elyko',
+    title: 'Zentra',
     description:
       'Catalogue, devis, factures QR, fournisseurs, achats, import CAMT et comptabilité dans une application Windows locale.',
     ...(socialImage ? { images: [socialImage] } : {}),

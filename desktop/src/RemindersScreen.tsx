@@ -342,7 +342,7 @@ export function RemindersScreen({
             <p className="eyebrow">Recouvrement supervisé</p>
             <h2>Chaque relance est préparée. Vous décidez de l’envoi.</h2>
             <p>
-              Elyko recalcule le solde localement, bloque les factures soldées
+              Zentra recalcule le solde localement, bloque les factures soldées
               et conserve une preuve distincte de chaque action.
             </p>
           </div>
@@ -662,7 +662,7 @@ export function RemindersScreen({
           <SectionHeading
             eyebrow="Fonctionnement local"
             title="Réglages des relances"
-            description="Le contrôle fonctionne au démarrage, au retour dans Elyko et périodiquement tant que l’application est ouverte."
+            description="Le contrôle fonctionne au démarrage, au retour dans Zentra et périodiquement tant que l’application est ouverte."
           />
           <label className="module-toggle module-toggle--compact">
             <input
@@ -703,7 +703,7 @@ export function RemindersScreen({
             <div>
               <strong>Échue ne signifie pas toujours juridiquement en demeure</strong>
               <p>
-                Elyko ne fixe ni frais ni intérêts automatiquement et n’engage
+                Zentra ne fixe ni frais ni intérêts automatiquement et n’engage
                 jamais de poursuite. Vérifiez la base convenue de l’échéance et,
                 au besoin, demandez un avis professionnel.
               </p>
@@ -1113,7 +1113,7 @@ function SetupWizard({
             <p className="eyebrow">Dernière vérification</p>
             <h3>Préparation automatique, envoi manuel</h3>
             <p>
-              Elyko analysera les échéances lorsque l’application est ouverte.
+              Zentra analysera les échéances lorsque l’application est ouverte.
               Il ne facturera aucun frais, n’ajoutera aucun intérêt et n’enverra
               rien sans votre action.
             </p>
@@ -1582,7 +1582,7 @@ function ReminderDeliveryPreview({
               ? [preview.sender.email, preview.sender.phone]
                   .filter(Boolean)
                   .join(' · ')
-              : 'Coordonnées de l’expéditeur enregistrées dans Elyko'}
+              : 'Coordonnées de l’expéditeur enregistrées dans Zentra'}
             {preview.sender.uidNumber
               ? ` · IDE ${preview.sender.uidNumber}`
               : ''}

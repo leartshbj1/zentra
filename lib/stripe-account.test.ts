@@ -1,6 +1,16 @@
 import type Stripe from 'stripe';
 import { describe, expect, it } from 'vitest';
-import { stripeAccountReadinessProblem } from './stripe-account';
+import {
+  isTrustedStripePortalLoginUrl,
+  stripeAccountReadinessProblem,
+} from './stripe-account';
+
+const requiredWebhookEvents = [
+  'checkout.session.completed',
+  'invoice.paid',
+  'invoice.payment_failed',
+  'customer.subscription.updated',
+] as const;
 
 function fixtures() {
   const price = {
@@ -39,7 +49,14 @@ function fixtures() {
       subscription_cancel: { enabled: true, mode: 'at_period_end' },
     },
   } as unknown as Stripe.BillingPortal.Configuration;
-  return { price, taxSettings, portal };
+  const webhook = {
+    status: 'enabled',
+    livemode: false,
+    url: 'https://elyko.example/api/stripe/webhook',
+    api_version: '2026-08-26.dahlia',
+    enabled_events: [...requiredWebhookEvents],
+  } as unknown as Stripe.WebhookEndpoint;
+  return { price, taxSettings, portal, webhook };
 }
 
 function validate(
@@ -52,11 +69,14 @@ function validate(
     expectedLivemode,
     unitAmount: 5_000,
     taxBehavior: 'inclusive',
+    expectedWebhookUrl: 'https://elyko.example/api/stripe/webhook',
+    expectedApiVersion: '2026-08-26.dahlia',
+    requiredWebhookEvents,
   });
 }
 
 describe('Stripe account readiness domain', () => {
-  it('accepts the exact Elyko Price, Product, Tax and Portal contract', () => {
+  it('accepts the exact Zentra Price, Product, Tax and Portal contract', () => {
     expect(validate()).toBeNull();
   });
 
@@ -135,5 +155,52 @@ describe('Stripe account readiness domain', () => {
         },
       }),
     ).toBe('portal');
+  });
+
+  it('allows only the official Stripe-hosted portal login URL', () => {
+    expect(
+      isTrustedStripePortalLoginUrl(
+        'https://billing.stripe.com/p/login/test-account',
+      ),
+    ).toBe(true);
+    expect(
+      isTrustedStripePortalLoginUrl(
+        'https://billing.stripe.com.evil.example/p/login/test-account',
+      ),
+    ).toBe(false);
+    expect(
+      isTrustedStripePortalLoginUrl(
+        'https://billing.stripe.com/customer-portal',
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects a webhook with the wrong URL, version, mode or event set', () => {
+    const { webhook } = fixtures();
+    for (const patch of [
+      { url: 'https://evil.example/api/stripe/webhook' },
+      { api_version: '2026-02-25.clover' },
+      { livemode: true },
+      { enabled_events: ['invoice.paid'] },
+      { status: 'disabled' },
+    ]) {
+      expect(
+        validate({
+          webhook: { ...webhook, ...patch } as Stripe.WebhookEndpoint,
+        }),
+      ).toBe('webhook');
+    }
+  });
+
+  it('accepts a webhook subscribed to every event', () => {
+    const { webhook } = fixtures();
+    expect(
+      validate({
+        webhook: {
+          ...webhook,
+          enabled_events: ['*'],
+        } as Stripe.WebhookEndpoint,
+      }),
+    ).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'updater-release-provenance.ps1')
 
-function Remove-ElykoExactBuildArtifact {
+function Remove-ZentraExactBuildArtifact {
     param(
         [Parameter(Mandatory = $true)] [string] $Path,
         [Parameter(Mandatory = $true)] [string] $ReleaseRoot
@@ -45,10 +45,10 @@ if ([string]::IsNullOrWhiteSpace($publicKey) -or
     throw 'ELYKO_UPDATER_PUBLIC_KEY, ELYKO_UPDATER_ENDPOINT et TAURI_SIGNING_PRIVATE_KEY sont obligatoires pour ce build.'
 }
 
-$paths = Get-ElykoUpdaterArtifactPaths -DesktopRoot $desktopRoot -Version $version
+$paths = Get-ZentraUpdaterArtifactPaths -DesktopRoot $desktopRoot -Version $version
 [IO.Directory]::CreateDirectory($paths.ReleaseRoot) | Out-Null
 foreach ($artifact in @($paths.Application, $paths.Installer, $paths.Signature, $paths.Provenance)) {
-    Remove-ElykoExactBuildArtifact -Path $artifact -ReleaseRoot $paths.ReleaseRoot
+    Remove-ZentraExactBuildArtifact -Path $artifact -ReleaseRoot $paths.ReleaseRoot
 }
 
 $updaterTemplatePath = Join-Path $desktopRoot 'src-tauri\tauri.updater.conf.json'
@@ -78,7 +78,7 @@ try {
     }
 }
 
-$provenance = Write-ElykoUpdaterBuildProvenance `
+$provenance = Write-ZentraUpdaterBuildProvenance `
     -Paths $paths `
     -Version $version `
     -Identifier $tauriConfig.identifier `

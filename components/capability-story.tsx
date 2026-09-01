@@ -36,7 +36,7 @@ const workflow = [
     number: '04',
     icon: ScanLine,
     title: 'La paie se prépare localement',
-    text: 'Les PDF multipages et images sont lus sur le PC. Elyko croise texte, pages rendues et contrôles arithmétiques avant toute confirmation.',
+    text: 'Les PDF multipages et images sont lus sur le PC. Zentra croise texte, pages rendues et contrôles arithmétiques avant toute confirmation.',
     detail: 'Les propositions restent à contrôler.',
   },
   {
@@ -87,7 +87,7 @@ export function CapabilityStory() {
           <div className="grid gap-7 lg:grid-cols-[.76fr_1.24fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">
-                Une journée dans Elyko
+                Une journée dans Zentra
               </p>
               <h2
                 id="journee-elyko-title"
@@ -97,7 +97,7 @@ export function CapabilityStory() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-white/72 lg:justify-self-end">
-              Elyko relie les documents, les encaissements, la paie et la
+              Zentra relie les documents, les encaissements, la paie et la
               comptabilité. L’automatisation commence seulement après votre
               configuration et s’arrête dès qu’une information doit être validée.
             </p>
@@ -152,7 +152,7 @@ export function CapabilityStory() {
               Les garde-fous font partie du produit.
             </h2>
             <p className="mt-5 text-lg leading-8 text-[#626f67]">
-              Elyko distingue ce qui peut être calculé, ce qui doit être configuré
+              Zentra distingue ce qui peut être calculé, ce qui doit être configuré
               et ce qui nécessite encore une vérification professionnelle.
             </p>
           </div>
@@ -183,7 +183,7 @@ export function CapabilityStory() {
           <div className="mt-6 rounded-2xl border border-[#e2d4bf] bg-[#f5ead8] p-5 text-sm leading-6 text-[#684d27] sm:p-6">
             <strong>À propos du canal de mise à jour :</strong> tant que la clé
             de signature publique et l’adresse HTTPS de publication ne sont pas
-            présentes dans une version distribuée, Elyko reste volontairement en
+            présentes dans une version distribuée, Zentra reste volontairement en
             mode manuel et invite à télécharger la nouvelle version depuis le site.
           </div>
         </div>

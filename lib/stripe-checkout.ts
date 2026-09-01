@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 
-export function buildElykoCheckoutParams(input: {
+export function buildZentraCheckoutParams(input: {
   origin: string;
   claimHash: string;
   priceId: string;
@@ -25,7 +25,7 @@ export function buildElykoCheckoutParams(input: {
     },
     subscription_data: {
       billing_mode: { type: 'flexible' },
-      description: 'Abonnement Elyko · licence Windows locale',
+      description: 'Abonnement Zentra · licence Windows locale',
       invoice_settings: { issuer: { type: 'self' } },
       metadata: { plan: input.plan },
     },

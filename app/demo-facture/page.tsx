@@ -4,16 +4,16 @@ import { BrandMark } from '@/components/brand-mark';
 import { InvoiceDemo } from './invoice-demo';
 
 export const metadata: Metadata = {
-  title: 'Créer une facture suisse — démonstration Elyko',
+  title: 'Créer une facture suisse — démonstration Zentra',
   description:
     'Saisissez vos propres informations, calculez la TVA et imprimez une facture avec aperçu QR sans envoyer vos données.',
   openGraph: {
-    title: 'Créer une facture suisse — démonstration Elyko',
+    title: 'Créer une facture suisse — démonstration Zentra',
     description:
       'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
   },
   twitter: {
-    title: 'Créer une facture suisse — démonstration Elyko',
+    title: 'Créer une facture suisse — démonstration Zentra',
     description:
       'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
   },
@@ -28,7 +28,7 @@ export default function InvoiceDemoPage() {
             <span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#efaa3c]">
               <BrandMark className="size-9" />
             </span>
-            <span className="font-semibold tracking-[-.03em]">Elyko</span>
+            <span className="font-semibold tracking-[-.03em]">Zentra</span>
           </a>
           <a
             href="/"

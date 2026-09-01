@@ -42,9 +42,9 @@ use crate::{
         MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL,
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
-        MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V2_SQL,
-        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
-        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
+        MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
+        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -689,6 +689,28 @@ fn migrate_v24(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v25(transaction: &Transaction<'_>) -> AppResult<()> {
+    let columns = {
+        let mut statement = transaction.prepare("PRAGMA table_info(payroll_document_imports)")?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        columns
+    };
+    if !columns.contains("analysis_manifest_json") {
+        transaction.execute_batch(
+            "ALTER TABLE payroll_document_imports ADD COLUMN analysis_manifest_json TEXT CHECK (
+                analysis_manifest_json IS NULL OR (
+                    LENGTH(analysis_manifest_json) BETWEEN 2 AND 1000000
+                    AND json_valid(analysis_manifest_json)=1
+                )
+            );",
+        )?;
+    }
+    transaction.execute_batch(MIGRATION_V25_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1027,6 +1049,7 @@ impl LocalStore {
                 migrate_v22(&transaction)?;
                 migrate_v23(&transaction)?;
                 migrate_v24(&transaction)?;
+                migrate_v25(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -1115,6 +1138,7 @@ impl LocalStore {
             }
             11 => migrate_v12(&transaction)?,
             12..=23 => {}
+            24 => migrate_v25(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1124,7 +1148,7 @@ impl LocalStore {
         if current != 0 && current < 13 {
             migrate_v13(&transaction)?;
         }
-        if current != 0 {
+        if current != 0 && current < 24 {
             migrate_v14(&transaction)?;
             migrate_v15(&transaction)?;
             migrate_v16(&transaction)?;
@@ -1136,6 +1160,7 @@ impl LocalStore {
             migrate_v22(&transaction)?;
             migrate_v23(&transaction)?;
             migrate_v24(&transaction)?;
+            migrate_v25(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1650,8 +1675,63 @@ impl LocalStore {
             "SELECT payment.*,
                     entry.id AS journal_entry_id,
                     entry.number AS journal_entry_number,
-                    entry.source_event AS journal_source_event
+                    entry.source_event AS journal_source_event,
+                    (
+                      WITH RECURSIVE reversal_chain(id,depth) AS (
+                        SELECT entry.id,0
+                        UNION ALL
+                        SELECT child.id,reversal_chain.depth+1
+                        FROM reversal_chain
+                        JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+                      )
+                      SELECT COALESCE(MAX(depth),0)%2=0 FROM reversal_chain
+                    ) AS journal_entry_is_active,
+                    (
+                      WITH RECURSIVE reversal_chain(id,depth) AS (
+                        SELECT entry.id,0
+                        UNION ALL
+                        SELECT child.id,reversal_chain.depth+1
+                        FROM reversal_chain
+                        JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+                      )
+                      SELECT COALESCE(MAX(depth),0) FROM reversal_chain
+                    ) AS journal_reversal_depth,
+                    CASE WHEN entry.id IS NULL THEN NULL ELSE (
+                      entry.entry_date=payment.date
+                      AND entry.description='Paiement client'
+                      AND entry.reversal_of IS NULL
+                      AND (SELECT COUNT(*) FROM journal_lines line WHERE line.journal_entry_id=entry.id)=2
+                      AND (SELECT COUNT(*) FROM journal_lines line JOIN accounts account ON account.id=line.account_id
+                           WHERE line.journal_entry_id=entry.id AND line.memo='Encaissement'
+                             AND line.debit_cents=payment.amount_cents AND line.credit_cents=0
+                             AND line.currency=invoice.currency AND account.active=1 AND account.account_type='asset'
+                             AND line.project_id IS invoice.project_id AND line.client_id IS invoice.client_id
+                             AND line.employee_id IS NULL)=1
+                      AND (SELECT COUNT(*) FROM journal_lines line JOIN accounts account ON account.id=line.account_id
+                           WHERE line.journal_entry_id=entry.id AND line.memo='Règlement créance'
+                             AND line.debit_cents=0 AND line.credit_cents=payment.amount_cents
+                             AND line.currency=invoice.currency AND account.active=1 AND account.account_type='asset'
+                             AND line.project_id IS invoice.project_id AND line.client_id IS invoice.client_id
+                             AND line.employee_id IS NULL)=1
+                      AND (SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Encaissement' LIMIT 1)
+                          <>(SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Règlement créance' LIMIT 1)
+                      AND (SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Règlement créance' LIMIT 1)
+                          =(SELECT original_line.account_id FROM journal_entries original
+                            JOIN journal_lines original_line ON original_line.journal_entry_id=original.id
+                           WHERE original.source_type='invoice' AND original.source_id=payment.invoice_id
+                             AND original.source_event='issue' AND original_line.memo='Créance client' LIMIT 1)
+                      AND (WITH RECURSIVE invoice_chain(id,depth) AS (
+                             SELECT original.id,0 FROM journal_entries original
+                              WHERE original.source_type='invoice' AND original.source_id=payment.invoice_id
+                                AND original.source_event='issue' AND original.reversal_of IS NULL
+                             UNION ALL
+                             SELECT child.id,invoice_chain.depth+1 FROM invoice_chain
+                             JOIN journal_entries child ON child.reversal_of=invoice_chain.id
+                           )
+                           SELECT COUNT(*)>0 AND COALESCE(MAX(depth),1)%2=0 FROM invoice_chain)
+                    ) END AS journal_entry_semantically_valid
              FROM payments payment
+             JOIN invoices invoice ON invoice.id=payment.invoice_id
              LEFT JOIN journal_entries entry
                ON entry.source_type='payment'
               AND entry.source_id=payment.id
@@ -1769,6 +1849,7 @@ impl LocalStore {
             "SELECT * FROM audit_log ORDER BY occurred_at,rowid",
             [],
         )?;
+        let backup_status = self.backup_status();
 
         let mut workspace = json!({
             "settings": settings,
@@ -1813,6 +1894,7 @@ impl LocalStore {
             "quote_conversions":quote_conversions,
             "audit_log":audit_log,
         });
+        workspace["backup_status"] = backup_status;
         workspace["reminder_deliveries"] = json!(reminder_deliveries);
         workspace["time_billing_batches"] = json!(time_billing_batches);
         workspace["time_billing_entries"] = json!(time_billing_entries);
@@ -2384,6 +2466,7 @@ impl LocalStore {
             id,
             &json!({"number":number.clone(),"issue_date":date.clone(),"valid_until":valid.clone()}),
         )?;
+        crate::sales_pdf::validate_document_snapshot_legal_fields("quotes", &snapshot)?;
         transaction.execute(
             "UPDATE quotes SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emis' ELSE status END, issue_date = ?, valid_until = ?, snapshot_json=?, updated_at = ? WHERE id = ?",
             params![number, date, valid, serde_json::to_string(&snapshot)?, now_iso(), id],
@@ -2585,6 +2668,7 @@ impl LocalStore {
             id,
             &json!({"number":number.clone(),"issue_date":date.clone(),"due_date":due.clone(),"service_date_from":service_from.clone(),"service_date_to":service_to.clone()}),
         )?;
+        crate::sales_pdf::validate_document_snapshot_legal_fields("invoices", &snapshot)?;
         transaction.execute(
             "UPDATE invoices SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emise' ELSE status END, issue_date = ?, due_date = ?,service_date_from=?,service_date_to=?,snapshot_json=?, updated_at = ? WHERE id = ?",
             params![number, date, due,service_from,service_to,serde_json::to_string(&snapshot)?, now_iso(), id],
@@ -4512,46 +4596,35 @@ pub(crate) fn record_payment_in_transaction(
     let method = clean_optional(input.method, 80);
     let reference = clean_optional(input.reference, 160);
     let notes = clean_optional(input.notes, 5000);
-    let requested_id = input
-        .request_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| {
-            Uuid::parse_str(value)
-                .map(|parsed| parsed.to_string())
-                .map_err(|_| {
-                    AppError::Validation(
-                        "request_id doit être un UUID valide pour sécuriser la reprise du paiement."
-                            .into(),
-                    )
-                })
-        })
-        .transpose()?;
-    if let Some(request_id) = requested_id.as_deref() {
-        if let Some(existing) = query_optional_tx(
-            transaction,
-            "SELECT * FROM payments WHERE id=?",
-            params![request_id],
-        )? {
-            let same_request = existing["invoice_id"].as_str() == Some(input.invoice_id.as_str())
-                && existing["date"].as_str() == Some(date.as_str())
-                && existing["amount_cents"].as_i64() == Some(input.amount_cents)
-                && existing["method"].as_str() == method.as_deref()
-                && existing["reference"].as_str() == reference.as_deref()
-                && existing["notes"].as_str() == notes.as_deref();
-            if same_request {
-                // Une reprise ne se contente pas de retrouver la ligne métier : elle
-                // revalide la preuve comptable historique sans la recalculer avec une
-                // configuration de comptes qui a pu changer depuis. Elle reste donc
-                // idempotente même après clôture de la période concernée.
-                return payment_record_with_journal(transaction, request_id);
-            }
-            return Err(AppError::Validation(
-                "Cet identifiant de reprise correspond déjà à un autre paiement. Rechargez la facture avant de réessayer."
-                    .into(),
-            ));
+    let request_id = Uuid::parse_str(input.request_id.trim())
+        .map(|parsed| parsed.to_string())
+        .map_err(|_| {
+            AppError::Validation(
+                "request_id doit être un UUID valide pour sécuriser la reprise du paiement.".into(),
+            )
+        })?;
+    if let Some(existing) = query_optional_tx(
+        transaction,
+        "SELECT * FROM payments WHERE id=?",
+        params![request_id],
+    )? {
+        let same_request = existing["invoice_id"].as_str() == Some(input.invoice_id.as_str())
+            && existing["date"].as_str() == Some(date.as_str())
+            && existing["amount_cents"].as_i64() == Some(input.amount_cents)
+            && existing["method"].as_str() == method.as_deref()
+            && existing["reference"].as_str() == reference.as_deref()
+            && existing["notes"].as_str() == notes.as_deref();
+        if same_request {
+            // Une reprise ne se contente pas de retrouver la ligne métier : elle
+            // revalide la preuve comptable historique sans la recalculer avec une
+            // configuration de comptes qui a pu changer depuis. Elle reste donc
+            // idempotente même après clôture de la période concernée.
+            return payment_record_with_journal(transaction, &request_id);
         }
+        return Err(AppError::Validation(
+            "Cet identifiant de reprise correspond déjà à un autre paiement. Rechargez la facture avant de réessayer."
+                .into(),
+        ));
     }
     let (total_cents, paid_cents, credited_cents, invoice_type, number, issue_date): (
         i64,
@@ -4603,7 +4676,7 @@ pub(crate) fn record_payment_in_transaction(
             "Le paiement dépasse le solde restant de la facture.".into(),
         ));
     }
-    let id = requested_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let id = request_id;
     let now = now_iso();
     transaction.execute(
         "INSERT INTO payments (id,invoice_id,date,amount_cents,method,reference,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -4650,7 +4723,27 @@ fn payment_record_with_journal(
         "SELECT payment.*,
                 entry.id AS journal_entry_id,
                 entry.number AS journal_entry_number,
-                entry.source_event AS journal_source_event
+                entry.source_event AS journal_source_event,
+                (
+                  WITH RECURSIVE reversal_chain(id,depth) AS (
+                    SELECT entry.id,0
+                    UNION ALL
+                    SELECT child.id,reversal_chain.depth+1
+                    FROM reversal_chain
+                    JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+                  )
+                  SELECT COALESCE(MAX(depth),0)%2=0 FROM reversal_chain
+                ) AS journal_entry_is_active,
+                (
+                  WITH RECURSIVE reversal_chain(id,depth) AS (
+                    SELECT entry.id,0
+                    UNION ALL
+                    SELECT child.id,reversal_chain.depth+1
+                    FROM reversal_chain
+                    JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+                  )
+                  SELECT COALESCE(MAX(depth),0) FROM reversal_chain
+                ) AS journal_reversal_depth
          FROM payments payment
          JOIN journal_entries entry
            ON entry.source_type='payment'
@@ -4687,16 +4780,32 @@ fn payment_record_with_journal(
                 FROM journal_lines line JOIN accounts account ON account.id=line.account_id
                 WHERE line.journal_entry_id=entry.id AND line.debit_cents=payment.amount_cents
                   AND line.credit_cents=0 AND line.currency=invoice.currency
-                  AND line.memo='Encaissement' AND account.account_type='asset'
+                  AND line.memo='Encaissement' AND account.active=1 AND account.account_type='asset'
                   AND line.project_id IS invoice.project_id AND line.client_id IS invoice.client_id
                   AND line.employee_id IS NULL)=1
            AND (SELECT COUNT(*)
                 FROM journal_lines line JOIN accounts account ON account.id=line.account_id
                 WHERE line.journal_entry_id=entry.id AND line.debit_cents=0
                   AND line.credit_cents=payment.amount_cents AND line.currency=invoice.currency
-                  AND line.memo='Règlement créance' AND account.account_type='asset'
+                  AND line.memo='Règlement créance' AND account.active=1 AND account.account_type='asset'
                   AND line.project_id IS invoice.project_id AND line.client_id IS invoice.client_id
                   AND line.employee_id IS NULL)=1
+           AND (SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Encaissement' LIMIT 1)
+               <>(SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Règlement créance' LIMIT 1)
+           AND (SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Règlement créance' LIMIT 1)
+               =(SELECT original_line.account_id FROM journal_entries original
+                 JOIN journal_lines original_line ON original_line.journal_entry_id=original.id
+                WHERE original.source_type='invoice' AND original.source_id=payment.invoice_id
+                  AND original.source_event='issue' AND original_line.memo='Créance client' LIMIT 1)
+           AND (WITH RECURSIVE invoice_chain(id,depth) AS (
+                  SELECT original.id,0 FROM journal_entries original
+                   WHERE original.source_type='invoice' AND original.source_id=payment.invoice_id
+                     AND original.source_event='issue' AND original.reversal_of IS NULL
+                  UNION ALL
+                  SELECT child.id,invoice_chain.depth+1 FROM invoice_chain
+                  JOIN journal_entries child ON child.reversal_of=invoice_chain.id
+                )
+                SELECT COUNT(*)>0 AND COALESCE(MAX(depth),1)%2=0 FROM invoice_chain)
          FROM payments payment
          JOIN invoices invoice ON invoice.id=payment.invoice_id
          JOIN journal_entries entry ON entry.id=?1
@@ -5685,6 +5794,152 @@ mod v24_migration_tests {
                 })
                 .unwrap(),
             0
+        );
+    }
+}
+
+#[cfg(test)]
+mod v25_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_dispatch_upgrades_an_existing_v24_profile_directly() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        {
+            let connection = store.connect().unwrap();
+            connection.pragma_update(None, "user_version", 24).unwrap();
+        }
+
+        store.migrate().unwrap();
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            25
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('payroll_document_imports') WHERE name='analysis_manifest_json'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn migration_v24_to_v25_preserves_legacy_imports_and_adds_a_guarded_manifest() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            // V5 contient la forme historique exacte de la table d'import,
+            // sans la colonne V25.
+            tx.execute_batch(
+                "CREATE TABLE employees(id TEXT PRIMARY KEY);
+                 CREATE TABLE payslips(id TEXT PRIMARY KEY);
+                 CREATE TABLE journal_entries(id TEXT PRIMARY KEY,reversal_of TEXT);",
+            )
+            .unwrap();
+            tx.execute_batch(MIGRATION_V5_SQL).unwrap();
+            tx.execute_batch("PRAGMA user_version=24;").unwrap();
+            tx.execute(
+                "INSERT INTO payroll_document_imports(id,source_name,stored_path,file_sha256,media_kind,file_size,page_count,extraction_engine,engine_version,draft_json,confidence_bp,status,created_at,updated_at) VALUES('import-v24','fiche.pdf','C:/local/fiche.pdf',?1,'pdf',42,2,'pdf_text','legacy','{}',6500,'needs_review','2026-08-31T12:00:00Z','2026-08-31T12:00:00Z')",
+                params!["a".repeat(64)],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v25(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            25
+        );
+        let columns = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(payroll_document_imports)")
+                .unwrap();
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .collect::<Result<HashSet<_>, _>>()
+                .unwrap()
+        };
+        assert!(columns.contains("analysis_manifest_json"));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT analysis_manifest_json FROM payroll_document_imports WHERE id='import-v24'",
+                    [],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .unwrap(),
+            None
+        );
+
+        let manifest = json!({
+            "schema_version": 1,
+            "model_id": "modele-local",
+            "model_revision": "revision-1",
+            "input_sha256": "a".repeat(64),
+            "analyzed_pages": [1, 2],
+            "passes": 2,
+            "field_provenance": [],
+            "line_provenance": [],
+            "conflicts": [],
+            "analyzed_at": "2026-08-31T12:00:00Z"
+        })
+        .to_string();
+        connection
+            .execute(
+                "UPDATE payroll_document_imports SET analysis_manifest_json=? WHERE id='import-v24'",
+                params![manifest],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE payroll_document_imports SET analysis_manifest_json='{invalide' WHERE id='import-v24'",
+                [],
+            )
+            .is_err());
+
+        // La migration est rejouable sans perdre la preuve déjà sauvegardée.
+        connection.pragma_update(None, "user_version", 24).unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v25(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM payroll_document_imports WHERE id='import-v24' AND analysis_manifest_json IS NOT NULL",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
         );
     }
 }

@@ -231,7 +231,7 @@ impl LocalStore {
         let path = self.safe_attachment_path(&stored_name)?;
         let metadata = fs::metadata(&path).map_err(|_| {
             AppError::Validation(
-                "Le justificatif local est absent. Restaurez une sauvegarde Elyko valide.".into(),
+                "Le justificatif local est absent. Restaurez une sauvegarde Zentra valide.".into(),
             )
         })?;
         validate_size(metadata.len())?;

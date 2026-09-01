@@ -14,7 +14,12 @@ impl LocalStore {
     pub fn get_invoice_qr_bill(&self, invoice_id: &str) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        stored_qr_bill(&connection, invoice_id)
+        let stored = stored_qr_bill(&connection, invoice_id)?;
+        if stored.is_null() {
+            return Ok(stored);
+        }
+        validate_loaded_final_qr_bill(&connection, invoice_id, &stored)?;
+        Ok(stored)
     }
 
     pub fn save_invoice_qr_bill(&self, input: SaveInvoiceQrBillInput) -> AppResult<Value> {
@@ -31,11 +36,25 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (number, invoice_type, total_cents, currency): (Option<String>, String, i64, String) =
-            tx.query_row(
-                "SELECT number,type,total_cents,currency FROM invoices WHERE id=?",
+        let (number, invoice_type, total_cents, currency, snapshot_json): (
+            Option<String>,
+            String,
+            i64,
+            String,
+            Option<String>,
+        ) = tx
+            .query_row(
+                "SELECT number,type,total_cents,currency,snapshot_json FROM invoices WHERE id=?",
                 params![input.invoice_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
             )
             .optional()?
             .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
@@ -55,6 +74,14 @@ impl LocalStore {
             ));
         }
         let issued = number.as_deref().is_some_and(|value| !value.is_empty());
+        if issued {
+            let snapshot = parse_final_snapshot(
+                snapshot_json.as_deref(),
+                &input.invoice_id,
+                number.as_deref().unwrap_or_default(),
+            )?;
+            validate_bill_against_final_snapshot(&normalized, &snapshot)?;
+        }
         let existing: Option<(String, String)> = tx
             .query_row(
                 "SELECT input_json,payload FROM invoice_qr_bills WHERE invoice_id=?",
@@ -93,6 +120,80 @@ impl LocalStore {
         tx.commit()?;
         Ok(result)
     }
+}
+
+fn parse_final_snapshot(raw: Option<&str>, invoice_id: &str, number: &str) -> AppResult<Value> {
+    let raw = raw
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            AppError::Validation(
+                "La facture émise ne contient pas son instantané final; la QR-facture est bloquée."
+                    .into(),
+            )
+        })?;
+    let snapshot: Value = serde_json::from_str(raw).map_err(|_| {
+        AppError::Validation("L'instantané final de la facture est illisible.".into())
+    })?;
+    let document = snapshot.get("document").unwrap_or(&Value::Null);
+    if text_at(document, "id") != invoice_id || text_at(document, "number") != number {
+        return Err(AppError::Validation(
+            "L'instantané final ne correspond pas à l'identifiant et au numéro de la facture émise."
+                .into(),
+        ));
+    }
+    Ok(snapshot)
+}
+
+fn validate_loaded_final_qr_bill(
+    connection: &Connection,
+    invoice_id: &str,
+    stored: &Value,
+) -> AppResult<()> {
+    let invoice: Option<(Option<String>, Option<String>)> = connection
+        .query_row(
+            "SELECT number,snapshot_json FROM invoices WHERE id=?",
+            params![invoice_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let Some((number, snapshot_json)) = invoice else {
+        return Err(AppError::NotFound(format!("invoices/{invoice_id}")));
+    };
+    let Some(number) = number.filter(|value| !value.trim().is_empty()) else {
+        return Ok(());
+    };
+    let snapshot = parse_final_snapshot(snapshot_json.as_deref(), invoice_id, &number)?;
+    let input: SwissQrBillInput = serde_json::from_value(
+        stored
+            .get("input")
+            .filter(|value| value.is_object())
+            .cloned()
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "La QR-facture enregistrée ne contient plus ses données structurées.".into(),
+                )
+            })?,
+    )?;
+    validate_bill_against_final_snapshot(&input, &snapshot)?;
+
+    let snapshot_qr = snapshot.get("qr_bill").unwrap_or(&Value::Null);
+    if snapshot_qr.is_null() {
+        verify_frozen_supplement_audit(connection, invoice_id, stored)?;
+    } else {
+        let snapshot_input: Value = serde_json::from_str(&text_at(snapshot_qr, "input_json"))
+            .map_err(|_| {
+                AppError::Validation("La QR-facture de l'instantané final est illisible.".into())
+            })?;
+        if stored.get("input") != Some(&snapshot_input)
+            || text_at(stored, "payload") != text_at(snapshot_qr, "payload")
+            || text_at(stored, "frozen_at") != text_at(snapshot_qr, "frozen_at")
+        {
+            return Err(AppError::Validation(
+                "La QR-facture relue ne correspond plus exactement à l'instantané final.".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn stored_qr_bill(connection: &Connection, invoice_id: &str) -> AppResult<Value> {
@@ -137,6 +238,156 @@ fn stored_qr_bill(connection: &Connection, invoice_id: &str) -> AppResult<Value>
     Ok(row)
 }
 
+fn text_at(value: &Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_owned()
+}
+
+fn integer_at(value: &Value, key: &str) -> Option<i64> {
+    value.get(key).and_then(Value::as_i64)
+}
+
+fn snapshot_party(issuer_or_customer: &Value, creditor: bool) -> SwissQrParty {
+    let company = text_at(issuer_or_customer, "company");
+    let legal_name = text_at(issuer_or_customer, "company_name");
+    let bank_name = text_at(issuer_or_customer, "bank_name");
+    let personal_name = text_at(issuer_or_customer, "name");
+    SwissQrParty {
+        name: if creditor {
+            if bank_name.is_empty() {
+                legal_name
+            } else {
+                bank_name
+            }
+        } else if company.is_empty() {
+            personal_name
+        } else {
+            company
+        },
+        // Le champ rue SPC ne reçoit jamais address_line2. Le complément
+        // d'adresse reste documentaire; le numéro de bâtiment a son propre
+        // champ structuré.
+        street: text_at(issuer_or_customer, "address_line1"),
+        building_number: if creditor {
+            text_at(issuer_or_customer, "building_number")
+        } else {
+            text_at(issuer_or_customer, "address_line2")
+        },
+        postal_code: text_at(issuer_or_customer, "postal_code"),
+        city: text_at(issuer_or_customer, "city"),
+        country: text_at(issuer_or_customer, "country").to_uppercase(),
+    }
+}
+
+/// Vérifie l'identité de paiement d'une QR-facture contre l'instantané final.
+/// Cette même règle est utilisée lors de l'ajout post-émission, de la relecture
+/// et de l'export afin qu'aucun de ces chemins ne puisse diverger.
+pub(crate) fn validate_bill_against_final_snapshot(
+    input: &SwissQrBillInput,
+    snapshot: &Value,
+) -> AppResult<()> {
+    let normalized = normalize(input.clone());
+    let issuer = snapshot.get("issuer").unwrap_or(&Value::Null);
+    let customer = snapshot.get("customer").unwrap_or(&Value::Null);
+    let document = snapshot.get("document").unwrap_or(&Value::Null);
+    if !issuer.is_object() || !customer.is_object() || !document.is_object() {
+        return Err(AppError::Validation(
+            "L'instantané final ne contient pas les parties et le document nécessaires à la QR-facture."
+                .into(),
+        ));
+    }
+    let expected_iban = text_at(issuer, "iban")
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>()
+        .to_uppercase();
+    let expected_currency = text_at(document, "currency").to_uppercase();
+    let expected_creditor = snapshot_party(issuer, true);
+    let expected_debtor = snapshot_party(customer, false);
+    if normalized.amount_cents != integer_at(document, "total_cents")
+        || normalized.currency != expected_currency
+        || normalized.iban != expected_iban
+    {
+        return Err(AppError::Validation(
+            "La QR-facture ne correspond pas exactement au montant, à la devise ou à l'IBAN de l'instantané final."
+                .into(),
+        ));
+    }
+    if normalized.creditor != expected_creditor
+        || normalized.debtor.as_ref() != Some(&expected_debtor)
+    {
+        return Err(AppError::Validation(
+            "La QR-facture ne correspond pas exactement au créancier et au débiteur de l'instantané final."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Vérifie qu'un supplément QR ajouté après émission est figé, couvert par la
+/// chaîne d'audit et identique à la preuve `freeze` enregistrée.
+pub(crate) fn verify_frozen_supplement_audit(
+    connection: &Connection,
+    invoice_id: &str,
+    stored: &Value,
+) -> AppResult<()> {
+    let frozen_at = text_at(stored, "frozen_at");
+    if frozen_at.is_empty() || chrono::DateTime::parse_from_rfc3339(&frozen_at).is_err() {
+        return Err(AppError::Validation(
+            "Le supplément QR postérieur à l'émission n'est pas figé avec une date RFC 3339 valide."
+                .into(),
+        ));
+    }
+    crate::audit::verify_audit_chain(connection)?;
+    let audited_payloads = query_all(
+        connection,
+        "SELECT payload_json FROM audit_log WHERE action='freeze' AND entity_type='invoice_qr_bill' AND entity_id=? ORDER BY rowid",
+        params![invoice_id],
+    )?;
+    if audited_payloads.len() != 1 {
+        return Err(AppError::Validation(
+            "Le supplément QR figé doit être relié à une unique preuve d'audit immuable.".into(),
+        ));
+    }
+    let audited: Value = serde_json::from_str(&text_at(&audited_payloads[0], "payload_json"))?;
+    let stored_input = stored
+        .get("input")
+        .filter(|value| value.is_object())
+        .cloned()
+        .or_else(|| {
+            stored
+                .get("input_json")
+                .and_then(Value::as_str)
+                .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        })
+        .unwrap_or(Value::Null);
+    if audited.get("input") != Some(&stored_input)
+        || text_at(&audited, "payload") != text_at(stored, "payload")
+        || text_at(&audited, "frozen_at") != frozen_at
+        || text_at(&audited, "reference_type") != text_at(stored, "reference_type")
+        || audited.get("is_qr_iban").and_then(Value::as_bool)
+            != stored.get("is_qr_iban").and_then(|value| {
+                value
+                    .as_bool()
+                    .or_else(|| value.as_i64().map(|number| number == 1))
+            })
+        || audited.get("character_count").and_then(Value::as_i64)
+            != stored.get("character_count").and_then(Value::as_i64)
+        || audited.get("byte_count").and_then(Value::as_i64)
+            != stored.get("byte_count").and_then(Value::as_i64)
+    {
+        return Err(AppError::Validation(
+            "Le supplément QR ne correspond plus exactement à sa preuve d'audit. Export bloqué."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn validate(input: SwissQrBillInput) -> SwissQrValidation {
     let normalized = normalize(input);
     let mut errors = Vec::new();
@@ -170,7 +421,7 @@ pub fn validate(input: SwissQrBillInput) -> SwissQrValidation {
                 errors.push("Une référence QRR exige un QR-IBAN (QR-IID 30000 à 31999).".into());
             }
             if normalized.currency != "CHF" {
-                errors.push("Le profil QR QRR d'Elyko prend uniquement en charge le CHF.".into());
+                errors.push("Le profil QR QRR de Zentra prend uniquement en charge le CHF.".into());
             }
             if !validate_qrr(&normalized.reference) {
                 errors.push("La référence QRR doit contenir 27 chiffres, ne pas être nulle et réussir le modulo 10 récursif.".into());
@@ -367,11 +618,20 @@ fn validate_party(p: &SwissQrParty, prefix: &str, errors: &mut Vec<String>) {
         errors,
     );
     validate_text(&p.city, &format!("{prefix}.city"), 35, true, errors);
-    if p.country.len() != 2 || !p.country.bytes().all(|b| b.is_ascii_uppercase()) {
+    if !is_iso_3166_alpha_2(&p.country) {
         errors.push(format!(
-            "{prefix}.country doit être un code ISO alpha-2 en majuscules."
+            "{prefix}.country doit être un code pays ISO 3166-1 alpha-2 réel en majuscules."
         ));
     }
+}
+
+fn is_iso_3166_alpha_2(value: &str) -> bool {
+    // Liste officielle alpha-2 (249 territoires). XK n'est volontairement pas
+    // inclus car il ne s'agit pas d'un code ISO 3166-1 attribué.
+    const CODES: &str = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW";
+    value.len() == 2
+        && value.bytes().all(|byte| byte.is_ascii_uppercase())
+        && CODES.split_ascii_whitespace().any(|code| code == value)
 }
 fn validate_text(value: &str, field: &str, max: usize, required: bool, errors: &mut Vec<String>) {
     let count = value.chars().count();
@@ -537,5 +797,104 @@ mod tests {
         assert_eq!(generated.lines[1], "0200");
         assert_eq!(generated.lines[30], "EPD");
         assert!(!generated.payload.ends_with('\n'));
+    }
+
+    fn party(country: &str) -> SwissQrParty {
+        SwissQrParty {
+            name: "Société Exemple".into(),
+            street: "Rue du Lac".into(),
+            building_number: "8".into(),
+            postal_code: "1000".into(),
+            city: "Lausanne".into(),
+            country: country.into(),
+        }
+    }
+
+    fn non_reference_bill(country: &str) -> SwissQrBillInput {
+        SwissQrBillInput {
+            iban: "CH9300762011623852957".into(),
+            creditor: party(country),
+            amount_cents: Some(10_000),
+            currency: "CHF".into(),
+            debtor: Some(party(country)),
+            reference_type: "NON".into(),
+            reference: String::new(),
+            unstructured_message: String::new(),
+            bill_information: String::new(),
+            alternative_procedures: vec![],
+        }
+    }
+
+    #[test]
+    fn country_must_be_a_real_iso_3166_alpha_2_code() {
+        for country in ["CH", "LI", "FR"] {
+            let validation = validate(non_reference_bill(country));
+            assert!(validation.valid, "{country}: {:?}", validation.errors);
+        }
+        for country in ["ZZ", "XX"] {
+            let validation = validate(non_reference_bill(country));
+            assert!(!validation.valid, "{country} doit être rejeté");
+            assert!(validation
+                .errors
+                .iter()
+                .any(|error| error.contains("ISO 3166-1")));
+        }
+    }
+
+    #[test]
+    fn final_snapshot_identity_uses_address_line1_without_address_line2() {
+        let snapshot = json!({
+            "issuer": {
+                "company_name": "Société Exemple",
+                "bank_name": "Titulaire Exemple",
+                "address_line1": "Rue canonique",
+                "address_line2": "Complément bâtiment B",
+                "building_number": "8",
+                "postal_code": "1000",
+                "city": "Lausanne",
+                "country": "CH",
+                "iban": "CH93 0076 2011 6238 5295 7"
+            },
+            "customer": {
+                "name": "Client Exemple",
+                "company": "",
+                "address_line1": "Route du Client",
+                "address_line2": "12",
+                "postal_code": "1200",
+                "city": "Genève",
+                "country": "FR"
+            },
+            "document": {"total_cents": 10_000, "currency": "CHF"}
+        });
+        let mut input = non_reference_bill("CH");
+        input.creditor = SwissQrParty {
+            name: "Titulaire Exemple".into(),
+            street: "Rue canonique".into(),
+            building_number: "8".into(),
+            postal_code: "1000".into(),
+            city: "Lausanne".into(),
+            country: "CH".into(),
+        };
+        input.debtor = Some(SwissQrParty {
+            name: "Client Exemple".into(),
+            street: "Route du Client".into(),
+            building_number: "12".into(),
+            postal_code: "1200".into(),
+            city: "Genève".into(),
+            country: "FR".into(),
+        });
+        assert!(validate_bill_against_final_snapshot(&input, &snapshot).is_ok());
+
+        let mut address_line2_leaked = input.clone();
+        address_line2_leaked.creditor.street = "Rue canonique\nComplément bâtiment B".into();
+        assert!(validate_bill_against_final_snapshot(&address_line2_leaked, &snapshot).is_err());
+
+        let mut wrong_iban = input.clone();
+        wrong_iban.iban = "CH4431999123000889012".into();
+        assert!(validate_bill_against_final_snapshot(&wrong_iban, &snapshot).is_err());
+
+        let mut wrong_debtor = input;
+        wrong_debtor.debtor.as_mut().unwrap().city = "Nyon".into();
+        assert!(validate_bill_against_final_snapshot(&wrong_debtor, &snapshot).is_err());
     }
 }

@@ -3370,7 +3370,7 @@ function SupplierInvoiceMatchModal({
     <Modal
       wide
       title="Rapprocher commande, réception et facture"
-      description="Seules les factures brouillon sont rapprochables. Elyko répartit automatiquement une quantité sur toutes les réceptions partielles émises."
+      description="Seules les factures brouillon sont rapprochables. Zentra répartit automatiquement une quantité sur toutes les réceptions partielles émises."
       onClose={onClose}
     >
       <div className="form-grid">
@@ -4388,7 +4388,7 @@ function SupplierExpenseReclassificationModal({
     <Modal
       wide
       title="Corriger l’imputation de charge"
-      description="La facture validée reste intacte. Elyko crée une écriture de reclassement datée, motivée et traçable."
+      description="La facture validée reste intacte. Zentra crée une écriture de reclassement datée, motivée et traçable."
       onClose={onClose}
     >
       {loadError ? (
@@ -4469,7 +4469,7 @@ function SupplierExpenseReclassificationModal({
             })}
           </div>
           {unresolvedLines.length ? (
-            <ErrorPanel message="Le compte historiquement comptabilisé manque sur certaines anciennes lignes. Elyko les laisse intactes; seules les lignes dont la source est certaine peuvent être reclassées." />
+            <ErrorPanel message="Le compte historiquement comptabilisé manque sur certaines anciennes lignes. Zentra les laisse intactes; seules les lignes dont la source est certaine peuvent être reclassées." />
           ) : null}
           {!changedLines.length ? (
             <ErrorPanel message="Choisissez un nouveau compte pour au moins une ligne. Les lignes inchangées ne seront pas réécrites." />

@@ -71,7 +71,7 @@ const DEFAULT_CYCLE: [DefaultTemplate; 3] = [
         level: 3,
         name: "Dernière relance",
         subject: "Dernière relance · facture {invoice_number}",
-        body: "Bonjour {client_name},\n\nLe solde de {balance} de la facture {invoice_number}, échue le {due_date}, reste ouvert. Nous vous invitons à régler ce montant d’ici au {payment_deadline} ou à prendre contact avec nous sans délai.\n\nToute démarche ultérieure restera soumise à une décision et à une vérification séparées. Elyko n’engage aucune poursuite automatiquement.\n\nAvec nos salutations,\n{sender_name}",
+        body: "Bonjour {client_name},\n\nLe solde de {balance} de la facture {invoice_number}, échue le {due_date}, reste ouvert. Nous vous invitons à régler ce montant d’ici au {payment_deadline} ou à prendre contact avec nous sans délai.\n\nToute démarche ultérieure restera soumise à une décision et à une vérification séparées. Zentra n’engage aucune poursuite automatiquement.\n\nAvec nos salutations,\n{sender_name}",
         days_after_due: 35,
         payment_deadline_days: 10,
     },
@@ -833,7 +833,7 @@ impl LocalStore {
         };
         let history_note = if delivery_action == "mail_draft_created" {
             Some(
-                "Ouverture du client e-mail demandée ; la création d’un brouillon n’est pas vérifiable par Elyko.",
+                "Ouverture du client e-mail demandée ; la création d’un brouillon n’est pas vérifiable par Zentra.",
             )
         } else {
             note.as_deref()

@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 24;
+pub const SCHEMA_VERSION: i64 = 25;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -995,6 +995,12 @@ CREATE TABLE IF NOT EXISTS payroll_document_imports (
   engine_version TEXT,
   extracted_text TEXT,
   draft_json TEXT NOT NULL,
+  analysis_manifest_json TEXT CHECK (
+    analysis_manifest_json IS NULL OR (
+      LENGTH(analysis_manifest_json) BETWEEN 2 AND 1000000
+      AND json_valid(analysis_manifest_json)=1
+    )
+  ),
   confidence_bp INTEGER NOT NULL DEFAULT 0 CHECK (confidence_bp BETWEEN 0 AND 10000),
   status TEXT NOT NULL DEFAULT 'needs_review' CHECK (status IN ('needs_review','confirmed','rejected','error')),
   error_message TEXT,
@@ -1061,6 +1067,7 @@ CREATE INDEX IF NOT EXISTS idx_bank_supplier_reconciliations_invoice ON bank_sup
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(entry_date, number);
+CREATE INDEX IF NOT EXISTS idx_journal_reversal_of ON journal_entries(reversal_of);
 CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id, journal_entry_id);
 CREATE INDEX IF NOT EXISTS idx_accounting_period_dates ON accounting_periods(date_from,date_to,status);
 CREATE INDEX IF NOT EXISTS idx_reminders_status_date ON reminders(status, scheduled_date);
@@ -1751,7 +1758,7 @@ PRAGMA user_version=6;
 
 /// Conserve les choix sociaux confirmés pour les collaborateurs proches ou
 /// au-delà de l'âge de référence. Les colonnes restent NULL sur les bases
-/// existantes : Elyko ne déduit ni le sexe, ni l'âge de référence, ni la
+/// existantes : Zentra ne déduit ni le sexe, ni l'âge de référence, ni la
 /// renonciation à la franchise AVS.
 pub const MIGRATION_V7_SQL: &str = r#"
 PRAGMA user_version=7;
@@ -1766,7 +1773,7 @@ PRAGMA user_version=8;
 
 /// Ajoute uniquement les décisions explicites nécessaires au contrôle LAA et
 /// au cumul AC. Les valeurs restent NULL sur les bases existantes : aucune
-/// durée contractuelle ni base d'ouverture n'est déduite par Elyko.
+/// durée contractuelle ni base d'ouverture n'est déduite par Zentra.
 pub const MIGRATION_V9_SQL: &str = r#"
 DROP TRIGGER IF EXISTS employees_payroll_decisions_insert_guard;
 DROP TRIGGER IF EXISTS employees_payroll_decisions_update_guard;
@@ -1833,7 +1840,7 @@ CREATE INDEX IF NOT EXISTS idx_suppliers_archived ON suppliers(archived_at, name
 PRAGMA user_version=11;
 "#;
 
-/// Ajoute l'import bancaire ISO 20022 strictement local. Elyko conserve
+/// Ajoute l'import bancaire ISO 20022 strictement local. Zentra conserve
 /// l'empreinte du fichier et les mouvements structurés immuables, mais ne copie
 /// pas le XML original ; seul un rapprochement confirmé peut créer un paiement.
 pub const MIGRATION_V12_SQL: &str = r#"
@@ -4647,4 +4654,11 @@ CREATE TRIGGER IF NOT EXISTS reminder_deliveries_no_delete
 BEFORE DELETE ON reminder_deliveries BEGIN SELECT RAISE(ABORT,'reminder deliveries are immutable'); END;
 
 PRAGMA user_version=24;
+"#;
+
+/// Preuve locale V25 des analyses OCR/VLM de fiches de salaire. La colonne
+/// reste vide pour les imports historiques et ne crée aucune donnée simulée.
+pub const MIGRATION_V25_SQL: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_journal_reversal_of ON journal_entries(reversal_of);
+PRAGMA user_version=25;
 "#;

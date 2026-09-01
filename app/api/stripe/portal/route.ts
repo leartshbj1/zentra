@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   activationCookieName,
   assertActivationClaim,
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const origin = requireSameOrigin(request);
-    const body = (await request.json()) as { sessionId?: unknown };
+    const body = await readJsonObjectWithinLimit(request, 4_096);
     const sessionId =
       typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
     const claim =
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
       session.status !== 'complete' ||
       session.metadata?.plan !== LICENSE_PLAN
     ) {
-      throw new PublicError('Cette session Elyko n’est pas finalisée.', 409);
+      throw new PublicError('Cette session Zentra n’est pas finalisée.', 409);
     }
     const url = await createPortalSession(
       referenceId(session.customer),

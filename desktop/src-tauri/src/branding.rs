@@ -26,7 +26,7 @@ pub(crate) struct PdfLogo {
 }
 
 impl LocalStore {
-    /// Copie un logo choisi par l'utilisateur dans le stockage local Elyko.
+    /// Copie un logo choisi par l'utilisateur dans le stockage local Zentra.
     /// Le nom est dérivé du contenu : un logo déjà importé n'est jamais dupliqué
     /// et les anciens documents continuent à référencer leur version immuable.
     pub fn stage_company_logo(&self, source_path: &str) -> AppResult<String> {

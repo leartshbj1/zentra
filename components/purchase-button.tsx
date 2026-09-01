@@ -4,7 +4,25 @@ import { CreditCard, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-type CheckoutStatus = { ready?: boolean; error?: string };
+type CheckoutStatus = {
+  ready?: boolean;
+  error?: string;
+  portalLoginUrl?: string;
+};
+
+function trustedPortalLoginUrl(value: unknown) {
+  if (typeof value !== 'string') return '';
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      url.hostname === 'billing.stripe.com' &&
+      url.pathname.startsWith('/p/login/')
+      ? url.href
+      : '';
+  } catch {
+    return '';
+  }
+}
 
 export function PurchaseButton({
   className,
@@ -16,6 +34,7 @@ export function PurchaseButton({
   const [ready, setReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [portalLoginUrl, setPortalLoginUrl] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -30,6 +49,7 @@ export function PurchaseButton({
       .then(({ response, body }) => {
         if (!active) return;
         setReady(response.ok && body.ready === true);
+        setPortalLoginUrl(trustedPortalLoginUrl(body.portalLoginUrl));
         if (!response.ok)
           setError('Le paiement est momentanément indisponible.');
       })
@@ -106,6 +126,14 @@ export function PurchaseButton({
           {error ||
             'Réessayez dans quelques instants ou contactez-nous pour activer votre licence.'}
         </output>
+      )}
+      {portalLoginUrl && (
+        <a
+          className="mt-2 block min-h-8 text-center text-xs font-semibold leading-8 underline underline-offset-4"
+          href={portalLoginUrl}
+        >
+          Déjà client ? Gérer mon abonnement
+        </a>
       )}
     </div>
   );

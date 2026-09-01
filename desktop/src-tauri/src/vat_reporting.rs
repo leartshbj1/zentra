@@ -1533,7 +1533,7 @@ fn build_vat_preview(
         } else {
             Some(VatVariousDeduction {
                 amount_cents: checked_i64(calculation.various_deduction, "variousDeduction")?,
-                description: "Divers, détails dans l'aperçu Elyko".into(),
+                description: "Divers, détails dans l'aperçu Zentra".into(),
             })
         },
         taxable_turnover_cents: checked_i64(taxable_turnover, "taxableTurnover")?,
@@ -1542,7 +1542,7 @@ fn build_vat_preview(
     let (effective_reporting_method, simple_tax_rate_method, payable_tax_cents) =
         calculate_method_preview(&profile, &calculation)?;
     let mut warnings = vec![
-        "Pré-déclaration locale : le fichier n'est ni transmis à l'AFC, ni accepté, ni certifié par Elyko. Il doit être contrôlé puis importé manuellement dans « Décompter la TVA ».".into(),
+        "Pré-déclaration locale : le fichier n'est ni transmis à l'AFC, ni accepté, ni certifié par Zentra. Il doit être contrôlé puis importé manuellement dans « Décompter la TVA ».".into(),
         "L'identité CHE est normalisée localement; sa concordance avec le compte AFC ne peut être vérifiée hors ligne.".into(),
     ];
     if profile.form_of_reporting == "received" {
@@ -1569,7 +1569,7 @@ fn build_vat_preview(
     }
     if profile.reporting_method == "simple_tax_rate" {
         warnings.push(
-            "Le code d'activité et le taux TDFN/TaF proviennent de la confirmation utilisateur; Elyko ne peut pas vérifier hors ligne l'autorisation partenaire AFC."
+            "Le code d'activité et le taux TDFN/TaF proviennent de la confirmation utilisateur; Zentra ne peut pas vérifier hors ligne l'autorisation partenaire AFC."
                 .into(),
         );
     }
@@ -1786,7 +1786,7 @@ fn load_sales_sources(
             reliable,
             reliability_detail: (!reliable).then(|| {
                 format!(
-                    "Mode reçu bloqué pour la facture : paiements cumulés {paid_total} centimes sur {invoice_total}, répartis du {min_date} au {max_date}; Elyko ne dispose pas d'une allocation par ligne et par période."
+                    "Mode reçu bloqué pour la facture : paiements cumulés {paid_total} centimes sur {invoice_total}, répartis du {min_date} au {max_date}; Zentra ne dispose pas d'une allocation par ligne et par période."
                 )
             }),
         })
@@ -2680,7 +2680,7 @@ impl LocalStore {
                 created_at,
                 transmission_status: "not_transmitted".into(),
                 transmission_wording:
-                    "Registre local uniquement; Elyko ne dispose d'aucune preuve de transmission ou d'acceptation AFC."
+                    "Registre local uniquement; Zentra ne dispose d'aucune preuve de transmission ou d'acceptation AFC."
                         .into(),
             });
         }
@@ -2823,8 +2823,8 @@ fn build_ech_0217_xml(
         business_reference_id,
     );
     xml.push_str("    <eCH-0217:sendingApplication>\n");
-    push_xml_value(&mut xml, 6, "eCH-0058:manufacturer", "Elyko");
-    push_xml_value(&mut xml, 6, "eCH-0058:product", "Elyko");
+    push_xml_value(&mut xml, 6, "eCH-0058:manufacturer", "Zentra");
+    push_xml_value(&mut xml, 6, "eCH-0058:product", "Zentra");
     push_xml_value(
         &mut xml,
         6,
@@ -3173,7 +3173,7 @@ mod tests {
 
     #[test]
     fn profiles_are_versioned_without_overlap() {
-        let (_temporary, store) = initialized_store("Elyko Tests");
+        let (_temporary, store) = initialized_store("Zentra Tests");
         store
             .create_vat_profile(effective_profile("agreed"))
             .expect("first profile");
@@ -3205,7 +3205,7 @@ mod tests {
 
     #[test]
     fn effective_calculation_uses_exact_cents_and_reversal_history() {
-        let (_temporary, store) = initialized_store("Elyko Tests");
+        let (_temporary, store) = initialized_store("Zentra Tests");
         store
             .create_vat_profile(effective_profile("agreed"))
             .expect("profile");
@@ -3296,7 +3296,7 @@ mod tests {
 
     #[test]
     fn received_mode_blocks_cross_period_payment_allocation() {
-        let (_temporary, store) = initialized_store("Elyko Tests");
+        let (_temporary, store) = initialized_store("Zentra Tests");
         store
             .create_vat_profile(effective_profile("received"))
             .expect("profile");
@@ -3345,7 +3345,7 @@ mod tests {
 
     #[test]
     fn simple_tax_rate_uses_gross_activity_turnover_without_floats() {
-        let (_temporary, store) = initialized_store("Elyko Tests");
+        let (_temporary, store) = initialized_store("Zentra Tests");
         store.create_vat_profile(simple_profile()).expect("profile");
         insert_issued_invoice(
             &store,
@@ -3374,7 +3374,7 @@ mod tests {
         let xml = build_ech_0217_xml(
             &preview,
             "CHE123456789",
-            "Elyko Tests",
+            "Zentra Tests",
             "TDFN-Q1-2026",
             "2026-04-01T10:00:00Z",
         )
@@ -3473,7 +3473,7 @@ mod tests {
 
     #[test]
     fn unclassified_source_blocks_export_but_remains_visible() {
-        let (_temporary, store) = initialized_store("Elyko Tests");
+        let (_temporary, store) = initialized_store("Zentra Tests");
         store
             .create_vat_profile(effective_profile("agreed"))
             .expect("profile");

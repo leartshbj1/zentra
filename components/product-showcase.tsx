@@ -443,7 +443,7 @@ export function ProductShowcase() {
         className="horizontal-rail -mx-5 flex snap-x gap-2 overflow-x-auto px-5 pb-3 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0"
         role="tablist"
         aria-orientation="horizontal"
-        aria-label="Visite guidée d’Elyko"
+        aria-label="Visite guidée de Zentra"
       >
         {views.map(({ label, icon: Icon }, index) => (
           <button
@@ -490,7 +490,7 @@ export function ProductShowcase() {
       <div className="mt-3 overflow-hidden rounded-[26px] border border-[#cfd8d1] bg-[#eef2ef] shadow-[0_30px_80px_rgba(23,61,44,.14)]">
         <div className="flex h-11 items-center justify-between border-b border-[#d8dfda] bg-white px-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-[#42534a]">
-            <BrandMark className="size-5" /> Elyko
+            <BrandMark className="size-5" /> Zentra
           </div>
           <div className="flex h-full items-center text-[12px] text-[#69766f]">
             <span className="grid h-full w-8 place-items-center">—</span>

@@ -1,4 +1,8 @@
+import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel';
+
 type WorkerPayload = Record<string, unknown>;
+const PAYROLL_ANALYSIS_TIMEOUT_MS = 15 * 60 * 1_000;
+export const PAYROLL_MODEL_LOAD_TIMEOUT_MS = 15 * 60 * 1_000;
 
 export type PayrollAiProgress = {
   label: string;
@@ -20,8 +24,16 @@ export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
 class PayrollLocalAi {
   private worker: Worker | null = null;
   private checkWaiters: Array<(mode: PayrollAiMode) => void> = [];
-  private loadWaiters: Array<{ resolve: () => void; reject: (reason: Error) => void }> = [];
-  private analyses = new Map<string, { resolve: (value: PayrollAiAnalysis) => void; reject: (reason: Error) => void }>();
+  private loadWaiters: Array<{
+    resolve: () => void;
+    reject: (reason: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }> = [];
+  private analyses = new Map<string, {
+    resolve: (value: PayrollAiAnalysis) => void;
+    reject: (reason: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }>();
   private progressListeners = new Set<(progress: PayrollAiProgress) => void>();
 
   private ensureWorker() {
@@ -65,12 +77,18 @@ class PayrollLocalAi {
       return;
     }
     if (type === 'ready') {
-      this.loadWaiters.splice(0).forEach(({ resolve }) => resolve());
+      this.loadWaiters.splice(0).forEach(({ resolve, timeout }) => {
+        clearTimeout(timeout);
+        resolve();
+      });
       return;
     }
     if (type === 'load_error') {
       const error = new Error(typeof message.error === 'string' ? message.error : "Le pack IA local n'a pas pu être chargé.");
-      this.loadWaiters.splice(0).forEach(({ reject }) => reject(error));
+      this.loadWaiters.splice(0).forEach(({ reject, timeout }) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
       return;
     }
     if (type === 'analysis' || type === 'analysis_error') {
@@ -78,6 +96,7 @@ class PayrollLocalAi {
       const pending = this.analyses.get(requestId);
       if (!pending) return;
       this.analyses.delete(requestId);
+      clearTimeout(pending.timeout);
       if (type === 'analysis_error') {
         pending.reject(new Error(typeof message.error === 'string' ? message.error : "L'analyse locale a échoué."));
       } else {
@@ -91,8 +110,8 @@ class PayrollLocalAi {
           primaryRawOutput,
           verifiedRawOutput,
           passes,
-          modelId: typeof message.modelId === 'string' ? message.modelId : 'HuggingFaceTB/SmolVLM-500M-Instruct',
-          modelVersion: typeof message.modelVersion === 'string' ? message.modelVersion : '',
+          modelId: typeof message.modelId === 'string' && message.modelId.trim() ? message.modelId : PAYROLL_AI_MODEL_ID,
+          modelVersion: typeof message.modelVersion === 'string' && message.modelVersion.trim() ? message.modelVersion : PAYROLL_AI_MODEL_REVISION,
           mode: message.mode === 'webgpu' || message.mode === 'wasm' ? message.mode : 'unavailable',
         });
       }
@@ -100,8 +119,14 @@ class PayrollLocalAi {
   }
 
   private rejectAll(error: Error) {
-    this.loadWaiters.splice(0).forEach(({ reject }) => reject(error));
-    for (const pending of this.analyses.values()) pending.reject(error);
+    this.loadWaiters.splice(0).forEach(({ reject, timeout }) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    for (const pending of this.analyses.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(error);
+    }
     this.analyses.clear();
     this.checkWaiters.splice(0).forEach((resolve) => resolve('unavailable'));
   }
@@ -127,23 +152,49 @@ class PayrollLocalAi {
 
   load(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.loadWaiters.push({ resolve, reject });
-      this.ensureWorker().postMessage({ type: 'load' });
+      const timeout = setTimeout(() => {
+        const worker = this.worker;
+        this.worker = null;
+        worker?.terminate();
+        this.rejectAll(new Error("Le téléchargement ou le chargement du modèle local a dépassé 15 minutes. Le moteur a été redémarré; vérifiez la connexion puis réessayez."));
+      }, PAYROLL_MODEL_LOAD_TIMEOUT_MS);
+      const waiter = { resolve, reject, timeout };
+      this.loadWaiters.push(waiter);
+      try {
+        this.ensureWorker().postMessage({ type: 'load' });
+      } catch (reason) {
+        clearTimeout(timeout);
+        this.loadWaiters = this.loadWaiters.filter((candidate) => candidate !== waiter);
+        reject(reason instanceof Error ? reason : new Error("Le chargement du modèle local n'a pas pu démarrer."));
+      }
     });
   }
 
   analyze(input: { imageUrls?: string[]; extractedText?: string; pageStart?: number; pageEnd?: number }): Promise<PayrollAiAnalysis> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
-      this.analyses.set(requestId, { resolve, reject });
-      this.ensureWorker().postMessage({
-        type: 'analyze',
-        requestId,
-        imageUrls: input.imageUrls?.slice(0, 3),
-        extractedText: input.extractedText,
-        pageStart: input.pageStart,
-        pageEnd: input.pageEnd,
-      });
+      const timeout = setTimeout(() => {
+        if (!this.analyses.has(requestId)) return;
+        const worker = this.worker;
+        this.worker = null;
+        worker?.terminate();
+        this.rejectAll(new Error('L’analyse locale a dépassé 15 minutes et le moteur a été redémarré. Aucun brouillon incomplet n’a été enregistré; réduisez le nombre de pages ou relancez cette fiche.'));
+      }, PAYROLL_ANALYSIS_TIMEOUT_MS);
+      this.analyses.set(requestId, { resolve, reject, timeout });
+      try {
+        this.ensureWorker().postMessage({
+          type: 'analyze',
+          requestId,
+          imageUrls: input.imageUrls?.slice(0, 3),
+          extractedText: input.extractedText,
+          pageStart: input.pageStart,
+          pageEnd: input.pageEnd,
+        });
+      } catch (reason) {
+        clearTimeout(timeout);
+        this.analyses.delete(requestId);
+        reject(reason instanceof Error ? reason : new Error("L'analyse locale n'a pas pu démarrer."));
+      }
     });
   }
 }

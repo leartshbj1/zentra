@@ -111,5 +111,5 @@ export function suggestedVatBusinessReference(
 ): string {
   const clean = (value: string) => value.replace(/[^0-9]/g, '');
   const kind = submission === 'initial' ? 'INIT' : submission === 'correction' ? 'RECT' : 'CONC';
-  return `ELYKO-${clean(dateFrom)}-${clean(dateTo)}-${kind}`.slice(0, 50);
+  return `ZENTRA-${clean(dateFrom)}-${clean(dateTo)}-${kind}`.slice(0, 50);
 }

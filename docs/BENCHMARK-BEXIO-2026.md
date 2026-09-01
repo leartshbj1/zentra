@@ -1,31 +1,31 @@
-# Benchmark fonctionnel Bexio → Elyko
+# Benchmark fonctionnel Bexio → Zentra
 
 État de la recherche : 1er septembre 2026. Sources Bexio officielles uniquement.
 
 Ce document sert de référence produit. Il ne s'agit ni de copier l'interface de
 Bexio, ni de promettre des services qui exigent une certification ou un
-partenaire bancaire. Elyko conserve son différenciateur : une véritable
+partenaire bancaire. Zentra conserve son différenciateur : une véritable
 application Windows dont les données métier restent sur le PC du client.
 
 ## Ce qui fait réellement la valeur de Bexio
 
 La valeur principale n'est pas une longue liste de menus. C'est la continuité
 sans ressaisie entre un contact, un devis, une commande, une livraison, une
-facture, son paiement, puis l'écriture comptable. Les écrans Elyko doivent donc
+facture, son paiement, puis l'écriture comptable. Les écrans Zentra doivent donc
 présenter une prochaine action claire et garder chaque transformation traçable.
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Elyko 1.11 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Zentra 1.13 | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
-| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; QR, avoirs et relances locales ; identité et logo figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
+| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; PDF A4 natifs devis/factures, QR vectoriel, avoirs et relances locales ; identité, logo et montants figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement → paiement et comptabilité ; avoir distinct validable et imputable à une facture | OCR des achats et rapprochement d'une facture avec plusieurs commandes | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
-| Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
+| Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, paiement client relié à une écriture active avec chaîne d’extournes vérifiée, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
-| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et analyse locale multipage avec provenance page par page ; aucune donnée sans preuve n’est promue automatiquement | barèmes officiels complets, certificats annuels puis certification externe | P0 conformité — en cours |
+| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et analyse SmolVLM locale multipage à double lecture ; hash du document, provenance par occurrence et validation humaine obligatoire ; aucune récurrence salariale n’est créée implicitement | certificats annuels, barèmes cantonaux complets puis certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
@@ -52,19 +52,23 @@ présenter une prochaine action claire et garder chaque transformation traçable
    multipage limité aux pages analysées, provenance visible, rattachement paie
    interdit sans page concordante, logo figé sur commandes et BL, reprise de
    paiement revalidant l’écriture, guide complet et updater étape par étape.
-6. **Automatiser sous contrôle — récurrence livrée en 1.11** : Elyko prépare
+6. **Automatiser sous contrôle — récurrence livrée en 1.11** : Zentra prépare
    localement des factures brouillon récurrentes par lots bornés, avec pause,
    reprise, fin et revue obligatoire; l'émission, le QR, l'envoi, le stock et
    la comptabilité restent manuels. L'envoi des relances, l'OCR des achats et
    les règles bancaires contrôlées constituent la suite de ce lot.
-7. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
+7. **Fiabiliser les sorties et la reprise — livré en 1.13 source** : PDF natif
+   paginé depuis les instantanés figés, QR-facture vectorielle contrôlée,
+   preuve paiement-écriture fail-closed et import de paie multipage dont chaque
+   proposition reste locale, traçable et soumise à une confirmation humaine.
+8. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer
 
-- Elyko ne revendique aucune certification ou homologation AFC, Swissdec/ELM ou
+- Zentra ne revendique aucune certification ou homologation AFC, Swissdec/ELM ou
   Olico. Le XML eCH-0217 v2.0.0 est généré localement pour un import manuel dans
-  Décompte TVA pro : Elyko ne le transmet pas, et ne garantit ni son acceptation
+  Décompte TVA pro : Zentra ne le transmet pas, et ne garantit ni son acceptation
   ni le décompte final. L'utilisateur doit vérifier, compléter et soumettre le
   décompte dans le Portail AFC.
 - Le dossier fiduciaire DRAFT/FINAL, son manifeste et ses empreintes SHA-256
@@ -77,7 +81,7 @@ présenter une prochaine action claire et garder chaque transformation traçable
   synchronisation chiffrée; ils ne peuvent pas être simulés avec des données de
   démonstration.
 - Les cartes, crédits et services financiers de type bexio Pay ne font pas
-  partie du cœur Elyko.
+  partie du cœur Zentra.
 - La version 1.8 facture progressivement le livré des lignes de vente
   concernées et facture directement les prestations sans BL. Elle ne crée pas
   encore un acompte défini librement par montant ou pourcentage.

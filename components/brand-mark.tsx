@@ -9,11 +9,23 @@ export function BrandMark({ className }: { className?: string }) {
       viewBox="0 0 40 40"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="40" height="40" rx="12" fill="#173d2c" />
+      <rect width="40" height="40" rx="12" fill="#f7f5ef" />
       <path
-        d="M10 9.5A2.5 2.5 0 0 1 12.5 7H30a3 3 0 0 1 0 6H16v4h10a3 3 0 0 1 0 6H16v4h14a3 3 0 0 1 0 6H12.5A2.5 2.5 0 0 1 10 30.5v-21Z"
-        fill="#efaa3c"
+        d="M10.5 8h19a3 3 0 0 1 2.2 5.04L17.25 27H29.5a3 3 0 1 1 0 6h-19a3 3 0 0 1-2.2-5.04L22.75 14H10.5a3 3 0 1 1 0-6Z"
+        fill="#124832"
       />
     </svg>
+  );
+}
+
+export function BrandWordmark({ className }: { className?: string }) {
+  return (
+    <img
+      alt="Zentra"
+      className={cn('block h-auto object-contain', className)}
+      height="68"
+      src="/brand/zentra-wordmark.png"
+      width="202"
+    />
   );
 }

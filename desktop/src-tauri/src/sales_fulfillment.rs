@@ -2244,7 +2244,7 @@ macro_rules! sales_fulfillment_tests {
             .unwrap();
         let early_payment = store
             .record_payment(RecordPaymentInput {
-                request_id: Some(Uuid::new_v4().to_string()),
+                request_id: Uuid::new_v4().to_string(),
                 invoice_id: partial_invoice_id.into(),
                 amount_cents: 1_000,
                 date: Some("2026-01-31".into()),
@@ -2441,7 +2441,7 @@ macro_rules! sales_fulfillment_tests {
             .unwrap();
         drop(connection);
 
-        let backup_path = temporary.path().join("sales-v20.elyko");
+        let backup_path = temporary.path().join("sales-v20.zentra");
         store
             .create_backup(
                 Some(backup_path.to_string_lossy().into_owned()),
@@ -2769,7 +2769,17 @@ macro_rules! sales_fulfillment_tests {
     fn quote_cross_exclusion_is_atomic_in_both_directions() {
         let (_temporary, store) = initialized_store();
         let client_id = id(&store
-            .create_record("clients", json!({"name":"Client exclusion"}))
+            .create_record(
+                "clients",
+                json!({
+                    "name":"Client exclusion",
+                    "address_line1":"Rue du Client",
+                    "address_line2":"7",
+                    "postal_code":"1000",
+                    "city":"Lausanne",
+                    "country":"CH"
+                }),
+            )
             .unwrap());
         let make_quote = |title: &str| {
             let quote_id = id(&store

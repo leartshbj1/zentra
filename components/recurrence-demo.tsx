@@ -244,7 +244,7 @@ export function RecurrenceDemo() {
           )}
 
           <p className="mt-5 text-sm leading-6 text-[#647168]">
-            Dans Elyko, le contenu et le délai sont figés avec le modèle. Le QR,
+            Dans Zentra, le contenu et le délai sont figés avec le modèle. Le QR,
             l’émission, l’envoi et l’écriture comptable restent des actions
             séparées et vérifiables.
           </p>

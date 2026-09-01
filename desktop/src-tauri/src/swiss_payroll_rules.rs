@@ -80,7 +80,7 @@ impl fmt::Display for SwissPayrollRuleError {
                 "La date confirmée d'atteinte de l'âge de référence doit être valide."
             }
             Self::ReferenceAgeReviewRequired => {
-                "Le statut d'assujettissement après l'âge de référence doit être confirmé explicitement; Elyko ne le déduit pas du sexe."
+                "Le statut d'assujettissement après l'âge de référence doit être confirmé explicitement; Zentra ne le déduit pas du sexe."
             }
             Self::AvsAllowanceChoiceRequired => {
                 "Après l'âge de référence, confirmez si la franchise AVS est conservée ou si le collaborateur y renonce."
@@ -93,7 +93,7 @@ impl fmt::Display for SwissPayrollRuleError {
 /// Applique la franchise AVS de CHF 1'400 à chaque mois civil entier ou entamé
 /// couvert après le mois de l'atteinte de l'âge de référence. Une renonciation conserve la base entière et un choix
 /// absent bloque le calcul. Le montant annuel de CHF 16'800 résulte des douze
-/// franchises mensuelles; une fiche Elyko représente une période mensuelle.
+/// franchises mensuelles; une fiche Zentra représente une période mensuelle.
 pub(crate) fn apply_avs_reference_age_allowance(
     basis_cents: i64,
     reference_age_status: AcReferenceAgeStatus,

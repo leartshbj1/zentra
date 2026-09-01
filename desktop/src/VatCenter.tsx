@@ -281,7 +281,7 @@ export function VatCenter({
     {notice ? <div className="notice notice--success" role="status" aria-live="polite"><CheckCircle2 size={17} />{notice}</div> : null}
 
     {tab === 'profile' ? <section id="vat-panel-profile" role="tabpanel" className="panel vat-profile-panel">
-      <SectionHeading eyebrow="Décision fiscale versionnée" title="Méthode déclarée par votre entreprise" description="Créez une nouvelle version à la date d’effet. Elyko ne bascule jamais une méthode rétroactivement et ne détermine ni votre éligibilité ni l’autorisation de l’AFC." />
+      <SectionHeading eyebrow="Décision fiscale versionnée" title="Méthode déclarée par votre entreprise" description="Créez une nouvelle version à la date d’effet. Zentra ne bascule jamais une méthode rétroactivement et ne détermine ni votre éligibilité ni l’autorisation de l’AFC." />
       <form key={`vat-profile:${periodKey}`} className="vat-profile-form" onSubmit={submitForm(saveProfile)}>
         <div className="form-grid">
           <Field label="Début d’effet" required><input name="effectiveFrom" type="date" defaultValue={filter.dateFrom || `${new Date().getFullYear()}-01-01`} required /></Field>
@@ -293,7 +293,7 @@ export function VatCenter({
           {profileMethod === 'simple_tax_rate' ? <><Field label="ActivityID AFC · 5 chiffres" required><input name="activityId" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} required /></Field><Field label="Taux TDFN/TaF confirmé (%)" hint="Saisissez uniquement le taux communiqué ou accepté pour votre activité." required><input name="tdfnRate" type="number" min="0" max="100" step="0.01" required /></Field></> : null}
           <Field label="Note / référence de décision" wide><textarea name="notes" rows={3} placeholder="Date et référence de l’autorisation, personne ayant validé la méthode…" /></Field>
         </div>
-        <label className="check-card"><input name="authorization" type="checkbox" required={profileRequiresConfirmation} /><span><strong>J’ai vérifié cette méthode et, lorsque requis, son autorisation AFC</strong><small>{profileRequiresConfirmation ? 'Cette confirmation est obligatoire pour ce choix.' : 'Elyko enregistre votre confirmation; il ne remplace pas la décision de l’AFC.'}</small></span></label>
+        <label className="check-card"><input name="authorization" type="checkbox" required={profileRequiresConfirmation} /><span><strong>J’ai vérifié cette méthode et, lorsque requis, son autorisation AFC</strong><small>{profileRequiresConfirmation ? 'Cette confirmation est obligatoire pour ce choix.' : 'Zentra enregistre votre confirmation; il ne remplace pas la décision de l’AFC.'}</small></span></label>
         {profiles.some((profile) => !profile.effectiveTo) ? <label className="check-card"><input name="closePrevious" type="checkbox" /><span><strong>Fermer le profil actuellement ouvert la veille</strong><small>La nouvelle version commence sans chevauchement; les anciens exports restent intacts.</small></span></label> : null}
         <div className="form-actions"><Button type="submit" disabled={busy}>Enregistrer cette version</Button></div>
       </form>

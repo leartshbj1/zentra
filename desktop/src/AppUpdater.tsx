@@ -94,8 +94,8 @@ export function AppUpdater() {
       setCheckedAt(new Date().toISOString());
       setMessage(
         update
-          ? `Elyko ${update.version} est disponible. Sa signature sera contrôlée avant l’installation.`
-          : `Elyko ${currentPolicy.currentVersion} est déjà à jour.`,
+          ? `Zentra ${update.version} est disponible. Sa signature sera contrôlée avant l’installation.`
+          : `Zentra ${currentPolicy.currentVersion} est déjà à jour.`,
       );
     } catch (reason) {
       setError(
@@ -122,14 +122,14 @@ export function AppUpdater() {
     if (event.event === 'progress') return;
     if (event.event === 'verifying') {
       setMessage(
-        'Téléchargement terminé. Elyko vérifie la signature, puis remet l’installation à Windows. L’application va se fermer et redémarrer automatiquement.',
+        'Téléchargement terminé. Zentra vérifie la signature, puis remet l’installation à Windows. L’application va se fermer et redémarrer automatiquement.',
       );
       return;
     }
     setAvailable(null);
     setOutcome('installed');
     setMessage(
-      'La mise à jour a été remise à Windows. Elyko redémarre automatiquement avec la nouvelle version.',
+      'La mise à jour a été remise à Windows. Zentra redémarre automatiquement avec la nouvelle version.',
     );
   }
 
@@ -180,7 +180,7 @@ export function AppUpdater() {
     : outcome === 'installed'
       ? 'Installation lancée'
       : outcome === 'current'
-        ? 'Elyko est à jour'
+        ? 'Zentra est à jour'
         : outcome === 'available'
           ? 'Mise à jour prête à télécharger'
           : policyLoading
@@ -203,8 +203,8 @@ export function AppUpdater() {
   return <section className="panel settings-card settings-card--wide app-updater">
     <SectionHeading
       eyebrow="Maintenance sécurisée"
-      title="Mettre Elyko à jour sans le réinstaller"
-      description="Le canal est figé dans l’application. Elyko exige un téléchargement HTTPS et une signature valide avant de confier l’installation à Windows."
+      title="Mettre Zentra à jour sans le réinstaller"
+      description="Le canal est figé dans l’application. Zentra exige un téléchargement HTTPS et une signature valide avant de confier l’installation à Windows."
     />
 
     <div
@@ -251,8 +251,8 @@ export function AppUpdater() {
     {available ? <article className="app-updater__release">
       <div>
         <span>Nouvelle version</span>
-        <strong>Elyko {available.version}</strong>
-        <small>{formattedDate ? `Publiée le ${formattedDate}` : `Depuis Elyko ${available.currentVersion}`}</small>
+        <strong>Zentra {available.version}</strong>
+        <small>{formattedDate ? `Publiée le ${formattedDate}` : `Depuis Zentra ${available.currentVersion}`}</small>
       </div>
       {available.notes
         ? <p>{available.notes}</p>
@@ -262,8 +262,8 @@ export function AppUpdater() {
     {confirming && available ? <div className="app-updater__confirmation" role="group" aria-labelledby="app-updater-confirm-title">
       <ShieldCheck size={24} />
       <div>
-        <strong id="app-updater-confirm-title">Prêt à installer Elyko {available.version}</strong>
-        <p>Enregistrez les saisies ouvertes. La signature sera contrôlée avant que Windows ferme Elyko, installe la version puis relance l’application. Aucune désinstallation manuelle n’est nécessaire.</p>
+        <strong id="app-updater-confirm-title">Prêt à installer Zentra {available.version}</strong>
+        <p>Enregistrez les saisies ouvertes. La signature sera contrôlée avant que Windows ferme Zentra, installe la version puis relance l’application. Aucune désinstallation manuelle n’est nécessaire.</p>
         <div className="app-updater__confirmation-actions">
           <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>Annuler</Button>
           <Button type="button" onClick={() => void install()}><Download size={16} /> Installer et redémarrer</Button>
@@ -275,7 +275,7 @@ export function AppUpdater() {
       <div><span>{progressLabel}</span><strong>{progress.percent === null ? '…' : `${Math.round(progress.percent)} %`}</strong></div>
       <progress max={100} value={progress.percent ?? undefined} aria-label="Progression de la mise à jour" />
       <small>{progress.phase === 'verifying'
-        ? 'Ne fermez pas Elyko : la signature et l’installateur sont en cours de contrôle.'
+        ? 'Ne fermez pas Zentra : la signature et l’installateur sont en cours de contrôle.'
         : 'N’éteignez pas le PC pendant l’installation. Les données de votre entreprise restent sur cet ordinateur.'}</small>
     </div> : null}
 

@@ -152,6 +152,7 @@ function invoice(status: Invoice['status']): Invoice {
     dueDate: '2026-10-02',
     serviceDateFrom: '2026-09-02',
     serviceDateTo: '2026-09-02',
+    currency: 'CHF',
     status,
     lines: [],
     notes: '',
@@ -208,6 +209,7 @@ describe('flux commande client', () => {
       title: 'Offre',
       issueDate: '2026-09-01',
       validUntil: '2026-09-30',
+      currency: 'CHF',
       status: 'accepted',
       lines: [
         {

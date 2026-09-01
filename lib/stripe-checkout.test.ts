@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildElykoCheckoutParams } from './stripe-checkout';
+import { buildZentraCheckoutParams } from './stripe-checkout';
 
-describe('Elyko hosted Checkout contract', () => {
-  const params = buildElykoCheckoutParams({
+describe('Zentra hosted Checkout contract', () => {
+  const params = buildZentraCheckoutParams({
     origin: 'https://elyko.example',
     claimHash: 'claim_hash',
     priceId: 'price_monthly',
-    plan: 'elyko-monthly-50-chf',
+    plan: 'zentra-monthly-50-chf',
   });
 
   it('uses the single stable monthly Price without client-side price data', () => {
@@ -30,13 +30,13 @@ describe('Elyko hosted Checkout contract', () => {
     });
   });
 
-  it('binds the activation claim and Elyko plan on both objects', () => {
+  it('binds the activation claim and Zentra plan on both objects', () => {
     expect(params.metadata).toEqual({
-      plan: 'elyko-monthly-50-chf',
+      plan: 'zentra-monthly-50-chf',
       activation_claim_hash: 'claim_hash',
     });
     expect(params.subscription_data?.metadata).toEqual({
-      plan: 'elyko-monthly-50-chf',
+      plan: 'zentra-monthly-50-chf',
     });
   });
 
