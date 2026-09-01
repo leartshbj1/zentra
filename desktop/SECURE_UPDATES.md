@@ -48,9 +48,15 @@ pnpm build:updater
 
 ## Préparation du lot publiable
 
-Préparer le lot dans les 24 heures suivant ce build frais :
+Le wrapper local efface les secrets après le build. Avant le staging, rechargez
+uniquement la clé **publique** et l’endpoint dans le processus courant, puis
+préparez le lot dans les 24 heures suivant ce build frais :
 
 ```powershell
+$elykoSigningRoot = Join-Path $env:LOCALAPPDATA 'Elyko\release-signing'
+$env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content -Raw (Join-Path $elykoSigningRoot 'elyko-updater.key.pub')).Trim()
+$env:ELYKO_UPDATER_ENDPOINT = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
+
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1 `
   -Version 1.4.0 `
   -PreviousVersion 1.3.0

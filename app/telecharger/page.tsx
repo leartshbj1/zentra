@@ -471,13 +471,13 @@ export default function DownloadPage() {
               </summary>
               <div className="space-y-4 border-t border-[#e5e1d8] px-5 py-5 text-xs leading-6 text-[#5f6c64]">
                 <p>
-                  <strong>Fichier :</strong> Elyko_1.3.0_x64-setup.exe · 7,64
+                  <strong>Fichier :</strong> Elyko_1.4.0_x64-setup.exe · 7,72
                   Mio · Windows x64
                 </p>
                 <p>
                   <strong>SHA-256 :</strong>{' '}
                   <code className="break-all">
-                    8137216CC4B026706CE9EF160A25D169F00F0715EFA4DEDCD3E1649FDC56630E
+                    E9F5135A7FE44AF3606AD778EA8D9E11208DF039E96C31F70E606357E8E36B5B
                   </code>{' '}
                   ·{' '}
                   <a
@@ -491,11 +491,10 @@ export default function DownloadPage() {
                   <RefreshCcw className="mt-0.5 size-4 shrink-0" />
                   <p>
                     <strong>Mises à jour intégrées et signées.</strong> La version
-                    1.3.0 embarque la clé publique Elyko et vérifie la signature
+                    1.4.0 embarque la clé publique Elyko et vérifie la signature
                     de chaque futur installateur avant de proposer son
-                    installation. Si vous utilisez encore Elyko 1.2.0,
-                    installez 1.3.0 manuellement une dernière fois depuis cette
-                    page.
+                    installation. Si une ancienne version ne propose pas la mise
+                    à jour intégrée, installez 1.4.0 manuellement depuis cette page.
                   </p>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">

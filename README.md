@@ -34,14 +34,21 @@ pnpm --dir desktop build:web
 cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --all-targets
 ```
 
-L’installateur Windows est produit avec :
+Le build Windows local de développement est produit avec :
 
 ```powershell
 pnpm --dir desktop build
+```
+
+Une release publiable avec mise à jour intégrée doit toujours passer par le
+wrapper de signature Tauri/Ed25519 :
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/build-local-signed-updater.ps1
 ```
 
 La release embarque la clé publique versionnée dans `desktop/src-tauri/license-public-key.b64url`; le build échoue si elle est absente ou invalide. La clé privée n’est jamais incluse dans le dépôt ni dans l’application.
 
 ## Livraison Windows
 
-La version `1.3.0` est disponible dans `public/downloads` avec un manifeste et une signature Tauri/Ed25519 pour les mises à jour intégrées. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+La version `1.4.0` est disponible dans `public/downloads` avec un manifeste et une signature Tauri/Ed25519 pour les mises à jour intégrées. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
