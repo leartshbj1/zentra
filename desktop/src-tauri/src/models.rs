@@ -559,6 +559,181 @@ pub struct RecordSupplierPaymentInput {
     pub notes: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierOrderDraftInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub supplier_id: String,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    pub title: String,
+    pub order_date: String,
+    pub currency: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub terms: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierOrderLineInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub catalog_item_id: Option<String>,
+    pub position: i64,
+    pub description: String,
+    pub quantity_milli: i64,
+    pub unit: String,
+    pub unit_price_cents: i64,
+    #[serde(default)]
+    pub discount_bp: i64,
+    #[serde(default)]
+    pub vat_bp: i64,
+    pub category: String,
+    #[serde(default)]
+    pub expense_account_id: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    pub fulfillment_mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveSupplierOrderDraftInput {
+    pub order: SupplierOrderDraftInput,
+    pub lines: Vec<SupplierOrderLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ConfirmSupplierOrderInput {
+    pub request_id: String,
+    pub supplier_order_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelSupplierOrderRemainderLineInput {
+    pub supplier_order_line_id: String,
+    pub quantity_milli: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelSupplierOrderRemainderInput {
+    pub request_id: String,
+    pub supplier_order_id: String,
+    pub reason: String,
+    pub lines: Vec<CancelSupplierOrderRemainderLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierReceiptDraftInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub supplier_order_id: String,
+    pub receipt_date: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierReceiptLineInput {
+    pub supplier_order_line_id: String,
+    pub quantity_milli: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveSupplierReceiptDraftInput {
+    pub receipt: SupplierReceiptDraftInput,
+    pub lines: Vec<SupplierReceiptLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IssueSupplierReceiptInput {
+    pub request_id: String,
+    pub supplier_receipt_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReverseSupplierReceiptInput {
+    pub request_id: String,
+    pub supplier_receipt_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierInvoiceMatchAllocationInput {
+    pub supplier_invoice_item_id: String,
+    pub supplier_order_line_id: String,
+    #[serde(default)]
+    pub supplier_receipt_line_id: Option<String>,
+    pub quantity_milli: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveSupplierInvoiceMatchInput {
+    pub request_id: String,
+    pub supplier_invoice_id: String,
+    pub supplier_order_id: String,
+    pub allocations: Vec<SupplierInvoiceMatchAllocationInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierCreditAllocationInput {
+    pub supplier_invoice_id: String,
+    pub amount_cents: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveSupplierCreditNoteDraftInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub supplier_id: String,
+    pub document_date: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
+    pub items: Vec<SupplierInvoiceLineInput>,
+    pub allocations: Vec<SupplierCreditAllocationInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ValidateSupplierCreditNoteInput {
+    pub request_id: String,
+    pub supplier_credit_note_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ApplySupplierCreditInput {
+    pub request_id: String,
+    pub supplier_credit_note_id: String,
+    pub supplier_invoice_id: String,
+    pub amount_cents: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReverseSupplierCreditAllocationInput {
+    pub request_id: String,
+    pub supplier_credit_allocation_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierExpenseReclassificationLineInput {
+    pub supplier_invoice_item_id: String,
+    pub new_expense_account_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReclassifySupplierInvoiceExpenseInput {
+    pub request_id: String,
+    pub supplier_invoice_id: String,
+    pub effective_date: String,
+    pub reason: String,
+    pub lines: Vec<SupplierExpenseReclassificationLineInput>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PeriodFilter {
     #[serde(default)]

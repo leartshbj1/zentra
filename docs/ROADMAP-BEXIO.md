@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Elyko
 
-État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.7.0.
+État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.8.
 
 Cette feuille de route compare Elyko aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Elyko reste une application Windows locale, avec les données conservées chez le client.
 
@@ -12,7 +12,7 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 - Une seule action principale par écran et des termes compréhensibles sans formation comptable.
 - Les devis, factures et pièces émises sont des instantanés : modifier un client ou un produit ne change jamais un ancien document.
 - Les automatisations financières restent explicables, annulables et journalisées.
-- Une fonction réglementée n'est annoncée conforme qu'après validation indépendante. Une fiche de salaire PDF ne vaut pas une certification Swissdec/ELM.
+- Une fonction réglementée n'est annoncée conforme qu'après validation indépendante. Elyko ne revendique aucune certification ou homologation AFC, Swissdec/ELM ou Olico.
 - Les connexions externes sont optionnelles. Le fonctionnement local et les sauvegardes restent prioritaires.
 
 ## Couverture et ordre de réalisation
@@ -21,23 +21,33 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 | --- | --- | --- |
 | Socle local | installation Windows, configuration guidée, SQLite locale, sauvegardes, audit, mises à jour signées | Disponible ; Authenticode reste à acquérir |
 | Vente essentiel | clients, devis, acceptation, conversion en facture, facture QR, avoir, paiements, relances | Disponible ; automatisation d'envoi à compléter |
-| Catalogue et stock | produits/services, prix, TVA, coûts, remises, stock minimal, mouvements, ajout aux devis/factures | Disponible : registre local immuable, réservation à la confirmation d'une commande, quantités en main/réservées/disponibles et sortie à l'émission du BL ; emplacements et réceptions fournisseurs à venir |
-| Achats | fournisseurs, factures et crédits fournisseurs, justificatifs, échéances, paiements, OCR | Factures structurées, justificatifs, validation, paiements partiels et comptabilisation disponibles ; crédits et OCR fournisseur à venir |
+| Catalogue et stock | produits/services, prix, TVA, coûts, remises, stock minimal, mouvements, ajout aux devis/factures | Disponible : registre local immuable, réservation à la confirmation d'une commande de vente, sortie à l'émission du BL et entrée à l'émission d'une réception fournisseur ; l'extourne de la réception crée le mouvement inverse. Emplacements à venir |
+| Achats | fournisseurs, commandes, réceptions, factures et avoirs fournisseurs, justificatifs, rapprochement, échéances et paiements | Disponible : commande → réception partielle/complète → facture → rapprochement → paiement/comptabilité, avec avoir distinct imputable à une facture. Une facture se rapproche actuellement d'une seule commande ; multi-commandes et OCR des achats à venir |
 | Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible pour les crédits clients et débits fournisseurs ; périmètre détaillé ci-dessous |
 | Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Devis avec produits → commandes, BL partiels/complets et situations/finales par quantités ; prestations simples en facture directe ; acomptes par montant/pourcentage et récurrence à venir |
 | Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Partiel ; validation fiduciaire requise |
 | Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, tâches, jalons, responsables, échéances, temps, coûts, rentabilité et temps approuvés vers facture disponibles |
-| Paie suisse | employés, cotisations versionnées, fiches, import OCR local, écritures | Disponible en partie ; Swissdec/ELM non certifié |
+| Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Disponible en partie ; Swissdec/ELM non certifié |
 | Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Planifié |
 | Écosystème | API locale, connecteurs isolés, compagnon mobile | Ultérieur |
 
-## Périmètre bancaire local d'Elyko 1.7.0
+## Périmètre achats d'Elyko 1.8
+
+- Une commande fournisseur est préparée en brouillon puis confirmée avec ses lignes, quantités, prix, TVA, comptes de charge et, le cas échéant, projet et article de catalogue.
+- Une commande ouverte accepte une ou plusieurs réceptions partielles ou une réception complète. Le brouillon ne touche jamais le stock : seule l'émission d'une réception crée une entrée pour les produits suivis. Son extourne motivée conserve l'historique et crée la sortie inverse.
+- Une facture fournisseur peut être autonome ou rapprochée des lignes d'une commande et de ses réceptions émises. Elyko contrôle alors les quantités, les montants nets et la TVA avant validation.
+- Une facture ne peut actuellement être rapprochée qu'avec une seule commande fournisseur. Le rapprochement d'une facture couvrant plusieurs commandes est un lot futur.
+- Un avoir fournisseur est un document comptable distinct : il peut être validé et imputé à une facture, puis cette imputation peut être extournée avec traçabilité. Il réduit le solde restant, mais ne remplace pas la facture dans le rapprochement commande-réception-facture et ne crée aucun mouvement de stock.
+- La validation, le paiement manuel ou bancaire confirmé et les écritures comptables restent des opérations distinctes et auditables. Ni la facture, ni l'avoir, le rapprochement, le paiement ou la comptabilisation ne modifient le stock.
+- Aucun OCR d'achats n'est livré en 1.8. L'OCR local existant est réservé à l'import de documents de paie.
+
+## Périmètre bancaire local d'Elyko 1.8
 
 - Import sur le PC de relevés suisses `camt.053` et `camt.054` dans les versions `v04` et `v08`. Le fichier XML brut n'est pas envoyé à Elyko ni à un service tiers.
 - Détection des doublons d'import et conservation locale de l'historique utile au contrôle.
 - Association explicite d'un compte bancaire importé à un IBAN ou QR-IBAN de l'entreprise. Cette association reste visible et peut être révoquée.
 - Proposition de factures clientes standard, d'acompte historique, de situation ou finales à partir de références structurées QRR ou SCOR, et de factures fournisseurs pour les débits compatibles. Une date bancaire antérieure à l'émission de la facture bloque la confirmation ; Elyko n'enregistre aucun paiement sans confirmation humaine.
-- Rapprochement limité aux mouvements créditeurs comptabilisés, non annulés, dans la devise attendue et sans dépassement du solde de la facture.
+- Rapprochement limité aux crédits clients ou débits fournisseurs portant sur des pièces comptabilisées ou validées, non annulées, dans la devise attendue et sans dépassement du solde restant de la facture après avoirs imputés.
 - Les écritures en attente, annulations, lots ambigus et montants excédentaires restent visibles pour contrôle, mais ne sont pas rapprochés automatiquement.
 - Les connexions bancaires directes, règles personnalisées, ordres pain.001 et écritures de frais bancaires restent à venir.
 
@@ -64,10 +74,10 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 
 ## Prochains lots, dans l'ordre
 
-1. Ajouter commandes fournisseurs, réceptions, factures et avoirs sans créer un second mouvement de stock au rapprochement.
+1. Étendre le rapprochement fournisseur à une facture couvrant plusieurs commandes et ajouter un OCR d'achats avec contrôle humain.
 2. Ajouter les acomptes de vente définis par montant ou pourcentage, avec imputation explicite sur la facture finale.
 3. Ajouter récurrence, modèles multilingues et envoi de documents ou relances explicitement configuré par le client.
-4. Ajouter assistants de TVA et de bouclement, pièces sur écritures et exports fiduciaires ; aucune transmission AFC ne sera annoncée sans validation dédiée.
+4. Ajouter assistants de TVA et de bouclement, pièces sur écritures et exports fiduciaires ; aucune transmission ou certification AFC ne sera annoncée sans validation dédiée.
 5. Ajouter import/export de contacts, catégories, rôles locaux et accès fiduciaire contrôlé.
 
-Swissdec/ELM reste un programme de certification distinct : Elyko doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant que cette certification n'est pas obtenue.
+Swissdec/ELM reste un programme de certification distinct : Elyko doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant que cette certification n'est pas obtenue. Les rapports TVA ne constituent ni une transmission ni une certification AFC, et les pièces hashées ne constituent pas une certification Olico.

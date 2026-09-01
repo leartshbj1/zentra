@@ -64,7 +64,7 @@ const features = [
   {
     icon: Building2,
     title: 'Fournisseurs & achats',
-    text: 'Annuaire local, achats à payer ou payés, échéances et confirmation explicite du paiement.',
+    text: 'Commandes, réceptions partielles, factures, avoirs, rapprochement à trois pièces et paiements.',
   },
   {
     icon: WalletCards,
@@ -127,22 +127,70 @@ const sectors = [
 ];
 
 const capabilityRows = [
-  ['Clients & dossier 360°', 'Disponible', 'Fiche, projets, documents, soldes et archivage local.'],
-  ['Vente complète', 'Disponible', 'Devis accepté, commande, réservation, BL partiel/complet, situation/finale, QR et paiements.'],
-  ['Projets & temps', 'Disponible', 'Budgets, durées, coûts, rentabilité et heures approuvées à facturer.'],
-  ['Tâches & jalons', 'Disponible', 'Vue par projet, responsables, priorités et échéances; temps manuel ou chronométré lié à une tâche.'],
-  ['Achats fournisseurs', 'Disponible', 'Factures, justificatifs locaux, échéances, paiements et comptabilisation.'],
-  ['Banque CAMT', 'Assisté', 'Crédits clients et débits fournisseurs proposés, puis confirmés par l’utilisateur.'],
-  ['Comptabilité', 'Disponible avec contrôle', 'Journal, grand livre, balance, bilan et résultat calculés depuis les écritures.'],
-  ['Paie suisse', 'Assistée localement', 'Import OCR/IA local, calculs contrôlés et PDF; Elyko n’est pas certifié Swissdec.'],
-  ['Import paie multipage', 'Disponible', 'PDF jusqu’à 12 pages, analyse locale par lots de trois et contrôle humain avant création.'],
-  ['Catalogue & stock', 'Disponible', 'Produits et services réutilisables, réservations, en main/disponible et sortie unique sur BL ou facture directe.'],
-  ['Application', 'Windows', 'Vraie application Windows 10/11 x64; le site de présentation est adapté au mobile.'],
+  [
+    'Clients & dossier 360°',
+    'Disponible',
+    'Fiche, projets, documents, soldes et archivage local.',
+  ],
+  [
+    'Vente complète',
+    'Disponible',
+    'Devis accepté, commande, réservation, BL partiel/complet, situation/finale, QR et paiements.',
+  ],
+  [
+    'Projets & temps',
+    'Disponible',
+    'Budgets, durées, coûts, rentabilité et heures approuvées à facturer.',
+  ],
+  [
+    'Tâches & jalons',
+    'Disponible',
+    'Vue par projet, responsables, priorités et échéances; temps manuel ou chronométré lié à une tâche.',
+  ],
+  [
+    'Achats fournisseurs',
+    'Disponible',
+    'Commande, réception, facture ou avoir, rapprochement, stock, paiement et comptabilisation.',
+  ],
+  [
+    'Banque CAMT',
+    'Assisté',
+    'Crédits clients et débits fournisseurs proposés, puis confirmés par l’utilisateur.',
+  ],
+  [
+    'Comptabilité',
+    'Disponible avec contrôle',
+    'Journal, grand livre, balance, bilan et résultat calculés depuis les écritures.',
+  ],
+  [
+    'Paie suisse',
+    'Assistée localement',
+    'Import OCR/IA local, calculs contrôlés et PDF; Elyko n’est pas certifié Swissdec.',
+  ],
+  [
+    'Import paie multipage',
+    'Disponible',
+    'PDF jusqu’à 12 pages, analyse locale par lots de trois et contrôle humain avant création.',
+  ],
+  [
+    'Catalogue & stock',
+    'Disponible',
+    'Produits et services réutilisables, réservations, en main/disponible et sortie unique sur BL ou facture directe.',
+  ],
+  [
+    'Application',
+    'Windows',
+    'Vraie application Windows 10/11 x64; le site de présentation est adapté au mobile.',
+  ],
 ] as const;
 
 export default function Home() {
   return (
-    <main id="contenu" tabIndex={-1} className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]">
+    <main
+      id="contenu"
+      tabIndex={-1}
+      className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]"
+    >
       <a href="#accueil" className="site-skip-link">
         Aller au contenu
       </a>
@@ -173,10 +221,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-17"
+              href="#lot-18"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.7
+              Nouveautés 1.8
             </a>
             <a
               href="#capacites"
@@ -202,12 +250,18 @@ export default function Home() {
           </nav>
           <div className="flex items-center gap-2">
             <details className="site-mobile-nav group relative lg:hidden">
-              <summary className="grid size-11 cursor-pointer list-none place-items-center rounded-full border border-[#d4d2ca] bg-white/75 text-[#294536]" aria-label="Ouvrir le menu">
+              <summary
+                className="grid size-11 cursor-pointer list-none place-items-center rounded-full border border-[#d4d2ca] bg-white/75 text-[#294536]"
+                aria-label="Ouvrir le menu"
+              >
                 <Plus className="size-5 transition-transform group-open:rotate-45" />
               </summary>
-              <nav className="absolute right-0 top-[calc(100%+.65rem)] z-50 grid min-w-64 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]" aria-label="Navigation mobile">
+              <nav
+                className="absolute right-0 top-[calc(100%+.65rem)] z-50 grid min-w-64 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
+                aria-label="Navigation mobile"
+              >
                 <a href="#logiciel">Voir le logiciel</a>
-                <a href="#lot-17">Nouveautés 1.7</a>
+                <a href="#lot-18">Nouveautés 1.8</a>
                 <a href="#capacites">Capacités</a>
                 <a href="#confidentialite">Données locales</a>
                 <a href="#tarif">Tarif</a>
@@ -221,7 +275,9 @@ export default function Home() {
                 'size-11 rounded-full bg-[#173d2c] px-0 text-white hover:bg-[#24563f] min-[390px]:h-11 min-[390px]:w-auto min-[390px]:px-5',
               )}
             >
-              <span className="sr-only min-[390px]:not-sr-only">Télécharger Elyko</span>
+              <span className="sr-only min-[390px]:not-sr-only">
+                Télécharger Elyko
+              </span>
               <FileDown className="size-4 shrink-0" />
             </a>
           </div>
@@ -234,11 +290,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-17"
+            href="#lot-18"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.7 · commandes, livraisons & situations
+            Elyko 1.8 · achats fournisseurs sans ressaisie
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -247,9 +303,9 @@ export default function Home() {
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
             Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
-            projets, heures, salaires et comptabilité&nbsp;: Elyko centralise votre
-            gestion dans une application Windows, tandis que vos données métier
-            restent sur votre PC.
+            projets, heures, salaires et comptabilité&nbsp;: Elyko centralise
+            votre gestion dans une application Windows, tandis que vos données
+            métier restent sur votre PC.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -308,6 +364,98 @@ export default function Home() {
       <CapabilityStory />
 
       <section
+        id="lot-18"
+        className="scroll-mt-24 border-y border-[#d7ddd8] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="lot-18-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
+                Elyko 1.8 · nouveau cycle fournisseur
+              </p>
+              <h2
+                id="lot-18-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Commander, recevoir et payer sans recopier les lignes.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#607068] lg:justify-self-end">
+              Une commande fournisseur confirmée guide la réception, le contrôle
+              de la facture, l’avoir éventuel et le paiement. Les quantités, les
+              prix HT et la TVA restent reliés à leur pièce d’origine.
+            </p>
+          </div>
+
+          <ol className="mt-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              [
+                '1',
+                'Commander',
+                'Produits, prestations directes, projet, compte de charge et TVA dans un brouillon contrôlé.',
+              ],
+              [
+                '2',
+                'Réceptionner',
+                'Réception partielle ou complète. Le stock augmente uniquement quand le bon est émis.',
+              ],
+              [
+                '3',
+                'Rapprocher',
+                'Commande, réception et facture comparées; les frais hors commande peuvent rester séparés.',
+              ],
+              [
+                '4',
+                'Comptabiliser',
+                'Validation, avoir, paiement et écriture locale avec corrections motivées et auditables.',
+              ],
+            ].map(([number, title, text]) => (
+              <li
+                key={number}
+                className="rounded-[24px] border border-[#cfdad2] bg-white/80 p-5 shadow-[0_16px_45px_rgba(32,72,47,.06)] sm:p-6"
+              >
+                <span className="grid size-9 place-items-center rounded-full bg-[#204f35] text-xs font-bold text-white">
+                  {number}
+                </span>
+                <h3 className="mt-5 text-lg font-semibold text-[#244331]">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-[#607068]">{text}</p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <article className="rounded-[24px] border border-[#cbd8ce] bg-[#173d2c] p-6 text-white sm:p-7">
+              <Package className="size-6 text-[#efb157]" aria-hidden="true" />
+              <h3 className="mt-5 text-xl font-semibold">
+                Les mouvements de stock restent uniques.
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-white/72">
+                Le brouillon et le rapprochement ne touchent pas le stock. Une
+                réception émise crée l’entrée; son extourne motivée crée le
+                mouvement inverse, sans effacer l’historique.
+              </p>
+            </article>
+            <article className="rounded-[24px] border border-[#d9d1c3] bg-[#fffaf1] p-6 sm:p-7">
+              <Receipt className="size-6 text-[#a8661e]" aria-hidden="true" />
+              <h3 className="mt-5 text-xl font-semibold text-[#3f3528]">
+                Les écarts restent visibles avant validation.
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-[#6f6455]">
+                Une quantité manquante, un prix ou une TVA différents ne sont
+                pas masqués. L’utilisateur corrige le brouillon ou assume une
+                facture autonome; aucune décision financière ambiguë n’est prise
+                automatiquement.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section
         id="lot-17"
         className="scroll-mt-24 border-y border-[#ded9ce] bg-[#fffaf1] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
@@ -327,9 +475,10 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
-              La version {ELYKO_VERSION} relie le devis, la commande, la
-              réservation, le bon de livraison et la facture. Chaque écran montre
-              une seule prochaine action et conserve les corrections dans l’audit.
+              Depuis la version 1.7, Elyko relie le devis, la commande, la
+              réservation, le bon de livraison et la facture. Chaque écran
+              montre une seule prochaine action et conserve les corrections dans
+              l’audit.
             </p>
           </div>
 
@@ -369,8 +518,8 @@ export default function Home() {
               </h3>
               <p className="mt-4 text-sm leading-7 text-[#606c64]">
                 Pour les lignes à livrer, Elyko propose les quantités livrées et
-                non encore facturées. Une livraison partielle prépare une situation;
-                les prestations directes restent facturables sans BL.
+                non encore facturées. Une livraison partielle prépare une
+                situation; les prestations directes restent facturables sans BL.
               </p>
               <ul className="mt-6 grid gap-3 text-sm text-[#34483b]">
                 {[
@@ -390,8 +539,8 @@ export default function Home() {
           <p className="mt-5 rounded-2xl border border-[#c9d9cd] bg-[#eef7f0] px-5 py-4 text-sm leading-6 text-[#315e47]">
             Inclus dans Elyko {ELYKO_VERSION}. La facturation progressive porte
             actuellement sur les quantités livrées pour les articles concernés;
-            les prestations directes n’exigent pas de BL. Les acomptes libres par
-            montant ou pourcentage seront ajoutés dans un lot distinct.
+            les prestations directes n’exigent pas de BL. Les acomptes libres
+            par montant ou pourcentage seront ajoutés dans un lot distinct.
           </p>
         </div>
       </section>
@@ -435,7 +584,10 @@ export default function Home() {
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
                 Essayez sans compte
               </p>
-              <h2 id="demo-flux-title" className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
+              <h2
+                id="demo-flux-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
                 Testez le devis, la livraison et la facture.
               </h2>
             </div>
@@ -528,8 +680,8 @@ export default function Home() {
           <p className="mt-4 text-xs leading-5 text-[#756e64]">
             Chaque entrée, réservation, sortie ou correction reste inscrite
             localement. Dans le flux commande, le stock physique sort au BL et
-            jamais à nouveau à la facture. Une facture standard créée directement
-            conserve sa sortie contrôlée pour les produits suivis.
+            jamais à nouveau à la facture. Une facture standard créée
+            directement conserve sa sortie contrôlée pour les produits suivis.
           </p>
 
           <div className="mt-8 sm:mt-10">
@@ -557,8 +709,8 @@ export default function Home() {
                   votre banque. Elyko détecte les doublons et propose les
                   factures clients correspondant aux crédits et les factures
                   fournisseurs correspondant aux débits. Un CAMT.054 reste en
-                  revue&nbsp;: aucun paiement ne peut être confirmé sans le relevé
-                  CAMT.053 définitif.
+                  revue&nbsp;: aucun paiement ne peut être confirmé sans le
+                  relevé CAMT.053 définitif.
                 </p>
                 <ol className="mt-6 grid gap-3 sm:grid-cols-3">
                   {[
@@ -595,8 +747,8 @@ export default function Home() {
                 <p className="mt-4 text-xs leading-5 text-white/58">
                   Les écritures en attente, extournes, lots ambigus et montants
                   incohérents restent visibles mais bloqués. Une suggestion ne
-                  crée jamais un paiement&nbsp;: la facture exacte et le solde sont
-                  toujours confirmés par l’utilisateur.
+                  crée jamais un paiement&nbsp;: la facture exacte et le solde
+                  sont toujours confirmés par l’utilisateur.
                 </p>
               </div>
             </div>
@@ -825,7 +977,10 @@ export default function Home() {
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
                 Ce que fait vraiment Elyko
               </p>
-              <h2 id="capacites-title" className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
+              <h2
+                id="capacites-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
                 Des fonctions claires, avec leurs limites visibles.
               </h2>
             </div>
@@ -835,21 +990,49 @@ export default function Home() {
               automatisé.
             </p>
           </div>
-          <div className="capability-table mt-10 overflow-x-auto rounded-[24px] border border-[#d4dad5] bg-white sm:mt-14" aria-label="Tableau des capacités Elyko">
+          <div
+            className="capability-table mt-10 overflow-x-auto rounded-[24px] border border-[#d4dad5] bg-white sm:mt-14"
+            aria-label="Tableau des capacités Elyko"
+          >
             <table className="w-full min-w-[760px] border-collapse text-left">
               <thead>
                 <tr className="bg-[#173d2c] text-white">
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">Domaine</th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">État</th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">Portée</th>
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">
+                    Domaine
+                  </th>
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">
+                    État
+                  </th>
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">
+                    Portée
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e4e7e2]">
                 {capabilityRows.map(([domain, status, scope]) => (
                   <tr key={domain}>
-                    <th scope="row" className="px-5 py-4 text-sm font-semibold text-[#263d30]">{domain}</th>
-                    <td className="px-5 py-4"><span className={status === 'Disponible' ? 'status-pill status-pill--green' : status === 'Windows' ? 'status-pill status-pill--slate' : 'status-pill status-pill--gold'}>{status}</span></td>
-                    <td className="px-5 py-4 text-sm leading-6 text-[#667169]">{scope}</td>
+                    <th
+                      scope="row"
+                      className="px-5 py-4 text-sm font-semibold text-[#263d30]"
+                    >
+                      {domain}
+                    </th>
+                    <td className="px-5 py-4">
+                      <span
+                        className={
+                          status === 'Disponible'
+                            ? 'status-pill status-pill--green'
+                            : status === 'Windows'
+                              ? 'status-pill status-pill--slate'
+                              : 'status-pill status-pill--gold'
+                        }
+                      >
+                        {status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-sm leading-6 text-[#667169]">
+                      {scope}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -878,10 +1061,10 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
-              Elyko conserve l’origine des informations à chaque étape. Le
-              devis avec produits devient une commande; la réservation, le BL,
-              la facture et le paiement restent reliés. Une prestation simple
-              peut conserver le flux direct. L’utilisateur confirme les étapes
+              Elyko conserve l’origine des informations à chaque étape. Le devis
+              avec produits devient une commande; la réservation, le BL, la
+              facture et le paiement restent reliés. Une prestation simple peut
+              conserver le flux direct. L’utilisateur confirme les étapes
               financières.
             </p>
           </div>
@@ -937,11 +1120,10 @@ export default function Home() {
             ))}
           </div>
           <p className="mt-5 rounded-2xl border border-[#e1d4c0] bg-[#fff9ef] px-5 py-4 text-sm leading-6 text-[#70562f]">
-            La version 1.7 facture progressivement le livré des lignes concernées;
-            les prestations simples peuvent rester en facture directe. Les acomptes
-            définis par montant ou pourcentage, les commandes et
-            réceptions fournisseurs, la transmission TVA et l’envoi automatique
-            des relances restent des étapes suivantes.
+            Elyko facture progressivement le livré des lignes concernées; les
+            prestations simples peuvent rester en facture directe. Les acomptes
+            définis par montant ou pourcentage, la transmission TVA et l’envoi
+            automatique des relances restent des étapes suivantes.
           </p>
           <div className="mt-10 flex flex-col items-start justify-between gap-5 rounded-[24px] bg-[#173d2c] p-6 text-white sm:flex-row sm:items-center sm:p-8">
             <div>
@@ -1133,8 +1315,8 @@ export default function Home() {
                 <p className="mt-4 text-sm leading-6 text-white/75">
                   Téléchargez Elyko, souscrivez sur la page sécurisée Stripe
                   puis validez une fois la licence signée sur votre PC. Seul le
-                  jeton de licence est vérifié en ligne&nbsp;: vos données métier ne
-                  quittent pas l’ordinateur.
+                  jeton de licence est vérifié en ligne&nbsp;: vos données
+                  métier ne quittent pas l’ordinateur.
                 </p>
               </div>
               <div className="mt-9 space-y-3">
@@ -1208,7 +1390,7 @@ export default function Home() {
               ],
               [
                 'Comment suivre les achats fournisseurs ?',
-                'Un achat peut rester à payer avec une échéance, ou être enregistré comme payé avec sa date. Elyko affiche les montants en attente, échus et payés, puis demande confirmation avant de marquer un achat comme réglé.',
+                'Vous confirmez une commande, émettez une ou plusieurs réceptions, puis rapprochez la facture sur les quantités, les prix HT et la TVA. Les avoirs, paiements et écritures restent liés aux pièces; chaque correction sensible exige un motif.',
               ],
               [
                 'L’import bancaire CAMT est-il déjà disponible ?',

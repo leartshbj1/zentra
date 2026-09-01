@@ -12,6 +12,7 @@ use crate::{
     database::{now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
     models::{RecordSupplierPaymentInput, SaveSupplierInvoiceDraftInput, SupplierInvoiceLineInput},
+    supplier_procurement::close_supplier_order_if_complete,
 };
 
 #[derive(Debug)]
@@ -44,6 +45,7 @@ type ExistingPaymentRow = (
 type SupplierPaymentContextRow = (
     String,
     String,
+    i64,
     i64,
     i64,
     String,
@@ -121,6 +123,17 @@ impl LocalStore {
                 if status != "draft" {
                     return Err(AppError::Validation(
                         "Une facture fournisseur validée est immuable. Corrigez-la plus tard avec un avoir fournisseur."
+                        .into(),
+                    ));
+                }
+                let has_matches: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM supplier_invoice_matches WHERE supplier_invoice_id=?)",
+                    params![id],
+                    |row| row.get(0),
+                )?;
+                if has_matches {
+                    return Err(AppError::Validation(
+                        "Cette facture brouillon est rapprochée. Retirez explicitement le rapprochement avant de modifier ses lignes, dates ou informations."
                             .into(),
                     ));
                 }
@@ -340,9 +353,9 @@ pub(crate) fn record_supplier_payment_in_transaction(
 
     let payment_context: SupplierPaymentContextRow = tx
         .query_row(
-            "SELECT status,document_date,total_cents,paid_cents,currency,project_id,validation_journal_entry_id FROM supplier_invoices WHERE id=?",
+            "SELECT status,document_date,total_cents,paid_cents,credited_cents,currency,project_id,validation_journal_entry_id FROM supplier_invoices WHERE id=?",
             params![invoice_id],
-            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?)),
+            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?,row.get(7)?)),
         )
         .optional()?
         .ok_or_else(|| AppError::NotFound(format!("supplier_invoices/{invoice_id}")))?;
@@ -351,6 +364,7 @@ pub(crate) fn record_supplier_payment_in_transaction(
         document_date,
         total_cents,
         paid_cents,
+        credited_cents,
         currency,
         project_id,
         validation_journal_entry_id,
@@ -365,9 +379,12 @@ pub(crate) fn record_supplier_payment_in_transaction(
             "La date du paiement ne peut pas précéder la date de la facture.".into(),
         ));
     }
-    let remaining = total_cents.checked_sub(paid_cents).ok_or_else(|| {
-        AppError::Validation("Le solde fournisseur enregistré est incohérent.".into())
-    })?;
+    let remaining = total_cents
+        .checked_sub(paid_cents)
+        .and_then(|value| value.checked_sub(credited_cents))
+        .ok_or_else(|| {
+            AppError::Validation("Le solde fournisseur enregistré est incohérent.".into())
+        })?;
     if input.amount_cents > remaining {
         return Err(AppError::Validation(format!(
             "Le paiement dépasse le solde restant de {:.2} CHF.",
@@ -563,6 +580,46 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         ));
     }
     validate_stored_lines_for_current_tax_rules(tx, &items, net_cents, vat_cents, total_cents)?;
+    let invalid_match: bool = tx.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM supplier_invoice_matches match_row
+           JOIN supplier_invoice_items invoice_line ON invoice_line.id=match_row.supplier_invoice_item_id
+           JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+           JOIN supplier_orders order_row ON order_row.id=match_row.supplier_order_id
+           WHERE match_row.supplier_invoice_id=? AND (
+             invoice_line.supplier_invoice_id<>? OR order_line.supplier_order_id<>order_row.id
+             OR order_row.supplier_id<>? OR order_row.currency<>?
+             OR order_row.status<>'confirmed'
+             OR ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+             OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+             OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+             OR (order_line.fulfillment_mode='direct' AND match_row.supplier_receipt_line_id IS NOT NULL)
+             OR (order_line.fulfillment_mode<>'direct' AND NOT EXISTS(
+               SELECT 1 FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id
+               WHERE receipt_line.id=match_row.supplier_receipt_line_id
+                 AND receipt_line.supplier_order_line_id=order_line.id AND receipt.status='issued'
+             ))
+           )
+         ) OR EXISTS(
+           SELECT 1 FROM supplier_invoice_items invoice_line WHERE invoice_line.supplier_invoice_id=?
+             AND COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_invoice_item_id=invoice_line.id),0)>invoice_line.quantity_milli
+         ) OR EXISTS(
+           SELECT 1 FROM supplier_invoice_matches match_row
+           JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+           WHERE match_row.supplier_invoice_id=?
+           GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+           HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+             OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+             OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+         )",
+        params![id,id,supplier_id,currency,id,id],
+        |row| row.get(0),
+    )?;
+    if invalid_match {
+        return Err(AppError::Validation(
+            "Le rapprochement commande-réception-facture est devenu incohérent; corrigez-le avant validation.".into(),
+        ));
+    }
     let mut lines = Vec::new();
     for item in &items {
         let amount = item["line_net_cents"].as_i64().unwrap_or(-1);
@@ -579,6 +636,10 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
             &account_id,
             "expense",
             "Le compte de charge de la ligne",
+        )?;
+        tx.execute(
+            "UPDATE supplier_invoice_items SET posted_expense_account_id=?,updated_at=? WHERE id=? AND supplier_invoice_id=?",
+            params![account_id,now_iso(),item["id"].as_str().unwrap_or_default(),id],
         )?;
         lines.push(EntryLine {
             account_id,
@@ -617,12 +678,23 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         employee_id: None,
     });
     let attachment_snapshot = supplier_invoice_attachment_snapshot(tx, id)?;
+    let items = query_all(
+        tx,
+        "SELECT * FROM supplier_invoice_items WHERE supplier_invoice_id=? ORDER BY position,rowid",
+        params![id],
+    )?;
+    let matches = query_all(
+        tx,
+        "SELECT * FROM supplier_invoice_matches WHERE supplier_invoice_id=? ORDER BY supplier_invoice_item_id,created_at,id",
+        params![id],
+    )?;
     let snapshot = json!({
         "schema":"elyko.supplier_invoice_snapshot.v1",
         "captured_at":now_iso(),
         "document":{"id":id,"supplier_id":supplier_id,"supplier_name":supplier_name,"document_date":document_date,"due_date":due_date,"reference":reference,"currency":currency,"net_cents":net_cents,"vat_cents":vat_cents,"total_cents":total_cents,"project_id":project_id,"note":note},
         "supplier":query_all(tx,"SELECT * FROM suppliers WHERE id=?",params![supplier_id])?.into_iter().next(),
         "items":items,
+        "matches":matches,
         "attachments":attachment_snapshot,
     });
     let journal = post_entry(
@@ -646,6 +718,18 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         "UPDATE supplier_invoices SET status='validated',validated_at=?,validation_journal_entry_id=?,snapshot_json=?,updated_at=? WHERE id=? AND status='draft'",
         params![now,journal_id,serde_json::to_string(&snapshot)?,now,id],
     )?;
+    let order_ids = {
+        let mut statement = tx.prepare(
+            "SELECT DISTINCT supplier_order_id FROM supplier_invoice_matches WHERE supplier_invoice_id=? ORDER BY supplier_order_id",
+        )?;
+        let rows = statement
+            .query_map(params![id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    for order_id in order_ids {
+        close_supplier_order_if_complete(tx, &order_id)?;
+    }
     supplier_invoice_bundle(tx, id)
 }
 
@@ -738,7 +822,35 @@ fn prepare_line(
 fn supplier_invoice_bundle(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
     let invoice = query_all(
         tx,
-        "SELECT * FROM supplier_invoices WHERE id=?",
+        "SELECT invoice.*,
+                MAX(0,invoice.total_cents-invoice.paid_cents-invoice.credited_cents) AS balance_cents,
+                CASE
+                  WHEN EXISTS(
+                    SELECT 1 FROM supplier_invoice_matches match_row
+                    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+                    LEFT JOIN supplier_receipt_lines receipt_line ON receipt_line.id=match_row.supplier_receipt_line_id
+                    LEFT JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id
+                    WHERE match_row.supplier_invoice_id=invoice.id AND (
+                      (match_row.supplier_receipt_line_id IS NOT NULL AND (receipt.id IS NULL OR receipt.status<>'issued'))
+                      OR ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+                      OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+                      OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+                    )
+                  ) OR EXISTS(
+                    SELECT 1 FROM supplier_invoice_matches match_row
+                    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+                    WHERE match_row.supplier_invoice_id=invoice.id
+                    GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+                    HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+                      OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+                      OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+                  ) THEN 'mismatch'
+                  WHEN COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_invoice_id=invoice.id),0)=0 THEN 'unmatched'
+                  WHEN COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_invoice_id=invoice.id),0)
+                       >=COALESCE((SELECT SUM(item.quantity_milli) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=invoice.id),0) THEN 'matched'
+                  ELSE 'partial'
+                END AS match_status
+         FROM supplier_invoices invoice WHERE invoice.id=?",
         params![id],
     )?
     .into_iter()
@@ -754,7 +866,24 @@ fn supplier_invoice_bundle(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
         "SELECT * FROM supplier_payments WHERE supplier_invoice_id=? ORDER BY date,created_at",
         params![id],
     )?;
-    Ok(json!({"invoice":invoice,"items":items,"payments":payments}))
+    let matches = query_all(
+        tx,
+        "SELECT * FROM supplier_invoice_matches WHERE supplier_invoice_id=? ORDER BY supplier_invoice_item_id,created_at,id",
+        params![id],
+    )?;
+    let credit_allocations = query_all(
+        tx,
+        "SELECT allocation.* FROM supplier_credit_allocations allocation JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id WHERE allocation.supplier_invoice_id=? AND credit.status='validated' ORDER BY allocation.sequence",
+        params![id],
+    )?;
+    let reclassifications = query_all(
+        tx,
+        "SELECT line.*,header.effective_date,header.reason,header.journal_entry_id FROM supplier_expense_reclassification_lines line JOIN supplier_expense_reclassifications header ON header.id=line.reclassification_id WHERE header.supplier_invoice_id=? ORDER BY header.created_at,line.created_at",
+        params![id],
+    )?;
+    Ok(
+        json!({"invoice":invoice,"items":items,"payments":payments,"matches":matches,"credit_allocations":credit_allocations,"reclassifications":reclassifications}),
+    )
 }
 
 fn require_active_account(

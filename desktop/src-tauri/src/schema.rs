@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 20;
+pub const SCHEMA_VERSION: i64 = 21;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -43,6 +43,18 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "sales_order_invoice_batches",
     "sales_order_invoice_allocations",
     "sales_operation_requests",
+    "supplier_orders",
+    "supplier_order_lines",
+    "supplier_order_cancellation_lines",
+    "supplier_receipts",
+    "supplier_receipt_lines",
+    "supplier_invoice_matches",
+    "supplier_credit_notes",
+    "supplier_credit_note_items",
+    "supplier_credit_allocations",
+    "supplier_expense_reclassifications",
+    "supplier_expense_reclassification_lines",
+    "supplier_operation_requests",
     "audit_log",
     "accounts",
     "accounting_settings",
@@ -3249,4 +3261,898 @@ CREATE TRIGGER IF NOT EXISTS stock_invoice_no_unsafe_cancel
 BEFORE UPDATE OF status ON invoices
 WHEN NEW.status='annulee' AND OLD.status<>'annulee' AND EXISTS(SELECT 1 FROM stock_movements WHERE invoice_id=OLD.id)
 BEGIN SELECT RAISE(ABORT,'stock-bearing invoices cannot be cancelled without a dedicated reversal workflow'); END;
+"#;
+
+/// Cycle achats fournisseurs V21. Les documents validés et les opérations
+/// terminales sont append-only; aucune ligne métier de démonstration n'est
+/// insérée par la migration.
+pub const MIGRATION_V21_SQL: &str = r#"
+DROP TRIGGER IF EXISTS supplier_invoices_validation_guard;
+DROP TRIGGER IF EXISTS supplier_invoices_validated_guard;
+DROP TRIGGER IF EXISTS supplier_payments_insert_guard;
+DROP TRIGGER IF EXISTS supplier_payments_update_invoice_total;
+
+CREATE TABLE IF NOT EXISTS supplier_orders (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  project_id TEXT REFERENCES projects(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  number TEXT UNIQUE,
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 300),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','confirmed','closed','cancelled')),
+  order_date TEXT NOT NULL CHECK (LENGTH(order_date)=10 AND order_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency='CHF'),
+  subtotal_cents INTEGER NOT NULL DEFAULT 0 CHECK (subtotal_cents>=0),
+  discount_cents INTEGER NOT NULL DEFAULT 0 CHECK (discount_cents>=0),
+  vat_cents INTEGER NOT NULL DEFAULT 0 CHECK (vat_cents>=0),
+  total_cents INTEGER NOT NULL DEFAULT 0 CHECK (total_cents>=0),
+  notes TEXT CHECK (notes IS NULL OR LENGTH(notes)<=20000),
+  terms TEXT CHECK (terms IS NULL OR LENGTH(terms)<=20000),
+  snapshot_json TEXT,
+  confirmed_at TEXT,
+  closed_at TEXT,
+  cancelled_at TEXT,
+  cancellation_reason TEXT CHECK (cancellation_reason IS NULL OR LENGTH(cancellation_reason)<=500),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='draft' AND number IS NULL AND confirmed_at IS NULL AND closed_at IS NULL AND cancelled_at IS NULL) OR
+         (status='confirmed' AND number IS NOT NULL AND confirmed_at IS NOT NULL AND closed_at IS NULL AND cancelled_at IS NULL) OR
+         (status='closed' AND number IS NOT NULL AND confirmed_at IS NOT NULL AND closed_at IS NOT NULL AND cancelled_at IS NULL) OR
+         (status='cancelled' AND cancelled_at IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS supplier_order_lines (
+  id TEXT PRIMARY KEY,
+  supplier_order_id TEXT NOT NULL REFERENCES supplier_orders(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  position INTEGER NOT NULL DEFAULT 0 CHECK (position BETWEEN 0 AND 1000000),
+  description TEXT NOT NULL CHECK (LENGTH(TRIM(description)) BETWEEN 1 AND 10000),
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  unit TEXT NOT NULL CHECK (LENGTH(TRIM(unit)) BETWEEN 1 AND 100),
+  unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents BETWEEN 0 AND 9000000000000),
+  discount_bp INTEGER NOT NULL DEFAULT 0 CHECK (discount_bp BETWEEN 0 AND 10000),
+  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
+  line_net_cents INTEGER NOT NULL CHECK (line_net_cents>=0),
+  line_vat_cents INTEGER NOT NULL CHECK (line_vat_cents>=0),
+  line_total_cents INTEGER NOT NULL CHECK (line_total_cents>=0),
+  category TEXT NOT NULL CHECK (LENGTH(TRIM(category)) BETWEEN 1 AND 100),
+  expense_account_id TEXT REFERENCES accounts(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  project_id TEXT REFERENCES projects(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  fulfillment_mode TEXT NOT NULL CHECK (fulfillment_mode IN ('stocked_receipt','untracked_receipt','direct')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS supplier_order_cancellation_lines (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL CHECK (LENGTH(request_id)=36),
+  supplier_order_id TEXT NOT NULL REFERENCES supplier_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  supplier_order_line_id TEXT NOT NULL REFERENCES supplier_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli>0),
+  reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) BETWEEN 1 AND 500),
+  created_at TEXT NOT NULL,
+  UNIQUE(request_id,supplier_order_line_id)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_receipts (
+  id TEXT PRIMARY KEY,
+  supplier_order_id TEXT NOT NULL REFERENCES supplier_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  number TEXT UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issuing','issued','reversing','reversed')),
+  receipt_date TEXT NOT NULL CHECK (LENGTH(receipt_date)=10 AND receipt_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  reference TEXT CHECK (reference IS NULL OR LENGTH(reference)<=200),
+  notes TEXT CHECK (notes IS NULL OR LENGTH(notes)<=20000),
+  snapshot_json TEXT,
+  issued_at TEXT,
+  reversed_at TEXT,
+  reversal_reason TEXT CHECK (reversal_reason IS NULL OR LENGTH(reversal_reason)<=500),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='draft' AND number IS NULL AND issued_at IS NULL AND reversed_at IS NULL) OR
+         (status IN ('issuing','issued') AND number IS NOT NULL AND issued_at IS NOT NULL AND reversed_at IS NULL) OR
+         (status IN ('reversing','reversed') AND number IS NOT NULL AND issued_at IS NOT NULL AND reversed_at IS NOT NULL AND reversal_reason IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS supplier_receipt_lines (
+  id TEXT PRIMARY KEY,
+  supplier_receipt_id TEXT NOT NULL REFERENCES supplier_receipts(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  supplier_order_line_id TEXT NOT NULL REFERENCES supplier_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  position INTEGER NOT NULL DEFAULT 0 CHECK (position BETWEEN 0 AND 1000000),
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  description TEXT NOT NULL CHECK (LENGTH(TRIM(description)) BETWEEN 1 AND 10000),
+  unit TEXT NOT NULL CHECK (LENGTH(TRIM(unit)) BETWEEN 1 AND 100),
+  created_at TEXT NOT NULL,
+  UNIQUE(supplier_receipt_id,supplier_order_line_id)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_invoice_matches (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL CHECK (LENGTH(request_id)=36),
+  supplier_invoice_id TEXT NOT NULL REFERENCES supplier_invoices(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  supplier_invoice_item_id TEXT NOT NULL REFERENCES supplier_invoice_items(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  supplier_order_id TEXT NOT NULL REFERENCES supplier_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  supplier_order_line_id TEXT NOT NULL REFERENCES supplier_order_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  supplier_receipt_line_id TEXT REFERENCES supplier_receipt_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  net_cents INTEGER NOT NULL CHECK (net_cents>=0),
+  vat_cents INTEGER NOT NULL CHECK (vat_cents>=0),
+  total_cents INTEGER NOT NULL CHECK (total_cents>=0 AND total_cents=net_cents+vat_cents),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS supplier_credit_notes (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  number TEXT UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','validated')),
+  document_date TEXT NOT NULL CHECK (LENGTH(document_date)=10 AND document_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  supplier_name TEXT NOT NULL CHECK (LENGTH(TRIM(supplier_name)) BETWEEN 1 AND 500),
+  reference TEXT CHECK (reference IS NULL OR LENGTH(reference)<=200),
+  reference_normalized TEXT,
+  currency TEXT NOT NULL DEFAULT 'CHF' CHECK (currency='CHF'),
+  net_cents INTEGER NOT NULL CHECK (net_cents>=0),
+  vat_cents INTEGER NOT NULL CHECK (vat_cents>=0),
+  total_cents INTEGER NOT NULL CHECK (total_cents>0 AND total_cents=net_cents+vat_cents),
+  note TEXT CHECK (note IS NULL OR LENGTH(note)<=10000),
+  snapshot_json TEXT,
+  validation_journal_entry_id TEXT REFERENCES journal_entries(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  validated_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((status='draft' AND number IS NULL AND validation_journal_entry_id IS NULL AND validated_at IS NULL) OR
+         (status='validated' AND number IS NOT NULL AND validation_journal_entry_id IS NOT NULL AND validated_at IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS supplier_credit_note_items (
+  id TEXT PRIMARY KEY,
+  supplier_credit_note_id TEXT NOT NULL REFERENCES supplier_credit_notes(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 1000000),
+  description TEXT NOT NULL CHECK (LENGTH(TRIM(description)) BETWEEN 1 AND 10000),
+  quantity_milli INTEGER NOT NULL CHECK (quantity_milli BETWEEN 1 AND 9000000000000000),
+  unit TEXT NOT NULL CHECK (LENGTH(TRIM(unit)) BETWEEN 1 AND 100),
+  unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents BETWEEN 0 AND 9000000000000),
+  discount_bp INTEGER NOT NULL DEFAULT 0 CHECK (discount_bp BETWEEN 0 AND 10000),
+  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
+  line_net_cents INTEGER NOT NULL CHECK (line_net_cents>=0),
+  line_vat_cents INTEGER NOT NULL CHECK (line_vat_cents>=0),
+  line_total_cents INTEGER NOT NULL CHECK (line_total_cents>=0 AND line_total_cents=line_net_cents+line_vat_cents),
+  category TEXT NOT NULL CHECK (LENGTH(TRIM(category)) BETWEEN 1 AND 100),
+  expense_account_id TEXT REFERENCES accounts(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  project_id TEXT REFERENCES projects(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS supplier_credit_allocations (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  request_id TEXT UNIQUE CHECK (request_id IS NULL OR LENGTH(request_id)=36),
+  supplier_credit_note_id TEXT NOT NULL REFERENCES supplier_credit_notes(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  supplier_invoice_id TEXT NOT NULL REFERENCES supplier_invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  event_type TEXT NOT NULL DEFAULT 'apply' CHECK (event_type IN ('apply','reverse')),
+  amount_cents INTEGER NOT NULL CHECK (amount_cents>0),
+  reverses_allocation_id TEXT UNIQUE REFERENCES supplier_credit_allocations(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  reason TEXT CHECK (reason IS NULL OR LENGTH(TRIM(reason)) BETWEEN 1 AND 500),
+  created_at TEXT NOT NULL,
+  CHECK ((event_type='apply' AND reverses_allocation_id IS NULL) OR (event_type='reverse' AND reverses_allocation_id IS NOT NULL AND reason IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS supplier_expense_reclassifications (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL UNIQUE CHECK (LENGTH(request_id)=36),
+  supplier_invoice_id TEXT NOT NULL REFERENCES supplier_invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  effective_date TEXT NOT NULL CHECK (LENGTH(effective_date)=10 AND effective_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) BETWEEN 1 AND 500),
+  journal_entry_id TEXT NOT NULL UNIQUE REFERENCES journal_entries(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS supplier_expense_reclassification_lines (
+  id TEXT PRIMARY KEY,
+  reclassification_id TEXT NOT NULL REFERENCES supplier_expense_reclassifications(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  supplier_invoice_item_id TEXT NOT NULL REFERENCES supplier_invoice_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  old_expense_account_id TEXT NOT NULL REFERENCES accounts(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  new_expense_account_id TEXT NOT NULL REFERENCES accounts(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents>0),
+  project_id TEXT REFERENCES projects(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL,
+  UNIQUE(reclassification_id,supplier_invoice_item_id),
+  CHECK (old_expense_account_id<>new_expense_account_id)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_operation_requests (
+  request_id TEXT PRIMARY KEY CHECK (LENGTH(request_id)=36),
+  operation TEXT NOT NULL CHECK (LENGTH(operation) BETWEEN 1 AND 100),
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  payload_json TEXT NOT NULL CHECK (LENGTH(payload_json) BETWEEN 2 AND 100000),
+  result_entity_type TEXT NOT NULL CHECK (LENGTH(result_entity_type) BETWEEN 1 AND 100),
+  result_entity_id TEXT NOT NULL CHECK (LENGTH(result_entity_id) BETWEEN 1 AND 255),
+  response_json TEXT NOT NULL CHECK (LENGTH(response_json) BETWEEN 2 AND 500000),
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_supplier_orders_supplier_date ON supplier_orders(supplier_id,order_date DESC,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_supplier_orders_project ON supplier_orders(project_id,order_date DESC) WHERE project_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_order_lines_order ON supplier_order_lines(supplier_order_id,position,created_at);
+CREATE INDEX IF NOT EXISTS idx_supplier_order_lines_catalog ON supplier_order_lines(catalog_item_id) WHERE catalog_item_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_receipts_order ON supplier_receipts(supplier_order_id,receipt_date,created_at);
+CREATE INDEX IF NOT EXISTS idx_supplier_receipt_lines_order_line ON supplier_receipt_lines(supplier_order_line_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoice_matches_invoice ON supplier_invoice_matches(supplier_invoice_id,supplier_invoice_item_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoice_matches_order_line ON supplier_invoice_matches(supplier_order_line_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_supplier_invoice_matches_unique ON supplier_invoice_matches(supplier_invoice_item_id,supplier_order_line_id,IFNULL(supplier_receipt_line_id,''));
+CREATE INDEX IF NOT EXISTS idx_supplier_credit_notes_supplier_date ON supplier_credit_notes(supplier_id,document_date DESC,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_supplier_credit_reference_unique ON supplier_credit_notes(supplier_id,reference_normalized) WHERE status='validated' AND reference_normalized IS NOT NULL AND reference_normalized<>'';
+CREATE INDEX IF NOT EXISTS idx_supplier_credit_items_parent ON supplier_credit_note_items(supplier_credit_note_id,position);
+CREATE INDEX IF NOT EXISTS idx_supplier_credit_allocations_invoice ON supplier_credit_allocations(supplier_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_credit_allocations_credit ON supplier_credit_allocations(supplier_credit_note_id,sequence);
+CREATE INDEX IF NOT EXISTS idx_supplier_reclass_invoice ON supplier_expense_reclassifications(supplier_invoice_id,effective_date,created_at);
+
+CREATE TRIGGER IF NOT EXISTS supplier_orders_insert_draft_guard
+BEFORE INSERT ON supplier_orders WHEN NEW.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'supplier orders must be created as drafts'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_status_transition_guard
+BEFORE UPDATE OF status ON supplier_orders WHEN NOT (
+  NEW.status=OLD.status OR (OLD.status='draft' AND NEW.status IN ('confirmed','cancelled')) OR
+  (OLD.status='confirmed' AND NEW.status IN ('closed','cancelled'))
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier order status transition'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_confirm_guard
+BEFORE UPDATE OF status ON supplier_orders WHEN OLD.status='draft' AND NEW.status='confirmed' AND NOT (
+  NEW.number IS NOT NULL AND TRIM(NEW.number)<>'' AND NEW.snapshot_json IS NOT NULL
+  AND NEW.confirmed_at IS NOT NULL AND EXISTS(SELECT 1 FROM supplier_order_lines line WHERE line.supplier_order_id=NEW.id)
+  AND NEW.subtotal_cents>=NEW.discount_cents
+  AND NEW.subtotal_cents-NEW.discount_cents=(SELECT COALESCE(SUM(line.line_net_cents),0) FROM supplier_order_lines line WHERE line.supplier_order_id=NEW.id)
+  AND NEW.vat_cents=(SELECT COALESCE(SUM(line.line_vat_cents),0) FROM supplier_order_lines line WHERE line.supplier_order_id=NEW.id)
+  AND NEW.total_cents=(SELECT COALESCE(SUM(line.line_total_cents),0) FROM supplier_order_lines line WHERE line.supplier_order_id=NEW.id)
+)
+BEGIN SELECT RAISE(ABORT,'supplier order confirmation requires its immutable number, snapshot, lines and exact totals'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_close_guard
+BEFORE UPDATE OF status ON supplier_orders WHEN OLD.status='confirmed' AND NEW.status='closed' AND (
+  NEW.closed_at IS NULL
+  OR
+  COALESCE((SELECT SUM(line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)) FROM supplier_order_lines line WHERE line.supplier_order_id=OLD.id),0)<=0
+  OR EXISTS(
+    SELECT 1 FROM supplier_order_lines line WHERE line.supplier_order_id=OLD.id AND
+      COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row JOIN supplier_invoices invoice ON invoice.id=match_row.supplier_invoice_id WHERE match_row.supplier_order_line_id=line.id AND invoice.status='validated'),0)
+      < line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)
+  )
+  OR EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_invoices invoice ON invoice.id=match_row.supplier_invoice_id
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_order_id=OLD.id AND invoice.status='validated' AND (
+      ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+    )
+  )
+  OR EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_invoices invoice ON invoice.id=match_row.supplier_invoice_id
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_order_id=OLD.id AND invoice.status='validated'
+    GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+    HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+  )
+)
+BEGIN SELECT RAISE(ABORT,'supplier order closure requires validated invoice matches for every effective quantity'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_cancel_guard
+BEFORE UPDATE OF status ON supplier_orders WHEN NEW.status='cancelled' AND (
+  OLD.status='draft' OR NEW.cancelled_at IS NULL OR NEW.cancellation_reason IS NULL OR TRIM(NEW.cancellation_reason)=''
+  OR EXISTS(SELECT 1 FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id JOIN supplier_order_lines line ON line.id=receipt_line.supplier_order_line_id WHERE line.supplier_order_id=OLD.id AND receipt.status IN ('issuing','issued','reversing'))
+  OR EXISTS(SELECT 1 FROM supplier_invoice_matches match_row WHERE match_row.supplier_order_id=OLD.id)
+  OR EXISTS(SELECT 1 FROM supplier_order_lines line WHERE line.supplier_order_id=OLD.id AND line.quantity_milli>COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0))
+)
+BEGIN SELECT RAISE(ABORT,'supplier order cancellation requires a fully cancelled unreceived and unmatched order'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_confirmed_header_guard
+BEFORE UPDATE ON supplier_orders WHEN OLD.status<>'draft' AND (
+  NEW.supplier_id IS NOT OLD.supplier_id OR NEW.project_id IS NOT OLD.project_id OR
+  NEW.number IS NOT OLD.number OR NEW.title IS NOT OLD.title OR NEW.order_date IS NOT OLD.order_date OR
+  NEW.currency IS NOT OLD.currency OR NEW.subtotal_cents IS NOT OLD.subtotal_cents OR
+  NEW.discount_cents IS NOT OLD.discount_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR
+  NEW.total_cents IS NOT OLD.total_cents OR NEW.notes IS NOT OLD.notes OR NEW.terms IS NOT OLD.terms OR
+  NEW.snapshot_json IS NOT OLD.snapshot_json OR NEW.confirmed_at IS NOT OLD.confirmed_at
+)
+BEGIN SELECT RAISE(ABORT,'confirmed supplier order header is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_no_delete_after_draft
+BEFORE DELETE ON supplier_orders WHEN OLD.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'confirmed supplier orders are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_orders_terminal_guard
+BEFORE UPDATE ON supplier_orders WHEN OLD.status IN ('closed','cancelled') AND (
+  NEW.closed_at IS NOT OLD.closed_at OR NEW.cancelled_at IS NOT OLD.cancelled_at OR
+  NEW.cancellation_reason IS NOT OLD.cancellation_reason OR NEW.updated_at IS NOT OLD.updated_at
+)
+BEGIN SELECT RAISE(ABORT,'terminal supplier order metadata is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_order_lines_insert_guard
+BEFORE INSERT ON supplier_order_lines WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_orders order_row WHERE order_row.id=NEW.supplier_order_id AND order_row.status='draft'
+)
+BEGIN SELECT RAISE(ABORT,'supplier order lines require a draft order'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_order_lines_no_mutation_after_confirmation
+BEFORE UPDATE ON supplier_order_lines WHEN (SELECT status FROM supplier_orders WHERE id=OLD.supplier_order_id)<>'draft'
+BEGIN SELECT RAISE(ABORT,'confirmed supplier order lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_order_lines_no_delete_after_confirmation
+BEFORE DELETE ON supplier_order_lines WHEN EXISTS(
+  SELECT 1 FROM supplier_orders order_row WHERE order_row.id=OLD.supplier_order_id AND order_row.status<>'draft'
+)
+BEGIN SELECT RAISE(ABORT,'confirmed supplier order lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_order_cancellations_no_update
+BEFORE UPDATE ON supplier_order_cancellation_lines BEGIN SELECT RAISE(ABORT,'supplier order cancellations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_order_cancellations_no_delete
+BEFORE DELETE ON supplier_order_cancellation_lines BEGIN SELECT RAISE(ABORT,'supplier order cancellations are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_order_cancellations_insert_guard
+BEFORE INSERT ON supplier_order_cancellation_lines WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_order_lines line JOIN supplier_orders order_row ON order_row.id=line.supplier_order_id
+  WHERE line.id=NEW.supplier_order_line_id AND order_row.id=NEW.supplier_order_id
+    AND order_row.status='confirmed'
+    AND COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)+NEW.quantity_milli
+      <= line.quantity_milli-MAX(
+        COALESCE((SELECT SUM(receipt_line.quantity_milli) FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id WHERE receipt_line.supplier_order_line_id=line.id AND receipt.status='issued'),0),
+        COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_order_line_id=line.id),0)
+      )
+)
+BEGIN SELECT RAISE(ABORT,'supplier order cancellation exceeds the unreceived and unmatched remainder'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_insert_draft_guard
+BEFORE INSERT ON supplier_receipts WHEN NEW.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'supplier receipts must be created as drafts'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_status_transition_guard
+BEFORE UPDATE OF status ON supplier_receipts WHEN NOT (
+  NEW.status=OLD.status OR (OLD.status='draft' AND NEW.status='issuing') OR
+  (OLD.status='issuing' AND NEW.status='issued') OR
+  (OLD.status='issued' AND NEW.status='reversing') OR
+  (OLD.status='reversing' AND NEW.status='reversed')
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier receipt status transition'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_issued_header_guard
+BEFORE UPDATE ON supplier_receipts WHEN OLD.status<>'draft' AND (
+  NEW.supplier_order_id IS NOT OLD.supplier_order_id OR NEW.number IS NOT OLD.number OR
+  NEW.receipt_date IS NOT OLD.receipt_date OR NEW.reference IS NOT OLD.reference OR
+  NEW.notes IS NOT OLD.notes OR NEW.snapshot_json IS NOT OLD.snapshot_json OR NEW.issued_at IS NOT OLD.issued_at
+)
+BEGIN SELECT RAISE(ABORT,'issued supplier receipt header is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_issue_guard
+BEFORE UPDATE OF status ON supplier_receipts WHEN OLD.status='draft' AND NEW.status='issuing' AND (
+  EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND NEW.receipt_date BETWEEN period.date_from AND period.date_to)
+  OR NEW.receipt_date<(SELECT order_row.order_date FROM supplier_orders order_row WHERE order_row.id=NEW.supplier_order_id)
+  OR NOT EXISTS(SELECT 1 FROM supplier_receipt_lines line WHERE line.supplier_receipt_id=NEW.id)
+  OR EXISTS(
+    SELECT 1 FROM supplier_receipt_lines receipt_line
+    JOIN supplier_order_lines order_line ON order_line.id=receipt_line.supplier_order_line_id
+    WHERE receipt_line.supplier_receipt_id=NEW.id AND (
+      order_line.supplier_order_id<>NEW.supplier_order_id OR order_line.fulfillment_mode='direct'
+      OR receipt_line.quantity_milli+COALESCE((
+        SELECT SUM(other_line.quantity_milli) FROM supplier_receipt_lines other_line
+        JOIN supplier_receipts other_receipt ON other_receipt.id=other_line.supplier_receipt_id
+        WHERE other_line.supplier_order_line_id=order_line.id AND other_receipt.status='issued'
+      ),0) > order_line.quantity_milli-COALESCE((
+        SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled
+        WHERE cancelled.supplier_order_line_id=order_line.id
+      ),0)
+    )
+  )
+)
+BEGIN SELECT RAISE(ABORT,'supplier receipt cannot be issued for the requested quantities or closed period'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_reverse_guard
+BEFORE UPDATE OF status ON supplier_receipts WHEN OLD.status='issued' AND NEW.status='reversing' AND (
+  EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND NEW.receipt_date BETWEEN period.date_from AND period.date_to)
+  OR EXISTS(SELECT 1 FROM supplier_invoice_matches match_row JOIN supplier_receipt_lines line ON line.id=match_row.supplier_receipt_line_id WHERE line.supplier_receipt_id=NEW.id)
+)
+BEGIN SELECT RAISE(ABORT,'matched supplier receipts or receipts in a closed period cannot be reversed'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_no_delete_after_draft
+BEFORE DELETE ON supplier_receipts WHEN OLD.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'issued supplier receipts are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_terminal_guard
+BEFORE UPDATE ON supplier_receipts WHEN OLD.status='reversed' AND (
+  NEW.reversed_at IS NOT OLD.reversed_at OR NEW.reversal_reason IS NOT OLD.reversal_reason OR NEW.updated_at IS NOT OLD.updated_at
+)
+BEGIN SELECT RAISE(ABORT,'reversed supplier receipt metadata is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipt_lines_insert_guard
+BEFORE INSERT ON supplier_receipt_lines WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_receipts receipt JOIN supplier_order_lines order_line ON order_line.id=NEW.supplier_order_line_id
+  WHERE receipt.id=NEW.supplier_receipt_id AND receipt.status='draft'
+    AND order_line.supplier_order_id=receipt.supplier_order_id AND order_line.fulfillment_mode<>'direct'
+)
+BEGIN SELECT RAISE(ABORT,'supplier receipt lines require a draft receipt and receivable order line'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipt_lines_no_mutation_after_issue
+BEFORE UPDATE ON supplier_receipt_lines WHEN (SELECT status FROM supplier_receipts WHERE id=OLD.supplier_receipt_id)<>'draft'
+BEGIN SELECT RAISE(ABORT,'issued supplier receipt lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipt_lines_no_delete_after_issue
+BEFORE DELETE ON supplier_receipt_lines WHEN EXISTS(
+  SELECT 1 FROM supplier_receipts receipt WHERE receipt.id=OLD.supplier_receipt_id AND receipt.status<>'draft'
+)
+BEGIN SELECT RAISE(ABORT,'issued supplier receipt lines are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_invoice_matches_single_order_insert_guard
+BEFORE INSERT ON supplier_invoice_matches WHEN EXISTS(
+  SELECT 1 FROM supplier_invoice_matches existing
+  WHERE existing.supplier_invoice_id=NEW.supplier_invoice_id
+    AND existing.supplier_order_id<>NEW.supplier_order_id
+)
+BEGIN SELECT RAISE(ABORT,'a supplier invoice can only be matched to one supplier order'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_invoice_matches_single_order_update_guard
+BEFORE UPDATE ON supplier_invoice_matches WHEN
+  NEW.supplier_order_id<>OLD.supplier_order_id
+  OR EXISTS(
+    SELECT 1 FROM supplier_invoice_matches existing
+    WHERE existing.supplier_invoice_id=NEW.supplier_invoice_id
+      AND existing.id<>OLD.id
+      AND existing.supplier_order_id<>NEW.supplier_order_id
+  )
+BEGIN SELECT RAISE(ABORT,'a supplier invoice can only be matched to one supplier order'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_invoice_matches_insert_guard
+BEFORE INSERT ON supplier_invoice_matches WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_invoices invoice
+  JOIN supplier_invoice_items invoice_line ON invoice_line.supplier_invoice_id=invoice.id
+  JOIN supplier_orders order_row ON order_row.id=NEW.supplier_order_id
+  JOIN supplier_order_lines order_line ON order_line.supplier_order_id=order_row.id
+  WHERE invoice.id=NEW.supplier_invoice_id AND invoice_line.id=NEW.supplier_invoice_item_id
+    AND order_line.id=NEW.supplier_order_line_id AND invoice.status='draft' AND order_row.status='confirmed'
+    AND invoice.supplier_id=order_row.supplier_id AND invoice.currency=order_row.currency
+    AND NEW.quantity_milli<=invoice_line.quantity_milli
+    AND NEW.total_cents=NEW.net_cents+NEW.vat_cents
+    AND COALESCE((SELECT SUM(existing.quantity_milli) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.quantity_milli<=invoice_line.quantity_milli
+    AND COALESCE((SELECT SUM(existing.net_cents) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.net_cents<=invoice_line.line_net_cents
+    AND COALESCE((SELECT SUM(existing.vat_cents) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.vat_cents<=invoice_line.line_vat_cents
+    AND COALESCE((SELECT SUM(existing.total_cents) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.total_cents<=invoice_line.line_total_cents
+    AND (
+      COALESCE((SELECT SUM(existing.quantity_milli) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.quantity_milli<invoice_line.quantity_milli
+      OR (
+        COALESCE((SELECT SUM(existing.net_cents) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.net_cents=invoice_line.line_net_cents
+        AND COALESCE((SELECT SUM(existing.vat_cents) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.vat_cents=invoice_line.line_vat_cents
+        AND COALESCE((SELECT SUM(existing.total_cents) FROM supplier_invoice_matches existing WHERE existing.supplier_invoice_item_id=invoice_line.id),0)+NEW.total_cents=invoice_line.line_total_cents
+      )
+    )
+    AND COALESCE((SELECT SUM(existing.quantity_milli) FROM supplier_invoice_matches existing WHERE existing.supplier_order_line_id=order_line.id),0)+NEW.quantity_milli
+      <= order_line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=order_line.id),0)
+    AND ((order_line.fulfillment_mode='direct' AND NEW.supplier_receipt_line_id IS NULL) OR
+         (order_line.fulfillment_mode IN ('stocked_receipt','untracked_receipt') AND NEW.supplier_receipt_line_id IS NOT NULL AND EXISTS(
+           SELECT 1 FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id
+           WHERE receipt_line.id=NEW.supplier_receipt_line_id AND receipt_line.supplier_order_line_id=order_line.id
+             AND receipt.supplier_order_id=order_row.id AND receipt.status='issued'
+             AND COALESCE((SELECT SUM(existing.quantity_milli) FROM supplier_invoice_matches existing WHERE existing.supplier_receipt_line_id=receipt_line.id),0)+NEW.quantity_milli<=receipt_line.quantity_milli
+         )))
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier invoice match'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_invoice_matches_no_update
+BEFORE UPDATE ON supplier_invoice_matches BEGIN SELECT RAISE(ABORT,'supplier invoice matches are immutable; replace the draft match'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_invoice_matches_no_delete_after_validation
+BEFORE DELETE ON supplier_invoice_matches WHEN EXISTS(
+  SELECT 1 FROM supplier_invoices invoice WHERE invoice.id=OLD.supplier_invoice_id AND invoice.status<>'draft'
+)
+BEGIN SELECT RAISE(ABORT,'validated supplier invoice matches are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_credit_notes_insert_draft_guard
+BEFORE INSERT ON supplier_credit_notes WHEN NEW.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'supplier credits must be created as drafts'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_notes_status_transition_guard
+BEFORE UPDATE OF status ON supplier_credit_notes WHEN NOT (
+  NEW.status=OLD.status OR (OLD.status='draft' AND NEW.status='validated'
+    AND NEW.number IS NOT NULL AND NEW.validation_journal_entry_id IS NOT NULL AND NEW.validated_at IS NOT NULL AND NEW.snapshot_json IS NOT NULL
+    AND NEW.net_cents=(SELECT COALESCE(SUM(item.line_net_cents),0) FROM supplier_credit_note_items item WHERE item.supplier_credit_note_id=NEW.id)
+    AND NEW.vat_cents=(SELECT COALESCE(SUM(item.line_vat_cents),0) FROM supplier_credit_note_items item WHERE item.supplier_credit_note_id=NEW.id)
+    AND NEW.total_cents=(SELECT COALESCE(SUM(item.line_total_cents),0) FROM supplier_credit_note_items item WHERE item.supplier_credit_note_id=NEW.id)
+    AND COALESCE((SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=NEW.id),0)<=NEW.total_cents
+    AND NOT EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND NEW.document_date BETWEEN period.date_from AND period.date_to)
+    AND EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.id=NEW.validation_journal_entry_id AND entry.source_type='supplier_credit_note' AND entry.source_id=NEW.id AND entry.source_event='validate' AND entry.entry_date=NEW.document_date)
+  )
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier credit status transition'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_notes_validated_guard
+BEFORE UPDATE ON supplier_credit_notes WHEN OLD.status='validated' AND (
+  NEW.supplier_id IS NOT OLD.supplier_id OR NEW.number IS NOT OLD.number OR NEW.document_date IS NOT OLD.document_date OR
+  NEW.supplier_name IS NOT OLD.supplier_name OR NEW.reference IS NOT OLD.reference OR
+  NEW.reference_normalized IS NOT OLD.reference_normalized OR NEW.currency IS NOT OLD.currency OR
+  NEW.net_cents IS NOT OLD.net_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR NEW.total_cents IS NOT OLD.total_cents OR
+  NEW.note IS NOT OLD.note OR NEW.snapshot_json IS NOT OLD.snapshot_json OR
+  NEW.validation_journal_entry_id IS NOT OLD.validation_journal_entry_id OR NEW.validated_at IS NOT OLD.validated_at
+)
+BEGIN SELECT RAISE(ABORT,'validated supplier credits are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_notes_no_delete_after_draft
+BEFORE DELETE ON supplier_credit_notes WHEN OLD.status<>'draft'
+BEGIN SELECT RAISE(ABORT,'validated supplier credits are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_items_insert_guard
+BEFORE INSERT ON supplier_credit_note_items WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_credit_notes credit WHERE credit.id=NEW.supplier_credit_note_id AND credit.status='draft'
+)
+BEGIN SELECT RAISE(ABORT,'supplier credit lines require a draft credit'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_items_no_mutation_after_validation
+BEFORE UPDATE ON supplier_credit_note_items WHEN (SELECT status FROM supplier_credit_notes WHERE id=OLD.supplier_credit_note_id)<>'draft'
+BEGIN SELECT RAISE(ABORT,'validated supplier credit lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_items_no_delete_after_validation
+BEFORE DELETE ON supplier_credit_note_items WHEN EXISTS(
+  SELECT 1 FROM supplier_credit_notes credit WHERE credit.id=OLD.supplier_credit_note_id AND credit.status<>'draft'
+)
+BEGIN SELECT RAISE(ABORT,'validated supplier credit lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_insert_guard
+BEFORE INSERT ON supplier_credit_allocations WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_credit_notes credit JOIN supplier_invoices invoice ON invoice.id=NEW.supplier_invoice_id
+  WHERE credit.id=NEW.supplier_credit_note_id AND invoice.status='validated'
+    AND invoice.supplier_id=credit.supplier_id AND invoice.currency=credit.currency
+    AND (
+      (credit.status='draft' AND NEW.event_type='apply' AND NEW.request_id IS NULL AND NEW.reverses_allocation_id IS NULL
+       AND COALESCE((SELECT SUM(other.amount_cents) FROM supplier_credit_allocations other WHERE other.supplier_credit_note_id=credit.id),0)+NEW.amount_cents<=credit.total_cents
+       AND invoice.paid_cents+invoice.credited_cents+NEW.amount_cents<=invoice.total_cents)
+      OR
+      (credit.status='validated' AND NEW.event_type='apply' AND NEW.request_id IS NOT NULL AND NEW.reverses_allocation_id IS NULL
+       AND COALESCE((SELECT SUM(CASE other.event_type WHEN 'apply' THEN other.amount_cents ELSE -other.amount_cents END) FROM supplier_credit_allocations other WHERE other.supplier_credit_note_id=credit.id),0)+NEW.amount_cents<=credit.total_cents
+       AND invoice.paid_cents+invoice.credited_cents+NEW.amount_cents<=invoice.total_cents)
+      OR
+      (credit.status='validated' AND NEW.event_type='reverse' AND NEW.request_id IS NOT NULL
+       AND EXISTS(SELECT 1 FROM supplier_credit_allocations original
+         WHERE original.id=NEW.reverses_allocation_id AND original.event_type='apply'
+           AND original.supplier_credit_note_id=NEW.supplier_credit_note_id
+           AND original.supplier_invoice_id=NEW.supplier_invoice_id AND original.amount_cents=NEW.amount_cents
+           AND NOT EXISTS(SELECT 1 FROM supplier_credit_allocations reversal WHERE reversal.reverses_allocation_id=original.id)))
+    )
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier credit allocation'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_no_update
+BEFORE UPDATE ON supplier_credit_allocations BEGIN SELECT RAISE(ABORT,'supplier credit allocation events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_delete_guard
+BEFORE DELETE ON supplier_credit_allocations WHEN OLD.request_id IS NOT NULL OR EXISTS(
+  SELECT 1 FROM supplier_credit_notes credit WHERE credit.id=OLD.supplier_credit_note_id AND credit.status<>'draft'
+)
+BEGIN SELECT RAISE(ABORT,'validated supplier credit allocation events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_apply_after_insert
+AFTER INSERT ON supplier_credit_allocations WHEN (SELECT status FROM supplier_credit_notes WHERE id=NEW.supplier_credit_note_id)='validated'
+BEGIN
+  UPDATE supplier_invoices
+  SET credited_cents=COALESCE((
+        SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END)
+        FROM supplier_credit_allocations allocation JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id
+        WHERE allocation.supplier_invoice_id=NEW.supplier_invoice_id AND credit.status='validated'
+      ),0),updated_at=NEW.created_at
+  WHERE id=NEW.supplier_invoice_id;
+END;
+CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_apply_invoice_total
+AFTER UPDATE OF status ON supplier_credit_notes WHEN OLD.status='draft' AND NEW.status='validated'
+BEGIN
+  UPDATE supplier_invoices
+  SET credited_cents=COALESCE((
+        SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation
+        JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id
+        WHERE allocation.supplier_invoice_id=supplier_invoices.id AND credit.status='validated'
+      ),0),
+      updated_at=NEW.validated_at
+  WHERE id IN (SELECT supplier_invoice_id FROM supplier_credit_allocations WHERE supplier_credit_note_id=NEW.id);
+END;
+
+CREATE TRIGGER supplier_invoices_validation_guard
+BEFORE UPDATE ON supplier_invoices WHEN OLD.status='draft' AND NEW.status='validated' AND NOT (
+  NEW.reference_normalized IS NOT NULL AND TRIM(NEW.reference_normalized)<>''
+  AND NEW.total_cents>0 AND NEW.paid_cents=0 AND NEW.credited_cents=0 AND NEW.due_date>=NEW.document_date
+  AND EXISTS(SELECT 1 FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NEW.net_cents=(SELECT COALESCE(SUM(item.line_net_cents),0) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NEW.vat_cents=(SELECT COALESCE(SUM(item.line_vat_cents),0) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NEW.total_cents=(SELECT COALESCE(SUM(item.line_total_cents),0) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NOT EXISTS(SELECT 1 FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id AND item.line_net_cents>0 AND item.posted_expense_account_id IS NULL)
+  AND NOT EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_invoice_id=NEW.id AND (
+      ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+    )
+  )
+  AND NOT EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_invoice_id=NEW.id
+    GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+    HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+  )
+  AND EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.id=NEW.validation_journal_entry_id AND entry.source_type='supplier_invoice' AND entry.source_id=NEW.id AND entry.source_event='validate' AND entry.entry_date=NEW.document_date)
+)
+BEGIN SELECT RAISE(ABORT,'supplier invoice validation requires its exact journal entry and posted expense accounts'); END;
+CREATE TRIGGER supplier_invoices_validated_guard
+BEFORE UPDATE ON supplier_invoices WHEN OLD.status<>'draft' AND NOT (
+  NEW.id IS OLD.id AND NEW.supplier_id IS OLD.supplier_id AND NEW.project_id IS OLD.project_id
+  AND NEW.document_date IS OLD.document_date AND NEW.due_date IS OLD.due_date
+  AND NEW.supplier_name IS OLD.supplier_name AND NEW.reference IS OLD.reference
+  AND NEW.reference_normalized IS OLD.reference_normalized AND NEW.currency IS OLD.currency
+  AND NEW.status IS OLD.status AND NEW.net_cents IS OLD.net_cents AND NEW.vat_cents IS OLD.vat_cents
+  AND NEW.total_cents IS OLD.total_cents AND NEW.validated_at IS OLD.validated_at
+  AND NEW.validation_journal_entry_id IS OLD.validation_journal_entry_id
+  AND NEW.snapshot_json IS OLD.snapshot_json AND NEW.note IS OLD.note AND NEW.created_at IS OLD.created_at
+  AND NEW.paid_cents>=OLD.paid_cents AND NEW.credited_cents>=0
+  AND NEW.paid_cents=(SELECT COALESCE(SUM(amount_cents),0) FROM supplier_payments WHERE supplier_invoice_id=OLD.id)
+  AND NEW.credited_cents=COALESCE((SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id WHERE allocation.supplier_invoice_id=OLD.id AND credit.status='validated'),0)
+  AND NEW.paid_cents+NEW.credited_cents<=NEW.total_cents
+)
+BEGIN SELECT RAISE(ABORT,'validated supplier invoice fields are immutable'); END;
+CREATE TRIGGER supplier_payments_insert_guard
+BEFORE INSERT ON supplier_payments WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_invoices invoice
+  WHERE invoice.id=NEW.supplier_invoice_id AND invoice.status='validated'
+    AND NEW.date>=invoice.document_date
+    AND invoice.paid_cents+invoice.credited_cents+NEW.amount_cents<=invoice.total_cents
+    AND EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.id=NEW.journal_entry_id AND entry.source_type='supplier_payment' AND entry.source_id=NEW.id AND entry.source_event='invoice:'||NEW.supplier_invoice_id AND entry.entry_date=NEW.date)
+)
+BEGIN SELECT RAISE(ABORT,'supplier payment exceeds the open validated balance'); END;
+CREATE TRIGGER supplier_payments_update_invoice_total
+AFTER INSERT ON supplier_payments
+BEGIN
+  UPDATE supplier_invoices
+  SET paid_cents=(SELECT COALESCE(SUM(amount_cents),0) FROM supplier_payments WHERE supplier_invoice_id=NEW.supplier_invoice_id),updated_at=NEW.created_at
+  WHERE id=NEW.supplier_invoice_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_expense_reclassifications_no_update
+BEFORE UPDATE ON supplier_expense_reclassifications BEGIN SELECT RAISE(ABORT,'supplier expense reclassifications are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_expense_reclassifications_no_delete
+BEFORE DELETE ON supplier_expense_reclassifications BEGIN SELECT RAISE(ABORT,'supplier expense reclassifications are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_expense_reclassification_lines_no_update
+BEFORE UPDATE ON supplier_expense_reclassification_lines BEGIN SELECT RAISE(ABORT,'supplier expense reclassification lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_expense_reclassification_lines_no_delete
+BEFORE DELETE ON supplier_expense_reclassification_lines BEGIN SELECT RAISE(ABORT,'supplier expense reclassification lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_expense_reclassifications_insert_guard
+BEFORE INSERT ON supplier_expense_reclassifications WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_invoices invoice JOIN journal_entries entry ON entry.id=NEW.journal_entry_id
+  WHERE invoice.id=NEW.supplier_invoice_id AND invoice.status='validated'
+    AND entry.source_type='supplier_expense_reclassification' AND entry.source_id=NEW.id
+    AND entry.source_event='post' AND entry.entry_date=NEW.effective_date
+    AND NOT EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND NEW.effective_date BETWEEN period.date_from AND period.date_to)
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier expense reclassification'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_expense_reclassification_lines_insert_guard
+BEFORE INSERT ON supplier_expense_reclassification_lines WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_expense_reclassifications reclass
+  JOIN supplier_invoices invoice ON invoice.id=reclass.supplier_invoice_id
+  JOIN supplier_invoice_items item ON item.id=NEW.supplier_invoice_item_id AND item.supplier_invoice_id=invoice.id
+  JOIN accounts old_account ON old_account.id=NEW.old_expense_account_id
+  JOIN accounts new_account ON new_account.id=NEW.new_expense_account_id
+  WHERE reclass.id=NEW.reclassification_id AND invoice.status='validated'
+    AND NEW.amount_cents=item.line_net_cents AND old_account.account_type='expense' AND new_account.account_type='expense'
+    AND old_account.active=1 AND new_account.active=1
+    AND NEW.old_expense_account_id=COALESCE(
+      (SELECT previous.new_expense_account_id FROM supplier_expense_reclassification_lines previous
+       JOIN supplier_expense_reclassifications previous_header ON previous_header.id=previous.reclassification_id
+       WHERE previous.supplier_invoice_item_id=item.id ORDER BY previous_header.created_at DESC,previous_header.id DESC LIMIT 1),
+      item.posted_expense_account_id
+    )
+    AND EXISTS(SELECT 1 FROM journal_lines journal_line
+      WHERE journal_line.journal_entry_id=reclass.journal_entry_id AND journal_line.account_id=NEW.old_expense_account_id
+        AND journal_line.debit_cents=0 AND journal_line.credit_cents=NEW.amount_cents)
+    AND EXISTS(SELECT 1 FROM journal_lines journal_line
+      WHERE journal_line.journal_entry_id=reclass.journal_entry_id AND journal_line.account_id=NEW.new_expense_account_id
+        AND journal_line.debit_cents=NEW.amount_cents AND journal_line.credit_cents=0)
+    AND NOT EXISTS(SELECT 1 FROM journal_lines journal_line JOIN accounts journal_account ON journal_account.id=journal_line.account_id
+      WHERE journal_line.journal_entry_id=reclass.journal_entry_id AND journal_account.account_type<>'expense')
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier expense reclassification line'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_operation_requests_insert_guard
+BEFORE INSERT ON supplier_operation_requests WHEN NOT (
+  (NEW.result_entity_type='supplier_order' AND EXISTS(SELECT 1 FROM supplier_orders row_value WHERE row_value.id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='supplier_receipt' AND EXISTS(SELECT 1 FROM supplier_receipts row_value WHERE row_value.id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='supplier_invoice' AND EXISTS(SELECT 1 FROM supplier_invoices row_value WHERE row_value.id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='supplier_credit_note' AND EXISTS(SELECT 1 FROM supplier_credit_notes row_value WHERE row_value.id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='supplier_credit_allocation' AND EXISTS(SELECT 1 FROM supplier_credit_allocations row_value WHERE row_value.id=NEW.result_entity_id)) OR
+  (NEW.result_entity_type='supplier_expense_reclassification' AND EXISTS(SELECT 1 FROM supplier_expense_reclassifications row_value WHERE row_value.id=NEW.result_entity_id))
+)
+BEGIN SELECT RAISE(ABORT,'supplier operation result does not exist'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_operation_requests_no_update
+BEFORE UPDATE ON supplier_operation_requests BEGIN SELECT RAISE(ABORT,'supplier operation requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_operation_requests_no_delete
+BEFORE DELETE ON supplier_operation_requests BEGIN SELECT RAISE(ABORT,'supplier operation requests are immutable'); END;
+"#;
+
+/// Étend le registre de stock V20 aux réceptions fournisseurs en conservant
+/// strictement les lignes et séquences existantes.
+pub const MIGRATION_V21_REBUILD_STOCK_SQL: &str = r#"
+DROP TRIGGER IF EXISTS catalog_items_initial_stock_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_kind_insert_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_kind_update_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_balance_guard;
+DROP TRIGGER IF EXISTS catalog_items_track_stock_history_guard;
+DROP TRIGGER IF EXISTS catalog_items_track_stock_enable_guard;
+DROP TRIGGER IF EXISTS catalog_items_stock_history_no_delete;
+DROP TRIGGER IF EXISTS stock_movements_insert_guard;
+DROP TRIGGER IF EXISTS stock_movements_apply_balance;
+DROP TRIGGER IF EXISTS stock_movements_no_update;
+DROP TRIGGER IF EXISTS stock_movements_no_delete;
+DROP TRIGGER IF EXISTS stock_invoice_no_unsafe_cancel;
+DROP INDEX IF EXISTS idx_stock_movements_catalog;
+DROP INDEX IF EXISTS idx_stock_movements_date;
+DROP INDEX IF EXISTS idx_stock_movements_invoice;
+DROP INDEX IF EXISTS idx_stock_movements_delivery;
+DROP TABLE IF EXISTS stock_movements_v21;
+
+CREATE TABLE stock_movements_v21 (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  source_key TEXT NOT NULL UNIQUE CHECK (LENGTH(source_key) BETWEEN 1 AND 300),
+  request_id TEXT UNIQUE,
+  request_sha256 TEXT,
+  request_json TEXT,
+  catalog_item_id TEXT NOT NULL REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  movement_type TEXT NOT NULL CHECK (movement_type IN ('entry','exit','correction')),
+  quantity_delta_milli INTEGER NOT NULL CHECK (quantity_delta_milli<>0 AND quantity_delta_milli BETWEEN -9000000000000000 AND 9000000000000000),
+  balance_after_milli INTEGER NOT NULL CHECK (balance_after_milli BETWEEN 0 AND 9000000000000000),
+  reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) BETWEEN 1 AND 500),
+  reference TEXT CHECK (reference IS NULL OR LENGTH(reference)<=200),
+  movement_date TEXT NOT NULL CHECK (LENGTH(movement_date)=10 AND movement_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
+  source_type TEXT NOT NULL CHECK (source_type IN ('manual','invoice','opening','delivery','supplier_receipt')),
+  invoice_id TEXT REFERENCES invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  invoice_item_id TEXT UNIQUE REFERENCES invoice_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  delivery_note_id TEXT,
+  delivery_note_line_id TEXT,
+  supplier_receipt_id TEXT REFERENCES supplier_receipts(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  supplier_receipt_line_id TEXT REFERENCES supplier_receipt_lines(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  reverses_stock_movement_id TEXT UNIQUE REFERENCES stock_movements_v21(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL CHECK (LENGTH(created_at) BETWEEN 1 AND 64),
+  CHECK ((movement_type='entry' AND quantity_delta_milli>0) OR (movement_type='exit' AND quantity_delta_milli<0) OR movement_type='correction'),
+  CHECK (
+    (source_type='manual' AND request_id IS NOT NULL AND request_sha256 IS NOT NULL AND request_json IS NOT NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND supplier_receipt_id IS NULL AND supplier_receipt_line_id IS NULL AND reverses_stock_movement_id IS NULL) OR
+    (source_type='invoice' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NOT NULL AND invoice_item_id IS NOT NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND supplier_receipt_id IS NULL AND supplier_receipt_line_id IS NULL AND reverses_stock_movement_id IS NULL AND movement_type='exit') OR
+    (source_type='opening' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND supplier_receipt_id IS NULL AND supplier_receipt_line_id IS NULL AND reverses_stock_movement_id IS NULL AND movement_type='correction' AND quantity_delta_milli>0) OR
+    (source_type='delivery' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NOT NULL AND delivery_note_line_id IS NOT NULL AND supplier_receipt_id IS NULL AND supplier_receipt_line_id IS NULL AND ((movement_type='exit' AND reverses_stock_movement_id IS NULL) OR (movement_type='entry' AND reverses_stock_movement_id IS NOT NULL))) OR
+    (source_type='supplier_receipt' AND request_id IS NULL AND request_sha256 IS NULL AND request_json IS NULL AND invoice_id IS NULL AND invoice_item_id IS NULL AND delivery_note_id IS NULL AND delivery_note_line_id IS NULL AND supplier_receipt_id IS NOT NULL AND supplier_receipt_line_id IS NOT NULL AND ((movement_type='entry' AND reverses_stock_movement_id IS NULL) OR (movement_type='exit' AND reverses_stock_movement_id IS NOT NULL)))
+  )
+);
+
+INSERT INTO stock_movements_v21(
+  sequence,id,source_key,request_id,request_sha256,request_json,catalog_item_id,
+  movement_type,quantity_delta_milli,balance_after_milli,reason,reference,movement_date,
+  source_type,invoice_id,invoice_item_id,delivery_note_id,delivery_note_line_id,
+  supplier_receipt_id,supplier_receipt_line_id,reverses_stock_movement_id,created_at
+)
+SELECT sequence,id,source_key,request_id,request_sha256,request_json,catalog_item_id,
+       movement_type,quantity_delta_milli,balance_after_milli,reason,reference,movement_date,
+       source_type,invoice_id,invoice_item_id,delivery_note_id,delivery_note_line_id,
+       NULL,NULL,reverses_stock_movement_id,created_at
+FROM stock_movements ORDER BY sequence;
+
+DROP TABLE stock_movements;
+ALTER TABLE stock_movements_v21 RENAME TO stock_movements;
+"#;
+
+pub const MIGRATION_V21_STOCK_TRIGGERS_SQL: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_stock_movements_catalog ON stock_movements(catalog_item_id,sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_date ON stock_movements(movement_date DESC,sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_invoice ON stock_movements(invoice_id,sequence) WHERE invoice_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_stock_movements_delivery ON stock_movements(delivery_note_id,sequence) WHERE delivery_note_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_stock_movements_supplier_receipt ON stock_movements(supplier_receipt_id,sequence) WHERE supplier_receipt_id IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS catalog_items_initial_stock_guard
+BEFORE INSERT ON catalog_items WHEN NEW.track_stock=1 AND NEW.stock_quantity_milli<>0
+BEGIN SELECT RAISE(ABORT,'tracked catalog items must start with zero stock'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_kind_insert_guard
+BEFORE INSERT ON catalog_items WHEN NEW.track_stock=1 AND NEW.kind<>'product'
+BEGIN SELECT RAISE(ABORT,'only products can be tracked in stock'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_kind_update_guard
+BEFORE UPDATE OF kind,track_stock ON catalog_items WHEN NEW.track_stock=1 AND NEW.kind<>'product'
+BEGIN SELECT RAISE(ABORT,'only products can be tracked in stock'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_balance_guard
+BEFORE UPDATE OF stock_quantity_milli ON catalog_items
+WHEN NEW.track_stock=1 AND NEW.stock_quantity_milli<>COALESCE((SELECT balance_after_milli FROM stock_movements WHERE catalog_item_id=NEW.id ORDER BY sequence DESC LIMIT 1),0)
+BEGIN SELECT RAISE(ABORT,'tracked stock can only change through stock movements'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_track_stock_history_guard
+BEFORE UPDATE OF track_stock ON catalog_items
+WHEN NEW.track_stock<>OLD.track_stock AND EXISTS(SELECT 1 FROM stock_movements WHERE catalog_item_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'stock tracking cannot change after the first movement'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_track_stock_enable_guard
+BEFORE UPDATE OF track_stock ON catalog_items WHEN OLD.track_stock=0 AND NEW.track_stock=1 AND NEW.stock_quantity_milli<>0
+BEGIN SELECT RAISE(ABORT,'stock tracking can only start from a zero balance'); END;
+CREATE TRIGGER IF NOT EXISTS catalog_items_stock_history_no_delete
+BEFORE DELETE ON catalog_items WHEN EXISTS(SELECT 1 FROM stock_movements WHERE catalog_item_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'catalog items with stock history are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS stock_movements_insert_guard
+BEFORE INSERT ON stock_movements
+WHEN NOT EXISTS(SELECT 1 FROM catalog_items item WHERE item.id=NEW.catalog_item_id AND item.track_stock=1 AND item.kind='product')
+ OR (NEW.request_id IS NOT NULL AND LENGTH(TRIM(NEW.request_id))<>36)
+ OR (NEW.request_sha256 IS NOT NULL AND (LENGTH(NEW.request_sha256)<>64 OR NEW.request_sha256 GLOB '*[^0-9a-f]*'))
+ OR (NEW.request_json IS NOT NULL AND (LENGTH(NEW.request_json)=0 OR LENGTH(NEW.request_json)>20000))
+ OR NOT (
+   (NEW.source_type='opening' AND NEW.id='opening:'||NEW.catalog_item_id AND NEW.source_key=NEW.id
+      AND NEW.quantity_delta_milli=NEW.balance_after_milli
+      AND NEW.quantity_delta_milli=(SELECT stock_quantity_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND NOT EXISTS(SELECT 1 FROM stock_movements prior WHERE prior.catalog_item_id=NEW.catalog_item_id))
+   OR (NEW.source_type='manual' AND NEW.source_key='manual:'||NEW.request_id
+      AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id))
+   OR (NEW.source_type='invoice' AND NEW.source_key='invoice:'||NEW.invoice_item_id
+      AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND EXISTS(SELECT 1 FROM invoices invoice JOIN invoice_items line ON line.invoice_id=invoice.id
+        WHERE invoice.id=NEW.invoice_id AND line.id=NEW.invoice_item_id AND line.catalog_item_id=NEW.catalog_item_id
+          AND invoice.number IS NOT NULL AND invoice.status IN ('emise','partiellement_payee','payee')
+          AND invoice.type='standard' AND NEW.movement_date=invoice.issue_date AND NEW.reference=invoice.number
+          AND line.quantity>0 AND ABS(line.quantity*1000.0-CAST(-NEW.quantity_delta_milli AS REAL))<=0.000001))
+   OR (NEW.source_type='delivery' AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND ((NEW.movement_type='exit' AND NEW.source_key='delivery:'||NEW.delivery_note_line_id AND NEW.reverses_stock_movement_id IS NULL
+        AND EXISTS(SELECT 1 FROM delivery_notes note JOIN delivery_note_lines line ON line.delivery_note_id=note.id
+          JOIN sales_order_lines order_line ON order_line.id=line.sales_order_line_id
+          WHERE note.id=NEW.delivery_note_id AND line.id=NEW.delivery_note_line_id AND note.status='issued'
+            AND order_line.catalog_item_id=NEW.catalog_item_id AND order_line.fulfillment_mode='stocked_delivery'
+            AND NEW.movement_date=note.delivery_date AND NEW.reference=note.number
+            AND line.quantity_milli=-NEW.quantity_delta_milli))
+       OR (NEW.movement_type='entry' AND NEW.source_key='delivery-reversal:'||NEW.delivery_note_line_id
+        AND EXISTS(SELECT 1 FROM delivery_notes note JOIN delivery_note_lines line ON line.delivery_note_id=note.id
+          JOIN stock_movements original ON original.id=NEW.reverses_stock_movement_id
+          WHERE note.id=NEW.delivery_note_id AND line.id=NEW.delivery_note_line_id AND note.status='reversed'
+            AND original.source_type='delivery' AND original.movement_type='exit'
+            AND original.delivery_note_line_id=line.id AND original.catalog_item_id=NEW.catalog_item_id
+            AND NEW.movement_date=note.delivery_date AND NEW.reference=note.number
+            AND NEW.quantity_delta_milli=-original.quantity_delta_milli))))
+   OR (NEW.source_type='supplier_receipt' AND NEW.balance_after_milli=(SELECT stock_quantity_milli+NEW.quantity_delta_milli FROM catalog_items WHERE id=NEW.catalog_item_id)
+      AND ((NEW.movement_type='entry' AND NEW.source_key='supplier-receipt:'||NEW.supplier_receipt_line_id AND NEW.reverses_stock_movement_id IS NULL
+        AND EXISTS(SELECT 1 FROM supplier_receipts receipt JOIN supplier_receipt_lines line ON line.supplier_receipt_id=receipt.id
+          JOIN supplier_order_lines order_line ON order_line.id=line.supplier_order_line_id
+          WHERE receipt.id=NEW.supplier_receipt_id AND line.id=NEW.supplier_receipt_line_id AND receipt.status='issuing'
+            AND order_line.catalog_item_id=NEW.catalog_item_id AND order_line.fulfillment_mode='stocked_receipt'
+            AND NEW.movement_date=receipt.receipt_date AND NEW.reference=receipt.number
+            AND line.quantity_milli=NEW.quantity_delta_milli))
+       OR (NEW.movement_type='exit' AND NEW.source_key='supplier-receipt-reversal:'||NEW.supplier_receipt_line_id
+        AND EXISTS(SELECT 1 FROM supplier_receipts receipt JOIN supplier_receipt_lines line ON line.supplier_receipt_id=receipt.id
+          JOIN stock_movements original ON original.id=NEW.reverses_stock_movement_id
+          WHERE receipt.id=NEW.supplier_receipt_id AND line.id=NEW.supplier_receipt_line_id AND receipt.status='reversing'
+            AND original.source_type='supplier_receipt' AND original.movement_type='entry'
+            AND original.supplier_receipt_line_id=line.id AND original.catalog_item_id=NEW.catalog_item_id
+            AND NEW.movement_date=receipt.receipt_date AND NEW.reference=receipt.number
+            AND NEW.quantity_delta_milli=-original.quantity_delta_milli))))
+ )
+BEGIN SELECT RAISE(ABORT,'invalid stock movement'); END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_apply_balance
+AFTER INSERT ON stock_movements WHEN NEW.source_type<>'opening'
+BEGIN UPDATE catalog_items SET stock_quantity_milli=NEW.balance_after_milli,updated_at=NEW.created_at WHERE id=NEW.catalog_item_id; END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_no_update
+BEFORE UPDATE ON stock_movements BEGIN SELECT RAISE(ABORT,'stock movements are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_no_delete
+BEFORE DELETE ON stock_movements BEGIN SELECT RAISE(ABORT,'stock movements are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS stock_invoice_no_unsafe_cancel
+BEFORE UPDATE OF status ON invoices
+WHEN NEW.status='annulee' AND OLD.status<>'annulee' AND EXISTS(SELECT 1 FROM stock_movements WHERE invoice_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'stock-bearing invoices cannot be cancelled without a dedicated reversal workflow'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_issue_finalize_guard
+BEFORE UPDATE OF status ON supplier_receipts WHEN OLD.status='issuing' AND NEW.status='issued' AND (
+  EXISTS(
+    SELECT 1 FROM supplier_receipt_lines receipt_line
+    JOIN supplier_order_lines order_line ON order_line.id=receipt_line.supplier_order_line_id
+    WHERE receipt_line.supplier_receipt_id=NEW.id AND order_line.fulfillment_mode='stocked_receipt'
+      AND NOT EXISTS(
+        SELECT 1 FROM stock_movements movement
+        WHERE movement.supplier_receipt_id=NEW.id AND movement.supplier_receipt_line_id=receipt_line.id
+          AND movement.source_type='supplier_receipt' AND movement.movement_type='entry'
+          AND movement.reverses_stock_movement_id IS NULL
+          AND movement.catalog_item_id=order_line.catalog_item_id
+          AND movement.quantity_delta_milli=receipt_line.quantity_milli
+      )
+  )
+  OR EXISTS(
+    SELECT 1 FROM stock_movements movement
+    WHERE movement.supplier_receipt_id=NEW.id AND movement.source_type='supplier_receipt' AND movement.movement_type='entry'
+      AND NOT EXISTS(
+        SELECT 1 FROM supplier_receipt_lines receipt_line
+        JOIN supplier_order_lines order_line ON order_line.id=receipt_line.supplier_order_line_id
+        WHERE receipt_line.supplier_receipt_id=NEW.id AND receipt_line.id=movement.supplier_receipt_line_id
+          AND order_line.fulfillment_mode='stocked_receipt'
+          AND order_line.catalog_item_id=movement.catalog_item_id
+          AND receipt_line.quantity_milli=movement.quantity_delta_milli
+      )
+  )
+)
+BEGIN SELECT RAISE(ABORT,'supplier receipt issuance requires every exact stock entry'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_receipts_reverse_finalize_guard
+BEFORE UPDATE OF status ON supplier_receipts WHEN OLD.status='reversing' AND NEW.status='reversed' AND EXISTS(
+  SELECT 1 FROM stock_movements original
+  WHERE original.supplier_receipt_id=NEW.id AND original.source_type='supplier_receipt'
+    AND original.movement_type='entry' AND original.reverses_stock_movement_id IS NULL
+    AND NOT EXISTS(
+      SELECT 1 FROM stock_movements reversal
+      WHERE reversal.reverses_stock_movement_id=original.id
+        AND reversal.supplier_receipt_id=NEW.id
+        AND reversal.supplier_receipt_line_id=original.supplier_receipt_line_id
+        AND reversal.catalog_item_id=original.catalog_item_id
+        AND reversal.source_type='supplier_receipt' AND reversal.movement_type='exit'
+        AND reversal.quantity_delta_milli=-original.quantity_delta_milli
+    )
+)
+BEGIN SELECT RAISE(ABORT,'supplier receipt reversal requires every exact inverse stock movement'); END;
+
+PRAGMA user_version=21;
 "#;

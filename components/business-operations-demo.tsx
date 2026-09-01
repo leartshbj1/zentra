@@ -46,7 +46,7 @@ const money = new Intl.NumberFormat('fr-CH', {
 });
 
 type DemoMode = 'quote' | 'purchase';
-type PurchaseStatus = 'pending' | 'paid';
+type PurchaseStatus = 'ordered' | 'received' | 'matched' | 'paid';
 
 export function BusinessOperationsDemo() {
   const baseId = useId().replace(/:/g, '');
@@ -55,7 +55,7 @@ export function BusinessOperationsDemo() {
   const [quantity, setQuantity] = useState(2);
   const [discount, setDiscount] = useState(10);
   const [purchaseStatus, setPurchaseStatus] =
-    useState<PurchaseStatus>('pending');
+    useState<PurchaseStatus>('ordered');
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [paidAt, setPaidAt] = useState<string | null>(null);
 
@@ -70,7 +70,7 @@ export function BusinessOperationsDemo() {
   }, [discount, quantity, selectedItem]);
 
   const resetPurchase = () => {
-    setPurchaseStatus('pending');
+    setPurchaseStatus('ordered');
     setConfirmPayment(false);
     setPaidAt(null);
   };
@@ -86,6 +86,36 @@ export function BusinessOperationsDemo() {
       }).format(new Date()),
     );
   };
+
+  const purchaseSteps: Array<{
+    id: PurchaseStatus;
+    label: string;
+    detail: string;
+  }> = [
+    {
+      id: 'ordered',
+      label: 'Commande',
+      detail: 'BC-2026-018 confirmée',
+    },
+    {
+      id: 'received',
+      label: 'Réception',
+      detail: 'BR-2026-009 émise',
+    },
+    {
+      id: 'matched',
+      label: 'Facture',
+      detail: '3 pièces concordantes',
+    },
+    {
+      id: 'paid',
+      label: 'Paiement',
+      detail: paidAt ? `Confirmé le ${paidAt}` : 'À confirmer',
+    },
+  ];
+  const purchaseStepIndex = purchaseSteps.findIndex(
+    (step) => step.id === purchaseStatus,
+  );
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-[#d8ddd8] bg-[#f1f5f2] shadow-[0_24px_70px_rgba(29,54,39,.1)]">
@@ -299,31 +329,41 @@ export function BusinessOperationsDemo() {
         role="tabpanel"
         aria-labelledby={baseId + '-purchase-tab'}
         hidden={mode !== 'purchase'}
-        className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[.75fr_1.25fr] lg:p-7"
+        className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[.78fr_1.22fr] lg:p-7"
       >
-        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3 lg:grid-cols-1">
-          {[
-            [
-              'À payer',
-              purchaseStatus === 'pending' ? '2 480.60' : '0.00',
-              'CHF',
-            ],
-            ['Échu', '0.00', 'CHF'],
-            ['Payé', purchaseStatus === 'paid' ? '2 480.60' : '0.00', 'CHF'],
-          ].map(([label, value, unit]) => (
-            <div
-              key={label}
-              className="rounded-2xl border border-[#dce3dd] bg-white p-3 sm:p-4"
-            >
-              <p className="text-[11px] text-[#68746c]">{label}</p>
-              <p className="mt-2 break-words text-sm font-semibold tracking-[-.02em] text-[#294033] sm:text-lg">
-                {value}{' '}
-                <span className="text-[10px] font-medium text-[#758078]">
-                  {unit}
+        <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2 lg:grid-cols-1">
+          {purchaseSteps.map((step, index) => {
+            const completed = index <= purchaseStepIndex;
+            return (
+              <div
+                key={step.id}
+                className={`flex items-center gap-3 rounded-2xl border p-3 sm:p-4 ${
+                  completed
+                    ? 'border-[#c8d9cd] bg-white'
+                    : 'border-[#dce3dd] bg-white/55'
+                }`}
+              >
+                <span
+                  className={`grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold ${
+                    completed
+                      ? 'bg-[#2f6848] text-white'
+                      : 'bg-[#e5e9e6] text-[#718078]'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {completed ? <Check className="size-4" /> : index + 1}
                 </span>
-              </p>
-            </div>
-          ))}
+                <span className="min-w-0">
+                  <strong className="block text-sm text-[#294033]">
+                    {step.label}
+                  </strong>
+                  <small className="mt-0.5 block text-xs leading-5 text-[#68746c]">
+                    {completed ? step.detail : 'Étape suivante'}
+                  </small>
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         <div className="rounded-2xl border border-[#dce3dd] bg-white p-5 sm:p-6">
@@ -337,7 +377,7 @@ export function BusinessOperationsDemo() {
                   Atelier Romand SA
                 </p>
                 <p className="mt-0.5 text-xs text-[#6a766e]">
-                  Facture fournisseur AF-2026-014
+                  Commande fournisseur BC-2026-018
                 </p>
               </div>
             </div>
@@ -345,28 +385,38 @@ export function BusinessOperationsDemo() {
               className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
                 purchaseStatus === 'paid'
                   ? 'bg-[#e7f2e9] text-[#34684a]'
-                  : 'bg-[#fff0d9] text-[#805019]'
+                  : purchaseStatus === 'matched'
+                    ? 'bg-[#fff0d9] text-[#805019]'
+                    : 'bg-[#fff0d9] text-[#805019]'
               }`}
             >
-              {purchaseStatus === 'paid' ? 'Payé' : 'À payer'}
+              {purchaseStatus === 'paid'
+                ? 'Payé'
+                : purchaseStatus === 'matched'
+                  ? 'À payer'
+                  : purchaseStatus === 'received'
+                    ? 'À rapprocher'
+                    : 'À réceptionner'}
             </span>
           </div>
 
           <dl className="mt-6 grid grid-cols-2 gap-4 border-y border-[#e7ebe8] py-5 text-sm sm:grid-cols-3">
             <div>
-              <dt className="text-xs text-[#748078]">Montant</dt>
+              <dt className="text-xs text-[#748078]">Commande</dt>
               <dd className="mt-1 font-semibold text-[#2d4336]">
                 2 480.60 CHF
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-[#748078]">Échéance</dt>
-              <dd className="mt-1 font-semibold text-[#2d4336]">07.09.2026</dd>
+              <dt className="text-xs text-[#748078]">Réception</dt>
+              <dd className="mt-1 font-semibold text-[#2d4336]">
+                {purchaseStepIndex >= 1 ? 'BR-2026-009' : 'À émettre'}
+              </dd>
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <dt className="text-xs text-[#748078]">Paiement</dt>
+              <dt className="text-xs text-[#748078]">Facture</dt>
               <dd className="mt-1 font-semibold text-[#2d4336]">
-                {paidAt ?? 'Non confirmé'}
+                {purchaseStepIndex >= 2 ? 'AF-2026-014' : 'En attente'}
               </dd>
             </div>
           </dl>
@@ -387,7 +437,7 @@ export function BusinessOperationsDemo() {
                   Recommencer
                 </button>
               </div>
-            ) : confirmPayment ? (
+            ) : purchaseStatus === 'matched' && confirmPayment ? (
               <div className="rounded-xl border border-[#e7c88e] bg-[#fff8ea] p-4">
                 <p className="text-sm font-semibold text-[#684b22]">
                   Confirmer le paiement avec la date du jour ?
@@ -413,11 +463,39 @@ export function BusinessOperationsDemo() {
                   </button>
                 </div>
               </div>
+            ) : purchaseStatus === 'ordered' ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-[#6c776f]">
+                  L’émission du bon enregistre la réception. Le stock ne bouge
+                  pas au simple brouillon.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseStatus('received')}
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#e9a33a] px-5 text-sm font-semibold text-[#173d2c] transition hover:bg-[#f0b252] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#805019]"
+                >
+                  Émettre la réception
+                </button>
+              </div>
+            ) : purchaseStatus === 'received' ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-[#6c776f]">
+                  Elyko compare quantité, prix HT et TVA avec la commande et la
+                  réception avant validation.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseStatus('matched')}
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#e9a33a] px-5 text-sm font-semibold text-[#173d2c] transition hover:bg-[#f0b252] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#805019]"
+                >
+                  Rapprocher la facture
+                </button>
+              </div>
             ) : (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs leading-5 text-[#6c776f]">
-                  Le fournisseur est lié à l’achat, tandis que son nom reste
-                  copié dans le document.
+                  Les trois pièces concordent. Le paiement reste une action
+                  distincte et explicite.
                 </p>
                 <button
                   type="button"

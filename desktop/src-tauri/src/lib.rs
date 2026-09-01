@@ -22,6 +22,7 @@ mod sales_fulfillment;
 mod schema;
 mod stock;
 mod supplier_invoices;
+mod supplier_procurement;
 mod swiss_payroll_rules;
 mod swiss_qr;
 mod time_billing;
@@ -77,6 +78,19 @@ pub fn run() {
             validate_supplier_invoice,
             record_supplier_payment,
             delete_supplier_invoice_draft,
+            save_supplier_order_draft,
+            confirm_supplier_order,
+            cancel_supplier_order_remainder,
+            save_supplier_receipt_draft,
+            issue_supplier_receipt,
+            reverse_supplier_receipt,
+            save_supplier_invoice_match,
+            save_supplier_credit_note_draft,
+            validate_supplier_credit_note,
+            apply_supplier_credit,
+            reverse_supplier_credit_allocation,
+            delete_supplier_credit_note_draft,
+            reclassify_supplier_invoice_expense,
             update_settings,
             stage_company_logo,
             save_document_with_items,
@@ -186,15 +200,22 @@ mod tests {
         database::LocalStore,
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, ApplyPayrollInput,
-            CalculateEmployeePayrollInput, CalculatePayrollInput, ContributionDefinitionInput,
-            ContributionSelectionInput, ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput,
+            ApplySupplierCreditInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+            CancelSupplierOrderRemainderInput, CancelSupplierOrderRemainderLineInput,
+            ConfirmSupplierOrderInput, ContributionDefinitionInput, ContributionSelectionInput,
+            ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, IssueSupplierReceiptInput,
             ManualJournalInput, ManualJournalLineInput, MarkReminderInput, OnboardingInput,
             PayPayslipInput, PayslipManualLineInput, PeriodFilter, PostPayslipInput,
-            RecordPaymentInput, RecordSupplierPaymentInput, ReminderSettingsInput,
-            ReminderTemplateInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
-            SavePayslipWithContributionsInput, SaveSupplierInvoiceDraftInput, StockCorrectionInput,
-            StockEntryInput, StockExitInput, SupplierInvoiceLineInput, SwissQrBillInput,
-            SwissQrParty,
+            ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
+            ReminderSettingsInput, ReminderTemplateInput, ReverseSupplierCreditAllocationInput,
+            ReverseSupplierReceiptInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
+            SavePayslipWithContributionsInput, SaveSupplierCreditNoteDraftInput,
+            SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput,
+            SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput, StockCorrectionInput,
+            StockEntryInput, StockExitInput, SupplierExpenseReclassificationLineInput,
+            SupplierInvoiceLineInput, SupplierInvoiceMatchAllocationInput, SupplierOrderDraftInput,
+            SupplierOrderLineInput, SupplierReceiptDraftInput, SupplierReceiptLineInput,
+            SwissQrBillInput, SwissQrParty, ValidateSupplierCreditNoteInput,
         },
         schema::{BUSINESS_TABLES, SCHEMA_SQL, SCHEMA_VERSION},
     };
@@ -1098,7 +1119,11 @@ mod tests {
                 "SELECT
                    (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN('supplier_invoices','supplier_invoice_items','supplier_payments')),
                    (SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN('idx_supplier_invoices_status_due','idx_supplier_invoices_reference_unique','idx_supplier_invoice_items_parent','idx_supplier_payments_parent')),
-                   (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'supplier_%')",
+                   (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN(
+                     'supplier_invoice_items_draft_insert','supplier_invoice_items_draft_update','supplier_invoice_items_draft_delete',
+                     'supplier_invoices_validated_no_delete','supplier_invoices_validation_guard','supplier_invoices_validated_guard',
+                     'supplier_payments_insert_guard','supplier_payments_update_invoice_total','supplier_payments_no_update','supplier_payments_no_delete'
+                   ))",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -5530,6 +5555,1733 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 )
                 .unwrap(),
         )
+    }
+
+    #[test]
+    fn supplier_procurement_receipts_matching_and_credit_events_are_atomic() {
+        let (temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Approvisionnement réel SA"}))
+                .unwrap(),
+        );
+        let product_id = tracked_product(&store, "Produit réceptionné", 0);
+        let order = store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some("7bbf9a91-771d-4d80-9fac-bd2cc1506d75".into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Commande matière".into(),
+                    order_date: "2026-09-01".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![SupplierOrderLineInput {
+                    id: Some("67d85c28-509b-4352-9187-f69213d3f42a".into()),
+                    catalog_item_id: Some(product_id.clone()),
+                    position: 0,
+                    description: "Matière".into(),
+                    quantity_milli: 2_000,
+                    unit: "pièce".into(),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                    fulfillment_mode: "stocked_receipt".into(),
+                }],
+            })
+            .unwrap();
+        let order_id = order["order"]["id"].as_str().unwrap().to_owned();
+        let order_line_id = order["lines"][0]["id"].as_str().unwrap().to_owned();
+        let confirm_input = ConfirmSupplierOrderInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_order_id: order_id.clone(),
+        };
+        let confirmed = store.confirm_supplier_order(confirm_input.clone()).unwrap();
+        assert_eq!(confirmed["order"]["status"], "confirmed");
+        assert_eq!(
+            store.confirm_supplier_order(confirm_input).unwrap()["idempotent"],
+            true
+        );
+
+        let receipt = store
+            .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                receipt: SupplierReceiptDraftInput {
+                    id: Some("1103f834-46fc-4c44-834b-d44ed8884c56".into()),
+                    supplier_order_id: order_id.clone(),
+                    receipt_date: "2026-09-02".into(),
+                    reference: Some("BL-F-1".into()),
+                    notes: None,
+                },
+                lines: vec![SupplierReceiptLineInput {
+                    supplier_order_line_id: order_line_id.clone(),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let receipt_id = receipt["receipt"]["id"].as_str().unwrap().to_owned();
+        let receipt_line_id = receipt["lines"][0]["id"].as_str().unwrap().to_owned();
+        let issue_input = IssueSupplierReceiptInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_receipt_id: receipt_id.clone(),
+        };
+        store.issue_supplier_receipt(issue_input.clone()).unwrap();
+        store.issue_supplier_receipt(issue_input).unwrap();
+        let connection = store.connect().unwrap();
+        let stock_state: (i64, i64) = connection
+            .query_row(
+                "SELECT stock_quantity_milli,(SELECT COUNT(*) FROM stock_movements WHERE supplier_receipt_id=?1) FROM catalog_items WHERE id=?2",
+                rusqlite::params![receipt_id,product_id],
+                |row| Ok((row.get(0)?,row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(stock_state, (1_000, 1));
+        drop(connection);
+
+        let invoice_id = "d927d01e-54eb-4715-a359-979377677959";
+        let invoice_item_id = "4f2fbacb-064c-4ca8-9450-01a52c8e5823";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(invoice_id.into()),
+                supplier_id: supplier_id.clone(),
+                project_id: None,
+                date: "2026-09-02".into(),
+                due_date: "2026-09-30".into(),
+                reference: Some("FA-ACH-1".into()),
+                note: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some(invoice_item_id.into()),
+                    description: "Matière".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("pièce".into()),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap();
+        store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: invoice_id.into(),
+                supplier_order_id: order_id.clone(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: invoice_item_id.into(),
+                    supplier_order_line_id: order_line_id.clone(),
+                    supplier_receipt_line_id: Some(receipt_line_id),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        assert_eq!(
+            store.get_workspace().unwrap()["supplier_orders"][0]["status"],
+            "confirmed"
+        );
+        store.validate_supplier_invoice(invoice_id).unwrap();
+        let connection = store.connect().unwrap();
+        let movement_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM stock_movements WHERE supplier_receipt_id=?",
+                rusqlite::params![receipt_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            movement_count, 1,
+            "la facture ne crée jamais une seconde entrée de stock"
+        );
+        drop(connection);
+        let reclassified_account = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "6010".into(),
+                    name: "Achats de matières".into(),
+                    account_type: "expense".into(),
+                    normal_balance: "debit".into(),
+                    report_section: "other_operating_expense".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let reclass_input = ReclassifySupplierInvoiceExpenseInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_invoice_id: invoice_id.into(),
+            effective_date: "2026-09-03".into(),
+            reason: "Classement analytique corrigé".into(),
+            lines: vec![SupplierExpenseReclassificationLineInput {
+                supplier_invoice_item_id: invoice_item_id.into(),
+                new_expense_account_id: reclassified_account.clone(),
+            }],
+        };
+        let reclass = store
+            .reclassify_supplier_invoice_expense(reclass_input.clone())
+            .unwrap();
+        assert_eq!(
+            reclass["lines"][0]["old_expense_account_id"],
+            accounts["expense"]
+        );
+        assert_eq!(
+            reclass["lines"][0]["new_expense_account_id"],
+            reclassified_account
+        );
+        assert_eq!(
+            store
+                .reclassify_supplier_invoice_expense(reclass_input)
+                .unwrap()["idempotent"],
+            true
+        );
+        let reclass_journal_id = reclass["reclassification"]["journal_entry_id"]
+            .as_str()
+            .unwrap();
+        let connection = store.connect().unwrap();
+        let reclass_shape: (i64, i64, i64) = connection.query_row(
+            "SELECT COUNT(*),COALESCE(SUM(debit_cents),0),COALESCE(SUM(credit_cents),0) FROM journal_lines WHERE journal_entry_id=?",
+            rusqlite::params![reclass_journal_id],
+            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+        ).unwrap();
+        assert_eq!(reclass_shape, (2, 500, 500));
+        drop(connection);
+
+        let receipt_two = store
+            .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                receipt: SupplierReceiptDraftInput {
+                    id: Some("8435ceec-fda9-47d6-9404-80b944ab57ea".into()),
+                    supplier_order_id: order_id.clone(),
+                    receipt_date: "2026-09-03".into(),
+                    reference: Some("BL-F-2".into()),
+                    notes: None,
+                },
+                lines: vec![SupplierReceiptLineInput {
+                    supplier_order_line_id: order_line_id.clone(),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let receipt_two_id = receipt_two["receipt"]["id"].as_str().unwrap().to_owned();
+        let receipt_two_line_id = receipt_two["lines"][0]["id"].as_str().unwrap().to_owned();
+        store
+            .issue_supplier_receipt(IssueSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: receipt_two_id,
+            })
+            .unwrap();
+        let second_invoice_id = "2664b4bc-8ef2-4c23-a891-2564e3f8dcea";
+        let second_item_id = "ed5eaaea-e599-48bd-8484-d3a1021889c0";
+        let second_invoice_input = SaveSupplierInvoiceDraftInput {
+            id: Some(second_invoice_id.into()),
+            supplier_id: supplier_id.clone(),
+            project_id: None,
+            date: "2026-09-03".into(),
+            due_date: "2026-09-30".into(),
+            reference: Some("FA-ACH-2".into()),
+            note: None,
+            items: vec![SupplierInvoiceLineInput {
+                id: Some(second_item_id.into()),
+                description: "Matière solde".into(),
+                quantity_milli: 1_000,
+                unit: Some("pièce".into()),
+                unit_price_cents: 500,
+                discount_bp: 0,
+                vat_bp: 0,
+                category: "Matériaux".into(),
+                expense_account_id: None,
+                project_id: None,
+            }],
+        };
+        let second_match = || SaveSupplierInvoiceMatchInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_invoice_id: second_invoice_id.into(),
+            supplier_order_id: order_id.clone(),
+            allocations: vec![SupplierInvoiceMatchAllocationInput {
+                supplier_invoice_item_id: second_item_id.into(),
+                supplier_order_line_id: order_line_id.clone(),
+                supplier_receipt_line_id: Some(receipt_two_line_id.clone()),
+                quantity_milli: 1_000,
+            }],
+        };
+        store
+            .save_supplier_invoice_draft(second_invoice_input.clone())
+            .unwrap();
+        store.save_supplier_invoice_match(second_match()).unwrap();
+        store
+            .delete_supplier_invoice_draft(second_invoice_id)
+            .unwrap();
+        let status_after_delete: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status FROM supplier_orders WHERE id=?",
+                rusqlite::params![order_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            status_after_delete, "confirmed",
+            "un match brouillon supprimé ne clôture pas la commande"
+        );
+        store
+            .save_supplier_invoice_draft(second_invoice_input)
+            .unwrap();
+        store.save_supplier_invoice_match(second_match()).unwrap();
+        store.validate_supplier_invoice(second_invoice_id).unwrap();
+        let closed_status: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status FROM supplier_orders WHERE id=?",
+                rusqlite::params![order_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            closed_status, "closed",
+            "seuls les matches de factures validées clôturent la commande"
+        );
+
+        let credit = store
+            .save_supplier_credit_note_draft(SaveSupplierCreditNoteDraftInput {
+                id: Some("a9e7220a-9563-46b5-8f88-2af82c4c6791".into()),
+                supplier_id: supplier_id.clone(),
+                document_date: "2026-09-03".into(),
+                reference: Some("AV-F-1".into()),
+                note: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some("a83443fa-0029-47dc-b915-0f545308cdeb".into()),
+                    description: "Retour".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("pièce".into()),
+                    unit_price_cents: 200,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+                allocations: vec![],
+            })
+            .unwrap();
+        let credit_id = credit["credit_note"]["id"].as_str().unwrap().to_owned();
+        store
+            .validate_supplier_credit_note(ValidateSupplierCreditNoteInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_credit_note_id: credit_id.clone(),
+            })
+            .unwrap();
+        assert!(store.connect().unwrap().execute(
+            "INSERT INTO supplier_credit_note_items(id,supplier_credit_note_id,position,description,quantity_milli,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,category,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),credit_id,1,"ligne forgée",1_000,"pièce",1,0,0,1,0,1,"Matériaux","2026-09-03T00:00:00Z","2026-09-03T00:00:00Z"],
+        ).is_err(), "une ligne ne peut pas être ajoutée à un avoir validé");
+        let apply_input = ApplySupplierCreditInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_credit_note_id: credit_id.clone(),
+            supplier_invoice_id: invoice_id.into(),
+            amount_cents: 200,
+        };
+        let applied = store.apply_supplier_credit(apply_input.clone()).unwrap();
+        let allocation_id = applied["allocation"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(applied["invoice"]["credited_cents"], 200);
+        assert_eq!(
+            store.apply_supplier_credit(apply_input.clone()).unwrap()["idempotent"],
+            true
+        );
+        let mut conflicting_apply = apply_input;
+        conflicting_apply.amount_cents = 199;
+        assert!(
+            store.apply_supplier_credit(conflicting_apply).is_err(),
+            "un request_id ne peut pas être rejoué avec un autre montant"
+        );
+        let reversed = store
+            .reverse_supplier_credit_allocation(ReverseSupplierCreditAllocationInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_credit_allocation_id: allocation_id.clone(),
+                reason: "Imputation sélectionnée par erreur".into(),
+            })
+            .unwrap();
+        assert_eq!(reversed["invoice"]["credited_cents"], 0);
+        assert!(store
+            .reverse_supplier_credit_allocation(ReverseSupplierCreditAllocationInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_credit_allocation_id: allocation_id,
+                reason: "Deuxième extourne interdite".into(),
+            })
+            .is_err());
+        assert!(
+            store
+                .apply_supplier_credit(ApplySupplierCreditInput {
+                    request_id: uuid::Uuid::new_v4().to_string(),
+                    supplier_credit_note_id: credit_id,
+                    supplier_invoice_id: invoice_id.into(),
+                    amount_cents: 201,
+                })
+                .is_err(),
+            "une imputation ne peut pas dépasser le solde de l’avoir"
+        );
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM stock_movements", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+        assert!(connection
+            .execute(
+                "UPDATE supplier_orders SET closed_at='2099-01-01T00:00:00Z' WHERE id=?",
+                rusqlite::params![order_id]
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE supplier_orders SET title='altéré' WHERE id=?",
+                rusqlite::params![order_id]
+            )
+            .is_err());
+        assert!(connection.execute("UPDATE supplier_operation_requests SET operation='forged' WHERE result_entity_id=?", rusqlite::params![order_id]).is_err());
+        assert!(connection
+            .execute("DELETE FROM supplier_credit_allocations", [])
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE supplier_expense_reclassification_lines SET amount_cents=501",
+                []
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE stock_movements SET reason='altéré' WHERE supplier_receipt_id IS NOT NULL",
+                []
+            )
+            .is_err());
+        drop(connection);
+        let backup_path = temporary.path().join("supplier-procurement-v21.elyko");
+        store
+            .create_backup(Some(backup_path.to_string_lossy().into_owned()), "1.8.0")
+            .unwrap();
+        store
+            .create_record("suppliers", json!({"name":"Mutation après sauvegarde"}))
+            .unwrap();
+        store
+            .restore_backup(&backup_path.to_string_lossy(), "1.8.0")
+            .unwrap();
+        let workspace = store.get_workspace().unwrap();
+        assert_eq!(workspace["supplier_orders"][0]["id"], order_id);
+        assert_eq!(workspace["supplier_orders"][0]["status"], "closed");
+        assert_eq!(workspace["supplier_receipts"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            workspace["supplier_invoice_matches"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            workspace["supplier_credit_allocations"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(workspace["stock_movements"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn supplier_procurement_closed_period_and_transition_guards_fail_closed() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Garde achats SA"}))
+                .unwrap(),
+        );
+        let product_id = tracked_product(&store, "Produit gardé", 0);
+        let order_input = |order_id: &str, line_id: &str, order_date: &str, mode: &str| {
+            SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(order_id.into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Commande sous garde".into(),
+                    order_date: order_date.into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![SupplierOrderLineInput {
+                    id: Some(line_id.into()),
+                    catalog_item_id: (mode == "stocked_receipt").then(|| product_id.clone()),
+                    position: 0,
+                    description: "Article protégé".into(),
+                    quantity_milli: 1_000,
+                    unit: "pièce".into(),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                    fulfillment_mode: mode.into(),
+                }],
+            }
+        };
+        let order_id = "4f847f5b-b3a8-44df-a59a-46c984a022bc";
+        let order_line_id = "924fd50c-b16a-4860-877d-36f8303fca90";
+        store
+            .save_supplier_order_draft(order_input(
+                order_id,
+                order_line_id,
+                "2026-10-01",
+                "stocked_receipt",
+            ))
+            .unwrap();
+        let connection = store.connect().unwrap();
+        assert!(connection.execute(
+            "UPDATE supplier_orders SET number='CF-FAUX',status='confirmed',confirmed_at='2026-10-01T00:00:00Z' WHERE id=?",
+            rusqlite::params![order_id],
+        ).is_err(), "une confirmation SQL sans snapshot doit échouer");
+        drop(connection);
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: order_id.into(),
+            })
+            .unwrap();
+        let cancel_order_id = "9d2762ca-d8d0-4c5a-ab21-544dca6f3577";
+        let cancel_line_id = "46349577-1385-4854-87aa-0640694f4800";
+        store
+            .save_supplier_order_draft(order_input(
+                cancel_order_id,
+                cancel_line_id,
+                "2026-09-01",
+                "direct",
+            ))
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: cancel_order_id.into(),
+            })
+            .unwrap();
+        let cancel_input = CancelSupplierOrderRemainderInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_order_id: cancel_order_id.into(),
+            reason: "Quantité réduite par accord".into(),
+            lines: vec![CancelSupplierOrderRemainderLineInput {
+                supplier_order_line_id: cancel_line_id.into(),
+                quantity_milli: 400,
+            }],
+        };
+        let cancelled = store
+            .cancel_supplier_order_remainder(cancel_input.clone())
+            .unwrap();
+        assert_eq!(cancelled["lines"][0]["cancelled_quantity_milli"], 400);
+        assert_eq!(
+            store.cancel_supplier_order_remainder(cancel_input).unwrap()["idempotent"],
+            true
+        );
+        assert!(store.connect().unwrap().execute(
+            "INSERT INTO supplier_order_cancellation_lines(id,request_id,supplier_order_id,supplier_order_line_id,quantity_milli,reason,created_at) VALUES(?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),cancel_order_id,cancel_line_id,601,"forgé","2026-09-01T00:00:00Z"],
+        ).is_err());
+        let connection = store.connect().unwrap();
+        assert!(connection.execute(
+            "UPDATE supplier_orders SET status='closed',closed_at='2026-10-01T00:00:00Z',updated_at='2026-10-01T00:00:00Z' WHERE id=?",
+            rusqlite::params![order_id],
+        ).is_err(), "une commande non rapprochée ne peut pas être fermée par SQL");
+        assert!(connection.execute(
+            "UPDATE supplier_orders SET status='cancelled',cancelled_at='2026-10-01T00:00:00Z',cancellation_reason='forgé',updated_at='2026-10-01T00:00:00Z' WHERE id=?",
+            rusqlite::params![order_id],
+        ).is_err(), "une commande avec reliquat ne peut pas être annulée par SQL");
+        assert!(connection.execute(
+            "INSERT INTO supplier_operation_requests(request_id,operation,payload_sha256,payload_json,result_entity_type,result_entity_id,response_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),"forged","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","{}","supplier_receipt","missing","{}","2026-10-01T00:00:00Z"],
+        ).is_err());
+        drop(connection);
+        assert!(
+            store
+                .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                    receipt: SupplierReceiptDraftInput {
+                        id: None,
+                        supplier_order_id: order_id.into(),
+                        receipt_date: "2026-09-30".into(),
+                        reference: None,
+                        notes: None
+                    },
+                    lines: vec![SupplierReceiptLineInput {
+                        supplier_order_line_id: order_line_id.into(),
+                        quantity_milli: 1_000
+                    }],
+                })
+                .is_err(),
+            "une réception antérieure à la commande doit échouer"
+        );
+        let receipt = store
+            .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                receipt: SupplierReceiptDraftInput {
+                    id: Some("3a1bd0e8-eadd-428b-bc40-b455df38bb9b".into()),
+                    supplier_order_id: order_id.into(),
+                    receipt_date: "2026-10-02".into(),
+                    reference: None,
+                    notes: None,
+                },
+                lines: vec![SupplierReceiptLineInput {
+                    supplier_order_line_id: order_line_id.into(),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let receipt_id = receipt["receipt"]["id"].as_str().unwrap().to_owned();
+        let october_period = value_id(
+            &store
+                .upsert_accounting_period(AccountingPeriodInput {
+                    id: None,
+                    name: "Octobre achats".into(),
+                    date_from: "2026-10-01".into(),
+                    date_to: "2026-10-31".into(),
+                })
+                .unwrap(),
+        );
+        store.close_accounting_period(&october_period).unwrap();
+        assert!(store
+            .issue_supplier_receipt(IssueSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: receipt_id.clone(),
+            })
+            .is_err());
+        let receipt_state: (String,i64) = store.connect().unwrap().query_row(
+            "SELECT status,(SELECT COUNT(*) FROM stock_movements WHERE supplier_receipt_id=?1) FROM supplier_receipts WHERE id=?1",
+            rusqlite::params![receipt_id],|row| Ok((row.get(0)?,row.get(1)?)),
+        ).unwrap();
+        assert_eq!(receipt_state, ("draft".into(), 0));
+
+        let direct_order_id = "d9212446-11da-4032-8c47-ae2beea45c25";
+        let direct_line_id = "f58ef14a-fc94-4ac4-8e58-c686ad9d8fef";
+        store
+            .save_supplier_order_draft(order_input(
+                direct_order_id,
+                direct_line_id,
+                "2026-09-01",
+                "direct",
+            ))
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: direct_order_id.into(),
+            })
+            .unwrap();
+        let invoice_id = "6ad3e61e-ea8f-4414-939c-70beabf724ff";
+        let invoice_item_id = "8032c8ad-b48f-4f69-8650-34c3bd3e3a68";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(invoice_id.into()),
+                supplier_id: supplier_id.clone(),
+                project_id: None,
+                date: "2026-09-02".into(),
+                due_date: "2026-09-30".into(),
+                reference: Some("TAMPER-1".into()),
+                note: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some(invoice_item_id.into()),
+                    description: "Direct".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("pièce".into()),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Charge".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap();
+        let connection = store.connect().unwrap();
+        assert!(connection.execute(
+            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,direct_order_id,direct_line_id,1_000,499,0,499,"2026-09-02T00:00:00Z"],
+        ).is_err(), "un montant rapproché falsifié doit échouer");
+        drop(connection);
+        store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: invoice_id.into(),
+                supplier_order_id: direct_order_id.into(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: invoice_item_id.into(),
+                    supplier_order_line_id: direct_line_id.into(),
+                    supplier_receipt_line_id: None,
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        store.validate_supplier_invoice(invoice_id).unwrap();
+        let second_expense = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "6020".into(),
+                    name: "Autres achats".into(),
+                    account_type: "expense".into(),
+                    normal_balance: "debit".into(),
+                    report_section: "other_operating_expense".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        let fake_reclassification_id = uuid::Uuid::new_v4().to_string();
+        let mut fake_connection = store.connect().unwrap();
+        let fake_tx = fake_connection.transaction().unwrap();
+        let fake_journal = crate::accounting::post_entry(
+            &fake_tx,
+            "2026-09-04",
+            "Écriture de reclassement falsifiée",
+            "supplier_expense_reclassification",
+            &fake_reclassification_id,
+            "post",
+            vec![
+                crate::accounting::EntryLine {
+                    account_id: second_expense.clone(),
+                    debit_cents: 500,
+                    credit_cents: 0,
+                    currency: "CHF".into(),
+                    memo: None,
+                    project_id: None,
+                    client_id: None,
+                    employee_id: None,
+                },
+                crate::accounting::EntryLine {
+                    account_id: accounts["supplier_payable"].clone(),
+                    debit_cents: 0,
+                    credit_cents: 500,
+                    currency: "CHF".into(),
+                    memo: None,
+                    project_id: None,
+                    client_id: None,
+                    employee_id: None,
+                },
+            ],
+        )
+        .unwrap();
+        fake_tx.execute(
+            "INSERT INTO supplier_expense_reclassifications(id,request_id,supplier_invoice_id,effective_date,reason,journal_entry_id,created_at) VALUES(?,?,?,?,?,?,?)",
+            rusqlite::params![fake_reclassification_id,uuid::Uuid::new_v4().to_string(),invoice_id,"2026-09-04","faux reclassement",fake_journal["id"].as_str().unwrap(),"2026-09-04T00:00:00Z"],
+        ).unwrap();
+        assert!(fake_tx.execute(
+            "INSERT INTO supplier_expense_reclassification_lines(id,reclassification_id,supplier_invoice_item_id,old_expense_account_id,new_expense_account_id,amount_cents,created_at) VALUES(?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),fake_reclassification_id,invoice_item_id,accounts["expense"],second_expense,500,"2026-09-04T00:00:00Z"],
+        ).is_err(), "un faux journal dette/charge ne peut pas justifier un reclassement");
+        fake_tx.rollback().unwrap();
+        assert!(store
+            .reclassify_supplier_invoice_expense(ReclassifySupplierInvoiceExpenseInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: invoice_id.into(),
+                effective_date: "2026-10-05".into(),
+                reason: "Période fermée".into(),
+                lines: vec![SupplierExpenseReclassificationLineInput {
+                    supplier_invoice_item_id: invoice_item_id.into(),
+                    new_expense_account_id: second_expense
+                }],
+            })
+            .is_err());
+        let connection = store.connect().unwrap();
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM supplier_expense_reclassifications WHERE supplier_invoice_id=?",rusqlite::params![invoice_id],|row| row.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_expense_reclassification'",[],|row| row.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT posted_expense_account_id FROM supplier_invoice_items WHERE id=?",
+                    rusqlite::params![invoice_item_id],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            accounts["expense"]
+        );
+        drop(connection);
+
+        let reverse_order_id = "25af1dbe-d05b-4081-a73b-367b582dbb73";
+        let reverse_line_id = "f49b669e-0957-48dc-bac0-d2555d783107";
+        store
+            .save_supplier_order_draft(order_input(
+                reverse_order_id,
+                reverse_line_id,
+                "2026-09-01",
+                "stocked_receipt",
+            ))
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: reverse_order_id.into(),
+            })
+            .unwrap();
+        let reverse_receipt = store
+            .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                receipt: SupplierReceiptDraftInput {
+                    id: Some("a1e06df4-6616-44f9-b116-ecf286592f8e".into()),
+                    supplier_order_id: reverse_order_id.into(),
+                    receipt_date: "2026-09-05".into(),
+                    reference: None,
+                    notes: None,
+                },
+                lines: vec![SupplierReceiptLineInput {
+                    supplier_order_line_id: reverse_line_id.into(),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let reverse_receipt_id = reverse_receipt["receipt"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        store
+            .issue_supplier_receipt(IssueSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: reverse_receipt_id.clone(),
+            })
+            .unwrap();
+        let september_period = value_id(
+            &store
+                .upsert_accounting_period(AccountingPeriodInput {
+                    id: None,
+                    name: "Septembre achats".into(),
+                    date_from: "2026-09-01".into(),
+                    date_to: "2026-09-30".into(),
+                })
+                .unwrap(),
+        );
+        store.close_accounting_period(&september_period).unwrap();
+        assert!(store
+            .reverse_supplier_receipt(ReverseSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: reverse_receipt_id.clone(),
+                reason: "Retour en période fermée".into(),
+            })
+            .is_err());
+        let reverse_state: (String,i64) = store.connect().unwrap().query_row(
+            "SELECT status,(SELECT COUNT(*) FROM stock_movements WHERE supplier_receipt_id=?1) FROM supplier_receipts WHERE id=?1",
+            rusqlite::params![reverse_receipt_id],|row| Ok((row.get(0)?,row.get(1)?)),
+        ).unwrap();
+        assert_eq!(reverse_state, ("issued".into(), 1));
+    }
+
+    #[test]
+    fn supplier_receipt_reversal_aggregates_stock_and_allows_full_cancellation() {
+        let (_temporary, store) = initialized_store();
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Extournes achats SA"}))
+                .unwrap(),
+        );
+        let product_id = tracked_product(&store, "Produit extourné", 0);
+
+        let order_id = "93377a21-140a-488b-880f-448593a56d1f";
+        let order_line_id = "a63b801d-8c2a-4167-b38d-66f42831e2ab";
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(order_id.into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Commande à extourner".into(),
+                    order_date: "2026-08-01".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![SupplierOrderLineInput {
+                    id: Some(order_line_id.into()),
+                    catalog_item_id: Some(product_id.clone()),
+                    position: 0,
+                    description: "Produit".into(),
+                    quantity_milli: 1_000,
+                    unit: "pièce".into(),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                    fulfillment_mode: "stocked_receipt".into(),
+                }],
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: order_id.into(),
+            })
+            .unwrap();
+        let receipt = store
+            .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                receipt: SupplierReceiptDraftInput {
+                    id: Some("249b7711-b83f-4488-9ad8-4ffab33f799b".into()),
+                    supplier_order_id: order_id.into(),
+                    receipt_date: "2026-08-02".into(),
+                    reference: None,
+                    notes: None,
+                },
+                lines: vec![SupplierReceiptLineInput {
+                    supplier_order_line_id: order_line_id.into(),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let receipt_id = receipt["receipt"]["id"].as_str().unwrap().to_owned();
+        let receipt_line_id = receipt["lines"][0]["id"].as_str().unwrap().to_owned();
+        let mut forged_issue_connection = store.connect().unwrap();
+        let forged_issue = forged_issue_connection.transaction().unwrap();
+        forged_issue.execute(
+            "UPDATE supplier_receipts SET number='RF-FAUX',status='issuing',snapshot_json='{}',issued_at='2026-08-02T00:00:00Z',updated_at='2026-08-02T00:00:00Z' WHERE id=?",
+            rusqlite::params![receipt_id],
+        ).unwrap();
+        assert!(
+            forged_issue
+                .execute(
+                    "UPDATE supplier_receipts SET status='issued' WHERE id=?",
+                    rusqlite::params![receipt_id],
+                )
+                .is_err(),
+            "une réception stockée ne peut pas devenir émise sans son entrée exacte"
+        );
+        forged_issue.rollback().unwrap();
+        store
+            .issue_supplier_receipt(IssueSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: receipt_id.clone(),
+            })
+            .unwrap();
+        let mut forged_reverse_connection = store.connect().unwrap();
+        let forged_reverse = forged_reverse_connection.transaction().unwrap();
+        forged_reverse.execute(
+            "UPDATE supplier_receipts SET status='reversing',reversed_at='2026-08-02T01:00:00Z',reversal_reason='faux',updated_at='2026-08-02T01:00:00Z' WHERE id=?",
+            rusqlite::params![receipt_id],
+        ).unwrap();
+        assert!(
+            forged_reverse
+                .execute(
+                    "UPDATE supplier_receipts SET status='reversed' WHERE id=?",
+                    rusqlite::params![receipt_id],
+                )
+                .is_err(),
+            "une réception stockée ne peut pas devenir extournée sans son mouvement inverse exact"
+        );
+        forged_reverse.rollback().unwrap();
+        let draft_invoice_id = "fdf73564-0833-46c7-b4fd-88d40aba48bb";
+        let draft_invoice_line_id = "475232c8-4c48-4b8e-a303-e995939a6810";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(draft_invoice_id.into()),
+                supplier_id: supplier_id.clone(),
+                project_id: None,
+                date: "2026-08-02".into(),
+                due_date: "2026-09-01".into(),
+                reference: Some("BROUILLON-EXT-1".into()),
+                note: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some(draft_invoice_line_id.into()),
+                    description: "Produit".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("pièce".into()),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap();
+        store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: draft_invoice_id.into(),
+                supplier_order_id: order_id.into(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: draft_invoice_line_id.into(),
+                    supplier_order_line_id: order_line_id.into(),
+                    supplier_receipt_line_id: Some(receipt_line_id),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let edit_error = store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(draft_invoice_id.into()),
+                supplier_id: supplier_id.clone(),
+                project_id: None,
+                date: "2026-08-02".into(),
+                due_date: "2026-09-02".into(),
+                reference: Some("BROUILLON-EXT-1".into()),
+                note: Some("Modification qui ne doit pas effacer le lien".into()),
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some(draft_invoice_line_id.into()),
+                    description: "Produit".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("pièce".into()),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériaux".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(edit_error.contains("Retirez explicitement"), "{edit_error}");
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM supplier_invoice_matches WHERE supplier_invoice_id=?",
+                    rusqlite::params![draft_invoice_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1,
+            "une édition refusée conserve le rapprochement"
+        );
+        assert!(store
+            .reverse_supplier_receipt(ReverseSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: receipt_id.clone(),
+                reason: "Lien encore présent".into(),
+            })
+            .is_err());
+        let clear_match = SaveSupplierInvoiceMatchInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_invoice_id: draft_invoice_id.into(),
+            supplier_order_id: order_id.into(),
+            allocations: vec![],
+        };
+        let cleared = store
+            .save_supplier_invoice_match(clear_match.clone())
+            .unwrap();
+        assert!(cleared["matches"].as_array().unwrap().is_empty());
+        assert_eq!(
+            store.save_supplier_invoice_match(clear_match).unwrap()["idempotent"],
+            true
+        );
+        store
+            .reverse_supplier_receipt(ReverseSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: receipt_id.clone(),
+                reason: "Réception saisie par erreur".into(),
+            })
+            .unwrap();
+        assert!(store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE supplier_receipts SET reversal_reason='altéré' WHERE id=?",
+                rusqlite::params![receipt_id],
+            )
+            .is_err());
+        let cancelled = store
+            .cancel_supplier_order_remainder(CancelSupplierOrderRemainderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: order_id.into(),
+                reason: "Commande annulée après extourne".into(),
+                lines: vec![CancelSupplierOrderRemainderLineInput {
+                    supplier_order_line_id: order_line_id.into(),
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        assert_eq!(cancelled["order"]["status"], "cancelled");
+        let first_state: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT stock_quantity_milli,(SELECT COUNT(*) FROM stock_movements WHERE supplier_receipt_id=?1) FROM catalog_items WHERE id=?2",
+                rusqlite::params![receipt_id, product_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(first_state, (0, 2));
+
+        let aggregate_order_id = "032cb8d6-2b52-460f-bea6-807892171a64";
+        let aggregate_line_one = "d2f74067-7d70-4d6a-9eaa-ce72c846564c";
+        let aggregate_line_two = "855ff3e9-f08f-4bdb-8d99-0c480e144a99";
+        let make_line = |id: &str, position: i64| SupplierOrderLineInput {
+            id: Some(id.into()),
+            catalog_item_id: Some(product_id.clone()),
+            position,
+            description: format!("Lot {}", position + 1),
+            quantity_milli: 5_000,
+            unit: "pièce".into(),
+            unit_price_cents: 100,
+            discount_bp: 0,
+            vat_bp: 0,
+            category: "Matériaux".into(),
+            expense_account_id: None,
+            project_id: None,
+            fulfillment_mode: "stocked_receipt".into(),
+        };
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(aggregate_order_id.into()),
+                    supplier_id,
+                    project_id: None,
+                    title: "Commande multi-lignes".into(),
+                    order_date: "2026-08-03".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![
+                    make_line(aggregate_line_one, 0),
+                    make_line(aggregate_line_two, 1),
+                ],
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: aggregate_order_id.into(),
+            })
+            .unwrap();
+        let aggregate_receipt = store
+            .save_supplier_receipt_draft(SaveSupplierReceiptDraftInput {
+                receipt: SupplierReceiptDraftInput {
+                    id: Some("503f954e-bbe0-40ae-a5e3-f5c30a2fc8ec".into()),
+                    supplier_order_id: aggregate_order_id.into(),
+                    receipt_date: "2026-08-04".into(),
+                    reference: None,
+                    notes: None,
+                },
+                lines: vec![
+                    SupplierReceiptLineInput {
+                        supplier_order_line_id: aggregate_line_one.into(),
+                        quantity_milli: 5_000,
+                    },
+                    SupplierReceiptLineInput {
+                        supplier_order_line_id: aggregate_line_two.into(),
+                        quantity_milli: 5_000,
+                    },
+                ],
+            })
+            .unwrap();
+        let aggregate_receipt_id = aggregate_receipt["receipt"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        store
+            .issue_supplier_receipt(IssueSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: aggregate_receipt_id.clone(),
+            })
+            .unwrap();
+        store
+            .record_stock_exit(StockExitInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: product_id.clone(),
+                quantity_milli: 3_000,
+                reason: "Consommation avant retour".into(),
+                reference: None,
+                date: Some("2026-08-05".into()),
+            })
+            .unwrap();
+        let error = store
+            .reverse_supplier_receipt(ReverseSupplierReceiptInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_receipt_id: aggregate_receipt_id.clone(),
+                reason: "Retour impossible".into(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("ne permet pas d’extourner"), "{error}");
+        let aggregate_state: (String, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT receipt.status,item.stock_quantity_milli,(SELECT COUNT(*) FROM stock_movements WHERE supplier_receipt_id=receipt.id) FROM supplier_receipts receipt JOIN catalog_items item ON item.id=? WHERE receipt.id=?",
+                rusqlite::params![product_id, aggregate_receipt_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(aggregate_state, ("issued".into(), 7_000, 2));
+    }
+
+    #[test]
+    fn supplier_invoice_price_mismatch_stays_a_resolvable_draft() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Contrôle trois voies SA"}))
+                .unwrap(),
+        );
+        let order_id = "1b74e920-9116-4ae5-9ed1-bdbb001250c8";
+        let order_line_id = "c7862571-4da6-4773-9b15-597131db5189";
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(order_id.into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Commande au prix convenu".into(),
+                    order_date: "2026-08-10".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![SupplierOrderLineInput {
+                    id: Some(order_line_id.into()),
+                    catalog_item_id: None,
+                    position: 0,
+                    description: "Prestation".into(),
+                    quantity_milli: 1_000,
+                    unit: "forfait".into(),
+                    unit_price_cents: 500,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Charges".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                    fulfillment_mode: "direct".into(),
+                }],
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: order_id.into(),
+            })
+            .unwrap();
+        let invoice_id = "2b2b3973-d073-44ab-b94f-a3eb9b8bea62";
+        let invoice_item_id = "32376587-20ba-4729-a120-58a766cf0870";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(invoice_id.into()),
+                supplier_id,
+                project_id: None,
+                date: "2026-08-11".into(),
+                due_date: "2026-09-10".into(),
+                reference: Some("ECART-PRIX-1".into()),
+                note: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some(invoice_item_id.into()),
+                    description: "Prestation facturée".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("forfait".into()),
+                    unit_price_cents: 600,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Charges".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap();
+        assert!(
+            store
+                .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                    request_id: uuid::Uuid::new_v4().to_string(),
+                    supplier_invoice_id: invoice_id.into(),
+                    supplier_order_id: order_id.into(),
+                    allocations: vec![],
+                })
+                .is_err(),
+            "une liste vide ne crée pas un rapprochement initial"
+        );
+        store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: invoice_id.into(),
+                supplier_order_id: order_id.into(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: invoice_item_id.into(),
+                    supplier_order_line_id: order_line_id.into(),
+                    supplier_receipt_line_id: None,
+                    quantity_milli: 1_000,
+                }],
+            })
+            .unwrap();
+        let before = store.get_workspace().unwrap();
+        let invoice = before["supplier_invoices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == invoice_id)
+            .unwrap();
+        assert_eq!(invoice["match_status"], "mismatch");
+        let error = store
+            .validate_supplier_invoice(invoice_id)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("rapprochement"), "{error}");
+        let state: (String, String, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT invoice.status,order_row.status,(SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_invoice' AND source_id=invoice.id) FROM supplier_invoices invoice JOIN supplier_orders order_row ON order_row.id=? WHERE invoice.id=?",
+                rusqlite::params![order_id, invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(state, ("draft".into(), "confirmed".into(), 0));
+    }
+
+    #[test]
+    fn supplier_match_rounding_allocates_the_exact_invoice_line_total() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Arrondis achats SA"}))
+                .unwrap(),
+        );
+        let order_id = "631ea32a-4335-4ef4-86fa-7eacb544ae4f";
+        let first_order_line_id = "11111111-1111-4111-8111-111111111111";
+        let second_order_line_id = "22222222-2222-4222-8222-222222222222";
+        let make_line = |id: &str, position: i64| SupplierOrderLineInput {
+            id: Some(id.into()),
+            catalog_item_id: None,
+            position,
+            description: format!("Demi-unité {}", position + 1),
+            quantity_milli: 1_000,
+            unit: "unité".into(),
+            unit_price_cents: 1,
+            discount_bp: 5_000,
+            vat_bp: 0,
+            category: "Charges".into(),
+            expense_account_id: None,
+            project_id: None,
+            fulfillment_mode: "direct".into(),
+        };
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(order_id.into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Commande avec arrondi".into(),
+                    order_date: "2026-08-15".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![
+                    make_line(first_order_line_id, 0),
+                    make_line(second_order_line_id, 1),
+                ],
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: order_id.into(),
+            })
+            .unwrap();
+        let invoice_id = "939c9248-0832-4fe1-91b3-185958b6a13d";
+        let invoice_item_id = "6ad5babb-f280-4e19-8aab-a7446973cac9";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(invoice_id.into()),
+                supplier_id: supplier_id.clone(),
+                project_id: None,
+                date: "2026-08-16".into(),
+                due_date: "2026-09-15".into(),
+                reference: Some("ARRONDI-1".into()),
+                note: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some(invoice_item_id.into()),
+                    description: "Deux unités remisées".into(),
+                    quantity_milli: 2_000,
+                    unit: Some("unité".into()),
+                    unit_price_cents: 1,
+                    discount_bp: 5_000,
+                    vat_bp: 0,
+                    category: "Charges".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap();
+        let mut tamper_connection = store.connect().unwrap();
+        let tamper_tx = tamper_connection.transaction().unwrap();
+        tamper_tx.execute(
+            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,order_id,first_order_line_id,1_000,1,0,1,"2026-08-16T00:00:00Z"],
+        ).unwrap();
+        assert!(tamper_tx.execute(
+            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,order_id,second_order_line_id,1_000,1,0,1,"2026-08-16T00:00:01Z"],
+        ).is_err(), "SQLite refuse que deux allocations arrondissent chacune le même centime");
+        tamper_tx.rollback().unwrap();
+        let matched = store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: invoice_id.into(),
+                supplier_order_id: order_id.into(),
+                allocations: vec![
+                    SupplierInvoiceMatchAllocationInput {
+                        supplier_invoice_item_id: invoice_item_id.into(),
+                        supplier_order_line_id: second_order_line_id.into(),
+                        supplier_receipt_line_id: None,
+                        quantity_milli: 1_000,
+                    },
+                    SupplierInvoiceMatchAllocationInput {
+                        supplier_invoice_item_id: invoice_item_id.into(),
+                        supplier_order_line_id: first_order_line_id.into(),
+                        supplier_receipt_line_id: None,
+                        quantity_milli: 1_000,
+                    },
+                ],
+            })
+            .unwrap();
+        let allocated = matched["matches"].as_array().unwrap();
+        assert_eq!(
+            allocated
+                .iter()
+                .map(|row| row["quantity_milli"].as_i64().unwrap())
+                .sum::<i64>(),
+            2_000
+        );
+        assert_eq!(
+            allocated
+                .iter()
+                .map(|row| row["net_cents"].as_i64().unwrap())
+                .sum::<i64>(),
+            1,
+            "le centime résiduel est réparti une seule fois"
+        );
+        assert_eq!(
+            allocated
+                .iter()
+                .map(|row| row["total_cents"].as_i64().unwrap())
+                .sum::<i64>(),
+            1
+        );
+        let alternate_order_id = "89029111-66a6-4558-8b9d-2618ae441026";
+        let alternate_line_id = "50dfdd04-f535-409f-b13d-8d71342df723";
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(alternate_order_id.into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Autre commande".into(),
+                    order_date: "2026-08-15".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![SupplierOrderLineInput {
+                    id: Some(alternate_line_id.into()),
+                    catalog_item_id: None,
+                    position: 0,
+                    description: "Autre commande".into(),
+                    quantity_milli: 2_000,
+                    unit: "unité".into(),
+                    unit_price_cents: 1,
+                    discount_bp: 5_000,
+                    vat_bp: 0,
+                    category: "Charges".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                    fulfillment_mode: "direct".into(),
+                }],
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: alternate_order_id.into(),
+            })
+            .unwrap();
+        let mut cross_order_connection = store.connect().unwrap();
+        let cross_order_tx = cross_order_connection.transaction().unwrap();
+        cross_order_tx
+            .execute(
+                "DELETE FROM supplier_invoice_matches WHERE supplier_invoice_id=?",
+                rusqlite::params![invoice_id],
+            )
+            .unwrap();
+        let direct_match_id = uuid::Uuid::new_v4().to_string();
+        cross_order_tx.execute(
+            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            rusqlite::params![direct_match_id,uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,order_id,first_order_line_id,1_000,0,0,0,"2026-08-16T00:00:02Z"],
+        ).unwrap();
+        let cross_order_error = cross_order_tx.execute(
+            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,alternate_order_id,alternate_line_id,1_000,1,0,1,"2026-08-16T00:00:03Z"],
+        ).unwrap_err().to_string();
+        assert!(
+            cross_order_error.contains("only be matched to one supplier order"),
+            "la garde SQL doit refuser une seconde commande: {cross_order_error}"
+        );
+        assert!(
+            cross_order_tx
+                .execute(
+                    "UPDATE supplier_invoice_matches SET supplier_order_id=?,supplier_order_line_id=? WHERE id=?",
+                    rusqlite::params![alternate_order_id, alternate_line_id, direct_match_id],
+                )
+                .is_err(),
+            "la commande d’un rapprochement existant est immuable en SQL"
+        );
+        cross_order_tx.rollback().unwrap();
+        assert!(
+            store
+                .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                    request_id: uuid::Uuid::new_v4().to_string(),
+                    supplier_invoice_id: invoice_id.into(),
+                    supplier_order_id: alternate_order_id.into(),
+                    allocations: vec![SupplierInvoiceMatchAllocationInput {
+                        supplier_invoice_item_id: invoice_item_id.into(),
+                        supplier_order_line_id: alternate_line_id.into(),
+                        supplier_receipt_line_id: None,
+                        quantity_milli: 2_000,
+                    }],
+                })
+                .is_err(),
+            "changer de commande exige un retrait explicite préalable"
+        );
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM supplier_invoice_matches WHERE supplier_invoice_id=? AND supplier_order_id=?",
+                    rusqlite::params![invoice_id, order_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2,
+            "le rapprochement d’origine ne doit pas être remplacé silencieusement"
+        );
+        let acceptable_global_gap: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))) FROM supplier_invoice_matches match_row JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id WHERE match_row.supplier_invoice_id=? AND match_row.supplier_order_id=?",
+                rusqlite::params![invoice_id,order_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            acceptable_global_gap, 1,
+            "un seul centime d’écart global reste dans la tolérance"
+        );
+        store.validate_supplier_invoice(invoice_id).unwrap();
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT status FROM supplier_orders WHERE id=?",
+                    rusqlite::params![order_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "closed"
+        );
+
+        let amplified_order_id = "1c35b60c-98aa-4815-a0cf-bff167c1e078";
+        let amplified_line_ids = [
+            "33333333-3333-4333-8333-333333333333",
+            "44444444-4444-4444-8444-444444444444",
+            "55555555-5555-4555-8555-555555555555",
+        ];
+        let amplified_item_ids = [
+            "d4578976-348d-4687-b69d-72bdc31cfad3",
+            "0c050135-7cdd-473e-a5a1-d7b27dff7dc6",
+            "349720e8-3064-4af1-a12d-7dc4b6fc89f9",
+        ];
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(amplified_order_id.into()),
+                    supplier_id: supplier_id.clone(),
+                    project_id: None,
+                    title: "Commande révélant la tolérance cumulée".into(),
+                    order_date: "2026-08-17".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: amplified_line_ids
+                    .iter()
+                    .enumerate()
+                    .map(|(position, id)| SupplierOrderLineInput {
+                        id: Some((*id).into()),
+                        catalog_item_id: None,
+                        position: position as i64,
+                        description: format!("Centime commandé {}", position + 1),
+                        quantity_milli: 1_000,
+                        unit: "unité".into(),
+                        unit_price_cents: 2,
+                        discount_bp: 0,
+                        vat_bp: 0,
+                        category: "Charges".into(),
+                        expense_account_id: None,
+                        project_id: None,
+                        fulfillment_mode: "direct".into(),
+                    })
+                    .collect(),
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: amplified_order_id.into(),
+            })
+            .unwrap();
+        let amplified_invoice_id = "88998563-75ce-4268-a235-3804152f24c4";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(amplified_invoice_id.into()),
+                supplier_id,
+                project_id: None,
+                date: "2026-08-18".into(),
+                due_date: "2026-09-17".into(),
+                reference: Some("TOLERANCE-CUMULEE-1".into()),
+                note: None,
+                items: amplified_item_ids
+                    .iter()
+                    .enumerate()
+                    .map(|(position, id)| SupplierInvoiceLineInput {
+                        id: Some((*id).into()),
+                        description: format!("Centime facturé {}", position + 1),
+                        quantity_milli: 1_000,
+                        unit: Some("unité".into()),
+                        unit_price_cents: 1,
+                        discount_bp: 0,
+                        vat_bp: 0,
+                        category: "Charges".into(),
+                        expense_account_id: None,
+                        project_id: None,
+                    })
+                    .collect(),
+            })
+            .unwrap();
+        store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: amplified_invoice_id.into(),
+                supplier_order_id: amplified_order_id.into(),
+                allocations: amplified_item_ids
+                    .iter()
+                    .zip(amplified_line_ids.iter())
+                    .map(|(item_id, line_id)| SupplierInvoiceMatchAllocationInput {
+                        supplier_invoice_item_id: (*item_id).into(),
+                        supplier_order_line_id: (*line_id).into(),
+                        supplier_receipt_line_id: None,
+                        quantity_milli: 1_000,
+                    })
+                    .collect(),
+            })
+            .unwrap();
+        let amplified_workspace = store.get_workspace().unwrap();
+        assert_eq!(
+            amplified_workspace["supplier_invoices"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["id"] == amplified_invoice_id)
+                .unwrap()["match_status"],
+            "mismatch"
+        );
+        assert!(store
+            .validate_supplier_invoice(amplified_invoice_id)
+            .is_err());
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT status FROM supplier_orders WHERE id=?",
+                    rusqlite::params![amplified_order_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "confirmed",
+            "la tolérance ne peut pas s’amplifier jusqu’à clôturer la commande"
+        );
+    }
+
+    #[test]
+    fn supplier_large_confirmation_replays_from_compact_operation_metadata() {
+        let (_temporary, store) = initialized_store();
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Commande volumineuse SA"}))
+                .unwrap(),
+        );
+        let order_id = "38c89c75-d328-4e46-b77b-faa280cb82f5";
+        let description = "Description contractuelle détaillée ".repeat(30);
+        let lines = (0..550)
+            .map(|position| SupplierOrderLineInput {
+                id: Some(uuid::Uuid::new_v4().to_string()),
+                catalog_item_id: None,
+                position,
+                description: format!("{description}{position}"),
+                quantity_milli: 1_000,
+                unit: "unité".into(),
+                unit_price_cents: 1,
+                discount_bp: 0,
+                vat_bp: 0,
+                category: "Charges".into(),
+                expense_account_id: None,
+                project_id: None,
+                fulfillment_mode: "direct".into(),
+            })
+            .collect();
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(order_id.into()),
+                    supplier_id,
+                    project_id: None,
+                    title: "Commande avec contenu conséquent".into(),
+                    order_date: "2026-08-20".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines,
+            })
+            .unwrap();
+        let confirm = ConfirmSupplierOrderInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_order_id: order_id.into(),
+        };
+        let confirmed = store.confirm_supplier_order(confirm.clone()).unwrap();
+        assert!(serde_json::to_vec(&confirmed).unwrap().len() > 500_000);
+        let stored_lengths: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT LENGTH(payload_json),LENGTH(response_json) FROM supplier_operation_requests WHERE request_id=?",
+                rusqlite::params![confirm.request_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert!(stored_lengths.0 < 1_000 && stored_lengths.1 < 1_000);
+        let replay = store.confirm_supplier_order(confirm).unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["lines"].as_array().unwrap().len(), 550);
     }
 
     #[test]

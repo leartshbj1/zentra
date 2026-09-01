@@ -3518,12 +3518,16 @@ struct SupplierInvoiceCandidate {
     document_date: String,
     total_cents: i64,
     paid_cents: i64,
+    credited_cents: i64,
     currency: String,
 }
 
 impl SupplierInvoiceCandidate {
     fn remaining_cents(&self) -> i64 {
-        self.total_cents.saturating_sub(self.paid_cents).max(0)
+        self.total_cents
+            .saturating_sub(self.paid_cents)
+            .saturating_sub(self.credited_cents)
+            .max(0)
     }
 }
 
@@ -3531,7 +3535,7 @@ fn load_supplier_invoice_candidates(
     connection: &rusqlite::Connection,
 ) -> AppResult<Vec<SupplierInvoiceCandidate>> {
     let mut statement = connection.prepare(
-        "SELECT invoice.id,invoice.supplier_id,invoice.supplier_name,supplier.iban,invoice.reference,invoice.reference_normalized,invoice.document_date,invoice.total_cents,invoice.paid_cents,invoice.currency FROM supplier_invoices invoice JOIN suppliers supplier ON supplier.id=invoice.supplier_id WHERE invoice.status='validated' AND invoice.paid_cents<invoice.total_cents ORDER BY invoice.document_date DESC,invoice.created_at DESC",
+        "SELECT invoice.id,invoice.supplier_id,invoice.supplier_name,supplier.iban,invoice.reference,invoice.reference_normalized,invoice.document_date,invoice.total_cents,invoice.paid_cents,invoice.credited_cents,invoice.currency FROM supplier_invoices invoice JOIN suppliers supplier ON supplier.id=invoice.supplier_id WHERE invoice.status='validated' AND invoice.paid_cents+invoice.credited_cents<invoice.total_cents ORDER BY invoice.document_date DESC,invoice.created_at DESC",
     )?;
     let candidates = statement
         .query_map([], |row| {
@@ -3545,7 +3549,8 @@ fn load_supplier_invoice_candidates(
                 document_date: row.get(6)?,
                 total_cents: row.get(7)?,
                 paid_cents: row.get(8)?,
-                currency: row.get(9)?,
+                credited_cents: row.get(9)?,
+                currency: row.get(10)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

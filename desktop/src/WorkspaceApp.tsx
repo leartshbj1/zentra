@@ -75,16 +75,20 @@ import { RemindersScreen } from './RemindersScreen';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
-import { CatalogItemForm, CatalogScreen, StockMovementForm } from './CatalogScreen';
+import {
+  CatalogItemForm,
+  CatalogScreen,
+  StockMovementForm,
+} from './CatalogScreen';
 import {
   ExpenseForm,
   LegacyExpenseDetail,
-  PurchasesScreen,
   SupplierForm,
   SupplierInvoiceDetail,
   SupplierInvoiceForm,
   SupplierPaymentForm,
 } from './PurchasesScreen';
+import { PurchaseOrdersScreen } from './PurchaseOrdersScreen';
 import { BankScreen } from './BankScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
@@ -186,7 +190,10 @@ import {
   timerBlockReason,
   type WorkspacePrerequisites,
 } from './workflowGuards';
-import { availabilityForCatalogItem, quoteRequiresSalesOrder } from './orderFlow';
+import {
+  availabilityForCatalogItem,
+  quoteRequiresSalesOrder,
+} from './orderFlow';
 
 type View = TourView | 'orders';
 type ModalState =
@@ -513,14 +520,41 @@ export function WorkspaceApp({
 
   async function deleteEmptyProject(item: Project) {
     const linked: Array<[string, number]> = [
-      ['jalon', workspace.projectMilestones.filter((row) => row.projectId === item.id).length],
-      ['tâche', workspace.projectTasks.filter((row) => row.projectId === item.id).length],
-      ['saisie de temps', workspace.timeEntries.filter((row) => row.projectId === item.id).length],
-      ['devis', workspace.quotes.filter((row) => row.projectId === item.id).length],
-      ['commande', workspace.salesOrders.filter((row) => row.projectId === item.id).length],
-      ['facture', workspace.invoices.filter((row) => row.projectId === item.id).length],
-      ['dépense', workspace.expenses.filter((row) => row.projectId === item.id).length],
-      ['facture fournisseur', workspace.supplierInvoices.filter((row) => row.projectId === item.id).length],
+      [
+        'jalon',
+        workspace.projectMilestones.filter((row) => row.projectId === item.id)
+          .length,
+      ],
+      [
+        'tâche',
+        workspace.projectTasks.filter((row) => row.projectId === item.id)
+          .length,
+      ],
+      [
+        'saisie de temps',
+        workspace.timeEntries.filter((row) => row.projectId === item.id).length,
+      ],
+      [
+        'devis',
+        workspace.quotes.filter((row) => row.projectId === item.id).length,
+      ],
+      [
+        'commande',
+        workspace.salesOrders.filter((row) => row.projectId === item.id).length,
+      ],
+      [
+        'facture',
+        workspace.invoices.filter((row) => row.projectId === item.id).length,
+      ],
+      [
+        'dépense',
+        workspace.expenses.filter((row) => row.projectId === item.id).length,
+      ],
+      [
+        'facture fournisseur',
+        workspace.supplierInvoices.filter((row) => row.projectId === item.id)
+          .length,
+      ],
     ];
     const used = linked.filter(([, count]) => count > 0);
     if (workspace.activeTimer?.projectId === item.id)
@@ -529,11 +563,10 @@ export function WorkspaceApp({
       setNotice({
         tone: 'error',
         text: `Ce ${terminology.singular} contient encore ${used
-          .map(
-            ([label, count]) =>
-              `${count} ${label}${count > 1 ? 's' : ''}`,
-          )
-          .join(', ')}. Pour protéger l’historique, il ne peut pas être supprimé. Passez-le au statut « Clôturé » depuis Modifier.`,
+          .map(([label, count]) => `${count} ${label}${count > 1 ? 's' : ''}`)
+          .join(
+            ', ',
+          )}. Pour protéger l’historique, il ne peut pas être supprimé. Passez-le au statut « Clôturé » depuis Modifier.`,
       });
       return;
     }
@@ -888,6 +921,7 @@ export function WorkspaceApp({
                 onClick={setModal}
                 terminology={terminology}
                 prerequisites={prerequisites}
+                readOnly={readOnly}
               />
             ) : null}
           </div>
@@ -1096,7 +1130,11 @@ export function WorkspaceApp({
                 setSearch('');
               }}
               onOpenInvoice={(invoice) =>
-                setModal({ type: 'document', entity: 'invoices', item: invoice })
+                setModal({
+                  type: 'document',
+                  entity: 'invoices',
+                  item: invoice,
+                })
               }
               onIssueInvoice={issueInvoice}
               onPrintDelivery={(note) => {
@@ -1104,7 +1142,11 @@ export function WorkspaceApp({
                   (item) => item.id === note.salesOrderId,
                 );
                 if (order)
-                  setPrintTarget({ entity: 'delivery_notes', value: note, order });
+                  setPrintTarget({
+                    entity: 'delivery_notes',
+                    value: note,
+                    order,
+                  });
               }}
             />
           ) : null}
@@ -1188,11 +1230,13 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'expenses' ? (
-            <PurchasesScreen
+            <PurchaseOrdersScreen
               workspace={workspace}
               query={search}
               onQueryChange={setSearch}
               busy={busy}
+              readOnly={readOnly}
+              runAction={act}
               onCreateSupplierInvoice={() =>
                 setModal({ type: 'supplierInvoice' })
               }
@@ -1310,11 +1354,13 @@ function CreateButton({
   onClick,
   terminology,
   prerequisites,
+  readOnly,
 }: {
   view: View;
   onClick: Dispatch<SetStateAction<ModalState>>;
   terminology: ReturnType<typeof projectTerminology>;
   prerequisites: WorkspacePrerequisites;
+  readOnly: boolean;
 }) {
   const map: Partial<Record<View, [string, ModalState]>> = {
     projects: [`Nouveau ${terminology.singular}`, { type: 'project' }],
@@ -1327,12 +1373,14 @@ function CreateButton({
     expenses: ['Facture fournisseur', { type: 'supplierInvoice' }],
   };
   const current = map[view];
-  const blockReason = current
-    ? creationBlockReason(
-        view as Parameters<typeof creationBlockReason>[0],
-        prerequisites,
-      )
-    : '';
+  const blockReason = readOnly
+    ? 'La licence doit être active pour créer ou modifier des données.'
+    : current
+      ? creationBlockReason(
+          view as Parameters<typeof creationBlockReason>[0],
+          prerequisites,
+        )
+      : '';
   return current ? (
     <Button
       disabled={Boolean(blockReason)}
@@ -1740,7 +1788,10 @@ function ProjectsScreen({
     );
   return (
     <div className="stack-layout">
-      <section className="project-view-switch panel" aria-label="Vue des projets">
+      <section
+        className="project-view-switch panel"
+        aria-label="Vue des projets"
+      >
         <div>
           <span>Une seule base, deux vues</span>
           <strong>
@@ -1811,7 +1862,9 @@ function ProjectsScreen({
                   <div>
                     <h3>{project.name}</h3>
                     <p>
-                      {client?.company || client?.name || 'Client non renseigné'}
+                      {client?.company ||
+                        client?.name ||
+                        'Client non renseigné'}
                     </p>
                   </div>
                   <StatusBadge status={project.status} />
@@ -1837,9 +1890,7 @@ function ProjectsScreen({
                   <div>
                     <span>Marge nette saisie</span>
                     <strong>
-                      {stats.invoicedNet ||
-                      stats.laborCost ||
-                      stats.expenseNet
+                      {stats.invoicedNet || stats.laborCost || stats.expenseNet
                         ? formatMoney(stats.margin)
                         : '—'}
                     </strong>
@@ -2557,7 +2608,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           </Button>
                         </>
                       ) : null}
-                      {quote.status === 'accepted' && !converted && !convertedOrder ? (
+                      {quote.status === 'accepted' &&
+                      !converted &&
+                      !convertedOrder ? (
                         <Button
                           variant="secondary"
                           size="small"
@@ -2575,7 +2628,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           }
                         >
                           <ArrowRight size={15} />{' '}
-                          {requiresOrder ? 'Créer la commande' : 'Créer la facture'}
+                          {requiresOrder
+                            ? 'Créer la commande'
+                            : 'Créer la facture'}
                         </Button>
                       ) : null}
                       {quote.status !== 'draft' ? (
@@ -2689,7 +2744,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                 ) : null}
                 <td>
                   <StatusBadge status={item.status} />
-                  {linkedOrderDraftBatch ? <small>Géré depuis la commande</small> : null}
+                  {linkedOrderDraftBatch ? (
+                    <small>Géré depuis la commande</small>
+                  ) : null}
                 </td>
                 <td>
                   <div className="document-actions">
@@ -2713,7 +2770,11 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                             : 'Consulter'
                       }
                     >
-                      {linkedOrderDraftBatch ? <ClipboardCheck size={15} /> : <Pencil size={15} />}
+                      {linkedOrderDraftBatch ? (
+                        <ClipboardCheck size={15} />
+                      ) : (
+                        <Pencil size={15} />
+                      )}
                     </Button>
                     {item.status === 'draft' && !linkedOrderDraftBatch ? (
                       <Button

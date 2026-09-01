@@ -41,6 +41,7 @@ use crate::{
         MIGRATION_V14_SQL, MIGRATION_V15_SQL, MIGRATION_V16_SQL, MIGRATION_V17_SQL,
         MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL,
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
+        MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
         MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
         MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
@@ -455,6 +456,89 @@ fn migrate_v20(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v21(transaction: &Transaction<'_>) -> AppResult<()> {
+    let settings_columns = {
+        let mut statement = transaction.prepare("PRAGMA table_info(settings)")?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        columns
+    };
+    for (column, definition) in [
+        (
+            "supplier_order_prefix",
+            "supplier_order_prefix TEXT NOT NULL DEFAULT 'CF'",
+        ),
+        (
+            "supplier_receipt_prefix",
+            "supplier_receipt_prefix TEXT NOT NULL DEFAULT 'RF'",
+        ),
+        (
+            "supplier_credit_prefix",
+            "supplier_credit_prefix TEXT NOT NULL DEFAULT 'AF'",
+        ),
+        (
+            "supplier_order_start_number",
+            "supplier_order_start_number INTEGER NOT NULL DEFAULT 1 CHECK (supplier_order_start_number>0)",
+        ),
+        (
+            "supplier_receipt_start_number",
+            "supplier_receipt_start_number INTEGER NOT NULL DEFAULT 1 CHECK (supplier_receipt_start_number>0)",
+        ),
+        (
+            "supplier_credit_start_number",
+            "supplier_credit_start_number INTEGER NOT NULL DEFAULT 1 CHECK (supplier_credit_start_number>0)",
+        ),
+    ] {
+        if !settings_columns.contains(column) {
+            transaction.execute_batch(&format!(
+                "ALTER TABLE settings ADD COLUMN {definition};"
+            ))?;
+        }
+    }
+
+    let supplier_item_columns = {
+        let mut statement = transaction.prepare("PRAGMA table_info(supplier_invoice_items)")?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        columns
+    };
+    if !supplier_item_columns.contains("posted_expense_account_id") {
+        transaction.execute_batch(
+            "ALTER TABLE supplier_invoice_items ADD COLUMN posted_expense_account_id TEXT REFERENCES accounts(id) ON UPDATE RESTRICT ON DELETE RESTRICT;",
+        )?;
+    }
+
+    let supplier_invoice_columns = {
+        let mut statement = transaction.prepare("PRAGMA table_info(supplier_invoices)")?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        columns
+    };
+    if !supplier_invoice_columns.contains("credited_cents") {
+        transaction.execute_batch(
+            "ALTER TABLE supplier_invoices ADD COLUMN credited_cents INTEGER NOT NULL DEFAULT 0 CHECK (credited_cents>=0);",
+        )?;
+    }
+
+    transaction.execute_batch(MIGRATION_V21_SQL)?;
+
+    let stock_columns = {
+        let mut statement = transaction.prepare("PRAGMA table_info(stock_movements)")?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        columns
+    };
+    if !stock_columns.contains("supplier_receipt_line_id") {
+        transaction.execute_batch(MIGRATION_V21_REBUILD_STOCK_SQL)?;
+    }
+    transaction.execute_batch(MIGRATION_V21_STOCK_TRIGGERS_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -789,6 +873,7 @@ impl LocalStore {
             0 => {
                 transaction.execute_batch(SCHEMA_SQL)?;
                 migrate_v20(&transaction)?;
+                migrate_v21(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -876,7 +961,7 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
-            12..=19 => {}
+            12..=20 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -894,6 +979,7 @@ impl LocalStore {
             migrate_v18(&transaction)?;
             migrate_v19(&transaction)?;
             migrate_v20(&transaction)?;
+            migrate_v21(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1164,6 +1250,7 @@ impl LocalStore {
             "SELECT sequence,id,source_key,request_id,catalog_item_id,movement_type,
                     quantity_delta_milli,balance_after_milli,reason,reference,movement_date,
                     source_type,invoice_id,invoice_item_id,delivery_note_id,delivery_note_line_id,
+                    supplier_receipt_id,supplier_receipt_line_id,
                     reverses_stock_movement_id,created_at
              FROM stock_movements ORDER BY sequence DESC",
             [],
@@ -1270,7 +1357,35 @@ impl LocalStore {
         )?;
         let supplier_invoices = query_all(
             connection,
-            "SELECT * FROM supplier_invoices ORDER BY document_date DESC, created_at DESC",
+            "SELECT invoice.*,
+                    MAX(0,invoice.total_cents-invoice.paid_cents-invoice.credited_cents) AS balance_cents,
+                    CASE
+                      WHEN EXISTS(
+                        SELECT 1 FROM supplier_invoice_matches match_row
+                        JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+                        LEFT JOIN supplier_receipt_lines receipt_line ON receipt_line.id=match_row.supplier_receipt_line_id
+                        LEFT JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id
+                        WHERE match_row.supplier_invoice_id=invoice.id AND (
+                          (match_row.supplier_receipt_line_id IS NOT NULL AND (receipt.id IS NULL OR receipt.status<>'issued'))
+                          OR ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+                          OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+                          OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+                        )
+                      ) OR EXISTS(
+                        SELECT 1 FROM supplier_invoice_matches match_row
+                        JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+                        WHERE match_row.supplier_invoice_id=invoice.id
+                        GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+                        HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+                          OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+                          OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+                      ) THEN 'mismatch'
+                      WHEN COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_invoice_id=invoice.id),0)=0 THEN 'unmatched'
+                      WHEN COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_invoice_id=invoice.id),0)
+                           >=COALESCE((SELECT SUM(item.quantity_milli) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=invoice.id),0) THEN 'matched'
+                      ELSE 'partial'
+                    END AS match_status
+             FROM supplier_invoices invoice ORDER BY invoice.document_date DESC, invoice.created_at DESC",
             [],
         )?;
         let supplier_invoice_items = query_all(
@@ -1281,6 +1396,70 @@ impl LocalStore {
         let supplier_payments = query_all(
             connection,
             "SELECT * FROM supplier_payments ORDER BY date DESC,created_at DESC",
+            [],
+        )?;
+        let supplier_orders = query_all(
+            connection,
+            "SELECT * FROM supplier_orders ORDER BY order_date DESC,created_at DESC",
+            [],
+        )?;
+        let supplier_order_lines = query_all(
+            connection,
+            "SELECT line.*,
+                    COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0) AS cancelled_quantity_milli,
+                    COALESCE((SELECT SUM(receipt_line.quantity_milli) FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id WHERE receipt_line.supplier_order_line_id=line.id AND receipt.status='issued'),0) AS received_quantity_milli,
+                    COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_order_line_id=line.id),0) AS matched_quantity_milli,
+                    CASE WHEN line.fulfillment_mode='direct' THEN 0 ELSE MAX(0,line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)-COALESCE((SELECT SUM(receipt_line.quantity_milli) FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id WHERE receipt_line.supplier_order_line_id=line.id AND receipt.status='issued'),0)) END AS remaining_receivable_milli,
+                    MAX(0,line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)-COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row WHERE match_row.supplier_order_line_id=line.id),0)) AS remaining_matchable_milli
+             FROM supplier_order_lines line ORDER BY line.supplier_order_id,line.position,line.created_at",
+            [],
+        )?;
+        let supplier_order_cancellation_lines = query_all(
+            connection,
+            "SELECT * FROM supplier_order_cancellation_lines ORDER BY created_at,id",
+            [],
+        )?;
+        let supplier_receipts = query_all(
+            connection,
+            "SELECT * FROM supplier_receipts ORDER BY receipt_date DESC,created_at DESC",
+            [],
+        )?;
+        let supplier_receipt_lines = query_all(
+            connection,
+            "SELECT * FROM supplier_receipt_lines ORDER BY supplier_receipt_id,position,created_at",
+            [],
+        )?;
+        let supplier_invoice_matches = query_all(
+            connection,
+            "SELECT * FROM supplier_invoice_matches ORDER BY supplier_invoice_id,supplier_invoice_item_id,created_at,id",
+            [],
+        )?;
+        let supplier_credit_notes = query_all(
+            connection,
+            "SELECT credit.*,
+                    COALESCE((SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=credit.id),0) AS allocated_cents,
+                    MAX(0,credit.total_cents-COALESCE((SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=credit.id),0)) AS available_cents
+             FROM supplier_credit_notes credit ORDER BY credit.document_date DESC,credit.created_at DESC",
+            [],
+        )?;
+        let supplier_credit_note_items = query_all(
+            connection,
+            "SELECT * FROM supplier_credit_note_items ORDER BY supplier_credit_note_id,position,created_at",
+            [],
+        )?;
+        let supplier_credit_allocations = query_all(
+            connection,
+            "SELECT * FROM supplier_credit_allocations ORDER BY sequence",
+            [],
+        )?;
+        let supplier_expense_reclassifications = query_all(
+            connection,
+            "SELECT * FROM supplier_expense_reclassifications ORDER BY effective_date,created_at,id",
+            [],
+        )?;
+        let supplier_expense_reclassification_lines = query_all(
+            connection,
+            "SELECT * FROM supplier_expense_reclassification_lines ORDER BY reclassification_id,created_at,id",
             [],
         )?;
         let payslips = query_all(
@@ -1459,6 +1638,18 @@ impl LocalStore {
         workspace["stock_reservation_events"] = json!(stock_reservation_events);
         workspace["sales_order_invoice_batches"] = json!(sales_order_invoice_batches);
         workspace["sales_order_invoice_allocations"] = json!(sales_order_invoice_allocations);
+        workspace["supplier_orders"] = json!(supplier_orders);
+        workspace["supplier_order_lines"] = json!(supplier_order_lines);
+        workspace["supplier_order_cancellation_lines"] = json!(supplier_order_cancellation_lines);
+        workspace["supplier_receipts"] = json!(supplier_receipts);
+        workspace["supplier_receipt_lines"] = json!(supplier_receipt_lines);
+        workspace["supplier_invoice_matches"] = json!(supplier_invoice_matches);
+        workspace["supplier_credit_notes"] = json!(supplier_credit_notes);
+        workspace["supplier_credit_note_items"] = json!(supplier_credit_note_items);
+        workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
+        workspace["supplier_expense_reclassifications"] = json!(supplier_expense_reclassifications);
+        workspace["supplier_expense_reclassification_lines"] =
+            json!(supplier_expense_reclassification_lines);
         workspace["stock_availability"] = json!(stock_availability);
         workspace["project_milestones"] = json!(project_milestones);
         workspace["project_tasks"] = json!(project_tasks);
@@ -4284,6 +4475,9 @@ pub(crate) fn assign_document_number(
         "credit_note" => ("credit_note_prefix", "credit_note_start_number"),
         "sales_order" => ("sales_order_prefix", "sales_order_start_number"),
         "delivery_note" => ("delivery_note_prefix", "delivery_note_start_number"),
+        "supplier_order" => ("supplier_order_prefix", "supplier_order_start_number"),
+        "supplier_receipt" => ("supplier_receipt_prefix", "supplier_receipt_start_number"),
+        "supplier_credit_note" => ("supplier_credit_prefix", "supplier_credit_start_number"),
         _ => {
             return Err(AppError::Validation(
                 "Type de séquence documentaire invalide.".into(),
@@ -4690,4 +4884,123 @@ fn open_path(path: &Path) -> AppResult<()> {
     }
     #[allow(unreachable_code)]
     Err(AppError::UnsupportedPlatform)
+}
+
+#[cfg(test)]
+mod v21_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_v20_to_v21_preserves_rows_stock_sequence_and_is_idempotent() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            tx.execute_batch(SCHEMA_SQL).unwrap();
+            migrate_v20(&tx).unwrap();
+            tx.execute(
+                "INSERT INTO clients(id,name,created_at,updated_at) VALUES('client-v20','Client conservé','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO catalog_items(id,kind,name,track_stock,stock_quantity_milli,created_at,updated_at) VALUES('item-v20','product','Stock conservé',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO stock_movements(sequence,id,source_key,request_id,request_sha256,request_json,catalog_item_id,movement_type,quantity_delta_milli,balance_after_milli,reason,movement_date,source_type,created_at) VALUES(41,'movement-v20','manual:5b2d9677-4b14-4651-8ae5-d1ae981089a8','5b2d9677-4b14-4651-8ae5-d1ae981089a8','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','{}','item-v20','entry',1250,1250,'Stock réel conservé','2026-01-01','manual','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            20
+        );
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v21(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            21
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT name FROM clients WHERE id='client-v20'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "Client conservé"
+        );
+        let movement: (i64, i64, Option<String>, Option<String>) = connection.query_row(
+            "SELECT sequence,quantity_delta_milli,supplier_receipt_id,supplier_receipt_line_id FROM stock_movements WHERE id='movement-v20'",
+            [],
+            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?)),
+        ).unwrap();
+        assert_eq!(movement, (41, 1_250, None, None));
+        for table in [
+            "supplier_orders",
+            "supplier_receipts",
+            "supplier_invoice_matches",
+            "supplier_credit_notes",
+            "supplier_expense_reclassifications",
+        ] {
+            assert_eq!(
+                connection
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                0,
+                "{table} doit être vide après migration"
+            );
+        }
+        connection.pragma_update(None, "user_version", 20).unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v21(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM stock_movements WHERE id='movement-v20'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
 }

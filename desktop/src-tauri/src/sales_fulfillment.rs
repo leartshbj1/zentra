@@ -1931,7 +1931,7 @@ macro_rules! sales_fulfillment_tests {
         let (client_id, catalog_item_id, sales_order_id, sales_order_line_id) =
             tracked_order(&store, 5_000, 10_000);
         let workspace = store.get_workspace().unwrap();
-        assert_eq!(workspace["schema_version"], 20);
+        assert_eq!(workspace["schema_version"], SCHEMA_VERSION);
         assert_eq!(workspace["stock_availability"][0]["on_hand_milli"], 10_000);
         assert_eq!(workspace["stock_availability"][0]["reserved_milli"], 5_000);
         assert_eq!(workspace["stock_availability"][0]["available_milli"], 5_000);

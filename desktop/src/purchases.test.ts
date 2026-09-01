@@ -93,39 +93,45 @@ const supplierInvoice: SupplierInvoice = {
   vatCents: 0,
   totalCents: 20_000,
   paidCents: 8_000,
+  creditedCents: 0,
   balanceCents: 12_000,
+  matchStatus: 'unmatched',
   validatedAt: '2026-08-10T08:00:00Z',
   validationJournalEntryId: 'journal-supplier-1',
   note: 'Livraison principale',
-  lines: [{
-    id: 'supplier-line-1',
-    supplierInvoiceId: 'supplier-invoice-1',
-    position: 0,
-    description: 'Câbles cuivre',
-    quantityMilli: 2_000,
-    unit: 'bobine',
-    unitPriceCents: 10_000,
-    discountBp: 0,
-    vatBp: 0,
-    netCents: 20_000,
-    vatCents: 0,
-    totalCents: 20_000,
-    category: 'Matériaux',
-    expenseAccountId: null,
-    projectId: null,
-  }],
-  payments: [{
-    id: 'supplier-payment-1',
-    supplierInvoiceId: 'supplier-invoice-1',
-    requestId: '26ec4237-fdf6-4212-9302-e7140c34a4cf',
-    date: '2026-08-20',
-    amountCents: 8_000,
-    method: 'bank_transfer',
-    reference: 'VIR-BANQUE-77',
-    notes: 'Premier acompte',
-    journalEntryId: 'journal-payment-1',
-    createdAt: '2026-08-20T08:00:00Z',
-  }],
+  lines: [
+    {
+      id: 'supplier-line-1',
+      supplierInvoiceId: 'supplier-invoice-1',
+      position: 0,
+      description: 'Câbles cuivre',
+      quantityMilli: 2_000,
+      unit: 'bobine',
+      unitPriceCents: 10_000,
+      discountBp: 0,
+      vatBp: 0,
+      netCents: 20_000,
+      vatCents: 0,
+      totalCents: 20_000,
+      category: 'Matériaux',
+      expenseAccountId: null,
+      projectId: null,
+    },
+  ],
+  payments: [
+    {
+      id: 'supplier-payment-1',
+      supplierInvoiceId: 'supplier-invoice-1',
+      requestId: '26ec4237-fdf6-4212-9302-e7140c34a4cf',
+      date: '2026-08-20',
+      amountCents: 8_000,
+      method: 'bank_transfer',
+      reference: 'VIR-BANQUE-77',
+      notes: 'Premier acompte',
+      journalEntryId: 'journal-payment-1',
+      createdAt: '2026-08-20T08:00:00Z',
+    },
+  ],
   attachments: [],
   createdAt: '2026-08-10T08:00:00Z',
   updatedAt: '2026-08-20T08:00:00Z',
@@ -157,7 +163,9 @@ describe('pilotage des achats', () => {
       overdueCount: 1,
       paidCount: 1,
     });
-    expect(isExpenseOverdue({ ...pending, dueDate: '2026-09-01' }, '2026-09-01')).toBe(false);
+    expect(
+      isExpenseOverdue({ ...pending, dueDate: '2026-09-01' }, '2026-09-01'),
+    ).toBe(false);
   });
 
   it('additionne le solde fournisseur, les acomptes et exclut les brouillons', () => {
@@ -179,7 +187,9 @@ describe('pilotage des achats', () => {
       balanceCents: 0,
       dueDate: '2026-09-30',
     };
-    expect(purchaseSummary([], '2026-09-01', [draft, supplierInvoice, fullyPaid])).toEqual({
+    expect(
+      purchaseSummary([], '2026-09-01', [draft, supplierInvoice, fullyPaid]),
+    ).toEqual({
       draftCount: 1,
       partialCount: 1,
       pendingCents: 12_000,
@@ -189,46 +199,125 @@ describe('pilotage des achats', () => {
       overdueCount: 1,
       paidCount: 1,
     });
-    expect(isSupplierInvoiceOverdue({ ...supplierInvoice, dueDate: '2026-09-01' }, '2026-09-01')).toBe(false);
+    expect(
+      isSupplierInvoiceOverdue(
+        { ...supplierInvoice, dueDate: '2026-09-01' },
+        '2026-09-01',
+      ),
+    ).toBe(false);
   });
 
   it('filtre les quatre états et retrouve les lignes comme les références de paiement', () => {
-    const draft = { ...supplierInvoice, id: 'draft', documentStatus: 'draft' as const, paymentStatus: null, payments: [], updatedAt: '2026-09-02T10:00:00Z' };
-    const pendingInvoice = { ...supplierInvoice, id: 'pending', paymentStatus: 'pending' as const, paidCents: 0, balanceCents: 20_000, payments: [] };
-    const paidInvoice = { ...supplierInvoice, id: 'paid', paymentStatus: 'paid' as const, paidCents: 20_000, balanceCents: 0 };
+    const draft = {
+      ...supplierInvoice,
+      id: 'draft',
+      documentStatus: 'draft' as const,
+      paymentStatus: null,
+      payments: [],
+      updatedAt: '2026-09-02T10:00:00Z',
+    };
+    const pendingInvoice = {
+      ...supplierInvoice,
+      id: 'pending',
+      paymentStatus: 'pending' as const,
+      paidCents: 0,
+      balanceCents: 20_000,
+      payments: [],
+    };
+    const paidInvoice = {
+      ...supplierInvoice,
+      id: 'paid',
+      paymentStatus: 'paid' as const,
+      paidCents: 20_000,
+      balanceCents: 0,
+    };
     const invoices = [pendingInvoice, supplierInvoice, paidInvoice, draft];
-    expect(filterSupplierInvoices(invoices, [project], '', 'draft').map((item) => item.id)).toEqual(['draft']);
-    expect(filterSupplierInvoices(invoices, [project], '', 'pending').map((item) => item.id)).toEqual(['pending']);
-    expect(filterSupplierInvoices(invoices, [project], 'câbles cuivre', 'partial').map((item) => item.id)).toEqual(['supplier-invoice-1']);
-    expect(filterSupplierInvoices(invoices, [project], 'VIR-BANQUE-77', 'paid').map((item) => item.id)).toEqual(['paid']);
-    expect(filterSupplierInvoices(invoices, [project], 'premier acompte', 'partial').map((item) => item.id)).toEqual(['supplier-invoice-1']);
+    expect(
+      filterSupplierInvoices(invoices, [project], '', 'draft').map(
+        (item) => item.id,
+      ),
+    ).toEqual(['draft']);
+    expect(
+      filterSupplierInvoices(invoices, [project], '', 'pending').map(
+        (item) => item.id,
+      ),
+    ).toEqual(['pending']);
+    expect(
+      filterSupplierInvoices(
+        invoices,
+        [project],
+        'câbles cuivre',
+        'partial',
+      ).map((item) => item.id),
+    ).toEqual(['supplier-invoice-1']);
+    expect(
+      filterSupplierInvoices(invoices, [project], 'VIR-BANQUE-77', 'paid').map(
+        (item) => item.id,
+      ),
+    ).toEqual(['paid']);
+    expect(
+      filterSupplierInvoices(
+        invoices,
+        [project],
+        'premier acompte',
+        'partial',
+      ).map((item) => item.id),
+    ).toEqual(['supplier-invoice-1']);
   });
 
   it('intègre uniquement les lignes fournisseur validées à la rentabilité du projet', () => {
-    const draft = { ...supplierInvoice, id: 'draft-cost', documentStatus: 'draft' as const, paymentStatus: null };
-    const stats = projectFinancials(project, [], [], [], [], [supplierInvoice, draft]);
+    const draft = {
+      ...supplierInvoice,
+      id: 'draft-cost',
+      documentStatus: 'draft' as const,
+      paymentStatus: null,
+    };
+    const stats = projectFinancials(
+      project,
+      [],
+      [],
+      [],
+      [],
+      [supplierInvoice, draft],
+    );
     expect(stats.expenseNet).toBe(20_000);
     expect(stats.margin).toBe(-20_000);
   });
 
   it('arrondit quantité, remise et TVA comme le moteur local', () => {
-    expect(supplierInvoiceLineTotals({
-      id: 'line-rounding',
-      description: 'Ligne arrondie',
-      quantityMilli: 1_333,
-      unit: 'heure',
-      unitPriceCents: 12_345,
-      discountBp: 750,
-      vatBp: 810,
-      category: 'Prestation',
-      expenseAccountId: '',
-      projectId: '',
-    })).toEqual({ netCents: 15_222, vatCents: 1_233, totalCents: 16_455 });
+    expect(
+      supplierInvoiceLineTotals({
+        id: 'line-rounding',
+        description: 'Ligne arrondie',
+        quantityMilli: 1_333,
+        unit: 'heure',
+        unitPriceCents: 12_345,
+        discountBp: 750,
+        vatBp: 810,
+        category: 'Prestation',
+        expenseAccountId: '',
+        projectId: '',
+      }),
+    ).toEqual({ netCents: 15_222, vatCents: 1_233, totalCents: 16_455 });
   });
 
   it('recherche dans le snapshot, la référence et le projet tout en acceptant un achat sans projet', () => {
-    expect(filterPurchaseExpenses([pending, paid], [project], 'pâquis', 'pending').map((item) => item.id)).toEqual(['expense-pending']);
-    expect(filterPurchaseExpenses([pending, paid], [project], 'ticket-2', 'paid').map((item) => item.id)).toEqual(['expense-paid']);
+    expect(
+      filterPurchaseExpenses(
+        [pending, paid],
+        [project],
+        'pâquis',
+        'pending',
+      ).map((item) => item.id),
+    ).toEqual(['expense-pending']);
+    expect(
+      filterPurchaseExpenses(
+        [pending, paid],
+        [project],
+        'ticket-2',
+        'paid',
+      ).map((item) => item.id),
+    ).toEqual(['expense-paid']);
   });
 
   it('calcule l’échéance depuis les conditions du fournisseur ou le délai global', () => {
@@ -238,21 +327,50 @@ describe('pilotage des achats', () => {
 });
 
 describe('annuaire fournisseurs et snapshots', () => {
-  const archived = { ...supplier, id: 'supplier-old', name: 'Ancien fournisseur', archivedAt: '2026-09-01T09:00:00Z' };
+  const archived = {
+    ...supplier,
+    id: 'supplier-old',
+    name: 'Ancien fournisseur',
+    archivedAt: '2026-09-01T09:00:00Z',
+  };
 
   it('exclut les archivés par défaut mais permet de les retrouver', () => {
-    expect(filterSuppliers([archived, supplier], '', 'active').map((item) => item.id)).toEqual(['supplier-1']);
-    expect(filterSuppliers([archived, supplier], 'ancien', 'archived').map((item) => item.id)).toEqual(['supplier-old']);
+    expect(
+      filterSuppliers([archived, supplier], '', 'active').map(
+        (item) => item.id,
+      ),
+    ).toEqual(['supplier-1']);
+    expect(
+      filterSuppliers([archived, supplier], 'ancien', 'archived').map(
+        (item) => item.id,
+      ),
+    ).toEqual(['supplier-old']);
   });
 
   it('propose le fournisseur archivé déjà lié uniquement pour préserver une édition', () => {
-    expect(selectableSuppliers([supplier, archived]).map((item) => item.id)).toEqual(['supplier-1']);
-    expect(selectableSuppliers([supplier, archived], archived.id).map((item) => item.id)).toEqual(['supplier-old', 'supplier-1']);
+    expect(
+      selectableSuppliers([supplier, archived]).map((item) => item.id),
+    ).toEqual(['supplier-1']);
+    expect(
+      selectableSuppliers([supplier, archived], archived.id).map(
+        (item) => item.id,
+      ),
+    ).toEqual(['supplier-old', 'supplier-1']);
   });
 
   it('préserve le snapshot si le lien ne change pas et copie le nouveau nom lors d’un changement', () => {
-    expect(supplierSnapshotForDraft(pending, supplier, '')).toBe('Ancien nom du fournisseur');
-    expect(supplierSnapshotForDraft(pending, { ...supplier, id: 'supplier-2', name: 'Nouveau fournisseur' }, '')).toBe('Nouveau fournisseur');
-    expect(supplierSnapshotForDraft(undefined, undefined, '  Saisie libre  ')).toBe('Saisie libre');
+    expect(supplierSnapshotForDraft(pending, supplier, '')).toBe(
+      'Ancien nom du fournisseur',
+    );
+    expect(
+      supplierSnapshotForDraft(
+        pending,
+        { ...supplier, id: 'supplier-2', name: 'Nouveau fournisseur' },
+        '',
+      ),
+    ).toBe('Nouveau fournisseur');
+    expect(
+      supplierSnapshotForDraft(undefined, undefined, '  Saisie libre  '),
+    ).toBe('Saisie libre');
   });
 });

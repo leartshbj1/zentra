@@ -1,11 +1,11 @@
 {
-    "version":  "1.7.0",
-    "notes":  "Elyko 1.7 ajoute les commandes clients, réservations de stock, bons de livraison partiels ou complets et factures de situation ou finales par quantités, sans double sortie de stock.",
-    "pub_date":  "2026-09-01T07:56:31.4750073+00:00",
+    "version":  "1.8.0",
+    "notes":  "Elyko 1.8 ajoute le cycle achats fournisseurs: commandes, réceptions partielles ou complètes, rapprochement facture-commande-réception, avoirs, paiements, stock et comptabilité sans ressaisie.",
+    "pub_date":  "2026-09-01T10:00:12.1045995+00:00",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlFUSzEzRGhzTDFQbTFoYUZ0WjVON2dTTHpTa2V2cHNMaG45T29JeEVGdnNTOFZDRm9HYWtMMzEwalhPRjRwUDA5Z1F3UGE1L0FwSEFBTU5UV1hUbkFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjQ5MzY0CWZpbGU6RWx5a29fMS43LjBfeDY0LXNldHVwLmV4ZQp2ZHZSWjhuMGxmTWx5K3FsRGxzYU9WdnhqYXRlZ1hEODcxU3JoVFJ4S2p1MjhhN1p6LzBWV3psS3UxZVVnN1NucFBtQlJaRDg3a1pBNzNnS3hZcDJEQT09Cg==",
-                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.7.0_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmZXZGRHcXdBdEdOL0ZRbU96SWgreENCa253cXU4aHlVOUtmc1dWU0tLSC9UdmNzbEJTR0tXQWpubkhIdzMvbjM0OG1jMytHN2hyYitQcWFlWTlFQWdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjU2Nzg1CWZpbGU6RWx5a29fMS44LjBfeDY0LXNldHVwLmV4ZQpEQWVSZ0hPUGxOc3RlWUluWVlMTEFBNlIyaHRuR3RxWjZuV1BhdmNMUmx5RWlNWDQwYnNieDdQNEoyVEFkc2xaaVhQb1RSZU9sZWJCTElCcGNlUnFBdz09Cg==",
+                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.8.0_x64-setup.exe"
                                          }
                   }
 }

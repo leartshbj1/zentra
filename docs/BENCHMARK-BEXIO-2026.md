@@ -16,16 +16,16 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Elyko 1.7 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Elyko 1.8 | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ; QR, avoirs et relances locales | acomptes par montant/pourcentage, récurrence et modèles FR/DE/IT | P0 |
-| Achats | boîte de réception, facture/avoir fournisseur, commande et réception | factures structurées, justificatifs, paiements et écritures | avoirs, OCR fournisseur, commandes/réceptions | P0 |
+| Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement → paiement et comptabilité ; avoir distinct validable et imputable à une facture | OCR des achats et rapprochement d'une facture avec plusieurs commandes | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, clôture et continuité | assistant TVA complet, pièces sur écritures et export fiduciaire | P0 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
-| Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de commande, en main/réservé/disponible et sortie sur BL sans double sortie à la facture | réception fournisseur et emplacements | P0 |
-| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et OCR local | assiettes réglementaires distinctes, barèmes officiels puis certification externe | P0 conformité — en cours |
+| Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
+| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et OCR local des documents de paie | assiettes réglementaires distinctes, barèmes officiels puis certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes | dossier d'archive contrôlable et politique de conservation | P0 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
@@ -38,10 +38,14 @@ présenter une prochaine action claire et garder chaque transformation traçable
 2. **Vendre sans ressaisie — livré en 1.7** : devis avec produits → commande →
    livraison partielle ou complète → situation/facture finale par quantités,
    sans double mouvement de stock; facture directe conservée pour les services.
-3. **Acheter sans ressaisie — prochain lot** : commande fournisseur → réception → facture ou
-   avoir, avec pièce originale et écriture comptable.
-4. **Automatiser sous contrôle** : récurrence, relances, import bancaire et OCR
-   proposent; l'utilisateur confirme les opérations financières ambiguës.
+3. **Acheter sans ressaisie — livré en 1.8** : commande fournisseur →
+   réception partielle ou complète → facture → rapprochement → paiement et
+   écriture comptable, avec avoir fournisseur géré et imputé séparément. Les
+   réceptions émises sont le seul événement de ce cycle qui entre les articles
+   suivis en stock; leur extourne crée la sortie inverse.
+4. **Automatiser sous contrôle** : récurrence, relances, OCR des achats et
+   règles bancaires proposent; l'utilisateur confirme les opérations
+   financières ambiguës.
 5. **Clôturer proprement** : assistant TVA, contrôles de continuité, dossier de
    bouclement et exports pour la fiduciaire.
 6. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
@@ -49,8 +53,9 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Limites à ne pas masquer
 
-- Swissdec/ELM est une certification externe; une belle fiche PDF ne la remplace
-  pas.
+- Elyko ne revendique aucune certification ou homologation AFC, Swissdec/ELM ou
+  Olico. Une fiche de salaire PDF, un rapport TVA ou des pièces hashées ne
+  remplacent pas ces validations externes.
 - Une connexion bancaire directe dépend de la banque, de ses autorisations et
   d'un contrat technique. L'import ISO 20022 local reste le socle fiable.
 - Un accès fiduciaire simultané et un compagnon mobile demandent une
@@ -58,9 +63,21 @@ présenter une prochaine action claire et garder chaque transformation traçable
   démonstration.
 - Les cartes, crédits et services financiers de type bexio Pay ne font pas
   partie du cœur Elyko.
-- La version 1.7 facture progressivement le livré des lignes concernées et
-  facture directement les prestations sans BL. Elle ne crée pas encore un
-  acompte défini librement par montant ou pourcentage.
+- La version 1.8 facture progressivement le livré des lignes de vente
+  concernées et facture directement les prestations sans BL. Elle ne crée pas
+  encore un acompte défini librement par montant ou pourcentage.
+- Une facture fournisseur peut rester autonome ou être rapprochée, mais un
+  rapprochement ne porte actuellement que sur une seule commande fournisseur.
+  Le regroupement de plusieurs commandes sur une facture reste à réaliser.
+- L'avoir fournisseur est un document comptable distinct, imputable à une
+  facture validée; il ne remplace pas la facture dans le rapprochement entre
+  commande, réception et facture.
+- L'OCR des factures et avoirs fournisseurs n'est pas livré. L'OCR local déjà
+  présent concerne uniquement l'import de documents de paie.
+- Dans le cycle achats, ni la commande, ni le brouillon de réception, ni la
+  facture, l'avoir, le rapprochement, le paiement ou la comptabilisation ne
+  modifient le stock. Seules l'émission d'une réception et son extourne créent
+  respectivement l'entrée et le mouvement inverse pour les articles suivis.
 
 ## Sources officielles
 

@@ -682,6 +682,7 @@ export type SupplierInvoiceItem = {
   totalCents: number;
   category: string;
   expenseAccountId: Identifier | null;
+  postedExpenseAccountId?: Identifier | null;
   projectId: Identifier | null;
 };
 
@@ -726,7 +727,9 @@ export type SupplierInvoice = {
   vatCents: number;
   totalCents: number;
   paidCents: number;
+  creditedCents: number;
   balanceCents: number;
+  matchStatus: 'unmatched' | 'partial' | 'matched' | 'mismatch';
   validatedAt: string | null;
   validationJournalEntryId: Identifier | null;
   note: string;
@@ -735,6 +738,182 @@ export type SupplierInvoice = {
   attachments: Attachment[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type SupplierOrderStatus =
+  | 'draft'
+  | 'confirmed'
+  | 'closed'
+  | 'cancelled';
+export type SupplierOrderFulfillmentMode =
+  | 'stocked_receipt'
+  | 'untracked_receipt'
+  | 'direct';
+
+export type SupplierOrderLine = {
+  id: Identifier;
+  supplierOrderId: Identifier;
+  catalogItemId: Identifier | null;
+  position: number;
+  description: string;
+  quantityMilli: number;
+  cancelledQuantityMilli: number;
+  receivedQuantityMilli: number;
+  matchedQuantityMilli: number;
+  remainingReceivableMilli: number;
+  remainingMatchableMilli: number;
+  unit: string;
+  unitPriceCents: number;
+  discountBp: number;
+  vatBp: number;
+  lineNetCents: number;
+  lineVatCents: number;
+  lineTotalCents: number;
+  category: string;
+  expenseAccountId: Identifier | null;
+  projectId: Identifier | null;
+  fulfillmentMode: SupplierOrderFulfillmentMode;
+};
+
+export type SupplierOrder = {
+  id: Identifier;
+  supplierId: Identifier;
+  projectId: Identifier | null;
+  number: string;
+  title: string;
+  status: SupplierOrderStatus;
+  orderDate: string;
+  currency: string;
+  subtotalCents: number;
+  discountCents: number;
+  vatCents: number;
+  totalCents: number;
+  notes: string;
+  terms: string;
+  confirmedAt: string | null;
+  closedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string;
+  createdAt: string;
+  updatedAt: string;
+  lines: SupplierOrderLine[];
+};
+
+export type SupplierOrderCancellationLine = {
+  id: Identifier;
+  requestId: string;
+  supplierOrderId: Identifier;
+  supplierOrderLineId: Identifier;
+  quantityMilli: number;
+  reason: string;
+  createdAt: string;
+};
+
+export type SupplierReceiptStatus = 'draft' | 'issued' | 'reversed';
+
+export type SupplierReceiptLine = {
+  id: Identifier;
+  supplierReceiptId: Identifier;
+  supplierOrderLineId: Identifier;
+  position: number;
+  quantityMilli: number;
+  description: string;
+  unit: string;
+};
+
+export type SupplierReceipt = {
+  id: Identifier;
+  supplierOrderId: Identifier;
+  number: string;
+  status: SupplierReceiptStatus;
+  receiptDate: string;
+  reference: string;
+  notes: string;
+  issuedAt: string | null;
+  reversedAt: string | null;
+  reversalReason: string;
+  createdAt: string;
+  updatedAt: string;
+  lines: SupplierReceiptLine[];
+};
+
+export type SupplierInvoiceMatch = {
+  id: Identifier;
+  requestId: string;
+  supplierInvoiceId: Identifier;
+  supplierInvoiceItemId: Identifier;
+  supplierOrderId: Identifier;
+  supplierOrderLineId: Identifier;
+  supplierReceiptLineId: Identifier | null;
+  quantityMilli: number;
+  netCents: number;
+  vatCents: number;
+  totalCents: number;
+  createdAt: string;
+};
+
+export type SupplierCreditNoteItem = Omit<
+  SupplierInvoiceItem,
+  'supplierInvoiceId'
+> & {
+  supplierCreditNoteId: Identifier;
+};
+
+export type SupplierCreditAllocation = {
+  id: Identifier;
+  sequence: number;
+  requestId: string;
+  supplierCreditNoteId: Identifier;
+  supplierInvoiceId: Identifier;
+  eventType: 'apply' | 'reverse';
+  reversesAllocationId: Identifier | null;
+  amountCents: number;
+  reason: string;
+  createdAt: string;
+};
+
+export type SupplierCreditNote = {
+  id: Identifier;
+  supplierId: Identifier;
+  number: string;
+  documentDate: string;
+  supplierName: string;
+  reference: string;
+  currency: string;
+  status: 'draft' | 'validated';
+  netCents: number;
+  vatCents: number;
+  totalCents: number;
+  allocatedCents: number;
+  note: string;
+  validatedAt: string | null;
+  validationJournalEntryId: Identifier | null;
+  items: SupplierCreditNoteItem[];
+  allocations: SupplierCreditAllocation[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SupplierExpenseReclassificationLine = {
+  id: Identifier;
+  reclassificationId: Identifier;
+  supplierInvoiceItemId: Identifier;
+  oldExpenseAccountId: Identifier | null;
+  newExpenseAccountId: Identifier;
+  amountCents: number;
+  projectId: Identifier | null;
+  createdAt: string;
+};
+
+export type SupplierExpenseReclassification = {
+  id: Identifier;
+  supplierInvoiceId: Identifier;
+  requestId: string;
+  effectiveDate: string;
+  reason: string;
+  journalEntryId: Identifier;
+  createdAt: string;
+  lines: SupplierExpenseReclassificationLine[];
 };
 
 export type Supplier = {
@@ -1121,8 +1300,14 @@ export type Workspace = {
   timeBillingEntries: TimeBillingEntry[];
   activeTimer: ActiveTimer;
   expenses: Expense[];
+  supplierOrders: SupplierOrder[];
+  supplierOrderCancellationLines: SupplierOrderCancellationLine[];
+  supplierReceipts: SupplierReceipt[];
   supplierInvoices: SupplierInvoice[];
   supplierInvoicePayments: SupplierInvoicePayment[];
+  supplierInvoiceMatches: SupplierInvoiceMatch[];
+  supplierCreditNotes: SupplierCreditNote[];
+  supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];
   payrollImports: PayrollDocumentImport[];
   employeePayrollTemplates: EmployeePayrollTemplate[];

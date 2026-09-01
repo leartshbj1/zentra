@@ -79,9 +79,21 @@ import type {
   StockReservationEvent,
   StoredSwissQrBill,
   Supplier,
+  SupplierCreditAllocation,
+  SupplierCreditNote,
+  SupplierCreditNoteItem,
+  SupplierExpenseReclassification,
+  SupplierExpenseReclassificationLine,
   SupplierInvoice,
   SupplierInvoiceItem,
+  SupplierInvoiceMatch,
   SupplierInvoicePayment,
+  SupplierOrder,
+  SupplierOrderCancellationLine,
+  SupplierOrderFulfillmentMode,
+  SupplierOrderLine,
+  SupplierReceipt,
+  SupplierReceiptLine,
   SwissQrBillInput,
   SwissQrPayload,
   SwissQrValidation,
@@ -149,8 +161,19 @@ type RawWorkspace = {
   time_billing_batches?: RawRecord[];
   time_billing_entries?: RawRecord[];
   expenses?: RawRecord[];
+  supplier_orders?: RawRecord[];
+  supplier_order_lines?: RawRecord[];
+  supplier_order_cancellation_lines?: RawRecord[];
+  supplier_receipts?: RawRecord[];
+  supplier_receipt_lines?: RawRecord[];
   supplier_invoices?: RawRecord[];
   supplier_invoice_items?: RawRecord[];
+  supplier_invoice_matches?: RawRecord[];
+  supplier_credit_notes?: RawRecord[];
+  supplier_credit_note_items?: RawRecord[];
+  supplier_credit_allocations?: RawRecord[];
+  supplier_expense_reclassifications?: RawRecord[];
+  supplier_expense_reclassification_lines?: RawRecord[];
   supplier_payments?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -689,11 +712,7 @@ const deliveryNoteStatusFromRaw = (value: unknown): DeliveryNote['status'] => {
   const status = stringValue(value);
   if (status === 'issued' || status === 'emis' || status === 'emise')
     return 'issued';
-  if (
-    status === 'reversed' ||
-    status === 'extourne' ||
-    status === 'extournee'
-  )
+  if (status === 'reversed' || status === 'extourne' || status === 'extournee')
     return 'reversed';
   return 'draft';
 };
@@ -706,8 +725,7 @@ function salesOrderLineFromRaw(row: RawRecord): SalesOrderLine {
   const lineVatCents = numberValue(row.line_vat_cents);
   return {
     id: stringValue(row.id),
-    salesOrderId:
-      stringValue(row.sales_order_id) || stringValue(row.order_id),
+    salesOrderId: stringValue(row.sales_order_id) || stringValue(row.order_id),
     catalogItemId,
     position: numberValue(row.position),
     description: stringValue(row.description),
@@ -745,7 +763,8 @@ function deliveryNoteLineFromRaw(row: RawRecord): DeliveryNoteLine {
 }
 
 function stockReservationEventFromRaw(row: RawRecord): StockReservationEvent {
-  const rawEventType = stringValue(row.event_type) || stringValue(row.movement_type);
+  const rawEventType =
+    stringValue(row.event_type) || stringValue(row.movement_type);
   const eventType: StockReservationEvent['eventType'] =
     rawEventType === 'delivery' ||
     rawEventType === 'release' ||
@@ -756,8 +775,7 @@ function stockReservationEventFromRaw(row: RawRecord): StockReservationEvent {
     sequence: numberValue(row.sequence),
     id: stringValue(row.id),
     catalogItemId: stringValue(row.catalog_item_id),
-    salesOrderId:
-      stringValue(row.sales_order_id) || stringValue(row.order_id),
+    salesOrderId: stringValue(row.sales_order_id) || stringValue(row.order_id),
     salesOrderLineId:
       stringValue(row.sales_order_line_id) || stringValue(row.order_line_id),
     deliveryNoteLineId: nullableString(row.delivery_note_line_id),
@@ -826,8 +844,10 @@ function catalogItemFromRaw(row: RawRecord): CatalogItem {
     purchaseCostCents: numberValue(row.purchase_cost_cents),
     vatBp: numberValue(row.vat_bp),
     trackStock: kind === 'product' && boolValue(row.track_stock),
-    stockQuantityMilli: kind === 'product' ? numberValue(row.stock_quantity_milli) : 0,
-    reorderLevelMilli: kind === 'product' ? numberValue(row.reorder_level_milli) : 0,
+    stockQuantityMilli:
+      kind === 'product' ? numberValue(row.stock_quantity_milli) : 0,
+    reorderLevelMilli:
+      kind === 'product' ? numberValue(row.reorder_level_milli) : 0,
     archivedAt: stringValue(row.archived_at) || null,
     createdAt: stringValue(row.created_at),
     updatedAt: stringValue(row.updated_at),
@@ -844,13 +864,13 @@ function stockMovementFromRaw(row: RawRecord): StockMovement {
       : sourceType === 'receipt' && reversesMovement
         ? 'receipt_reversal'
         : sourceType === 'invoice' ||
-    sourceType === 'opening' ||
-    sourceType === 'delivery' ||
-    sourceType === 'delivery_reversal' ||
-    sourceType === 'receipt' ||
-    sourceType === 'receipt_reversal'
-      ? sourceType
-      : 'manual';
+            sourceType === 'opening' ||
+            sourceType === 'delivery' ||
+            sourceType === 'delivery_reversal' ||
+            sourceType === 'receipt' ||
+            sourceType === 'receipt_reversal'
+          ? sourceType
+          : 'manual';
   return {
     sequence: numberValue(row.sequence),
     id: stringValue(row.id),
@@ -912,7 +932,77 @@ function supplierInvoiceItemFromRaw(row: RawRecord): SupplierInvoiceItem {
     totalCents: numberValue(row.line_total_cents),
     category: stringValue(row.category),
     expenseAccountId: stringValue(row.expense_account_id) || null,
+    postedExpenseAccountId: stringValue(row.posted_expense_account_id) || null,
     projectId: stringValue(row.project_id) || null,
+  };
+}
+
+const supplierOrderStatusFromRaw = (
+  value: unknown,
+): SupplierOrder['status'] => {
+  const status = stringValue(value);
+  if (status === 'confirmed' || status === 'closed' || status === 'cancelled')
+    return status;
+  return 'draft';
+};
+
+const supplierOrderFulfillmentModeFromRaw = (
+  value: unknown,
+): SupplierOrderFulfillmentMode => {
+  const mode = stringValue(value);
+  if (mode === 'stocked_receipt' || mode === 'direct') return mode;
+  return 'untracked_receipt';
+};
+
+function supplierOrderLineFromRaw(row: RawRecord): SupplierOrderLine {
+  const quantityMilli = numberValue(row.quantity_milli);
+  const unitPriceCents = numberValue(row.unit_price_cents);
+  const lineNetCents = numberValue(row.line_net_cents);
+  const lineVatCents = numberValue(row.line_vat_cents);
+  return {
+    id: stringValue(row.id),
+    supplierOrderId: stringValue(row.supplier_order_id),
+    catalogItemId: nullableString(row.catalog_item_id),
+    position: numberValue(row.position),
+    description: stringValue(row.description),
+    quantityMilli,
+    cancelledQuantityMilli: numberValue(row.cancelled_quantity_milli),
+    receivedQuantityMilli: numberValue(row.received_quantity_milli),
+    matchedQuantityMilli: numberValue(row.matched_quantity_milli),
+    remainingReceivableMilli: numberValue(row.remaining_receivable_milli),
+    remainingMatchableMilli: numberValue(row.remaining_matchable_milli),
+    unit: stringValue(row.unit) || 'unité',
+    unitPriceCents,
+    discountBp: numberValue(row.discount_bp),
+    vatBp: numberValue(row.vat_bp),
+    lineNetCents,
+    lineVatCents,
+    lineTotalCents:
+      numberValue(row.line_total_cents) || lineNetCents + lineVatCents,
+    category: stringValue(row.category),
+    expenseAccountId: nullableString(row.expense_account_id),
+    projectId: nullableString(row.project_id),
+    fulfillmentMode: supplierOrderFulfillmentModeFromRaw(row.fulfillment_mode),
+  };
+}
+
+const supplierReceiptStatusFromRaw = (
+  value: unknown,
+): SupplierReceipt['status'] => {
+  const status = stringValue(value);
+  if (status === 'issued' || status === 'reversed') return status;
+  return 'draft';
+};
+
+function supplierCreditNoteItemFromRaw(row: RawRecord): SupplierCreditNoteItem {
+  const invoiceItem = supplierInvoiceItemFromRaw({
+    ...row,
+    supplier_invoice_id: '',
+  });
+  const { supplierInvoiceId: _supplierInvoiceId, ...item } = invoiceItem;
+  return {
+    ...item,
+    supplierCreditNoteId: stringValue(row.supplier_credit_note_id),
   };
 }
 
@@ -1096,6 +1186,57 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const supplierInvoicePayments = (raw.supplier_payments ?? []).map(
     supplierInvoicePaymentFromRaw,
   );
+  const supplierOrderLines = (raw.supplier_order_lines ?? []).map(
+    supplierOrderLineFromRaw,
+  );
+  const supplierReceiptLines: SupplierReceiptLine[] = (
+    raw.supplier_receipt_lines ?? []
+  ).map((row) => {
+    const supplierOrderLineId = stringValue(row.supplier_order_line_id);
+    const orderLine = supplierOrderLines.find(
+      (line) => line.id === supplierOrderLineId,
+    );
+    return {
+      id: stringValue(row.id),
+      supplierReceiptId: stringValue(row.supplier_receipt_id),
+      supplierOrderLineId,
+      position: numberValue(row.position),
+      quantityMilli: numberValue(row.quantity_milli),
+      description:
+        stringValue(row.description) ||
+        orderLine?.description ||
+        'Article fournisseur',
+      unit: stringValue(row.unit) || orderLine?.unit || 'unité',
+    };
+  });
+  const supplierCreditNoteItems = (raw.supplier_credit_note_items ?? []).map(
+    supplierCreditNoteItemFromRaw,
+  );
+  const supplierCreditAllocations: SupplierCreditAllocation[] = (
+    raw.supplier_credit_allocations ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    sequence: numberValue(row.sequence),
+    requestId: stringValue(row.request_id),
+    supplierCreditNoteId: stringValue(row.supplier_credit_note_id),
+    supplierInvoiceId: stringValue(row.supplier_invoice_id),
+    eventType: stringValue(row.event_type) === 'reverse' ? 'reverse' : 'apply',
+    reversesAllocationId: nullableString(row.reverses_allocation_id),
+    amountCents: numberValue(row.amount_cents),
+    reason: stringValue(row.reason),
+    createdAt: stringValue(row.created_at),
+  }));
+  const supplierExpenseReclassificationLines: SupplierExpenseReclassificationLine[] =
+    (raw.supplier_expense_reclassification_lines ?? []).map((row) => ({
+      id: stringValue(row.id),
+      reclassificationId: stringValue(row.reclassification_id),
+      supplierInvoiceItemId: stringValue(row.supplier_invoice_item_id),
+      oldExpenseAccountId: nullableString(row.old_expense_account_id),
+      newExpenseAccountId: stringValue(row.new_expense_account_id),
+      amountCents: numberValue(row.amount_cents),
+      projectId: nullableString(row.project_id),
+      createdAt: stringValue(row.created_at),
+    }));
   const supplierInvoiceAttachments = (raw.attachments ?? [])
     .map(attachmentFromRaw)
     .filter(
@@ -1268,27 +1409,29 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       lines: orderLines,
     };
   });
-  const deliveryNotes: DeliveryNote[] = (raw.delivery_notes ?? []).map((row) => {
-    const id = stringValue(row.id);
-    return {
-      id,
-      salesOrderId:
-        stringValue(row.sales_order_id) || stringValue(row.order_id),
-      number: stringValue(row.number),
-      status: deliveryNoteStatusFromRaw(row.status),
-      deliveryDate:
-        stringValue(row.delivery_date) || stringValue(row.issue_date),
-      reference: stringValue(row.reference),
-      notes: stringValue(row.notes),
-      issuedAt: nullableString(row.issued_at),
-      reversedAt: nullableString(row.reversed_at),
-      createdAt: stringValue(row.created_at),
-      updatedAt: stringValue(row.updated_at),
-      lines: deliveryNoteLines
-        .filter((line) => line.deliveryNoteId === id)
-        .sort((left, right) => left.position - right.position),
-    };
-  });
+  const deliveryNotes: DeliveryNote[] = (raw.delivery_notes ?? []).map(
+    (row) => {
+      const id = stringValue(row.id);
+      return {
+        id,
+        salesOrderId:
+          stringValue(row.sales_order_id) || stringValue(row.order_id),
+        number: stringValue(row.number),
+        status: deliveryNoteStatusFromRaw(row.status),
+        deliveryDate:
+          stringValue(row.delivery_date) || stringValue(row.issue_date),
+        reference: stringValue(row.reference),
+        notes: stringValue(row.notes),
+        issuedAt: nullableString(row.issued_at),
+        reversedAt: nullableString(row.reversed_at),
+        createdAt: stringValue(row.created_at),
+        updatedAt: stringValue(row.updated_at),
+        lines: deliveryNoteLines
+          .filter((line) => line.deliveryNoteId === id)
+          .sort((left, right) => left.position - right.position),
+      };
+    },
+  );
   const salesOrderInvoiceBatches: SalesOrderInvoiceBatch[] = (
     raw.sales_order_invoice_batches ?? []
   ).map((row) => {
@@ -1298,8 +1441,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       salesOrderId:
         stringValue(row.sales_order_id) || stringValue(row.order_id),
       invoiceId: stringValue(row.invoice_id),
-      role:
-        rawRole === 'final' || rawRole === 'finale' ? 'final' : 'partial',
+      role: rawRole === 'final' || rawRole === 'finale' ? 'final' : 'partial',
       createdAt: stringValue(row.created_at),
     };
   });
@@ -1506,6 +1648,146 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     reimbursable: boolValue(row.reimbursable),
     note: stringValue(row.note),
   }));
+  const supplierOrders: SupplierOrder[] = (raw.supplier_orders ?? []).map(
+    (row) => {
+      const id = stringValue(row.id);
+      const lines = supplierOrderLines
+        .filter((line) => line.supplierOrderId === id)
+        .sort((left, right) => left.position - right.position);
+      const subtotalCents = numberValue(row.subtotal_cents);
+      const vatCents = numberValue(row.vat_cents);
+      return {
+        id,
+        supplierId: stringValue(row.supplier_id),
+        projectId: nullableString(row.project_id),
+        number: stringValue(row.number),
+        title: stringValue(row.title) || 'Commande fournisseur',
+        status: supplierOrderStatusFromRaw(row.status),
+        orderDate: stringValue(row.order_date),
+        currency: stringValue(row.currency) || 'CHF',
+        subtotalCents,
+        discountCents: numberValue(row.discount_cents),
+        vatCents,
+        totalCents:
+          numberValue(row.total_cents) ||
+          lines.reduce((total, line) => total + line.lineTotalCents, 0) ||
+          subtotalCents + vatCents,
+        notes: stringValue(row.notes),
+        terms: stringValue(row.terms),
+        confirmedAt: nullableString(row.confirmed_at),
+        closedAt: nullableString(row.closed_at),
+        cancelledAt: nullableString(row.cancelled_at),
+        cancellationReason: stringValue(row.cancellation_reason),
+        createdAt: stringValue(row.created_at),
+        updatedAt: stringValue(row.updated_at),
+        lines,
+      };
+    },
+  );
+  const supplierOrderCancellationLines: SupplierOrderCancellationLine[] = (
+    raw.supplier_order_cancellation_lines ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    requestId: stringValue(row.request_id),
+    supplierOrderId: stringValue(row.supplier_order_id),
+    supplierOrderLineId: stringValue(row.supplier_order_line_id),
+    quantityMilli: numberValue(row.quantity_milli),
+    reason: stringValue(row.reason),
+    createdAt: stringValue(row.created_at),
+  }));
+  const supplierReceipts: SupplierReceipt[] = (raw.supplier_receipts ?? []).map(
+    (row) => {
+      const id = stringValue(row.id);
+      return {
+        id,
+        supplierOrderId: stringValue(row.supplier_order_id),
+        number: stringValue(row.number),
+        status: supplierReceiptStatusFromRaw(row.status),
+        receiptDate: stringValue(row.receipt_date),
+        reference: stringValue(row.reference),
+        notes: stringValue(row.notes),
+        issuedAt: nullableString(row.issued_at),
+        reversedAt: nullableString(row.reversed_at),
+        reversalReason: stringValue(row.reversal_reason),
+        createdAt: stringValue(row.created_at),
+        updatedAt: stringValue(row.updated_at),
+        lines: supplierReceiptLines
+          .filter((line) => line.supplierReceiptId === id)
+          .sort((left, right) => left.position - right.position),
+      };
+    },
+  );
+  const supplierInvoiceMatches: SupplierInvoiceMatch[] = (
+    raw.supplier_invoice_matches ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    requestId: stringValue(row.request_id),
+    supplierInvoiceId: stringValue(row.supplier_invoice_id),
+    supplierInvoiceItemId: stringValue(row.supplier_invoice_item_id),
+    supplierOrderId: stringValue(row.supplier_order_id),
+    supplierOrderLineId: stringValue(row.supplier_order_line_id),
+    supplierReceiptLineId: nullableString(row.supplier_receipt_line_id),
+    quantityMilli: numberValue(row.quantity_milli),
+    netCents: numberValue(row.net_cents),
+    vatCents: numberValue(row.vat_cents),
+    totalCents: numberValue(row.total_cents),
+    createdAt: stringValue(row.created_at),
+  }));
+  const supplierCreditNotes: SupplierCreditNote[] = (
+    raw.supplier_credit_notes ?? []
+  ).map((row) => {
+    const id = stringValue(row.id);
+    const allocations = supplierCreditAllocations.filter(
+      (allocation) => allocation.supplierCreditNoteId === id,
+    );
+    return {
+      id,
+      supplierId: stringValue(row.supplier_id),
+      number: stringValue(row.number),
+      documentDate: stringValue(row.document_date),
+      supplierName: stringValue(row.supplier_name),
+      reference: stringValue(row.reference),
+      currency: stringValue(row.currency) || 'CHF',
+      status: stringValue(row.status) === 'validated' ? 'validated' : 'draft',
+      netCents: numberValue(row.net_cents),
+      vatCents: numberValue(row.vat_cents),
+      totalCents: numberValue(row.total_cents),
+      allocatedCents: allocations.reduce(
+        (total, allocation) =>
+          total +
+          (allocation.eventType === 'reverse'
+            ? -allocation.amountCents
+            : allocation.amountCents),
+        0,
+      ),
+      note: stringValue(row.note),
+      validatedAt: nullableString(row.validated_at),
+      validationJournalEntryId: nullableString(row.validation_journal_entry_id),
+      items: supplierCreditNoteItems
+        .filter((item) => item.supplierCreditNoteId === id)
+        .sort((left, right) => left.position - right.position),
+      allocations,
+      createdAt: stringValue(row.created_at),
+      updatedAt: stringValue(row.updated_at),
+    };
+  });
+  const supplierExpenseReclassifications: SupplierExpenseReclassification[] = (
+    raw.supplier_expense_reclassifications ?? []
+  ).map((row) => {
+    const id = stringValue(row.id);
+    return {
+      id,
+      supplierInvoiceId: stringValue(row.supplier_invoice_id),
+      requestId: stringValue(row.request_id),
+      effectiveDate: stringValue(row.effective_date),
+      reason: stringValue(row.reason),
+      journalEntryId: stringValue(row.journal_entry_id),
+      createdAt: stringValue(row.created_at),
+      lines: supplierExpenseReclassificationLines.filter(
+        (line) => line.reclassificationId === id,
+      ),
+    };
+  });
   const supplierInvoices: SupplierInvoice[] = (raw.supplier_invoices ?? []).map(
     (row) => {
       const documentStatus: SupplierInvoice['documentStatus'] =
@@ -1515,14 +1797,31 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         0,
         Math.min(totalCents, numberValue(row.paid_cents)),
       );
+      const creditedCents = Math.max(
+        0,
+        Math.min(totalCents, numberValue(row.credited_cents)),
+      );
+      const balanceCents = Math.max(
+        0,
+        row.balance_cents === undefined
+          ? totalCents - paidCents - creditedCents
+          : numberValue(row.balance_cents),
+      );
       const paymentStatus: SupplierInvoice['paymentStatus'] =
         documentStatus === 'draft'
           ? null
-          : paidCents >= totalCents
+          : balanceCents === 0
             ? 'paid'
             : paidCents > 0
               ? 'partial'
               : 'pending';
+      const matchStatusRaw = stringValue(row.match_status);
+      const matchStatus: SupplierInvoice['matchStatus'] =
+        matchStatusRaw === 'partial' ||
+        matchStatusRaw === 'matched' ||
+        matchStatusRaw === 'mismatch'
+          ? matchStatusRaw
+          : 'unmatched';
       const id = stringValue(row.id);
       return {
         id,
@@ -1539,7 +1838,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         vatCents: numberValue(row.vat_cents),
         totalCents,
         paidCents,
-        balanceCents: Math.max(0, totalCents - paidCents),
+        creditedCents,
+        balanceCents,
+        matchStatus,
         validatedAt: stringValue(row.validated_at) || null,
         validationJournalEntryId:
           stringValue(row.validation_journal_entry_id) || null,
@@ -1648,8 +1949,14 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         }
       : null,
     expenses,
+    supplierOrders,
+    supplierOrderCancellationLines,
+    supplierReceipts,
     supplierInvoices,
     supplierInvoicePayments,
+    supplierInvoiceMatches,
+    supplierCreditNotes,
+    supplierExpenseReclassifications,
     payslips,
     payrollImports,
     employeePayrollTemplates,
@@ -1692,8 +1999,14 @@ function emptyWorkspace(): Workspace {
     timeBillingEntries: [],
     activeTimer: null,
     expenses: [],
+    supplierOrders: [],
+    supplierOrderCancellationLines: [],
+    supplierReceipts: [],
     supplierInvoices: [],
     supplierInvoicePayments: [],
+    supplierInvoiceMatches: [],
+    supplierCreditNotes: [],
+    supplierExpenseReclassifications: [],
     payslips: [],
     payrollImports: [],
     employeePayrollTemplates: [],
@@ -1823,11 +2136,12 @@ export function stockMovementMutation(
     date?: string;
   },
 ) {
-  const command = movementType === 'correction'
-    ? 'record_stock_correction'
-    : movementType === 'entry'
-      ? 'record_stock_entry'
-      : 'record_stock_exit';
+  const command =
+    movementType === 'correction'
+      ? 'record_stock_correction'
+      : movementType === 'entry'
+        ? 'record_stock_entry'
+        : 'record_stock_exit';
   return {
     command,
     args: {
@@ -2635,6 +2949,281 @@ export const desktopApi = {
     await invoke(mutation.command, mutation.args);
     return loadWorkspace();
   },
+  async saveSupplierOrderDraft(input: {
+    id?: string;
+    supplierId: string;
+    projectId?: string | null;
+    title: string;
+    orderDate: string;
+    currency?: string;
+    notes?: string;
+    terms?: string;
+    lines: Array<{
+      id?: string;
+      catalogItemId?: string | null;
+      position: number;
+      description: string;
+      quantityMilli: number;
+      unit: string;
+      unitPriceCents: number;
+      discountBp: number;
+      vatBp: number;
+      category: string;
+      expenseAccountId?: string | null;
+      projectId?: string | null;
+      fulfillmentMode: SupplierOrderFulfillmentMode;
+    }>;
+  }) {
+    await invoke('save_supplier_order_draft', {
+      input: {
+        order: {
+          id: input.id ?? null,
+          supplier_id: input.supplierId,
+          project_id: input.projectId ?? null,
+          title: input.title,
+          order_date: input.orderDate,
+          currency: input.currency || 'CHF',
+          notes: input.notes?.trim() || null,
+          terms: input.terms?.trim() || null,
+        },
+        lines: input.lines.map((line) => ({
+          id: line.id ?? null,
+          catalog_item_id: line.catalogItemId ?? null,
+          position: line.position,
+          description: line.description,
+          quantity_milli: line.quantityMilli,
+          unit: line.unit,
+          unit_price_cents: line.unitPriceCents,
+          discount_bp: line.discountBp,
+          vat_bp: line.vatBp,
+          category: line.category,
+          expense_account_id: line.expenseAccountId ?? null,
+          project_id: line.projectId ?? null,
+          fulfillment_mode: line.fulfillmentMode,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async confirmSupplierOrder(requestId: string, supplierOrderId: string) {
+    await invoke('confirm_supplier_order', {
+      input: {
+        request_id: requestId,
+        supplier_order_id: supplierOrderId,
+      },
+    });
+    return loadWorkspace();
+  },
+  async cancelSupplierOrderRemainder(
+    requestId: string,
+    supplierOrderId: string,
+    reason: string,
+    lines: Array<{ supplierOrderLineId: string; quantityMilli: number }>,
+  ) {
+    await invoke('cancel_supplier_order_remainder', {
+      input: {
+        request_id: requestId,
+        supplier_order_id: supplierOrderId,
+        reason: reason.trim(),
+        lines: lines.map((line) => ({
+          supplier_order_line_id: line.supplierOrderLineId,
+          quantity_milli: line.quantityMilli,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async saveSupplierReceiptDraft(input: {
+    id?: string;
+    supplierOrderId: string;
+    receiptDate: string;
+    reference?: string;
+    notes?: string;
+    lines: Array<{ supplierOrderLineId: string; quantityMilli: number }>;
+  }) {
+    await invoke('save_supplier_receipt_draft', {
+      input: {
+        receipt: {
+          id: input.id ?? null,
+          supplier_order_id: input.supplierOrderId,
+          receipt_date: input.receiptDate,
+          reference: input.reference?.trim() || null,
+          notes: input.notes?.trim() || null,
+        },
+        lines: input.lines.map((line) => ({
+          supplier_order_line_id: line.supplierOrderLineId,
+          quantity_milli: line.quantityMilli,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async issueSupplierReceipt(requestId: string, supplierReceiptId: string) {
+    await invoke('issue_supplier_receipt', {
+      input: {
+        request_id: requestId,
+        supplier_receipt_id: supplierReceiptId,
+      },
+    });
+    return loadWorkspace();
+  },
+  async reverseSupplierReceipt(
+    requestId: string,
+    supplierReceiptId: string,
+    reason: string,
+  ) {
+    await invoke('reverse_supplier_receipt', {
+      input: {
+        request_id: requestId,
+        supplier_receipt_id: supplierReceiptId,
+        reason: reason.trim(),
+      },
+    });
+    return loadWorkspace();
+  },
+  async saveSupplierInvoiceMatch(input: {
+    requestId: string;
+    supplierInvoiceId: string;
+    supplierOrderId: string;
+    allocations: Array<{
+      supplierInvoiceItemId: string;
+      supplierOrderLineId: string;
+      supplierReceiptLineId?: string | null;
+      quantityMilli: number;
+    }>;
+  }) {
+    await invoke('save_supplier_invoice_match', {
+      input: {
+        request_id: input.requestId,
+        supplier_invoice_id: input.supplierInvoiceId,
+        supplier_order_id: input.supplierOrderId,
+        allocations: input.allocations.map((allocation) => ({
+          supplier_invoice_item_id: allocation.supplierInvoiceItemId,
+          supplier_order_line_id: allocation.supplierOrderLineId,
+          supplier_receipt_line_id: allocation.supplierReceiptLineId ?? null,
+          quantity_milli: allocation.quantityMilli,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async saveSupplierCreditNoteDraft(input: {
+    id?: string;
+    supplierId: string;
+    documentDate: string;
+    reference?: string;
+    note?: string;
+    items: Array<{
+      id?: string;
+      description: string;
+      quantityMilli: number;
+      unit?: string;
+      unitPriceCents: number;
+      discountBp?: number;
+      vatBp: number;
+      category: string;
+      expenseAccountId?: string | null;
+      projectId?: string | null;
+    }>;
+    allocations: Array<{ supplierInvoiceId: string; amountCents: number }>;
+  }) {
+    await invoke('save_supplier_credit_note_draft', {
+      input: {
+        id: input.id ?? null,
+        supplier_id: input.supplierId,
+        document_date: input.documentDate,
+        reference: input.reference?.trim() || null,
+        note: input.note?.trim() || null,
+        items: input.items.map((item) => ({
+          id: item.id ?? null,
+          description: item.description,
+          quantity_milli: item.quantityMilli,
+          unit: item.unit || null,
+          unit_price_cents: item.unitPriceCents,
+          discount_bp: item.discountBp || 0,
+          vat_bp: item.vatBp,
+          category: item.category,
+          expense_account_id: item.expenseAccountId ?? null,
+          project_id: item.projectId ?? null,
+        })),
+        allocations: input.allocations.map((allocation) => ({
+          supplier_invoice_id: allocation.supplierInvoiceId,
+          amount_cents: allocation.amountCents,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async validateSupplierCreditNote(
+    requestId: string,
+    supplierCreditNoteId: string,
+  ) {
+    await invoke('validate_supplier_credit_note', {
+      input: {
+        request_id: requestId,
+        supplier_credit_note_id: supplierCreditNoteId,
+      },
+    });
+    return loadWorkspace();
+  },
+  async deleteSupplierCreditNoteDraft(id: string) {
+    await invoke('delete_supplier_credit_note_draft', { id });
+    return loadWorkspace();
+  },
+  async applySupplierCredit(
+    requestId: string,
+    supplierCreditNoteId: string,
+    supplierInvoiceId: string,
+    amountCents: number,
+  ) {
+    await invoke('apply_supplier_credit', {
+      input: {
+        request_id: requestId,
+        supplier_credit_note_id: supplierCreditNoteId,
+        supplier_invoice_id: supplierInvoiceId,
+        amount_cents: amountCents,
+      },
+    });
+    return loadWorkspace();
+  },
+  async reverseSupplierCreditAllocation(
+    requestId: string,
+    supplierCreditAllocationId: string,
+    reason: string,
+  ) {
+    await invoke('reverse_supplier_credit_allocation', {
+      input: {
+        request_id: requestId,
+        supplier_credit_allocation_id: supplierCreditAllocationId,
+        reason: reason.trim(),
+      },
+    });
+    return loadWorkspace();
+  },
+  async reclassifySupplierInvoiceExpense(input: {
+    requestId: string;
+    supplierInvoiceId: string;
+    effectiveDate: string;
+    reason: string;
+    lines: Array<{
+      supplierInvoiceItemId: string;
+      newExpenseAccountId: string;
+    }>;
+  }) {
+    await invoke('reclassify_supplier_invoice_expense', {
+      input: {
+        request_id: input.requestId,
+        supplier_invoice_id: input.supplierInvoiceId,
+        effective_date: input.effectiveDate,
+        reason: input.reason.trim(),
+        lines: input.lines.map((line) => ({
+          supplier_invoice_item_id: line.supplierInvoiceItemId,
+          new_expense_account_id: line.newExpenseAccountId,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
   async saveSupplierInvoiceDraft(input: {
     id?: string;
     supplierId: string;
@@ -2932,8 +3521,7 @@ export const desktopApi = {
       : response;
     const rawRole = stringValue(raw.role) || stringValue(raw.invoice_role);
     return {
-      role:
-        rawRole === 'final' || rawRole === 'finale' ? 'final' : 'partial',
+      role: rawRole === 'final' || rawRole === 'finale' ? 'final' : 'partial',
       subtotalCents: numberValue(raw.subtotal_cents),
       discountCents: numberValue(raw.discount_cents),
       vatCents: numberValue(raw.vat_cents),
