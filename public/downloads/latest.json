@@ -1,11 +1,11 @@
 {
-  "version": "1.9.0",
-  "notes": "Centre TVA suisse avec export XML eCH-0217 v2.0.0 pour import manuel, clôture contrôlée avec dossier fiduciaire DRAFT/FINAL, correctifs de migration et navigation mobile.",
-  "pub_date": "2026-09-01T11:43:07.6749398+00:00",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmNlMkFoRlpuY2lkU29JcTFEd3dGN252Z3NLQ2RtM2lYS0lMNTdnZlgvOWFLWGpIQWZRZHVhUzVBbVJaVDZibDl0cktWTTVCeGwzOEk3UDZKeDVKVWcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjYyOTE3CWZpbGU6RWx5a29fMS45LjBfeDY0LXNldHVwLmV4ZQpjUkR0cWZqcnhsRjJHcmxleVF4bEFFYkNKUUFadDVPajFYM0tvYU5ZVGFocmhscithMGhTVWdMYkhKOXF6VHZ1QUhZbExyM3lMVVN3WDNNMjkvM0xEUT09Cg==",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.9.0_x64-setup.exe"
-    }
-  }
+    "version":  "1.10.0",
+    "notes":  "Paie locale avec provenance page par page, documents commerciaux figés, paiements comptables revalidés, guide complet et mise à jour guidée.",
+    "pub_date":  "2026-09-01T12:33:13.7522700+00:00",
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlQ1QzhPa1R3eVNkeWtqWmZxNGJ4eUFRZURLUllrZDhLcnE3QXBMWk5hRjNJem1ybGYvOFBHTW15M3BZajdlQW1sK1Z1Y0ZLVW95V09mckFXa0lhcndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjY1OTAyCWZpbGU6RWx5a29fMS4xMC4wX3g2NC1zZXR1cC5leGUKeWUxWE9wWjJoaUIzVm5UajhVbVgrdFpkeHdrM3lYaDBGS0xFTG91THBNMTd1T3NNNHo4eTBaeGszZ2JvNmFFZ3hQK2pTbC9nQ1hva0piZUs2ZWROREE9PQo=",
+                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.10.0_x64-setup.exe"
+                                         }
+                  }
 }
