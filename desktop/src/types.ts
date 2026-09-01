@@ -94,8 +94,28 @@ export type BackupSettings = {
 };
 
 export type NogaSectionCode =
-  | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K'
-  | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V';
+  | 'A'
+  | 'B'
+  | 'C'
+  | 'D'
+  | 'E'
+  | 'F'
+  | 'G'
+  | 'H'
+  | 'I'
+  | 'J'
+  | 'K'
+  | 'L'
+  | 'M'
+  | 'N'
+  | 'O'
+  | 'P'
+  | 'Q'
+  | 'R'
+  | 'S'
+  | 'T'
+  | 'U'
+  | 'V';
 
 export type BusinessProfile = {
   nogaSection: NogaSectionCode | '';
@@ -105,8 +125,16 @@ export type BusinessProfile = {
 };
 
 export type NogaDivision = { code: string; label: string };
-export type NogaSection = { code: NogaSectionCode; label: string; divisions: NogaDivision[] };
-export type NogaCatalog = { version: string; source: string; sections: NogaSection[] };
+export type NogaSection = {
+  code: NogaSectionCode;
+  label: string;
+  divisions: NogaDivision[];
+};
+export type NogaCatalog = {
+  version: string;
+  source: string;
+  sections: NogaSection[];
+};
 
 export type AppSettings = {
   organization: Organization;
@@ -136,7 +164,12 @@ export type Client = {
   archivedAt?: string | null;
 };
 
-export type ProjectStatus = 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed';
+export type ProjectStatus =
+  | 'planned'
+  | 'in_progress'
+  | 'paused'
+  | 'completed'
+  | 'closed';
 
 export type Project = {
   id: Identifier;
@@ -170,6 +203,27 @@ export type CatalogItem = {
   archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type StockMovementType = 'entry' | 'exit' | 'correction';
+export type StockMovementSource = 'manual' | 'invoice' | 'opening';
+
+export type StockMovement = {
+  sequence: number;
+  id: Identifier;
+  sourceKey: string;
+  requestId: Identifier | null;
+  catalogItemId: Identifier;
+  movementType: StockMovementType;
+  quantityDeltaMilli: number;
+  balanceAfterMilli: number;
+  reason: string;
+  reference: string | null;
+  movementDate: string;
+  sourceType: StockMovementSource;
+  invoiceId: Identifier | null;
+  invoiceItemId: Identifier | null;
+  createdAt: string;
 };
 
 export type DocumentLine = {
@@ -239,9 +293,21 @@ export type FrozenDocumentRecord = {
   terms: string;
 };
 
-export type FrozenDocumentSnapshot = { capturedAt: string; issuer: FrozenIssuer; customer: FrozenCustomer; document: FrozenDocumentRecord; items: DocumentLine[]; qrBill?: StoredSwissQrBill | null };
+export type FrozenDocumentSnapshot = {
+  capturedAt: string;
+  issuer: FrozenIssuer;
+  customer: FrozenCustomer;
+  document: FrozenDocumentRecord;
+  items: DocumentLine[];
+  qrBill?: StoredSwissQrBill | null;
+};
 
-export type QuoteStatus = 'draft' | 'issued' | 'accepted' | 'refused' | 'expired';
+export type QuoteStatus =
+  | 'draft'
+  | 'issued'
+  | 'accepted'
+  | 'refused'
+  | 'expired';
 
 export type Quote = {
   id: Identifier;
@@ -258,8 +324,18 @@ export type Quote = {
   snapshot?: FrozenDocumentSnapshot | null;
 };
 
-export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'cancelled';
-export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit_note';
+export type InvoiceStatus =
+  | 'draft'
+  | 'issued'
+  | 'partially_paid'
+  | 'paid'
+  | 'cancelled';
+export type InvoiceType =
+  | 'standard'
+  | 'deposit'
+  | 'progress'
+  | 'final'
+  | 'credit_note';
 
 export type Invoice = {
   id: Identifier;
@@ -341,6 +417,35 @@ export type TimeEntry = {
   hourlyCostCents: number;
   note: string;
   status: 'entered' | 'approved' | 'locked';
+  /** Cycle de facturation indépendant du statut de validation du temps. */
+  billingStatus: 'unbilled' | 'reserved' | 'billed';
+  billingBatchId: Identifier | null;
+  billingInvoiceId: Identifier | null;
+  billingInvoiceNumber: string | null;
+  createdAt: string;
+};
+
+export type TimeBillingBatch = {
+  id: Identifier;
+  requestId: Identifier;
+  invoiceId: Identifier;
+  projectId: Identifier;
+  clientId: Identifier;
+  vatBp: number;
+  createdAt: string;
+};
+
+export type TimeBillingEntry = {
+  id: Identifier;
+  batchId: Identifier;
+  timeEntryId: Identifier;
+  invoiceItemId: Identifier;
+  entryDate: string;
+  minutes: number;
+  billingRateCents: number;
+  amountCents: number;
+  employeeName: string;
+  note: string;
   createdAt: string;
 };
 
@@ -374,6 +479,76 @@ export type Expense = {
   archivedAt?: string | null;
 };
 
+export type SupplierInvoiceItem = {
+  id: Identifier;
+  supplierInvoiceId: Identifier;
+  position: number;
+  description: string;
+  quantityMilli: number;
+  unit: string;
+  unitPriceCents: number;
+  discountBp: number;
+  vatBp: number;
+  netCents: number;
+  vatCents: number;
+  totalCents: number;
+  category: string;
+  expenseAccountId: Identifier | null;
+  projectId: Identifier | null;
+};
+
+export type SupplierInvoicePayment = {
+  id: Identifier;
+  supplierInvoiceId: Identifier;
+  requestId: string;
+  date: string;
+  amountCents: number;
+  method: string;
+  reference: string;
+  notes: string;
+  journalEntryId: Identifier;
+  createdAt: string;
+};
+
+export type Attachment = {
+  id: Identifier;
+  projectId: Identifier | null;
+  entityType: string;
+  entityId: Identifier | null;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SupplierInvoice = {
+  id: Identifier;
+  supplierId: Identifier;
+  projectId: Identifier | null;
+  documentDate: string;
+  dueDate: string;
+  supplierName: string;
+  reference: string;
+  currency: 'CHF';
+  documentStatus: 'draft' | 'validated';
+  paymentStatus: 'pending' | 'partial' | 'paid' | null;
+  netCents: number;
+  vatCents: number;
+  totalCents: number;
+  paidCents: number;
+  balanceCents: number;
+  validatedAt: string | null;
+  validationJournalEntryId: Identifier | null;
+  note: string;
+  lines: SupplierInvoiceItem[];
+  payments: SupplierInvoicePayment[];
+  attachments: Attachment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Supplier = {
   id: Identifier;
   name: string;
@@ -391,7 +566,12 @@ export type Supplier = {
   updatedAt: string;
 };
 
-export type BankSuggestionKind = 'automatic_exact' | 'automatic_partial' | 'manual' | 'review' | 'none';
+export type BankSuggestionKind =
+  | 'automatic_exact'
+  | 'automatic_partial'
+  | 'manual'
+  | 'review'
+  | 'none';
 
 export type BankReconciliationCandidate = {
   invoiceId: Identifier;
@@ -421,6 +601,46 @@ export type BankReconciliation = {
   createdAt: string;
 };
 
+export type BankSupplierSuggestionKind =
+  | 'supplier_match'
+  | 'supplier_manual'
+  | 'review'
+  | 'none';
+
+export type BankSupplierReconciliationCandidate = {
+  supplierInvoiceId: Identifier;
+  supplierId: Identifier;
+  supplierName: string;
+  supplierIban: string;
+  reference: string;
+  documentDate: string;
+  remainingCents: number;
+  amountRelation: string;
+  matchKind: string;
+  reason: string;
+  confirmable: boolean;
+};
+
+export type BankSupplierReconciliationSuggestion = {
+  entityType: 'supplier_invoice';
+  kind: BankSupplierSuggestionKind;
+  supplierInvoiceId: Identifier | null;
+  reason: string;
+  confirmable: boolean;
+  requiresConfirmation: boolean;
+  candidates: BankSupplierReconciliationCandidate[];
+};
+
+export type BankSupplierReconciliation = {
+  id: Identifier;
+  movementId: Identifier;
+  supplierInvoiceId: Identifier;
+  supplierPaymentId: Identifier;
+  amountCents: number;
+  confirmedAt: string;
+  createdAt: string;
+};
+
 export type BankMovement = {
   id: Identifier;
   importId: Identifier;
@@ -441,10 +661,13 @@ export type BankMovement = {
   reference: string;
   unstructured: string;
   counterpartyName: string;
+  counterpartyIban: string;
   strongKey: string;
   createdAt: string;
   reconciliation: BankReconciliation | null;
+  supplierReconciliation: BankSupplierReconciliation | null;
   suggestion: BankReconciliationSuggestion;
+  supplierSuggestion: BankSupplierReconciliationSuggestion;
 };
 
 export type BankImport = {
@@ -475,13 +698,16 @@ export type BankWorkspace = {
     importCount: number;
     movementCount: number;
     unreconciledCount: number;
+    unreconciledSupplierCount: number;
     pendingCount: number;
     bookedCreditCount: number;
+    bookedDebitCount: number;
   };
   accounts: BankAccountLink[];
   imports: BankImport[];
   movements: BankMovement[];
   reconciliations: BankReconciliation[];
+  supplierReconciliations: BankSupplierReconciliation[];
 };
 
 export type CamtImportResult = {
@@ -498,6 +724,23 @@ export type BankReconciliationResult = {
   reconciliation: BankReconciliation;
   payment: Payment;
   invoice: Pick<Invoice, 'id' | 'number' | 'status'>;
+};
+
+export type BankSupplierReconciliationResult = {
+  movement: BankMovement;
+  supplierReconciliation: BankSupplierReconciliation;
+  payment: SupplierInvoicePayment;
+  supplierInvoice: Pick<
+    SupplierInvoice,
+    | 'id'
+    | 'supplierId'
+    | 'reference'
+    | 'documentStatus'
+    | 'totalCents'
+    | 'paidCents'
+    | 'balanceCents'
+  >;
+  idempotent: boolean;
 };
 
 export type PayslipLine = {
@@ -578,6 +821,22 @@ export type PayrollImportDraft = {
   netCents: number;
   lines: PayrollImportLineDraft[];
   warnings: string[];
+  review?: PayrollImportReviewState;
+};
+
+export type PayrollAiIdentityEvidence = {
+  passes: number;
+  employeeNumber: string;
+  avsNumber: string;
+  birthDate: string;
+  iban: string;
+  conflicts: string[];
+};
+
+export type PayrollImportReviewState = {
+  aiIdentityEvidence?: PayrollAiIdentityEvidence;
+  employeeId: Identifier;
+  employeeLinkSource: 'auto' | 'manual' | '';
 };
 
 export type PayrollDocumentImport = {
@@ -605,7 +864,11 @@ export type EmployeePayrollTemplate = {
   employeeId: Identifier;
   salaryMode: 'monthly' | 'hourly';
   baseSalaryCents: number;
-  recurringEarnings: Array<{ label: string; kind: 'earning'; amountCents: number }>;
+  recurringEarnings: Array<{
+    label: string;
+    kind: 'earning';
+    amountCents: number;
+  }>;
   suggestedContributionCodes: string[];
   sourceImportId: Identifier;
   reviewedAt: string;
@@ -619,8 +882,17 @@ export type BackupStatus = {
 
 export type LicenseState = {
   enforcementConfigured: boolean;
-  status: 'not_configured' | 'missing' | 'invalid' | 'clock_error' | 'not_yet_valid' | 'expired' | 'valid';
+  status:
+    | 'not_configured'
+    | 'missing'
+    | 'invalid'
+    | 'clock_error'
+    | 'not_yet_valid'
+    | 'inactive'
+    | 'expired'
+    | 'valid';
   readOnly: boolean;
+  canRefresh: boolean;
   plan: string;
   priceChfCents: number;
   licenseId: string;
@@ -641,6 +913,7 @@ export type Workspace = {
   settings: AppSettings | null;
   clients: Client[];
   catalogItems: CatalogItem[];
+  stockMovements: StockMovement[];
   suppliers: Supplier[];
   projects: Project[];
   quotes: Quote[];
@@ -648,11 +921,16 @@ export type Workspace = {
   payments: Payment[];
   employees: Employee[];
   timeEntries: TimeEntry[];
+  timeBillingBatches: TimeBillingBatch[];
+  timeBillingEntries: TimeBillingEntry[];
   activeTimer: ActiveTimer;
   expenses: Expense[];
+  supplierInvoices: SupplierInvoice[];
+  supplierInvoicePayments: SupplierInvoicePayment[];
   payslips: Payslip[];
   payrollImports: PayrollDocumentImport[];
   employeePayrollTemplates: EmployeePayrollTemplate[];
+  accountingSettings: AccountingSettings | null;
   backupStatus: BackupStatus;
 };
 
@@ -672,9 +950,28 @@ export type RestorePreview = {
   documentsCount: number;
 };
 
-export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+export type AccountType =
+  | 'asset'
+  | 'liability'
+  | 'equity'
+  | 'revenue'
+  | 'expense';
 export type NormalBalance = 'debit' | 'credit';
-export type ReportSection = 'current_assets' | 'fixed_assets' | 'short_term_liabilities' | 'long_term_liabilities' | 'equity' | 'net_revenue' | 'cost_of_goods' | 'personnel_expense' | 'other_operating_expense' | 'depreciation' | 'financial_result' | 'non_operating_result' | 'exceptional_result' | 'taxes';
+export type ReportSection =
+  | 'current_assets'
+  | 'fixed_assets'
+  | 'short_term_liabilities'
+  | 'long_term_liabilities'
+  | 'equity'
+  | 'net_revenue'
+  | 'cost_of_goods'
+  | 'personnel_expense'
+  | 'other_operating_expense'
+  | 'depreciation'
+  | 'financial_result'
+  | 'non_operating_result'
+  | 'exceptional_result'
+  | 'taxes';
 
 export type Account = {
   id: Identifier;
@@ -698,6 +995,48 @@ export type AccountingSettings = {
   wagesPayableAccountId: string;
   socialExpenseAccountId: string;
   socialPayableAccountId: string;
+  supplierPayableAccountId: string;
+};
+
+export type AccountingContinuity = {
+  enabled: boolean;
+  mappingReady: boolean;
+  starterAvailable: boolean;
+  journalEntryCount: number;
+  missingInvoices: number;
+  missingPayments: number;
+  missingExpenses: number;
+  missingSupplierInvoices: number;
+  missingSupplierPayments: number;
+  missingPayslips: number;
+  missingPayslipPayments: number;
+  undatedPayslipPayments: number;
+  payslipPaymentLinksMissing: number;
+  totalMissing: number;
+  closedHistoryRequiresOpening: number;
+  skippedCancelledInvoices: number;
+  cancelledInvoicePayments: number;
+  reversedSources: number;
+  cancelledActivePostings: number;
+  semanticPostingMismatches: number;
+  totalAnomalies: number;
+};
+
+export type AccountingSynchronization = {
+  createdTotal: number;
+  createdInvoices: number;
+  createdPayments: number;
+  createdExpenses: number;
+  createdPayslips: number;
+  createdPayslipPayments: number;
+  skippedClosedHistory: number;
+  requiresOpeningBalanceReview: boolean;
+  remaining: AccountingContinuity;
+};
+
+export type AccountingConfigurationResult = {
+  settings: AccountingSettings;
+  synchronization: AccountingSynchronization;
 };
 
 export type AccountingFallback = {
@@ -713,7 +1052,16 @@ export type PostPayslipResult = {
 };
 
 export type PeriodFilter = { dateFrom?: string; dateTo?: string };
-export type AccountingPeriod = { id: Identifier; name: string; dateFrom: string; dateTo: string; status: 'open' | 'closed'; closedAt: string; createdAt: string; updatedAt: string };
+export type AccountingPeriod = {
+  id: Identifier;
+  name: string;
+  dateFrom: string;
+  dateTo: string;
+  status: 'open' | 'closed';
+  closedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type JournalEntry = {
   id: Identifier;
@@ -725,6 +1073,7 @@ export type JournalEntry = {
   sourceEvent: string;
   status: 'posted';
   reversalOf: Identifier | null;
+  hasReversal: boolean;
 };
 
 export type JournalLine = {
@@ -745,7 +1094,13 @@ export type JournalLine = {
 };
 
 export type JournalReport = { entries: JournalEntry[]; lines: JournalLine[] };
-export type LedgerReport = { account: Account; lines: JournalLine[]; debitCents: number; creditCents: number; netDebitCents: number };
+export type LedgerReport = {
+  account: Account;
+  lines: JournalLine[];
+  debitCents: number;
+  creditCents: number;
+  netDebitCents: number;
+};
 
 export type TrialBalanceRow = Account & {
   debitCents: number;
@@ -753,16 +1108,85 @@ export type TrialBalanceRow = Account & {
   debitBalanceCents: number;
   creditBalanceCents: number;
 };
-export type TrialBalanceReport = { rows: TrialBalanceRow[]; debitCents: number; creditCents: number; balanced: boolean };
+export type TrialBalanceReport = {
+  rows: TrialBalanceRow[];
+  debitCents: number;
+  creditCents: number;
+  balanced: boolean;
+};
 
-export type StatementScope = { dateFrom: string; dateTo: string; previousDateFrom: string; previousDateTo: string; comparisonLabel: string; comparisonSource: 'registered_period' | 'same_dates_previous_year'; previousHasActivity: boolean };
-export type ReportCurrency = { baseCurrency: string; currencies: string[]; singleCurrency: boolean; exchangeRatesApplied: boolean };
-export type StatementRow = Pick<Account, 'id' | 'code' | 'name' | 'accountType' | 'reportSection'> & { normalBalance?: NormalBalance; debitCents: number; creditCents: number; amountCents: number; previousDebitCents: number; previousCreditCents: number; previousAmountCents: number };
-export type BalanceSheetReport = { asOf: string; exerciseFrom: string; scope: StatementScope; currency: ReportCurrency; rows: StatementRow[]; sections: Partial<Record<ReportSection, number>>; previousSections: Partial<Record<ReportSection, number>>; assetsCents: number; liabilitiesCents: number; equityCents: number; currentResultCents: number; unallocatedPriorResultsCents: number; balanced: boolean; previousAssetsCents: number; previousLiabilitiesCents: number; previousEquityCents: number; previousCurrentResultCents: number; previousUnallocatedPriorResultsCents: number; previousBalanced: boolean };
-export type IncomeStatementReport = { scope: StatementScope; currency: ReportCurrency; rows: StatementRow[]; sections: Partial<Record<ReportSection, number>>; previousSections: Partial<Record<ReportSection, number>>; revenueCents: number; expenseCents: number; profitCents: number; previousRevenueCents: number; previousExpenseCents: number; previousProfitCents: number };
+export type StatementScope = {
+  dateFrom: string;
+  dateTo: string;
+  previousDateFrom: string;
+  previousDateTo: string;
+  comparisonLabel: string;
+  comparisonSource: 'registered_period' | 'same_dates_previous_year';
+  previousHasActivity: boolean;
+};
+export type ReportCurrency = {
+  baseCurrency: string;
+  currencies: string[];
+  singleCurrency: boolean;
+  exchangeRatesApplied: boolean;
+};
+export type StatementRow = Pick<
+  Account,
+  'id' | 'code' | 'name' | 'accountType' | 'reportSection'
+> & {
+  normalBalance?: NormalBalance;
+  debitCents: number;
+  creditCents: number;
+  amountCents: number;
+  previousDebitCents: number;
+  previousCreditCents: number;
+  previousAmountCents: number;
+};
+export type BalanceSheetReport = {
+  asOf: string;
+  exerciseFrom: string;
+  scope: StatementScope;
+  currency: ReportCurrency;
+  rows: StatementRow[];
+  sections: Partial<Record<ReportSection, number>>;
+  previousSections: Partial<Record<ReportSection, number>>;
+  assetsCents: number;
+  liabilitiesCents: number;
+  equityCents: number;
+  currentResultCents: number;
+  unallocatedPriorResultsCents: number;
+  balanced: boolean;
+  previousAssetsCents: number;
+  previousLiabilitiesCents: number;
+  previousEquityCents: number;
+  previousCurrentResultCents: number;
+  previousUnallocatedPriorResultsCents: number;
+  previousBalanced: boolean;
+};
+export type IncomeStatementReport = {
+  scope: StatementScope;
+  currency: ReportCurrency;
+  rows: StatementRow[];
+  sections: Partial<Record<ReportSection, number>>;
+  previousSections: Partial<Record<ReportSection, number>>;
+  revenueCents: number;
+  expenseCents: number;
+  profitCents: number;
+  previousRevenueCents: number;
+  previousExpenseCents: number;
+  previousProfitCents: number;
+};
 
 export type ReminderSettings = { enabled: boolean; senderName: string };
-export type ReminderTemplate = { id: Identifier; level: number; name: string; subject: string; body: string; daysAfterDue: number; active: boolean };
+export type ReminderTemplate = {
+  id: Identifier;
+  level: number;
+  name: string;
+  subject: string;
+  body: string;
+  daysAfterDue: number;
+  active: boolean;
+};
 export type ReminderStatus = 'planned' | 'due' | 'completed' | 'cancelled';
 export type Reminder = {
   id: Identifier;
@@ -782,9 +1206,24 @@ export type Reminder = {
   invoiceTotalCents: number;
   balanceCents: number;
 };
-export type ReminderHistory = { id: Identifier; reminderId: Identifier; action: string; occurredAt: string; note: string };
+export type ReminderHistory = {
+  id: Identifier;
+  reminderId: Identifier;
+  action: string;
+  occurredAt: string;
+  note: string;
+};
 
-export type ContributionCategory = 'avs_ai_apg' | 'ac' | 'lpp' | 'aanp' | 'aap' | 'ijm' | 'family_allowance' | 'source_tax' | 'other';
+export type ContributionCategory =
+  | 'avs_ai_apg'
+  | 'ac'
+  | 'lpp'
+  | 'aanp'
+  | 'aap'
+  | 'ijm'
+  | 'family_allowance'
+  | 'source_tax'
+  | 'other';
 export type PayrollContributionDefinition = {
   id: Identifier;
   code: string;
@@ -803,7 +1242,11 @@ export type PayrollContributionDefinition = {
   liabilityAccountId: string;
   expenseAccountId: string;
 };
-export type PayrollContributionSelection = { definitionId: Identifier; basisCents?: number; yearToDateBasisCents?: number };
+export type PayrollContributionSelection = {
+  definitionId: Identifier;
+  basisCents?: number;
+  yearToDateBasisCents?: number;
+};
 export type CalculatedPayrollContribution = PayrollContributionDefinition & {
   basisCents: number;
   originalBasisCents: number;
@@ -816,8 +1259,27 @@ export type CalculatedPayrollContribution = PayrollContributionDefinition & {
   avsAllowanceAppliedCents: number | null;
   avsAllowanceWaived: boolean | null;
 };
-export type PayrollCalculation = { period: string; grossCents: number; employeeDeductionsCents: number; employerCostsCents: number; items: CalculatedPayrollContribution[] };
-export type PayrollRegulatoryProfile = { id: string; label: string; source: string; effectiveFrom: string; effectiveTo: string; definitions: Array<Omit<PayrollContributionDefinition, 'id' | 'liabilityAccountId' | 'expenseAccountId'>>; notIncluded: ContributionCategory[] };
+export type PayrollCalculation = {
+  period: string;
+  grossCents: number;
+  employeeDeductionsCents: number;
+  employerCostsCents: number;
+  items: CalculatedPayrollContribution[];
+};
+export type PayrollRegulatoryProfile = {
+  id: string;
+  label: string;
+  source: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  definitions: Array<
+    Omit<
+      PayrollContributionDefinition,
+      'id' | 'liabilityAccountId' | 'expenseAccountId'
+    >
+  >;
+  notIncluded: ContributionCategory[];
+};
 export type PayslipContributionSnapshot = {
   id: Identifier;
   payslipId: Identifier;
@@ -842,7 +1304,14 @@ export type PayslipContributionSnapshot = {
   createdAt: string;
 };
 
-export type SwissQrParty = { name: string; street: string; buildingNumber: string; postalCode: string; city: string; country: string };
+export type SwissQrParty = {
+  name: string;
+  street: string;
+  buildingNumber: string;
+  postalCode: string;
+  city: string;
+  country: string;
+};
 export type SwissQrBillInput = {
   iban: string;
   creditor: SwissQrParty;
@@ -855,8 +1324,21 @@ export type SwissQrBillInput = {
   billInformation: string;
   alternativeProcedures: string[];
 };
-export type SwissQrValidation = { valid: boolean; errors: string[]; warnings: string[]; normalized: SwissQrBillInput; isQrIban: boolean };
-export type SwissQrPayload = { payload: string; lines: string[]; referenceType: SwissQrBillInput['referenceType']; isQrIban: boolean; characterCount: number; byteCount: number };
+export type SwissQrValidation = {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  normalized: SwissQrBillInput;
+  isQrIban: boolean;
+};
+export type SwissQrPayload = {
+  payload: string;
+  lines: string[];
+  referenceType: SwissQrBillInput['referenceType'];
+  isQrIban: boolean;
+  characterCount: number;
+  byteCount: number;
+};
 export type StoredSwissQrBill = SwissQrPayload & {
   invoiceId: Identifier;
   input: SwissQrBillInput;
@@ -887,6 +1369,13 @@ export type SecureUpdateMetadata = {
 export type SecureUpdateEvent =
   | { event: 'preparing' }
   | { event: 'started'; data: { contentLength: number | null } }
-  | { event: 'progress'; data: { downloadedBytes: number; contentLength: number | null; percent: number | null } }
+  | {
+      event: 'progress';
+      data: {
+        downloadedBytes: number;
+        contentLength: number | null;
+        percent: number | null;
+      };
+    }
   | { event: 'verifying' }
   | { event: 'installed' };

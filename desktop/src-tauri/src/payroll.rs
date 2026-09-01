@@ -693,6 +693,91 @@ impl LocalStore {
                     .into(),
             ));
         }
+        if status == "paye" && (stored_payment_date.is_none() || stored_journal_id.is_none()) {
+            let requested_date = input
+                .payment_date
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            if stored_payment_date
+                .as_deref()
+                .zip(requested_date)
+                .is_some_and(|(stored, requested)| stored != requested)
+            {
+                return Err(AppError::Validation(
+                    "La date saisie diffère de la date historique déjà enregistrée.".into(),
+                ));
+            }
+            if stored_reference.is_some()
+                && requested_reference.is_some()
+                && stored_reference != requested_reference
+            {
+                return Err(AppError::Validation(
+                    "La référence saisie diffère de la référence historique déjà enregistrée."
+                        .into(),
+                ));
+            }
+            let payment_date = stored_payment_date
+                .clone()
+                .or_else(|| requested_date.map(ToOwned::to_owned))
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "Renseignez la date réelle du paiement historique; Elyko ne peut pas l'inventer."
+                            .into(),
+                    )
+                })?;
+            validate_date(&payment_date, "payment_date")?;
+            let payment_reference = stored_reference.clone().or(requested_reference);
+            let journal = match stored_journal_id.as_deref() {
+                Some(journal_id) => {
+                    payroll_payment_journal(&tx, journal_id, &input.payslip_id)?
+                }
+                None => post_payslip_payment_if_enabled(
+                    &tx,
+                    &input.payslip_id,
+                    &payment_date,
+                    payment_reference.as_deref(),
+                )?
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "La comptabilité doit être configurée et activée avant de régulariser ce paiement historique."
+                            .into(),
+                    )
+                })?,
+            };
+            let journal_date = journal["entry"]["entry_date"].as_str().ok_or_else(|| {
+                AppError::Validation("La date de l'écriture de paiement est invalide.".into())
+            })?;
+            if journal_date != payment_date {
+                return Err(AppError::Validation(
+                    "La date historique de la fiche ne correspond pas à la date de son écriture de paiement. Corrigez cette anomalie depuis l'assistant comptable avant de poursuivre."
+                        .into(),
+                ));
+            }
+            let journal_id = journal["id"].as_str().ok_or_else(|| {
+                AppError::Validation("L'écriture de paiement est invalide.".into())
+            })?;
+            tx.execute(
+                "UPDATE payslips SET payment_date=?,payment_reference=?,payment_journal_entry_id=?,updated_at=? WHERE id=?",
+                params![payment_date, payment_reference, journal_id, now_iso(), input.payslip_id],
+            )?;
+            let payslip = tx.query_row(
+                "SELECT * FROM payslips WHERE id=?",
+                params![input.payslip_id],
+                crate::database::row_to_json_public,
+            )?;
+            append_audit(
+                &tx,
+                "regularize_payment",
+                "payslip",
+                &input.payslip_id,
+                &json!({"payslip":payslip,"journal":journal}),
+            )?;
+            tx.commit()?;
+            return Ok(
+                json!({"payslip":payslip,"journal":journal,"idempotent":false,"regularized":true}),
+            );
+        }
         if status == "paye" {
             let requested_date = input
                 .payment_date
@@ -711,10 +796,29 @@ impl LocalStore {
                 params![input.payslip_id],
                 crate::database::row_to_json_public,
             )?;
-            let journal = stored_journal_id
+            let resolved_journal_id = match stored_journal_id {
+                Some(journal_id) => Some(journal_id),
+                None => tx
+                    .query_row(
+                        "SELECT id FROM journal_entries WHERE source_type='payslip' AND source_id=? AND source_event='payment' ORDER BY created_at DESC LIMIT 1",
+                        params![input.payslip_id],
+                        |row| row.get(0),
+                    )
+                    .optional()?,
+            };
+            let journal = resolved_journal_id
                 .as_deref()
-                .map(|journal_id| payroll_payment_journal(&tx, journal_id))
+                .map(|journal_id| payroll_payment_journal(&tx, journal_id, &input.payslip_id))
                 .transpose()?;
+            if let (Some(payment_date), Some(journal)) = (stored_payment_date.as_deref(), &journal)
+            {
+                if journal["entry"]["entry_date"].as_str() != Some(payment_date) {
+                    return Err(AppError::Validation(
+                        "La date de paiement de la fiche diffère de son écriture comptable; une correction contrôlée est requise."
+                            .into(),
+                    ));
+                }
+            }
             tx.commit()?;
             return Ok(json!({"payslip":payslip,"journal":journal,"idempotent":true}));
         }
@@ -779,15 +883,24 @@ impl LocalStore {
     }
 }
 
-fn payroll_payment_journal(tx: &Transaction<'_>, journal_id: &str) -> AppResult<Value> {
+fn payroll_payment_journal(
+    tx: &Transaction<'_>,
+    journal_id: &str,
+    payslip_id: &str,
+) -> AppResult<Value> {
     let entry = tx
         .query_row(
-            "SELECT * FROM journal_entries WHERE id=? AND source_type='payslip' AND source_event='payment'",
-            params![journal_id],
+            "SELECT * FROM journal_entries WHERE id=? AND source_type='payslip' AND source_id=? AND source_event='payment'",
+            params![journal_id, payslip_id],
             crate::database::row_to_json_public,
         )
         .optional()?
-        .ok_or_else(|| AppError::NotFound(format!("journal_entries/{journal_id}")))?;
+        .ok_or_else(|| {
+            AppError::Validation(
+                "Le lien de paiement pointe vers une écriture qui n'appartient pas à cette fiche de salaire."
+                    .into(),
+            )
+        })?;
     let lines = query_all(
         tx,
         "SELECT jl.*,a.code AS account_code,a.name AS account_name FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id WHERE jl.journal_entry_id=? ORDER BY jl.rowid",

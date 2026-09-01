@@ -1,4 +1,4 @@
-import type { DocumentLine, Invoice, Payment, Payslip, Project, Quote, TimeEntry } from './types';
+import type { DocumentLine, Invoice, Payment, Payslip, Project, Quote, SupplierInvoice, TimeEntry } from './types';
 
 export function errorMessage(reason: unknown, fallback: string): string {
   if (typeof reason === 'string' && reason.trim()) return reason.trim();
@@ -151,6 +151,7 @@ export function projectFinancials(
   payments: Payment[],
   entries: TimeEntry[],
   expenses: { projectId?: string | null; netCents: number }[],
+  supplierInvoices: SupplierInvoice[] = [],
 ) {
   const issued = invoices.filter(
     (invoice) => invoice.projectId === project.id && invoice.status !== 'draft' && invoice.status !== 'cancelled',
@@ -166,7 +167,15 @@ export function projectFinancials(
   );
   const expenseNet = expenses
     .filter((expense) => expense.projectId === project.id)
-    .reduce((total, expense) => total + expense.netCents, 0);
+    .reduce((total, expense) => total + expense.netCents, 0)
+    + supplierInvoices
+      .filter((invoice) => invoice.documentStatus === 'validated')
+      .flatMap((invoice) => invoice.lines.map((line) => ({
+        projectId: line.projectId ?? invoice.projectId,
+        netCents: line.netCents,
+      })))
+      .filter((line) => line.projectId === project.id)
+      .reduce((total, line) => total + line.netCents, 0);
   return {
     invoicedNet,
     invoicedTotal,

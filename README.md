@@ -23,7 +23,7 @@ Elyko réunit deux produits dans ce dépôt :
 - Sans licence valide, l’application passe en lecture seule sans supprimer les données; sauvegarde et export restent disponibles.
 - Seuls l’état d’abonnement et l’identifiant d’installation sont traités côté serveur. Les clients, factures, salaires, heures, projets et chantiers restent dans SQLite sur le PC.
 
-Les secrets `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` et `LICENSE_SIGNING_KEY_PKCS8_B64URL` doivent exister uniquement dans les variables secrètes de l’hébergement. `PUBLIC_SITE_URL` fixe l’origine publique autorisée. Le webhook Stripe doit viser `/api/stripe/webhook` et utiliser la version API `2025-03-31.basil`.
+Les secrets `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` et `LICENSE_SIGNING_KEY_PKCS8_B64URL` doivent exister uniquement dans les variables secrètes de l’hébergement. La licence propriétaire de recette, si elle est activée, est autorisée uniquement par l’empreinte de son couple licence/installation dans `OWNER_LICENSE_BINDING_SHA256`; le serveur réémet toujours un bail daté de l’heure serveur. `PUBLIC_SITE_URL` fixe l’origine publique autorisée. Le webhook Stripe doit viser `/api/stripe/webhook` et utiliser la version API `2025-03-31.basil`.
 
 ## Développement
 
@@ -51,4 +51,6 @@ La release embarque la clé publique versionnée dans `desktop/src-tauri/license
 
 ## Livraison Windows
 
-La version `1.4.0` est disponible dans `public/downloads` avec un manifeste et une signature Tauri/Ed25519 pour les mises à jour intégrées. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+La version `1.5.0` est préparée avec un manifeste et une signature Tauri/Ed25519 pour les mises à jour intégrées. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+
+La liaison de licence actuelle repose sur un identifiant d’installation aléatoire protégé par Windows DPAPI. Elle bloque le partage ordinaire du jeton et détecte les modifications usuelles, mais ce n’est pas une attestation matérielle : un administrateur local très avancé peut encore tenter de cloner cet identifiant ou de modifier le programme. Le durcissement commercial suivant consiste à utiliser une clé de périphérique non exportable TPM/CNG, un défi signé côté serveur et une signature Authenticode horodatée.

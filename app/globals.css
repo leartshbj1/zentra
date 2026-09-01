@@ -58,9 +58,67 @@ html {
   scroll-padding-top: 132px;
 }
 
+[id] {
+  scroll-margin-top: 132px;
+}
+
+:where(a, button, input, select, summary, textarea):focus-visible {
+  outline: 3px solid rgb(231 155 47 / 72%);
+  outline-offset: 3px;
+}
+
+.site-skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  background: #173d2c;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  transform: translateY(-180%);
+  transition: transform 160ms ease;
+}
+
+.site-skip-link:focus {
+  transform: translateY(0);
+}
+
+.site-mobile-nav nav a {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  color: #3f5147;
+  font-weight: 600;
+}
+
+.site-mobile-nav nav a:hover,
+.site-mobile-nav nav a:focus-visible {
+  background: #edf2ee;
+  color: #173d2c;
+}
+
+.capability-table {
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.flow-demo input,
+.flow-demo select {
+  width: 100%;
+}
+
 @media (min-width: 768px) {
   html {
     scroll-padding-top: 80px;
+  }
+
+  [id] {
+    scroll-margin-top: 80px;
   }
 }
 
@@ -289,6 +347,14 @@ summary::-webkit-details-marker {
     animation: details-arrive 300ms ease-out both;
   }
 
+  .site-mobile-nav[open] > nav {
+    animation: mobile-menu-arrive 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .flow-demo {
+    animation: card-arrive 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
   .story-step,
   .guardrail-card {
     animation: card-arrive 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -454,6 +520,17 @@ summary::-webkit-details-marker {
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  @keyframes mobile-menu-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   }
 }

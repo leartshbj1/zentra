@@ -19,12 +19,14 @@ import { desktopApi } from './bridge';
 import { prepareImageForAnalysis, renderPdfPages } from './localPdfPreview';
 import {
   mergePayrollImportDraft,
-  parsePayrollAiJson,
+  reconcilePayrollAiPasses,
   type PayrollImportConfirmedAiFields,
 } from './payrollImportAiDraft';
+import { findStrongEmployeeMatch } from './payrollEmployeeMatching';
 import { payrollLocalAi, type PayrollAiMode, type PayrollAiProgress } from './payrollLocalAi';
 import { assessPayrollDraft, payrollImportTotals } from './payrollImportQuality';
 import type {
+  PayrollAiIdentityEvidence,
   PayrollDocumentImport,
   PayrollImportDraft,
   PayrollImportEmployeeDraft,
@@ -43,6 +45,13 @@ function cloneDraft(draft: PayrollImportDraft): PayrollImportDraft {
     employee: { ...draft.employee },
     lines: draft.lines.map((line) => ({ ...line, id: line.id || createId() })),
     warnings: [...draft.warnings],
+    review: draft.review ? {
+      ...draft.review,
+      aiIdentityEvidence: draft.review.aiIdentityEvidence ? {
+        ...draft.review.aiIdentityEvidence,
+        conflicts: [...draft.review.aiIdentityEvidence.conflicts],
+      } : undefined,
+    } : undefined,
   };
 }
 
@@ -69,7 +78,10 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const [activeIndex, setActiveIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, PayrollImportDraft>>(() => Object.fromEntries(initial.map((item) => [item.id, cloneDraft(item.draft)])));
   const [confirmedAiFields, setConfirmedAiFields] = useState<Record<string, PayrollImportConfirmedAiFields>>({});
-  const [employeeLinks, setEmployeeLinks] = useState<Record<string, string>>({});
+  const [employeeLinks, setEmployeeLinks] = useState<Record<string, string>>(() => Object.fromEntries(initial.map((item) => [item.id, item.draft.review?.employeeId ?? ''])));
+  const [employeeLinkSources, setEmployeeLinkSources] = useState<Record<string, 'auto' | 'manual'>>(() => Object.fromEntries(initial.flatMap((item) => item.draft.review?.employeeLinkSource === 'auto' || item.draft.review?.employeeLinkSource === 'manual' ? [[item.id, item.draft.review.employeeLinkSource]] : [])));
+  const [employeeMatchNotes, setEmployeeMatchNotes] = useState<Record<string, string>>(() => Object.fromEntries(initial.flatMap((item) => item.draft.review?.employeeLinkSource ? [[item.id, item.draft.review.employeeLinkSource === 'manual' ? 'Choix manuel restauré.' : 'Rattachement automatique restauré; contrôlez les identifiants.']] : [])));
+  const [aiIdentityEvidence, setAiIdentityEvidence] = useState<Record<string, PayrollAiIdentityEvidence>>(() => Object.fromEntries(initial.flatMap((item) => item.draft.review?.aiIdentityEvidence ? [[item.id, item.draft.review.aiIdentityEvidence]] : [])));
   const [replaceTemplates, setReplaceTemplates] = useState<Record<string, boolean>>({});
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [staging, setStaging] = useState(false);
@@ -96,13 +108,14 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }, []);
 
   useEffect(() => {
-    if (!active || employeeLinks[active.id] !== undefined) return;
-    const avs = normalizedIdentity(draft?.employee.avsNumber ?? '');
-    const name = normalizedIdentity(draft?.employee.name ?? '');
-    const match = workspace.employees.find((employee) => avs && normalizedIdentity(employee.avsNumber) === avs)
-      ?? workspace.employees.find((employee) => name && normalizedIdentity(employee.name) === name);
-    setEmployeeLinks((current) => ({ ...current, [active.id]: match?.id ?? '' }));
-  }, [active, draft?.employee.avsNumber, draft?.employee.name, employeeLinks, workspace.employees]);
+    if (!active || employeeLinkSources[active.id] === 'manual') return;
+    const evidence = aiIdentityEvidence[active.id];
+    if (!evidence) return;
+    const match = findStrongEmployeeMatch(evidence, workspace.employees);
+    setEmployeeLinks((current) => current[active.id] === (match.employeeId ?? '') ? current : { ...current, [active.id]: match.employeeId ?? '' });
+    setEmployeeLinkSources((current) => current[active.id] === 'auto' ? current : { ...current, [active.id]: 'auto' });
+    setEmployeeMatchNotes((current) => current[active.id] === match.reason ? current : { ...current, [active.id]: match.reason });
+  }, [active, aiIdentityEvidence, employeeLinkSources, workspace.employees]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,7 +147,28 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   function patchEmployee(patch: Partial<PayrollImportEmployeeDraft>) {
-    updateDraft((current) => ({ ...current, employee: { ...current.employee, ...patch } }));
+    const invalidatesAutomaticLink = Boolean(active
+      && employeeLinkSources[active.id] === 'auto'
+      && ['employeeNumber', 'birthDate', 'avsNumber', 'iban'].some((field) => Object.hasOwn(patch, field)));
+    if (active && invalidatesAutomaticLink) {
+      setEmployeeLinks((current) => ({ ...current, [active.id]: '' }));
+      setEmployeeLinkSources((current) => ({ ...current, [active.id]: 'manual' }));
+      setAiIdentityEvidence((current) => {
+        const next = { ...current };
+        delete next[active.id];
+        return next;
+      });
+      setEmployeeMatchNotes((current) => ({ ...current, [active.id]: 'Identité modifiée : le rattachement automatique a été retiré. Choisissez explicitement le collaborateur.' }));
+    }
+    updateDraft((current) => ({
+      ...current,
+      employee: { ...current.employee, ...patch },
+      review: invalidatesAutomaticLink ? {
+        aiIdentityEvidence: undefined,
+        employeeId: '',
+        employeeLinkSource: 'manual',
+      } : current.review,
+    }));
   }
 
   async function chooseDocuments() {
@@ -189,16 +223,30 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       }
       const result = await payrollLocalAi.analyze({ imageUrls, extractedText: active.extractedText });
       setAiMode(result.mode);
-      const aiDraft = parsePayrollAiJson(result.rawOutput);
-      const merged = mergePayrollImportDraft(draft, aiDraft, confirmedAiFields[active.id]);
+      const aiDraft = reconcilePayrollAiPasses(
+        result.primaryRawOutput || (result.passes === 1 ? result.rawOutput : ''),
+        result.verifiedRawOutput,
+      );
+      const match = findStrongEmployeeMatch(aiDraft.identity, workspace.employees);
+      const preserveManualLink = employeeLinkSources[active.id] === 'manual';
+      const employeeId = preserveManualLink ? employeeLinks[active.id] ?? '' : match.employeeId ?? '';
+      const employeeLinkSource: 'manual' | 'auto' = preserveManualLink ? 'manual' : 'auto';
+      const merged = {
+        ...mergePayrollImportDraft(draft, aiDraft, confirmedAiFields[active.id]),
+        review: { aiIdentityEvidence: aiDraft.identity, employeeId, employeeLinkSource },
+      };
       const confidenceBp = assessPayrollDraft(merged).scoreBp;
-      const saved = await desktopApi.updatePayrollImportDraft(active.id, merged, `smolvlm-500m-${result.mode}-multipage`, result.modelVersion, confidenceBp);
+      const saved = await desktopApi.updatePayrollImportDraft(active.id, merged, `smolvlm-500m-${result.mode}-double-read-${aiDraft.identity.passes}`, result.modelVersion, confidenceBp);
+      setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
+      setEmployeeLinks((current) => ({ ...current, [saved.id]: employeeId }));
+      setEmployeeLinkSources((current) => ({ ...current, [saved.id]: employeeLinkSource }));
+      setEmployeeMatchNotes((current) => ({ ...current, [saved.id]: preserveManualLink ? 'Collaborateur choisi manuellement; ce choix ne sera jamais remplacé par l’IA.' : match.reason }));
       setImports((current) => current.map((item) => item.id === saved.id ? saved : item));
       setDrafts((current) => ({ ...current, [saved.id]: cloneDraft(saved.draft) }));
       dirtyDraftIds.current.delete(saved.id);
       setReviewed((current) => ({ ...current, [saved.id]: false }));
       setAiState('ready');
-      setAiProgress({ label: 'Analyse terminée — contrôle humain requis', percent: 100 });
+      setAiProgress({ label: `Double lecture terminée · ${aiDraft.identity.passes === 2 ? 'consensus comparé' : 'une lecture seulement'} · contrôle humain requis`, percent: 100 });
     } catch (reason) {
       setAiState(aiState === 'unavailable' ? 'unavailable' : 'error');
       setLocalError(errorMessage(reason, "L'analyse SmolVLM locale a échoué."));
@@ -214,8 +262,22 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       : undefined;
     const importedAvs = normalizedIdentity(draft.employee.avsNumber);
     const storedAvs = normalizedIdentity(linkedEmployeeRecord?.avsNumber ?? '');
-    if (importedAvs && storedAvs && importedAvs !== storedAvs) {
-      setLocalError('Le numéro AVS lu sur le document ne correspond pas au collaborateur sélectionné. Choisissez le bon collaborateur avant de confirmer.');
+    const importedEmployeeNumber = normalizedIdentity(draft.employee.employeeNumber);
+    const storedEmployeeNumber = normalizedIdentity(linkedEmployeeRecord?.employeeNumber ?? '');
+    const avsMismatch = Boolean(importedAvs && storedAvs && importedAvs !== storedAvs);
+    const employeeNumberMismatch = Boolean(importedEmployeeNumber && storedEmployeeNumber && importedEmployeeNumber !== storedEmployeeNumber);
+    const birthMismatch = Boolean(draft.employee.birthDate && linkedEmployeeRecord?.birthDate && draft.employee.birthDate !== linkedEmployeeRecord.birthDate);
+    const existingIdentityOwner = !linkedEmployee ? workspace.employees.find((employee) => {
+      const candidateAvs = normalizedIdentity(employee.avsNumber);
+      const candidateNumber = normalizedIdentity(employee.employeeNumber);
+      return Boolean((importedAvs && candidateAvs === importedAvs) || (importedEmployeeNumber && candidateNumber === importedEmployeeNumber));
+    }) : undefined;
+    if (existingIdentityOwner) {
+      setLocalError(`Un collaborateur existant (${existingIdentityOwner.name}) possède déjà ce numéro AVS ou ce numéro employé. Sélectionnez son profil au lieu de créer un doublon.`);
+      return;
+    }
+    if (avsMismatch || employeeNumberMismatch || birthMismatch) {
+      setLocalError('Un identifiant fort du document (AVS, numéro employé ou naissance) ne correspond pas au collaborateur sélectionné. Choisissez le bon profil avant de confirmer.');
       return;
     }
     setConfirming(true);
@@ -302,16 +364,27 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const importedAvs = normalizedIdentity(draft?.employee.avsNumber ?? '');
   const linkedAvs = normalizedIdentity(linkedEmployee?.avsNumber ?? '');
   const linkedAvsMismatch = Boolean(importedAvs && linkedAvs && importedAvs !== linkedAvs);
+  const importedEmployeeNumber = normalizedIdentity(draft?.employee.employeeNumber ?? '');
+  const linkedEmployeeNumber = normalizedIdentity(linkedEmployee?.employeeNumber ?? '');
+  const linkedEmployeeNumberMismatch = Boolean(importedEmployeeNumber && linkedEmployeeNumber && importedEmployeeNumber !== linkedEmployeeNumber);
+  const linkedBirthMismatch = Boolean(draft?.employee.birthDate && linkedEmployee?.birthDate && draft.employee.birthDate !== linkedEmployee.birthDate);
+  const linkedIdentityMismatch = linkedAvsMismatch || linkedEmployeeNumberMismatch || linkedBirthMismatch;
+  const existingIdentityOwner = !linkedEmployeeId ? workspace.employees.find((employee) => {
+    const candidateAvs = normalizedIdentity(employee.avsNumber);
+    const candidateNumber = normalizedIdentity(employee.employeeNumber);
+    return Boolean((importedAvs && candidateAvs === importedAvs) || (importedEmployeeNumber && candidateNumber === importedEmployeeNumber));
+  }) : undefined;
+  const duplicateCreationRisk = Boolean(existingIdentityOwner);
   const existingTemplate = linkedEmployeeId ? workspace.employeePayrollTemplates.find((template) => template.employeeId === linkedEmployeeId) : undefined;
   const hasRecurringEarnings = Boolean(draft?.lines.some((line) => line.kind === 'earning' && line.recurring && line.amountCents > 0));
   const interactionBusy = confirming || aiBusy || savingDrafts;
 
-  return <Modal title="Importer des fiches de salaire" description="Elyko lit les documents sur ce PC, propose un brouillon puis attend votre validation champ par champ." onClose={() => { if (!interactionBusy) void persistAndClose(); }} wide>
+  return <Modal title="Importer des fiches de salaire" description="Elyko effectue deux lectures locales indépendantes, compare leur consensus puis attend votre validation champ par champ." onClose={() => { if (!interactionBusy) void persistAndClose(); }} wide>
     <div className="payroll-import-shell">
       <section className="payroll-import-privacy"><ShieldCheck size={21} /><div><strong>Les salaires ne quittent jamais cet ordinateur</strong><p>Seul le modèle public est téléchargé une fois. Le PDF, l’image, le texte OCR et le résultat restent dans les données locales Elyko.</p></div><span><HardDrive size={14} /> local</span></section>
       <div className="payroll-import-toolbar">
         <Button type="button" onClick={() => void chooseDocuments()} disabled={staging || aiBusy}>{staging ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Ajouter PDF ou images</Button>
-        <div className={`ai-engine-state ai-engine-state--${aiState}`}><BrainCircuit size={17} /><span><strong>SmolVLM 500M local</strong><small>{aiState === 'checking' ? 'Vérification du PC' : aiState === 'unavailable' ? 'Moteur local indisponible' : aiState === 'available' ? `Pack disponible · ${aiMode === 'webgpu' ? 'GPU' : 'CPU lent'}` : aiState === 'loading' ? `Installation locale · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : aiState === 'analyzing' ? `Analyse locale · ${aiMode === 'webgpu' ? 'GPU' : 'CPU lent'}` : aiState === 'ready' ? `Prêt sur ce PC · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : 'Contrôle nécessaire'}</small></span></div>
+        <div className={`ai-engine-state ai-engine-state--${aiState}`}><BrainCircuit size={17} /><span><strong>SmolVLM 500M · double lecture locale</strong><small>{aiState === 'checking' ? 'Vérification du PC' : aiState === 'unavailable' ? 'Moteur local indisponible' : aiState === 'available' ? `Pack disponible · ${aiMode === 'webgpu' ? 'GPU' : 'CPU lent'}` : aiState === 'loading' ? `Installation locale · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : aiState === 'analyzing' ? `Deux lectures en cours · ${aiMode === 'webgpu' ? 'GPU' : 'CPU lent'}` : aiState === 'ready' ? `Prêt sur ce PC · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : 'Contrôle nécessaire'}</small></span></div>
       </div>
       {aiBusy ? <div className="ai-progress"><span><i style={{ width: aiProgress.percent === null ? '24%' : `${Math.max(2, Math.min(100, aiProgress.percent))}%` }} /></span><small>{aiProgress.label}{aiProgress.percent === null ? '' : ` · ${Math.round(aiProgress.percent)} %`}</small></div> : null}
       {localError ? <ErrorPanel message={localError} /> : null}
@@ -337,13 +410,15 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             {assessment ? <div className="payroll-quality"><header><div><strong>Contrôles déterministes</strong><small>Score d’extraction {Math.round(assessment.scoreBp / 100)} % · ce score ne remplace pas votre vérification</small></div><span>{assessment.blockers.length ? `${assessment.blockers.length} correction${assessment.blockers.length > 1 ? 's' : ''}` : 'Contrôles passés'}</span></header><div className="payroll-quality__checks">{assessment.checks.map((check) => <div className={check.ok ? 'is-valid' : 'is-error'} key={check.label}>{check.ok ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}<span><strong>{check.label}</strong><small>{check.detail}</small></span></div>)}</div>{assessment.blockers.length ? <div className="payroll-quality__blockers"><strong>À corriger avant confirmation</strong>{assessment.blockers.map((blocker) => <p key={blocker}><AlertTriangle size={14} /> {blocker}</p>)}</div> : null}</div> : null}
             {draft.warnings.length || assessment?.warnings.length ? <div className="payroll-import-warnings"><strong>Points à vérifier</strong>{[...new Set([...draft.warnings, ...(assessment?.warnings ?? [])])].map((warning, index) => <p key={`${warning}-${index}`}><AlertTriangle size={14} /> {warning}</p>)}</div> : null}
             <header className="payroll-lines-heading"><div><span>3</span><div><strong>Rattachement et confirmation</strong><small>La fiche créée restera « à contrôler »</small></div></div></header>
-            <Field label="Rattacher à un collaborateur"><select value={employeeLinks[active.id] ?? ''} onChange={(event) => { const employeeId = event.target.value; setEmployeeLinks((current) => ({ ...current, [active.id]: employeeId })); setReplaceTemplates((current) => ({ ...current, [active.id]: false })); setReviewed((current) => ({ ...current, [active.id]: false })); }}><option value="">Créer un nouveau collaborateur avec les champs ci-dessus</option>{workspace.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{employee.employeeNumber ? ` · ${employee.employeeNumber}` : ''}</option>)}</select></Field>
-            {linkedEmployeeId ? <p className={linkedAvsMismatch ? 'link-note link-note--error' : 'link-note'}>{linkedAvsMismatch ? 'Rattachement bloqué : le numéro AVS du document diffère de celui du collaborateur sélectionné.' : 'Le profil et le modèle salarial actuels du collaborateur sont préservés par défaut. La fiche historique sera seulement ajoutée à la période indiquée.'}</p> : null}
+            <Field label="Rattacher à un collaborateur"><select value={employeeLinks[active.id] ?? ''} onChange={(event) => { const employeeId = event.target.value; setEmployeeLinks((current) => ({ ...current, [active.id]: employeeId })); setEmployeeLinkSources((current) => ({ ...current, [active.id]: 'manual' })); setEmployeeMatchNotes((current) => ({ ...current, [active.id]: employeeId ? 'Collaborateur choisi manuellement; ce choix ne sera jamais remplacé par l’IA.' : 'Création d’un nouveau collaborateur choisie manuellement.' })); setReplaceTemplates((current) => ({ ...current, [active.id]: false })); updateDraft((current) => ({ ...current, review: { aiIdentityEvidence: current.review?.aiIdentityEvidence, employeeId, employeeLinkSource: 'manual' } })); }}><option value="">Créer un nouveau collaborateur avec les champs ci-dessus</option>{workspace.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{employee.employeeNumber ? ` · ${employee.employeeNumber}` : ''}</option>)}</select></Field>
+            {employeeMatchNotes[active.id] ? <p className={linkedIdentityMismatch ? 'link-note link-note--error' : 'link-note'}>{employeeMatchNotes[active.id]}</p> : null}
+            {duplicateCreationRisk ? <p className="link-note link-note--error">Création bloquée : {existingIdentityOwner?.name} possède déjà ce numéro AVS ou ce numéro employé. Sélectionnez ce profil dans la liste.</p> : null}
+            {linkedEmployeeId ? <p className={linkedIdentityMismatch ? 'link-note link-note--error' : 'link-note'}>{linkedIdentityMismatch ? 'Rattachement bloqué : au moins un identifiant fort du document (AVS, numéro employé ou naissance) diffère du collaborateur sélectionné.' : 'Le profil et le modèle salarial actuels du collaborateur sont préservés par défaut. La fiche historique sera seulement ajoutée à la période indiquée.'}</p> : null}
             {existingTemplate && hasRecurringEarnings ? <label className={`review-confirmation ${replaceTemplates[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(replaceTemplates[active.id])} onChange={(event) => { setReplaceTemplates((current) => ({ ...current, [active.id]: event.target.checked })); setReviewed((current) => ({ ...current, [active.id]: false })); }} /><span><strong>Remplacer explicitement le modèle salarial actuel</strong><small>Les gains marqués « Récurrent » dans cette fiche historique deviendront le nouveau modèle. Cette action est facultative et ne se fera jamais automatiquement.</small></span></label> : existingTemplate ? <p className="link-note">Aucun gain récurrent contrôlé n’a été identifié : le modèle salarial actuel ne peut pas être remplacé depuis cette fiche.</p> : null}
             <label className={`review-confirmation ${reviewed[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(reviewed[active.id])} onChange={(event) => setReviewed((current) => ({ ...current, [active.id]: event.target.checked }))} /><span><strong>J’ai comparé les champs et montants au document original</strong><small>Je comprends que SmolVLM peut se tromper et qu’aucune cotisation manquante ne sera inventée.</small></span></label>
           </section>
         </div>
-        <footer className="payroll-import-actions"><Button type="button" variant="ghost" onClick={() => void rejectCurrent()} disabled={interactionBusy}><Trash2 size={15} /> Écarter ce document</Button><span /><Button type="button" variant="secondary" onClick={() => void persistAndClose()} disabled={interactionBusy}>{savingDrafts ? <LoaderCircle className="spin" size={16} /> : null} Continuer plus tard</Button><Button type="button" onClick={() => void confirmCurrent()} disabled={!reviewed[active.id] || !arithmeticOk || linkedAvsMismatch || interactionBusy}>{confirming ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />} Confirmer et créer à contrôler</Button></footer>
+        <footer className="payroll-import-actions"><Button type="button" variant="ghost" onClick={() => void rejectCurrent()} disabled={interactionBusy}><Trash2 size={15} /> Écarter ce document</Button><span /><Button type="button" variant="secondary" onClick={() => void persistAndClose()} disabled={interactionBusy}>{savingDrafts ? <LoaderCircle className="spin" size={16} /> : null} Continuer plus tard</Button><Button type="button" onClick={() => void confirmCurrent()} disabled={!reviewed[active.id] || !arithmeticOk || linkedIdentityMismatch || duplicateCreationRisk || interactionBusy}>{confirming ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />} Confirmer et créer à contrôler</Button></footer>
       </> : null}
     </div>
   </Modal>;

@@ -21,11 +21,15 @@ import {
 import { desktopApi } from './bridge';
 import {
   canConfirmBankReconciliation,
+  canConfirmSupplierBankReconciliation,
   candidateForInvoice,
+  candidateForSupplierInvoice,
   filterBankCandidates,
   filterBankMovements,
+  filterBankSupplierCandidates,
   importCamtFromLocalDialog,
   initialInvoiceChoice,
+  initialSupplierInvoiceChoice,
   type BankMovementFilter,
 } from './bank';
 import type { BankAccountLink, BankMovement, BankWorkspace, Workspace } from './types';
@@ -45,6 +49,13 @@ const suggestionLabels: Record<BankMovement['suggestion']['kind'], string> = {
   automatic_exact: 'Correspondance exacte',
   automatic_partial: 'Paiement partiel détecté',
   manual: 'Choix manuel',
+  review: 'Contrôle nécessaire',
+  none: 'Aucune proposition',
+};
+
+const supplierSuggestionLabels: Record<BankMovement['supplierSuggestion']['kind'], string> = {
+  supplier_match: 'Facture fournisseur reconnue',
+  supplier_manual: 'Choix fournisseur requis',
   review: 'Contrôle nécessaire',
   none: 'Aucune proposition',
 };
@@ -71,17 +82,37 @@ function shortSha256(value: string): string {
   return `${value.slice(0, 14)}…${value.slice(-8)}`;
 }
 
-function movementBlockReason(movement: BankMovement, account: BankAccountLink | undefined, invoiceId: string): string {
+function commonMovementBlockReason(movement: BankMovement, account: BankAccountLink | undefined, accountingReady: boolean): string {
+  if (!accountingReady) return 'Activez la comptabilité et ses onze comptes de liaison avant de confirmer le rapprochement.';
   if (!account?.linked) return 'Associez d’abord ce compte à votre entreprise.';
   if (movement.status === 'PDNG') return 'Ce mouvement est encore en attente auprès de la banque.';
-  if (movement.creditDebit !== 'CRDT') return 'Un débit ne peut pas encaisser une facture client.';
-  if (movement.reversal) return 'Une extourne ne peut pas être rapprochée comme encaissement.';
-  if (movement.reconciliation) return 'Ce mouvement a déjà été rapproché.';
+  if (movement.reversal) return 'Une extourne ne peut pas être rapprochée comme paiement.';
+  if (movement.reconciliation || movement.supplierReconciliation) return 'Ce mouvement a déjà été rapproché.';
+  return '';
+}
+
+function customerMovementBlockReason(movement: BankMovement, account: BankAccountLink | undefined, invoiceId: string, accountingReady: boolean): string {
+  const commonReason = commonMovementBlockReason(movement, account, accountingReady);
+  if (commonReason) return commonReason;
+  if (movement.creditDebit !== 'CRDT') return 'Seule une entrée bancaire peut encaisser une facture client.';
   if (!invoiceId) return 'Choisissez explicitement la facture à rapprocher.';
   const candidate = candidateForInvoice(movement, invoiceId);
   if (!candidate?.confirmable) return candidate?.reason || 'Cette facture ne peut pas recevoir ce mouvement.';
   if (candidate.remainingCents < Math.abs(movement.amountCents)) return 'Le montant bancaire dépasse le solde restant de cette facture.';
   if (!movement.suggestion.confirmable) return movement.suggestion.reason || 'Le backend demande un contrôle supplémentaire.';
+  return '';
+}
+
+function supplierMovementBlockReason(movement: BankMovement, account: BankAccountLink | undefined, supplierInvoiceId: string, accountingReady: boolean): string {
+  const commonReason = commonMovementBlockReason(movement, account, accountingReady);
+  if (commonReason) return commonReason;
+  if (movement.creditDebit !== 'DBIT') return 'Seule une sortie bancaire peut régler une facture fournisseur.';
+  if (!supplierInvoiceId) return 'Choisissez explicitement la facture fournisseur à rapprocher.';
+  const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
+  if (!candidate?.confirmable) return candidate?.reason || 'Cette facture fournisseur ne peut pas recevoir ce débit.';
+  if (candidate.remainingCents < Math.abs(movement.amountCents)) return 'Le débit dépasse le solde restant de cette facture fournisseur.';
+  if (!movement.supplierSuggestion.confirmable) return movement.supplierSuggestion.reason || 'Le contrôle local demande une vérification supplémentaire.';
+  if (!movement.supplierSuggestion.requiresConfirmation) return 'Cette proposition ne possède pas la preuve de confirmation humaine requise.';
   return '';
 }
 
@@ -118,14 +149,49 @@ function BankCandidatePicker({
   </div>;
 }
 
+function BankSupplierCandidatePicker({
+  movement,
+  workspace,
+  selectedSupplierInvoiceId,
+  query,
+  onQueryChange,
+  onSelect,
+}: {
+  movement: BankMovement;
+  workspace: Workspace;
+  selectedSupplierInvoiceId: string;
+  query: string;
+  onQueryChange: (value: string) => void;
+  onSelect: (supplierInvoiceId: string) => void;
+}) {
+  const candidates = filterBankSupplierCandidates(movement, workspace.supplierInvoices, workspace.suppliers, query);
+  const searchable = movement.supplierSuggestion.kind !== 'supplier_match' || movement.supplierSuggestion.candidates.length > 1;
+  return <div className="bank-candidate-picker">
+    <div className="bank-candidate-picker__heading"><span>Facture fournisseur à régler</span><small>{movement.supplierSuggestion.candidates.length} proposition{movement.supplierSuggestion.candidates.length > 1 ? 's' : ''}</small></div>
+    {searchable ? <label className="bank-candidate-search"><Search size={14} /><span className="sr-only">Rechercher une facture par référence, fournisseur, IBAN ou montant</span><input type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Référence, fournisseur, IBAN ou montant…" /></label> : null}
+    <div className="bank-candidate-options" role="radiogroup" aria-label="Choisir explicitement la facture fournisseur à rapprocher">
+      {candidates.map(({ candidate, supplierName, supplierIban, invoiceReference, documentDate, dueDate }) => <label className={`bank-candidate-option ${selectedSupplierInvoiceId === candidate.supplierInvoiceId ? 'is-selected' : ''} ${candidate.confirmable ? '' : 'is-blocked'}`} key={candidate.supplierInvoiceId}>
+        <input className="sr-only" type="radio" name={`bank-supplier-candidate-${movement.id}`} value={candidate.supplierInvoiceId} checked={selectedSupplierInvoiceId === candidate.supplierInvoiceId} disabled={!candidate.confirmable} onChange={() => onSelect(candidate.supplierInvoiceId)} />
+        <span className="bank-candidate-option__icon"><Receipt size={15} /></span>
+        <span className="bank-candidate-option__identity"><strong>{invoiceReference || 'Sans référence'}</strong><span>{supplierName}</span><small>{documentDate ? `Facture du ${formatDate(documentDate)}` : dueDate ? `Échéance ${formatDate(dueDate)}` : supplierIban || 'Facture fournisseur ouverte'}</small></span>
+        <span className="bank-candidate-option__amount"><strong>{formatBankMoney(candidate.remainingCents, movement.currency)}</strong><small>solde ouvert</small></span>
+        <span className="bank-candidate-option__reason">{candidate.confirmable ? `Confirmable · ${candidate.reason || 'Montant et devise compatibles.'}` : `Bloqué · ${candidate.reason || 'Non confirmable'}`}</span>
+      </label>)}
+      {!candidates.length ? <div className="bank-candidate-empty" role="status">Aucune facture fournisseur ne correspond à « {query.trim()} ».</div> : null}
+    </div>
+  </div>;
+}
+
 export function BankScreen({
   workspace,
   readOnly,
   onWorkspaceChange,
+  onOpenAccounting,
 }: {
   workspace: Workspace;
   readOnly: boolean;
   onWorkspaceChange: (workspace: Workspace) => void;
+  onOpenAccounting: () => void;
 }) {
   const [bank, setBank] = useState<BankWorkspace | null>(null);
   const [filter, setFilter] = useState<BankMovementFilter>('unreconciled');
@@ -135,6 +201,20 @@ export function BankScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const accounting = workspace.accountingSettings;
+  const accountingReady = Boolean(accounting?.enabled && [
+    accounting.arAccountId,
+    accounting.revenueAccountId,
+    accounting.vatPayableAccountId,
+    accounting.bankAccountId,
+    accounting.expenseAccountId,
+    accounting.vatReceivableAccountId,
+    accounting.wagesExpenseAccountId,
+    accounting.wagesPayableAccountId,
+    accounting.socialExpenseAccountId,
+    accounting.socialPayableAccountId,
+    accounting.supplierPayableAccountId,
+  ].every(Boolean));
 
   const load = useCallback(async () => {
     setError('');
@@ -143,8 +223,12 @@ export function BankScreen({
       setBank(next);
       setChoices((current) => Object.fromEntries(next.movements.map((movement) => {
         const retained = current[movement.id];
-        const stillAvailable = retained && movement.suggestion.candidates.some((candidate) => candidate.invoiceId === retained);
-        return [movement.id, stillAvailable ? retained : initialInvoiceChoice(movement)];
+        const candidates = movement.creditDebit === 'DBIT'
+          ? movement.supplierSuggestion.candidates.map((candidate) => candidate.supplierInvoiceId)
+          : movement.suggestion.candidates.map((candidate) => candidate.invoiceId);
+        const stillAvailable = retained && candidates.includes(retained);
+        const initialChoice = movement.creditDebit === 'DBIT' ? initialSupplierInvoiceChoice(movement) : initialInvoiceChoice(movement);
+        return [movement.id, stillAvailable ? retained : initialChoice];
       })));
     } catch (reason) {
       setError(errorMessage(reason, 'L’espace bancaire local n’a pas pu être chargé.'));
@@ -228,7 +312,7 @@ export function BankScreen({
   async function confirmMovement(movement: BankMovement) {
     const invoiceId = choices[movement.id] ?? '';
     const account = accountFor(movement);
-    const blockReason = movementBlockReason(movement, account, invoiceId);
+    const blockReason = customerMovementBlockReason(movement, account, invoiceId, accountingReady);
     if (blockReason || !canConfirmBankReconciliation(movement, invoiceId)) {
       setFeedback({ tone: 'error', title: 'Rapprochement bloqué', text: blockReason || 'Cette proposition ne peut pas être confirmée.' });
       return;
@@ -236,7 +320,7 @@ export function BankScreen({
     const invoice = workspace.invoices.find((candidate) => candidate.id === invoiceId);
     const candidate = candidateForInvoice(movement, invoiceId);
     const invoiceLabel = invoice?.number || candidate?.invoiceNumber || 'facture sélectionnée';
-    if (!window.confirm(`Confirmer le rapprochement de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} avec la facture ${invoiceLabel} ?\n\nAucune écriture n’a été créée avant cette confirmation. Elyko va maintenant enregistrer le paiement local et, si la comptabilité est activée, son écriture bancaire immuable.`)) return;
+    if (!window.confirm(`Confirmer le rapprochement de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} avec la facture ${invoiceLabel} ?\n\nElyko va enregistrer le paiement et son écriture bancaire dans la même transaction locale. Si un contrôle échoue, aucune donnée ne sera modifiée.`)) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -247,6 +331,35 @@ export function BankScreen({
       setFeedback({ tone: 'success', title: 'Rapprochement confirmé', text: `${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} a été enregistré sur ${invoiceLabel}.` });
     } catch (reason) {
       setFeedback({ tone: 'error', title: 'Rapprochement refusé', text: errorMessage(reason, 'Aucune écriture n’a été créée. Contrôlez la facture et le mouvement.') });
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmSupplierMovement(movement: BankMovement) {
+    const supplierInvoiceId = choices[movement.id] ?? '';
+    const account = accountFor(movement);
+    const blockReason = supplierMovementBlockReason(movement, account, supplierInvoiceId, accountingReady);
+    if (blockReason || !canConfirmSupplierBankReconciliation(movement, supplierInvoiceId)) {
+      setFeedback({ tone: 'error', title: 'Rapprochement fournisseur bloqué', text: blockReason || 'Cette proposition ne peut pas être confirmée.' });
+      return;
+    }
+    const invoice = workspace.supplierInvoices.find((candidate) => candidate.id === supplierInvoiceId);
+    const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
+    const invoiceLabel = invoice?.reference || candidate?.reference || 'facture fournisseur sélectionnée';
+    const supplierLabel = invoice?.supplierName || candidate?.supplierName || 'le fournisseur';
+    if (!window.confirm(`Confirmer la sortie de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} pour ${supplierLabel}, facture ${invoiceLabel} ?\n\nElyko va enregistrer le paiement fournisseur et son écriture bancaire dans la même transaction locale. Si un contrôle échoue, aucune donnée ne sera modifiée.`)) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await desktopApi.confirmSupplierBankReconciliation(movement.id, supplierInvoiceId);
+      const [nextWorkspace, nextBank] = await Promise.all([desktopApi.loadWorkspace(), desktopApi.getBankWorkspace()]);
+      onWorkspaceChange(nextWorkspace);
+      setBank(nextBank);
+      setFeedback({ tone: 'success', title: 'Règlement fournisseur confirmé', text: `${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} a été enregistré sur ${invoiceLabel}.` });
+    } catch (reason) {
+      setFeedback({ tone: 'error', title: 'Rapprochement fournisseur refusé', text: errorMessage(reason, 'Aucune écriture n’a été créée. Contrôlez la facture fournisseur et le débit.') });
       await load();
     } finally {
       setBusy(false);
@@ -269,7 +382,7 @@ export function BankScreen({
   return <div className="stack-layout bank-screen">
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
-      <div><p className="eyebrow">ISO 20022 · traitement local</p><h2>Rapprochez vos encaissements en gardant le contrôle.</h2><p>Importez un XML CAMT fourni par votre banque. Elyko ne se connecte pas à votre compte et ne crée aucun paiement avant votre confirmation.</p></div>
+      <div><p className="eyebrow">ISO 20022 · traitement local</p><h2>Rapprochez vos encaissements et règlements en gardant le contrôle.</h2><p>Importez un XML CAMT fourni par votre banque. Elyko distingue les entrées clients des sorties fournisseurs, sans connexion au compte ni paiement créé avant votre confirmation.</p></div>
       <Button disabled={busy || readOnly} onClick={() => void importStatement()} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur ce PC'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>
 
@@ -278,10 +391,13 @@ export function BankScreen({
       <div><strong>{feedback.title}</strong><p>{feedback.text}</p>{feedback.warnings?.length ? <ul>{feedback.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}</div>
     </div> : null}
 
+    {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={onOpenAccounting}>Ouvrir Plan & liaisons</Button></div> : null}
+
     <div className="bank-summary" aria-label="Résumé bancaire local">
       <article><FileCode2 /><span>Imports</span><strong>{bank.summary.importCount}</strong><small>fichiers locaux</small></article>
-      <article><ArrowDownLeft /><span>Crédits inscrits</span><strong>{bank.summary.bookedCreditCount}</strong><small>mouvements BOOK</small></article>
-      <article className={bank.summary.unreconciledCount ? 'is-attention' : ''}><Link2 /><span>À rapprocher</span><strong>{bank.summary.unreconciledCount}</strong><small>confirmation requise</small></article>
+      <article><ArrowDownLeft /><span>Entrées clients</span><strong>{bank.summary.bookedCreditCount}</strong><small>crédits BOOK</small></article>
+      <article><ArrowUpRight /><span>Sorties fournisseurs</span><strong>{bank.summary.bookedDebitCount}</strong><small>débits BOOK</small></article>
+      <article className={bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount ? 'is-attention' : ''}><Link2 /><span>À rapprocher</span><strong>{bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount}</strong><small>confirmation requise</small></article>
       <article><Clock3 /><span>En attente</span><strong>{bank.summary.pendingCount}</strong><small>aucune écriture possible</small></article>
     </div>
 
@@ -301,35 +417,57 @@ export function BankScreen({
       {movements.length ? <div className="bank-movement-list">
         {movements.map((movement) => {
           const account = accountFor(movement);
-          const selectedInvoiceId = choices[movement.id] ?? '';
+          const selectedDocumentId = choices[movement.id] ?? '';
           const candidateQuery = candidateQueries[movement.id] ?? '';
-          const blockReason = movementBlockReason(movement, account, selectedInvoiceId);
+          const supplierDirection = movement.creditDebit === 'DBIT';
+          const blockReason = supplierDirection
+            ? supplierMovementBlockReason(movement, account, selectedDocumentId, accountingReady)
+            : customerMovementBlockReason(movement, account, selectedDocumentId, accountingReady);
           const reconciledInvoice = movement.reconciliation ? workspace.invoices.find((invoice) => invoice.id === movement.reconciliation?.invoiceId) : undefined;
+          const reconciledSupplierInvoice = movement.supplierReconciliation ? workspace.supplierInvoices.find((invoice) => invoice.id === movement.supplierReconciliation?.supplierInvoiceId) : undefined;
           return <article className={`bank-movement ${movement.creditDebit === 'DBIT' ? 'is-debit' : 'is-credit'} ${movement.status === 'PDNG' ? 'is-pending' : ''}`} key={movement.id}>
             <div className="bank-movement__direction">{movement.creditDebit === 'DBIT' ? <ArrowUpRight size={19} /> : <ArrowDownLeft size={19} />}</div>
-            <div className="bank-movement__identity"><div><strong>{movement.counterpartyName || (movement.creditDebit === 'DBIT' ? 'Bénéficiaire non renseigné' : 'Payeur non renseigné')}</strong><span className={`bank-status bank-status--${movement.status.toLowerCase()}`}>{movement.status === 'BOOK' ? 'Inscrit · BOOK' : 'En attente · PDNG'}</span>{movement.reversal ? <span className="bank-status bank-status--reversal">Extourne</span> : null}</div><p>{formatDate(movement.bookingDate || movement.valueDate)} · {movement.accountId || 'Compte non renseigné'}</p><small>{referenceLabel(movement.referenceType)} · {movement.reference || movement.unstructured || 'Aucune communication'}</small></div>
+            <div className="bank-movement__identity"><div><strong>{movement.counterpartyName || (movement.creditDebit === 'DBIT' ? 'Bénéficiaire non renseigné' : 'Payeur non renseigné')}</strong><span className={`bank-status bank-status--${movement.status.toLowerCase()}`}>{movement.status === 'BOOK' ? 'Inscrit · BOOK' : 'En attente · PDNG'}</span><span className="bank-status">{supplierDirection ? 'Sortie fournisseur' : 'Entrée client'}</span>{movement.reversal ? <span className="bank-status bank-status--reversal">Extourne</span> : null}</div><p>{formatDate(movement.bookingDate || movement.valueDate)} · {movement.accountId || 'Compte non renseigné'}{movement.counterpartyIban ? ` · ${movement.counterpartyIban}` : ''}</p><small>{referenceLabel(movement.referenceType)} · {movement.reference || movement.unstructured || 'Aucune communication'}</small></div>
             <div className="bank-movement__amount"><strong>{displayMovementAmount(movement)}</strong><small>{movement.valueDate && movement.valueDate !== movement.bookingDate ? `Valeur ${formatDate(movement.valueDate)}` : movement.currency}</small></div>
             <div className="bank-movement__match">
               {movement.reconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Rapproché avec {reconciledInvoice?.number || 'une facture'}</strong><small>Confirmé le {formatDateTime(movement.reconciliation.confirmedAt)}</small></span></div>
-                : movement.creditDebit !== 'CRDT' || movement.reversal ? <div className="bank-match-muted"><span>{movement.reversal ? 'Extourne conservée pour contrôle; aucun encaissement proposé.' : 'Débit conservé dans l’historique; aucun encaissement client proposé.'}</span></div>
+                : movement.supplierReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Réglé avec {reconciledSupplierInvoice?.reference || 'une facture fournisseur'}</strong><small>Confirmé le {formatDateTime(movement.supplierReconciliation.confirmedAt)}</small></span></div>
+                  : movement.reversal ? <div className="bank-match-muted"><span>Extourne conservée pour contrôle; aucun paiement proposé.</span></div>
                   : movement.status === 'PDNG' ? <div className="bank-match-muted"><Clock3 size={15} /><span>Attendez le statut BOOK avant tout rapprochement.</span></div>
                     : !account?.linked ? <div className="bank-match-warning"><Unlink size={15} /><span>Compte non associé. Confirmez d’abord qu’il appartient à votre entreprise.</span></div>
-                      : <>
+                      : supplierDirection ? <>
+                        <div className={`bank-suggestion bank-suggestion--${movement.supplierSuggestion.kind === 'supplier_match' ? 'automatic_exact' : movement.supplierSuggestion.kind}`}><span>{supplierSuggestionLabels[movement.supplierSuggestion.kind]}</span><p>{movement.supplierSuggestion.reason || 'Aucune facture fournisseur suffisamment sûre n’a été trouvée.'}</p></div>
+                        {movement.supplierSuggestion.candidates.length ? <BankSupplierCandidatePicker
+                          movement={movement}
+                          workspace={workspace}
+                          selectedSupplierInvoiceId={selectedDocumentId}
+                          query={candidateQuery}
+                          onQueryChange={(value) => {
+                            setCandidateQueries((current) => ({ ...current, [movement.id]: value }));
+                            if (selectedDocumentId && !filterBankSupplierCandidates(movement, workspace.supplierInvoices, workspace.suppliers, value).some((item) => item.candidate.supplierInvoiceId === selectedDocumentId)) {
+                              setChoices((current) => ({ ...current, [movement.id]: '' }));
+                            }
+                          }}
+                          onSelect={(supplierInvoiceId) => setChoices((current) => ({ ...current, [movement.id]: supplierInvoiceId }))}
+                        /> : null}
+                        <Button size="small" disabled={busy || readOnly || Boolean(blockReason) || !canConfirmSupplierBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le règlement fournisseur après confirmation'} onClick={() => void confirmSupplierMovement(movement)}><Link2 size={14} /> Confirmer le règlement</Button>
+                        {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
+                      </> : <>
                         <div className={`bank-suggestion bank-suggestion--${movement.suggestion.kind}`}><span>{suggestionLabels[movement.suggestion.kind]}</span><p>{movement.suggestion.reason || 'Aucune correspondance suffisamment sûre n’a été trouvée.'}</p></div>
                         {movement.suggestion.candidates.length ? <BankCandidatePicker
                           movement={movement}
                           workspace={workspace}
-                          selectedInvoiceId={selectedInvoiceId}
+                          selectedInvoiceId={selectedDocumentId}
                           query={candidateQuery}
                           onQueryChange={(value) => {
                             setCandidateQueries((current) => ({ ...current, [movement.id]: value }));
-                            if (selectedInvoiceId && !filterBankCandidates(movement, workspace.invoices, workspace.clients, value).some((item) => item.candidate.invoiceId === selectedInvoiceId)) {
+                            if (selectedDocumentId && !filterBankCandidates(movement, workspace.invoices, workspace.clients, value).some((item) => item.candidate.invoiceId === selectedDocumentId)) {
                               setChoices((current) => ({ ...current, [movement.id]: '' }));
                             }
                           }}
                           onSelect={(invoiceId) => setChoices((current) => ({ ...current, [movement.id]: invoiceId }))}
                         /> : null}
-                        <Button size="small" disabled={busy || readOnly || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedInvoiceId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer le rapprochement</Button>
+                        <Button size="small" disabled={busy || readOnly || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer l’encaissement</Button>
                         {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
                       </>}
             </div>

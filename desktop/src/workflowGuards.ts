@@ -5,6 +5,7 @@ export type WorkspacePrerequisites = {
   projects: number;
   trackableProjects: number;
   activeEmployees: number;
+  activeSuppliers: number;
   costCategories: number;
 };
 
@@ -17,6 +18,7 @@ export function creationBlockReason(view: CreationView, prerequisites: Workspace
     if (prerequisites.activeEmployees === 0) return 'Ajoutez d’abord un collaborateur actif.';
   }
   if (view === 'expenses') {
+    if (prerequisites.activeSuppliers === 0) return 'Ajoutez d’abord un fournisseur actif.';
     if (prerequisites.costCategories === 0) return 'Ajoutez d’abord une catégorie de coûts dans Paramètres.';
   }
   return '';

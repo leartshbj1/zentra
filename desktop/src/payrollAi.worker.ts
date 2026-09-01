@@ -78,6 +78,15 @@ Rules: transcribe only information visibly present in the pages or OCR text. Nev
 ${text ? `OCR text extracted locally from the PDF:\n${text}` : 'No OCR text is available; use only the image.'}`;
 }
 
+function verificationPrompt(extractedText: string) {
+  const text = extractedText.slice(0, 16_000);
+  return `This is an independent second transcription of a Swiss payslip. Re-read every supplied page and the OCR text from the beginning. You have not been given any earlier answer: rely only on the document evidence.
+Return exactly one JSON object, with no Markdown and no commentary, using this schema:
+{"employee":{"employee_number":"","name":"","role":"","address_line1":"","address_line2":"","postal_code":"","city":"","canton":"","birth_date":"","avs_number":"","iban":"","employment_rate":null,"salary_mode":null},"period":"YYYY-MM","payment_date":"YYYY-MM-DD","gross_cents":0,"net_cents":0,"lines":[{"label":"","kind":"earning|deduction|reimbursement|employer","amount_cents":0,"recurring":false,"confidence_bp":0}],"warnings":[]}
+Rules: use only information visible in the document or OCR. Never invent missing values, legal rates, contributions or identities. CHF amounts are integer cents. Employee deductions are positive amounts with kind deduction; employer-only contributions use kind employer and never reduce net pay. Reimbursements are outside gross and added after deductions. Printed gross_cents and net_cents must remain printed totals, not recomputed substitutes. Keep similarly named employee and employer contributions separate. If a value remains ambiguous, leave the field empty or zero, lower confidence below 6000 and add a precise warning.
+${text ? `OCR text extracted locally from the PDF:\n${text}` : 'No OCR text is available; verify only against the images.'}`;
+}
+
 async function analyze(requestId: string, imageUrls: string[] = [], extractedText = '') {
   try {
     let processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>;
@@ -90,31 +99,74 @@ async function analyze(requestId: string, imageUrls: string[] = [], extractedTex
       resetEngine();
       throw error;
     }
-    const content: Array<{ type: 'image'; image: string } | { type: 'text'; text: string }> = [];
-    const images = [];
-    for (const imageUrl of imageUrls.slice(0, 3)) {
-      content.push({ type: 'image', image: imageUrl });
-      images.push(await load_image(imageUrl));
+    const images: Awaited<ReturnType<typeof load_image>>[] = [];
+    for (const imageUrl of imageUrls.slice(0, 3)) images.push(await load_image(imageUrl));
+
+    const runPass = async (promptText: string) => {
+      const content: Array<{ type: 'image'; image: string } | { type: 'text'; text: string }> = imageUrls
+        .slice(0, 3)
+        .map((image) => ({ type: 'image' as const, image }));
+      content.push({ type: 'text', text: promptText });
+      // Transformers.js supports multimodal content at runtime, while its public
+      // Message type still describes text-only content in v3.7.1.
+      const messages = [{ role: 'user', content }] as unknown as Parameters<typeof processor.apply_chat_template>[0];
+      const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
+      const inputs = await processor(prompt, images, { do_image_splitting: true });
+      const output = await model.generate({
+        ...inputs,
+        do_sample: false,
+        repetition_penalty: 1.05,
+        max_new_tokens: 900,
+        return_dict_in_generate: true,
+      });
+      const sequences = output && typeof output === 'object' && 'sequences' in output
+        ? (output as { sequences: unknown }).sequences
+        : output;
+      if (!(sequences instanceof Tensor)) throw new Error("SmolVLM n'a pas renvoyé de séquence exploitable.");
+      const inputIds = inputs.input_ids;
+      const promptLength = inputIds instanceof Tensor ? inputIds.dims.at(-1) ?? 0 : 0;
+      // Les modèles causaux renvoient généralement le prompt suivi des jetons
+      // générés. Ne jamais redécoder le prompt : il contient le schéma JSON et
+      // le texte OCR, qui ne doivent pas pouvoir se faire passer pour la réponse.
+      const generatedOnly = promptLength > 0 && (sequences.dims.at(-1) ?? 0) > promptLength
+        ? sequences.slice(null, [promptLength, sequences.dims.at(-1) ?? promptLength])
+        : sequences;
+      return processor.batch_decode(generatedOnly, { skip_special_tokens: true }).at(-1) ?? '';
+    };
+
+    post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Lecture locale 1 sur 2 · transcription', percent: 55 });
+    const primaryOutput = await runPass(extractionPrompt(extractedText));
+    post({ type: 'analysis_stage', requestId, stage: 'verifying', label: 'Lecture locale 2 sur 2 · vérification indépendante', percent: 82 });
+    let verifiedOutput = '';
+    try {
+      verifiedOutput = await runPass(verificationPrompt(extractedText));
+    } catch (error) {
+      post({ type: 'analysis_stage', requestId, stage: 'partial', label: 'Seconde lecture indisponible · proposition faible uniquement', percent: 100 });
+      post({
+        type: 'analysis',
+        requestId,
+        output: primaryOutput,
+        primaryOutput,
+        verifiedOutput: '',
+        passes: 1,
+        partialError: String(error),
+        modelId: MODEL_ID,
+        modelVersion: MODEL_VERSION,
+        mode: runtimeDevice,
+      });
+      return;
     }
-    content.push({ type: 'text', text: extractionPrompt(extractedText) });
-    // Transformers.js supports multimodal content at runtime, while its public
-    // Message type still describes text-only content in v3.7.1.
-    const messages = [{ role: 'user', content }] as unknown as Parameters<typeof processor.apply_chat_template>[0];
-    const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
-    const inputs = await processor(prompt, images, { do_image_splitting: true });
-    const output = await model.generate({
-      ...inputs,
-      do_sample: false,
-      repetition_penalty: 1.05,
-      max_new_tokens: 900,
-      return_dict_in_generate: true,
+    post({
+      type: 'analysis',
+      requestId,
+      output: verifiedOutput,
+      primaryOutput,
+      verifiedOutput,
+      passes: 2,
+      modelId: MODEL_ID,
+      modelVersion: MODEL_VERSION,
+      mode: runtimeDevice,
     });
-    const sequences = output && typeof output === 'object' && 'sequences' in output
-      ? (output as { sequences: unknown }).sequences
-      : output;
-    if (!(sequences instanceof Tensor)) throw new Error("SmolVLM n'a pas renvoyé de séquence exploitable.");
-    const decoded = processor.batch_decode(sequences, { skip_special_tokens: true });
-    post({ type: 'analysis', requestId, output: decoded.at(-1) ?? '', modelId: MODEL_ID, modelVersion: MODEL_VERSION, mode: runtimeDevice });
   } catch (error) {
     post({ type: 'analysis_error', requestId, error: String(error) });
   }

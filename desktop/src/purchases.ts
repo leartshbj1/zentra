@@ -1,11 +1,11 @@
-import type { Expense, Project, Supplier } from './types';
+import type { Expense, Project, Supplier, SupplierInvoice } from './types';
 import { addDaysIso, searchText } from './utils';
 
-export type PurchaseTab = 'pending' | 'paid' | 'suppliers';
+export type PurchaseTab = 'draft' | 'pending' | 'partial' | 'paid' | 'suppliers';
 export type SupplierVisibility = 'active' | 'archived' | 'all';
 
 export function expensePaymentStatusFromRaw(value: unknown): Expense['paymentStatus'] {
-  return value === 'pending' ? 'pending' : 'paid';
+  return value === 'paid' ? 'paid' : 'pending';
 }
 
 export function activeSuppliers(suppliers: Supplier[]): Supplier[] {
@@ -45,25 +45,94 @@ export function filterPurchaseExpenses(
     });
 }
 
+export function filterSupplierInvoices(
+  invoices: SupplierInvoice[],
+  projects: Project[],
+  query: string,
+  status: Exclude<PurchaseTab, 'suppliers'>,
+): SupplierInvoice[] {
+  const projectNames = new Map(projects.map((project) => [project.id, project.name]));
+  return invoices
+    .filter((invoice) => status === 'draft'
+      ? invoice.documentStatus === 'draft'
+      : invoice.documentStatus === 'validated' && invoice.paymentStatus === status)
+    .filter((invoice) => searchText([
+      invoice.supplierName,
+      invoice.reference,
+      invoice.note,
+      invoice.projectId ? projectNames.get(invoice.projectId) : '',
+      ...invoice.lines.flatMap((line) => [line.description, line.category]),
+      ...invoice.payments.flatMap((payment) => [payment.method, payment.reference, payment.notes]),
+    ], query))
+    .sort((left, right) => {
+      if (status === 'pending' || status === 'partial') {
+        return left.dueDate.localeCompare(right.dueDate)
+          || right.documentDate.localeCompare(left.documentDate);
+      }
+      if (status === 'paid') return right.updatedAt.localeCompare(left.updatedAt);
+      return right.updatedAt.localeCompare(left.updatedAt);
+    });
+}
+
 export function isExpenseOverdue(expense: Expense, today: string): boolean {
   return expense.paymentStatus === 'pending' && Boolean(expense.dueDate && expense.dueDate < today);
 }
 
-export function purchaseSummary(expenses: Expense[], today: string) {
-  return expenses.reduce((summary, expense) => {
+export function isSupplierInvoiceOverdue(invoice: SupplierInvoice, today: string): boolean {
+  return invoice.documentStatus === 'validated'
+    && invoice.paymentStatus !== 'paid'
+    && invoice.balanceCents > 0
+    && invoice.dueDate < today;
+}
+
+export function purchaseSummary(
+  expenses: Expense[],
+  today: string,
+  supplierInvoices: SupplierInvoice[] = [],
+) {
+  const summary = expenses.reduce((current, expense) => {
     if (expense.paymentStatus === 'pending') {
-      summary.pendingCents += expense.totalCents;
-      summary.pendingCount += 1;
+      current.pendingCents += expense.totalCents;
+      current.pendingCount += 1;
       if (isExpenseOverdue(expense, today)) {
-        summary.overdueCents += expense.totalCents;
-        summary.overdueCount += 1;
+        current.overdueCents += expense.totalCents;
+        current.overdueCount += 1;
       }
     } else {
-      summary.paidCents += expense.totalCents;
-      summary.paidCount += 1;
+      current.paidCents += expense.totalCents;
+      current.paidCount += 1;
     }
-    return summary;
-  }, { pendingCents: 0, overdueCents: 0, paidCents: 0, pendingCount: 0, overdueCount: 0, paidCount: 0 });
+    return current;
+  }, {
+    draftCount: 0,
+    partialCount: 0,
+    pendingCents: 0,
+    overdueCents: 0,
+    paidCents: 0,
+    pendingCount: 0,
+    overdueCount: 0,
+    paidCount: 0,
+  });
+
+  for (const invoice of supplierInvoices) {
+    if (invoice.documentStatus === 'draft') {
+      summary.draftCount += 1;
+      continue;
+    }
+    summary.paidCents += invoice.paidCents;
+    if (invoice.paymentStatus === 'paid') {
+      summary.paidCount += 1;
+      continue;
+    }
+    summary.pendingCents += invoice.balanceCents;
+    summary.pendingCount += 1;
+    if (invoice.paymentStatus === 'partial') summary.partialCount += 1;
+    if (isSupplierInvoiceOverdue(invoice, today)) {
+      summary.overdueCents += invoice.balanceCents;
+      summary.overdueCount += 1;
+    }
+  }
+  return summary;
 }
 
 export function supplierDueDate(expenseDate: string, supplier: Supplier | undefined, fallbackTermsDays: number): string {

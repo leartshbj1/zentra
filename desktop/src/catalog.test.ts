@@ -3,10 +3,15 @@ import {
   activeCatalogItems,
   catalogItemToDocumentLine,
   catalogQuantityFromInput,
+  catalogStockData,
   filterCatalogItems,
   isCatalogItemLowOnStock,
+  stockBalanceAfter,
+  stockMovementError,
+  stockMovementsForItem,
+  stockQuantityFromInput,
 } from './catalog';
-import type { CatalogItem, DocumentLine } from './types';
+import type { CatalogItem, DocumentLine, StockMovement } from './types';
 import { documentLineTotals, documentTotals, roundBasisPoints } from './utils';
 
 const service: CatalogItem = {
@@ -83,15 +88,83 @@ describe('catalogue produits et services', () => {
     });
   });
 
-  it('convertit les quantités en milli-unités et signale seulement le stock indicatif sous le seuil', () => {
+  it('convertit les quantités en milli-unités et signale le stock réel sous le seuil', () => {
     expect(catalogQuantityFromInput('12,345')).toBe(12_345);
     expect(catalogQuantityFromInput('')).toBe(0);
     expect(catalogQuantityFromInput('-2')).toBe(0);
     expect(isCatalogItemLowOnStock(product)).toBe(true);
     expect(isCatalogItemLowOnStock({ ...product, stockQuantityMilli: 10_001 })).toBe(false);
+    expect(isCatalogItemLowOnStock({ ...product, stockQuantityMilli: 0, reorderLevelMilli: 0 })).toBe(true);
     expect(isCatalogItemLowOnStock({ ...product, kind: 'service' })).toBe(false);
   });
+
+  it('crée un produit suivi à zéro et ne renvoie jamais le solde pendant une édition', () => {
+    expect(catalogStockData('product', 2_500, false)).toEqual({
+      trackStock: true,
+      reorderLevelMilli: 2_500,
+      stockQuantityMilli: 0,
+    });
+    const edited = catalogStockData('product', 3_000, true);
+    expect(edited).toEqual({ trackStock: true, reorderLevelMilli: 3_000 });
+    expect(Object.hasOwn(edited, 'stockQuantityMilli')).toBe(false);
+    expect(catalogStockData('service', 9_000, false)).toEqual({
+      trackStock: false,
+      reorderLevelMilli: 0,
+      stockQuantityMilli: 0,
+    });
+  });
+
+  it('valide les mouvements signés à trois décimales avant de laisser le backend trancher', () => {
+    expect(stockQuantityFromInput('1.234')).toBe(1_234);
+    expect(stockQuantityFromInput('-2,125')).toBe(-2_125);
+    expect(stockQuantityFromInput('1.2345')).toBeNull();
+    expect(stockBalanceAfter(product.stockQuantityMilli, 'entry', 1_500)).toBe(9_500);
+    expect(stockBalanceAfter(product.stockQuantityMilli, 'exit', 1_500)).toBe(6_500);
+    expect(stockBalanceAfter(product.stockQuantityMilli, 'correction', -8_000)).toBe(0);
+    expect(stockMovementError(product, 'exit', 8_001)).toContain('Stock insuffisant');
+    expect(stockMovementError(product, 'correction', 0)).toContain('ne peut pas être égale à zéro');
+    expect(stockMovementError(product, 'correction', -8_000)).toBe('');
+    expect(stockMovementError(service, 'entry', 1_000)).toContain('Seuls les produits');
+  });
+
+  it('isole et trie l’historique immuable de chaque article sans muter le workspace', () => {
+    const movements: StockMovement[] = [
+      stockMovement('movement-1', 'product-cable', 1, 5_000, 5_000),
+      stockMovement('movement-other', 'other-product', 3, 1_000, 1_000),
+      stockMovement('movement-2', 'product-cable', 2, -1_000, 4_000),
+    ];
+    expect(stockMovementsForItem(movements, 'product-cable').map((item) => item.id))
+      .toEqual(['movement-2', 'movement-1']);
+    expect(movements.map((item) => item.id))
+      .toEqual(['movement-1', 'movement-other', 'movement-2']);
+  });
 });
+
+function stockMovement(
+  id: string,
+  catalogItemId: string,
+  sequence: number,
+  quantityDeltaMilli: number,
+  balanceAfterMilli: number,
+): StockMovement {
+  return {
+    sequence,
+    id,
+    sourceKey: `manual:${id}`,
+    requestId: `request-${id}`,
+    catalogItemId,
+    movementType: quantityDeltaMilli < 0 ? 'exit' : 'entry',
+    quantityDeltaMilli,
+    balanceAfterMilli,
+    reason: 'Test',
+    reference: null,
+    movementDate: '2026-09-01',
+    sourceType: 'manual',
+    invoiceId: null,
+    invoiceItemId: null,
+    createdAt: '2026-09-01T08:00:00Z',
+  };
+}
 
 describe('remises et arrondis des documents', () => {
   const discountedLine: DocumentLine = {

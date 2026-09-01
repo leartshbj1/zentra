@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Copy, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Copy, KeyRound, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { desktopApi } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
@@ -14,6 +14,7 @@ export function App() {
   const [license, setLicense] = useState<LicenseState | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const automaticRefreshStarted = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,6 +33,18 @@ export function App() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!license?.enforcementConfigured || !license.canRefresh || automaticRefreshStarted.current) return;
+    automaticRefreshStarted.current = true;
+    void desktopApi
+      .refreshLicense(true)
+      .then(setLicense)
+      .catch(() => {
+        // Un échec réseau ne remplace jamais le bail local déjà validé. Le
+        // renouvellement manuel affichera, lui, une erreur explicite.
+      });
+  }, [license]);
 
   if (loading) {
     return (
@@ -66,7 +79,7 @@ export function App() {
     license && (license.status !== 'valid' || license.readOnly),
   );
 
-  return <>{content}{license && licenseNeedsAttention ? <LicenseActivation license={license} onInstall={async (token) => { const next = await desktopApi.installLicenseToken(token); setLicense(next); setWorkspace(await desktopApi.loadWorkspace()); }} /> : null}</>;
+  return <>{content}{license && licenseNeedsAttention ? <LicenseActivation license={license} onInstall={async (token) => { const next = await desktopApi.installLicenseToken(token); setLicense(next); setWorkspace(await desktopApi.loadWorkspace()); }} onRefresh={async () => setLicense(await desktopApi.refreshLicense(false))} /> : null}</>;
 }
 
 const licenseLabels: Record<LicenseState['status'], string> = {
@@ -75,25 +88,33 @@ const licenseLabels: Record<LicenseState['status'], string> = {
   invalid: 'Licence invalide',
   clock_error: 'Horloge Windows à contrôler',
   not_yet_valid: 'Licence pas encore valide',
+  inactive: 'Abonnement inactif',
   expired: 'Licence expirée',
   valid: 'Licence active',
 };
 
-function LicenseActivation({ license, onInstall }: { license: LicenseState; onInstall: (token: string) => Promise<void> }) {
+function LicenseActivation({ license, onInstall, onRefresh }: { license: LicenseState; onInstall: (token: string) => Promise<void>; onRefresh: () => Promise<void> }) {
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setError('');
     try { await onInstall(normalizeLicenseToken(token)); setToken(''); }
-    catch (reason) { setError(errorMessage(reason, 'Le jeton de licence n’a pas pu être vérifié localement.')); }
+    catch (reason) { setError(errorMessage(reason, 'Le jeton de licence n’a pas pu être vérifié en ligne. Vérifiez la connexion Internet puis réessayez.')); }
     finally { setBusy(false); }
+  }
+  async function refresh() {
+    setRefreshing(true); setError('');
+    try { await onRefresh(); }
+    catch (reason) { setError(errorMessage(reason, 'La licence n’a pas pu être renouvelée en ligne. Le bail local reste inchangé.')); }
+    finally { setRefreshing(false); }
   }
   const identity = <div className="license-banner__identity"><span>Installation</span><code>{license.installationId || 'indisponible'}</code>{license.installationId ? <Button type="button" variant="ghost" size="icon" title="Copier l’identifiant" onClick={() => void navigator.clipboard.writeText(license.installationId)}><Copy size={14} /></Button> : null}</div>;
   if (!license.enforcementConfigured) {
     return <aside className="license-banner" role="status"><div className="license-banner__summary"><span><ShieldCheck size={18} /></span><div><strong>{licenseLabels.not_configured}</strong><small>Cette indication doit uniquement apparaître pendant le développement.</small></div></div>{identity}<p>{license.reason}</p></aside>;
   }
-  const form = <form onSubmit={submit}>{identity}<label><span>Jeton signé obtenu après le paiement Stripe</span><textarea value={token} onChange={(event) => setToken(event.target.value)} rows={2} required /></label>{error ? <small className="license-banner__error">{error}</small> : null}<Button type="submit" size="small" disabled={busy || !normalizeLicenseToken(token)}>{busy ? <LoaderCircle className="spin" size={15} /> : <KeyRound size={15} />}{busy ? 'Vérification…' : 'Installer le jeton'}</Button></form>;
+  const form = <form onSubmit={submit}>{identity}{license.canRefresh ? <Button type="button" size="small" onClick={() => void refresh()} disabled={busy || refreshing}>{refreshing ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}{refreshing ? 'Renouvellement…' : 'Renouveler en ligne'}</Button> : null}<label><span>Ou installer un nouveau jeton signé</span><textarea value={token} onChange={(event) => setToken(event.target.value)} rows={2} required /></label>{error ? <small className="license-banner__error">{error}</small> : null}<Button type="submit" size="small" disabled={busy || refreshing || !normalizeLicenseToken(token)}>{busy ? <LoaderCircle className="spin" size={15} /> : <KeyRound size={15} />}{busy ? 'Vérification en ligne…' : 'Installer le jeton'}</Button></form>;
   return <aside className={`license-banner ${license.readOnly ? 'license-banner--warning' : ''}`} role="status"><div className="license-banner__summary"><span>{license.readOnly ? <KeyRound size={18} /> : <ShieldCheck size={18} />}</span><div><strong>{licenseLabels[license.status]}</strong><small>{license.readOnly ? 'Application en lecture seule; sauvegarde et export restent disponibles.' : `${license.customerName || 'Licence vérifiée'} · valable jusqu’au ${license.validUntil}`}</small></div></div>{license.readOnly ? form : <details><summary>Licence et identifiant d’installation</summary>{form}</details>}<p>{license.reason || `Plan 50 CHF / mois · jeton signé et lié à ce PC`}</p></aside>;
 }

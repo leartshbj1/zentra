@@ -18,6 +18,8 @@ La clé privée ne doit jamais être ajoutée à Git, au site ou à l’applicat
 
 La paire Tauri sert à authentifier les archives de mise à jour. Elle ne remplace pas un certificat Authenticode Windows, recommandé séparément pour l’identité de l’éditeur et SmartScreen.
 
+La liaison de licence de cette version utilise un UUID d’installation protégé par DPAPI et une validation HTTPS signée. Elle ne constitue pas une attestation matérielle TPM/CNG et ne garantit donc pas une résistance absolue face à un administrateur local capable de cloner l’identifiant ou de modifier l’exécutable. Une future édition durcie devra enregistrer une clé non exportable TPM/CNG, prouver sa possession par défi serveur et associer sa clé publique à la licence.
+
 Sur le poste de publication du propriétaire, `scripts/build-local-signed-updater.ps1` sait charger la paire située dans `%LOCALAPPDATA%\Elyko\release-signing`. Le mot de passe n’est pas stocké en clair : son blob est protégé par Windows DPAPI et ne peut être déchiffré que par le même compte Windows. Le script efface les quatre variables sensibles de son processus dans un bloc `finally`.
 
 ## Création de la paire, une seule fois par le propriétaire
@@ -58,7 +60,7 @@ $env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content -Raw (Join-Path $elykoSigningRoot '
 $env:ELYKO_UPDATER_ENDPOINT = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1 `
-  -Version 1.4.0 `
+  -Version 1.5.0 `
   -PreviousVersion 1.3.0
 ```
 
@@ -87,13 +89,13 @@ Publier l’installateur et le manifeste sur HTTPS. La valeur `signature` est le
 
 ```json
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "notes": "Résumé contrôlé des changements.",
   "pub_date": "2026-09-01T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "CONTENU_EXACT_DU_FICHIER_SIG",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.4.0_x64-setup.exe"
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Elyko_1.5.0_x64-setup.exe"
     }
   }
 }

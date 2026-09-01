@@ -33,18 +33,20 @@ import { HeroDashboard } from '@/components/hero-dashboard';
 import { PayrollLocalDemo } from '@/components/payroll-local-demo';
 import { ProductShowcase } from '@/components/product-showcase';
 import { PurchaseButton } from '@/components/purchase-button';
+import { ProductFlowDemo } from './product-flow-demo';
+import { ELYKO_VERSION } from '@/lib/downloads';
 import { cn } from '@/lib/utils';
 
 const features = [
   {
     icon: FolderKanban,
     title: 'Projets, chantiers & clients',
-    text: 'Le module adapte ses libellés au secteur choisi tout en conservant dates, budget, avancement, documents et intervenants.',
+    text: 'Le module adapte ses libellés au secteur choisi et suit dates, budget, avancement, temps, coûts et rentabilité.',
   },
   {
     icon: Package,
-    title: 'Produits & services',
-    text: 'Un catalogue local, recherchable et archivable, pour réutiliser vos libellés, unités, prix et taux de TVA.',
+    title: 'Produits, services & stock',
+    text: 'Un catalogue local avec prix, TVA, seuils et historique des mouvements, réutilisable dans vos documents.',
   },
   {
     icon: FileCheck2,
@@ -54,7 +56,7 @@ const features = [
   {
     icon: Receipt,
     title: 'Factures & paiements',
-    text: 'Acomptes, situations, factures finales, échéances, QR-facture suisse et montants réellement encaissés.',
+    text: 'Factures standard, échéances, QR-facture suisse, avoirs et montants réellement encaissés, avec conversion du devis en un clic.',
   },
   {
     icon: Clock3,
@@ -126,9 +128,24 @@ const sectors = [
   ['V', 'Organisations extraterritoriales'],
 ];
 
+const capabilityRows = [
+  ['Clients & dossier 360°', 'Disponible', 'Fiche, projets, documents, soldes et archivage local.'],
+  ['Devis & factures', 'Disponible', 'Devis accepté vers facture brouillon, QR-facture et paiements.'],
+  ['Projets & temps', 'Disponible', 'Budgets, durées, coûts, rentabilité et heures approuvées à facturer.'],
+  ['Achats fournisseurs', 'Disponible', 'Factures, justificatifs locaux, échéances, paiements et comptabilisation.'],
+  ['Banque CAMT', 'Assisté', 'Crédits clients et débits fournisseurs proposés, puis confirmés par l’utilisateur.'],
+  ['Comptabilité', 'Disponible avec contrôle', 'Journal, grand livre, balance, bilan et résultat calculés depuis les écritures.'],
+  ['Paie suisse', 'Assistée localement', 'Import OCR/IA local, calculs contrôlés et PDF; Elyko n’est pas certifié Swissdec.'],
+  ['Catalogue & stock', 'Disponible', 'Produits et services réutilisables, registre immuable, seuils et sortie des produits à l’émission d’une facture standard.'],
+  ['Application', 'Windows', 'Vraie application Windows 10/11 x64; le site de présentation est adapté au mobile.'],
+] as const;
+
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]">
+    <main id="contenu" tabIndex={-1} className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]">
+      <a href="#accueil" className="site-skip-link">
+        Aller au contenu
+      </a>
       <header className="sticky top-0 z-40 border-b border-[#d9d4c9]/75 bg-[#f6f4ef]/92 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
           <a
@@ -156,6 +173,12 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
+              href="#capacites"
+              className="transition-colors hover:text-[#173d2c]"
+            >
+              Capacités
+            </a>
+            <a
               href="#confidentialite"
               className="transition-colors hover:text-[#173d2c]"
             >
@@ -171,16 +194,30 @@ export default function Home() {
               Contact
             </a>
           </nav>
-          <a
-            href="/telecharger"
-            className={cn(
-              buttonVariants({ size: 'lg' }),
-              'h-11 rounded-full bg-[#173d2c] px-4 text-white hover:bg-[#24563f] sm:px-5',
-            )}
-          >
-            Télécharger <span className="hidden min-[390px]:inline">Elyko</span>{' '}
-            <FileDown className="size-4 shrink-0" />
-          </a>
+          <div className="flex items-center gap-2">
+            <details className="site-mobile-nav group relative lg:hidden">
+              <summary className="grid size-11 cursor-pointer list-none place-items-center rounded-full border border-[#d4d2ca] bg-white/75 text-[#294536]" aria-label="Ouvrir le menu">
+                <Plus className="size-5 transition-transform group-open:rotate-45" />
+              </summary>
+              <nav className="absolute right-0 top-[calc(100%+.65rem)] z-50 grid min-w-64 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]" aria-label="Navigation mobile">
+                <a href="#logiciel">Voir le logiciel</a>
+                <a href="#capacites">Capacités</a>
+                <a href="#confidentialite">Données locales</a>
+                <a href="#tarif">Tarif</a>
+                <a href="mailto:leartshabija@gmail.com">Contact</a>
+              </nav>
+            </details>
+            <a
+              href="/telecharger"
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'size-11 rounded-full bg-[#173d2c] px-0 text-white hover:bg-[#24563f] min-[390px]:h-11 min-[390px]:w-auto min-[390px]:px-5',
+              )}
+            >
+              <span className="sr-only min-[390px]:not-sr-only">Télécharger Elyko</span>
+              <FileDown className="size-4 shrink-0" />
+            </a>
+          </div>
         </div>
       </header>
 
@@ -291,6 +328,34 @@ export default function Home() {
       </section>
 
       <section
+        id="demo-flux"
+        className="border-b border-[#ded9ce] bg-[#fffdf9] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="demo-flux-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
+                Essayez sans compte
+              </p>
+              <h2 id="demo-flux-title" className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
+                Créez votre exemple, puis convertissez-le.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#68736c] lg:justify-self-end">
+              La démonstration démarre vide et utilise uniquement les valeurs
+              que vous saisissez. Elle illustre le flux réel sans créer de
+              compte ni stocker vos informations.
+            </p>
+          </div>
+          <div className="mt-10 sm:mt-14">
+            <ProductFlowDemo />
+          </div>
+        </div>
+      </section>
+
+      <section
         id="catalogue-achats"
         className="border-b border-[#ded9ce] bg-[#fffaf2] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
@@ -323,7 +388,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-5">
             {[
               {
                 icon: Package,
@@ -345,6 +410,11 @@ export default function Home() {
                 title: 'Achats à suivre',
                 text: 'Distinguez à payer, échu et payé, avec une confirmation avant d’enregistrer le règlement.',
               },
+              {
+                icon: Package,
+                title: 'Stock traçable',
+                text: 'Enregistrez chaque entrée ou correction et laissez la facture standard créer sa sortie contrôlée.',
+              },
             ].map(({ icon: Icon, title, text }) => (
               <article
                 key={title}
@@ -360,8 +430,11 @@ export default function Home() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-[#756e64]">
-            Le suivi de quantité du catalogue est indicatif à ce stade&nbsp;: il
-            ne crée pas automatiquement de mouvement de stock.
+            Chaque entrée, sortie ou correction de stock reste inscrite dans un
+            registre local. L’émission d’une facture standard contenant un
+            produit suivi crée sa sortie; les acomptes, situations, finales et
+            avoirs restent sans mouvement automatique pour éviter une double
+            déduction sans bon de livraison dédié.
           </p>
 
           <div className="mt-8 sm:mt-10">
@@ -373,7 +446,7 @@ export default function Home() {
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#efb157]/35 bg-[#efb157]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.1em] text-[#f2bd6d]">
                   <span className="size-1.5 rounded-full bg-[#efb157]" />
-                  Disponible dans Elyko 1.4.0
+                  Disponible dans Elyko {ELYKO_VERSION}
                 </span>
                 <Landmark
                   className="mt-7 size-7 text-[#efb157]"
@@ -387,9 +460,10 @@ export default function Home() {
                 <p className="text-base leading-7 text-white/75">
                   Importez sur votre PC les relevés CAMT.053 ou CAMT.054 de
                   votre banque. Elyko détecte les doublons et propose les
-                  factures clients correspondant aux crédits. Un CAMT.054
-                  reste en revue&nbsp;: le paiement ne peut être confirmé qu’avec
-                  le relevé CAMT.053 définitif.
+                  factures clients correspondant aux crédits et les factures
+                  fournisseurs correspondant aux débits. Un CAMT.054 reste en
+                  revue&nbsp;: aucun paiement ne peut être confirmé sans le relevé
+                  CAMT.053 définitif.
                 </p>
                 <ol className="mt-6 grid gap-3 sm:grid-cols-3">
                   {[
@@ -424,10 +498,10 @@ export default function Home() {
                   ))}
                 </ol>
                 <p className="mt-4 text-xs leading-5 text-white/58">
-                  Les débits, écritures en attente, extournes, lots ambigus et
-                  trop-perçus restent visibles mais sont bloqués pour éviter un
-                  faux rapprochement. Toute association manuelle avec un compte
-                  Elyko est explicite et révocable.
+                  Les écritures en attente, extournes, lots ambigus et montants
+                  incohérents restent visibles mais bloqués. Une suggestion ne
+                  crée jamais un paiement&nbsp;: la facture exacte et le solde sont
+                  toujours confirmés par l’utilisateur.
                 </p>
               </div>
             </div>
@@ -590,7 +664,8 @@ export default function Home() {
             <p className="max-w-2xl text-lg leading-8 text-white/76 lg:justify-self-end">
               Elyko installe l’application et sa base sur votre ordinateur. La
               gestion quotidienne ne dépend pas d’un navigateur ni d’une
-              connexion permanente.
+              connexion permanente. Internet sert uniquement à la première
+              activation, au renouvellement de licence et aux mises à jour.
             </p>
           </div>
           <div className="mt-10 grid gap-3 sm:mt-14 sm:grid-cols-2 lg:grid-cols-4">
@@ -617,7 +692,7 @@ export default function Home() {
           <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
-                Du devis au bilan
+                Des devis aux rapports comptables
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                 Tout le cycle de gestion dans le même espace.
@@ -644,6 +719,56 @@ export default function Home() {
       </section>
 
       <section
+        id="capacites"
+        className="border-b border-[#ded9ce] bg-[#eef2ef] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="capacites-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.76fr_1.24fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
+                Ce que fait vraiment Elyko
+              </p>
+              <h2 id="capacites-title" className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
+                Des fonctions claires, avec leurs limites visibles.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#68736c] lg:justify-self-end">
+              Les statuts ci-dessous distinguent ce qui est disponible, ce qui
+              demande une confirmation humaine et ce qui n’est pas encore
+              automatisé.
+            </p>
+          </div>
+          <div className="capability-table mt-10 overflow-x-auto rounded-[24px] border border-[#d4dad5] bg-white sm:mt-14" aria-label="Tableau des capacités Elyko">
+            <table className="w-full min-w-[760px] border-collapse text-left">
+              <thead>
+                <tr className="bg-[#173d2c] text-white">
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">Domaine</th>
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">État</th>
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[.1em]">Portée</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e4e7e2]">
+                {capabilityRows.map(([domain, status, scope]) => (
+                  <tr key={domain}>
+                    <th scope="row" className="px-5 py-4 text-sm font-semibold text-[#263d30]">{domain}</th>
+                    <td className="px-5 py-4"><span className={status === 'Disponible' ? 'status-pill status-pill--green' : status === 'Windows' ? 'status-pill status-pill--slate' : 'status-pill status-pill--gold'}>{status}</span></td>
+                    <td className="px-5 py-4 text-sm leading-6 text-[#667169]">{scope}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-4 text-xs leading-5 text-[#717d75]">
+            « Disponible » décrit une fonction locale du logiciel; ce n’est pas
+            une certification légale ou Swissdec. Les états et décomptes doivent
+            être contrôlés selon la situation de l’entreprise.
+          </p>
+        </div>
+      </section>
+
+      <section
         className="border-b border-[#ded9ce] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
       >
@@ -651,10 +776,10 @@ export default function Home() {
           <div className="grid gap-8 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#9a651f]">
-                Gestion suisse intégrée
+                Flux structurés pour la Suisse
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                De l’offre au bilan, sans ressaisir les mêmes chiffres.
+                De l’offre aux écritures, sans ressaisir les mêmes chiffres.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
@@ -673,8 +798,8 @@ export default function Home() {
               },
               {
                 icon: BellRing,
-                title: 'Relances maîtrisées',
-                text: 'Niveaux, délais, frais éventuels, modèles et historique sans serveur Elyko.',
+                title: 'Relances à préparer',
+                text: 'Niveaux, délais, frais éventuels, modèles et historique local; aucun e-mail n’est envoyé automatiquement.',
               },
               {
                 icon: BookOpenCheck,
@@ -683,8 +808,8 @@ export default function Home() {
               },
               {
                 icon: WalletCards,
-                title: 'Paie détaillée',
-                text: 'Toutes les bases et cotisations employé/employeur restent visibles, modifiables et contrôlables.',
+                title: 'Paie préparatoire locale',
+                text: 'Bases et cotisations restent visibles et contrôlables; Elyko n’est pas certifié Swissdec et ne transmet pas ELM.',
               },
             ].map(({ icon: Icon, title, text }) => (
               <div
@@ -886,7 +1011,8 @@ export default function Home() {
                 </h3>
                 <p className="mt-4 text-sm leading-6 text-white/75">
                   Téléchargez Elyko, souscrivez sur la page sécurisée Stripe
-                  puis liez la licence signée à votre PC. Vos données métier ne
+                  puis validez une fois la licence signée sur votre PC. Seul le
+                  jeton de licence est vérifié en ligne&nbsp;: vos données métier ne
                   quittent pas l’ordinateur.
                 </p>
               </div>
@@ -965,11 +1091,19 @@ export default function Home() {
               ],
               [
                 'L’import bancaire CAMT est-il déjà disponible ?',
-                'Oui, dans Elyko 1.4.0. Vous pouvez importer localement des relevés CAMT.053 et CAMT.054 v04/v08. Les CAMT.054 servent à la revue; la confirmation d’un crédit client exige le CAMT.053 définitif. Les débits, extournes, écritures en attente, lots ambigus et trop-perçus ne sont jamais validés automatiquement.',
+                'Oui. Vous pouvez importer localement des relevés CAMT.053 et CAMT.054 v04/v08. Les CAMT.054 servent à la revue; le CAMT.053 définitif est exigé avant de confirmer un crédit client ou un débit fournisseur. Aucune suggestion ne crée un paiement automatiquement.',
               ],
               [
                 'Le module salaire est-il certifié Swissdec ?',
-                'Non. Il prépare les éléments avec les montants et taux que vous saisissez. Une validation par votre fiduciaire reste indispensable avant utilisation définitive.',
+                'Non. Il prépare localement les éléments avec les montants et taux que vous contrôlez, mais ne transmet pas de déclaration ELM. Une validation par votre fiduciaire reste indispensable.',
+              ],
+              [
+                'Elyko transmet-il un décompte TVA à l’AFC ?',
+                'Non. Les documents et écritures conservent leurs montants de TVA, mais Elyko ne prépare ni ne soumet encore de décompte TVA officiel. Faites contrôler votre traitement et votre décompte par une fiduciaire.',
+              ],
+              [
+                'Le bilan affiché constitue-t-il une clôture légale automatique ?',
+                'Non. Le bilan et le résultat sont calculés depuis les écritures locales. Les inventaires, amortissements, régularisations, annexes et décisions de bouclement doivent être préparés et validés par le responsable ou la fiduciaire.',
               ],
             ].map(([question, answer]) => (
               <details key={question} className="group py-3">

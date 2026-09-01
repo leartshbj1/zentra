@@ -19,7 +19,10 @@ use serde_json::{json, Map, Number, Value};
 use uuid::Uuid;
 
 use crate::{
-    accounting::{post_expense_if_enabled, post_invoice_if_enabled, post_payment_if_enabled},
+    accounting::{
+        ensure_accounting_date_open, post_expense_if_enabled, post_invoice_if_enabled,
+        post_payment_if_enabled,
+    },
     audit::{append_audit, verify_audit_chain},
     error::{AppError, AppResult},
     installation::load_or_create,
@@ -34,9 +37,11 @@ use crate::{
     },
     reminders::cancel_settled_reminders,
     schema::{
-        MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V12_SQL, MIGRATION_V2_SQL,
-        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
-        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V10_SQL, MIGRATION_V11_SQL, MIGRATION_V12_SQL, MIGRATION_V13_SQL,
+        MIGRATION_V14_SQL, MIGRATION_V15_SQL, MIGRATION_V16_SQL, MIGRATION_V17_SQL,
+        MIGRATION_V18_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
+        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
+        SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -269,6 +274,113 @@ fn migrate_v11(transaction: &Transaction<'_>) -> AppResult<()> {
 
 fn migrate_v12(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction.execute_batch(MIGRATION_V12_SQL)?;
+    Ok(())
+}
+
+fn migrate_v13(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V13_SQL)?;
+    Ok(())
+}
+
+fn migrate_v14(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(accounting_settings)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !columns.contains("supplier_payable_account_id") {
+        transaction.execute_batch(
+            "ALTER TABLE accounting_settings ADD COLUMN supplier_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+        )?;
+    }
+    transaction.execute_batch(MIGRATION_V14_SQL)?;
+    Ok(())
+}
+
+fn migrate_v15(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(bank_movements)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !columns.contains("counterparty_iban") {
+        transaction
+            .execute_batch("ALTER TABLE bank_movements ADD COLUMN counterparty_iban TEXT;")?;
+    }
+    transaction.execute_batch(MIGRATION_V15_SQL)?;
+    Ok(())
+}
+
+fn migrate_v16(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V16_SQL)?;
+    Ok(())
+}
+
+fn migrate_v17(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(employees)")?;
+    let employee_columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !employee_columns.contains("country") {
+        transaction.execute_batch(
+            "ALTER TABLE employees ADD COLUMN country TEXT NOT NULL DEFAULT 'CH';",
+        )?;
+    }
+
+    let mut statement = transaction.prepare("PRAGMA table_info(clients)")?;
+    let client_columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !client_columns.contains("archived_at") {
+        transaction.execute_batch("ALTER TABLE clients ADD COLUMN archived_at TEXT;")?;
+    }
+
+    transaction.execute_batch(MIGRATION_V17_SQL)?;
+    Ok(())
+}
+
+fn migrate_v18(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(license_state)")?;
+    let license_columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    drop(statement);
+    if !license_columns.contains("clock_anchor_version") {
+        transaction.execute_batch(
+            "ALTER TABLE license_state ADD COLUMN clock_anchor_version INTEGER NOT NULL DEFAULT 0 CHECK (clock_anchor_version IN (0,1));",
+        )?;
+    }
+
+    let invalid_kind: Option<(String, String)> = transaction
+        .query_row(
+            "SELECT id,kind FROM catalog_items
+             WHERE track_stock=1 AND kind<>'product' ORDER BY id LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    if let Some((catalog_item_id, kind)) = invalid_kind {
+        return Err(AppError::Validation(format!(
+            "La migration du stock est impossible : l'article {catalog_item_id} est de type {kind}, alors que seuls les produits peuvent être suivis. Désactivez son suivi avant la mise à niveau."
+        )));
+    }
+    let oversized: Option<(String, i64)> = transaction
+        .query_row(
+            "SELECT id,stock_quantity_milli FROM catalog_items
+             WHERE track_stock=1 AND stock_quantity_milli>9000000000000000
+             ORDER BY stock_quantity_milli DESC LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    if let Some((catalog_item_id, quantity)) = oversized {
+        return Err(AppError::Validation(format!(
+            "La migration du stock est impossible : l'article {catalog_item_id} possède {quantity} millièmes, au-delà de la limite sûre de 9000000000000000. Corrigez cette donnée avant la mise à niveau."
+        )));
+    }
+    transaction.execute_batch(MIGRATION_V18_SQL)?;
     Ok(())
 }
 
@@ -690,11 +802,22 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
+            12..=17 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
                 )))
             }
+        }
+        if current != 0 && current < 13 {
+            migrate_v13(&transaction)?;
+        }
+        if current != 0 {
+            migrate_v14(&transaction)?;
+            migrate_v15(&transaction)?;
+            migrate_v16(&transaction)?;
+            migrate_v17(&transaction)?;
+            migrate_v18(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -908,7 +1031,16 @@ impl LocalStore {
         )?;
         let catalog_items = query_all(
             connection,
-            "SELECT * FROM catalog_items ORDER BY CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END, name COLLATE NOCASE, created_at",
+            "SELECT item.*,
+                    CASE
+                      WHEN item.track_stock=0 THEN 'not_tracked'
+                      WHEN item.stock_quantity_milli=0 THEN 'out_of_stock'
+                      WHEN item.stock_quantity_milli<=item.reorder_level_milli THEN 'low_stock'
+                      ELSE 'in_stock'
+                    END AS stock_status
+             FROM catalog_items item
+             ORDER BY CASE WHEN item.archived_at IS NULL THEN 0 ELSE 1 END,
+                      item.name COLLATE NOCASE,item.created_at",
             [],
         )?;
         let suppliers = query_all(
@@ -941,6 +1073,14 @@ impl LocalStore {
             "SELECT * FROM invoice_items ORDER BY invoice_id, position, created_at",
             [],
         )?;
+        let stock_movements = query_all(
+            connection,
+            "SELECT sequence,id,source_key,request_id,catalog_item_id,movement_type,
+                    quantity_delta_milli,balance_after_milli,reason,reference,movement_date,
+                    source_type,invoice_id,invoice_item_id,created_at
+             FROM stock_movements ORDER BY sequence DESC",
+            [],
+        )?;
         let invoice_qr_bills = query_all(
             connection,
             "SELECT * FROM invoice_qr_bills ORDER BY created_at,invoice_id",
@@ -953,12 +1093,50 @@ impl LocalStore {
         )?;
         let time_entries = query_all(
             connection,
-            "SELECT * FROM time_entries ORDER BY date DESC, created_at DESC",
+            "SELECT entry.*,
+                    CASE
+                      WHEN billed.id IS NULL THEN 'unbilled'
+                      WHEN invoice.number IS NULL THEN 'reserved'
+                      ELSE 'billed'
+                    END AS billing_status,
+                    billed.batch_id AS billing_batch_id,
+                    batch.invoice_id AS billing_invoice_id,
+                    invoice.number AS billing_invoice_number
+             FROM time_entries entry
+             LEFT JOIN time_billing_entries billed ON billed.time_entry_id=entry.id
+             LEFT JOIN time_billing_batches batch ON batch.id=billed.batch_id
+             LEFT JOIN invoices invoice ON invoice.id=batch.invoice_id
+             ORDER BY entry.date DESC, entry.created_at DESC",
+            [],
+        )?;
+        let time_billing_batches = query_all(
+            connection,
+            "SELECT * FROM time_billing_batches ORDER BY created_at DESC",
+            [],
+        )?;
+        let time_billing_entries = query_all(
+            connection,
+            "SELECT * FROM time_billing_entries ORDER BY batch_id,entry_date_snapshot,time_entry_id",
             [],
         )?;
         let expenses = query_all(
             connection,
             "SELECT * FROM expenses ORDER BY date DESC, created_at DESC",
+            [],
+        )?;
+        let supplier_invoices = query_all(
+            connection,
+            "SELECT * FROM supplier_invoices ORDER BY document_date DESC, created_at DESC",
+            [],
+        )?;
+        let supplier_invoice_items = query_all(
+            connection,
+            "SELECT * FROM supplier_invoice_items ORDER BY supplier_invoice_id,position,rowid",
+            [],
+        )?;
+        let supplier_payments = query_all(
+            connection,
+            "SELECT * FROM supplier_payments ORDER BY date DESC,created_at DESC",
             [],
         )?;
         let payslips = query_all(
@@ -989,6 +1167,11 @@ impl LocalStore {
         let bank_reconciliations = query_all(
             connection,
             "SELECT * FROM bank_reconciliations ORDER BY confirmed_at DESC,rowid DESC",
+            [],
+        )?;
+        let bank_supplier_reconciliations = query_all(
+            connection,
+            "SELECT * FROM bank_supplier_reconciliations ORDER BY confirmed_at DESC,rowid DESC",
             [],
         )?;
         let bank_movement_keys = query_all(
@@ -1077,7 +1260,7 @@ impl LocalStore {
             [],
         )?;
 
-        Ok(json!({
+        let mut workspace = json!({
             "settings": settings,
             "clients": clients,
             "catalog_items": catalog_items,
@@ -1091,6 +1274,9 @@ impl LocalStore {
             "employees": employees,
             "time_entries": time_entries,
             "expenses": expenses,
+            "supplier_invoices":supplier_invoices,
+            "supplier_invoice_items":supplier_invoice_items,
+            "supplier_payments":supplier_payments,
             "payslips": payslips,
             "payslip_items": payslip_items,
             "payments": payments,
@@ -1116,7 +1302,12 @@ impl LocalStore {
             "employee_payroll_templates":employee_payroll_templates,
             "quote_conversions":quote_conversions,
             "audit_log":audit_log,
-        }))
+        });
+        workspace["time_billing_batches"] = json!(time_billing_batches);
+        workspace["time_billing_entries"] = json!(time_billing_entries);
+        workspace["bank_supplier_reconciliations"] = json!(bank_supplier_reconciliations);
+        workspace["stock_movements"] = json!(stock_movements);
+        Ok(workspace)
     }
 
     pub fn create_record(&self, entity: &str, data: Value) -> AppResult<Value> {
@@ -1124,10 +1315,6 @@ impl LocalStore {
             let input: RecordPaymentInput = serde_json::from_value(data)?;
             return self.record_payment(input);
         }
-        if entity == "attachments" {
-            return self.add_attachment(data);
-        }
-
         let spec = entity_spec(entity)?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
@@ -1195,7 +1382,12 @@ impl LocalStore {
                 .unwrap_or("paid")
                 == "paid"
         {
-            post_expense_if_enabled(&transaction, &id)?;
+            post_expense_if_enabled(&transaction, &id)?.ok_or_else(|| {
+                AppError::Validation(
+                    "Activez la comptabilité et ses comptes de liaison avant d'enregistrer un achat déjà payé. L'opération a été annulée sans modifier vos données."
+                        .into(),
+                )
+            })?;
         }
         let record = query_record_tx(&transaction, spec.table, &id)?;
         append_audit(&transaction, "create", entity, &id, &record)?;
@@ -1397,7 +1589,12 @@ impl LocalStore {
             && previous.get("payment_status").and_then(Value::as_str) == Some("pending")
             && object.get("payment_status").and_then(Value::as_str) == Some("paid")
         {
-            post_expense_if_enabled(&transaction, id)?;
+            post_expense_if_enabled(&transaction, id)?.ok_or_else(|| {
+                AppError::Validation(
+                    "Activez la comptabilité et ses comptes de liaison avant de marquer cet achat payé. L'opération a été annulée sans modifier vos données."
+                        .into(),
+                )
+            })?;
         }
         let record = query_record_tx(&transaction, spec.table, id)?;
         append_audit(
@@ -1429,11 +1626,6 @@ impl LocalStore {
         append_audit(&transaction, "delete", entity, id, &previous)?;
         transaction.commit()?;
 
-        if entity == "attachments" {
-            if let Some(stored_name) = previous.get("stored_name").and_then(Value::as_str) {
-                self.remove_attachment_file(stored_name)?;
-            }
-        }
         Ok(DeleteResult {
             deleted,
             id: id.to_owned(),
@@ -1668,7 +1860,13 @@ impl LocalStore {
             transaction.commit()?;
             return Ok(existing);
         }
+        if existing.get("status").and_then(Value::as_str) != Some("brouillon") {
+            return Err(AppError::Validation(
+                "Seule une facture brouillon peut être émise.".into(),
+            ));
+        }
         let date = normalized_date(issue_date.as_deref().unwrap_or(&today()), "issue_date")?;
+        ensure_accounting_date_open(&transaction, &date)?;
         let payment_terms_days: i64 = transaction.query_row(
             "SELECT payment_terms_days FROM settings WHERE id = 1",
             [],
@@ -1839,6 +2037,7 @@ impl LocalStore {
             "UPDATE invoices SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emise' ELSE status END, issue_date = ?, due_date = ?,service_date_from=?,service_date_to=?,snapshot_json=?, updated_at = ? WHERE id = ?",
             params![number, date, due,service_from,service_to,serde_json::to_string(&snapshot)?, now_iso(), id],
         )?;
+        let stock_movements = crate::stock::apply_invoice_stock_movements(&transaction, id)?;
         let record = query_record_tx(&transaction, "invoices", id)?;
         let journal = post_invoice_if_enabled(&transaction, id)?;
         if let Some(original) = original_invoice_id.as_deref() {
@@ -1854,7 +2053,7 @@ impl LocalStore {
                 "invoice"
             },
             id,
-            &json!({"document":record.clone(),"journal":journal}),
+            &json!({"document":record.clone(),"journal":journal,"stock_movements":stock_movements}),
         )?;
         transaction.commit()?;
         Ok(record)
@@ -2161,75 +2360,8 @@ impl LocalStore {
         )
     }
 
-    pub fn add_attachment(&self, data: Value) -> AppResult<Value> {
-        let object = value_object(data)?;
-        let source = object
-            .get("source_path")
-            .and_then(Value::as_str)
-            .ok_or_else(|| AppError::Validation("source_path est obligatoire.".into()))?;
-        let source_path = PathBuf::from(source);
-        if !source_path.is_file() {
-            return Err(AppError::Validation(
-                "Le fichier sélectionné est introuvable.".into(),
-            ));
-        }
-        let original_name = source_path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .ok_or_else(|| AppError::Validation("Nom de fichier invalide.".into()))?
-            .to_owned();
-        let extension = source_path
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(|value| format!(".{}", sanitize_extension(value)))
-            .unwrap_or_default();
-        let stored_name = format!("{}{}", Uuid::new_v4(), extension);
-        let destination = self.attachments_dir.join(&stored_name);
-        fs::copy(&source_path, &destination)?;
-        let metadata = fs::metadata(&destination)?;
-        let sha256 = sha256_file(&destination)?;
-        let id = Uuid::new_v4().to_string();
-        let now = now_iso();
-        let connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        if let Err(error) = connection.execute(
-            "INSERT INTO attachments (id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            params![
-                id,
-                object.get("project_id").and_then(Value::as_str),
-                object.get("entity_type").and_then(Value::as_str),
-                object.get("entity_id").and_then(Value::as_str),
-                original_name,
-                stored_name,
-                object.get("mime_type").and_then(Value::as_str),
-                i64::try_from(metadata.len()).unwrap_or(i64::MAX),
-                sha256,
-                now,
-                now,
-            ],
-        ) {
-            let _ = fs::remove_file(&destination);
-            return Err(error.into());
-        }
-        query_record(&connection, "attachments", &id)
-    }
-
-    pub fn attachment_path(&self, id: &str) -> AppResult<PathBuf> {
-        let connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let stored_name: String = connection
-            .query_row(
-                "SELECT stored_name FROM attachments WHERE id = ?",
-                params![id],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or_else(|| AppError::NotFound(format!("attachments/{id}")))?;
-        self.safe_attachment_path(&stored_name)
-    }
-
     pub fn open_attachment(&self, id: &str) -> AppResult<String> {
-        let path = self.attachment_path(id)?;
+        let path = self.verified_attachment_path(id)?;
         open_path(&path)?;
         Ok(path.to_string_lossy().into_owned())
     }
@@ -2285,14 +2417,6 @@ impl LocalStore {
         }
         Ok(self.attachments_dir.join(stored_name))
     }
-
-    fn remove_attachment_file(&self, stored_name: &str) -> AppResult<()> {
-        let path = self.safe_attachment_path(stored_name)?;
-        if path.is_file() {
-            fs::remove_file(path)?;
-        }
-        Ok(())
-    }
 }
 
 struct EntitySpec {
@@ -2318,6 +2442,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "canton",
                 "country",
                 "notes",
+                "archived_at",
             ],
             required: &["name"],
         },
@@ -2464,6 +2589,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "postal_code",
                 "city",
                 "canton",
+                "country",
                 "birth_date",
                 "social_security_number",
                 "iban",
@@ -2560,17 +2686,6 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "notes",
             ],
             required: &["invoice_id", "date", "amount_cents"],
-        },
-        "attachments" => EntitySpec {
-            table: "attachments",
-            fields: &[
-                "project_id",
-                "entity_type",
-                "entity_id",
-                "original_name",
-                "mime_type",
-            ],
-            required: &["original_name"],
         },
         _ => {
             return Err(AppError::Validation(format!(
@@ -2745,6 +2860,14 @@ fn normalize_record(
         }
         "expenses" => normalize_expense(object)?,
         "employees" => {
+            if let Some(country) = object.get_mut("country") {
+                *country = Value::String(normalized_code(
+                    country.as_str().unwrap_or("CH"),
+                    "country",
+                    2,
+                    "CH",
+                )?);
+            }
             let parsed_date = |field: &str| -> AppResult<Option<NaiveDate>> {
                 let Some(value) = object
                     .get(field)
@@ -3015,6 +3138,13 @@ fn normalize_catalog_item(object: &mut Map<String, Value>) -> AppResult<()> {
             }
         };
         object.insert("track_stock".into(), Value::Bool(normalized));
+    }
+    if object.get("track_stock").and_then(Value::as_bool) == Some(true)
+        && object.get("kind").and_then(Value::as_str) != Some("product")
+    {
+        return Err(AppError::Validation(
+            "track_stock peut être activé uniquement pour un article de type product.".into(),
+        ));
     }
 
     match object.get("archived_at").cloned() {
@@ -3615,7 +3745,7 @@ fn recompute_quote(transaction: &Transaction<'_>, quote_id: &str) -> AppResult<(
     Ok(())
 }
 
-fn recompute_invoice(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
+pub(crate) fn recompute_invoice(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
     let (subtotal, discount, vat, total): (i64, i64, i64, i64) = transaction.query_row(
         "SELECT CAST(COALESCE(SUM(ROUND(quantity * unit_price_cents)),0) AS INTEGER), CAST(COALESCE(SUM(ROUND(quantity * unit_price_cents) - line_net_cents),0) AS INTEGER), COALESCE(SUM(line_vat_cents),0), COALESCE(SUM(line_total_cents),0) FROM invoice_items WHERE invoice_id = ?",
         params![invoice_id],
@@ -3750,7 +3880,12 @@ pub(crate) fn record_payment_in_transaction(
     )?;
     refresh_invoice_payment_state(transaction, &input.invoice_id)?;
     let record = query_record_tx(transaction, "payments", &id)?;
-    let journal = post_payment_if_enabled(transaction, &id)?;
+    let journal = post_payment_if_enabled(transaction, &id)?.ok_or_else(|| {
+        AppError::Validation(
+            "Activez la comptabilité et ses comptes de liaison avant d'enregistrer un paiement client. L'opération a été annulée sans modifier la facture."
+                .into(),
+        )
+    })?;
     cancel_settled_reminders(transaction, &input.invoice_id)?;
     append_audit(
         transaction,
@@ -3828,15 +3963,6 @@ fn assign_document_number(
         params![document_type, year, next + 1],
     )?;
     Ok(format!("{prefix}-{year}-{next:04}"))
-}
-
-fn query_record(connection: &Connection, table: &str, id: &str) -> AppResult<Value> {
-    query_optional(
-        connection,
-        &format!("SELECT * FROM {table} WHERE id = ?"),
-        params![id],
-    )?
-    .ok_or_else(|| AppError::NotFound(format!("{table}/{id}")))
 }
 
 pub(crate) fn query_record_tx(
@@ -4154,32 +4280,6 @@ fn today() -> String {
 
 fn bool_to_i64(value: bool) -> i64 {
     i64::from(value)
-}
-
-fn sanitize_extension(extension: &str) -> String {
-    extension
-        .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
-        .take(12)
-        .collect::<String>()
-        .to_lowercase()
-}
-
-fn sha256_file(path: &Path) -> AppResult<String> {
-    use sha2::{Digest, Sha256};
-    use std::io::Read;
-
-    let mut file = fs::File::open(path)?;
-    let mut digest = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let count = file.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        digest.update(&buffer[..count]);
-    }
-    Ok(format!("{:x}", digest.finalize()))
 }
 
 fn open_path(path: &Path) -> AppResult<()> {

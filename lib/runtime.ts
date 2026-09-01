@@ -5,6 +5,7 @@ type RuntimeBindings = {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   LICENSE_SIGNING_KEY_PKCS8_B64URL?: string;
+  OWNER_LICENSE_BINDING_SHA256?: string;
   PUBLIC_SITE_URL?: string;
 };
 

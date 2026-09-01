@@ -15,7 +15,11 @@ use crate::{
     audit::append_audit,
     database::{now_iso, query_all, query_record_tx, record_payment_in_transaction, LocalStore},
     error::{AppError, AppResult},
-    models::{AssociateBankAccountInput, ConfirmBankReconciliationInput, RecordPaymentInput},
+    models::{
+        AssociateBankAccountInput, ConfirmBankReconciliationInput,
+        ConfirmSupplierBankReconciliationInput, RecordPaymentInput, RecordSupplierPaymentInput,
+    },
+    supplier_invoices::record_supplier_payment_in_transaction,
     swiss_qr::{validate_qrr, validate_scor},
 };
 
@@ -42,7 +46,10 @@ struct TxDetails {
     reference_type: Option<String>,
     reference: Option<String>,
     unstructured: Vec<String>,
-    counterparty_name: Option<String>,
+    debtor_name: Option<String>,
+    creditor_name: Option<String>,
+    debtor_iban: Option<String>,
+    creditor_iban: Option<String>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -79,6 +86,7 @@ struct ParsedMovement {
     reference: Option<String>,
     unstructured: Option<String>,
     counterparty_name: Option<String>,
+    counterparty_iban: Option<String>,
     strong_key: Option<String>,
     c_level_ref: Option<String>,
     d_level_ref: Option<String>,
@@ -409,12 +417,33 @@ fn finalize_entry(
         .into_iter()
         .collect::<Vec<_>>()
         .join(" | ");
-    let counterparty_name = unique_value(
-        entry
-            .tx_details
-            .iter()
-            .map(|details| details.counterparty_name.clone()),
-    );
+    let directed_names = |creditor: bool| {
+        unique_value(entry.tx_details.iter().map(|details| {
+            if creditor {
+                details.creditor_name.clone()
+            } else {
+                details.debtor_name.clone()
+            }
+        }))
+    };
+    let directed_ibans = |creditor: bool| {
+        unique_value(entry.tx_details.iter().map(|details| {
+            if creditor {
+                details.creditor_iban.clone()
+            } else {
+                details.debtor_iban.clone()
+            }
+        }))
+    };
+    // Sur un débit, le bénéficiaire est le créancier. Sur un crédit, la
+    // contrepartie est le débiteur. Ne jamais présenter le propre client comme
+    // contrepartie d'un décaissement fournisseur.
+    let creditor_is_counterparty = credit_debit == "DBIT";
+    let counterparty_name = directed_names(creditor_is_counterparty)
+        .or_else(|| directed_names(!creditor_is_counterparty));
+    let counterparty_iban = directed_ibans(creditor_is_counterparty)
+        .or_else(|| directed_ibans(!creditor_is_counterparty))
+        .and_then(|value| normalize_account(&value).ok());
     let booking_date = entry
         .booking_date
         .as_deref()
@@ -475,6 +504,7 @@ fn finalize_entry(
         reference,
         unstructured: normalize_token(&unstructured, 2000),
         counterparty_name: counterparty_name.and_then(|value| normalize_token(&value, 200)),
+        counterparty_iban,
         strong_key: stable_key,
         c_level_ref,
         d_level_ref,
@@ -534,7 +564,19 @@ fn assign_text(
         } else if path_ends(path, &["RltdPties", "Dbtr", "Nm"])
             || path_ends(path, &["RltdPties", "UltmtDbtr", "Nm"])
         {
-            details.counterparty_name = normalize_token(text, 200);
+            details.debtor_name = normalize_token(text, 200);
+        } else if path_ends(path, &["RltdPties", "Cdtr", "Nm"])
+            || path_ends(path, &["RltdPties", "UltmtCdtr", "Nm"])
+        {
+            details.creditor_name = normalize_token(text, 200);
+        } else if path_ends(path, &["RltdPties", "DbtrAcct", "Id", "IBAN"])
+            || path_ends(path, &["TxDtls", "DbtrAcct", "Id", "IBAN"])
+        {
+            details.debtor_iban = normalize_token(text, 70);
+        } else if path_ends(path, &["RltdPties", "CdtrAcct", "Id", "IBAN"])
+            || path_ends(path, &["TxDtls", "CdtrAcct", "Id", "IBAN"])
+        {
+            details.creditor_iban = normalize_token(text, 70);
         }
         return;
     }
@@ -848,6 +890,7 @@ struct ExistingMovement {
     reference: Option<String>,
     unstructured: Option<String>,
     counterparty_name: Option<String>,
+    counterparty_iban: Option<String>,
     details_json: String,
 }
 
@@ -918,6 +961,10 @@ fn can_enrich(
         && optional_enrichment_compatible(
             existing.counterparty_name.as_deref(),
             movement.counterparty_name.as_deref(),
+        )
+        && optional_enrichment_compatible(
+            existing.counterparty_iban.as_deref(),
+            movement.counterparty_iban.as_deref(),
         )
         && {
             let old_count = movement_tx_count_from_json(&existing.details_json);
@@ -1059,7 +1106,7 @@ impl LocalStore {
                 for (key, _, _) in &stable_keys {
                     let existing = transaction
                         .query_row(
-                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
+                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
                             params![key],
                             |row| {
                                 Ok(ExistingMovement {
@@ -1080,7 +1127,8 @@ impl LocalStore {
                                     reference: row.get(14)?,
                                     unstructured: row.get(15)?,
                                     counterparty_name: row.get(16)?,
-                                    details_json: row.get(17)?,
+                                    counterparty_iban: row.get(17)?,
+                                    details_json: row.get(18)?,
                                 })
                             },
                         )
@@ -1168,7 +1216,7 @@ impl LocalStore {
                     let booked_import_id = (movement.status == "BOOK").then(|| import_id.clone());
                     let movement_id = Uuid::new_v4().to_string();
                     transaction.execute(
-                        "INSERT INTO bank_movements(id,import_id,booked_import_id,entry_sequence,account_id,account_currency,amount_cents,currency,credit_debit,status,reversal,booking_date,value_date,account_servicer_ref,reference_level,end_to_end_id,transaction_id,reference_type,reference,unstructured,counterparty_name,strong_key,details_json,created_at,enriched_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO bank_movements(id,import_id,booked_import_id,entry_sequence,account_id,account_currency,amount_cents,currency,credit_debit,status,reversal,booking_date,value_date,account_servicer_ref,reference_level,end_to_end_id,transaction_id,reference_type,reference,unstructured,counterparty_name,counterparty_iban,strong_key,details_json,created_at,enriched_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         params![
                             movement_id,
                             import_id,
@@ -1191,6 +1239,7 @@ impl LocalStore {
                             movement.reference,
                             movement.unstructured,
                             movement.counterparty_name,
+                            movement.counterparty_iban,
                             movement.strong_key,
                             movement.details_json,
                             now,
@@ -1210,7 +1259,7 @@ impl LocalStore {
                     details_json,
                 } => {
                     transaction.execute(
-                        "UPDATE bank_movements SET status='BOOK',booked_import_id=?,booking_date=COALESCE(?,booking_date),value_date=COALESCE(?,value_date),account_servicer_ref=CASE WHEN ?='D' THEN ? WHEN account_servicer_ref IS NULL OR TRIM(account_servicer_ref)='' THEN ? ELSE account_servicer_ref END,reference_level=CASE WHEN ?='D' THEN 'D' WHEN reference_level IS NULL THEN ? ELSE reference_level END,end_to_end_id=COALESCE(NULLIF(end_to_end_id,''),?),transaction_id=COALESCE(NULLIF(transaction_id,''),?),reference_type=CASE WHEN reference_type='NON' AND (reference IS NULL OR TRIM(reference)='') THEN ? ELSE reference_type END,reference=COALESCE(NULLIF(reference,''),?),unstructured=COALESCE(NULLIF(unstructured,''),?),counterparty_name=COALESCE(NULLIF(counterparty_name,''),?),details_json=?,enriched_at=? WHERE id=?",
+                        "UPDATE bank_movements SET status='BOOK',booked_import_id=?,booking_date=COALESCE(?,booking_date),value_date=COALESCE(?,value_date),account_servicer_ref=CASE WHEN ?='D' THEN ? WHEN account_servicer_ref IS NULL OR TRIM(account_servicer_ref)='' THEN ? ELSE account_servicer_ref END,reference_level=CASE WHEN ?='D' THEN 'D' WHEN reference_level IS NULL THEN ? ELSE reference_level END,end_to_end_id=COALESCE(NULLIF(end_to_end_id,''),?),transaction_id=COALESCE(NULLIF(transaction_id,''),?),reference_type=CASE WHEN reference_type='NON' AND (reference IS NULL OR TRIM(reference)='') THEN ? ELSE reference_type END,reference=COALESCE(NULLIF(reference,''),?),unstructured=COALESCE(NULLIF(unstructured,''),?),counterparty_name=COALESCE(NULLIF(counterparty_name,''),?),counterparty_iban=COALESCE(NULLIF(counterparty_iban,''),?),details_json=?,enriched_at=? WHERE id=?",
                         params![
                             import_id,
                             movement.booking_date,
@@ -1226,6 +1275,7 @@ impl LocalStore {
                             movement.reference,
                             movement.unstructured,
                             movement.counterparty_name,
+                            movement.counterparty_iban,
                             details_json,
                             now,
                             existing_id,
@@ -1279,7 +1329,8 @@ mod tests {
     use crate::{
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, OnboardingInput,
-            SaveInvoiceQrBillInput, SwissQrBillInput, SwissQrParty,
+            SaveInvoiceQrBillInput, SaveSupplierInvoiceDraftInput, SupplierInvoiceLineInput,
+            SwissQrBillInput, SwissQrParty,
         },
         schema::SCHEMA_VERSION,
         swiss_qr::generate_qrr,
@@ -1448,6 +1499,65 @@ mod tests {
         invoice_id
     }
 
+    fn debit_fixture(amount: &str, stable_reference: &str, qrr: Option<&str>) -> String {
+        fixture(
+            "053",
+            "08",
+            "BOOK",
+            amount,
+            stable_reference,
+            Some(&format!("D-{stable_reference}")),
+            qrr.map(|_| "QRR"),
+            qrr,
+            false,
+            true,
+        )
+        .replace("<CdtDbtInd>CRDT</CdtDbtInd>", "<CdtDbtInd>DBIT</CdtDbtInd>")
+        .replace(
+            "<RltdPties><Dbtr><Nm>Client test</Nm></Dbtr></RltdPties>",
+            "<RltdPties><Cdtr><Nm>Matériaux Léman SA</Nm></Cdtr><CdtrAcct><Id><IBAN>CH4431999123000889012</IBAN></Id></CdtrAcct></RltdPties>",
+        )
+    }
+
+    fn create_supplier_invoice(store: &LocalStore, amount_cents: i64, reference: &str) -> String {
+        let supplier = store
+            .create_record(
+                "suppliers",
+                json!({
+                    "name":"Matériaux Léman SA",
+                    "iban":"CH44 3199 9123 0008 8901 2",
+                    "currency":"CHF",
+                }),
+            )
+            .unwrap();
+        let draft = store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: None,
+                supplier_id: value_id(&supplier),
+                project_id: None,
+                date: "2026-08-01".into(),
+                due_date: "2026-08-31".into(),
+                reference: Some(reference.into()),
+                note: Some("Facture importée pour test CAMT".into()),
+                items: vec![SupplierInvoiceLineInput {
+                    id: None,
+                    description: "Matériaux".into(),
+                    quantity_milli: 1_000,
+                    unit: Some("forfait".into()),
+                    unit_price_cents: amount_cents,
+                    discount_bp: 0,
+                    vat_bp: 0,
+                    category: "Matériel".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                }],
+            })
+            .unwrap();
+        let id = draft["invoice"]["id"].as_str().unwrap().to_owned();
+        store.validate_supplier_invoice(&id).unwrap();
+        id
+    }
+
     fn enable_accounting(store: &LocalStore) {
         let specs = [
             (
@@ -1523,6 +1633,14 @@ mod tests {
                 "credit",
                 "short_term_liabilities",
             ),
+            (
+                "supplier_payable",
+                "2002",
+                "Dettes fournisseurs",
+                "liability",
+                "credit",
+                "short_term_liabilities",
+            ),
         ];
         let mut accounts = HashMap::new();
         for (key, code, name, account_type, normal_balance, report_section) in specs {
@@ -1552,6 +1670,7 @@ mod tests {
                 wages_payable_account_id: Some(accounts["wages_payable"].clone()),
                 social_expense_account_id: Some(accounts["social_expense"].clone()),
                 social_payable_account_id: Some(accounts["social_payable"].clone()),
+                supplier_payable_account_id: Some(accounts["supplier_payable"].clone()),
             })
             .unwrap();
     }
@@ -1582,6 +1701,23 @@ mod tests {
             assert_eq!(parsed.movements.len(), 1);
             assert_eq!(parsed.movements[0].amount_cents, 1_025);
         }
+    }
+
+    #[test]
+    fn dbit_uses_the_creditor_name_and_iban_as_counterparty() {
+        let xml = debit_fixture("108.10", "C-SUPPLIER-PARSER", None);
+        let parsed = parse_camt(xml.as_bytes()).unwrap();
+        assert_eq!(parsed.movements.len(), 1);
+        let movement = &parsed.movements[0];
+        assert_eq!(movement.credit_debit, "DBIT");
+        assert_eq!(
+            movement.counterparty_name.as_deref(),
+            Some("Matériaux Léman SA")
+        );
+        assert_eq!(
+            movement.counterparty_iban.as_deref(),
+            Some("CH4431999123000889012")
+        );
     }
 
     #[test]
@@ -1903,6 +2039,7 @@ mod tests {
     #[test]
     fn booked_054_waits_for_053_then_becomes_confirmable_and_is_frozen() {
         let (temporary, store) = store();
+        enable_accounting(&store);
         store
             .associate_bank_account(AssociateBankAccountInput {
                 account_id: STATEMENT_IBAN.into(),
@@ -2364,6 +2501,7 @@ mod tests {
     #[test]
     fn no_structured_reference_gets_all_safe_manual_candidates_and_stable_dedup() {
         let (temporary, store) = store();
+        enable_accounting(&store);
         store
             .associate_bank_account(AssociateBankAccountInput {
                 account_id: STATEMENT_IBAN.into(),
@@ -2411,6 +2549,7 @@ mod tests {
     #[test]
     fn a_false_text_match_never_hides_another_compatible_open_invoice() {
         let (temporary, store) = store();
+        enable_accounting(&store);
         store
             .associate_bank_account(AssociateBankAccountInput {
                 account_id: STATEMENT_IBAN.into(),
@@ -2687,6 +2826,163 @@ mod tests {
     }
 
     #[test]
+    fn supplier_debit_is_suggested_then_confirmed_atomically_and_idempotently() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("8742").unwrap();
+        let supplier_invoice_id = create_supplier_invoice(&store, 10_810, &qrr);
+        let xml = debit_fixture("108.10", "C-SUPPLIER-CONFIRM", Some(&qrr));
+        store
+            .import_camt_file(&write_xml(temporary.path(), "supplier-debit.xml", &xml))
+            .unwrap();
+
+        let workspace = store.get_bank_workspace().unwrap();
+        let movement = &workspace["movements"][0];
+        let movement_id = movement["id"].as_str().unwrap().to_owned();
+        assert_eq!(movement["credit_debit"], "DBIT");
+        assert_eq!(movement["counterparty_name"], "Matériaux Léman SA");
+        assert_eq!(movement["counterparty_iban"], "CH4431999123000889012");
+        assert_eq!(movement["suggestion"]["entity_type"], "supplier_invoice");
+        assert_eq!(movement["suggestion"]["requires_confirmation"], true);
+        assert_eq!(movement["suggestion"]["confirmable"], true);
+        assert_eq!(
+            movement["suggestion"]["supplier_invoice_id"],
+            supplier_invoice_id
+        );
+        let before: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_payments),(SELECT COUNT(*) FROM bank_supplier_reconciliations)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            before,
+            (0, 0),
+            "une suggestion ne paie jamais automatiquement"
+        );
+
+        assert!(store
+            .confirm_supplier_bank_reconciliation(ConfirmSupplierBankReconciliationInput {
+                movement_id: movement_id.clone(),
+                supplier_invoice_id: Uuid::new_v4().to_string(),
+            })
+            .is_err());
+        let after_rejected_choice: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_payments),(SELECT COUNT(*) FROM bank_supplier_reconciliations)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(after_rejected_choice, (0, 0));
+
+        let input = ConfirmSupplierBankReconciliationInput {
+            movement_id: movement_id.clone(),
+            supplier_invoice_id: supplier_invoice_id.clone(),
+        };
+        let confirmed = store
+            .confirm_supplier_bank_reconciliation(input.clone())
+            .unwrap();
+        assert_eq!(confirmed["supplier_invoice"]["paid_cents"], 10_810);
+        assert_eq!(confirmed["supplier_reconciliation"]["amount_cents"], 10_810);
+        assert_eq!(confirmed["idempotent"], false);
+        let retry = store.confirm_supplier_bank_reconciliation(input).unwrap();
+        assert_eq!(retry["idempotent"], true);
+        assert_eq!(retry["payment"]["id"], confirmed["payment"]["id"]);
+
+        let connection = store.connect().unwrap();
+        let state: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_payments),(SELECT COUNT(*) FROM bank_supplier_reconciliations),(SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_payment'),(SELECT paid_cents FROM supplier_invoices WHERE id=?)",
+                params![supplier_invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (1, 1, 1, 10_810));
+        assert!(connection
+            .execute(
+                "UPDATE bank_supplier_reconciliations SET amount_cents=1 WHERE movement_id=?",
+                params![movement_id],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM bank_supplier_reconciliations WHERE movement_id=?",
+                params![movement_id],
+            )
+            .is_err());
+        let exclusivity_error = connection
+            .execute(
+                "INSERT INTO bank_reconciliations(id,movement_id,invoice_id,payment_id,amount_cents,confirmed_at,created_at) VALUES(?,?,?,?,?,?,?)",
+                params![Uuid::new_v4().to_string(),movement_id,"missing-invoice","missing-payment",10_810,now_iso(),now_iso()],
+            )
+            .unwrap_err();
+        assert!(exclusivity_error
+            .to_string()
+            .contains("already reconciled with a supplier invoice"));
+    }
+
+    #[test]
+    fn closed_period_rolls_back_supplier_payment_journal_and_bank_link() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("9981").unwrap();
+        let supplier_invoice_id = create_supplier_invoice(&store, 10_000, &qrr);
+        let xml = debit_fixture("100.00", "C-SUPPLIER-ROLLBACK", Some(&qrr));
+        store
+            .import_camt_file(&write_xml(temporary.path(), "supplier-rollback.xml", &xml))
+            .unwrap();
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: None,
+                name: "Décaissements clôturés".into(),
+                date_from: "2026-08-31".into(),
+                date_to: "2026-08-31".into(),
+            })
+            .unwrap();
+        store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap();
+        let movement_id = store.get_bank_workspace().unwrap()["movements"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let error = store
+            .confirm_supplier_bank_reconciliation(ConfirmSupplierBankReconciliationInput {
+                movement_id,
+                supplier_invoice_id: supplier_invoice_id.clone(),
+            })
+            .unwrap_err();
+        assert!(error.to_string().contains("clôturée"));
+        let connection = store.connect().unwrap();
+        let state: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_payments),(SELECT COUNT(*) FROM bank_supplier_reconciliations),(SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_payment'),(SELECT paid_cents FROM supplier_invoices WHERE id=?)",
+                params![supplier_invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (0, 0, 0, 0));
+    }
+
+    #[test]
     fn account_association_is_audited_reversible_and_idempotent() {
         let (_temporary, store) = store();
         let input = AssociateBankAccountInput {
@@ -2735,7 +3031,7 @@ mod tests {
     }
 
     #[test]
-    fn fresh_schema_is_v12_and_contains_no_bank_demo_data() {
+    fn fresh_schema_is_v15_and_contains_no_bank_demo_data() {
         let (_temporary, store) = store();
         let connection = store.connect().unwrap();
         let version: i64 = connection
@@ -2747,6 +3043,7 @@ mod tests {
             "bank_movements",
             "bank_movement_keys",
             "bank_reconciliations",
+            "bank_supplier_reconciliations",
             "bank_account_links",
         ] {
             let count: i64 = connection
@@ -2759,7 +3056,7 @@ mod tests {
     }
 
     #[test]
-    fn v11_database_migrates_additively_to_empty_v12_bank_tables() {
+    fn v11_database_migrates_additively_to_empty_v15_bank_tables() {
         let temporary = tempfile::tempdir().unwrap();
         let profile = temporary.path().join("profile");
         let original = LocalStore::initialize(profile.clone()).unwrap();
@@ -2767,7 +3064,8 @@ mod tests {
             .connect()
             .unwrap()
             .execute_batch(
-                "DROP TABLE bank_reconciliations;
+                "DROP TABLE bank_supplier_reconciliations;
+                 DROP TABLE bank_reconciliations;
                  DROP TABLE bank_movement_keys;
                  DROP TABLE bank_movements;
                  DROP TABLE bank_imports;
@@ -2780,12 +3078,13 @@ mod tests {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 12);
+        assert_eq!(version, SCHEMA_VERSION);
         for table in [
             "bank_imports",
             "bank_movements",
             "bank_movement_keys",
             "bank_reconciliations",
+            "bank_supplier_reconciliations",
             "bank_account_links",
         ] {
             let exists: bool = connection
@@ -2797,6 +3096,48 @@ mod tests {
                 .unwrap();
             assert!(exists, "missing migrated table {table}");
         }
+    }
+
+    #[test]
+    fn v14_database_migrates_additively_to_supplier_bank_reconciliation_v15() {
+        let temporary = tempfile::tempdir().unwrap();
+        let profile = temporary.path().join("v14-profile");
+        let original = LocalStore::initialize(profile.clone()).unwrap();
+        original
+            .connect()
+            .unwrap()
+            .execute_batch(
+                "DROP TRIGGER bank_reconciliations_exclusive_supplier;
+                 DROP TRIGGER bank_movements_guarded_update;
+                 DROP TABLE bank_supplier_reconciliations;
+                 ALTER TABLE bank_movements DROP COLUMN counterparty_iban;
+                 PRAGMA user_version=14;",
+            )
+            .unwrap();
+        let migrated = LocalStore::initialize(profile).unwrap();
+        let connection = migrated.connect().unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let column_exists = connection
+            .prepare("PRAGMA table_info(bank_movements)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .iter()
+            .any(|column| column == "counterparty_iban");
+        assert!(column_exists);
+        let shape: (i64, i64) = connection
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='bank_supplier_reconciliations'),(SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN('bank_reconciliations_exclusive_supplier','bank_supplier_reconciliations_exclusive_customer','bank_supplier_reconciliations_no_update','bank_supplier_reconciliations_no_delete'))",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(shape, (1, 4));
     }
 }
 
@@ -2858,6 +3199,51 @@ fn load_invoice_candidates(connection: &rusqlite::Connection) -> AppResult<Vec<I
                 client_name: company
                     .filter(|value| !value.trim().is_empty())
                     .or_else(|| person.filter(|value| !value.trim().is_empty())),
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(candidates)
+}
+
+#[derive(Debug, Clone)]
+struct SupplierInvoiceCandidate {
+    id: String,
+    supplier_id: String,
+    supplier_name: String,
+    supplier_iban: Option<String>,
+    reference: Option<String>,
+    reference_normalized: Option<String>,
+    document_date: String,
+    total_cents: i64,
+    paid_cents: i64,
+    currency: String,
+}
+
+impl SupplierInvoiceCandidate {
+    fn remaining_cents(&self) -> i64 {
+        self.total_cents.saturating_sub(self.paid_cents).max(0)
+    }
+}
+
+fn load_supplier_invoice_candidates(
+    connection: &rusqlite::Connection,
+) -> AppResult<Vec<SupplierInvoiceCandidate>> {
+    let mut statement = connection.prepare(
+        "SELECT invoice.id,invoice.supplier_id,invoice.supplier_name,supplier.iban,invoice.reference,invoice.reference_normalized,invoice.document_date,invoice.total_cents,invoice.paid_cents,invoice.currency FROM supplier_invoices invoice JOIN suppliers supplier ON supplier.id=invoice.supplier_id WHERE invoice.status='validated' AND invoice.paid_cents<invoice.total_cents ORDER BY invoice.document_date DESC,invoice.created_at DESC",
+    )?;
+    let candidates = statement
+        .query_map([], |row| {
+            Ok(SupplierInvoiceCandidate {
+                id: row.get(0)?,
+                supplier_id: row.get(1)?,
+                supplier_name: row.get(2)?,
+                supplier_iban: row.get(3)?,
+                reference: row.get(4)?,
+                reference_normalized: row.get(5)?,
+                document_date: row.get(6)?,
+                total_cents: row.get(7)?,
+                paid_cents: row.get(8)?,
+                currency: row.get(9)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -2957,6 +3343,274 @@ fn candidate_json(
         "reason": if currency_safe { reason.to_owned() } else { "La devise du mouvement ne correspond pas à celle de la facture.".to_owned() },
         "confirmable": base_eligible && amount_safe && currency_safe,
     })
+}
+
+fn normalized_supplier_reference(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_uppercase)
+        .collect()
+}
+
+fn supplier_candidate_json(
+    invoice: &SupplierInvoiceCandidate,
+    movement_amount: i64,
+    movement_currency: &str,
+    payment_date: Option<&str>,
+    base_eligible: bool,
+    match_kind: &str,
+    reason: &str,
+) -> Value {
+    let remaining = invoice.remaining_cents();
+    let amount_safe = remaining > 0 && movement_amount <= remaining;
+    let currency_safe = invoice.currency == movement_currency;
+    let date_safe = payment_date.is_some_and(|date| date >= invoice.document_date.as_str());
+    let amount_relation = if remaining <= 0 {
+        "already_paid"
+    } else if movement_amount > remaining {
+        "overpayment"
+    } else if movement_amount == remaining {
+        "exact"
+    } else {
+        "partial"
+    };
+    json!({
+        "supplier_invoice_id":invoice.id,
+        "supplier_id":invoice.supplier_id,
+        "supplier_name":invoice.supplier_name,
+        "supplier_iban":invoice.supplier_iban,
+        "reference":invoice.reference,
+        "document_date":invoice.document_date,
+        "remaining_cents":remaining,
+        "amount_relation":if currency_safe { amount_relation } else { "currency_mismatch" },
+        "match_kind":match_kind,
+        "reason":if !currency_safe {
+            "La devise du débit ne correspond pas à celle de la facture fournisseur."
+        } else if !date_safe {
+            "La date bancaire précède la facture fournisseur."
+        } else {
+            reason
+        },
+        "confirmable":base_eligible && amount_safe && currency_safe && date_safe,
+    })
+}
+
+fn suggestion_for_supplier_movement(
+    connection: &rusqlite::Connection,
+    movement: &Value,
+    customer_reconciliation: Option<&Value>,
+    supplier_reconciliation: Option<&Value>,
+    invoices: &[SupplierInvoiceCandidate],
+) -> AppResult<Value> {
+    if customer_reconciliation.is_some() || supplier_reconciliation.is_some() {
+        return Ok(json!({
+            "entity_type":"supplier_invoice",
+            "kind":"none",
+            "reason":"Ce mouvement est déjà rapproché.",
+            "confirmable":false,
+            "requires_confirmation":true,
+            "supplier_invoice_id":Value::Null,
+            "candidates":[],
+        }));
+    }
+    let account_id = movement_field(movement, "account_id").unwrap_or_default();
+    let account_currency = movement_field(movement, "account_currency").unwrap_or_default();
+    let movement_currency = movement_field(movement, "currency").unwrap_or_default();
+    let amount = movement
+        .get("amount_cents")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let booked = movement_field(movement, "status") == Some("BOOK");
+    let final_statement = booked_message_type(connection, movement)?.as_deref() == Some("camt.053");
+    let debit = movement_field(movement, "credit_debit") == Some("DBIT");
+    let reversal = movement
+        .get("reversal")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let payment_date =
+        movement_field(movement, "booking_date").or_else(|| movement_field(movement, "value_date"));
+    let single_transaction = movement_tx_detail_count(movement) == 1;
+    let account_currency_matches = movement_currency == account_currency;
+    let has_stable_dedup_key = movement_field(movement, "strong_key").is_some();
+    let account_linked =
+        account_link_source(connection, account_id, account_currency)? != "unlinked";
+    let base_eligible = booked
+        && final_statement
+        && debit
+        && !reversal
+        && payment_date.is_some()
+        && single_transaction
+        && account_currency_matches
+        && has_stable_dedup_key
+        && account_linked;
+
+    let reference_type = movement_field(movement, "reference_type").unwrap_or("NON");
+    let movement_reference = movement_field(movement, "reference").unwrap_or_default();
+    let structured_valid = match reference_type {
+        "QRR" => validate_qrr(movement_reference),
+        "SCOR" => validate_scor(movement_reference),
+        "NON" => true,
+        _ => false,
+    };
+    if !structured_valid {
+        return Ok(json!({
+            "entity_type":"supplier_invoice",
+            "kind":"review",
+            "reason":if reference_type == "CONFLICT" {
+                "Plusieurs références structurées se contredisent; aucun décaissement ne peut être confirmé."
+            } else {
+                "La référence structurée du débit est invalide; aucun décaissement ne peut être confirmé."
+            },
+            "confirmable":false,
+            "requires_confirmation":true,
+            "supplier_invoice_id":Value::Null,
+            "candidates":[],
+        }));
+    }
+
+    let normalized_reference = normalized_supplier_reference(movement_reference);
+    let unstructured =
+        normalized_search(movement_field(movement, "unstructured").unwrap_or_default());
+    let counterparty_name =
+        normalized_search(movement_field(movement, "counterparty_name").unwrap_or_default());
+    let counterparty_iban = movement_field(movement, "counterparty_iban")
+        .and_then(|value| normalize_account(value).ok());
+    let exact_reference_matches = if matches!(reference_type, "QRR" | "SCOR") {
+        invoices
+            .iter()
+            .filter(|invoice| {
+                invoice.reference_normalized.as_deref() == Some(normalized_reference.as_str())
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let source = if exact_reference_matches.is_empty() {
+        invoices.iter().collect::<Vec<_>>()
+    } else {
+        exact_reference_matches
+    };
+    let mut candidates = source
+        .into_iter()
+        .filter(|invoice| invoice.remaining_cents() > 0)
+        .map(|invoice| {
+            let invoice_reference = invoice
+                .reference_normalized
+                .as_deref()
+                .map(normalized_search)
+                .unwrap_or_default();
+            let reference_exact = matches!(reference_type, "QRR" | "SCOR")
+                && !normalized_reference.is_empty()
+                && invoice.reference_normalized.as_deref() == Some(normalized_reference.as_str());
+            let reference_in_text = !invoice_reference.is_empty()
+                && !unstructured.is_empty()
+                && unstructured.contains(&invoice_reference);
+            let iban_match = counterparty_iban.as_deref().is_some_and(|counterparty| {
+                invoice
+                    .supplier_iban
+                    .as_deref()
+                    .and_then(|iban| normalize_account(iban).ok())
+                    .as_deref()
+                    == Some(counterparty)
+            });
+            let name_match = {
+                let supplier = normalized_search(&invoice.supplier_name);
+                supplier.len() >= 4
+                    && !counterparty_name.is_empty()
+                    && supplier == counterparty_name
+            };
+            let (match_kind, reason) = if reference_exact {
+                (
+                    "structured_reference",
+                    "Référence structurée identique à la facture fournisseur.",
+                )
+            } else if reference_in_text {
+                (
+                    "invoice_reference_text",
+                    "Référence fournisseur repérée dans le libellé bancaire.",
+                )
+            } else if iban_match {
+                (
+                    "supplier_iban",
+                    "IBAN du créancier identique au fournisseur.",
+                )
+            } else if name_match {
+                (
+                    "supplier_name",
+                    "Nom du créancier identique au fournisseur.",
+                )
+            } else {
+                (
+                    "manual",
+                    "Facture ouverte compatible; sélection et confirmation humaines requises.",
+                )
+            };
+            supplier_candidate_json(
+                invoice,
+                amount,
+                movement_currency,
+                payment_date,
+                base_eligible,
+                match_kind,
+                reason,
+            )
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by_key(|candidate| {
+        match candidate["match_kind"].as_str().unwrap_or("manual") {
+            "structured_reference" => 0,
+            "invoice_reference_text" => 1,
+            "supplier_iban" => 2,
+            "supplier_name" => 3,
+            _ => 4,
+        }
+    });
+    let confirmable = candidates
+        .iter()
+        .any(|candidate| candidate["confirmable"].as_bool() == Some(true));
+    let matched_confirmable = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate["confirmable"].as_bool() == Some(true)
+                && candidate["match_kind"].as_str() != Some("manual")
+        })
+        .collect::<Vec<_>>();
+    let suggested = (matched_confirmable.len() == 1)
+        .then(|| matched_confirmable[0]["supplier_invoice_id"].as_str())
+        .flatten();
+    let base_reason = if !booked {
+        "Mouvement en attente (PDNG)."
+    } else if !final_statement {
+        "Importez le relevé camt.053 définitif avant toute confirmation."
+    } else if !debit {
+        "Ce mouvement n’est pas un débit fournisseur."
+    } else if reversal {
+        "Extourne bancaire : aucun paiement fournisseur ne peut être créé."
+    } else if payment_date.is_none() {
+        "Le mouvement BOOK ne contient aucune date bancaire utilisable."
+    } else if !single_transaction {
+        "Écriture collective : rapprochement fournisseur bloqué."
+    } else if !has_stable_dedup_key {
+        "Aucun identifiant bancaire stable : rapprochement bloqué contre les doublons."
+    } else if !account_linked {
+        "Compte bancaire non associé à l’entreprise."
+    } else if !account_currency_matches {
+        "La devise du mouvement diffère de celle du compte bancaire."
+    } else if candidates.is_empty() {
+        "Aucune facture fournisseur ouverte n’est compatible."
+    } else {
+        "Vérifiez la facture proposée puis confirmez explicitement le décaissement."
+    };
+    Ok(json!({
+        "entity_type":"supplier_invoice",
+        "kind":if suggested.is_some() { "supplier_match" } else if confirmable { "supplier_manual" } else { "review" },
+        "reason":base_reason,
+        "confirmable":confirmable,
+        "requires_confirmation":true,
+        "supplier_invoice_id":suggested,
+        "candidates":candidates,
+    }))
 }
 
 fn suggestion_for_movement(
@@ -3258,6 +3912,11 @@ impl LocalStore {
             "SELECT * FROM bank_reconciliations ORDER BY confirmed_at DESC,rowid DESC",
             [],
         )?;
+        let supplier_reconciliations = query_all(
+            &connection,
+            "SELECT * FROM bank_supplier_reconciliations ORDER BY confirmed_at DESC,rowid DESC",
+            [],
+        )?;
         let reconciliations_by_movement = reconciliations
             .iter()
             .filter_map(|reconciliation| {
@@ -3267,18 +3926,42 @@ impl LocalStore {
                     .map(|id| (id.to_owned(), reconciliation.clone()))
             })
             .collect::<HashMap<_, _>>();
+        let supplier_reconciliations_by_movement = supplier_reconciliations
+            .iter()
+            .filter_map(|reconciliation| {
+                reconciliation
+                    .get("movement_id")
+                    .and_then(Value::as_str)
+                    .map(|id| (id.to_owned(), reconciliation.clone()))
+            })
+            .collect::<HashMap<_, _>>();
         let invoices = load_invoice_candidates(&connection)?;
+        let supplier_invoices = load_supplier_invoice_candidates(&connection)?;
         for movement in &mut movements {
             let movement_id = movement_field(movement, "id").unwrap_or_default();
             let reconciliation = reconciliations_by_movement.get(movement_id);
-            let suggestion =
-                suggestion_for_movement(&connection, movement, reconciliation, &invoices)?;
+            let supplier_reconciliation = supplier_reconciliations_by_movement.get(movement_id);
+            let suggestion = if movement_field(movement, "credit_debit") == Some("DBIT") {
+                suggestion_for_supplier_movement(
+                    &connection,
+                    movement,
+                    reconciliation,
+                    supplier_reconciliation,
+                    &supplier_invoices,
+                )?
+            } else {
+                suggestion_for_movement(&connection, movement, reconciliation, &invoices)?
+            };
             let object = movement
                 .as_object_mut()
                 .ok_or_else(|| AppError::Validation("Mouvement bancaire local invalide.".into()))?;
             object.insert(
                 "reconciliation".into(),
                 reconciliation.cloned().unwrap_or(Value::Null),
+            );
+            object.insert(
+                "supplier_reconciliation".into(),
+                supplier_reconciliation.cloned().unwrap_or(Value::Null),
             );
             object.insert("suggestion".into(), suggestion);
         }
@@ -3329,6 +4012,19 @@ impl LocalStore {
             .iter()
             .filter(|movement| movement_field(movement, "status") == Some("PDNG"))
             .count() as i64;
+        let unreconciled_supplier_count = movements
+            .iter()
+            .filter(|movement| {
+                movement["supplier_reconciliation"].is_null()
+                    && movement["reconciliation"].is_null()
+                    && movement_field(movement, "status") == Some("BOOK")
+                    && movement_field(movement, "credit_debit") == Some("DBIT")
+                    && !movement
+                        .get("reversal")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+            })
+            .count() as i64;
         let booked_credit_count = movements
             .iter()
             .filter(|movement| {
@@ -3340,18 +4036,32 @@ impl LocalStore {
                         .unwrap_or(false)
             })
             .count() as i64;
+        let booked_debit_count = movements
+            .iter()
+            .filter(|movement| {
+                movement_field(movement, "status") == Some("BOOK")
+                    && movement_field(movement, "credit_debit") == Some("DBIT")
+                    && !movement
+                        .get("reversal")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+            })
+            .count() as i64;
         Ok(json!({
             "summary":{
                 "import_count":imports.len() as i64,
                 "movement_count":movements.len() as i64,
                 "unreconciled_count":unreconciled_count,
+                "unreconciled_supplier_count":unreconciled_supplier_count,
                 "pending_count":pending_count,
                 "booked_credit_count":booked_credit_count,
+                "booked_debit_count":booked_debit_count,
             },
             "accounts":accounts,
             "imports":imports,
             "movements":movements,
             "reconciliations":reconciliations,
+            "supplier_reconciliations":supplier_reconciliations,
         }))
     }
 
@@ -3511,6 +4221,16 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let supplier_link_exists: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?)",
+            params![movement_id],
+            |row| row.get(0),
+        )?;
+        if supplier_link_exists {
+            return Err(AppError::Validation(
+                "Ce mouvement est déjà rapproché avec une facture fournisseur.".into(),
+            ));
+        }
         if let Some((existing_invoice_id, payment_id)) = transaction
             .query_row(
                 "SELECT invoice_id,payment_id FROM bank_reconciliations WHERE movement_id=?",
@@ -3632,6 +4352,205 @@ impl LocalStore {
             "reconciliation":reconciliation,
             "payment":payment,
             "invoice":invoice,
+        }))
+    }
+
+    pub fn confirm_supplier_bank_reconciliation(
+        &self,
+        input: ConfirmSupplierBankReconciliationInput,
+    ) -> AppResult<Value> {
+        let movement_id = Uuid::parse_str(input.movement_id.trim())
+            .map_err(|_| AppError::Validation("movement_id est invalide.".into()))?
+            .to_string();
+        let supplier_invoice_id = Uuid::parse_str(input.supplier_invoice_id.trim())
+            .map_err(|_| AppError::Validation("supplier_invoice_id est invalide.".into()))?
+            .to_string();
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let customer_link_exists: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?)",
+            params![movement_id],
+            |row| row.get(0),
+        )?;
+        if customer_link_exists {
+            return Err(AppError::Validation(
+                "Ce mouvement est déjà rapproché avec une facture client.".into(),
+            ));
+        }
+        if let Some((existing_invoice_id, payment_id)) = transaction
+            .query_row(
+                "SELECT supplier_invoice_id,supplier_payment_id FROM bank_supplier_reconciliations WHERE movement_id=?",
+                params![movement_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+        {
+            if existing_invoice_id != supplier_invoice_id {
+                return Err(AppError::Validation(
+                    "Ce débit est déjà rapproché avec une autre facture fournisseur.".into(),
+                ));
+            }
+            let movement = query_all(
+                &transaction,
+                "SELECT * FROM bank_movements WHERE id=?",
+                params![movement_id],
+            )?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::NotFound(format!("bank_movements/{movement_id}")))?;
+            let reconciliation = query_all(
+                &transaction,
+                "SELECT * FROM bank_supplier_reconciliations WHERE movement_id=?",
+                params![movement_id],
+            )?
+            .into_iter()
+            .next()
+            .unwrap();
+            let payment = query_all(
+                &transaction,
+                "SELECT * FROM supplier_payments WHERE id=?",
+                params![payment_id],
+            )?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::NotFound(format!("supplier_payments/{payment_id}")))?;
+            let invoice = query_all(
+                &transaction,
+                "SELECT * FROM supplier_invoices WHERE id=?",
+                params![supplier_invoice_id],
+            )?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                AppError::NotFound(format!("supplier_invoices/{supplier_invoice_id}"))
+            })?;
+            transaction.commit()?;
+            return Ok(json!({
+                "movement":movement,
+                "supplier_reconciliation":reconciliation,
+                "payment":payment,
+                "supplier_invoice":invoice,
+                "idempotent":true,
+            }));
+        }
+
+        let movement = query_all(
+            &transaction,
+            "SELECT * FROM bank_movements WHERE id=?",
+            params![movement_id],
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound(format!("bank_movements/{movement_id}")))?;
+        let supplier_invoices = load_supplier_invoice_candidates(&transaction)?;
+        let suggestion = suggestion_for_supplier_movement(
+            &transaction,
+            &movement,
+            None,
+            None,
+            &supplier_invoices,
+        )?;
+        let selected = suggestion["candidates"]
+            .as_array()
+            .and_then(|candidates| {
+                candidates.iter().find(|candidate| {
+                    candidate["supplier_invoice_id"].as_str()
+                        == Some(supplier_invoice_id.as_str())
+                })
+            })
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Cette facture fournisseur ne fait pas partie des propositions contrôlées pour ce débit."
+                        .into(),
+                )
+            })?;
+        if selected["confirmable"].as_bool() != Some(true) {
+            return Err(AppError::Validation(
+                "Ce décaissement ne peut pas être confirmé : vérifiez le statut, le compte, la devise, la date et le solde."
+                    .into(),
+            ));
+        }
+        let amount_cents = movement["amount_cents"].as_i64().ok_or_else(|| {
+            AppError::Validation("Le montant du mouvement local est invalide.".into())
+        })?;
+        let payment_date = movement_field(&movement, "booking_date")
+            .or_else(|| movement_field(&movement, "value_date"))
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Le mouvement BOOK ne contient aucune date bancaire utilisable.".into(),
+                )
+            })?
+            .to_owned();
+        let payment_reference = movement_field(&movement, "reference")
+            .or_else(|| movement_field(&movement, "account_servicer_ref"))
+            .map(|value| value.chars().take(200).collect::<String>());
+        let payment_result = record_supplier_payment_in_transaction(
+            &transaction,
+            RecordSupplierPaymentInput {
+                request_id: movement_id.clone(),
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                amount_cents,
+                date: payment_date,
+                method: Some("Virement bancaire CAMT".into()),
+                reference: payment_reference,
+                notes: Some(format!(
+                    "Rapprochement fournisseur confirmé du mouvement CAMT {movement_id}."
+                )),
+            },
+        )?;
+        let payment_id = payment_result["payment_id"]
+            .as_str()
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Le paiement fournisseur créé ne possède aucun identifiant.".into(),
+                )
+            })?
+            .to_owned();
+        let reconciliation_id = Uuid::new_v4().to_string();
+        let now = now_iso();
+        transaction.execute(
+            "INSERT INTO bank_supplier_reconciliations(id,movement_id,supplier_invoice_id,supplier_payment_id,amount_cents,confirmed_at,created_at) VALUES(?,?,?,?,?,?,?)",
+            params![reconciliation_id,movement_id,supplier_invoice_id,payment_id,amount_cents,now,now],
+        )?;
+        let reconciliation = query_all(
+            &transaction,
+            "SELECT * FROM bank_supplier_reconciliations WHERE id=?",
+            params![reconciliation_id],
+        )?
+        .into_iter()
+        .next()
+        .unwrap();
+        append_audit(
+            &transaction,
+            "confirm",
+            "bank_supplier_reconciliation",
+            &reconciliation_id,
+            &json!({"movement_id":movement_id,"supplier_invoice_id":supplier_invoice_id,"supplier_payment_id":payment_id,"amount_cents":amount_cents}),
+        )?;
+        let invoice = query_all(
+            &transaction,
+            "SELECT * FROM supplier_invoices WHERE id=?",
+            params![supplier_invoice_id],
+        )?
+        .into_iter()
+        .next()
+        .unwrap();
+        let payment = query_all(
+            &transaction,
+            "SELECT * FROM supplier_payments WHERE id=?",
+            params![payment_id],
+        )?
+        .into_iter()
+        .next()
+        .unwrap();
+        transaction.commit()?;
+        Ok(json!({
+            "movement":movement,
+            "supplier_reconciliation":reconciliation,
+            "payment":payment,
+            "supplier_invoice":invoice,
+            "idempotent":payment_result["idempotent"],
         }))
     }
 }

@@ -11,6 +11,7 @@ import {
   Laptop,
   Landmark,
   LockKeyhole,
+  Package,
   QrCode,
   RefreshCcw,
   ShieldAlert,
@@ -20,22 +21,29 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
-import { DownloadButton, installerPath } from '@/components/download-button';
+import { DownloadButton } from '@/components/download-button';
+import {
+  ELYKO_INSTALLER_CHECKSUM_PATH,
+  ELYKO_INSTALLER_NAME,
+  ELYKO_INSTALLER_SHA256,
+  ELYKO_INSTALLER_SIZE_MIB,
+  ELYKO_VERSION,
+} from '@/lib/downloads';
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: 'Elyko pour Windows — Télécharger la version 1.4.0',
+  title: `Elyko pour Windows — Télécharger la version ${ELYKO_VERSION}`,
   description:
     'Installez Elyko sur Windows 10 ou 11 pour gérer devis, factures QR, projets, salaires et comptabilité avec vos données sur votre PC.',
   openGraph: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.4.0 disponible.',
+      `Toute votre gestion d’entreprise dans une application Windows. Version ${ELYKO_VERSION} disponible.`,
   },
   twitter: {
     title: 'Elyko pour Windows',
     description:
-      'Toute votre gestion d’entreprise dans une application Windows. Version 1.4.0 disponible.',
+      `Toute votre gestion d’entreprise dans une application Windows. Version ${ELYKO_VERSION} disponible.`,
   },
 };
 
@@ -63,7 +71,7 @@ const capabilities = [
   {
     icon: Clock3,
     title: 'Temps de travail',
-    text: 'Enregistrez les heures par collaborateur et par dossier.',
+    text: 'Enregistrez les heures par collaborateur et préparez une facture depuis les heures approuvées.',
   },
   {
     icon: Database,
@@ -73,12 +81,17 @@ const capabilities = [
   {
     icon: Building2,
     title: 'Fournisseurs et achats',
-    text: 'Suivez les achats à payer, les échéances et, si la comptabilité est activée, leur règlement comptabilisé.',
+    text: 'Joignez les justificatifs locaux, suivez les échéances et comptabilisez validation et règlement.',
   },
   {
     icon: Landmark,
     title: 'Import CAMT local',
-    text: 'Importez CAMT.053/.054, contrôlez les écritures et ne confirmez un crédit client qu’avec le relevé .053 définitif.',
+    text: 'Importez CAMT.053/.054 et confirmez manuellement le crédit client ou le débit fournisseur proposé.',
+  },
+  {
+    icon: Package,
+    title: 'Stock traçable',
+    text: 'Suivez entrées, sorties, corrections, seuils et déductions des factures standard émises.',
   },
 ];
 
@@ -110,7 +123,7 @@ export default function DownloadPage() {
         <div data-reveal="left">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
             <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-            Elyko pour Windows · version 1.4.0
+            Elyko pour Windows · version {ELYKO_VERSION}
           </div>
           <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
             Toute votre entreprise,
@@ -139,7 +152,7 @@ export default function DownloadPage() {
               <Laptop className="size-3.5" /> Windows 10/11
             </span>
             <span>64 bits</span>
-            <span>7,72 Mio</span>
+            <span>{ELYKO_INSTALLER_SIZE_MIB} Mio</span>
             <span>50 CHF / mois</span>
           </div>
           <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
@@ -205,7 +218,7 @@ export default function DownloadPage() {
                 </p>
                 <div className="mt-7 space-y-4 text-[11px]">
                   {[
-                    ['Version', '1.4.0'],
+                    ['Version', ELYKO_VERSION],
                     ['Architecture', 'Windows x64'],
                     ['Emplacement', 'Applications de l’utilisateur'],
                     ['Données métier', 'Stockage local'],
@@ -237,6 +250,28 @@ export default function DownloadPage() {
           <div className="installer-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#cad6cc] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#355141] shadow-lg sm:left-auto sm:right-6">
             <ShieldCheck className="size-3.5 text-[#3b7752]" /> Données
             conservées sur votre PC
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-[#ded9ce] bg-[#fffdf9] px-5 py-12 sm:py-16 lg:px-8" data-reveal aria-labelledby="application-windows-title">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">Ce que vous installez</p>
+            <h2 id="application-windows-title" className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">Une vraie application Windows, pas un site emballé.</h2>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              [Laptop, 'Installateur .exe', 'Un installateur Windows x64 ajoute Elyko aux applications et au menu Démarrer, avec sa propre fenêtre de bureau.'],
+              [Database, 'Données métier locales', 'La base SQLite et les justificatifs restent dans le dossier Elyko de ce PC; ils ne sont pas hébergés sur un compte Elyko.'],
+              [WifiOff, 'Connexion limitée', 'L’activation, les mises à jour et l’installation éventuelle de WebView2 peuvent utiliser Internet; la gestion quotidienne reste locale.'],
+            ].map(([Icon, title, text]) => (
+              <article key={title as string} className="interactive-card rounded-2xl border border-[#ddd9cf] bg-white p-6">
+                <Icon className="size-5 text-[#3f7553]" />
+                <h3 className="mt-5 font-semibold text-[#263a2e]">{title as string}</h3>
+                <p className="mt-3 text-sm leading-6 text-[#647068]">{text as string}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
@@ -317,7 +352,7 @@ export default function DownloadPage() {
               [
                 '03',
                 'Activez la licence',
-                'Copiez l’identifiant affiché et récupérez votre licence signée après le paiement.',
+                'Copiez l’identifiant affiché, récupérez la licence signée après le paiement et validez-la une fois en ligne.',
                 LockKeyhole,
               ],
               [
@@ -366,7 +401,8 @@ export default function DownloadPage() {
             <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
               Le paiement est traité par Stripe. La licence signée est liée à
               l’identifiant d’installation affiché par Elyko, tandis que vos
-              données métier restent sur votre PC.
+              données métier restent sur votre PC. La première activation et
+              les renouvellements vérifient uniquement le jeton par HTTPS.
             </p>
             <div className="mt-7 grid gap-3 text-sm text-white/72 sm:grid-cols-2">
               {[
@@ -410,7 +446,7 @@ export default function DownloadPage() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-              Version 1.4.0
+              Version {ELYKO_VERSION}
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
               Moins de ressaisie, plus de contrôles avant paiement.
@@ -444,7 +480,7 @@ export default function DownloadPage() {
                 [
                   WifiOff,
                   'Gestion hors ligne',
-                  'Une fois installées, les fonctions métier ne dépendent pas d’une connexion permanente.',
+                  'Après activation, les fonctions métier ne dépendent pas d’une connexion permanente.',
                 ],
               ].map(([Icon, title, text]) => (
                 <div
@@ -471,18 +507,18 @@ export default function DownloadPage() {
               </summary>
               <div className="space-y-4 border-t border-[#e5e1d8] px-5 py-5 text-xs leading-6 text-[#5f6c64]">
                 <p>
-                  <strong>Fichier :</strong> Elyko_1.4.0_x64-setup.exe · 7,72
-                  Mio · Windows x64
+                  <strong>Fichier :</strong> {ELYKO_INSTALLER_NAME} ·{' '}
+                  {ELYKO_INSTALLER_SIZE_MIB} Mio · Windows x64
                 </p>
                 <p>
                   <strong>SHA-256 :</strong>{' '}
                   <code className="break-all">
-                    E9F5135A7FE44AF3606AD778EA8D9E11208DF039E96C31F70E606357E8E36B5B
+                    {ELYKO_INSTALLER_SHA256}
                   </code>{' '}
                   ·{' '}
                   <a
                     className="font-semibold underline underline-offset-3"
-                    href={`${installerPath}.sha256.txt`}
+                    href={ELYKO_INSTALLER_CHECKSUM_PATH}
                   >
                     télécharger l’empreinte
                   </a>
@@ -491,10 +527,10 @@ export default function DownloadPage() {
                   <RefreshCcw className="mt-0.5 size-4 shrink-0" />
                   <p>
                     <strong>Mises à jour intégrées et signées.</strong> La version
-                    1.4.0 embarque la clé publique Elyko et vérifie la signature
+                    {ELYKO_VERSION} embarque la clé publique Elyko et vérifie la signature
                     de chaque futur installateur avant de proposer son
                     installation. Si une ancienne version ne propose pas la mise
-                    à jour intégrée, installez 1.4.0 manuellement depuis cette page.
+                    à jour intégrée, installez {ELYKO_VERSION} manuellement depuis cette page.
                   </p>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">
@@ -508,8 +544,43 @@ export default function DownloadPage() {
                     connexion Internet si ce composant manque sur le PC.
                   </p>
                 </div>
+                <p>
+                  <strong>Protection de licence :</strong> activation en ligne,
+                  jeton signé et liaison locale protégée par Windows DPAPI. Cette
+                  version n’utilise pas encore d’attestation matérielle TPM/CNG et
+                  ne peut pas garantir une protection absolue contre un
+                  administrateur du PC qui modifierait le logiciel.
+                </p>
               </div>
             </details>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#173d2c] px-5 py-14 text-white sm:py-20 lg:px-8" data-reveal aria-labelledby="sauvegarde-title">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
+          <div>
+            <HardDrive className="size-7 text-[#efb157]" />
+            <p className="mt-5 text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">Votre responsabilité locale</p>
+            <h2 id="sauvegarde-title" className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">Une donnée locale doit être sauvegardée.</h2>
+            <p className="mt-5 text-sm leading-6 text-white/72">Si le PC est perdu ou son disque devient illisible sans sauvegarde externe, Elyko ne peut pas récupérer vos données depuis un serveur, puisqu’elles n’y ont jamais été envoyées.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              ['Après la configuration', 'Créez une première sauvegarde dès que vos coordonnées et réglages sont validés.'],
+              ['Avant chaque mise à jour', 'Exportez une sauvegarde complète avant d’installer une nouvelle version.'],
+              ['Hors de ce PC', 'Copiez régulièrement le fichier sur un support externe ou un emplacement chiffré que vous contrôlez.'],
+              ['Test de restauration', 'Vérifiez périodiquement la restauration sur un environnement sûr, sans écraser votre base active.'],
+            ].map(([title, text]) => (
+              <article key={title} className="rounded-2xl border border-white/12 bg-white/[.07] p-5">
+                <Check className="size-4 text-[#79d094]" />
+                <h3 className="mt-4 text-sm font-semibold">{title}</h3>
+                <p className="mt-2 text-xs leading-5 text-white/66">{text}</p>
+              </article>
+            ))}
+            <div className="sm:col-span-2 rounded-2xl border border-[#efb157]/30 bg-[#efb157]/10 p-5 text-xs leading-6 text-white/72">
+              <strong className="text-white">Portée réglementaire :</strong> la paie est assistée localement mais non certifiée Swissdec/ELM; Elyko ne transmet pas de décompte TVA et ses rapports comptables ne remplacent pas la validation du bouclement par le responsable ou la fiduciaire.
+            </div>
           </div>
         </div>
       </section>

@@ -13,10 +13,10 @@ const IDENTITY_FILE: &str = "installation-identity.dpapi";
 pub fn load_or_create(data_dir: &Path) -> AppResult<String> {
     let path = data_dir.join(IDENTITY_FILE);
     match fs::read(&path) {
-        Ok(protected) => parse_identity(&unprotect(&protected)?),
+        Ok(protected) => parse_identity(&unprotect_for_current_user(&protected)?),
         Err(error) if error.kind() == ErrorKind::NotFound => {
             let identity = Uuid::new_v4().to_string();
-            let protected = protect(identity.as_bytes())?;
+            let protected = protect_for_current_user(identity.as_bytes())?;
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(mut file) => {
                     file.write_all(&protected)?;
@@ -24,7 +24,7 @@ pub fn load_or_create(data_dir: &Path) -> AppResult<String> {
                     Ok(identity)
                 }
                 Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-                    parse_identity(&unprotect(&fs::read(path)?)?)
+                    parse_identity(&unprotect_for_current_user(&fs::read(path)?)?)
                 }
                 Err(error) => Err(error.into()),
             }
@@ -48,8 +48,57 @@ fn parse_identity(bytes: &[u8]) -> AppResult<String> {
     Ok(uuid.to_string())
 }
 
+pub(crate) fn write_protected_atomically(path: &Path, clear: &[u8]) -> AppResult<()> {
+    const MAX_CLEAR_BYTES: usize = 16 * 1024;
+    if clear.is_empty() || clear.len() > MAX_CLEAR_BYTES {
+        return Err(AppError::Validation(
+            "La donnée locale protégée a une taille invalide.".into(),
+        ));
+    }
+    let parent = path.parent().ok_or_else(|| {
+        AppError::Validation("Le chemin de la donnée protégée est invalide.".into())
+    })?;
+    fs::create_dir_all(parent)?;
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| AppError::Validation("Le nom de la donnée protégée est invalide.".into()))?;
+    let temporary_path = parent.join(format!(".{file_name}.{}.tmp", Uuid::new_v4()));
+    let protected = protect_for_current_user(clear)?;
+
+    let result = (|| -> AppResult<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)?;
+        file.write_all(&protected)?;
+        file.sync_all()?;
+        drop(file);
+        // `rename` reste dans le même dossier : Windows l'effectue avec
+        // remplacement atomique du fichier cible, sans fenêtre où l'ancre
+        // disparaîtrait entre deux lancements.
+        fs::rename(&temporary_path, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+    result
+}
+
+pub(crate) fn read_protected(path: &Path) -> AppResult<Vec<u8>> {
+    const MAX_PROTECTED_BYTES: u64 = 64 * 1024;
+    let metadata = fs::metadata(path)?;
+    if metadata.len() == 0 || metadata.len() > MAX_PROTECTED_BYTES {
+        return Err(AppError::Validation(
+            "La donnée locale protégée est vide ou trop volumineuse.".into(),
+        ));
+    }
+    unprotect_for_current_user(&fs::read(path)?)
+}
+
 #[cfg(windows)]
-fn protect(clear: &[u8]) -> AppResult<Vec<u8>> {
+fn protect_for_current_user(clear: &[u8]) -> AppResult<Vec<u8>> {
     use std::ptr::null;
     use windows_sys::Win32::{
         Foundation::LocalFree,
@@ -87,7 +136,7 @@ fn protect(clear: &[u8]) -> AppResult<Vec<u8>> {
 }
 
 #[cfg(windows)]
-fn unprotect(protected: &[u8]) -> AppResult<Vec<u8>> {
+fn unprotect_for_current_user(protected: &[u8]) -> AppResult<Vec<u8>> {
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::{
         Foundation::LocalFree,
@@ -131,12 +180,12 @@ fn unprotect(protected: &[u8]) -> AppResult<Vec<u8>> {
 }
 
 #[cfg(not(windows))]
-fn protect(clear: &[u8]) -> AppResult<Vec<u8>> {
+fn protect_for_current_user(clear: &[u8]) -> AppResult<Vec<u8>> {
     Ok(clear.to_vec())
 }
 
 #[cfg(not(windows))]
-fn unprotect(protected: &[u8]) -> AppResult<Vec<u8>> {
+fn unprotect_for_current_user(protected: &[u8]) -> AppResult<Vec<u8>> {
     Ok(protected.to_vec())
 }
 
@@ -157,5 +206,19 @@ mod tests {
         let stored = fs::read(temporary.path().join(IDENTITY_FILE)).unwrap();
         #[cfg(windows)]
         assert_ne!(stored, first.as_bytes());
+    }
+
+    #[test]
+    fn protected_file_updates_replace_the_previous_value() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("anchor.dpapi");
+        write_protected_atomically(&path, b"first").unwrap();
+        write_protected_atomically(&path, b"second").unwrap();
+        assert_eq!(read_protected(&path).unwrap(), b"second");
+        assert_eq!(
+            std::fs::read_dir(temporary.path()).unwrap().count(),
+            1,
+            "aucun fichier temporaire ne doit subsister"
+        );
     }
 }

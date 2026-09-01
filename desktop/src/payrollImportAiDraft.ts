@@ -1,4 +1,5 @@
 import type {
+  PayrollAiIdentityEvidence,
   PayrollImportDraft,
   PayrollImportEmployeeDraft,
   PayrollImportLineDraft,
@@ -19,6 +20,10 @@ export type ParsedPayrollAiDraft = {
     employmentRate: boolean;
     salaryMode: boolean;
   };
+};
+
+export type ReconciledPayrollAiDraft = ParsedPayrollAiDraft & {
+  identity: PayrollAiIdentityEvidence;
 };
 
 function recordValue(value: unknown): RecordValue {
@@ -55,7 +60,10 @@ function parseJsonObject(raw: string): RecordValue {
 export function parsePayrollAiJson(raw: string): ParsedPayrollAiDraft {
   const parsed = parseJsonObject(raw);
   const employee = recordValue(parsed.employee);
-  const lines = Array.isArray(parsed.lines) ? parsed.lines.map(recordValue) : [];
+  const rawLines = Array.isArray(parsed.lines) ? parsed.lines.map(recordValue) : [];
+  const acceptedKinds = new Set(['earning', 'deduction', 'reimbursement', 'non_gross_payment', 'employer']);
+  const invalidKindCount = rawLines.filter((line) => !acceptedKinds.has(textValue(line.kind))).length;
+  const lines = rawLines.filter((line) => acceptedKinds.has(textValue(line.kind)));
   const rawEmploymentRate = employee.employment_rate ?? employee.employmentRate;
   const employmentRate = numberValue(rawEmploymentRate);
   const rawSalaryMode = textValue(employee.salary_mode ?? employee.salaryMode);
@@ -96,9 +104,136 @@ export function parsePayrollAiJson(raw: string): ParsedPayrollAiDraft {
         confidenceBp: Math.min(10_000, Math.max(0, numberValue(line.confidence_bp ?? line.confidenceBp))),
       };
     }).filter((line) => line.label && line.amountCents > 0),
-    warnings: Array.isArray(parsed.warnings) ? parsed.warnings.map(textValue).filter(Boolean).slice(0, 30) : [],
+    warnings: [
+      ...(Array.isArray(parsed.warnings) ? parsed.warnings.map(textValue).filter(Boolean).slice(0, 30) : []),
+      ...(invalidKindCount ? [`${invalidKindCount} rubrique(s) avec une classification IA inconnue ont été écartées; contrôlez le document original.`] : []),
+    ],
   };
   return { draft, detected };
+}
+
+const normalizedText = (value: string) => value.toLocaleLowerCase('fr-CH').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const normalizedDigits = (value: string) => value.replace(/\D/g, '');
+const normalizedIban = (value: string) => value.replace(/\s/g, '').toUpperCase();
+
+function consensusText(
+  label: string,
+  primary: string,
+  verified: string,
+  normalize: (value: string) => string,
+  warnings: string[],
+  conflicts?: string[],
+) {
+  const first = normalize(primary);
+  const second = normalize(verified);
+  if (first && second && first === second) return verified.trim();
+  if (first || second) {
+    warnings.push(`Double lecture : « ${label} » n’est pas confirmé de façon identique; vérifiez le document original.`);
+    conflicts?.push(label);
+  }
+  return '';
+}
+
+/**
+ * Réconcilie deux lectures réellement indépendantes. Les champs d'identité,
+ * dates, totaux et rubriques ne deviennent des valeurs IA fortes que lorsque
+ * les deux sorties concordent; la couche texte existante reste ensuite
+ * prioritaire dans mergePayrollImportDraft.
+ */
+export function reconcilePayrollAiPasses(primaryRaw: string, verifiedRaw: string): ReconciledPayrollAiDraft {
+  let primary: ParsedPayrollAiDraft | null = null;
+  let verified: ParsedPayrollAiDraft | null = null;
+  let primaryError: unknown;
+  let verifiedError: unknown;
+  try { primary = parsePayrollAiJson(primaryRaw); } catch (reason) { primaryError = reason; }
+  try { verified = parsePayrollAiJson(verifiedRaw); } catch (reason) { verifiedError = reason; }
+
+  if (!primary && !verified) throw verifiedError ?? primaryError ?? new Error("Les deux lectures locales sont inexploitables.");
+  if (!primary || !verified) {
+    const single = primary ?? verified!;
+    return {
+      draft: {
+        ...single.draft,
+        employee: { ...single.draft.employee },
+        lines: single.draft.lines.map((line) => ({ ...line, recurring: false, confidenceBp: Math.min(4_999, line.confidenceBp) })),
+        warnings: [...new Set([...single.draft.warnings, 'Une seule des deux lectures locales est exploitable : toutes les valeurs restent des propositions faibles et aucun collaborateur ne sera associé automatiquement.'])],
+      },
+      detected: { employmentRate: false, salaryMode: false },
+      identity: { passes: 1, employeeNumber: '', avsNumber: '', birthDate: '', iban: '', conflicts: [] },
+    };
+  }
+
+  const warnings = [...new Set([...primary.draft.warnings, ...verified.draft.warnings])];
+  const identityConflicts: string[] = [];
+  const employeeNumber = consensusText('numéro employé', primary.draft.employee.employeeNumber, verified.draft.employee.employeeNumber, normalizedText, warnings, identityConflicts);
+  const avsNumber = consensusText('numéro AVS', primary.draft.employee.avsNumber, verified.draft.employee.avsNumber, normalizedDigits, warnings, identityConflicts);
+  const birthDate = consensusText('date de naissance', primary.draft.employee.birthDate, verified.draft.employee.birthDate, (value) => value.trim(), warnings, identityConflicts);
+  const iban = consensusText('IBAN employé', primary.draft.employee.iban, verified.draft.employee.iban, normalizedIban, warnings, identityConflicts);
+  const pickEmployeeText = (label: string, first: string, second: string) => consensusText(label, first, second, normalizedText, warnings);
+  const employmentRateAgrees = primary.detected.employmentRate
+    && verified.detected.employmentRate
+    && primary.draft.employee.employmentRate === verified.draft.employee.employmentRate;
+  const salaryModeAgrees = primary.detected.salaryMode
+    && verified.detected.salaryMode
+    && primary.draft.employee.salaryMode === verified.draft.employee.salaryMode;
+  if ((primary.detected.employmentRate || verified.detected.employmentRate) && !employmentRateAgrees) warnings.push('Double lecture : le taux d’activité diffère ou manque dans une lecture; confirmez-le manuellement.');
+  if ((primary.detected.salaryMode || verified.detected.salaryMode) && !salaryModeAgrees) warnings.push('Double lecture : le mode de salaire diffère ou manque dans une lecture; confirmez-le manuellement.');
+
+  const period = consensusText('période salariale', primary.draft.period, verified.draft.period, (value) => value.trim(), warnings);
+  const paymentDate = consensusText('date de paiement', primary.draft.paymentDate, verified.draft.paymentDate, (value) => value.trim(), warnings);
+  const amountConsensus = (label: string, first: number, second: number) => {
+    if (first > 0 && second > 0 && first === second) return second;
+    if (first || second) warnings.push(`Double lecture : le ${label} imprimé diffère ou manque dans une lecture; contrôlez le montant.`);
+    return 0;
+  };
+
+  const usedVerified = new Set<number>();
+  const lines: PayrollImportLineDraft[] = [];
+  for (const first of primary.draft.lines) {
+    const index = verified.draft.lines.findIndex((second, candidateIndex) => !usedVerified.has(candidateIndex)
+      && normalizedText(second.label) === normalizedText(first.label)
+      && second.kind === first.kind
+      && second.amountCents === first.amountCents);
+    if (index < 0) continue;
+    usedVerified.add(index);
+    const second = verified.draft.lines[index];
+    lines.push({
+      ...second,
+      id: createId(),
+      recurring: second.kind === 'earning' && first.recurring && second.recurring,
+      confidenceBp: Math.min(first.confidenceBp, second.confidenceBp),
+    });
+  }
+  const unmatched = primary.draft.lines.length + verified.draft.lines.length - lines.length * 2;
+  if (unmatched > 0) warnings.push(`${unmatched} rubrique(s) n’ont pas concordé entre les deux lectures et n’ont pas été ajoutées automatiquement.`);
+
+  return {
+    draft: {
+      employee: {
+        employeeNumber,
+        name: pickEmployeeText('nom du collaborateur', primary.draft.employee.name, verified.draft.employee.name),
+        role: pickEmployeeText('fonction', primary.draft.employee.role, verified.draft.employee.role),
+        addressLine1: pickEmployeeText('adresse', primary.draft.employee.addressLine1, verified.draft.employee.addressLine1),
+        addressLine2: pickEmployeeText('complément d’adresse', primary.draft.employee.addressLine2, verified.draft.employee.addressLine2),
+        postalCode: consensusText('NPA', primary.draft.employee.postalCode, verified.draft.employee.postalCode, normalizedText, warnings),
+        city: pickEmployeeText('localité', primary.draft.employee.city, verified.draft.employee.city),
+        canton: consensusText('canton', primary.draft.employee.canton, verified.draft.employee.canton, normalizedText, warnings).toUpperCase(),
+        birthDate,
+        avsNumber,
+        iban: normalizedIban(iban),
+        employmentRate: employmentRateAgrees ? verified.draft.employee.employmentRate : 100,
+        salaryMode: salaryModeAgrees ? verified.draft.employee.salaryMode : 'monthly',
+      },
+      period,
+      paymentDate,
+      grossCents: amountConsensus('brut', primary.draft.grossCents, verified.draft.grossCents),
+      netCents: amountConsensus('net', primary.draft.netCents, verified.draft.netCents),
+      lines,
+      warnings: [...new Set(warnings)],
+    },
+    detected: { employmentRate: employmentRateAgrees, salaryMode: salaryModeAgrees },
+    identity: { passes: 2, employeeNumber, avsNumber, birthDate, iban: normalizedIban(iban), conflicts: identityConflicts },
+  };
 }
 
 /**

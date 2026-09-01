@@ -1,10 +1,13 @@
-import { database, stripeConfiguration } from '@/lib/runtime';
+import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import {
   base64Url,
   fromBase64Url,
   LICENSE_PLAN,
   LICENSE_PRICE_CHF_CENTS,
   PublicError,
+  retrieveSubscription,
+  upsertSubscription,
+  validateActiveElykoSubscription,
 } from '@/lib/stripe';
 
 const INSTALLATION_ID =
@@ -28,7 +31,7 @@ function isoDate(seconds: number) {
   return new Date(seconds * 1000).toISOString().slice(0, 10);
 }
 
-async function signPayload(payload: LicensePayload) {
+async function signEncoded(encoded: string) {
   const { signingKey } = stripeConfiguration();
   if (!signingKey)
     throw new PublicError(
@@ -42,10 +45,14 @@ async function signPayload(payload: LicensePayload) {
     false,
     ['sign'],
   );
-  const encoded = base64Url(new TextEncoder().encode(JSON.stringify(payload)));
-  const signature = new Uint8Array(
+  return new Uint8Array(
     await crypto.subtle.sign('Ed25519', key, new TextEncoder().encode(encoded)),
   );
+}
+
+async function signPayload(payload: LicensePayload) {
+  const encoded = base64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = await signEncoded(encoded);
   return `${encoded}.${base64Url(signature)}`;
 }
 
@@ -93,4 +100,134 @@ export async function issueLicense(input: {
     valid_until: isoDate(input.periodEnd + 3 * 86_400),
   };
   return { token: await signPayload(payload), payload };
+}
+
+async function refreshIdentityFromToken(token: string) {
+  if (token.length < 100 || token.length > 8_192)
+    throw new PublicError('Jeton de licence invalide.', 400);
+  const parts = token.split('.');
+  if (
+    parts.length !== 2 ||
+    !/^[A-Za-z0-9_-]+$/.test(parts[0]) ||
+    !/^[A-Za-z0-9_-]{80,100}$/.test(parts[1])
+  ) {
+    throw new PublicError('Jeton de licence invalide.', 400);
+  }
+  try {
+    const providedSignature = fromBase64Url(parts[1]);
+    const expectedSignature = await signEncoded(parts[0]);
+    if (providedSignature.length !== expectedSignature.length) {
+      throw new Error('invalid signature');
+    }
+    let difference = 0;
+    for (let index = 0; index < expectedSignature.length; index += 1) {
+      difference |= providedSignature[index] ^ expectedSignature[index];
+    }
+    if (difference !== 0) throw new Error('invalid signature');
+    const payload = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true }).decode(fromBase64Url(parts[0])),
+    ) as Partial<LicensePayload>;
+    if (
+      payload.token_version !== 2 ||
+      !/^lic_[0-9a-f-]{36}$/i.test(payload.license_id ?? '') ||
+      !INSTALLATION_ID.test(payload.installation_id ?? '')
+    ) {
+      throw new Error('invalid payload');
+    }
+    return {
+      licenseId: payload.license_id!,
+      installationId: payload.installation_id!,
+      payload: payload as LicensePayload,
+    };
+  } catch {
+    throw new PublicError('Jeton de licence invalide.', 400);
+  }
+}
+
+async function sha256Hex(value: string) {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)),
+  );
+  return [...digest]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function constantTimeTextEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
+/**
+ * Réémet un bail signé pour la même installation après contrôle Stripe en
+ * temps réel. Le jeton présenté sert de secret opaque : le couple aléatoire
+ * licence/installation doit exister exactement dans D1 et ne permet aucun
+ * transfert vers un autre PC. Son ancienne date d’expiration n’est pas une
+ * preuve d’abonnement; l’état Stripe courant reste l’unique autorité.
+ */
+export async function refreshLicense(token: string) {
+  const normalizedToken = token.trim();
+  const { licenseId, installationId, payload } =
+    await refreshIdentityFromToken(normalizedToken);
+  const ownerBindingHash = runtimeValue(
+    'OWNER_LICENSE_BINDING_SHA256',
+  ).toLowerCase();
+  if (ownerBindingHash) {
+    if (!/^[0-9a-f]{64}$/.test(ownerBindingHash)) {
+      throw new PublicError(
+        'La configuration de la licence propriétaire est invalide.',
+        503,
+      );
+    }
+    const providedHash = await sha256Hex(`${licenseId}:${installationId}`);
+    if (constantTimeTextEqual(providedHash, ownerBindingHash)) {
+      const now = Math.floor(Date.now() / 1000);
+      const refreshedOwnerPayload: LicensePayload = {
+        ...payload,
+        token_version: 2,
+        license_id: licenseId,
+        installation_id: installationId,
+        jti: crypto.randomUUID(),
+        kid: 'hc-prod-v1',
+        customer_name: 'Licence propriétaire Elyko',
+        plan: LICENSE_PLAN,
+        price_chf_cents: LICENSE_PRICE_CHF_CENTS,
+        issued_at: new Date().toISOString(),
+        valid_from: isoDate(now - 86_400),
+        valid_until: '2036-12-31',
+      };
+      return {
+        token: await signPayload(refreshedOwnerPayload),
+        payload: refreshedOwnerPayload,
+      };
+    }
+  }
+  const activation = await database()
+    .prepare(
+      `SELECT activation.subscription_id, subscription.customer_name
+       FROM license_activations activation
+       LEFT JOIN subscriptions subscription ON subscription.subscription_id=activation.subscription_id
+       WHERE activation.license_id=? AND activation.installation_id=? LIMIT 1`,
+    )
+    .bind(licenseId, installationId)
+    .first<{ subscription_id: string; customer_name: string | null }>();
+  if (!activation) {
+    throw new PublicError(
+      'Cette activation n’est pas reconnue. Contactez le support Elyko.',
+      403,
+    );
+  }
+  const subscription = await retrieveSubscription(activation.subscription_id);
+  const item = validateActiveElykoSubscription(subscription);
+  await upsertSubscription(subscription);
+  return issueLicense({
+    subscriptionId: subscription.id,
+    installationId,
+    customerName: activation.customer_name,
+    periodEnd: item.current_period_end!,
+  });
 }

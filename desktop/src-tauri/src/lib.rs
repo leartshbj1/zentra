@@ -1,6 +1,7 @@
 mod accounting;
 mod accounting_closure;
 mod app_updater;
+mod attachments;
 mod audit;
 mod backup;
 mod bank_import;
@@ -17,8 +18,11 @@ mod payroll_import;
 mod payroll_pdf;
 mod reminders;
 mod schema;
+mod stock;
+mod supplier_invoices;
 mod swiss_payroll_rules;
 mod swiss_qr;
+mod time_billing;
 
 use commands::*;
 use database::LocalStore;
@@ -55,14 +59,23 @@ pub fn run() {
             associate_bank_account,
             dissociate_bank_account,
             confirm_bank_reconciliation,
+            confirm_supplier_bank_reconciliation,
             create_record,
             update_record,
             delete_record,
+            record_stock_entry,
+            record_stock_exit,
+            record_stock_correction,
+            save_supplier_invoice_draft,
+            validate_supplier_invoice,
+            record_supplier_payment,
+            delete_supplier_invoice_draft,
             update_settings,
             stage_company_logo,
             save_document_with_items,
             issue_quote,
             issue_invoice,
+            create_invoice_from_time_entries,
             update_quote_status,
             convert_quote_to_invoice,
             record_payment,
@@ -70,6 +83,8 @@ pub fn run() {
             upsert_account,
             delete_account,
             get_accounting_settings,
+            get_accounting_continuity,
+            install_swiss_accounting_starter,
             configure_accounting,
             list_accounting_periods,
             upsert_accounting_period,
@@ -120,6 +135,7 @@ pub fn run() {
             verify_audit_log,
             get_license_state,
             install_license_token,
+            refresh_license,
             app_updater::get_secure_update_policy,
             app_updater::check_secure_update,
             app_updater::install_secure_update,
@@ -130,7 +146,8 @@ pub fn run() {
             create_backup,
             restore_backup,
             export_json,
-            add_attachment,
+            add_supplier_invoice_attachment,
+            delete_supplier_invoice_attachment,
             open_attachment,
             open_data_folder,
         ])
@@ -147,15 +164,18 @@ mod tests {
     use serde_json::json;
 
     use crate::{
+        attachments::AddSupplierInvoiceAttachmentInput,
         database::LocalStore,
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, ApplyPayrollInput,
             CalculateEmployeePayrollInput, CalculatePayrollInput, ContributionDefinitionInput,
-            ContributionSelectionInput, ConvertQuoteInput, ManualJournalInput,
-            ManualJournalLineInput, MarkReminderInput, OnboardingInput, PayPayslipInput,
-            PayslipManualLineInput, PeriodFilter, PostPayslipInput, RecordPaymentInput,
-            ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
-            SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SwissQrBillInput,
+            ContributionSelectionInput, ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput,
+            ManualJournalInput, ManualJournalLineInput, MarkReminderInput, OnboardingInput,
+            PayPayslipInput, PayslipManualLineInput, PeriodFilter, PostPayslipInput,
+            RecordPaymentInput, RecordSupplierPaymentInput, ReminderSettingsInput,
+            ReminderTemplateInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
+            SavePayslipWithContributionsInput, SaveSupplierInvoiceDraftInput, StockCorrectionInput,
+            StockEntryInput, StockExitInput, SupplierInvoiceLineInput, SwissQrBillInput,
             SwissQrParty,
         },
         schema::{BUSINESS_TABLES, SCHEMA_SQL, SCHEMA_VERSION},
@@ -219,6 +239,72 @@ mod tests {
             .complete_onboarding(test_onboarding(), "1.0.0")
             .expect("complete onboarding");
         (temporary, store)
+    }
+
+    fn time_billing_fixture(store: &LocalStore) -> (String, String, String) {
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client heures"}))
+                .unwrap(),
+        );
+        let project_id = value_id(
+            &store
+                .create_record(
+                    "projects",
+                    json!({"name":"Projet heures","client_id":client_id}),
+                )
+                .unwrap(),
+        );
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Alice Exemple","country":"fr"}))
+                .unwrap(),
+        );
+        (client_id, project_id, employee_id)
+    }
+
+    fn create_billable_time(
+        store: &LocalStore,
+        project_id: &str,
+        employee_id: &str,
+        date: &str,
+        minutes: i64,
+        rate_cents: i64,
+    ) -> String {
+        value_id(
+            &store
+                .create_record(
+                    "time_entries",
+                    json!({
+                        "project_id":project_id,
+                        "employee_id":employee_id,
+                        "date":date,
+                        "minutes":minutes,
+                        "billable":true,
+                        "billing_rate_cents":rate_cents,
+                        "status":"approuve",
+                        "note":"Intervention locale"
+                    }),
+                )
+                .unwrap(),
+        )
+    }
+
+    fn time_billing_input(
+        request_id: &str,
+        project_id: &str,
+        time_entry_ids: Vec<String>,
+    ) -> CreateInvoiceFromTimeEntriesInput {
+        CreateInvoiceFromTimeEntriesInput {
+            request_id: request_id.into(),
+            project_id: project_id.into(),
+            time_entry_ids,
+            title: None,
+            service_date_from: None,
+            service_date_to: None,
+            vat_bp: None,
+            notes: None,
+        }
     }
 
     /// Fixture réglementaire minimale pour les tests comptables qui ne portent
@@ -385,6 +471,14 @@ mod tests {
                 "credit",
                 "short_term_liabilities",
             ),
+            (
+                "supplier_payable",
+                "2002",
+                "Dettes fournisseurs",
+                "liability",
+                "credit",
+                "short_term_liabilities",
+            ),
         ];
         let mut result = HashMap::new();
         for (key, code, name, account_type, normal_balance, report_section) in specs {
@@ -419,6 +513,7 @@ mod tests {
                 wages_payable_account_id: Some(a["wages_payable"].clone()),
                 social_expense_account_id: Some(a["social_expense"].clone()),
                 social_payable_account_id: Some(a["social_payable"].clone()),
+                supplier_payable_account_id: Some(a["supplier_payable"].clone()),
             })
             .expect("configure accounting");
         a
@@ -741,7 +836,7 @@ mod tests {
             .replace("  noga_division TEXT,\n", "")
             .replace("  activity_description TEXT,\n", "")
             .replace("  noga_detailed_code TEXT,\n", "")
-            .replace("PRAGMA user_version = 12;", "PRAGMA user_version = 2;");
+            .replace("PRAGMA user_version = 18;", "PRAGMA user_version = 2;");
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(&legacy_schema).unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise historique','2025-01-01','2025-01-01')",[]).unwrap();
@@ -835,50 +930,215 @@ mod tests {
     }
 
     #[test]
+    fn v13_migration_repairs_only_matching_legacy_payslip_payment_links() {
+        let temporary = tempfile::tempdir().unwrap();
+        let data_dir = temporary.path().join("pre-payment-link-v12-profile");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let database_path = data_dir.join("helvichantier.sqlite3");
+        let connection = rusqlite::Connection::open(&database_path).unwrap();
+        connection.execute_batch(SCHEMA_SQL).unwrap();
+        connection.execute_batch(
+            "INSERT INTO employees(id,name,created_at,updated_at) VALUES('employee-v12','Employé v12','2026-01-01','2026-01-01');
+             INSERT INTO journal_entries(id,number,entry_date,description,source_type,source_id,source_event,status,created_at)
+               VALUES('journal-payment-a','J-2026-000001','2026-09-02','Paiement salaire','payslip','payslip-a','payment','posted','2026-09-02');
+             INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,payment_journal_entry_id,created_at,updated_at)
+               VALUES('payslip-a','employee-v12','2026-08','paye',100000,10000,90000,0,NULL,'journal-payment-a','2026-08-31','2026-09-02');
+             INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,payment_journal_entry_id,created_at,updated_at)
+               VALUES('payslip-b','employee-v12','2026-09','paye',100000,10000,90000,0,NULL,'journal-payment-a','2026-09-30','2026-10-02');
+             PRAGMA user_version=12;",
+        ).unwrap();
+        drop(connection);
+
+        let store = LocalStore::initialize(data_dir).unwrap();
+        let connection = store.connect().unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let repaired: (Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT payment_date,payment_journal_entry_id FROM payslips WHERE id='payslip-a'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            repaired,
+            (Some("2026-09-02".into()), Some("journal-payment-a".into()))
+        );
+        let wrong_link_date: Option<String> = connection
+            .query_row(
+                "SELECT payment_date FROM payslips WHERE id='payslip-b'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            wrong_link_date, None,
+            "a journal belonging to another payslip must never repair the date"
+        );
+        assert!(connection
+            .execute(
+                "UPDATE payslips SET payment_date='2026-09-03' WHERE id='payslip-a'",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn v14_migration_adds_empty_supplier_ledger_to_a_real_v13_shape() {
+        let temporary = tempfile::tempdir().unwrap();
+        let data_dir = temporary.path().join("pre-supplier-ledger-v13-profile");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let database_path = data_dir.join("helvichantier.sqlite3");
+        let connection = rusqlite::Connection::open(&database_path).unwrap();
+        connection.execute_batch(SCHEMA_SQL).unwrap();
+        connection
+            .execute_batch(
+                "DROP TRIGGER attachments_supplier_insert_guard;
+                 DROP TRIGGER attachments_no_update;
+                 DROP TRIGGER attachments_supplier_validated_no_delete;
+                 DROP TABLE supplier_payments;
+                 DROP TABLE supplier_invoice_items;
+                 DROP TABLE supplier_invoices;
+                 ALTER TABLE accounting_settings RENAME TO accounting_settings_v14;
+                 CREATE TABLE accounting_settings (
+                   id INTEGER PRIMARY KEY CHECK (id = 1),
+                   enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0,1)),
+                   ar_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   revenue_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   vat_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   bank_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   vat_receivable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   wages_expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   wages_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   social_expense_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   social_payable_account_id TEXT REFERENCES accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL
+                 );
+                 INSERT INTO accounting_settings(id,enabled,created_at,updated_at)
+                   SELECT id,enabled,created_at,updated_at FROM accounting_settings_v14;
+                 DROP TABLE accounting_settings_v14;
+                 INSERT OR IGNORE INTO accounting_settings(id,enabled,created_at,updated_at)
+                   VALUES(1,0,'2026-01-01','2026-01-01');
+                 INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at)
+                   VALUES(1,1,'Entreprise v13','F','43','Entreprise conservée','2026-01-01','2026-01-01');
+                 INSERT INTO clients(id,name,country,created_at,updated_at)
+                   VALUES('client-v13','Client v13 conservé','CH','2026-01-01','2026-01-01');
+                 PRAGMA user_version=13;",
+            )
+            .unwrap();
+        let old_columns: Vec<String> = connection
+            .prepare("PRAGMA table_info(accounting_settings)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(!old_columns
+            .iter()
+            .any(|name| name == "supplier_payable_account_id"));
+        let old_supplier_tables: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN('supplier_invoices','supplier_invoice_items','supplier_payments')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(old_supplier_tables, 0);
+        drop(connection);
+
+        let store = LocalStore::initialize(data_dir).unwrap();
+        let connection = store.connect().unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let new_columns: Vec<String> = connection
+            .prepare("PRAGMA table_info(accounting_settings)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(new_columns
+            .iter()
+            .any(|name| name == "supplier_payable_account_id"));
+        let objects: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN('supplier_invoices','supplier_invoice_items','supplier_payments')),
+                   (SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN('idx_supplier_invoices_status_due','idx_supplier_invoices_reference_unique','idx_supplier_invoice_items_parent','idx_supplier_payments_parent')),
+                   (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'supplier_%')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(objects.0, 3);
+        assert_eq!(objects.1, 4);
+        assert_eq!(objects.2, 10);
+        let supplier_payable: Option<String> = connection
+            .query_row(
+                "SELECT supplier_payable_account_id FROM accounting_settings WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(supplier_payable, None);
+        assert_eq!(
+            store.get_workspace().unwrap()["clients"][0]["name"],
+            "Client v13 conservé"
+        );
+        assert!(store.get_workspace().unwrap()["supplier_invoices"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
     fn v10_migration_adds_an_empty_catalog_and_preserves_legacy_lines() {
         let temporary = tempfile::tempdir().unwrap();
         let data_dir = temporary.path().join("pre-catalog-v9-profile");
         std::fs::create_dir_all(&data_dir).unwrap();
         let database_path = data_dir.join("helvichantier.sqlite3");
-        let catalog_table = r#"CREATE TABLE IF NOT EXISTS catalog_items (
-  id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('product', 'service')),
-  sku TEXT,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  unit TEXT NOT NULL DEFAULT 'unité',
-  sales_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (sales_price_cents >= 0),
-  purchase_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK (purchase_cost_cents >= 0),
-  vat_bp INTEGER NOT NULL DEFAULT 0 CHECK (vat_bp BETWEEN 0 AND 10000),
-  track_stock INTEGER NOT NULL DEFAULT 0 CHECK (track_stock IN (0, 1)),
-  stock_quantity_milli INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity_milli >= 0),
-  reorder_level_milli INTEGER NOT NULL DEFAULT 0 CHECK (reorder_level_milli >= 0),
-  archived_at TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
-"#;
-        let legacy_schema = SCHEMA_SQL
-            .replace(catalog_table, "")
-            .replace(
-                "  catalog_item_id TEXT REFERENCES catalog_items(id) ON UPDATE RESTRICT ON DELETE RESTRICT,\n",
-                "",
-            )
-            .lines()
-            .filter(|line| {
-                !line.contains("idx_catalog_items_")
-                    && !line.contains("idx_quote_items_catalog")
-                    && !line.contains("idx_invoice_items_catalog")
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-            .replace("PRAGMA user_version = 12;", "PRAGMA user_version = 9;");
-        assert!(!legacy_schema.contains("catalog_items"));
-        assert!(!legacy_schema.contains("catalog_item_id"));
-
         let connection = rusqlite::Connection::open(&database_path).unwrap();
-        connection.execute_batch(&legacy_schema).unwrap();
+        connection.execute_batch(SCHEMA_SQL).unwrap();
+        connection
+            .execute_batch(
+                "DROP TRIGGER stock_invoice_no_unsafe_cancel;
+                 DROP TRIGGER stock_movements_no_delete;
+                 DROP TRIGGER stock_movements_no_update;
+                 DROP TRIGGER stock_movements_apply_balance;
+                 DROP TRIGGER stock_movements_insert_guard;
+                 DROP TRIGGER catalog_items_stock_history_no_delete;
+                 DROP TRIGGER catalog_items_track_stock_enable_guard;
+                 DROP TRIGGER catalog_items_track_stock_history_guard;
+                 DROP TRIGGER catalog_items_stock_balance_guard;
+                 DROP TRIGGER catalog_items_initial_stock_guard;
+                 DROP TRIGGER catalog_items_stock_kind_update_guard;
+                 DROP TRIGGER catalog_items_stock_kind_insert_guard;
+                 DROP TABLE stock_movements;
+                 DROP INDEX idx_quote_items_catalog;
+                 DROP INDEX idx_invoice_items_catalog;
+                 DROP INDEX idx_catalog_items_name;
+                 DROP INDEX idx_catalog_items_sku;
+                 DROP INDEX idx_catalog_items_archived;
+                 ALTER TABLE quote_items DROP COLUMN catalog_item_id;
+                 ALTER TABLE invoice_items DROP COLUMN catalog_item_id;
+                 DROP TABLE catalog_items;
+                 PRAGMA user_version=9;",
+            )
+            .unwrap();
+        let pre_migration_catalog: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='catalog_items'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pre_migration_catalog, 0);
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at) VALUES(1,1,'Entreprise v9','F','43','Entreprise historique','2026-01-01','2026-01-01')",[]).unwrap();
         connection.execute("INSERT INTO quotes(id,title,status,currency,created_at,updated_at) VALUES('quote-v9','Devis conservé','brouillon','CHF','2026-01-01','2026-01-01')",[]).unwrap();
         connection.execute("INSERT INTO quote_items(id,quote_id,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES('line-v9','quote-v9','Ligne historique',2,'heure',8000,1250,0,14000,0,14000,'2026-01-01','2026-01-01')",[]).unwrap();
@@ -996,9 +1256,11 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             })
             .collect::<Vec<_>>()
             .join("\n")
-            .replace("PRAGMA user_version = 12;", "PRAGMA user_version = 10;");
+            .replace("PRAGMA user_version = 18;", "PRAGMA user_version = 10;");
         assert!(!legacy_schema.contains("CREATE TABLE IF NOT EXISTS suppliers"));
-        assert!(!legacy_schema.contains("supplier_id"));
+        assert!(!legacy_schema.contains(
+            "supplier_id TEXT REFERENCES suppliers(id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+        ));
         assert!(!legacy_schema.contains("payment_status"));
 
         let connection = rusqlite::Connection::open(&database_path).unwrap();
@@ -1599,6 +1861,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         onboarding.credit_note_start_number = Some(30);
         onboarding.credit_note_prefix = Some("NC".into());
         store.complete_onboarding(onboarding, "1.0.0").unwrap();
+        enable_accounting(&store);
         let client_id=value_id(&store.create_record("clients",json!({"name":"Client documents","address_line1":"Rue du Test","address_line2":"4","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap());
         let quote_id = value_id(
             &store
@@ -1756,14 +2019,25 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     "purchase_cost_cents":3_500,
                     "vat_bp":0,
                     "track_stock":true,
-                    "stock_quantity_milli":12_500,
+                    "stock_quantity_milli":0,
                     "reorder_level_milli":2_000
                 }),
             )
             .unwrap();
         let catalog_item_id = value_id(&catalog_item);
         assert_eq!(catalog_item["track_stock"], true);
-        assert_eq!(catalog_item["stock_quantity_milli"], 12_500);
+        assert_eq!(catalog_item["stock_quantity_milli"], 0);
+        let opening = store
+            .record_stock_entry(StockEntryInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: catalog_item_id.clone(),
+                quantity_milli: 12_500,
+                reason: "Stock initial du test catalogue".into(),
+                reference: Some("TEST-CATALOGUE".into()),
+                date: Some("2026-01-01".into()),
+            })
+            .unwrap();
+        assert_eq!(opening["catalog_item"]["stock_quantity_milli"], 12_500);
         assert!(store
             .create_record(
                 "catalog_items",
@@ -1870,6 +2144,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     #[test]
     fn suppliers_and_pending_expenses_preserve_the_supplier_snapshot() {
         let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
         assert!(store
             .create_record("suppliers", json!({"name":"  "}))
             .is_err());
@@ -2006,6 +2281,394 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(paid["payment_status"], "paid");
         assert_eq!(paid["paid_at"], "2026-09-20");
         assert_eq!(paid["supplier"], "Matériaux Léman SA");
+    }
+
+    #[test]
+    fn supplier_invoice_lifecycle_is_atomic_immutable_and_idempotent() {
+        let (temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let supplier_id = value_id(
+            &store
+                .create_record(
+                    "suppliers",
+                    json!({"name":"Fournisseur factures SA","payment_terms_days":30}),
+                )
+                .unwrap(),
+        );
+        let draft_id = "8d013d0a-0b24-4a70-a7a2-aec24e8e3101";
+        let input = SaveSupplierInvoiceDraftInput {
+            id: Some(draft_id.into()),
+            supplier_id: supplier_id.clone(),
+            project_id: None,
+            date: "2026-09-01".into(),
+            due_date: "2026-09-30".into(),
+            reference: Some("FAC 2026-001".into()),
+            note: Some("Commande réelle".into()),
+            items: vec![SupplierInvoiceLineInput {
+                id: Some("1d4e2139-f466-4303-8de8-6b285cc85303".into()),
+                description: "Matériel".into(),
+                quantity_milli: 2_000,
+                unit: Some("pièce".into()),
+                unit_price_cents: 5_000,
+                discount_bp: 0,
+                vat_bp: 0,
+                category: "Matériaux".into(),
+                expense_account_id: None,
+                project_id: None,
+            }],
+        };
+        let draft = store.save_supplier_invoice_draft(input.clone()).unwrap();
+        assert_eq!(draft["invoice"]["status"], "draft");
+        assert_eq!(draft["invoice"]["total_cents"], 10_000);
+        assert_eq!(draft["items"].as_array().unwrap().len(), 1);
+
+        let retried = store.save_supplier_invoice_draft(input.clone()).unwrap();
+        assert_eq!(retried["invoice"]["id"], draft_id);
+        let draft_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM supplier_invoices WHERE id=?",
+                rusqlite::params![draft_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(draft_count, 1);
+
+        let source_attachment = temporary.path().join("supplier-invoice.pdf");
+        std::fs::write(&source_attachment, b"%PDF-1.7\nreal payload").unwrap();
+        let attachment = store
+            .add_supplier_invoice_attachment(AddSupplierInvoiceAttachmentInput {
+                supplier_invoice_id: draft_id.into(),
+                source_path: source_attachment.to_string_lossy().into_owned(),
+            })
+            .unwrap();
+        let attachment_id = value_id(&attachment);
+        let attachment_stored_name = attachment["stored_name"].as_str().unwrap().to_owned();
+        let attachment_path = store.attachments_dir.join(&attachment_stored_name);
+        assert!(attachment_path.is_file());
+        assert_eq!(attachment["mime_type"], "application/pdf");
+        assert_eq!(attachment["sha256"].as_str().unwrap().len(), 64);
+
+        let duplicate_attachment = store
+            .add_supplier_invoice_attachment(AddSupplierInvoiceAttachmentInput {
+                supplier_invoice_id: draft_id.into(),
+                source_path: source_attachment.to_string_lossy().into_owned(),
+            })
+            .unwrap();
+        assert_eq!(duplicate_attachment["id"], attachment_id);
+        let attachment_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=?",
+                rusqlite::params![draft_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(attachment_count, 1);
+
+        let disposable_id = "2f424a0e-f6fd-479c-9948-3356e2427c5c";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(disposable_id.into()),
+                reference: None,
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some("9a6ad5db-6db5-440a-a703-b3fc5c49dfe3".into()),
+                    ..input.items[0].clone()
+                }],
+                ..input.clone()
+            })
+            .unwrap();
+        let disposable_source = temporary.path().join("disposable.png");
+        std::fs::write(
+            &disposable_source,
+            [
+                0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, b'd', b'a', b't', b'a',
+            ],
+        )
+        .unwrap();
+        let disposable_attachment = store
+            .add_supplier_invoice_attachment(AddSupplierInvoiceAttachmentInput {
+                supplier_invoice_id: disposable_id.into(),
+                source_path: disposable_source.to_string_lossy().into_owned(),
+            })
+            .unwrap();
+        let disposable_attachment_path = store
+            .attachments_dir
+            .join(disposable_attachment["stored_name"].as_str().unwrap());
+        assert!(disposable_attachment_path.is_file());
+        store.delete_supplier_invoice_draft(disposable_id).unwrap();
+        let disposable_rows: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_invoices WHERE id=?1) + (SELECT COUNT(*) FROM supplier_invoice_items WHERE supplier_invoice_id=?1) + (SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=?1)",
+                rusqlite::params![disposable_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(disposable_rows, 0);
+        assert!(!disposable_attachment_path.exists());
+
+        let validated = store.validate_supplier_invoice(draft_id).unwrap();
+        assert_eq!(validated["invoice"]["status"], "validated");
+        let connection = store.connect().unwrap();
+        let snapshot_json: String = connection
+            .query_row(
+                "SELECT snapshot_json FROM supplier_invoices WHERE id=?",
+                rusqlite::params![draft_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let snapshot: serde_json::Value = serde_json::from_str(&snapshot_json).unwrap();
+        assert_eq!(snapshot["attachments"][0]["id"], attachment_id);
+        assert_eq!(
+            snapshot["attachments"][0]["original_name"],
+            "supplier-invoice.pdf"
+        );
+        assert!(snapshot["attachments"][0]["sha256"].is_string());
+        assert!(snapshot["attachments"][0].get("stored_name").is_none());
+        let postings: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_invoice' AND source_id=?1 AND source_event='validate'),
+                   (SELECT COALESCE(SUM(line.debit_cents),0) FROM journal_lines line JOIN journal_entries entry ON entry.id=line.journal_entry_id WHERE entry.source_type='supplier_invoice' AND entry.source_id=?1 AND line.account_id=?2),
+                   (SELECT COALESCE(SUM(line.credit_cents),0) FROM journal_lines line JOIN journal_entries entry ON entry.id=line.journal_entry_id WHERE entry.source_type='supplier_invoice' AND entry.source_id=?1 AND line.account_id=?3)",
+                rusqlite::params![draft_id, accounts["expense"], accounts["supplier_payable"]],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(postings, (1, 10_000, 10_000));
+        assert!(connection
+            .execute(
+                "UPDATE attachments SET original_name='altéré.pdf' WHERE id=?",
+                rusqlite::params![attachment_id],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM attachments WHERE id=?",
+                rusqlite::params![attachment_id],
+            )
+            .is_err());
+        drop(connection);
+        assert!(store.save_supplier_invoice_draft(input.clone()).is_err());
+        assert!(store.delete_supplier_invoice_draft(draft_id).is_err());
+        assert!(store
+            .delete_supplier_invoice_attachment(&attachment_id)
+            .is_err());
+        assert_eq!(
+            store.verified_attachment_path(&attachment_id).unwrap(),
+            attachment_path
+        );
+        std::fs::write(&attachment_path, b"%PDF-1.7\nfake payload").unwrap();
+        assert!(store.verified_attachment_path(&attachment_id).is_err());
+
+        let duplicate_id = "e9dc781b-edf4-4fd1-a19d-12ae3041e8f8";
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(duplicate_id.into()),
+                reference: Some("fac-2026/001".into()),
+                items: vec![SupplierInvoiceLineInput {
+                    id: Some("bdb10d14-a2c7-463d-8961-e89112f5de08".into()),
+                    ..input.items[0].clone()
+                }],
+                ..input.clone()
+            })
+            .unwrap();
+        assert!(store
+            .validate_supplier_invoice(duplicate_id)
+            .unwrap_err()
+            .to_string()
+            .contains("même référence"));
+
+        let replacement_payable = value_id(
+            &store
+                .upsert_account(AccountInput {
+                    id: None,
+                    code: "2003".into(),
+                    name: "Dettes fournisseurs futures".into(),
+                    account_type: "liability".into(),
+                    normal_balance: "credit".into(),
+                    report_section: "short_term_liabilities".into(),
+                    active: true,
+                })
+                .unwrap(),
+        );
+        store
+            .configure_accounting(AccountingSettingsInput {
+                enabled: true,
+                ar_account_id: Some(accounts["ar"].clone()),
+                revenue_account_id: Some(accounts["revenue"].clone()),
+                vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                bank_account_id: Some(accounts["bank"].clone()),
+                expense_account_id: Some(accounts["expense"].clone()),
+                vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
+                wages_expense_account_id: Some(accounts["wages_expense"].clone()),
+                wages_payable_account_id: Some(accounts["wages_payable"].clone()),
+                social_expense_account_id: Some(accounts["social_expense"].clone()),
+                social_payable_account_id: Some(accounts["social_payable"].clone()),
+                supplier_payable_account_id: Some(replacement_payable),
+            })
+            .unwrap();
+
+        let request_id = "81aff63d-9519-47f2-bfcc-861be2b87952";
+        let partial_input = RecordSupplierPaymentInput {
+            request_id: request_id.into(),
+            supplier_invoice_id: draft_id.into(),
+            amount_cents: 4_000,
+            date: "2026-09-15".into(),
+            method: Some("bank_transfer".into()),
+            reference: Some("VIR-001".into()),
+            notes: None,
+        };
+        let partial = store
+            .record_supplier_payment(partial_input.clone())
+            .unwrap();
+        assert_eq!(partial["document"]["invoice"]["paid_cents"], 4_000);
+        assert_eq!(partial["idempotent"], false);
+        let retry = store.record_supplier_payment(partial_input).unwrap();
+        assert_eq!(retry["idempotent"], true);
+        let connection = store.connect().unwrap();
+        let payment_posting: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM supplier_payments WHERE request_id=?1),
+                   (SELECT COALESCE(SUM(line.debit_cents),0) FROM journal_lines line JOIN journal_entries entry ON entry.id=line.journal_entry_id WHERE entry.source_type='supplier_payment' AND line.account_id=?2)",
+                rusqlite::params![request_id, accounts["supplier_payable"]],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(payment_posting, (1, 4_000));
+        drop(connection);
+
+        assert!(store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: "f50b948a-6d83-43ea-a453-50fdd6fce2df".into(),
+                supplier_invoice_id: draft_id.into(),
+                amount_cents: 6_001,
+                date: "2026-09-20".into(),
+                method: None,
+                reference: None,
+                notes: None,
+            })
+            .unwrap_err()
+            .to_string()
+            .contains("dépasse le solde"));
+        assert!(store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: "5bb406df-0732-4e9e-84bd-79b97b5d1de6".into(),
+                supplier_invoice_id: draft_id.into(),
+                amount_cents: 1_000,
+                date: "2026-08-31".into(),
+                method: None,
+                reference: None,
+                notes: None,
+            })
+            .is_err());
+
+        let paid = store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: "f91c807c-2e7a-46e7-82f1-469549084b2b".into(),
+                supplier_invoice_id: draft_id.into(),
+                amount_cents: 6_000,
+                date: "2026-09-20".into(),
+                method: Some("bank_transfer".into()),
+                reference: Some("VIR-002".into()),
+                notes: None,
+            })
+            .unwrap();
+        assert_eq!(paid["document"]["invoice"]["paid_cents"], 10_000);
+        let continuity = store.get_accounting_continuity().unwrap();
+        assert_eq!(continuity["missing_supplier_invoices"], 0);
+        assert_eq!(continuity["missing_supplier_payments"], 0);
+        assert_eq!(continuity["semantic_posting_mismatches"], 0);
+    }
+
+    #[test]
+    fn supplier_invoice_and_payment_respect_closed_periods() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Fournisseur clôture SA"}))
+                .unwrap(),
+        );
+        let make_input = |id: &str, date: &str, reference: &str| SaveSupplierInvoiceDraftInput {
+            id: Some(id.into()),
+            supplier_id: supplier_id.clone(),
+            project_id: None,
+            date: date.into(),
+            due_date: date.into(),
+            reference: Some(reference.into()),
+            note: None,
+            items: vec![SupplierInvoiceLineInput {
+                id: Some(uuid::Uuid::new_v4().to_string()),
+                description: "Charge".into(),
+                quantity_milli: 1_000,
+                unit: Some("forfait".into()),
+                unit_price_cents: 5_000,
+                discount_bp: 0,
+                vat_bp: 0,
+                category: "Charges".into(),
+                expense_account_id: None,
+                project_id: None,
+            }],
+        };
+
+        let october_id = "64bb3e84-fd2f-4d8b-843d-50ee8fd67791";
+        store
+            .save_supplier_invoice_draft(make_input(october_id, "2026-10-10", "OCT-1"))
+            .unwrap();
+        let october_period = value_id(
+            &store
+                .upsert_accounting_period(AccountingPeriodInput {
+                    id: None,
+                    name: "Octobre 2026".into(),
+                    date_from: "2026-10-01".into(),
+                    date_to: "2026-10-31".into(),
+                })
+                .unwrap(),
+        );
+        store.close_accounting_period(&october_period).unwrap();
+        assert!(store.validate_supplier_invoice(october_id).is_err());
+        let connection = store.connect().unwrap();
+        let october_state: (String, i64) = connection
+            .query_row(
+                "SELECT status,(SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_invoice' AND source_id=?1) FROM supplier_invoices WHERE id=?1",
+                rusqlite::params![october_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(october_state, ("draft".into(), 0));
+        drop(connection);
+
+        let september_id = "2575f352-bfce-4c63-8745-995a4e0bd15a";
+        store
+            .save_supplier_invoice_draft(make_input(september_id, "2026-09-10", "SEP-1"))
+            .unwrap();
+        store.validate_supplier_invoice(september_id).unwrap();
+        assert!(store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: "6264e3cc-5b95-4bd1-b50a-9552361a158f".into(),
+                supplier_invoice_id: september_id.into(),
+                amount_cents: 5_000,
+                date: "2026-10-15".into(),
+                method: Some("bank_transfer".into()),
+                reference: None,
+                notes: None,
+            })
+            .is_err());
+        let connection = store.connect().unwrap();
+        let payment_state: (i64, i64) = connection
+            .query_row(
+                "SELECT paid_cents,(SELECT COUNT(*) FROM supplier_payments WHERE supplier_invoice_id=?1) FROM supplier_invoices WHERE id=?1",
+                rusqlite::params![september_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(payment_state, (0, 0));
     }
 
     #[test]
@@ -2234,6 +2897,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .reverse_journal_entry(&expense_entry, "2026-07-07", None)
             .unwrap();
         assert_eq!(reversal["entry"]["reversal_of"], expense_entry);
+        let reversal_retry = store
+            .reverse_journal_entry(&expense_entry, "2026-07-07", None)
+            .unwrap();
+        assert_eq!(reversal_retry["id"], reversal["id"]);
+        assert!(store
+            .reverse_journal_entry(&expense_entry, "2026-07-08", None)
+            .unwrap_err()
+            .to_string()
+            .contains("diffèrent"));
         assert_eq!(
             store
                 .get_trial_balance(PeriodFilter {
@@ -2257,6 +2929,150 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             })
             .unwrap();
         assert!(balance["sections"].is_object());
+    }
+
+    #[test]
+    fn accounting_starter_backfills_history_and_financial_events_fail_closed() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client continuité"}))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({"client_id":client_id,"title":"Facture avant comptabilité","service_date_from":"2026-08-01","service_date_to":"2026-08-31"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":25_000,"vat_bp":0}),
+            )
+            .unwrap();
+        store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-09-01".into()),
+                Some("2026-09-30".into()),
+            )
+            .unwrap();
+
+        let blocked = store
+            .record_payment(RecordPaymentInput {
+                request_id: Some("728e28c4-8525-49c2-9cca-c661e4c072ca".into()),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 25_000,
+                date: Some("2026-09-10".into()),
+                method: Some("Banque".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap_err();
+        assert!(blocked.to_string().contains("Activez la comptabilité"));
+        let connection = store.connect().unwrap();
+        let untouched: (i64, String, i64) = connection
+            .query_row(
+                "SELECT i.paid_cents,i.status,(SELECT COUNT(*) FROM payments p WHERE p.invoice_id=i.id) FROM invoices i WHERE i.id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(untouched, (0, "emise".into(), 0));
+        drop(connection);
+        let before = store.get_accounting_continuity().unwrap();
+        assert_eq!(before["missing_invoices"], 1);
+        assert_eq!(before["total_missing"], 1);
+
+        let installed = store.install_swiss_accounting_starter().unwrap();
+        assert_eq!(installed["synchronization"]["created_invoices"], 1);
+        assert_eq!(
+            installed["synchronization"]["remaining"]["total_missing"],
+            0
+        );
+        let paid = store
+            .record_payment(RecordPaymentInput {
+                request_id: Some("728e28c4-8525-49c2-9cca-c661e4c072ca".into()),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 25_000,
+                date: Some("2026-09-10".into()),
+                method: Some("Banque".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        assert_eq!(paid["amount_cents"], 25_000);
+        let continuity = store.get_accounting_continuity().unwrap();
+        assert_eq!(continuity["total_missing"], 0);
+        assert_eq!(continuity["journal_entry_count"], 2);
+        assert_eq!(continuity["semantic_posting_mismatches"], 0);
+
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: None,
+                name: "Septembre 2026".into(),
+                date_from: "2026-09-01".into(),
+                date_to: "2026-09-30".into(),
+            })
+            .unwrap();
+        let period_id = value_id(&period);
+        let connection = store.connect().unwrap();
+        connection
+            .execute_batch(
+                "DROP TRIGGER journal_entries_no_update;
+                 UPDATE journal_entries SET entry_date='2026-09-11' WHERE source_type='payment';
+                 CREATE TRIGGER journal_entries_no_update BEFORE UPDATE ON journal_entries BEGIN SELECT RAISE(ABORT,'posted journal entries are immutable'); END;",
+            )
+            .unwrap();
+        drop(connection);
+        let corrupted = store.get_accounting_continuity().unwrap();
+        assert_eq!(corrupted["semantic_posting_mismatches"], 1);
+        assert!(store
+            .close_accounting_period(&period_id)
+            .unwrap_err()
+            .to_string()
+            .contains("ne correspondent pas exactement"));
+
+        let settings = store.get_accounting_settings().unwrap();
+        let disable = store.configure_accounting(AccountingSettingsInput {
+            enabled: false,
+            ar_account_id: settings["ar_account_id"].as_str().map(ToOwned::to_owned),
+            revenue_account_id: settings["revenue_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            vat_payable_account_id: settings["vat_payable_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            bank_account_id: settings["bank_account_id"].as_str().map(ToOwned::to_owned),
+            expense_account_id: settings["expense_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            vat_receivable_account_id: settings["vat_receivable_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            wages_expense_account_id: settings["wages_expense_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            wages_payable_account_id: settings["wages_payable_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            social_expense_account_id: settings["social_expense_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            social_payable_account_id: settings["social_payable_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            supplier_payable_account_id: settings["supplier_payable_account_id"]
+                .as_str()
+                .map(ToOwned::to_owned),
+        });
+        assert!(disable
+            .unwrap_err()
+            .to_string()
+            .contains("ne peut plus être désactivée"));
     }
 
     #[test]
@@ -2493,6 +3309,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 wages_payable_account_id: Some(replacement_wages_payable.clone()),
                 social_expense_account_id: Some(accounts["social_expense"].clone()),
                 social_payable_account_id: Some(accounts["social_payable"].clone()),
+                supplier_payable_account_id: None,
             })
             .unwrap();
 
@@ -3235,6 +4052,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     #[test]
     fn reminders_are_local_idempotent_and_cancelled_when_settled() {
         let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
         let client_id = value_id(
             &store
                 .create_record("clients", json!({"name":"Client relance"}))
@@ -4206,5 +5024,941 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             })
             .unwrap();
         assert_eq!(low_gross["payslip"]["net_cents"], 50);
+    }
+
+    #[test]
+    fn employee_country_round_trips_and_clients_can_be_archived() {
+        let (_temporary, store) = initialized_store();
+        let employee = store
+            .create_record("employees", json!({"name":"Employé pays","country":"fr"}))
+            .unwrap();
+        assert_eq!(employee["country"], "FR");
+        let employee = store
+            .update_record(
+                "employees",
+                employee["id"].as_str().unwrap(),
+                json!({"country":"de"}),
+            )
+            .unwrap();
+        assert_eq!(employee["country"], "DE");
+
+        let default_country = store
+            .create_record("employees", json!({"name":"Employé suisse"}))
+            .unwrap();
+        assert_eq!(default_country["country"], "CH");
+
+        let client = store
+            .create_record("clients", json!({"name":"Client archivable"}))
+            .unwrap();
+        assert_eq!(client["archived_at"], serde_json::Value::Null);
+        let client = store
+            .update_record(
+                "clients",
+                client["id"].as_str().unwrap(),
+                json!({"archived_at":"2026-09-01T10:00:00Z"}),
+            )
+            .unwrap();
+        assert_eq!(client["archived_at"], "2026-09-01T10:00:00Z");
+    }
+
+    #[test]
+    fn v17_migration_preserves_v16_people_and_adds_time_billing_invariants() {
+        let temporary = tempfile::tempdir().unwrap();
+        let data_dir = temporary.path().join("pre-time-billing-v16-profile");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let database_path = data_dir.join("helvichantier.sqlite3");
+        let connection = rusqlite::Connection::open(&database_path).unwrap();
+        connection.execute_batch(SCHEMA_SQL).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO clients(id,name,country,created_at,updated_at)
+                   VALUES('client-v16','Client conservé','CH','2026-08-01','2026-08-01');
+                 INSERT INTO employees(id,name,country,created_at,updated_at)
+                   VALUES('employee-v16','Employé conservé','FR','2026-08-01','2026-08-01');
+                 DROP TRIGGER IF EXISTS stock_invoice_no_unsafe_cancel;
+                 DROP TRIGGER IF EXISTS stock_movements_no_delete;
+                 DROP TRIGGER IF EXISTS stock_movements_no_update;
+                 DROP TRIGGER IF EXISTS stock_movements_apply_balance;
+                 DROP TRIGGER IF EXISTS stock_movements_insert_guard;
+                 DROP TRIGGER IF EXISTS catalog_items_stock_history_no_delete;
+                 DROP TRIGGER IF EXISTS catalog_items_track_stock_enable_guard;
+                 DROP TRIGGER IF EXISTS catalog_items_track_stock_history_guard;
+                 DROP TRIGGER IF EXISTS catalog_items_stock_balance_guard;
+                 DROP TRIGGER IF EXISTS catalog_items_initial_stock_guard;
+                 DROP TRIGGER IF EXISTS catalog_items_stock_kind_update_guard;
+                 DROP TRIGGER IF EXISTS catalog_items_stock_kind_insert_guard;
+                 DROP TABLE stock_movements;
+                 DROP TRIGGER IF EXISTS time_billing_invoice_items_no_delete;
+                 DROP TRIGGER IF EXISTS time_billing_invoice_items_no_update;
+                 DROP TRIGGER IF EXISTS time_billing_invoice_items_no_insert;
+                 DROP TRIGGER IF EXISTS time_billing_invoice_link_guard;
+                 DROP TRIGGER IF EXISTS time_entries_billing_no_delete;
+                 DROP TRIGGER IF EXISTS time_entries_billing_no_update;
+                 DROP TRIGGER IF EXISTS time_billing_entries_no_update;
+                 DROP TRIGGER IF EXISTS time_billing_entries_insert_guard;
+                 DROP TRIGGER IF EXISTS time_billing_batches_no_update;
+                 DROP TRIGGER IF EXISTS time_billing_batches_insert_guard;
+                 DROP TABLE time_billing_entries;
+                 DROP TABLE time_billing_batches;
+                 ALTER TABLE employees DROP COLUMN country;
+                 ALTER TABLE clients DROP COLUMN archived_at;
+                 PRAGMA user_version=16;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let store = LocalStore::initialize(data_dir).unwrap();
+        let connection = store.connect().unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let preserved: (String, String, String, Option<String>) = connection
+            .query_row(
+                "SELECT employee.name,employee.country,client.name,client.archived_at
+                 FROM employees employee CROSS JOIN clients client
+                 WHERE employee.id='employee-v16' AND client.id='client-v16'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            preserved,
+            (
+                "Employé conservé".into(),
+                "CH".into(),
+                "Client conservé".into(),
+                None
+            )
+        );
+        let v17_objects: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE (type='table' AND name IN ('time_billing_batches','time_billing_entries'))
+                    OR (type='trigger' AND name IN ('time_entries_billing_no_update','time_entries_billing_no_delete'))",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(v17_objects, 4);
+    }
+
+    #[test]
+    fn time_billing_is_atomic_idempotent_and_rounds_each_entry_to_the_minute() {
+        let (_temporary, store) = initialized_store();
+        store
+            .update_settings(json!({
+                "vat_registered":true,
+                "default_vat_bp":810,
+                "uid_number":"CHE-123.456.789"
+            }))
+            .unwrap();
+        let (_client_id, project_id, employee_id) = time_billing_fixture(&store);
+        let first = create_billable_time(&store, &project_id, &employee_id, "2026-08-31", 1, 30);
+        let second =
+            create_billable_time(&store, &project_id, &employee_id, "2026-09-01", 61, 10_001);
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let created = store
+            .create_invoice_from_time_entries(time_billing_input(
+                &request_id,
+                &project_id,
+                vec![second.clone(), first.clone()],
+            ))
+            .unwrap();
+        assert_eq!(created["idempotent"], false);
+        assert_eq!(created["invoice"]["status"], "brouillon");
+        assert_eq!(created["invoice"]["number"], serde_json::Value::Null);
+        assert_eq!(created["invoice"]["service_date_from"], "2026-08-31");
+        assert_eq!(created["invoice"]["service_date_to"], "2026-09-01");
+        assert_eq!(created["invoice"]["subtotal_cents"], 10_169);
+        assert_eq!(created["invoice"]["vat_cents"], 824);
+        assert_eq!(created["invoice"]["total_cents"], 10_993);
+        assert_eq!(created["batch"]["vat_bp"], 810);
+        let amounts = created["time_billing_entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["amount_cents_snapshot"].as_i64().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(amounts, vec![1, 10_168]);
+        let invoice_id = created["invoice"]["id"].as_str().unwrap().to_owned();
+        let batch_id = created["batch"]["id"].as_str().unwrap().to_owned();
+        let audit_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM audit_log", [], |row| row.get(0))
+            .unwrap();
+
+        let replay = store
+            .create_invoice_from_time_entries(time_billing_input(
+                &request_id,
+                &project_id,
+                vec![first, second],
+            ))
+            .unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["invoice"]["id"], invoice_id);
+        assert_eq!(replay["batch"]["id"], batch_id);
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM audit_log", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            audit_count,
+            "une reprise idempotente ne doit pas créer un nouvel audit"
+        );
+
+        let mut changed = time_billing_input(&request_id, &project_id, vec![]);
+        changed.time_entry_ids = replay["time_billing_entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["time_entry_id"].as_str().unwrap().to_owned())
+            .collect();
+        changed.title = Some("Autre facture".into());
+        assert!(store.create_invoice_from_time_entries(changed).is_err());
+        let counts: (i64, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM invoices),
+                        (SELECT COUNT(*) FROM time_billing_batches),
+                        (SELECT COUNT(*) FROM time_billing_entries)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 1, 2));
+
+        let workspace = store.get_workspace().unwrap();
+        assert!(workspace["time_entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|entry| entry["billing_status"] == "reserved"
+                && entry["billing_invoice_id"] == invoice_id));
+    }
+
+    #[test]
+    fn time_billing_refusals_leave_no_invoice_or_link() {
+        let (_temporary, store) = initialized_store();
+        let (_client_id, project_id, employee_id) = time_billing_fixture(&store);
+        let valid =
+            create_billable_time(&store, &project_id, &employee_id, "2026-09-01", 60, 10_000);
+        let invalid = value_id(
+            &store
+                .create_record(
+                    "time_entries",
+                    json!({
+                        "project_id":project_id,
+                        "employee_id":employee_id,
+                        "date":"2026-09-02",
+                        "minutes":60,
+                        "billable":false,
+                        "billing_rate_cents":10_000,
+                        "status":"approuve"
+                    }),
+                )
+                .unwrap(),
+        );
+        assert!(store
+            .create_invoice_from_time_entries(time_billing_input(
+                &uuid::Uuid::new_v4().to_string(),
+                &project_id,
+                vec![valid.clone(), invalid],
+            ))
+            .is_err());
+
+        let duplicate_error = store.create_invoice_from_time_entries(time_billing_input(
+            &uuid::Uuid::new_v4().to_string(),
+            &project_id,
+            vec![valid.clone(), valid],
+        ));
+        assert!(duplicate_error.is_err());
+
+        let project_without_client = value_id(
+            &store
+                .create_record("projects", json!({"name":"Projet sans client"}))
+                .unwrap(),
+        );
+        let orphan_time = create_billable_time(
+            &store,
+            &project_without_client,
+            &employee_id,
+            "2026-09-03",
+            60,
+            10_000,
+        );
+        assert!(store
+            .create_invoice_from_time_entries(time_billing_input(
+                &uuid::Uuid::new_v4().to_string(),
+                &project_without_client,
+                vec![orphan_time],
+            ))
+            .is_err());
+
+        let counts: (i64, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM invoices),
+                        (SELECT COUNT(*) FROM time_billing_batches),
+                        (SELECT COUNT(*) FROM time_billing_entries)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (0, 0, 0));
+    }
+
+    #[test]
+    fn time_billing_rolls_back_invoice_when_link_creation_fails() {
+        let (_temporary, store) = initialized_store();
+        let (_client_id, project_id, employee_id) = time_billing_fixture(&store);
+        let time_entry_id =
+            create_billable_time(&store, &project_id, &employee_id, "2026-09-01", 60, 10_000);
+        store
+            .connect()
+            .unwrap()
+            .execute_batch(
+                "CREATE TRIGGER test_time_billing_link_failure
+                 BEFORE INSERT ON time_billing_entries
+                 BEGIN SELECT RAISE(ABORT,'simulated final link failure'); END;",
+            )
+            .unwrap();
+
+        assert!(store
+            .create_invoice_from_time_entries(time_billing_input(
+                &uuid::Uuid::new_v4().to_string(),
+                &project_id,
+                vec![time_entry_id],
+            ))
+            .is_err());
+        let counts: (i64, i64, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM invoices),
+                        (SELECT COUNT(*) FROM invoice_items),
+                        (SELECT COUNT(*) FROM time_billing_batches),
+                        (SELECT COUNT(*) FROM time_billing_entries)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (0, 0, 0, 0));
+    }
+
+    #[test]
+    fn deleting_time_invoice_draft_releases_hours_but_issued_invoice_freezes_them() {
+        let (_temporary, store) = initialized_store();
+        let (_client_id, project_id, employee_id) = time_billing_fixture(&store);
+        let time_entry_id =
+            create_billable_time(&store, &project_id, &employee_id, "2026-09-01", 90, 12_000);
+        let first_request_id = uuid::Uuid::new_v4().to_string();
+        let created = store
+            .create_invoice_from_time_entries(time_billing_input(
+                &first_request_id,
+                &project_id,
+                vec![time_entry_id.clone()],
+            ))
+            .unwrap();
+        let draft_invoice_id = created["invoice"]["id"].as_str().unwrap().to_owned();
+        let draft_item_id = created["items"][0]["id"].as_str().unwrap().to_owned();
+        let draft_batch_id = created["batch"]["id"].as_str().unwrap().to_owned();
+        let draft_link_id = created["time_billing_entries"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(store
+            .update_record("time_entries", &time_entry_id, json!({"minutes":120}),)
+            .is_err());
+        assert!(store.delete_record("time_entries", &time_entry_id).is_err());
+        assert!(store
+            .update_record(
+                "invoice_items",
+                &draft_item_id,
+                json!({"description":"Mutation interdite"}),
+            )
+            .is_err());
+        let connection = store.connect().unwrap();
+        assert!(connection
+            .execute(
+                "DELETE FROM time_billing_batches WHERE id=?",
+                rusqlite::params![draft_batch_id],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM time_billing_entries WHERE id=?",
+                rusqlite::params![draft_link_id],
+            )
+            .is_err());
+        drop(connection);
+
+        store
+            .delete_record("invoices", &draft_invoice_id)
+            .expect("la suppression du brouillon doit libérer les temps");
+        let workspace = store.get_workspace().unwrap();
+        let released = workspace["time_entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["id"] == time_entry_id)
+            .unwrap();
+        assert_eq!(released["billing_status"], "unbilled");
+        assert!(workspace["time_billing_batches"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        store
+            .update_record("time_entries", &time_entry_id, json!({"minutes":120}))
+            .unwrap();
+
+        let second_request_id = uuid::Uuid::new_v4().to_string();
+        let rebilled = store
+            .create_invoice_from_time_entries(time_billing_input(
+                &second_request_id,
+                &project_id,
+                vec![time_entry_id.clone()],
+            ))
+            .unwrap();
+        let invoice_id = rebilled["invoice"]["id"].as_str().unwrap().to_owned();
+        let issued = store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-09-02".into()),
+                Some("2026-10-02".into()),
+            )
+            .unwrap();
+        assert_eq!(issued["status"], "emise");
+        assert!(issued["number"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()));
+        assert!(store.delete_record("invoices", &invoice_id).is_err());
+        assert!(store
+            .update_record("time_entries", &time_entry_id, json!({"minutes":180}),)
+            .is_err());
+        let workspace = store.get_workspace().unwrap();
+        let billed = workspace["time_entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["id"] == time_entry_id)
+            .unwrap();
+        assert_eq!(billed["billing_status"], "billed");
+        assert_eq!(billed["billing_invoice_id"], invoice_id);
+
+        let replay = store
+            .create_invoice_from_time_entries(time_billing_input(
+                &second_request_id,
+                &project_id,
+                vec![time_entry_id],
+            ))
+            .unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["invoice"]["id"], invoice_id);
+    }
+
+    fn tracked_product(store: &LocalStore, name: &str, reorder_level_milli: i64) -> String {
+        value_id(
+            &store
+                .create_record(
+                    "catalog_items",
+                    json!({
+                        "kind":"product",
+                        "name":name,
+                        "unit":"unité",
+                        "sales_price_cents":1_000,
+                        "purchase_cost_cents":500,
+                        "vat_bp":0,
+                        "track_stock":true,
+                        "stock_quantity_milli":0,
+                        "reorder_level_milli":reorder_level_milli
+                    }),
+                )
+                .unwrap(),
+        )
+    }
+
+    #[test]
+    fn manual_stock_ledger_is_idempotent_bounded_and_tamper_resistant() {
+        let (_temporary, store) = initialized_store();
+        let catalog_item_id = tracked_product(&store, "Article registre", 2_000);
+        let entry_request_id = uuid::Uuid::new_v4().to_string();
+        let entry_input = StockEntryInput {
+            request_id: entry_request_id.clone(),
+            catalog_item_id: catalog_item_id.clone(),
+            quantity_milli: 5_000,
+            reason: "Réception fournisseur".into(),
+            reference: Some("BL-2026-001".into()),
+            date: Some("2026-09-01".into()),
+        };
+        let entry = store.record_stock_entry(entry_input.clone()).unwrap();
+        assert_eq!(entry["idempotent"], false);
+        assert_eq!(entry["movement"]["quantity_delta_milli"], 5_000);
+        assert_eq!(entry["catalog_item"]["stock_quantity_milli"], 5_000);
+
+        let replay = store.record_stock_entry(entry_input).unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["movement"]["id"], entry["movement"]["id"]);
+        assert!(store
+            .record_stock_entry(StockEntryInput {
+                request_id: entry_request_id,
+                catalog_item_id: catalog_item_id.clone(),
+                quantity_milli: 5_001,
+                reason: "Réception fournisseur".into(),
+                reference: Some("BL-2026-001".into()),
+                date: Some("2026-09-01".into()),
+            })
+            .unwrap_err()
+            .to_string()
+            .contains("déjà été utilisé"));
+
+        let exit = store
+            .record_stock_exit(StockExitInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: catalog_item_id.clone(),
+                quantity_milli: 1_250,
+                reason: "Consommation chantier".into(),
+                reference: Some("CHANTIER-42".into()),
+                date: Some("2026-09-02".into()),
+            })
+            .unwrap();
+        assert_eq!(exit["catalog_item"]["stock_quantity_milli"], 3_750);
+        let correction = store
+            .record_stock_correction(StockCorrectionInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: catalog_item_id.clone(),
+                delta_quantity_milli: -750,
+                reason: "Écart inventaire contrôlé".into(),
+                reference: None,
+                date: Some("2026-09-03".into()),
+            })
+            .unwrap();
+        assert_eq!(correction["catalog_item"]["stock_quantity_milli"], 3_000);
+
+        assert!(store
+            .record_stock_exit(StockExitInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: catalog_item_id.clone(),
+                quantity_milli: 3_001,
+                reason: "Sortie impossible".into(),
+                reference: None,
+                date: None,
+            })
+            .unwrap_err()
+            .to_string()
+            .contains("Stock insuffisant"));
+        assert!(store
+            .record_stock_entry(StockEntryInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: catalog_item_id.clone(),
+                quantity_milli: 9_000_000_000_000_000,
+                reason: "Dépassement impossible".into(),
+                reference: None,
+                date: None,
+            })
+            .is_err());
+
+        assert!(store
+            .update_record(
+                "catalog_items",
+                &catalog_item_id,
+                json!({"stock_quantity_milli":4_000}),
+            )
+            .is_err());
+        assert!(store
+            .update_record(
+                "catalog_items",
+                &catalog_item_id,
+                json!({"track_stock":false}),
+            )
+            .is_err());
+        assert!(store
+            .update_record("catalog_items", &catalog_item_id, json!({"kind":"service"}),)
+            .is_err());
+        let direct = store.connect().unwrap();
+        assert!(direct
+            .execute(
+                "UPDATE stock_movements SET reason='altéré' WHERE id=?",
+                rusqlite::params![entry["movement"]["id"].as_str().unwrap()],
+            )
+            .is_err());
+        assert!(direct
+            .execute(
+                "DELETE FROM stock_movements WHERE id=?",
+                rusqlite::params![entry["movement"]["id"].as_str().unwrap()],
+            )
+            .is_err());
+        let movement_count: i64 = direct
+            .query_row("SELECT COUNT(*) FROM stock_movements", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(movement_count, 3);
+        drop(direct);
+
+        let workspace = store.get_workspace().unwrap();
+        let item = workspace["catalog_items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["id"] == catalog_item_id)
+            .unwrap();
+        assert_eq!(item["stock_quantity_milli"], 3_000);
+        assert_eq!(item["stock_status"], "in_stock");
+        assert_eq!(workspace["stock_movements"].as_array().unwrap().len(), 3);
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+
+        assert!(store
+            .create_record(
+                "catalog_items",
+                json!({
+                    "kind":"product",
+                    "name":"Stock initial interdit",
+                    "track_stock":true,
+                    "stock_quantity_milli":1
+                }),
+            )
+            .is_err());
+        assert!(store
+            .create_record(
+                "catalog_items",
+                json!({
+                    "kind":"service",
+                    "name":"Service jamais suivi",
+                    "track_stock":true,
+                    "stock_quantity_milli":0
+                }),
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("uniquement"));
+        let stale_untracked = value_id(
+            &store
+                .create_record(
+                    "catalog_items",
+                    json!({
+                        "kind":"product",
+                        "name":"Ancien solde non suivi",
+                        "track_stock":false,
+                        "stock_quantity_milli":1_000
+                    }),
+                )
+                .unwrap(),
+        );
+        assert!(store
+            .update_record(
+                "catalog_items",
+                &stale_untracked,
+                json!({"track_stock":true}),
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn invoice_stock_exit_is_atomic_idempotent_and_skips_credit_notes() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", json!({"name":"Client stock"}))
+                .unwrap(),
+        );
+        let first_item_id = tracked_product(&store, "Produit A", 1_000);
+        let second_item_id = tracked_product(&store, "Produit B", 500);
+        for (catalog_item_id, quantity_milli, reference) in [
+            (first_item_id.clone(), 10_000, "OPEN-A"),
+            (second_item_id.clone(), 1_000, "OPEN-B"),
+        ] {
+            store
+                .record_stock_entry(StockEntryInput {
+                    request_id: uuid::Uuid::new_v4().to_string(),
+                    catalog_item_id,
+                    quantity_milli,
+                    reason: "Ouverture contrôlée".into(),
+                    reference: Some(reference.into()),
+                    date: Some("2026-09-01".into()),
+                })
+                .unwrap();
+        }
+
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture stock atomique",
+                        "type":"standard",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        let first_line_id = value_id(
+            &store
+                .create_record(
+                    "invoice_items",
+                    json!({
+                        "invoice_id":invoice_id,
+                        "catalog_item_id":first_item_id,
+                        "description":"Produit A, lot 1",
+                        "quantity":2.5,
+                        "unit":"unité",
+                        "unit_price_cents":1_000,
+                        "vat_bp":0
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "catalog_item_id":first_item_id,
+                    "description":"Produit A, lot 2",
+                    "quantity":1.25,
+                    "unit":"unité",
+                    "unit_price_cents":1_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        let second_line_id = value_id(
+            &store
+                .create_record(
+                    "invoice_items",
+                    json!({
+                        "invoice_id":invoice_id,
+                        "catalog_item_id":second_item_id,
+                        "description":"Produit B",
+                        "quantity":1.001,
+                        "unit":"unité",
+                        "unit_price_cents":1_000,
+                        "vat_bp":0
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation non suivie",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":500,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+
+        assert!(store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap_err()
+            .to_string()
+            .contains("Stock insuffisant"));
+        let connection = store.connect().unwrap();
+        let failed_state: (Option<String>, i64, i64, i64) = connection
+            .query_row(
+                "SELECT invoice.number,
+                        (SELECT stock_quantity_milli FROM catalog_items WHERE id=?2),
+                        (SELECT stock_quantity_milli FROM catalog_items WHERE id=?3),
+                        (SELECT COUNT(*) FROM stock_movements WHERE invoice_id=?1)
+                 FROM invoices invoice WHERE invoice.id=?1",
+                rusqlite::params![invoice_id, first_item_id, second_item_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(failed_state, (None, 10_000, 1_000, 0));
+        drop(connection);
+
+        store
+            .record_stock_entry(StockEntryInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: second_item_id.clone(),
+                quantity_milli: 1,
+                reason: "Complément avant émission".into(),
+                reference: None,
+                date: Some("2026-09-02".into()),
+            })
+            .unwrap();
+        let connection = store.connect().unwrap();
+        connection
+            .execute_batch(&format!(
+                "CREATE TRIGGER test_stock_failure BEFORE INSERT ON stock_movements
+                 WHEN NEW.invoice_item_id='{second_line_id}'
+                 BEGIN SELECT RAISE(ABORT,'simulated stock failure'); END;"
+            ))
+            .unwrap();
+        drop(connection);
+        assert!(store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap_err()
+            .to_string()
+            .contains("simulated stock failure"));
+        let connection = store.connect().unwrap();
+        let rolled_back: (Option<String>, i64, i64, i64) = connection
+            .query_row(
+                "SELECT invoice.number,
+                        (SELECT stock_quantity_milli FROM catalog_items WHERE id=?2),
+                        (SELECT stock_quantity_milli FROM catalog_items WHERE id=?3),
+                        (SELECT COUNT(*) FROM stock_movements WHERE invoice_id=?1)
+                 FROM invoices invoice WHERE invoice.id=?1",
+                rusqlite::params![invoice_id, first_item_id, second_item_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(rolled_back, (None, 10_000, 1_001, 0));
+        connection
+            .execute_batch("DROP TRIGGER test_stock_failure;")
+            .unwrap();
+        drop(connection);
+
+        let issued = store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap();
+        assert_eq!(issued["status"], "emise");
+        let connection = store.connect().unwrap();
+        let issued_state: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT stock_quantity_milli FROM catalog_items WHERE id=?2),
+                   (SELECT stock_quantity_milli FROM catalog_items WHERE id=?3),
+                   (SELECT COUNT(*) FROM stock_movements WHERE invoice_id=?1)",
+                rusqlite::params![invoice_id, first_item_id, second_item_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(issued_state, (6_250, 0, 3));
+        let first_line_delta: i64 = connection
+            .query_row(
+                "SELECT quantity_delta_milli FROM stock_movements WHERE invoice_item_id=?",
+                rusqlite::params![first_line_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(first_line_delta, -2_500);
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET status='annulee' WHERE id=?",
+                rusqlite::params![invoice_id],
+            )
+            .is_err());
+        drop(connection);
+
+        store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap();
+        let replay_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM stock_movements WHERE invoice_id=?",
+                rusqlite::params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(replay_count, 3);
+
+        let credit_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "original_invoice_id":invoice_id,
+                        "title":"Avoir sans retour stock implicite",
+                        "type":"credit_note",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":credit_id,
+                    "catalog_item_id":first_item_id,
+                    "description":"Avoir produit sans retour physique",
+                    "quantity":1,
+                    "unit":"unité",
+                    "unit_price_cents":1_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&credit_id, Some("2026-09-03".into()), None)
+            .unwrap();
+        let credit_state: (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT
+                   (SELECT stock_quantity_milli FROM catalog_items WHERE id=?2),
+                   (SELECT COUNT(*) FROM stock_movements WHERE invoice_id=?1)",
+                rusqlite::params![credit_id, first_item_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(credit_state, (6_250, 0));
+
+        for (invoice_type, issue_date) in [
+            ("deposit", "2026-09-04"),
+            ("progress", "2026-09-05"),
+            ("final", "2026-09-06"),
+        ] {
+            let special_invoice_id = value_id(
+                &store
+                    .create_record(
+                        "invoices",
+                        json!({
+                            "client_id":client_id,
+                            "title":format!("Document {invoice_type} sans sortie automatique"),
+                            "type":invoice_type,
+                            "service_date_from":"2026-09-01",
+                            "service_date_to":"2026-09-01"
+                        }),
+                    )
+                    .unwrap(),
+            );
+            store
+                .create_record(
+                    "invoice_items",
+                    json!({
+                        "invoice_id":special_invoice_id,
+                        "catalog_item_id":first_item_id,
+                        "description":"Produit sans livraison dédiée",
+                        "quantity":1,
+                        "unit":"unité",
+                        "unit_price_cents":1_000,
+                        "vat_bp":0
+                    }),
+                )
+                .unwrap();
+            store
+                .issue_invoice(&special_invoice_id, Some(issue_date.into()), None)
+                .unwrap();
+            let special_state: (i64, i64) = store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT
+                       (SELECT stock_quantity_milli FROM catalog_items WHERE id=?2),
+                       (SELECT COUNT(*) FROM stock_movements WHERE invoice_id=?1)",
+                    rusqlite::params![special_invoice_id, first_item_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!(special_state, (6_250, 0), "type {invoice_type}");
+        }
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
     }
 }

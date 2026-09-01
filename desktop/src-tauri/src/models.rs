@@ -153,10 +153,59 @@ pub struct RecordPaymentInput {
     pub notes: Option<String>,
 }
 
+/// Entrée manuelle dans le registre de stock. Les quantités sont toujours
+/// exprimées en millièmes d'unité (1 unité = 1_000).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StockEntryInput {
+    /// UUID stable généré avant l'appel pour garantir une reprise idempotente.
+    pub request_id: String,
+    pub catalog_item_id: String,
+    pub quantity_milli: i64,
+    pub reason: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub date: Option<String>,
+}
+
+/// Sortie manuelle dans le registre de stock. `quantity_milli` reste positif;
+/// le backend enregistre le delta négatif correspondant.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StockExitInput {
+    pub request_id: String,
+    pub catalog_item_id: String,
+    pub quantity_milli: i64,
+    pub reason: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub date: Option<String>,
+}
+
+/// Correction manuelle signée. Un delta positif augmente le stock; un delta
+/// négatif le diminue. Une correction à zéro est refusée.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StockCorrectionInput {
+    pub request_id: String,
+    pub catalog_item_id: String,
+    pub delta_quantity_milli: i64,
+    pub reason: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub date: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfirmBankReconciliationInput {
     pub movement_id: String,
     pub invoice_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmSupplierBankReconciliationInput {
+    pub movement_id: String,
+    pub supplier_invoice_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +255,27 @@ pub struct ConvertQuoteInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateInvoiceFromTimeEntriesInput {
+    /// UUID stable généré avant l'appel. Une reprise strictement identique
+    /// retourne la facture déjà créée sans dupliquer les temps ni les lignes.
+    pub request_id: String,
+    pub project_id: String,
+    pub time_entry_ids: Vec<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub service_date_from: Option<String>,
+    #[serde(default)]
+    pub service_date_to: Option<String>,
+    /// Si absent, le taux par défaut de l'entreprise est utilisé au premier
+    /// appel puis figé dans le lot de facturation.
+    #[serde(default)]
+    pub vat_bp: Option<i64>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountInput {
     #[serde(default)]
     pub id: Option<String>,
@@ -241,6 +311,60 @@ pub struct AccountingSettingsInput {
     pub social_expense_account_id: Option<String>,
     #[serde(default)]
     pub social_payable_account_id: Option<String>,
+    #[serde(default)]
+    pub supplier_payable_account_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierInvoiceLineInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub description: String,
+    pub quantity_milli: i64,
+    #[serde(default)]
+    pub unit: Option<String>,
+    pub unit_price_cents: i64,
+    #[serde(default)]
+    pub discount_bp: i64,
+    #[serde(default)]
+    pub vat_bp: i64,
+    pub category: String,
+    #[serde(default)]
+    pub expense_account_id: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveSupplierInvoiceDraftInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub supplier_id: String,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    pub date: String,
+    pub due_date: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
+    pub items: Vec<SupplierInvoiceLineInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordSupplierPaymentInput {
+    /// Identifiant stable généré avant l'appel. Une reprise strictement
+    /// identique retourne le même paiement sans créer de doublon.
+    pub request_id: String,
+    pub supplier_invoice_id: String,
+    pub amount_cents: i64,
+    pub date: String,
+    #[serde(default)]
+    pub method: Option<String>,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -506,6 +630,32 @@ pub struct PayrollImportLineDraft {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PayrollImportAiIdentityEvidence {
+    #[serde(default)]
+    pub passes: i64,
+    #[serde(default)]
+    pub employee_number: String,
+    #[serde(default)]
+    pub avs_number: String,
+    #[serde(default)]
+    pub birth_date: String,
+    #[serde(default)]
+    pub iban: String,
+    #[serde(default)]
+    pub conflicts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PayrollImportReviewState {
+    #[serde(default)]
+    pub ai_identity_evidence: Option<PayrollImportAiIdentityEvidence>,
+    #[serde(default)]
+    pub employee_id: String,
+    #[serde(default)]
+    pub employee_link_source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PayrollImportDraft {
     #[serde(default)]
     pub employee: PayrollImportEmployeeDraft,
@@ -521,6 +671,8 @@ pub struct PayrollImportDraft {
     pub lines: Vec<PayrollImportLineDraft>,
     #[serde(default)]
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub review: Option<PayrollImportReviewState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

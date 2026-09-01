@@ -83,6 +83,11 @@ pub enum SecureUpdateEvent {
 }
 
 pub fn initialize<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
+    ensure_rustls_crypto_provider().map_err(|error| {
+        tauri::Error::Io(std::io::Error::other(format!(
+            "Initialisation TLS refusée : {error}"
+        )))
+    })?;
     let configuration = SecureUpdaterConfiguration::from_build_environment();
 
     // The updater plugin is absent when the immutable build configuration is
@@ -100,6 +105,19 @@ pub fn initialize<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
         configuration,
         pending_update: Mutex::new(None),
     });
+    Ok(())
+}
+
+pub(crate) fn ensure_rustls_crypto_provider() -> Result<(), String> {
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        // L'updater et le renouvellement utilisent tous deux reqwest avec
+        // `rustls-no-provider`. Ring est déjà la primitive Tauri retenue dans
+        // ce binaire; l'installer explicitement évite un panic au premier HTTPS.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        return Err("aucun fournisseur cryptographique Rustls n’est disponible".into());
+    }
     Ok(())
 }
 

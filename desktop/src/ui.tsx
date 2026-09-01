@@ -130,10 +130,12 @@ export function Modal({
 export function FormActions({
   onCancel,
   busy,
+  disabled = false,
   submitLabel = 'Enregistrer',
 }: {
   onCancel: () => void;
   busy: boolean;
+  disabled?: boolean;
   submitLabel?: string;
 }) {
   return (
@@ -141,7 +143,7 @@ export function FormActions({
       <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
         Annuler
       </Button>
-      <Button type="submit" disabled={busy}>
+      <Button type="submit" disabled={busy || disabled}>
         {busy ? <LoaderCircle className="spin" size={17} /> : null}
         {busy ? 'Enregistrement…' : submitLabel}
       </Button>

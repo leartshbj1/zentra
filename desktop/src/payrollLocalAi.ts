@@ -7,6 +7,9 @@ export type PayrollAiProgress = {
 
 export type PayrollAiAnalysis = {
   rawOutput: string;
+  primaryRawOutput: string;
+  verifiedRawOutput: string;
+  passes: number;
   modelId: string;
   modelVersion: string;
   mode: PayrollAiMode;
@@ -55,6 +58,12 @@ class PayrollLocalAi {
       this.progressListeners.forEach((listener) => listener({ label, percent: rawPercent }));
       return;
     }
+    if (type === 'analysis_stage') {
+      const label = typeof message.label === 'string' ? message.label : 'Analyse locale en cours';
+      const percent = typeof message.percent === 'number' ? Math.max(0, Math.min(100, message.percent)) : null;
+      this.progressListeners.forEach((listener) => listener({ label, percent }));
+      return;
+    }
     if (type === 'ready') {
       this.loadWaiters.splice(0).forEach(({ resolve }) => resolve());
       return;
@@ -72,8 +81,16 @@ class PayrollLocalAi {
       if (type === 'analysis_error') {
         pending.reject(new Error(typeof message.error === 'string' ? message.error : "L'analyse locale a échoué."));
       } else {
+        const primaryRawOutput = typeof message.primaryOutput === 'string' ? message.primaryOutput : '';
+        const verifiedRawOutput = typeof message.verifiedOutput === 'string'
+          ? message.verifiedOutput
+          : primaryRawOutput ? '' : typeof message.output === 'string' ? message.output : '';
+        const passes = primaryRawOutput.trim() && verifiedRawOutput.trim() ? 2 : 1;
         pending.resolve({
-          rawOutput: typeof message.output === 'string' ? message.output : '',
+          rawOutput: verifiedRawOutput || primaryRawOutput,
+          primaryRawOutput,
+          verifiedRawOutput,
+          passes,
           modelId: typeof message.modelId === 'string' ? message.modelId : 'HuggingFaceTB/SmolVLM-500M-Instruct',
           modelVersion: typeof message.modelVersion === 'string' ? message.modelVersion : '',
           mode: message.mode === 'webgpu' || message.mode === 'wasm' ? message.mode : 'unavailable',

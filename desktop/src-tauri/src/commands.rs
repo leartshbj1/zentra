@@ -4,19 +4,23 @@ use serde_json::Value;
 use tauri::{AppHandle, State};
 
 use crate::{
+    attachments::AddSupplierInvoiceAttachmentInput,
     database::LocalStore,
     error::command_error,
     models::{
         AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
         ApplyPayrollInput, AssociateBankAccountInput, CalculateEmployeePayrollInput,
         CalculatePayrollInput, CompleteOnboardingResult, ConfirmBankReconciliationInput,
-        ConfirmPayrollImportInput, ContributionDefinitionInput, ConvertQuoteInput, DeleteResult,
-        GeneratePayslipPdfInput, LedgerInput, ManualJournalInput, MarkReminderInput,
+        ConfirmPayrollImportInput, ConfirmSupplierBankReconciliationInput,
+        ContributionDefinitionInput, ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput,
+        DeleteResult, GeneratePayslipPdfInput, LedgerInput, ManualJournalInput, MarkReminderInput,
         OnboardingInput, OnboardingValidation, PayPayslipInput, PeriodFilter, PostPayslipInput,
-        RecordPaymentInput, ReminderActionInput, ReminderFilter, ReminderSettingsInput,
-        ReminderTemplateInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
-        SavePayslipWithContributionsInput, StagePayrollDocumentsInput, SwissQrBillInput,
-        SwissQrPayload, SwissQrValidation, TimerInput, UpdatePayrollImportDraftInput,
+        RecordPaymentInput, RecordSupplierPaymentInput, ReminderActionInput, ReminderFilter,
+        ReminderSettingsInput, ReminderTemplateInput, SaveDocumentWithItemsInput,
+        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveSupplierInvoiceDraftInput,
+        StagePayrollDocumentsInput, StockCorrectionInput, StockEntryInput, StockExitInput,
+        SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
+        UpdatePayrollImportDraftInput,
     },
     swiss_qr,
 };
@@ -41,9 +45,27 @@ pub fn get_license_state(state: State<'_, LocalStore>) -> Result<Value, String> 
 }
 
 #[tauri::command]
-pub fn install_license_token(state: State<'_, LocalStore>, token: String) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.install_license_token(&token).map_err(command_error)
+pub async fn install_license_token(
+    state: State<'_, LocalStore>,
+    token: String,
+) -> Result<Value, String> {
+    let store = state.inner().clone();
+    store
+        .install_license_token(&token)
+        .await
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn refresh_license(
+    state: State<'_, LocalStore>,
+    automatic: bool,
+) -> Result<Value, String> {
+    let store = state.inner().clone();
+    store
+        .refresh_license(automatic)
+        .await
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -132,6 +154,18 @@ pub fn confirm_bank_reconciliation(
 }
 
 #[tauri::command]
+pub fn confirm_supplier_bank_reconciliation(
+    state: State<'_, LocalStore>,
+    input: ConfirmSupplierBankReconciliationInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .confirm_supplier_bank_reconciliation(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
 pub fn create_record(
     state: State<'_, LocalStore>,
     entity: String,
@@ -165,6 +199,80 @@ pub fn delete_record(
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.delete_record(&entity, &id).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn record_stock_entry(
+    state: State<'_, LocalStore>,
+    input: StockEntryInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_stock_entry(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn record_stock_exit(
+    state: State<'_, LocalStore>,
+    input: StockExitInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_stock_exit(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn record_stock_correction(
+    state: State<'_, LocalStore>,
+    input: StockCorrectionInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_stock_correction(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_supplier_invoice_draft(
+    state: State<'_, LocalStore>,
+    input: SaveSupplierInvoiceDraftInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .save_supplier_invoice_draft(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn validate_supplier_invoice(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.validate_supplier_invoice(&id).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn record_supplier_payment(
+    state: State<'_, LocalStore>,
+    input: RecordSupplierPaymentInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_supplier_payment(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn delete_supplier_invoice_draft(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .delete_supplier_invoice_draft(&id)
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -225,6 +333,18 @@ pub fn issue_invoice(
 }
 
 #[tauri::command]
+pub fn create_invoice_from_time_entries(
+    state: State<'_, LocalStore>,
+    input: CreateInvoiceFromTimeEntriesInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .create_invoice_from_time_entries(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
 pub fn update_quote_status(
     state: State<'_, LocalStore>,
     id: String,
@@ -267,6 +387,19 @@ pub fn delete_account(state: State<'_, LocalStore>, id: String) -> Result<Value,
 pub fn get_accounting_settings(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.get_accounting_settings().map_err(command_error)
+}
+#[tauri::command]
+pub fn get_accounting_continuity(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.get_accounting_continuity().map_err(command_error)
+}
+#[tauri::command]
+pub fn install_swiss_accounting_starter(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .install_swiss_accounting_starter()
+        .map_err(command_error)
 }
 #[tauri::command]
 pub fn configure_accounting(
@@ -753,10 +886,27 @@ pub fn export_json(
 }
 
 #[tauri::command]
-pub fn add_attachment(state: State<'_, LocalStore>, input: Value) -> Result<Value, String> {
+pub fn add_supplier_invoice_attachment(
+    state: State<'_, LocalStore>,
+    input: AddSupplierInvoiceAttachmentInput,
+) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.add_attachment(input).map_err(command_error)
+    state
+        .add_supplier_invoice_attachment(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn delete_supplier_invoice_attachment(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .delete_supplier_invoice_attachment(&id)
+        .map_err(command_error)
 }
 
 #[tauri::command]

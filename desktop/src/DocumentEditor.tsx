@@ -3,50 +3,590 @@ import { Archive, Package, Plus, Receipt, ShieldCheck } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { activeCatalogItems, catalogItemToDocumentLine } from './catalog';
 import type { DocumentLine, Invoice, Quote, Workspace } from './types';
-import { addDaysIso, createId, documentTotals, formatMoney, invoicePaid, todayIso } from './utils';
+import {
+  addDaysIso,
+  createId,
+  documentTotals,
+  formatMoney,
+  invoicePaid,
+  todayIso,
+} from './utils';
 import { Button, Field, FormActions, Modal, submitForm } from './ui';
 import { projectTerminology } from './terminology';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean) => Promise<boolean>;
+type ActionRunner = (
+  action: () => Promise<Workspace>,
+  message: string,
+  close?: boolean,
+) => Promise<boolean>;
 
-export function DocumentEditor({ entity, item, quoteSource, workspace, busy, close, act }: { entity: 'quotes' | 'invoices'; item?: Quote | Invoice; quoteSource?: Quote; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner }) {
+export function DocumentEditor({
+  entity,
+  item,
+  quoteSource,
+  workspace,
+  busy,
+  close,
+  act,
+}: {
+  entity: 'quotes' | 'invoices';
+  item?: Quote | Invoice;
+  quoteSource?: Quote;
+  workspace: Workspace;
+  busy: boolean;
+  close: () => void;
+  act: ActionRunner;
+}) {
   const settings = workspace.settings!;
   const terminology = projectTerminology(settings.business.nogaSection);
   const current = item ?? quoteSource;
-  const [lines, setLines] = useState<DocumentLine[]>(current?.lines.map((line) => ({ ...line })) ?? [{ id: createId(), catalogItemId: null, description: '', quantity: 0, unit: '', unitPriceCents: 0, discountBp: 0, vatRateBp: 0 }]);
+  const [lines, setLines] = useState<DocumentLine[]>(
+    current?.lines.map((line) => ({ ...line })) ?? [
+      {
+        id: createId(),
+        catalogItemId: null,
+        description: '',
+        quantity: 0,
+        unit: '',
+        unitPriceCents: 0,
+        discountBp: 0,
+        vatRateBp: 0,
+      },
+    ],
+  );
   const catalogItems = activeCatalogItems(workspace.catalogItems);
   const [catalogItemId, setCatalogItemId] = useState(catalogItems[0]?.id ?? '');
   const [issueDate, setIssueDate] = useState(item?.issueDate || todayIso());
-  const [dueDate, setDueDate] = useState(entity === 'quotes' ? (item as Quote | undefined)?.validUntil || addDaysIso(issueDate, settings.billing.quoteValidityDays) : (item as Invoice | undefined)?.dueDate || addDaysIso(issueDate, settings.billing.paymentTermsDays));
-  const [invoiceType, setInvoiceType] = useState<Invoice['type'] | ''>(entity === 'invoices' ? (item as Invoice | undefined)?.type ?? '' : '');
-  const [serviceDateFrom, setServiceDateFrom] = useState((item as Invoice | undefined)?.serviceDateFrom ?? '');
-  const [serviceDateTo, setServiceDateTo] = useState((item as Invoice | undefined)?.serviceDateTo ?? '');
-  const [originalInvoiceId, setOriginalInvoiceId] = useState((item as Invoice | undefined)?.originalInvoiceId ?? '');
+  const [dueDate, setDueDate] = useState(
+    entity === 'quotes'
+      ? (item as Quote | undefined)?.validUntil ||
+          addDaysIso(issueDate, settings.billing.quoteValidityDays)
+      : (item as Invoice | undefined)?.dueDate ||
+          addDaysIso(issueDate, settings.billing.paymentTermsDays),
+  );
+  const [invoiceType, setInvoiceType] = useState<Invoice['type'] | ''>(
+    entity === 'invoices' ? ((item as Invoice | undefined)?.type ?? '') : '',
+  );
+  const [serviceDateFrom, setServiceDateFrom] = useState(
+    (item as Invoice | undefined)?.serviceDateFrom ?? '',
+  );
+  const [serviceDateTo, setServiceDateTo] = useState(
+    (item as Invoice | undefined)?.serviceDateTo ?? '',
+  );
+  const [originalInvoiceId, setOriginalInvoiceId] = useState(
+    (item as Invoice | undefined)?.originalInvoiceId ?? '',
+  );
   const [localError, setLocalError] = useState('');
   const totals = documentTotals(lines);
   const isLocked = Boolean(item && item.status !== 'draft');
-  const originalInvoices = workspace.invoices.filter((invoice) => invoice.id !== item?.id && invoice.type !== 'credit_note' && invoice.status !== 'draft' && invoice.status !== 'cancelled');
+  const originalInvoices = workspace.invoices.filter(
+    (invoice) =>
+      invoice.id !== item?.id &&
+      invoice.type !== 'credit_note' &&
+      invoice.status !== 'draft' &&
+      invoice.status !== 'cancelled',
+  );
 
-  function updateLine(id: string, patch: Partial<DocumentLine>) { setLines((currentLines) => currentLines.map((line) => line.id === id ? { ...line, ...patch } : line)); }
+  function updateLine(id: string, patch: Partial<DocumentLine>) {
+    setLines((currentLines) =>
+      currentLines.map((line) =>
+        line.id === id ? { ...line, ...patch } : line,
+      ),
+    );
+  }
 
   function addCatalogItem() {
-    const catalogItem = catalogItems.find((candidate) => candidate.id === catalogItemId);
+    const catalogItem = catalogItems.find(
+      (candidate) => candidate.id === catalogItemId,
+    );
     if (!catalogItem) return;
     setLines((currentLines) => {
       const catalogLine = catalogItemToDocumentLine(catalogItem);
-      const replaceEmpty = currentLines.length === 1 && !currentLines[0].description.trim() && currentLines[0].quantity === 0;
+      const replaceEmpty =
+        currentLines.length === 1 &&
+        !currentLines[0].description.trim() &&
+        currentLines[0].quantity === 0;
       return replaceEmpty ? [catalogLine] : [...currentLines, catalogLine];
     });
   }
 
-  return <Modal title={`${item ? isLocked ? 'Consulter' : 'Modifier' : 'Nouveau'} ${entity === 'quotes' ? 'devis' : invoiceType === 'credit_note' ? 'avoir' : 'document'}`} description={isLocked ? 'Le document émis est verrouillé et ne peut pas être supprimé.' : 'Le numéro définitif est attribué uniquement lors de l’émission.'} onClose={close} wide><form onSubmit={submitForm(async (form) => {
-    setLocalError('');
-    if (!lines.length || lines.some((line) => !line.description.trim() || line.quantity <= 0 || !line.unit.trim() || line.unitPriceCents < 0 || (line.discountBp ?? 0) < 0 || (line.discountBp ?? 0) > 10_000 || (settings.organization.vatRegistered && line.vatRateBp <= 0))) { setLocalError('Complétez chaque ligne et vérifiez que la remise reste comprise entre 0 et 100 %.'); return; }
-    if (entity === 'invoices' && (!invoiceType || !serviceDateFrom || !serviceDateTo || serviceDateFrom > serviceDateTo)) { setLocalError('Choisissez le type et une période de prestation valide avant l’enregistrement.'); return; }
-    if (invoiceType === 'credit_note' && !originalInvoiceId) { setLocalError('Un avoir doit référencer explicitement la facture originale.'); return; }
-    const data: Record<string, unknown> = { clientId: String(form.get('clientId')), projectId: String(form.get('projectId')) || null, title: String(form.get('title')), status: item?.status ?? 'draft', issueDate, currency: 'CHF', subtotalCents: totals.subtotalCents, discountCents: totals.discountCents, vatCents: totals.vatCents, totalCents: totals.totalCents, notes: String(form.get('notes')), terms: settings.billing.defaultFooter };
-    if (entity === 'quotes') data.validUntil = dueDate;
-    else { data.dueDate = invoiceType === 'credit_note' ? '' : dueDate; data.type = invoiceType; data.quoteId = quoteSource?.id ?? (item as Invoice | undefined)?.quoteId ?? null; data.originalInvoiceId = invoiceType === 'credit_note' ? originalInvoiceId : null; data.serviceDateFrom = serviceDateFrom; data.serviceDateTo = serviceDateTo; data.paidCents = item ? invoicePaid(item.id, workspace.payments) : 0; }
-    await act(() => desktopApi.saveDocument(entity, data, lines, item), item ? 'Le brouillon a été mis à jour.' : `${entity === 'quotes' ? 'Le devis' : invoiceType === 'credit_note' ? 'L’avoir' : 'La facture'} a été enregistré en brouillon.`);
-  })}><fieldset disabled={busy || isLocked} className="document-form"><div className="form-grid"><Field label="Titre du document" required wide><input name="title" defaultValue={item?.title ?? quoteSource?.title} required autoFocus /></Field><Field label="Client" required><select name="clientId" defaultValue={item?.clientId ?? quoteSource?.clientId} required><option value="">Choisir un client</option>{workspace.clients.map((client) => <option value={client.id} key={client.id}>{client.company || client.name}</option>)}</select></Field><Field label={terminology.singularTitle}><select name="projectId" defaultValue={item?.projectId ?? quoteSource?.projectId ?? ''}><option value="">Aucun {terminology.singular} lié</option>{workspace.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></Field>{entity === 'invoices' ? <Field label="Type de document" required><select value={invoiceType} onChange={(event) => { setInvoiceType(event.target.value as Invoice['type'] | ''); if (event.target.value !== 'credit_note') setOriginalInvoiceId(''); }} required><option value="">Choisir le type</option><option value="standard">Facture standard</option><option value="deposit">Facture d’acompte</option><option value="progress">Facture de situation</option><option value="final">Facture finale</option><option value="credit_note">Avoir</option></select></Field> : null}<Field label="Date d’émission" required><input type="date" value={issueDate} onChange={(event) => { setIssueDate(event.target.value); if (!item) setDueDate(addDaysIso(event.target.value, entity === 'quotes' ? settings.billing.quoteValidityDays : settings.billing.paymentTermsDays)); }} required /></Field>{entity === 'quotes' || invoiceType !== 'credit_note' ? <Field label={entity === 'quotes' ? 'Valable jusqu’au' : 'Échéance'} required><input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} required /></Field> : null}{entity === 'invoices' ? <><Field label="Début de la prestation" required><input type="date" value={serviceDateFrom} onChange={(event) => setServiceDateFrom(event.target.value)} required /></Field><Field label="Fin de la prestation" required><input type="date" min={serviceDateFrom} value={serviceDateTo} onChange={(event) => setServiceDateTo(event.target.value)} required /></Field></> : null}{invoiceType === 'credit_note' ? <Field label="Facture originale" required wide><select value={originalInvoiceId} onChange={(event) => setOriginalInvoiceId(event.target.value)} required><option value="">Choisir la facture à corriger</option>{originalInvoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number} · {invoice.title}</option>)}</select></Field> : null}</div>{invoiceType === 'credit_note' ? <div className="info-strip"><Receipt size={17} /><span>L’avoir est lié à la facture originale, numéroté sur sa propre séquence et comptabilisé en montants négatifs à l’émission. Aucun encaissement n’est possible.</span></div> : null}{localError ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Enregistrement bloqué</strong><p>{localError}</p></div></div> : null}<section className="line-editor"><header><div><strong>Lignes du document</strong><small>Le catalogue accélère la saisie; chaque valeur reste modifiable dans ce brouillon.</small></div><div className="line-editor__actions"><div className="catalog-line-picker"><Package size={15} /><select value={catalogItemId} onChange={(event) => setCatalogItemId(event.target.value)} aria-label="Référence du catalogue à ajouter" disabled={!catalogItems.length}><option value="">{catalogItems.length ? 'Choisir une référence' : 'Catalogue vide'}</option>{catalogItems.map((catalogItem) => <option key={catalogItem.id} value={catalogItem.id}>{catalogItem.sku ? `${catalogItem.sku} · ` : ''}{catalogItem.name}</option>)}</select><Button type="button" variant="secondary" size="small" disabled={!catalogItemId} onClick={addCatalogItem}>Ajouter depuis le catalogue</Button></div><Button type="button" variant="secondary" size="small" onClick={() => setLines((currentLines) => [...currentLines, { id: createId(), catalogItemId: null, description: '', quantity: 0, unit: '', unitPriceCents: 0, discountBp: 0, vatRateBp: 0 }])}><Plus size={15} /> Ligne libre</Button></div></header><div className="line-editor__head"><span>Description</span><span>Quantité</span><span>Unité</span><span>Prix unitaire</span><span>Remise</span><span>TVA</span><span /></div>{lines.map((line) => <div className="line-editor__row" key={line.id}><input value={line.description} onChange={(event) => updateLine(line.id, { description: event.target.value })} aria-label="Description" required /><input type="number" min="0.0001" step="0.0001" value={line.quantity || ''} onChange={(event) => updateLine(line.id, { quantity: event.target.valueAsNumber || 0 })} aria-label="Quantité" required /><input value={line.unit} onChange={(event) => updateLine(line.id, { unit: event.target.value })} aria-label="Unité" required /><label className="money-input"><input type="number" min="0" step="0.01" value={line.unitPriceCents ? line.unitPriceCents / 100 : ''} onChange={(event) => updateLine(line.id, { unitPriceCents: Math.round((event.target.valueAsNumber || 0) * 100) })} aria-label="Prix unitaire" required /><span>CHF</span></label><label className="percent-input"><input type="number" min="0" max="100" step="0.01" value={(line.discountBp ?? 0) / 100} onChange={(event) => updateLine(line.id, { discountBp: Math.round((event.target.valueAsNumber || 0) * 100) })} aria-label="Remise en pour cent" /><span>%</span></label>{settings.organization.vatRegistered ? <select value={line.vatRateBp || ''} onChange={(event) => updateLine(line.id, { vatRateBp: Number(event.target.value) })} aria-label="Taux TVA" required><option value="">Choisir</option>{settings.billing.vatRatesBp.map((rate) => <option value={rate} key={rate}>{(rate / 100).toLocaleString('fr-CH')} %</option>)}</select> : <span className="no-vat">Sans TVA</span>}<Button type="button" variant="ghost" size="icon" onClick={() => setLines((currentLines) => currentLines.filter((candidate) => candidate.id !== line.id))} disabled={lines.length === 1} aria-label="Supprimer la ligne"><Archive size={15} /></Button></div>)}</section><div className="document-bottom"><Field label="Notes / texte complémentaire"><textarea name="notes" rows={4} defaultValue={item?.notes ?? quoteSource?.notes} /></Field><div className="document-totals"><div><span>Sous-total avant remise</span><strong>{formatMoney(totals.subtotalCents)}</strong></div>{totals.discountCents ? <div><span>Remises</span><strong>− {formatMoney(totals.discountCents)}</strong></div> : null}<div><span>Total net</span><strong>{formatMoney(totals.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(totals.vatCents)}</strong></div><div><span>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</span><strong>{formatMoney(totals.totalCents)}</strong></div></div></div></fieldset>{isLocked ? <div className="warning-card"><ShieldCheck size={19} /><div><strong>Document verrouillé</strong><p>Utilisez un avoir lié à la facture d’origine pour toute correction.</p></div></div> : <FormActions onCancel={close} busy={busy} submitLabel="Enregistrer le brouillon" />}</form></Modal>;
+  return (
+    <Modal
+      title={`${item ? (isLocked ? 'Consulter' : 'Modifier') : 'Nouveau'} ${entity === 'quotes' ? 'devis' : invoiceType === 'credit_note' ? 'avoir' : 'document'}`}
+      description={
+        isLocked
+          ? 'Le document émis est verrouillé et ne peut pas être supprimé.'
+          : 'Le numéro définitif est attribué uniquement lors de l’émission.'
+      }
+      onClose={close}
+      wide
+    >
+      <form
+        onSubmit={submitForm(async (form) => {
+          setLocalError('');
+          if (
+            !lines.length ||
+            lines.some(
+              (line) =>
+                !line.description.trim() ||
+                line.quantity <= 0 ||
+                !line.unit.trim() ||
+                line.unitPriceCents < 0 ||
+                (line.discountBp ?? 0) < 0 ||
+                (line.discountBp ?? 0) > 10_000 ||
+                (settings.organization.vatRegistered && line.vatRateBp <= 0),
+            )
+          ) {
+            setLocalError(
+              'Complétez chaque ligne et vérifiez que la remise reste comprise entre 0 et 100 %.',
+            );
+            return;
+          }
+          if (
+            entity === 'invoices' &&
+            (!invoiceType ||
+              !serviceDateFrom ||
+              !serviceDateTo ||
+              serviceDateFrom > serviceDateTo)
+          ) {
+            setLocalError(
+              'Choisissez le type et une période de prestation valide avant l’enregistrement.',
+            );
+            return;
+          }
+          if (invoiceType === 'credit_note' && !originalInvoiceId) {
+            setLocalError(
+              'Un avoir doit référencer explicitement la facture originale.',
+            );
+            return;
+          }
+          const data: Record<string, unknown> = {
+            clientId: String(form.get('clientId')),
+            projectId: String(form.get('projectId')) || null,
+            title: String(form.get('title')),
+            status: item?.status ?? 'draft',
+            issueDate,
+            currency: 'CHF',
+            subtotalCents: totals.subtotalCents,
+            discountCents: totals.discountCents,
+            vatCents: totals.vatCents,
+            totalCents: totals.totalCents,
+            notes: String(form.get('notes')),
+            terms: settings.billing.defaultFooter,
+          };
+          if (entity === 'quotes') data.validUntil = dueDate;
+          else {
+            data.dueDate = invoiceType === 'credit_note' ? '' : dueDate;
+            data.type = invoiceType;
+            data.quoteId =
+              quoteSource?.id ?? (item as Invoice | undefined)?.quoteId ?? null;
+            data.originalInvoiceId =
+              invoiceType === 'credit_note' ? originalInvoiceId : null;
+            data.serviceDateFrom = serviceDateFrom;
+            data.serviceDateTo = serviceDateTo;
+            data.paidCents = item
+              ? invoicePaid(item.id, workspace.payments)
+              : 0;
+          }
+          await act(
+            () => desktopApi.saveDocument(entity, data, lines, item),
+            item
+              ? 'Le brouillon a été mis à jour.'
+              : `${entity === 'quotes' ? 'Le devis' : invoiceType === 'credit_note' ? 'L’avoir' : 'La facture'} a été enregistré en brouillon.`,
+          );
+        })}
+      >
+        <fieldset disabled={busy || isLocked} className="document-form">
+          <div className="form-grid">
+            <Field label="Titre du document" required wide>
+              <input
+                name="title"
+                defaultValue={item?.title ?? quoteSource?.title}
+                required
+                autoFocus
+              />
+            </Field>
+            <Field label="Client" required>
+              <select
+                name="clientId"
+                defaultValue={item?.clientId ?? quoteSource?.clientId}
+                required
+              >
+                <option value="">Choisir un client</option>
+                {workspace.clients
+                  .filter(
+                    (client) =>
+                      !client.archivedAt ||
+                      client.id === item?.clientId ||
+                      client.id === quoteSource?.clientId,
+                  )
+                  .map((client) => (
+                    <option value={client.id} key={client.id}>
+                      {client.company || client.name}
+                      {client.archivedAt ? ' · archivé' : ''}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            <Field label={terminology.singularTitle}>
+              <select
+                name="projectId"
+                defaultValue={item?.projectId ?? quoteSource?.projectId ?? ''}
+              >
+                <option value="">Aucun {terminology.singular} lié</option>
+                {workspace.projects.map((project) => (
+                  <option value={project.id} key={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {entity === 'invoices' ? (
+              <Field label="Type de document" required>
+                <select
+                  value={invoiceType}
+                  onChange={(event) => {
+                    setInvoiceType(event.target.value as Invoice['type'] | '');
+                    if (event.target.value !== 'credit_note')
+                      setOriginalInvoiceId('');
+                  }}
+                  required
+                >
+                  <option value="">Choisir le type</option>
+                  <option value="standard">Facture standard</option>
+                  <option value="deposit">Facture d’acompte</option>
+                  <option value="progress">Facture de situation</option>
+                  <option value="final">Facture finale</option>
+                  <option value="credit_note">Avoir</option>
+                </select>
+              </Field>
+            ) : null}
+            <Field label="Date d’émission" required>
+              <input
+                type="date"
+                value={issueDate}
+                onChange={(event) => {
+                  setIssueDate(event.target.value);
+                  if (!item)
+                    setDueDate(
+                      addDaysIso(
+                        event.target.value,
+                        entity === 'quotes'
+                          ? settings.billing.quoteValidityDays
+                          : settings.billing.paymentTermsDays,
+                      ),
+                    );
+                }}
+                required
+              />
+            </Field>
+            {entity === 'quotes' || invoiceType !== 'credit_note' ? (
+              <Field
+                label={entity === 'quotes' ? 'Valable jusqu’au' : 'Échéance'}
+                required
+              >
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                  required
+                />
+              </Field>
+            ) : null}
+            {entity === 'invoices' ? (
+              <>
+                <Field label="Début de la prestation" required>
+                  <input
+                    type="date"
+                    value={serviceDateFrom}
+                    onChange={(event) => setServiceDateFrom(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Fin de la prestation" required>
+                  <input
+                    type="date"
+                    min={serviceDateFrom}
+                    value={serviceDateTo}
+                    onChange={(event) => setServiceDateTo(event.target.value)}
+                    required
+                  />
+                </Field>
+              </>
+            ) : null}
+            {invoiceType === 'credit_note' ? (
+              <Field label="Facture originale" required wide>
+                <select
+                  value={originalInvoiceId}
+                  onChange={(event) => setOriginalInvoiceId(event.target.value)}
+                  required
+                >
+                  <option value="">Choisir la facture à corriger</option>
+                  {originalInvoices.map((invoice) => (
+                    <option key={invoice.id} value={invoice.id}>
+                      {invoice.number} · {invoice.title}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+          </div>
+          {invoiceType === 'credit_note' ? (
+            <div className="info-strip">
+              <Receipt size={17} />
+              <span>
+                L’avoir est lié à la facture originale, numéroté sur sa propre
+                séquence et comptabilisé en montants négatifs à l’émission.
+                Aucun encaissement n’est possible.
+              </span>
+            </div>
+          ) : null}
+          {localError ? (
+            <div className="warning-card">
+              <ShieldCheck size={18} />
+              <div>
+                <strong>Enregistrement bloqué</strong>
+                <p>{localError}</p>
+              </div>
+            </div>
+          ) : null}
+          <section className="line-editor">
+            <header>
+              <div>
+                <strong>Lignes du document</strong>
+                <small>
+                  Le catalogue accélère la saisie; chaque valeur reste
+                  modifiable dans ce brouillon.
+                </small>
+              </div>
+              <div className="line-editor__actions">
+                <div className="catalog-line-picker">
+                  <Package size={15} />
+                  <select
+                    value={catalogItemId}
+                    onChange={(event) => setCatalogItemId(event.target.value)}
+                    aria-label="Référence du catalogue à ajouter"
+                    disabled={!catalogItems.length}
+                  >
+                    <option value="">
+                      {catalogItems.length
+                        ? 'Choisir une référence'
+                        : 'Catalogue vide'}
+                    </option>
+                    {catalogItems.map((catalogItem) => (
+                      <option key={catalogItem.id} value={catalogItem.id}>
+                        {catalogItem.sku ? `${catalogItem.sku} · ` : ''}
+                        {catalogItem.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="small"
+                    disabled={!catalogItemId}
+                    onClick={addCatalogItem}
+                  >
+                    Ajouter depuis le catalogue
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  onClick={() =>
+                    setLines((currentLines) => [
+                      ...currentLines,
+                      {
+                        id: createId(),
+                        catalogItemId: null,
+                        description: '',
+                        quantity: 0,
+                        unit: '',
+                        unitPriceCents: 0,
+                        discountBp: 0,
+                        vatRateBp: 0,
+                      },
+                    ])
+                  }
+                >
+                  <Plus size={15} /> Ligne libre
+                </Button>
+              </div>
+            </header>
+            <div className="line-editor__head">
+              <span>Description</span>
+              <span>Quantité</span>
+              <span>Unité</span>
+              <span>Prix unitaire</span>
+              <span>Remise</span>
+              <span>TVA</span>
+              <span />
+            </div>
+            {lines.map((line) => (
+              <div className="line-editor__row" key={line.id}>
+                <input
+                  value={line.description}
+                  onChange={(event) =>
+                    updateLine(line.id, { description: event.target.value })
+                  }
+                  aria-label="Description"
+                  required
+                />
+                <input
+                  type="number"
+                  min="0.0001"
+                  step="0.0001"
+                  value={line.quantity || ''}
+                  onChange={(event) =>
+                    updateLine(line.id, {
+                      quantity: event.target.valueAsNumber || 0,
+                    })
+                  }
+                  aria-label="Quantité"
+                  required
+                />
+                <input
+                  value={line.unit}
+                  onChange={(event) =>
+                    updateLine(line.id, { unit: event.target.value })
+                  }
+                  aria-label="Unité"
+                  required
+                />
+                <label className="money-input">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={line.unitPriceCents ? line.unitPriceCents / 100 : ''}
+                    onChange={(event) =>
+                      updateLine(line.id, {
+                        unitPriceCents: Math.round(
+                          (event.target.valueAsNumber || 0) * 100,
+                        ),
+                      })
+                    }
+                    aria-label="Prix unitaire"
+                    required
+                  />
+                  <span>CHF</span>
+                </label>
+                <label className="percent-input">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={(line.discountBp ?? 0) / 100}
+                    onChange={(event) =>
+                      updateLine(line.id, {
+                        discountBp: Math.round(
+                          (event.target.valueAsNumber || 0) * 100,
+                        ),
+                      })
+                    }
+                    aria-label="Remise en pour cent"
+                  />
+                  <span>%</span>
+                </label>
+                {settings.organization.vatRegistered ? (
+                  <select
+                    value={line.vatRateBp || ''}
+                    onChange={(event) =>
+                      updateLine(line.id, {
+                        vatRateBp: Number(event.target.value),
+                      })
+                    }
+                    aria-label="Taux TVA"
+                    required
+                  >
+                    <option value="">Choisir</option>
+                    {settings.billing.vatRatesBp.map((rate) => (
+                      <option value={rate} key={rate}>
+                        {(rate / 100).toLocaleString('fr-CH')} %
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="no-vat">Sans TVA</span>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() =>
+                    setLines((currentLines) =>
+                      currentLines.filter(
+                        (candidate) => candidate.id !== line.id,
+                      ),
+                    )
+                  }
+                  disabled={lines.length === 1}
+                  aria-label="Supprimer la ligne"
+                >
+                  <Archive size={15} />
+                </Button>
+              </div>
+            ))}
+          </section>
+          <div className="document-bottom">
+            <Field label="Notes / texte complémentaire">
+              <textarea
+                name="notes"
+                rows={4}
+                defaultValue={item?.notes ?? quoteSource?.notes}
+              />
+            </Field>
+            <div className="document-totals">
+              <div>
+                <span>Sous-total avant remise</span>
+                <strong>{formatMoney(totals.subtotalCents)}</strong>
+              </div>
+              {totals.discountCents ? (
+                <div>
+                  <span>Remises</span>
+                  <strong>− {formatMoney(totals.discountCents)}</strong>
+                </div>
+              ) : null}
+              <div>
+                <span>Total net</span>
+                <strong>{formatMoney(totals.netCents)}</strong>
+              </div>
+              <div>
+                <span>TVA</span>
+                <strong>{formatMoney(totals.vatCents)}</strong>
+              </div>
+              <div>
+                <span>
+                  {invoiceType === 'credit_note'
+                    ? 'Montant de l’avoir'
+                    : 'Total TTC'}
+                </span>
+                <strong>{formatMoney(totals.totalCents)}</strong>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        {isLocked ? (
+          <div className="warning-card">
+            <ShieldCheck size={19} />
+            <div>
+              <strong>Document verrouillé</strong>
+              <p>
+                Utilisez un avoir lié à la facture d’origine pour toute
+                correction.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <FormActions
+            onCancel={close}
+            busy={busy}
+            submitLabel="Enregistrer le brouillon"
+          />
+        )}
+      </form>
+    </Modal>
+  );
 }

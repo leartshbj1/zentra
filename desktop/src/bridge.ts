@@ -1,13 +1,20 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { OpenDialogOptions, SaveDialogOptions } from '@tauri-apps/plugin-dialog';
+import type {
+  OpenDialogOptions,
+  SaveDialogOptions,
+} from '@tauri-apps/plugin-dialog';
 import type {
   Account,
+  AccountingConfigurationResult,
+  AccountingContinuity,
   AccountingFallback,
   AccountingPeriod,
   AccountingSettings,
   AppSettings,
+  Attachment,
   BalanceSheetReport,
   BankReconciliationResult,
+  BankSupplierReconciliationResult,
   BankWorkspace,
   CalculatedPayrollContribution,
   CatalogItem,
@@ -56,12 +63,19 @@ import type {
   SecureUpdaterPolicy,
   StatementRow,
   StatementScope,
+  StockMovement,
+  StockMovementType,
   StoredSwissQrBill,
   Supplier,
+  SupplierInvoice,
+  SupplierInvoiceItem,
+  SupplierInvoicePayment,
   SwissQrBillInput,
   SwissQrPayload,
   SwissQrValidation,
   TimeEntry,
+  TimeBillingBatch,
+  TimeBillingEntry,
   TrialBalanceReport,
   TrialBalanceRow,
   Workspace,
@@ -70,19 +84,36 @@ import {
   bankAccountAssociationPayload,
   bankConfirmationPayload,
   bankReconciliationResultFromRaw,
+  bankSupplierReconciliationResultFromRaw,
   bankWorkspaceFromRaw,
   camtImportResultFromRaw,
+  supplierBankConfirmationPayload,
 } from './bank';
 import { expensePaymentStatusFromRaw } from './purchases';
 
 type RawRecord = Record<string, unknown>;
-type AppState = { onboarding_completed: boolean; activity_profile_required?: boolean; data_dir: string; database_path: string; app_version: string };
-export type OnboardingValidationIssue = { step: number; field: string; label: string; message: string };
-export type OnboardingValidationResult = { valid: boolean; issues: OnboardingValidationIssue[] };
+type AppState = {
+  onboarding_completed: boolean;
+  activity_profile_required?: boolean;
+  data_dir: string;
+  database_path: string;
+  app_version: string;
+};
+export type OnboardingValidationIssue = {
+  step: number;
+  field: string;
+  label: string;
+  message: string;
+};
+export type OnboardingValidationResult = {
+  valid: boolean;
+  issues: OnboardingValidationIssue[];
+};
 type RawWorkspace = {
   settings?: RawRecord | null;
   clients?: RawRecord[];
   catalog_items?: RawRecord[];
+  stock_movements?: RawRecord[];
   suppliers?: RawRecord[];
   projects?: RawRecord[];
   quotes?: RawRecord[];
@@ -92,26 +123,42 @@ type RawWorkspace = {
   invoice_qr_bills?: RawRecord[];
   employees?: RawRecord[];
   time_entries?: RawRecord[];
+  time_billing_batches?: RawRecord[];
+  time_billing_entries?: RawRecord[];
   expenses?: RawRecord[];
+  supplier_invoices?: RawRecord[];
+  supplier_invoice_items?: RawRecord[];
+  supplier_payments?: RawRecord[];
+  attachments?: RawRecord[];
   payslips?: RawRecord[];
   payslip_items?: RawRecord[];
   payroll_document_imports?: RawRecord[];
   employee_payroll_templates?: RawRecord[];
   payments?: RawRecord[];
   active_timer?: RawRecord | null;
+  accounting_settings?: RawRecord | null;
 };
 
-const stringValue = (value: unknown): string => (typeof value === 'string' ? value : '');
-const numberValue = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
-const boolValue = (value: unknown): boolean => value === true || value === 1 || value === '1';
-const recordValue = (value: unknown): RawRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as RawRecord : {};
+const stringValue = (value: unknown): string =>
+  typeof value === 'string' ? value : '';
+const numberValue = (value: unknown): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+const boolValue = (value: unknown): boolean =>
+  value === true || value === 1 || value === '1';
+const recordValue = (value: unknown): RawRecord =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as RawRecord)
+    : {};
 
 /**
  * Les sauvegardes conservent les logos hashés mais une restauration sur un autre
  * compte Windows change APPLOCALDATA. Le snapshot métier reste immuable : seul
  * son pointeur de lecture est rebasé vers le dossier local courant.
  */
-export function rebaseStoredBrandingPath(value: unknown, dataDir: string): string {
+export function rebaseStoredBrandingPath(
+  value: unknown,
+  dataDir: string,
+): string {
   const stored = stringValue(value).trim();
   if (!stored || !dataDir) return stored;
   const fileName = stored.split(/[\\/]/).at(-1) ?? '';
@@ -123,8 +170,12 @@ export function rebaseStoredBrandingPath(value: unknown, dataDir: string): strin
 function appStateFromRaw(value: unknown): AppState {
   const row = recordValue(value);
   return {
-    onboarding_completed: boolValue(row.onboarding_completed ?? row.onboardingCompleted),
-    activity_profile_required: boolValue(row.activity_profile_required ?? row.activityProfileRequired),
+    onboarding_completed: boolValue(
+      row.onboarding_completed ?? row.onboardingCompleted,
+    ),
+    activity_profile_required: boolValue(
+      row.activity_profile_required ?? row.activityProfileRequired,
+    ),
     data_dir: stringValue(row.data_dir ?? row.dataDir),
     database_path: stringValue(row.database_path ?? row.databasePath),
     app_version: stringValue(row.app_version ?? row.appVersion),
@@ -159,68 +210,144 @@ function secureUpdateEventFromRaw(value: unknown): SecureUpdateEvent | null {
   const row = recordValue(value);
   const event = stringValue(row.event);
   const data = recordValue(row.data);
-  if (event === 'preparing' || event === 'verifying' || event === 'installed') return { event };
+  if (event === 'preparing' || event === 'verifying' || event === 'installed')
+    return { event };
   if (event === 'started') {
-    return { event, data: { contentLength: data.contentLength === null || data.content_length === null ? null : numberValue(data.contentLength ?? data.content_length) || null } };
+    return {
+      event,
+      data: {
+        contentLength:
+          data.contentLength === null || data.content_length === null
+            ? null
+            : numberValue(data.contentLength ?? data.content_length) || null,
+      },
+    };
   }
   if (event === 'progress') {
     return {
       event,
       data: {
-        downloadedBytes: numberValue(data.downloadedBytes ?? data.downloaded_bytes),
-        contentLength: data.contentLength === null || data.content_length === null ? null : numberValue(data.contentLength ?? data.content_length) || null,
-        percent: data.percent === null || data.percent === undefined ? null : Math.max(0, Math.min(100, numberValue(data.percent))),
+        downloadedBytes: numberValue(
+          data.downloadedBytes ?? data.downloaded_bytes,
+        ),
+        contentLength:
+          data.contentLength === null || data.content_length === null
+            ? null
+            : numberValue(data.contentLength ?? data.content_length) || null,
+        percent:
+          data.percent === null || data.percent === undefined
+            ? null
+            : Math.max(0, Math.min(100, numberValue(data.percent))),
       },
     };
   }
   return null;
 }
 
-function onboardingValidationFromRaw(value: unknown): OnboardingValidationResult {
+function onboardingValidationFromRaw(
+  value: unknown,
+): OnboardingValidationResult {
   const row = recordValue(value);
-  const issues = (Array.isArray(row.issues) ? row.issues : []).map((value): OnboardingValidationIssue => {
-    const issue = recordValue(value);
-    return {
-      step: Math.max(0, Math.trunc(numberValue(issue.step))),
-      field: stringValue(issue.field).trim(),
-      label: stringValue(issue.label).trim(),
-      message: stringValue(issue.message).trim(),
-    };
-  });
+  const issues = (Array.isArray(row.issues) ? row.issues : []).map(
+    (value): OnboardingValidationIssue => {
+      const issue = recordValue(value);
+      return {
+        step: Math.max(0, Math.trunc(numberValue(issue.step))),
+        field: stringValue(issue.field).trim(),
+        label: stringValue(issue.label).trim(),
+        message: stringValue(issue.message).trim(),
+      };
+    },
+  );
   return { valid: boolValue(row.valid) && issues.length === 0, issues };
 }
 
 function parsedSnapshot(value: unknown): RawRecord | null {
   if (typeof value !== 'string' || !value.trim()) return null;
-  try { const parsed: unknown = JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as RawRecord : null; }
-  catch { return null; }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as RawRecord)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function payslipLineKindFromRaw(value: unknown): PayslipLine['kind'] {
   const kind = stringValue(value);
-  if (kind === 'non_gross_payment' || kind === 'expense_reimbursement') return 'reimbursement';
-  return (['earning', 'deduction', 'reimbursement', 'employer'].includes(kind) ? kind : 'earning') as PayslipLine['kind'];
+  if (kind === 'non_gross_payment' || kind === 'expense_reimbursement')
+    return 'reimbursement';
+  return (
+    ['earning', 'deduction', 'reimbursement', 'employer'].includes(kind)
+      ? kind
+      : 'earning'
+  ) as PayslipLine['kind'];
 }
 
 function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
-  const root = typeof value === 'string' ? parsedSnapshot(value) ?? {} : recordValue(value);
+  const root =
+    typeof value === 'string'
+      ? (parsedSnapshot(value) ?? {})
+      : recordValue(value);
   const employee = recordValue(root.employee);
   const lines = Array.isArray(root.lines) ? root.lines.map(recordValue) : [];
+  const review = recordValue(root.review);
+  const evidence = recordValue(
+    review.ai_identity_evidence ?? review.aiIdentityEvidence,
+  );
+  const evidenceConflicts = Array.isArray(evidence.conflicts)
+    ? evidence.conflicts.map(stringValue).filter(Boolean)
+    : [];
+  const employeeLinkSource = stringValue(
+    review.employee_link_source ?? review.employeeLinkSource,
+  );
+  const reviewState = Object.keys(review).length
+    ? {
+        aiIdentityEvidence: Object.keys(evidence).length
+          ? {
+              passes: Math.max(0, Math.trunc(numberValue(evidence.passes))),
+              employeeNumber: stringValue(
+                evidence.employee_number ?? evidence.employeeNumber,
+              ),
+              avsNumber: stringValue(evidence.avs_number ?? evidence.avsNumber),
+              birthDate: stringValue(evidence.birth_date ?? evidence.birthDate),
+              iban: stringValue(evidence.iban),
+              conflicts: evidenceConflicts,
+            }
+          : undefined,
+        employeeId: stringValue(review.employee_id ?? review.employeeId),
+        employeeLinkSource: (employeeLinkSource === 'auto' ||
+        employeeLinkSource === 'manual'
+          ? employeeLinkSource
+          : '') as 'auto' | 'manual' | '',
+      }
+    : undefined;
   return {
     employee: {
-      employeeNumber: stringValue(employee.employee_number ?? employee.employeeNumber),
+      employeeNumber: stringValue(
+        employee.employee_number ?? employee.employeeNumber,
+      ),
       name: stringValue(employee.name),
       role: stringValue(employee.role),
-      addressLine1: stringValue(employee.address_line1 ?? employee.addressLine1),
-      addressLine2: stringValue(employee.address_line2 ?? employee.addressLine2),
+      addressLine1: stringValue(
+        employee.address_line1 ?? employee.addressLine1,
+      ),
+      addressLine2: stringValue(
+        employee.address_line2 ?? employee.addressLine2,
+      ),
       postalCode: stringValue(employee.postal_code ?? employee.postalCode),
       city: stringValue(employee.city),
       canton: stringValue(employee.canton),
       birthDate: stringValue(employee.birth_date ?? employee.birthDate),
       avsNumber: stringValue(employee.avs_number ?? employee.avsNumber),
       iban: stringValue(employee.iban),
-      employmentRate: numberValue(employee.employment_rate ?? employee.employmentRate) || 100,
-      salaryMode: stringValue(employee.salary_mode ?? employee.salaryMode) === 'hourly' ? 'hourly' : 'monthly',
+      employmentRate:
+        numberValue(employee.employment_rate ?? employee.employmentRate) || 100,
+      salaryMode:
+        stringValue(employee.salary_mode ?? employee.salaryMode) === 'hourly'
+          ? 'hourly'
+          : 'monthly',
     },
     period: stringValue(root.period),
     paymentDate: stringValue(root.payment_date ?? root.paymentDate),
@@ -234,7 +361,10 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
       recurring: boolValue(line.recurring),
       confidenceBp: numberValue(line.confidence_bp ?? line.confidenceBp),
     })),
-    warnings: Array.isArray(root.warnings) ? root.warnings.map(stringValue).filter(Boolean) : [],
+    warnings: Array.isArray(root.warnings)
+      ? root.warnings.map(stringValue).filter(Boolean)
+      : [],
+    review: reviewState,
   };
 }
 
@@ -251,7 +381,11 @@ function payrollImportFromRaw(row: RawRecord): PayrollDocumentImport {
     extractedText: stringValue(row.extracted_text),
     draft: payrollImportDraftFromRaw(row.draft_json),
     confidenceBp: numberValue(row.confidence_bp),
-    status: (['needs_review', 'confirmed', 'rejected', 'error'].includes(stringValue(row.status)) ? stringValue(row.status) : 'needs_review') as PayrollDocumentImport['status'],
+    status: (['needs_review', 'confirmed', 'rejected', 'error'].includes(
+      stringValue(row.status),
+    )
+      ? stringValue(row.status)
+      : 'needs_review') as PayrollDocumentImport['status'],
     errorMessage: stringValue(row.error_message),
     employeeId: stringValue(row.employee_id),
     payslipId: stringValue(row.payslip_id),
@@ -261,21 +395,45 @@ function payrollImportFromRaw(row: RawRecord): PayrollDocumentImport {
   };
 }
 
-function employeePayrollTemplateFromRaw(row: RawRecord): EmployeePayrollTemplate {
+function employeePayrollTemplateFromRaw(
+  row: RawRecord,
+): EmployeePayrollTemplate {
   const recurring = (() => {
-    try { return typeof row.recurring_earnings_json === 'string' ? JSON.parse(row.recurring_earnings_json) as unknown : []; }
-    catch { return []; }
+    try {
+      return typeof row.recurring_earnings_json === 'string'
+        ? (JSON.parse(row.recurring_earnings_json) as unknown)
+        : [];
+    } catch {
+      return [];
+    }
   })();
   const codes = (() => {
-    try { return typeof row.suggested_contribution_codes_json === 'string' ? JSON.parse(row.suggested_contribution_codes_json) as unknown : []; }
-    catch { return []; }
+    try {
+      return typeof row.suggested_contribution_codes_json === 'string'
+        ? (JSON.parse(row.suggested_contribution_codes_json) as unknown)
+        : [];
+    } catch {
+      return [];
+    }
   })();
   return {
     employeeId: stringValue(row.employee_id),
-    salaryMode: stringValue(row.salary_mode) === 'hourly' ? 'hourly' : 'monthly',
+    salaryMode:
+      stringValue(row.salary_mode) === 'hourly' ? 'hourly' : 'monthly',
     baseSalaryCents: numberValue(row.base_salary_cents),
-    recurringEarnings: Array.isArray(recurring) ? recurring.map(recordValue).map((line) => ({ label: stringValue(line.label), kind: 'earning' as const, amountCents: numberValue(line.amount_cents ?? line.amountCents) })).filter((line) => line.label && line.amountCents > 0) : [],
-    suggestedContributionCodes: Array.isArray(codes) ? codes.map(stringValue).filter(Boolean) : [],
+    recurringEarnings: Array.isArray(recurring)
+      ? recurring
+          .map(recordValue)
+          .map((line) => ({
+            label: stringValue(line.label),
+            kind: 'earning' as const,
+            amountCents: numberValue(line.amount_cents ?? line.amountCents),
+          }))
+          .filter((line) => line.label && line.amountCents > 0)
+      : [],
+    suggestedContributionCodes: Array.isArray(codes)
+      ? codes.map(stringValue).filter(Boolean)
+      : [],
     sourceImportId: stringValue(row.source_import_id),
     reviewedAt: stringValue(row.reviewed_at),
   };
@@ -286,6 +444,7 @@ function licenseStateFromRaw(row: RawRecord): LicenseState {
     enforcementConfigured: boolValue(row.enforcement_configured),
     status: stringValue(row.status) as LicenseState['status'],
     readOnly: boolValue(row.read_only),
+    canRefresh: boolValue(row.can_refresh),
     plan: stringValue(row.plan),
     priceChfCents: numberValue(row.price_chf_cents),
     licenseId: stringValue(row.license_id),
@@ -305,17 +464,23 @@ function parseExtra(settings: RawRecord): Partial<AppSettings> {
   if (typeof raw !== 'string' || raw.trim() === '') return {};
   try {
     const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as Partial<AppSettings>) : {};
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Partial<AppSettings>)
+      : {};
   } catch {
     return {};
   }
 }
 
-function settingsFromRaw(row: RawRecord | null | undefined, dataDir = ''): AppSettings | null {
+function settingsFromRaw(
+  row: RawRecord | null | undefined,
+  dataDir = '',
+): AppSettings | null {
   if (!row || !stringValue(row.company_name)) return null;
   const extra = parseExtra(row);
   const extraBilling = extra.billing;
-  const configuredVat = extraBilling?.vatRatesBp?.filter((rate) => Number.isFinite(rate)) ?? [];
+  const configuredVat =
+    extraBilling?.vatRatesBp?.filter((rate) => Number.isFinite(rate)) ?? [];
   const defaultVat = numberValue(row.default_vat_bp);
   return {
     organization: {
@@ -329,7 +494,9 @@ function settingsFromRaw(row: RawRecord | null | undefined, dataDir = ''): AppSe
       vatNumber: stringValue(row.vat_number),
       vatRegistered: boolValue(row.vat_registered),
       address: {
-        street: [stringValue(row.address_line1), stringValue(row.address_line2)].filter(Boolean).join('\n'),
+        street: [stringValue(row.address_line1), stringValue(row.address_line2)]
+          .filter(Boolean)
+          .join('\n'),
         buildingNumber: extra.organization?.address?.buildingNumber ?? '',
         postalCode: stringValue(row.postal_code),
         city: stringValue(row.city),
@@ -339,7 +506,9 @@ function settingsFromRaw(row: RawRecord | null | undefined, dataDir = ''): AppSe
       logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) || undefined,
     },
     business: {
-      nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section)) ? stringValue(row.noga_section) : '') as AppSettings['business']['nogaSection'],
+      nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section))
+        ? stringValue(row.noga_section)
+        : '') as AppSettings['business']['nogaSection'],
       nogaDivision: stringValue(row.noga_division),
       activityDescription: stringValue(row.activity_description),
       nogaDetailedCode: stringValue(row.noga_detailed_code),
@@ -347,19 +516,43 @@ function settingsFromRaw(row: RawRecord | null | undefined, dataDir = ''): AppSe
     billing: {
       currency: 'CHF',
       iban: stringValue(row.iban),
-      accountHolder: extraBilling?.accountHolder ?? stringValue(row.company_name),
+      accountHolder:
+        extraBilling?.accountHolder ?? stringValue(row.company_name),
       quotePrefix: stringValue(row.quote_prefix),
       invoicePrefix: stringValue(row.invoice_prefix),
-      creditNotePrefix: stringValue(row.credit_note_prefix) || extraBilling?.creditNotePrefix || '',
-      nextQuoteNumber: numberValue(row.quote_start_number) || extraBilling?.nextQuoteNumber || 1,
-      nextInvoiceNumber: numberValue(row.invoice_start_number) || extraBilling?.nextInvoiceNumber || 1,
-      nextCreditNoteNumber: numberValue(row.credit_note_start_number) || extraBilling?.nextCreditNoteNumber || 1,
+      creditNotePrefix:
+        stringValue(row.credit_note_prefix) ||
+        extraBilling?.creditNotePrefix ||
+        '',
+      nextQuoteNumber:
+        numberValue(row.quote_start_number) ||
+        extraBilling?.nextQuoteNumber ||
+        1,
+      nextInvoiceNumber:
+        numberValue(row.invoice_start_number) ||
+        extraBilling?.nextInvoiceNumber ||
+        1,
+      nextCreditNoteNumber:
+        numberValue(row.credit_note_start_number) ||
+        extraBilling?.nextCreditNoteNumber ||
+        1,
       paymentTermsDays: numberValue(row.payment_terms_days),
-      quoteValidityDays: extraBilling?.quoteValidityDays ?? numberValue(row.quote_validity_days),
-      vatRatesBp: configuredVat.length ? configuredVat : defaultVat ? [defaultVat] : [],
+      quoteValidityDays:
+        extraBilling?.quoteValidityDays ?? numberValue(row.quote_validity_days),
+      vatRatesBp: configuredVat.length
+        ? configuredVat
+        : defaultVat
+          ? [defaultVat]
+          : [],
       defaultFooter: extraBilling?.defaultFooter ?? '',
     },
-    work: extra.work ?? { workWeekHours: 0, dailyHours: 0, roundingMinutes: 0, breakMinutes: 0, costCategories: [] },
+    work: extra.work ?? {
+      workWeekHours: 0,
+      dailyHours: 0,
+      roundingMinutes: 0,
+      breakMinutes: 0,
+      costCategories: [],
+    },
     payroll: extra.payroll ?? {
       enabled: false,
       fiduciaryValidated: false,
@@ -372,31 +565,80 @@ function settingsFromRaw(row: RawRecord | null | undefined, dataDir = ''): AppSe
       employeeRates: [],
       employerRates: [],
     },
-    backup: extra.backup ?? { automatic: false, folder: '', frequency: 'manual', retentionDaily: 0, retentionWeekly: 0, retentionMonthly: 0, recoveryConfirmed: false },
+    backup: extra.backup ?? {
+      automatic: false,
+      folder: '',
+      frequency: 'manual',
+      retentionDaily: 0,
+      retentionWeekly: 0,
+      retentionMonthly: 0,
+      recoveryConfirmed: false,
+    },
   };
 }
 
 const projectStatusFromRaw = (value: unknown): Project['status'] => {
   const status = stringValue(value);
-  return ({ planifie: 'planned', en_cours: 'in_progress', en_pause: 'paused', termine: 'completed', cloture: 'closed' } as Record<string, Project['status']>)[status] ?? 'planned';
+  return (
+    (
+      {
+        planifie: 'planned',
+        en_cours: 'in_progress',
+        en_pause: 'paused',
+        termine: 'completed',
+        cloture: 'closed',
+      } as Record<string, Project['status']>
+    )[status] ?? 'planned'
+  );
 };
 const quoteStatusFromRaw = (value: unknown): Quote['status'] => {
   const status = stringValue(value);
-  return ({ brouillon: 'draft', emis: 'issued', accepte: 'accepted', refuse: 'refused', expire: 'expired' } as Record<string, Quote['status']>)[status] ?? 'draft';
+  return (
+    (
+      {
+        brouillon: 'draft',
+        emis: 'issued',
+        accepte: 'accepted',
+        refuse: 'refused',
+        expire: 'expired',
+      } as Record<string, Quote['status']>
+    )[status] ?? 'draft'
+  );
 };
 const invoiceStatusFromRaw = (value: unknown): Invoice['status'] => {
   const status = stringValue(value);
-  return ({ brouillon: 'draft', emise: 'issued', partiellement_payee: 'partially_paid', payee: 'paid', annulee: 'cancelled', en_retard: 'issued' } as Record<string, Invoice['status']>)[status] ?? 'draft';
+  return (
+    (
+      {
+        brouillon: 'draft',
+        emise: 'issued',
+        partiellement_payee: 'partially_paid',
+        payee: 'paid',
+        annulee: 'cancelled',
+        en_retard: 'issued',
+      } as Record<string, Invoice['status']>
+    )[status] ?? 'draft'
+  );
 };
 
 function lineFromRaw(row: RawRecord): DocumentLine {
-  return { id: stringValue(row.id), catalogItemId: stringValue(row.catalog_item_id) || null, description: stringValue(row.description), quantity: numberValue(row.quantity), unit: stringValue(row.unit), unitPriceCents: numberValue(row.unit_price_cents), discountBp: numberValue(row.discount_bp), vatRateBp: numberValue(row.vat_bp) };
+  return {
+    id: stringValue(row.id),
+    catalogItemId: stringValue(row.catalog_item_id) || null,
+    description: stringValue(row.description),
+    quantity: numberValue(row.quantity),
+    unit: stringValue(row.unit),
+    unitPriceCents: numberValue(row.unit_price_cents),
+    discountBp: numberValue(row.discount_bp),
+    vatRateBp: numberValue(row.vat_bp),
+  };
 }
 
 function catalogItemFromRaw(row: RawRecord): CatalogItem {
+  const kind = stringValue(row.kind) === 'product' ? 'product' : 'service';
   return {
     id: stringValue(row.id),
-    kind: stringValue(row.kind) === 'product' ? 'product' : 'service',
+    kind,
     sku: stringValue(row.sku) || null,
     name: stringValue(row.name),
     description: stringValue(row.description),
@@ -404,12 +646,40 @@ function catalogItemFromRaw(row: RawRecord): CatalogItem {
     salesPriceCents: numberValue(row.sales_price_cents),
     purchaseCostCents: numberValue(row.purchase_cost_cents),
     vatBp: numberValue(row.vat_bp),
-    trackStock: boolValue(row.track_stock),
-    stockQuantityMilli: numberValue(row.stock_quantity_milli),
-    reorderLevelMilli: numberValue(row.reorder_level_milli),
+    trackStock: kind === 'product' && boolValue(row.track_stock),
+    stockQuantityMilli: kind === 'product' ? numberValue(row.stock_quantity_milli) : 0,
+    reorderLevelMilli: kind === 'product' ? numberValue(row.reorder_level_milli) : 0,
     archivedAt: stringValue(row.archived_at) || null,
     createdAt: stringValue(row.created_at),
     updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function stockMovementFromRaw(row: RawRecord): StockMovement {
+  const movementType = stringValue(row.movement_type);
+  const sourceType = stringValue(row.source_type);
+  return {
+    sequence: numberValue(row.sequence),
+    id: stringValue(row.id),
+    sourceKey: stringValue(row.source_key),
+    requestId: stringValue(row.request_id) || null,
+    catalogItemId: stringValue(row.catalog_item_id),
+    movementType:
+      movementType === 'entry' || movementType === 'correction'
+        ? movementType
+        : 'exit',
+    quantityDeltaMilli: numberValue(row.quantity_delta_milli),
+    balanceAfterMilli: numberValue(row.balance_after_milli),
+    reason: stringValue(row.reason),
+    reference: stringValue(row.reference) || null,
+    movementDate: stringValue(row.movement_date),
+    sourceType:
+      sourceType === 'invoice' || sourceType === 'opening'
+        ? sourceType
+        : 'manual',
+    invoiceId: stringValue(row.invoice_id) || null,
+    invoiceItemId: stringValue(row.invoice_item_id) || null,
+    createdAt: stringValue(row.created_at),
   };
 }
 
@@ -432,31 +702,141 @@ function supplierFromRaw(row: RawRecord): Supplier {
   };
 }
 
+function supplierInvoiceItemFromRaw(row: RawRecord): SupplierInvoiceItem {
+  return {
+    id: stringValue(row.id),
+    supplierInvoiceId: stringValue(row.supplier_invoice_id),
+    position: numberValue(row.position),
+    description: stringValue(row.description),
+    quantityMilli: numberValue(row.quantity_milli),
+    unit: stringValue(row.unit) || 'unité',
+    unitPriceCents: numberValue(row.unit_price_cents),
+    discountBp: numberValue(row.discount_bp),
+    vatBp: numberValue(row.vat_bp),
+    netCents: numberValue(row.line_net_cents),
+    vatCents: numberValue(row.line_vat_cents),
+    totalCents: numberValue(row.line_total_cents),
+    category: stringValue(row.category),
+    expenseAccountId: stringValue(row.expense_account_id) || null,
+    projectId: stringValue(row.project_id) || null,
+  };
+}
+
+function supplierInvoicePaymentFromRaw(row: RawRecord): SupplierInvoicePayment {
+  return {
+    id: stringValue(row.id),
+    supplierInvoiceId: stringValue(row.supplier_invoice_id),
+    requestId: stringValue(row.request_id),
+    date: stringValue(row.date),
+    amountCents: numberValue(row.amount_cents),
+    method: stringValue(row.method),
+    reference: stringValue(row.reference),
+    notes: stringValue(row.notes),
+    journalEntryId: stringValue(row.journal_entry_id),
+    createdAt: stringValue(row.created_at),
+  };
+}
+
+export function attachmentFromRaw(row: RawRecord): Attachment {
+  return {
+    id: stringValue(row.id),
+    projectId: stringValue(row.project_id) || null,
+    entityType: stringValue(row.entity_type),
+    entityId: stringValue(row.entity_id) || null,
+    originalName: stringValue(row.original_name),
+    mimeType: stringValue(row.mime_type),
+    sizeBytes: Math.max(0, numberValue(row.size_bytes)),
+    sha256: stringValue(row.sha256),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+export function attachmentsForSupplierInvoice(
+  attachments: Attachment[],
+  supplierInvoiceId: string,
+): Attachment[] {
+  return attachments
+    .filter(
+      (attachment) =>
+        attachment.entityType === 'supplier_invoice' &&
+        attachment.entityId === supplierInvoiceId,
+    )
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
 function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
   const extra = parseExtra(row);
-  return { companyName: stringValue(row.company_name), legalForm: stringValue(row.legal_form), ownerName: stringValue(row.owner_name), email: stringValue(row.email), phone: stringValue(row.phone), addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), buildingNumber: stringValue(row.building_number) || extra.organization?.address?.buildingNumber || '', postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country), uidNumber: stringValue(row.uid_number), vatNumber: stringValue(row.vat_number), vatRegistered: boolValue(row.vat_registered), iban: stringValue(row.iban), bankName: stringValue(row.bank_name), currency: stringValue(row.currency) || 'CHF', logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) };
+  return {
+    companyName: stringValue(row.company_name),
+    legalForm: stringValue(row.legal_form),
+    ownerName: stringValue(row.owner_name),
+    email: stringValue(row.email),
+    phone: stringValue(row.phone),
+    addressLine1: stringValue(row.address_line1),
+    addressLine2: stringValue(row.address_line2),
+    buildingNumber:
+      stringValue(row.building_number) ||
+      extra.organization?.address?.buildingNumber ||
+      '',
+    postalCode: stringValue(row.postal_code),
+    city: stringValue(row.city),
+    canton: stringValue(row.canton),
+    country: stringValue(row.country),
+    uidNumber: stringValue(row.uid_number),
+    vatNumber: stringValue(row.vat_number),
+    vatRegistered: boolValue(row.vat_registered),
+    iban: stringValue(row.iban),
+    bankName: stringValue(row.bank_name),
+    currency: stringValue(row.currency) || 'CHF',
+    logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir),
+  };
 }
 
 function frozenCustomerFromRaw(row: RawRecord): FrozenCustomer {
-  return { id: stringValue(row.id), name: stringValue(row.name), company: stringValue(row.company), contactPerson: stringValue(row.contact_person), email: stringValue(row.email), phone: stringValue(row.phone), addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country) };
+  return {
+    id: stringValue(row.id),
+    name: stringValue(row.name),
+    company: stringValue(row.company),
+    contactPerson: stringValue(row.contact_person),
+    email: stringValue(row.email),
+    phone: stringValue(row.phone),
+    addressLine1: stringValue(row.address_line1),
+    addressLine2: stringValue(row.address_line2),
+    postalCode: stringValue(row.postal_code),
+    city: stringValue(row.city),
+    canton: stringValue(row.canton),
+    country: stringValue(row.country),
+  };
 }
 
-function storedQrBillFromRaw(value: unknown, fallbackInvoiceId = ''): StoredSwissQrBill | null {
+function storedQrBillFromRaw(
+  value: unknown,
+  fallbackInvoiceId = '',
+): StoredSwissQrBill | null {
   const row = recordValue(value);
-  const inputRow = Object.keys(recordValue(row.input)).length ? recordValue(row.input) : parsedSnapshot(row.input_json);
+  const inputRow = Object.keys(recordValue(row.input)).length
+    ? recordValue(row.input)
+    : parsedSnapshot(row.input_json);
   const payload = stringValue(row.payload);
   if (!inputRow || !payload) return null;
   let lines = Array.isArray(row.lines) ? row.lines.map(stringValue) : [];
   if (!lines.length && typeof row.lines_json === 'string') {
-    try { const parsed: unknown = JSON.parse(row.lines_json); if (Array.isArray(parsed)) lines = parsed.map(stringValue); }
-    catch { lines = []; }
+    try {
+      const parsed: unknown = JSON.parse(row.lines_json);
+      if (Array.isArray(parsed)) lines = parsed.map(stringValue);
+    } catch {
+      lines = [];
+    }
   }
   return {
     invoiceId: stringValue(row.invoice_id) || fallbackInvoiceId,
     input: qrInputFromRaw(inputRow),
     payload,
     lines: lines.length ? lines : payload.split('\n'),
-    referenceType: stringValue(row.reference_type) as StoredSwissQrBill['referenceType'],
+    referenceType: stringValue(
+      row.reference_type,
+    ) as StoredSwissQrBill['referenceType'],
     isQrIban: boolValue(row.is_qr_iban),
     characterCount: numberValue(row.character_count),
     byteCount: numberValue(row.byte_count),
@@ -467,13 +847,39 @@ function storedQrBillFromRaw(value: unknown, fallbackInvoiceId = ''): StoredSwis
   };
 }
 
-function documentSnapshotFromRaw(value: unknown, dataDir = ''): FrozenDocumentSnapshot | null {
+function documentSnapshotFromRaw(
+  value: unknown,
+  dataDir = '',
+): FrozenDocumentSnapshot | null {
   const root = parsedSnapshot(value);
-  if (!root || stringValue(root.schema) !== 'helvichantier.document_snapshot.v1') return null;
+  if (
+    !root ||
+    stringValue(root.schema) !== 'helvichantier.document_snapshot.v1'
+  )
+    return null;
   const document = recordValue(root.document);
   return {
-    capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir), customer: frozenCustomerFromRaw(recordValue(root.customer)),
-    document: { id: stringValue(document.id), number: stringValue(document.number), clientId: stringValue(document.client_id), projectId: nullableString(document.project_id), quoteId: nullableString(document.quote_id), originalInvoiceId: nullableString(document.original_invoice_id), title: stringValue(document.title), type: stringValue(document.type), issueDate: stringValue(document.issue_date), validUntil: stringValue(document.valid_until), dueDate: stringValue(document.due_date), serviceDateFrom: stringValue(document.service_date_from), serviceDateTo: stringValue(document.service_date_to), currency: stringValue(document.currency) || 'CHF', notes: stringValue(document.notes), terms: stringValue(document.terms) },
+    capturedAt: stringValue(root.captured_at),
+    issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir),
+    customer: frozenCustomerFromRaw(recordValue(root.customer)),
+    document: {
+      id: stringValue(document.id),
+      number: stringValue(document.number),
+      clientId: stringValue(document.client_id),
+      projectId: nullableString(document.project_id),
+      quoteId: nullableString(document.quote_id),
+      originalInvoiceId: nullableString(document.original_invoice_id),
+      title: stringValue(document.title),
+      type: stringValue(document.type),
+      issueDate: stringValue(document.issue_date),
+      validUntil: stringValue(document.valid_until),
+      dueDate: stringValue(document.due_date),
+      serviceDateFrom: stringValue(document.service_date_from),
+      serviceDateTo: stringValue(document.service_date_to),
+      currency: stringValue(document.currency) || 'CHF',
+      notes: stringValue(document.notes),
+      terms: stringValue(document.terms),
+    },
     items: rawArray(root.items).map(lineFromRaw),
     qrBill: storedQrBillFromRaw(root.qr_bill, stringValue(document.id)),
   };
@@ -484,122 +890,672 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const invoiceItems = raw.invoice_items ?? [];
   const invoiceQrBills = raw.invoice_qr_bills ?? [];
   const payslipItems = raw.payslip_items ?? [];
+  const supplierInvoiceItems = (raw.supplier_invoice_items ?? []).map(
+    supplierInvoiceItemFromRaw,
+  );
+  const supplierInvoicePayments = (raw.supplier_payments ?? []).map(
+    supplierInvoicePaymentFromRaw,
+  );
+  const supplierInvoiceAttachments = (raw.attachments ?? [])
+    .map(attachmentFromRaw)
+    .filter(
+      (attachment) =>
+        attachment.entityType === 'supplier_invoice' && attachment.entityId,
+    );
   const clients: Client[] = (raw.clients ?? []).map((row) => ({
-    id: stringValue(row.id), name: stringValue(row.contact_person) || stringValue(row.name), company: stringValue(row.company), email: stringValue(row.email), phone: stringValue(row.phone),
-    address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton), stringValue(row.country)].filter(Boolean).join('\n'),
-    addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), buildingNumber: stringValue(row.address_line2), postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country),
-    uidNumber: '', notes: stringValue(row.notes),
+    id: stringValue(row.id),
+    name: stringValue(row.contact_person) || stringValue(row.name),
+    company: stringValue(row.company),
+    email: stringValue(row.email),
+    phone: stringValue(row.phone),
+    address: [
+      stringValue(row.address_line1),
+      stringValue(row.address_line2),
+      [stringValue(row.postal_code), stringValue(row.city)]
+        .filter(Boolean)
+        .join(' '),
+      stringValue(row.canton),
+      stringValue(row.country),
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    addressLine1: stringValue(row.address_line1),
+    addressLine2: stringValue(row.address_line2),
+    buildingNumber: stringValue(row.address_line2),
+    postalCode: stringValue(row.postal_code),
+    city: stringValue(row.city),
+    canton: stringValue(row.canton),
+    country: stringValue(row.country),
+    uidNumber: '',
+    notes: stringValue(row.notes),
+    archivedAt: nullableString(row.archived_at),
   }));
   const catalogItems = (raw.catalog_items ?? []).map(catalogItemFromRaw);
+  const stockMovements = (raw.stock_movements ?? []).map(stockMovementFromRaw);
   const suppliers = (raw.suppliers ?? []).map(supplierFromRaw);
   const projects: Project[] = (raw.projects ?? []).map((row) => ({
-    id: stringValue(row.id), clientId: stringValue(row.client_id), name: stringValue(row.name),
-    address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton)].filter(Boolean).join('\n'),
-    status: projectStatusFromRaw(row.status), plannedStart: stringValue(row.planned_start_date), plannedEnd: stringValue(row.planned_end_date), actualStart: stringValue(row.actual_start_date), actualEnd: stringValue(row.actual_end_date), budgetCents: numberValue(row.budget_cents), plannedMinutes: numberValue(row.planned_minutes), notes: stringValue(row.notes) || stringValue(row.description),
+    id: stringValue(row.id),
+    clientId: stringValue(row.client_id),
+    name: stringValue(row.name),
+    address: [
+      stringValue(row.address_line1),
+      stringValue(row.address_line2),
+      [stringValue(row.postal_code), stringValue(row.city)]
+        .filter(Boolean)
+        .join(' '),
+      stringValue(row.canton),
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    status: projectStatusFromRaw(row.status),
+    plannedStart: stringValue(row.planned_start_date),
+    plannedEnd: stringValue(row.planned_end_date),
+    actualStart: stringValue(row.actual_start_date),
+    actualEnd: stringValue(row.actual_end_date),
+    budgetCents: numberValue(row.budget_cents),
+    plannedMinutes: numberValue(row.planned_minutes),
+    notes: stringValue(row.notes) || stringValue(row.description),
   }));
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
-    id: stringValue(row.id), number: stringValue(row.number), clientId: stringValue(row.client_id), projectId: stringValue(row.project_id) || null, title: stringValue(row.title), issueDate: stringValue(row.issue_date), validUntil: stringValue(row.valid_until), status: quoteStatusFromRaw(row.status),
-    lines: quoteItems.filter((item) => stringValue(item.quote_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map(lineFromRaw), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: documentSnapshotFromRaw(row.snapshot_json, appState.data_dir),
+    id: stringValue(row.id),
+    number: stringValue(row.number),
+    clientId: stringValue(row.client_id),
+    projectId: stringValue(row.project_id) || null,
+    title: stringValue(row.title),
+    issueDate: stringValue(row.issue_date),
+    validUntil: stringValue(row.valid_until),
+    status: quoteStatusFromRaw(row.status),
+    lines: quoteItems
+      .filter((item) => stringValue(item.quote_id) === stringValue(row.id))
+      .sort((a, b) => numberValue(a.position) - numberValue(b.position))
+      .map(lineFromRaw),
+    notes: stringValue(row.notes),
+    createdAt: stringValue(row.created_at),
+    snapshot: documentSnapshotFromRaw(row.snapshot_json, appState.data_dir),
   }));
   const invoices: Invoice[] = (raw.invoices ?? []).map((row) => {
-    const snapshot = documentSnapshotFromRaw(row.snapshot_json, appState.data_dir);
-    const qrBill = snapshot?.qrBill ?? storedQrBillFromRaw(invoiceQrBills.find((item) => stringValue(item.invoice_id) === stringValue(row.id)), stringValue(row.id));
+    const snapshot = documentSnapshotFromRaw(
+      row.snapshot_json,
+      appState.data_dir,
+    );
+    const qrBill =
+      snapshot?.qrBill ??
+      storedQrBillFromRaw(
+        invoiceQrBills.find(
+          (item) => stringValue(item.invoice_id) === stringValue(row.id),
+        ),
+        stringValue(row.id),
+      );
     return {
-      id: stringValue(row.id), number: stringValue(row.number), clientId: stringValue(row.client_id), projectId: stringValue(row.project_id) || null, quoteId: stringValue(row.quote_id) || null, originalInvoiceId: stringValue(row.original_invoice_id) || null, title: stringValue(row.title),
-      type: ({ acompte: 'deposit', situation: 'progress', finale: 'final', avoir: 'credit_note' } as Record<string, Invoice['type']>)[stringValue(row.type)] ?? 'standard', issueDate: stringValue(row.issue_date), dueDate: stringValue(row.due_date), serviceDateFrom: stringValue(row.service_date_from), serviceDateTo: stringValue(row.service_date_to), status: invoiceStatusFromRaw(row.status),
-      lines: invoiceItems.filter((item) => stringValue(item.invoice_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map(lineFromRaw), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot, qrBill,
+      id: stringValue(row.id),
+      number: stringValue(row.number),
+      clientId: stringValue(row.client_id),
+      projectId: stringValue(row.project_id) || null,
+      quoteId: stringValue(row.quote_id) || null,
+      originalInvoiceId: stringValue(row.original_invoice_id) || null,
+      title: stringValue(row.title),
+      type:
+        (
+          {
+            acompte: 'deposit',
+            situation: 'progress',
+            finale: 'final',
+            avoir: 'credit_note',
+          } as Record<string, Invoice['type']>
+        )[stringValue(row.type)] ?? 'standard',
+      issueDate: stringValue(row.issue_date),
+      dueDate: stringValue(row.due_date),
+      serviceDateFrom: stringValue(row.service_date_from),
+      serviceDateTo: stringValue(row.service_date_to),
+      status: invoiceStatusFromRaw(row.status),
+      lines: invoiceItems
+        .filter((item) => stringValue(item.invoice_id) === stringValue(row.id))
+        .sort((a, b) => numberValue(a.position) - numberValue(b.position))
+        .map(lineFromRaw),
+      notes: stringValue(row.notes),
+      createdAt: stringValue(row.created_at),
+      snapshot,
+      qrBill,
     };
   });
   const employees: Employee[] = (raw.employees ?? []).map((row) => ({
-    id: stringValue(row.id), employeeNumber: stringValue(row.employee_number), name: stringValue(row.name), role: stringValue(row.role), email: stringValue(row.email), phone: stringValue(row.phone),
-    address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton)].filter(Boolean).join('\n'),
-    addressLine1: stringValue(row.address_line1), addressLine2: stringValue(row.address_line2), postalCode: stringValue(row.postal_code), city: stringValue(row.city), canton: stringValue(row.canton), country: stringValue(row.country),
-    birthDate: stringValue(row.birth_date), avsNumber: stringValue(row.social_security_number), employmentStart: stringValue(row.employment_start_date), employmentEnd: stringValue(row.employment_end_date), referenceAgeDate: stringValue(row.reference_age_date), avsAllowanceWaived: row.avs_allowance_waived === null || row.avs_allowance_waived === undefined ? null : boolValue(row.avs_allowance_waived), employmentRate: numberValue(row.employment_rate), contractualWeeklyMinutes: row.contractual_weekly_minutes === null || row.contractual_weekly_minutes === undefined ? null : numberValue(row.contractual_weekly_minutes), acOpeningYear: row.ac_opening_year === null || row.ac_opening_year === undefined ? null : numberValue(row.ac_opening_year), acOpeningBasisCents: row.ac_opening_basis_cents === null || row.ac_opening_basis_cents === undefined ? null : numberValue(row.ac_opening_basis_cents), salaryMode: numberValue(row.monthly_salary_cents) > 0 ? 'monthly' : 'hourly', grossSalaryCents: numberValue(row.monthly_salary_cents), hourlyCostCents: numberValue(row.hourly_rate_cents), iban: stringValue(row.iban), active: stringValue(row.status) !== 'inactif', notes: stringValue(row.notes),
+    id: stringValue(row.id),
+    employeeNumber: stringValue(row.employee_number),
+    name: stringValue(row.name),
+    role: stringValue(row.role),
+    email: stringValue(row.email),
+    phone: stringValue(row.phone),
+    address: [
+      stringValue(row.address_line1),
+      stringValue(row.address_line2),
+      [stringValue(row.postal_code), stringValue(row.city)]
+        .filter(Boolean)
+        .join(' '),
+      stringValue(row.canton),
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    addressLine1: stringValue(row.address_line1),
+    addressLine2: stringValue(row.address_line2),
+    postalCode: stringValue(row.postal_code),
+    city: stringValue(row.city),
+    canton: stringValue(row.canton),
+    country: stringValue(row.country),
+    birthDate: stringValue(row.birth_date),
+    avsNumber: stringValue(row.social_security_number),
+    employmentStart: stringValue(row.employment_start_date),
+    employmentEnd: stringValue(row.employment_end_date),
+    referenceAgeDate: stringValue(row.reference_age_date),
+    avsAllowanceWaived:
+      row.avs_allowance_waived === null ||
+      row.avs_allowance_waived === undefined
+        ? null
+        : boolValue(row.avs_allowance_waived),
+    employmentRate: numberValue(row.employment_rate),
+    contractualWeeklyMinutes:
+      row.contractual_weekly_minutes === null ||
+      row.contractual_weekly_minutes === undefined
+        ? null
+        : numberValue(row.contractual_weekly_minutes),
+    acOpeningYear:
+      row.ac_opening_year === null || row.ac_opening_year === undefined
+        ? null
+        : numberValue(row.ac_opening_year),
+    acOpeningBasisCents:
+      row.ac_opening_basis_cents === null ||
+      row.ac_opening_basis_cents === undefined
+        ? null
+        : numberValue(row.ac_opening_basis_cents),
+    salaryMode:
+      numberValue(row.monthly_salary_cents) > 0 ? 'monthly' : 'hourly',
+    grossSalaryCents: numberValue(row.monthly_salary_cents),
+    hourlyCostCents: numberValue(row.hourly_rate_cents),
+    iban: stringValue(row.iban),
+    active: stringValue(row.status) !== 'inactif',
+    notes: stringValue(row.notes),
   }));
-  const timeEntries: TimeEntry[] = (raw.time_entries ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id), employeeId: stringValue(row.employee_id), date: stringValue(row.date), minutes: numberValue(row.minutes), breakMinutes: numberValue(row.break_minutes), billable: boolValue(row.billable), billingRateCents: numberValue(row.billing_rate_cents), hourlyCostCents: numberValue(row.cost_rate_cents), note: stringValue(row.note), status: ({ approuve: 'approved', verrouille: 'locked' } as Record<string, TimeEntry['status']>)[stringValue(row.status)] ?? 'entered', createdAt: stringValue(row.created_at) }));
-  const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({ id: stringValue(row.id), projectId: stringValue(row.project_id) || null, supplierId: stringValue(row.supplier_id) || null, date: stringValue(row.date), dueDate: stringValue(row.due_date) || null, supplier: stringValue(row.supplier), category: stringValue(row.category), reference: stringValue(row.reference), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents), paymentStatus: expensePaymentStatusFromRaw(row.payment_status), paidAt: stringValue(row.paid_at) || null, reimbursable: boolValue(row.reimbursable), note: stringValue(row.note) }));
+  const timeEntries: TimeEntry[] = (raw.time_entries ?? []).map((row) => ({
+    id: stringValue(row.id),
+    projectId: stringValue(row.project_id),
+    employeeId: stringValue(row.employee_id),
+    date: stringValue(row.date),
+    minutes: numberValue(row.minutes),
+    breakMinutes: numberValue(row.break_minutes),
+    billable: boolValue(row.billable),
+    billingRateCents: numberValue(row.billing_rate_cents),
+    hourlyCostCents: numberValue(row.cost_rate_cents),
+    note: stringValue(row.note),
+    status:
+      (
+        { approuve: 'approved', verrouille: 'locked' } as Record<
+          string,
+          TimeEntry['status']
+        >
+      )[stringValue(row.status)] ?? 'entered',
+    billingStatus:
+      (
+        { reserved: 'reserved', billed: 'billed' } as Record<
+          string,
+          TimeEntry['billingStatus']
+        >
+      )[stringValue(row.billing_status)] ?? 'unbilled',
+    billingBatchId: nullableString(row.billing_batch_id),
+    billingInvoiceId: nullableString(row.billing_invoice_id),
+    billingInvoiceNumber: nullableString(row.billing_invoice_number),
+    createdAt: stringValue(row.created_at),
+  }));
+  const timeBillingBatches: TimeBillingBatch[] = (
+    raw.time_billing_batches ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    requestId: stringValue(row.request_id),
+    invoiceId: stringValue(row.invoice_id),
+    projectId: stringValue(row.project_id),
+    clientId: stringValue(row.client_id),
+    vatBp: numberValue(row.vat_bp),
+    createdAt: stringValue(row.created_at),
+  }));
+  const timeBillingEntries: TimeBillingEntry[] = (
+    raw.time_billing_entries ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    batchId: stringValue(row.batch_id),
+    timeEntryId: stringValue(row.time_entry_id),
+    invoiceItemId: stringValue(row.invoice_item_id),
+    entryDate: stringValue(row.entry_date_snapshot),
+    minutes: numberValue(row.minutes_snapshot),
+    billingRateCents: numberValue(row.billing_rate_cents_snapshot),
+    amountCents: numberValue(row.amount_cents_snapshot),
+    employeeName: stringValue(row.employee_name_snapshot),
+    note: stringValue(row.note_snapshot),
+    createdAt: stringValue(row.created_at),
+  }));
+  const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({
+    id: stringValue(row.id),
+    projectId: stringValue(row.project_id) || null,
+    supplierId: stringValue(row.supplier_id) || null,
+    date: stringValue(row.date),
+    dueDate: stringValue(row.due_date) || null,
+    supplier: stringValue(row.supplier),
+    category: stringValue(row.category),
+    reference: stringValue(row.reference),
+    netCents: numberValue(row.net_cents),
+    vatCents: numberValue(row.vat_cents),
+    totalCents: numberValue(row.total_cents),
+    paymentStatus: expensePaymentStatusFromRaw(row.payment_status),
+    paidAt: stringValue(row.paid_at) || null,
+    reimbursable: boolValue(row.reimbursable),
+    note: stringValue(row.note),
+  }));
+  const supplierInvoices: SupplierInvoice[] = (raw.supplier_invoices ?? []).map(
+    (row) => {
+      const documentStatus: SupplierInvoice['documentStatus'] =
+        stringValue(row.status) === 'validated' ? 'validated' : 'draft';
+      const totalCents = numberValue(row.total_cents);
+      const paidCents = Math.max(
+        0,
+        Math.min(totalCents, numberValue(row.paid_cents)),
+      );
+      const paymentStatus: SupplierInvoice['paymentStatus'] =
+        documentStatus === 'draft'
+          ? null
+          : paidCents >= totalCents
+            ? 'paid'
+            : paidCents > 0
+              ? 'partial'
+              : 'pending';
+      const id = stringValue(row.id);
+      return {
+        id,
+        supplierId: stringValue(row.supplier_id),
+        projectId: stringValue(row.project_id) || null,
+        documentDate: stringValue(row.document_date),
+        dueDate: stringValue(row.due_date),
+        supplierName: stringValue(row.supplier_name),
+        reference: stringValue(row.reference),
+        currency: 'CHF',
+        documentStatus,
+        paymentStatus,
+        netCents: numberValue(row.net_cents),
+        vatCents: numberValue(row.vat_cents),
+        totalCents,
+        paidCents,
+        balanceCents: Math.max(0, totalCents - paidCents),
+        validatedAt: stringValue(row.validated_at) || null,
+        validationJournalEntryId:
+          stringValue(row.validation_journal_entry_id) || null,
+        note: stringValue(row.note),
+        lines: supplierInvoiceItems
+          .filter((item) => item.supplierInvoiceId === id)
+          .sort((left, right) => left.position - right.position),
+        payments: supplierInvoicePayments
+          .filter((payment) => payment.supplierInvoiceId === id)
+          .sort(
+            (left, right) =>
+              left.date.localeCompare(right.date) ||
+              left.createdAt.localeCompare(right.createdAt),
+          ),
+        attachments: attachmentsForSupplierInvoice(
+          supplierInvoiceAttachments,
+          id,
+        ),
+        createdAt: stringValue(row.created_at),
+        updatedAt: stringValue(row.updated_at),
+      };
+    },
+  );
   const payslips: Payslip[] = (raw.payslips ?? []).map((row) => ({
-    id: stringValue(row.id), employeeId: stringValue(row.employee_id), period: stringValue(row.period), status: ({ brouillon: 'draft', a_controler: 'incomplete', valide: 'validated', comptabilise: 'posted', paye: 'paid' } as Record<string, Payslip['status']>)[stringValue(row.status)] ?? 'incomplete',
-    lines: payslipItems.filter((item) => stringValue(item.payslip_id) === stringValue(row.id)).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: payslipLineKindFromRaw(item.kind), amountCents: numberValue(item.amount_cents), postingAccountId: stringValue(item.posting_account_id), expenseAccountId: stringValue(item.expense_account_id) })), paymentDate: stringValue(row.payment_date), paymentReference: stringValue(row.payment_reference), paymentJournalEntryId: stringValue(row.payment_journal_entry_id), notes: stringValue(row.notes), createdAt: stringValue(row.created_at), snapshot: payslipSnapshotFromRaw(row.snapshot_json, appState.data_dir),
+    id: stringValue(row.id),
+    employeeId: stringValue(row.employee_id),
+    period: stringValue(row.period),
+    status:
+      (
+        {
+          brouillon: 'draft',
+          a_controler: 'incomplete',
+          valide: 'validated',
+          comptabilise: 'posted',
+          paye: 'paid',
+        } as Record<string, Payslip['status']>
+      )[stringValue(row.status)] ?? 'incomplete',
+    lines: payslipItems
+      .filter((item) => stringValue(item.payslip_id) === stringValue(row.id))
+      .sort((a, b) => numberValue(a.position) - numberValue(b.position))
+      .map((item) => ({
+        id: stringValue(item.id),
+        label: stringValue(item.label),
+        kind: payslipLineKindFromRaw(item.kind),
+        amountCents: numberValue(item.amount_cents),
+        postingAccountId: stringValue(item.posting_account_id),
+        expenseAccountId: stringValue(item.expense_account_id),
+      })),
+    paymentDate: stringValue(row.payment_date),
+    paymentReference: stringValue(row.payment_reference),
+    paymentJournalEntryId: stringValue(row.payment_journal_entry_id),
+    notes: stringValue(row.notes),
+    createdAt: stringValue(row.created_at),
+    snapshot: payslipSnapshotFromRaw(row.snapshot_json, appState.data_dir),
   }));
-  const payrollImports = (raw.payroll_document_imports ?? []).map(payrollImportFromRaw);
-  const employeePayrollTemplates = (raw.employee_payroll_templates ?? []).map(employeePayrollTemplateFromRaw);
-  const payments: Payment[] = (raw.payments ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), date: stringValue(row.date), amountCents: numberValue(row.amount_cents), method: stringValue(row.method), reference: stringValue(row.reference) }));
+  const payrollImports = (raw.payroll_document_imports ?? []).map(
+    payrollImportFromRaw,
+  );
+  const employeePayrollTemplates = (raw.employee_payroll_templates ?? []).map(
+    employeePayrollTemplateFromRaw,
+  );
+  const payments: Payment[] = (raw.payments ?? []).map((row) => ({
+    id: stringValue(row.id),
+    invoiceId: stringValue(row.invoice_id),
+    date: stringValue(row.date),
+    amountCents: numberValue(row.amount_cents),
+    method: stringValue(row.method),
+    reference: stringValue(row.reference),
+  }));
   const timer = raw.active_timer;
   return {
-    schemaVersion: 1, onboardingCompleted: appState.onboarding_completed, activityProfileRequired: boolValue(appState.activity_profile_required), settings: settingsFromRaw(raw.settings, appState.data_dir), clients, catalogItems, suppliers, projects, quotes, invoices, payments, employees, timeEntries,
-    activeTimer: timer ? { projectId: stringValue(timer.project_id), employeeId: stringValue(timer.employee_id), startedAt: stringValue(timer.started_at), note: stringValue(timer.note), billable: boolValue(timer.billable), billingRateCents: numberValue(timer.billing_rate_cents), hourlyCostCents: numberValue(timer.cost_rate_cents) } : null,
-    expenses, payslips, payrollImports, employeePayrollTemplates, backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
+    schemaVersion: 1,
+    onboardingCompleted: appState.onboarding_completed,
+    activityProfileRequired: boolValue(appState.activity_profile_required),
+    settings: settingsFromRaw(raw.settings, appState.data_dir),
+    clients,
+    catalogItems,
+    stockMovements,
+    suppliers,
+    projects,
+    quotes,
+    invoices,
+    payments,
+    employees,
+    timeEntries,
+    timeBillingBatches,
+    timeBillingEntries,
+    activeTimer: timer
+      ? {
+          projectId: stringValue(timer.project_id),
+          employeeId: stringValue(timer.employee_id),
+          startedAt: stringValue(timer.started_at),
+          note: stringValue(timer.note),
+          billable: boolValue(timer.billable),
+          billingRateCents: numberValue(timer.billing_rate_cents),
+          hourlyCostCents: numberValue(timer.cost_rate_cents),
+        }
+      : null,
+    expenses,
+    supplierInvoices,
+    supplierInvoicePayments,
+    payslips,
+    payrollImports,
+    employeePayrollTemplates,
+    accountingSettings: raw.accounting_settings
+      ? accountingSettingsFromRaw(raw.accounting_settings)
+      : null,
+    backupStatus: {
+      lastSuccessAt: null,
+      lastPath: null,
+      nextScheduledAt: null,
+    },
   };
 }
 
 function emptyWorkspace(): Workspace {
-  return { schemaVersion: 1, onboardingCompleted: false, activityProfileRequired: true, settings: null, clients: [], catalogItems: [], suppliers: [], projects: [], quotes: [], invoices: [], payments: [], employees: [], timeEntries: [], activeTimer: null, expenses: [], payslips: [], payrollImports: [], employeePayrollTemplates: [], backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null } };
+  return {
+    schemaVersion: 1,
+    onboardingCompleted: false,
+    activityProfileRequired: true,
+    settings: null,
+    clients: [],
+    catalogItems: [],
+    stockMovements: [],
+    suppliers: [],
+    projects: [],
+    quotes: [],
+    invoices: [],
+    payments: [],
+    employees: [],
+    timeEntries: [],
+    timeBillingBatches: [],
+    timeBillingEntries: [],
+    activeTimer: null,
+    expenses: [],
+    supplierInvoices: [],
+    supplierInvoicePayments: [],
+    payslips: [],
+    payrollImports: [],
+    employeePayrollTemplates: [],
+    accountingSettings: null,
+    backupStatus: {
+      lastSuccessAt: null,
+      lastPath: null,
+      nextScheduledAt: null,
+    },
+  };
 }
 
 async function loadWorkspace(): Promise<Workspace> {
   const appState = appStateFromRaw(await invoke<RawRecord>('get_app_state'));
   if (!appState.onboarding_completed) return emptyWorkspace();
-  return normalizeWorkspace(await invoke<RawWorkspace>('get_workspace'), appState);
+  return normalizeWorkspace(
+    await invoke<RawWorkspace>('get_workspace'),
+    appState,
+  );
 }
 
 function backendExtra(settings: AppSettings): string {
-  return JSON.stringify({ organization: { website: settings.organization.website, address: { buildingNumber: settings.organization.address.buildingNumber ?? '' } }, billing: { accountHolder: settings.billing.accountHolder, creditNotePrefix: settings.billing.creditNotePrefix, nextQuoteNumber: settings.billing.nextQuoteNumber, nextInvoiceNumber: settings.billing.nextInvoiceNumber, nextCreditNoteNumber: settings.billing.nextCreditNoteNumber, quoteValidityDays: settings.billing.quoteValidityDays, vatRatesBp: settings.billing.vatRatesBp, defaultFooter: settings.billing.defaultFooter }, work: settings.work, payroll: settings.payroll, backup: settings.backup });
+  return JSON.stringify({
+    organization: {
+      website: settings.organization.website,
+      address: {
+        buildingNumber: settings.organization.address.buildingNumber ?? '',
+      },
+    },
+    billing: {
+      accountHolder: settings.billing.accountHolder,
+      creditNotePrefix: settings.billing.creditNotePrefix,
+      nextQuoteNumber: settings.billing.nextQuoteNumber,
+      nextInvoiceNumber: settings.billing.nextInvoiceNumber,
+      nextCreditNoteNumber: settings.billing.nextCreditNoteNumber,
+      quoteValidityDays: settings.billing.quoteValidityDays,
+      vatRatesBp: settings.billing.vatRatesBp,
+      defaultFooter: settings.billing.defaultFooter,
+    },
+    work: settings.work,
+    payroll: settings.payroll,
+    backup: settings.backup,
+  });
 }
 
 function settingsToBackend(settings: AppSettings): RawRecord {
   const street = settings.organization.address.street.split('\n');
   return {
-    company_name: settings.organization.legalName, legal_form: settings.organization.legalForm, owner_name: settings.organization.contactName, email: settings.organization.email, phone: settings.organization.phone,
-    address_line1: street[0] ?? '', address_line2: street.slice(1).join(' '), postal_code: settings.organization.address.postalCode, city: settings.organization.address.city, canton: settings.organization.address.canton, country: settings.organization.address.country,
-    uid_number: settings.organization.uidNumber, vat_number: settings.organization.vatNumber, vat_registered: settings.organization.vatRegistered, default_vat_bp: settings.billing.vatRatesBp[0] ?? 0, iban: settings.billing.iban, bank_name: settings.billing.accountHolder, currency: 'CHF', quote_prefix: settings.billing.quotePrefix, invoice_prefix: settings.billing.invoicePrefix, credit_note_prefix: settings.billing.creditNotePrefix, quote_start_number: settings.billing.nextQuoteNumber, invoice_start_number: settings.billing.nextInvoiceNumber, credit_note_start_number: settings.billing.nextCreditNoteNumber, payment_terms_days: settings.billing.paymentTermsDays, quote_validity_days: settings.billing.quoteValidityDays, default_hourly_rate_cents: 0, logo_path: settings.organization.logoPath ?? '', noga_section: settings.business.nogaSection, noga_division: settings.business.nogaDivision, activity_description: settings.business.activityDescription, noga_detailed_code: settings.business.nogaDetailedCode || null, extra_settings_json: backendExtra(settings),
+    company_name: settings.organization.legalName,
+    legal_form: settings.organization.legalForm,
+    owner_name: settings.organization.contactName,
+    email: settings.organization.email,
+    phone: settings.organization.phone,
+    address_line1: street[0] ?? '',
+    address_line2: street.slice(1).join(' '),
+    postal_code: settings.organization.address.postalCode,
+    city: settings.organization.address.city,
+    canton: settings.organization.address.canton,
+    country: settings.organization.address.country,
+    uid_number: settings.organization.uidNumber,
+    vat_number: settings.organization.vatNumber,
+    vat_registered: settings.organization.vatRegistered,
+    default_vat_bp: settings.billing.vatRatesBp[0] ?? 0,
+    iban: settings.billing.iban,
+    bank_name: settings.billing.accountHolder,
+    currency: 'CHF',
+    quote_prefix: settings.billing.quotePrefix,
+    invoice_prefix: settings.billing.invoicePrefix,
+    credit_note_prefix: settings.billing.creditNotePrefix,
+    quote_start_number: settings.billing.nextQuoteNumber,
+    invoice_start_number: settings.billing.nextInvoiceNumber,
+    credit_note_start_number: settings.billing.nextCreditNoteNumber,
+    payment_terms_days: settings.billing.paymentTermsDays,
+    quote_validity_days: settings.billing.quoteValidityDays,
+    default_hourly_rate_cents: 0,
+    logo_path: settings.organization.logoPath ?? '',
+    noga_section: settings.business.nogaSection,
+    noga_division: settings.business.nogaDivision,
+    activity_description: settings.business.activityDescription,
+    noga_detailed_code: settings.business.nogaDetailedCode || null,
+    extra_settings_json: backendExtra(settings),
   };
 }
 
-const entityToBackend: Record<EntityKind, string> = { clients: 'clients', catalogItems: 'catalog_items', suppliers: 'suppliers', projects: 'projects', quotes: 'quotes', invoices: 'invoices', employees: 'employees', timeEntries: 'time_entries', expenses: 'expenses', payslips: 'payslips' };
-export function archiveEntityMutation(entity: EntityKind, id: string, archivedAt = new Date().toISOString()) {
+const entityToBackend: Record<EntityKind, string> = {
+  clients: 'clients',
+  catalogItems: 'catalog_items',
+  suppliers: 'suppliers',
+  projects: 'projects',
+  quotes: 'quotes',
+  invoices: 'invoices',
+  employees: 'employees',
+  timeEntries: 'time_entries',
+  expenses: 'expenses',
+  payslips: 'payslips',
+};
+export function archiveEntityMutation(
+  entity: EntityKind,
+  id: string,
+  archivedAt = new Date().toISOString(),
+) {
   const backendEntity = entityToBackend[entity];
-  if (entity === 'catalogItems' || entity === 'suppliers') {
-    return { command: 'update_record' as const, args: { entity: backendEntity, id, data: { archived_at: archivedAt } } };
+  if (
+    entity === 'clients' ||
+    entity === 'catalogItems' ||
+    entity === 'suppliers'
+  ) {
+    return {
+      command: 'update_record' as const,
+      args: { entity: backendEntity, id, data: { archived_at: archivedAt } },
+    };
   }
-  return { command: 'delete_record' as const, args: { entity: backendEntity, id } };
+  return {
+    command: 'delete_record' as const,
+    args: { entity: backendEntity, id },
+  };
 }
-const statusToBackend: Record<string, string> = { planned: 'planifie', in_progress: 'en_cours', paused: 'en_pause', completed: 'termine', closed: 'cloture', draft: 'brouillon', issued: 'emis', accepted: 'accepte', refused: 'refuse', expired: 'expire', partially_paid: 'partiellement_payee', paid: 'payee', cancelled: 'annulee', entered: 'saisi', approved: 'approuve', locked: 'verrouille', incomplete: 'a_controler', validated: 'valide' };
-const snakeKey = (key: string): string => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-function toBackendData(data: Record<string, unknown>): RawRecord {
-  return Object.fromEntries(Object.entries(data).map(([key, value]) => [snakeKey(key), key === 'status' && typeof value === 'string' ? statusToBackend[value] ?? value : value]));
-}
-const createRecord = (entity: string, data: RawRecord) => invoke<RawRecord>('create_record', { entity, data });
 
-async function saveDocument(entity: 'quotes' | 'invoices', data: Record<string, unknown>, lines: DocumentLine[], existing?: Quote | Invoice): Promise<Workspace> {
+export function stockMovementMutation(
+  movementType: StockMovementType,
+  input: {
+    requestId: string;
+    catalogItemId: string;
+    quantityMilli: number;
+    reason: string;
+    reference?: string;
+    date?: string;
+  },
+) {
+  const command = movementType === 'correction'
+    ? 'record_stock_correction'
+    : movementType === 'entry'
+      ? 'record_stock_entry'
+      : 'record_stock_exit';
+  return {
+    command,
+    args: {
+      input: {
+        request_id: input.requestId,
+        catalog_item_id: input.catalogItemId,
+        ...(movementType === 'correction'
+          ? { delta_quantity_milli: input.quantityMilli }
+          : { quantity_milli: input.quantityMilli }),
+        reason: input.reason.trim(),
+        reference: input.reference?.trim() || null,
+        date: input.date || null,
+      },
+    },
+  };
+}
+const statusToBackend: Record<string, string> = {
+  planned: 'planifie',
+  in_progress: 'en_cours',
+  paused: 'en_pause',
+  completed: 'termine',
+  closed: 'cloture',
+  draft: 'brouillon',
+  issued: 'emis',
+  accepted: 'accepte',
+  refused: 'refuse',
+  expired: 'expire',
+  partially_paid: 'partiellement_payee',
+  paid: 'payee',
+  cancelled: 'annulee',
+  entered: 'saisi',
+  approved: 'approuve',
+  locked: 'verrouille',
+  incomplete: 'a_controler',
+  validated: 'valide',
+};
+const snakeKey = (key: string): string =>
+  key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+function toBackendData(data: Record<string, unknown>): RawRecord {
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [
+      snakeKey(key),
+      key === 'status' && typeof value === 'string'
+        ? (statusToBackend[value] ?? value)
+        : value,
+    ]),
+  );
+}
+const createRecord = (entity: string, data: RawRecord) =>
+  invoke<RawRecord>('create_record', { entity, data });
+
+async function saveDocument(
+  entity: 'quotes' | 'invoices',
+  data: Record<string, unknown>,
+  lines: DocumentLine[],
+  existing?: Quote | Invoice,
+): Promise<Workspace> {
   const previousLines = existing?.lines ?? [];
-  await invoke('save_document_with_items', { input: {
-    entity,
-    id: existing?.id ?? null,
-    data: toBackendData(data),
-    items: lines.map((line) => ({ id: previousLines.some((previous) => previous.id === line.id) ? line.id : null, catalog_item_id: line.catalogItemId || null, description: line.description, quantity: line.quantity, unit: line.unit, unit_price_cents: line.unitPriceCents, discount_bp: line.discountBp ?? 0, vat_bp: line.vatRateBp })),
-  } });
+  await invoke('save_document_with_items', {
+    input: {
+      entity,
+      id: existing?.id ?? null,
+      data: toBackendData(data),
+      items: lines.map((line) => ({
+        id: previousLines.some((previous) => previous.id === line.id)
+          ? line.id
+          : null,
+        catalog_item_id: line.catalogItemId || null,
+        description: line.description,
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price_cents: line.unitPriceCents,
+        discount_bp: line.discountBp ?? 0,
+        vat_bp: line.vatRateBp,
+      })),
+    },
+  });
   return loadWorkspace();
 }
 
-async function chooseFile(options: OpenDialogOptions & { multiple?: false }): Promise<string | null> {
+async function chooseFile(
+  options: OpenDialogOptions & { multiple?: false },
+): Promise<string | null> {
   const dialog = await import('@tauri-apps/plugin-dialog');
   return dialog.open(options);
 }
 
-async function chooseFiles(options: OpenDialogOptions & { multiple: true }): Promise<string[]> {
+async function chooseFiles(
+  options: OpenDialogOptions & { multiple: true },
+): Promise<string[]> {
   const dialog = await import('@tauri-apps/plugin-dialog');
   const result = await dialog.open(options);
   return result ?? [];
 }
 
-async function chooseSaveFile(options: SaveDialogOptions): Promise<string | null> {
+async function chooseSaveFile(
+  options: SaveDialogOptions,
+): Promise<string | null> {
   const dialog = await import('@tauri-apps/plugin-dialog');
   return dialog.save(options);
 }
 
 function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {
-  return {
+  const raw: RawRecord = {
     employee: {
       employee_number: draft.employee.employeeNumber,
       name: draft.employee.name,
@@ -619,19 +1575,49 @@ function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {
     payment_date: draft.paymentDate,
     gross_cents: draft.grossCents,
     net_cents: draft.netCents,
-    lines: draft.lines.map((line) => ({ label: line.label, kind: line.kind, amount_cents: line.amountCents, recurring: line.recurring, confidence_bp: line.confidenceBp })),
+    lines: draft.lines.map((line) => ({
+      label: line.label,
+      kind: line.kind,
+      amount_cents: line.amountCents,
+      recurring: line.recurring,
+      confidence_bp: line.confidenceBp,
+    })),
     warnings: draft.warnings,
   };
+  if (draft.review) {
+    raw.review = {
+      employee_id: draft.review.employeeId,
+      employee_link_source: draft.review.employeeLinkSource,
+      ai_identity_evidence: draft.review.aiIdentityEvidence
+        ? {
+            passes: draft.review.aiIdentityEvidence.passes,
+            employee_number: draft.review.aiIdentityEvidence.employeeNumber,
+            avs_number: draft.review.aiIdentityEvidence.avsNumber,
+            birth_date: draft.review.aiIdentityEvidence.birthDate,
+            iban: draft.review.aiIdentityEvidence.iban,
+            conflicts: draft.review.aiIdentityEvidence.conflicts,
+          }
+        : null,
+    };
+  }
+  return raw;
 }
 
-const nullableString = (value: unknown): string | null => stringValue(value) || null;
+const nullableString = (value: unknown): string | null =>
+  stringValue(value) || null;
 const rawArray = (value: unknown, key?: string): RawRecord[] => {
-  if (Array.isArray(value)) return value.filter((item): item is RawRecord => Boolean(item && typeof item === 'object'));
-  if (key && value && typeof value === 'object') return rawArray((value as RawRecord)[key]);
+  if (Array.isArray(value))
+    return value.filter((item): item is RawRecord =>
+      Boolean(item && typeof item === 'object'),
+    );
+  if (key && value && typeof value === 'object')
+    return rawArray((value as RawRecord)[key]);
   return [];
 };
 
-export function accountingFallbacksFromPostPayslip(value: unknown): AccountingFallback[] {
+export function accountingFallbacksFromPostPayslip(
+  value: unknown,
+): AccountingFallback[] {
   const posted = recordValue(value);
   const journal = recordValue(posted.journal);
   return rawArray(journal.accounting_fallbacks).map((row) => ({
@@ -643,67 +1629,293 @@ export function accountingFallbacksFromPostPayslip(value: unknown): AccountingFa
 }
 
 function accountFromRaw(row: RawRecord): Account {
-  return { id: stringValue(row.id), code: stringValue(row.code), name: stringValue(row.name), accountType: stringValue(row.account_type) as Account['accountType'], normalBalance: stringValue(row.normal_balance) as Account['normalBalance'], reportSection: stringValue(row.report_section) as Account['reportSection'], active: boolValue(row.active) };
+  return {
+    id: stringValue(row.id),
+    code: stringValue(row.code),
+    name: stringValue(row.name),
+    accountType: stringValue(row.account_type) as Account['accountType'],
+    normalBalance: stringValue(row.normal_balance) as Account['normalBalance'],
+    reportSection: stringValue(row.report_section) as Account['reportSection'],
+    active: boolValue(row.active),
+  };
 }
 
-function accountingSettingsFromRaw(row: RawRecord | null | undefined): AccountingSettings {
+function accountingSettingsFromRaw(
+  row: RawRecord | null | undefined,
+): AccountingSettings {
   return {
-    enabled: boolValue(row?.enabled), arAccountId: stringValue(row?.ar_account_id), revenueAccountId: stringValue(row?.revenue_account_id), vatPayableAccountId: stringValue(row?.vat_payable_account_id), bankAccountId: stringValue(row?.bank_account_id), expenseAccountId: stringValue(row?.expense_account_id), vatReceivableAccountId: stringValue(row?.vat_receivable_account_id), wagesExpenseAccountId: stringValue(row?.wages_expense_account_id), wagesPayableAccountId: stringValue(row?.wages_payable_account_id), socialExpenseAccountId: stringValue(row?.social_expense_account_id), socialPayableAccountId: stringValue(row?.social_payable_account_id),
+    enabled: boolValue(row?.enabled),
+    arAccountId: stringValue(row?.ar_account_id),
+    revenueAccountId: stringValue(row?.revenue_account_id),
+    vatPayableAccountId: stringValue(row?.vat_payable_account_id),
+    bankAccountId: stringValue(row?.bank_account_id),
+    expenseAccountId: stringValue(row?.expense_account_id),
+    vatReceivableAccountId: stringValue(row?.vat_receivable_account_id),
+    wagesExpenseAccountId: stringValue(row?.wages_expense_account_id),
+    wagesPayableAccountId: stringValue(row?.wages_payable_account_id),
+    socialExpenseAccountId: stringValue(row?.social_expense_account_id),
+    socialPayableAccountId: stringValue(row?.social_payable_account_id),
+    supplierPayableAccountId: stringValue(row?.supplier_payable_account_id),
+  };
+}
+
+function accountingContinuityFromRaw(
+  row: RawRecord | null | undefined,
+): AccountingContinuity {
+  return {
+    enabled: boolValue(row?.enabled),
+    mappingReady: boolValue(row?.mapping_ready),
+    starterAvailable: boolValue(row?.starter_available),
+    journalEntryCount: numberValue(row?.journal_entry_count),
+    missingInvoices: numberValue(row?.missing_invoices),
+    missingPayments: numberValue(row?.missing_payments),
+    missingExpenses: numberValue(row?.missing_expenses),
+    missingSupplierInvoices: numberValue(row?.missing_supplier_invoices),
+    missingSupplierPayments: numberValue(row?.missing_supplier_payments),
+    missingPayslips: numberValue(row?.missing_payslips),
+    missingPayslipPayments: numberValue(row?.missing_payslip_payments),
+    undatedPayslipPayments: numberValue(row?.undated_payslip_payments),
+    payslipPaymentLinksMissing: numberValue(row?.payslip_payment_links_missing),
+    totalMissing: numberValue(row?.total_missing),
+    closedHistoryRequiresOpening: numberValue(
+      row?.closed_history_requires_opening,
+    ),
+    skippedCancelledInvoices: numberValue(row?.skipped_cancelled_invoices),
+    cancelledInvoicePayments: numberValue(row?.cancelled_invoice_payments),
+    reversedSources: numberValue(row?.reversed_sources),
+    cancelledActivePostings: numberValue(row?.cancelled_active_postings),
+    semanticPostingMismatches: numberValue(row?.semantic_posting_mismatches),
+    totalAnomalies: numberValue(row?.total_anomalies),
+  };
+}
+
+function accountingConfigurationFromRaw(
+  value: unknown,
+): AccountingConfigurationResult {
+  const row = recordValue(value);
+  const synchronization = recordValue(row.synchronization);
+  return {
+    settings: accountingSettingsFromRaw(recordValue(row.settings)),
+    synchronization: {
+      createdTotal: numberValue(synchronization.created_total),
+      createdInvoices: numberValue(synchronization.created_invoices),
+      createdPayments: numberValue(synchronization.created_payments),
+      createdExpenses: numberValue(synchronization.created_expenses),
+      createdPayslips: numberValue(synchronization.created_payslips),
+      createdPayslipPayments: numberValue(
+        synchronization.created_payslip_payments,
+      ),
+      skippedClosedHistory: numberValue(synchronization.skipped_closed_history),
+      requiresOpeningBalanceReview: boolValue(
+        synchronization.requires_opening_balance_review,
+      ),
+      remaining: accountingContinuityFromRaw(
+        recordValue(synchronization.remaining),
+      ),
+    },
   };
 }
 
 function journalEntryFromRaw(row: RawRecord): JournalEntry {
-  return { id: stringValue(row.id), number: stringValue(row.number), entryDate: stringValue(row.entry_date), description: stringValue(row.description), sourceType: stringValue(row.source_type), sourceId: stringValue(row.source_id), sourceEvent: stringValue(row.source_event), status: 'posted', reversalOf: nullableString(row.reversal_of) };
+  return {
+    id: stringValue(row.id),
+    number: stringValue(row.number),
+    entryDate: stringValue(row.entry_date),
+    description: stringValue(row.description),
+    sourceType: stringValue(row.source_type),
+    sourceId: stringValue(row.source_id),
+    sourceEvent: stringValue(row.source_event),
+    status: 'posted',
+    reversalOf: nullableString(row.reversal_of),
+    hasReversal: boolValue(row.has_reversal),
+  };
 }
 
 function journalLineFromRaw(row: RawRecord): JournalLine {
-  return { id: stringValue(row.id), journalEntryId: stringValue(row.journal_entry_id), accountId: stringValue(row.account_id), accountCode: stringValue(row.account_code), accountName: stringValue(row.account_name), entryNumber: stringValue(row.entry_number), entryDate: stringValue(row.entry_date), debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents), currency: stringValue(row.currency), memo: stringValue(row.memo), projectId: nullableString(row.project_id), clientId: nullableString(row.client_id), employeeId: nullableString(row.employee_id) };
+  return {
+    id: stringValue(row.id),
+    journalEntryId: stringValue(row.journal_entry_id),
+    accountId: stringValue(row.account_id),
+    accountCode: stringValue(row.account_code),
+    accountName: stringValue(row.account_name),
+    entryNumber: stringValue(row.entry_number),
+    entryDate: stringValue(row.entry_date),
+    debitCents: numberValue(row.debit_cents),
+    creditCents: numberValue(row.credit_cents),
+    currency: stringValue(row.currency),
+    memo: stringValue(row.memo),
+    projectId: nullableString(row.project_id),
+    clientId: nullableString(row.client_id),
+    employeeId: nullableString(row.employee_id),
+  };
 }
 
 function statementRowFromRaw(row: RawRecord): StatementRow {
-  return { id: stringValue(row.id), code: stringValue(row.code), name: stringValue(row.name), accountType: stringValue(row.account_type) as StatementRow['accountType'], normalBalance: stringValue(row.normal_balance) as StatementRow['normalBalance'], reportSection: stringValue(row.report_section) as StatementRow['reportSection'], debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents), amountCents: numberValue(row.amount_cents), previousDebitCents: numberValue(row.previous_debit_cents), previousCreditCents: numberValue(row.previous_credit_cents), previousAmountCents: numberValue(row.previous_amount_cents) };
+  return {
+    id: stringValue(row.id),
+    code: stringValue(row.code),
+    name: stringValue(row.name),
+    accountType: stringValue(row.account_type) as StatementRow['accountType'],
+    normalBalance: stringValue(
+      row.normal_balance,
+    ) as StatementRow['normalBalance'],
+    reportSection: stringValue(
+      row.report_section,
+    ) as StatementRow['reportSection'],
+    debitCents: numberValue(row.debit_cents),
+    creditCents: numberValue(row.credit_cents),
+    amountCents: numberValue(row.amount_cents),
+    previousDebitCents: numberValue(row.previous_debit_cents),
+    previousCreditCents: numberValue(row.previous_credit_cents),
+    previousAmountCents: numberValue(row.previous_amount_cents),
+  };
 }
 
 function statementScopeFromRaw(value: unknown): StatementScope {
   const row = recordValue(value);
-  return { dateFrom: stringValue(row.date_from), dateTo: stringValue(row.date_to), previousDateFrom: stringValue(row.previous_date_from), previousDateTo: stringValue(row.previous_date_to), comparisonLabel: stringValue(row.comparison_label), comparisonSource: stringValue(row.comparison_source) as StatementScope['comparisonSource'], previousHasActivity: boolValue(row.previous_has_activity) };
+  return {
+    dateFrom: stringValue(row.date_from),
+    dateTo: stringValue(row.date_to),
+    previousDateFrom: stringValue(row.previous_date_from),
+    previousDateTo: stringValue(row.previous_date_to),
+    comparisonLabel: stringValue(row.comparison_label),
+    comparisonSource: stringValue(
+      row.comparison_source,
+    ) as StatementScope['comparisonSource'],
+    previousHasActivity: boolValue(row.previous_has_activity),
+  };
 }
 
 function reportCurrencyFromRaw(value: unknown): ReportCurrency {
   const row = recordValue(value);
-  return { baseCurrency: stringValue(row.base_currency), currencies: Array.isArray(row.currencies) ? row.currencies.map(stringValue).filter(Boolean) : [], singleCurrency: boolValue(row.single_currency), exchangeRatesApplied: boolValue(row.exchange_rates_applied) };
+  return {
+    baseCurrency: stringValue(row.base_currency),
+    currencies: Array.isArray(row.currencies)
+      ? row.currencies.map(stringValue).filter(Boolean)
+      : [],
+    singleCurrency: boolValue(row.single_currency),
+    exchangeRatesApplied: boolValue(row.exchange_rates_applied),
+  };
 }
 
-function numberRecord(value: unknown): Record<string, number> { if (!value || typeof value !== 'object') return {}; return Object.fromEntries(Object.entries(value as RawRecord).map(([key, amount]) => [key, numberValue(amount)])); }
+function numberRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(value as RawRecord).map(([key, amount]) => [
+      key,
+      numberValue(amount),
+    ]),
+  );
+}
 
 function reminderTemplateFromRaw(row: RawRecord): ReminderTemplate {
-  return { id: stringValue(row.id), level: numberValue(row.level), name: stringValue(row.name), subject: stringValue(row.subject), body: stringValue(row.body), daysAfterDue: numberValue(row.days_after_due), active: boolValue(row.active) };
+  return {
+    id: stringValue(row.id),
+    level: numberValue(row.level),
+    name: stringValue(row.name),
+    subject: stringValue(row.subject),
+    body: stringValue(row.body),
+    daysAfterDue: numberValue(row.days_after_due),
+    active: boolValue(row.active),
+  };
 }
 
 function reminderFromRaw(row: RawRecord): Reminder {
-  return { id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), templateId: nullableString(row.template_id), level: numberValue(row.level), scheduledDate: stringValue(row.scheduled_date), status: stringValue(row.status) as ReminderStatus, subject: stringValue(row.subject), body: stringValue(row.body), notes: stringValue(row.notes), invoiceNumber: stringValue(row.invoice_number), invoiceTitle: stringValue(row.invoice_title), dueDate: stringValue(row.due_date), clientName: stringValue(row.client_name), currency: stringValue(row.currency) || 'CHF', invoiceTotalCents: numberValue(row.invoice_total_cents), balanceCents: numberValue(row.balance_cents) };
+  return {
+    id: stringValue(row.id),
+    invoiceId: stringValue(row.invoice_id),
+    templateId: nullableString(row.template_id),
+    level: numberValue(row.level),
+    scheduledDate: stringValue(row.scheduled_date),
+    status: stringValue(row.status) as ReminderStatus,
+    subject: stringValue(row.subject),
+    body: stringValue(row.body),
+    notes: stringValue(row.notes),
+    invoiceNumber: stringValue(row.invoice_number),
+    invoiceTitle: stringValue(row.invoice_title),
+    dueDate: stringValue(row.due_date),
+    clientName: stringValue(row.client_name),
+    currency: stringValue(row.currency) || 'CHF',
+    invoiceTotalCents: numberValue(row.invoice_total_cents),
+    balanceCents: numberValue(row.balance_cents),
+  };
 }
 
 function contributionFromRaw(row: RawRecord): PayrollContributionDefinition {
-  return { id: stringValue(row.id) || stringValue(row.definition_id), code: stringValue(row.code), label: stringValue(row.label), category: stringValue(row.category) as PayrollContributionDefinition['category'], side: stringValue(row.side) as PayrollContributionDefinition['side'], calculationKind: stringValue(row.calculation_kind) as PayrollContributionDefinition['calculationKind'], rateBp: row.rate_bp === null || row.rate_bp === undefined ? null : numberValue(row.rate_bp), fixedAmountCents: row.fixed_amount_cents === null || row.fixed_amount_cents === undefined ? null : numberValue(row.fixed_amount_cents), annualCeilingCents: row.annual_ceiling_cents === null || row.annual_ceiling_cents === undefined ? null : numberValue(row.annual_ceiling_cents), basisKind: stringValue(row.basis_kind) as PayrollContributionDefinition['basisKind'], source: stringValue(row.source), effectiveFrom: stringValue(row.effective_from), effectiveTo: stringValue(row.effective_to), active: boolValue(row.active), liabilityAccountId: stringValue(row.liability_account_id), expenseAccountId: stringValue(row.expense_account_id) };
+  return {
+    id: stringValue(row.id) || stringValue(row.definition_id),
+    code: stringValue(row.code),
+    label: stringValue(row.label),
+    category: stringValue(
+      row.category,
+    ) as PayrollContributionDefinition['category'],
+    side: stringValue(row.side) as PayrollContributionDefinition['side'],
+    calculationKind: stringValue(
+      row.calculation_kind,
+    ) as PayrollContributionDefinition['calculationKind'],
+    rateBp:
+      row.rate_bp === null || row.rate_bp === undefined
+        ? null
+        : numberValue(row.rate_bp),
+    fixedAmountCents:
+      row.fixed_amount_cents === null || row.fixed_amount_cents === undefined
+        ? null
+        : numberValue(row.fixed_amount_cents),
+    annualCeilingCents:
+      row.annual_ceiling_cents === null ||
+      row.annual_ceiling_cents === undefined
+        ? null
+        : numberValue(row.annual_ceiling_cents),
+    basisKind: stringValue(
+      row.basis_kind,
+    ) as PayrollContributionDefinition['basisKind'],
+    source: stringValue(row.source),
+    effectiveFrom: stringValue(row.effective_from),
+    effectiveTo: stringValue(row.effective_to),
+    active: boolValue(row.active),
+    liabilityAccountId: stringValue(row.liability_account_id),
+    expenseAccountId: stringValue(row.expense_account_id),
+  };
 }
 
-function payslipContributionFromRaw(row: RawRecord): PayslipContributionSnapshot {
+function payslipContributionFromRaw(
+  row: RawRecord,
+): PayslipContributionSnapshot {
   return {
     id: stringValue(row.id),
     payslipId: stringValue(row.payslip_id),
     definitionId: stringValue(row.definition_id),
     payslipItemId: stringValue(row.payslip_item_id),
     label: stringValue(row.label),
-    category: stringValue(row.category) as PayslipContributionSnapshot['category'],
+    category: stringValue(
+      row.category,
+    ) as PayslipContributionSnapshot['category'],
     side: stringValue(row.side) as PayslipContributionSnapshot['side'],
-    calculationKind: stringValue(row.calculation_kind) as PayslipContributionSnapshot['calculationKind'],
-    basisKind: stringValue(row.basis_kind) as PayslipContributionSnapshot['basisKind'],
+    calculationKind: stringValue(
+      row.calculation_kind,
+    ) as PayslipContributionSnapshot['calculationKind'],
+    basisKind: stringValue(
+      row.basis_kind,
+    ) as PayslipContributionSnapshot['basisKind'],
     basisCents: numberValue(row.basis_cents),
-    yearToDateBasisCents: row.year_to_date_basis_cents === null || row.year_to_date_basis_cents === undefined ? null : numberValue(row.year_to_date_basis_cents),
-    rateBp: row.rate_bp === null || row.rate_bp === undefined ? null : numberValue(row.rate_bp),
-    fixedAmountCents: row.fixed_amount_cents === null || row.fixed_amount_cents === undefined ? null : numberValue(row.fixed_amount_cents),
-    annualCeilingCents: row.annual_ceiling_cents === null || row.annual_ceiling_cents === undefined ? null : numberValue(row.annual_ceiling_cents),
+    yearToDateBasisCents:
+      row.year_to_date_basis_cents === null ||
+      row.year_to_date_basis_cents === undefined
+        ? null
+        : numberValue(row.year_to_date_basis_cents),
+    rateBp:
+      row.rate_bp === null || row.rate_bp === undefined
+        ? null
+        : numberValue(row.rate_bp),
+    fixedAmountCents:
+      row.fixed_amount_cents === null || row.fixed_amount_cents === undefined
+        ? null
+        : numberValue(row.fixed_amount_cents),
+    annualCeilingCents:
+      row.annual_ceiling_cents === null ||
+      row.annual_ceiling_cents === undefined
+        ? null
+        : numberValue(row.annual_ceiling_cents),
     amountCents: numberValue(row.amount_cents),
     source: stringValue(row.source),
     effectiveFrom: stringValue(row.effective_from),
@@ -715,44 +1927,160 @@ function payslipContributionFromRaw(row: RawRecord): PayslipContributionSnapshot
 }
 
 function frozenEmployeeFromRaw(row: RawRecord): FrozenEmployee {
-  return { id: stringValue(row.id), employeeNumber: stringValue(row.employee_number), name: stringValue(row.name), role: stringValue(row.role), address: [stringValue(row.address_line1), stringValue(row.address_line2), [stringValue(row.postal_code), stringValue(row.city)].filter(Boolean).join(' '), stringValue(row.canton), stringValue(row.country)].filter(Boolean).join('\n'), avsNumber: stringValue(row.social_security_number), iban: stringValue(row.iban), employmentRate: numberValue(row.employment_rate) };
+  return {
+    id: stringValue(row.id),
+    employeeNumber: stringValue(row.employee_number),
+    name: stringValue(row.name),
+    role: stringValue(row.role),
+    address: [
+      stringValue(row.address_line1),
+      stringValue(row.address_line2),
+      [stringValue(row.postal_code), stringValue(row.city)]
+        .filter(Boolean)
+        .join(' '),
+      stringValue(row.canton),
+      stringValue(row.country),
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    avsNumber: stringValue(row.social_security_number),
+    iban: stringValue(row.iban),
+    employmentRate: numberValue(row.employment_rate),
+  };
 }
 
-function payslipSnapshotFromRaw(value: unknown, dataDir = ''): FrozenPayslipSnapshot | null {
+function payslipSnapshotFromRaw(
+  value: unknown,
+  dataDir = '',
+): FrozenPayslipSnapshot | null {
   const root = parsedSnapshot(value);
-  if (!root || stringValue(root.schema) !== 'helvichantier.payslip_snapshot.v1') return null;
+  if (!root || stringValue(root.schema) !== 'helvichantier.payslip_snapshot.v1')
+    return null;
   const payslip = recordValue(root.payslip);
-  return { capturedAt: stringValue(root.captured_at), issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir), employee: frozenEmployeeFromRaw(recordValue(root.employee)), period: stringValue(payslip.period), paymentDate: stringValue(payslip.payment_date), notes: stringValue(payslip.notes), items: rawArray(root.items).map((item) => ({ id: stringValue(item.id), label: stringValue(item.label), kind: payslipLineKindFromRaw(item.kind), amountCents: numberValue(item.amount_cents), postingAccountId: stringValue(item.posting_account_id), expenseAccountId: stringValue(item.expense_account_id) })), contributions: rawArray(root.contributions).map(payslipContributionFromRaw) };
+  return {
+    capturedAt: stringValue(root.captured_at),
+    issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir),
+    employee: frozenEmployeeFromRaw(recordValue(root.employee)),
+    period: stringValue(payslip.period),
+    paymentDate: stringValue(payslip.payment_date),
+    notes: stringValue(payslip.notes),
+    items: rawArray(root.items).map((item) => ({
+      id: stringValue(item.id),
+      label: stringValue(item.label),
+      kind: payslipLineKindFromRaw(item.kind),
+      amountCents: numberValue(item.amount_cents),
+      postingAccountId: stringValue(item.posting_account_id),
+      expenseAccountId: stringValue(item.expense_account_id),
+    })),
+    contributions: rawArray(root.contributions).map(payslipContributionFromRaw),
+  };
 }
 
 function qrInputToRaw(input: SwissQrBillInput): RawRecord {
-  const party = (value: SwissQrBillInput['creditor']) => ({ name: value.name, street: value.street, building_number: value.buildingNumber, postal_code: value.postalCode, city: value.city, country: value.country });
-  return { iban: input.iban, creditor: party(input.creditor), amount_cents: input.amountCents, currency: input.currency, debtor: input.debtor ? party(input.debtor) : null, reference_type: input.referenceType, reference: input.reference, unstructured_message: input.unstructuredMessage, bill_information: input.billInformation, alternative_procedures: input.alternativeProcedures };
+  const party = (value: SwissQrBillInput['creditor']) => ({
+    name: value.name,
+    street: value.street,
+    building_number: value.buildingNumber,
+    postal_code: value.postalCode,
+    city: value.city,
+    country: value.country,
+  });
+  return {
+    iban: input.iban,
+    creditor: party(input.creditor),
+    amount_cents: input.amountCents,
+    currency: input.currency,
+    debtor: input.debtor ? party(input.debtor) : null,
+    reference_type: input.referenceType,
+    reference: input.reference,
+    unstructured_message: input.unstructuredMessage,
+    bill_information: input.billInformation,
+    alternative_procedures: input.alternativeProcedures,
+  };
 }
 
 function qrInputFromRaw(row: RawRecord): SwissQrBillInput {
-  const party = (value: unknown) => { const item = value && typeof value === 'object' ? value as RawRecord : {}; return { name: stringValue(item.name), street: stringValue(item.street), buildingNumber: stringValue(item.building_number), postalCode: stringValue(item.postal_code), city: stringValue(item.city), country: stringValue(item.country) }; };
-  return { iban: stringValue(row.iban), creditor: party(row.creditor), amountCents: row.amount_cents === null || row.amount_cents === undefined ? undefined : numberValue(row.amount_cents), currency: stringValue(row.currency) as 'CHF' | 'EUR', debtor: row.debtor ? party(row.debtor) : undefined, referenceType: stringValue(row.reference_type) as SwissQrBillInput['referenceType'], reference: stringValue(row.reference), unstructuredMessage: stringValue(row.unstructured_message), billInformation: stringValue(row.bill_information), alternativeProcedures: Array.isArray(row.alternative_procedures) ? row.alternative_procedures.map(stringValue) : [] };
+  const party = (value: unknown) => {
+    const item = value && typeof value === 'object' ? (value as RawRecord) : {};
+    return {
+      name: stringValue(item.name),
+      street: stringValue(item.street),
+      buildingNumber: stringValue(item.building_number),
+      postalCode: stringValue(item.postal_code),
+      city: stringValue(item.city),
+      country: stringValue(item.country),
+    };
+  };
+  return {
+    iban: stringValue(row.iban),
+    creditor: party(row.creditor),
+    amountCents:
+      row.amount_cents === null || row.amount_cents === undefined
+        ? undefined
+        : numberValue(row.amount_cents),
+    currency: stringValue(row.currency) as 'CHF' | 'EUR',
+    debtor: row.debtor ? party(row.debtor) : undefined,
+    referenceType: stringValue(
+      row.reference_type,
+    ) as SwissQrBillInput['referenceType'],
+    reference: stringValue(row.reference),
+    unstructuredMessage: stringValue(row.unstructured_message),
+    billInformation: stringValue(row.bill_information),
+    alternativeProcedures: Array.isArray(row.alternative_procedures)
+      ? row.alternative_procedures.map(stringValue)
+      : [],
+  };
 }
 
-const periodFilterToRaw = (filter: PeriodFilter): RawRecord => ({ date_from: filter.dateFrom || null, date_to: filter.dateTo || null });
+const periodFilterToRaw = (filter: PeriodFilter): RawRecord => ({
+  date_from: filter.dateFrom || null,
+  date_to: filter.dateTo || null,
+});
 
 export const desktopApi = {
   loadWorkspace,
   async getNogaCatalog(): Promise<NogaCatalog> {
     const raw = await invoke<RawRecord>('get_noga_catalog');
-    return { version: stringValue(raw.version), source: stringValue(raw.source), sections: rawArray(raw.sections).map((section) => ({ code: stringValue(section.code) as NogaCatalog['sections'][number]['code'], label: stringValue(section.label), divisions: rawArray(section.divisions).map((division) => ({ code: stringValue(division.code), label: stringValue(division.label) })) })) };
+    return {
+      version: stringValue(raw.version),
+      source: stringValue(raw.source),
+      sections: rawArray(raw.sections).map((section) => ({
+        code: stringValue(
+          section.code,
+        ) as NogaCatalog['sections'][number]['code'],
+        label: stringValue(section.label),
+        divisions: rawArray(section.divisions).map((division) => ({
+          code: stringValue(division.code),
+          label: stringValue(division.label),
+        })),
+      })),
+    };
   },
-  async getLicenseState(): Promise<LicenseState> { return licenseStateFromRaw(await invoke<RawRecord>('get_license_state')); },
-  async installLicenseToken(token: string): Promise<LicenseState> { return licenseStateFromRaw(await invoke<RawRecord>('install_license_token', { token })); },
+  async getLicenseState(): Promise<LicenseState> {
+    return licenseStateFromRaw(await invoke<RawRecord>('get_license_state'));
+  },
+  async installLicenseToken(token: string): Promise<LicenseState> {
+    return licenseStateFromRaw(
+      await invoke<RawRecord>('install_license_token', { token }),
+    );
+  },
+  async refreshLicense(automatic = false): Promise<LicenseState> {
+    return licenseStateFromRaw(
+      await invoke<RawRecord>('refresh_license', { automatic }),
+    );
+  },
   async getSecureUpdatePolicy(): Promise<SecureUpdaterPolicy> {
-    return secureUpdaterPolicyFromRaw(await invoke<RawRecord>('get_secure_update_policy'));
+    return secureUpdaterPolicyFromRaw(
+      await invoke<RawRecord>('get_secure_update_policy'),
+    );
   },
   async checkSecureUpdate(): Promise<SecureUpdateMetadata | null> {
     const raw = await invoke<RawRecord | null>('check_secure_update');
     return raw ? secureUpdateMetadataFromRaw(raw) : null;
   },
-  async installSecureUpdate(onEvent: (event: SecureUpdateEvent) => void): Promise<void> {
+  async installSecureUpdate(
+    onEvent: (event: SecureUpdateEvent) => void,
+  ): Promise<void> {
     const channel = new Channel<unknown>();
     channel.onmessage = (value) => {
       const event = secureUpdateEventFromRaw(value);
@@ -760,13 +2088,23 @@ export const desktopApi = {
     };
     await invoke('install_secure_update', { onEvent: channel });
   },
-  async validateOnboarding(settings: OnboardingPayload): Promise<OnboardingValidationResult> {
-    return onboardingValidationFromRaw(await invoke<RawRecord>('validate_onboarding', { input: settingsToBackend(settings) }));
+  async validateOnboarding(
+    settings: OnboardingPayload,
+  ): Promise<OnboardingValidationResult> {
+    return onboardingValidationFromRaw(
+      await invoke<RawRecord>('validate_onboarding', {
+        input: settingsToBackend(settings),
+      }),
+    );
   },
   async completeOnboarding(settings: OnboardingPayload) {
     let response: RawRecord;
     try {
-      response = recordValue(await invoke<RawRecord>('complete_onboarding', { input: settingsToBackend(settings) }));
+      response = recordValue(
+        await invoke<RawRecord>('complete_onboarding', {
+          input: settingsToBackend(settings),
+        }),
+      );
     } catch (reason) {
       try {
         const recovered = await loadWorkspace();
@@ -781,164 +2119,1065 @@ export const desktopApi = {
     if (!appState.onboarding_completed || !Object.keys(workspace).length) {
       const recovered = await loadWorkspace();
       if (recovered.onboardingCompleted) return recovered;
-      throw new Error('La finalisation locale a renvoyé une réponse incomplète. Aucune donnée partielle n’a été conservée.');
+      throw new Error(
+        'La finalisation locale a renvoyé une réponse incomplète. Aucune donnée partielle n’a été conservée.',
+      );
     }
     return normalizeWorkspace(workspace as RawWorkspace, appState);
   },
-  async saveSettings(settings: AppSettings) { await invoke('update_settings', { data: settingsToBackend(settings) }); return loadWorkspace(); },
-  async stageCompanyLogo(sourcePath: string) { return invoke<string>('stage_company_logo', { sourcePath }); },
-  async createEntity<T extends Record<string, unknown>>(entity: EntityKind, data: T) { await createRecord(entityToBackend[entity], toBackendData(data)); return loadWorkspace(); },
-  async updateEntity<T extends Record<string, unknown>>(entity: EntityKind, id: string, data: T) { await invoke('update_record', { entity: entityToBackend[entity], id, data: toBackendData(data) }); return loadWorkspace(); },
-  async archiveEntity(entity: EntityKind, id: string) { const mutation = archiveEntityMutation(entity, id); await invoke(mutation.command, mutation.args); return loadWorkspace(); },
+  async saveSettings(settings: AppSettings) {
+    await invoke('update_settings', { data: settingsToBackend(settings) });
+    return loadWorkspace();
+  },
+  async stageCompanyLogo(sourcePath: string) {
+    return invoke<string>('stage_company_logo', { sourcePath });
+  },
+  async createEntity<T extends Record<string, unknown>>(
+    entity: EntityKind,
+    data: T,
+  ) {
+    await createRecord(entityToBackend[entity], toBackendData(data));
+    return loadWorkspace();
+  },
+  async updateEntity<T extends Record<string, unknown>>(
+    entity: EntityKind,
+    id: string,
+    data: T,
+  ) {
+    await invoke('update_record', {
+      entity: entityToBackend[entity],
+      id,
+      data: toBackendData(data),
+    });
+    return loadWorkspace();
+  },
+  async recordStockEntry(input: {
+    requestId: string;
+    catalogItemId: string;
+    quantityMilli: number;
+    reason: string;
+    reference?: string;
+    date?: string;
+  }) {
+    const mutation = stockMovementMutation('entry', input);
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async recordStockExit(input: {
+    requestId: string;
+    catalogItemId: string;
+    quantityMilli: number;
+    reason: string;
+    reference?: string;
+    date?: string;
+  }) {
+    const mutation = stockMovementMutation('exit', input);
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async recordStockCorrection(input: {
+    requestId: string;
+    catalogItemId: string;
+    deltaQuantityMilli: number;
+    reason: string;
+    reference?: string;
+    date?: string;
+  }) {
+    const mutation = stockMovementMutation('correction', {
+      ...input,
+      quantityMilli: input.deltaQuantityMilli,
+    });
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async archiveEntity(entity: EntityKind, id: string) {
+    const mutation = archiveEntityMutation(entity, id);
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async saveSupplierInvoiceDraft(input: {
+    id?: string;
+    supplierId: string;
+    projectId?: string | null;
+    date: string;
+    dueDate: string;
+    reference?: string;
+    note?: string;
+    items: Array<{
+      id?: string;
+      description: string;
+      quantityMilli: number;
+      unit?: string;
+      unitPriceCents: number;
+      discountBp?: number;
+      vatBp: number;
+      category: string;
+      expenseAccountId?: string | null;
+      projectId?: string | null;
+    }>;
+  }) {
+    await invoke('save_supplier_invoice_draft', {
+      input: {
+        id: input.id || null,
+        supplier_id: input.supplierId,
+        project_id: input.projectId || null,
+        date: input.date,
+        due_date: input.dueDate,
+        reference: input.reference?.trim() || null,
+        note: input.note?.trim() || null,
+        items: input.items.map((item) => ({
+          id: item.id || null,
+          description: item.description,
+          quantity_milli: item.quantityMilli,
+          unit: item.unit || null,
+          unit_price_cents: item.unitPriceCents,
+          discount_bp: item.discountBp || 0,
+          vat_bp: item.vatBp,
+          category: item.category,
+          expense_account_id: item.expenseAccountId || null,
+          project_id: item.projectId || null,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async validateSupplierInvoice(id: string) {
+    await invoke('validate_supplier_invoice', { id });
+    return loadWorkspace();
+  },
+  async recordSupplierPayment(input: {
+    requestId: string;
+    supplierInvoiceId: string;
+    amountCents: number;
+    date: string;
+    method?: string;
+    reference?: string;
+    notes?: string;
+  }) {
+    await invoke('record_supplier_payment', {
+      input: {
+        request_id: input.requestId,
+        supplier_invoice_id: input.supplierInvoiceId,
+        amount_cents: input.amountCents,
+        date: input.date,
+        method: input.method?.trim() || null,
+        reference: input.reference?.trim() || null,
+        notes: input.notes?.trim() || null,
+      },
+    });
+    return loadWorkspace();
+  },
+  async deleteSupplierInvoiceDraft(id: string) {
+    await invoke('delete_supplier_invoice_draft', { id });
+    return loadWorkspace();
+  },
+  async chooseSupplierInvoiceAttachment(): Promise<string | null> {
+    return chooseFile({
+      title: 'Choisir un justificatif fournisseur',
+      multiple: false,
+      filters: [
+        {
+          name: 'Documents acceptés',
+          extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'],
+        },
+      ],
+    });
+  },
+  async addSupplierInvoiceAttachment(
+    supplierInvoiceId: string,
+    sourcePath: string,
+  ) {
+    await invoke('add_supplier_invoice_attachment', {
+      input: {
+        supplier_invoice_id: supplierInvoiceId,
+        source_path: sourcePath,
+      },
+    });
+    return loadWorkspace();
+  },
+  async deleteSupplierInvoiceAttachment(id: string) {
+    await invoke('delete_supplier_invoice_attachment', { id });
+    return loadWorkspace();
+  },
+  async openAttachment(id: string) {
+    return invoke<string>('open_attachment', { id });
+  },
   saveDocument,
-  async issueDocument(entity: 'quotes' | 'invoices', id: string, issueDate?: string, dueDate?: string) {
-    if (entity === 'quotes') await invoke('issue_quote', { id, issueDate, validUntil: dueDate });
+  async issueDocument(
+    entity: 'quotes' | 'invoices',
+    id: string,
+    issueDate?: string,
+    dueDate?: string,
+  ) {
+    if (entity === 'quotes')
+      await invoke('issue_quote', { id, issueDate, validUntil: dueDate });
     else await invoke('issue_invoice', { id, issueDate, dueDate });
     return loadWorkspace();
   },
-  async updateQuoteStatus(id: string, status: 'accepted' | 'refused' | 'expired') {
+  async updateQuoteStatus(
+    id: string,
+    status: 'accepted' | 'refused' | 'expired',
+  ) {
     await invoke('update_quote_status', { id, status });
     return loadWorkspace();
   },
   async convertQuote(quote: Quote) {
-    await invoke('convert_quote_to_invoice', { input: { quote_id: quote.id, title: quote.title } });
+    await invoke('convert_quote_to_invoice', {
+      input: { quote_id: quote.id, title: quote.title },
+    });
     return loadWorkspace();
   },
-  async addPayment(invoiceId: string, data: Record<string, unknown>) { await invoke('record_payment', { input: { invoice_id: invoiceId, ...toBackendData(data) } }); return loadWorkspace(); },
-  async savePayslip(data: Record<string, unknown>, lines: PayslipLine[], existing?: Payslip) {
+  async addPayment(invoiceId: string, data: Record<string, unknown>) {
+    await invoke('record_payment', {
+      input: { invoice_id: invoiceId, ...toBackendData(data) },
+    });
+    return loadWorkspace();
+  },
+  async savePayslip(
+    data: Record<string, unknown>,
+    lines: PayslipLine[],
+    existing?: Payslip,
+  ) {
     let payslipId = existing?.id;
-    if (payslipId) await invoke('update_record', { entity: 'payslips', id: payslipId, data: toBackendData(data) });
-    else payslipId = stringValue((await createRecord('payslips', toBackendData(data))).id);
-    if (!payslipId) throw new Error('La fiche de salaire locale n’a pas pu être identifiée.');
+    if (payslipId)
+      await invoke('update_record', {
+        entity: 'payslips',
+        id: payslipId,
+        data: toBackendData(data),
+      });
+    else
+      payslipId = stringValue(
+        (await createRecord('payslips', toBackendData(data))).id,
+      );
+    if (!payslipId)
+      throw new Error('La fiche de salaire locale n’a pas pu être identifiée.');
     const previous = existing?.lines ?? [];
-    const retained = new Set(lines.filter((line) => previous.some((old) => old.id === line.id)).map((line) => line.id));
-    for (const old of previous) if (!retained.has(old.id)) await invoke('delete_record', { entity: 'payslip_items', id: old.id });
+    const retained = new Set(
+      lines
+        .filter((line) => previous.some((old) => old.id === line.id))
+        .map((line) => line.id),
+    );
+    for (const old of previous)
+      if (!retained.has(old.id))
+        await invoke('delete_record', { entity: 'payslip_items', id: old.id });
     for (const [position, line] of lines.entries()) {
-      const lineData = { payslip_id: payslipId, position, label: line.label, kind: line.kind, amount_cents: line.amountCents, posting_account_id: line.postingAccountId || null, expense_account_id: line.expenseAccountId || null };
-      if (previous.some((old) => old.id === line.id)) await invoke('update_record', { entity: 'payslip_items', id: line.id, data: lineData });
+      const lineData = {
+        payslip_id: payslipId,
+        position,
+        label: line.label,
+        kind: line.kind,
+        amount_cents: line.amountCents,
+        posting_account_id: line.postingAccountId || null,
+        expense_account_id: line.expenseAccountId || null,
+      };
+      if (previous.some((old) => old.id === line.id))
+        await invoke('update_record', {
+          entity: 'payslip_items',
+          id: line.id,
+          data: lineData,
+        });
       else await createRecord('payslip_items', lineData);
     }
     return loadWorkspace();
   },
-  async savePayslipWithContributions(data: Record<string, unknown>, lines: PayslipLine[], existing: Payslip | undefined, period: string, selections: PayrollContributionSelection[]) {
-    await invoke('save_payslip_with_contributions', { input: {
-      id: existing?.id ?? null,
-      employee_id: String(data.employeeId ?? ''),
-      period,
-      status: statusToBackend[String(data.status ?? 'incomplete')] ?? 'a_controler',
-      payment_date: String(data.paymentDate ?? '') || null,
-      notes: String(data.notes ?? '') || null,
-      lines: lines.map((line) => ({ id: existing?.lines.some((candidate) => candidate.id === line.id) ? line.id : null, label: line.label, kind: line.kind, amount_cents: line.amountCents, posting_account_id: line.postingAccountId || null, expense_account_id: line.expenseAccountId || null })),
-      contributions: selections.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents ?? null, year_to_date_basis_cents: item.yearToDateBasisCents ?? null })),
-    } });
+  async savePayslipWithContributions(
+    data: Record<string, unknown>,
+    lines: PayslipLine[],
+    existing: Payslip | undefined,
+    period: string,
+    selections: PayrollContributionSelection[],
+  ) {
+    await invoke('save_payslip_with_contributions', {
+      input: {
+        id: existing?.id ?? null,
+        employee_id: String(data.employeeId ?? ''),
+        period,
+        status:
+          statusToBackend[String(data.status ?? 'incomplete')] ?? 'a_controler',
+        payment_date: String(data.paymentDate ?? '') || null,
+        notes: String(data.notes ?? '') || null,
+        lines: lines.map((line) => ({
+          id: existing?.lines.some((candidate) => candidate.id === line.id)
+            ? line.id
+            : null,
+          label: line.label,
+          kind: line.kind,
+          amount_cents: line.amountCents,
+          posting_account_id: line.postingAccountId || null,
+          expense_account_id: line.expenseAccountId || null,
+        })),
+        contributions: selections.map((item) => ({
+          definition_id: item.definitionId,
+          basis_cents: item.basisCents ?? null,
+          year_to_date_basis_cents: item.yearToDateBasisCents ?? null,
+        })),
+      },
+    });
     return loadWorkspace();
   },
-  async startTimer(data: Record<string, unknown>) { await invoke('start_timer', { input: toBackendData(data) }); return loadWorkspace(); },
-  async stopTimer() { await invoke('stop_timer'); return loadWorkspace(); },
-  async createBackup(destination?: string) { const path = await invoke<string>('create_backup', { destination }); return { workspace: await loadWorkspace(), path }; },
-  chooseCamtFile: () => chooseFile({ multiple: false, directory: false, title: 'Importer un relevé bancaire CAMT', filters: [{ name: 'Relevé bancaire ISO 20022', extensions: ['xml'] }] }),
-  async importCamtFile(path: string) { return camtImportResultFromRaw(await invoke<RawRecord>('import_camt_file', { path })); },
-  async getBankWorkspace(): Promise<BankWorkspace> { return bankWorkspaceFromRaw(await invoke<RawRecord>('get_bank_workspace')); },
-  async associateBankAccount(accountId: string, currency: string): Promise<void> { await invoke('associate_bank_account', bankAccountAssociationPayload(accountId, currency)); },
-  async dissociateBankAccount(accountId: string, currency: string): Promise<void> { await invoke('dissociate_bank_account', bankAccountAssociationPayload(accountId, currency)); },
-  async confirmBankReconciliation(movementId: string, invoiceId: string): Promise<BankReconciliationResult> {
-    return bankReconciliationResultFromRaw(await invoke<RawRecord>('confirm_bank_reconciliation', bankConfirmationPayload(movementId, invoiceId)));
+  async startTimer(data: Record<string, unknown>) {
+    await invoke('start_timer', { input: toBackendData(data) });
+    return loadWorkspace();
   },
-  chooseRestoreFile: () => chooseFile({ multiple: false, directory: false, title: 'Choisir une sauvegarde Elyko', filters: [{ name: 'Sauvegarde Elyko', extensions: ['elyko', 'hchantier'] }] }),
-  async restoreBackup(source: string) { await invoke<AppState>('restore_backup', { source }); return loadWorkspace(); },
-  async exportData(format: 'json' | 'csv') { if (format !== 'json') throw new Error('L’export CSV sera disponible depuis chaque liste.'); return { path: await invoke<string>('export_json', {}) }; },
-  async printDocument(entity: 'quotes' | 'invoices' | 'payslips', id: string) { window.print(); return { entity, id }; },
-  chooseBackupFolder: () => chooseFile({ directory: true, multiple: false, title: 'Choisir le dossier de sauvegarde' }),
-  chooseLogo: () => chooseFile({ multiple: false, directory: false, title: 'Choisir le logo', filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] }),
-  choosePayrollDocuments: () => chooseFiles({ multiple: true, directory: false, title: 'Ajouter des fiches de salaire', filters: [{ name: 'Fiches de salaire', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'] }] }),
-  async stagePayrollDocuments(paths: string[]): Promise<PayrollDocumentImport[]> {
-    const raw = await invoke<RawRecord>('stage_payroll_documents', { input: { paths } });
+  async stopTimer() {
+    await invoke('stop_timer');
+    return loadWorkspace();
+  },
+  async createInvoiceFromTimeEntries(input: {
+    requestId: string;
+    projectId: string;
+    timeEntryIds: string[];
+    title?: string;
+    vatBp?: number;
+    notes?: string;
+  }) {
+    await invoke('create_invoice_from_time_entries', {
+      input: {
+        request_id: input.requestId,
+        project_id: input.projectId,
+        time_entry_ids: input.timeEntryIds,
+        title: input.title?.trim() || null,
+        service_date_from: null,
+        service_date_to: null,
+        vat_bp: input.vatBp ?? null,
+        notes: input.notes?.trim() || null,
+      },
+    });
+    return loadWorkspace();
+  },
+  async createBackup(destination?: string) {
+    const path = await invoke<string>('create_backup', { destination });
+    return { workspace: await loadWorkspace(), path };
+  },
+  chooseCamtFile: () =>
+    chooseFile({
+      multiple: false,
+      directory: false,
+      title: 'Importer un relevé bancaire CAMT',
+      filters: [{ name: 'Relevé bancaire ISO 20022', extensions: ['xml'] }],
+    }),
+  async importCamtFile(path: string) {
+    return camtImportResultFromRaw(
+      await invoke<RawRecord>('import_camt_file', { path }),
+    );
+  },
+  async getBankWorkspace(): Promise<BankWorkspace> {
+    return bankWorkspaceFromRaw(await invoke<RawRecord>('get_bank_workspace'));
+  },
+  async associateBankAccount(
+    accountId: string,
+    currency: string,
+  ): Promise<void> {
+    await invoke(
+      'associate_bank_account',
+      bankAccountAssociationPayload(accountId, currency),
+    );
+  },
+  async dissociateBankAccount(
+    accountId: string,
+    currency: string,
+  ): Promise<void> {
+    await invoke(
+      'dissociate_bank_account',
+      bankAccountAssociationPayload(accountId, currency),
+    );
+  },
+  async confirmBankReconciliation(
+    movementId: string,
+    invoiceId: string,
+  ): Promise<BankReconciliationResult> {
+    return bankReconciliationResultFromRaw(
+      await invoke<RawRecord>(
+        'confirm_bank_reconciliation',
+        bankConfirmationPayload(movementId, invoiceId),
+      ),
+    );
+  },
+  async confirmSupplierBankReconciliation(
+    movementId: string,
+    supplierInvoiceId: string,
+  ): Promise<BankSupplierReconciliationResult> {
+    return bankSupplierReconciliationResultFromRaw(
+      await invoke<RawRecord>(
+        'confirm_supplier_bank_reconciliation',
+        supplierBankConfirmationPayload(movementId, supplierInvoiceId),
+      ),
+    );
+  },
+  chooseRestoreFile: () =>
+    chooseFile({
+      multiple: false,
+      directory: false,
+      title: 'Choisir une sauvegarde Elyko',
+      filters: [
+        { name: 'Sauvegarde Elyko', extensions: ['elyko', 'hchantier'] },
+      ],
+    }),
+  async restoreBackup(source: string) {
+    await invoke<AppState>('restore_backup', { source });
+    return loadWorkspace();
+  },
+  async exportData(format: 'json' | 'csv') {
+    if (format !== 'json')
+      throw new Error('L’export CSV sera disponible depuis chaque liste.');
+    return { path: await invoke<string>('export_json', {}) };
+  },
+  async printDocument(entity: 'quotes' | 'invoices' | 'payslips', id: string) {
+    window.print();
+    return { entity, id };
+  },
+  chooseBackupFolder: () =>
+    chooseFile({
+      directory: true,
+      multiple: false,
+      title: 'Choisir le dossier de sauvegarde',
+    }),
+  chooseLogo: () =>
+    chooseFile({
+      multiple: false,
+      directory: false,
+      title: 'Choisir le logo',
+      filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    }),
+  choosePayrollDocuments: () =>
+    chooseFiles({
+      multiple: true,
+      directory: false,
+      title: 'Ajouter des fiches de salaire',
+      filters: [
+        {
+          name: 'Fiches de salaire',
+          extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'],
+        },
+      ],
+    }),
+  async stagePayrollDocuments(
+    paths: string[],
+  ): Promise<PayrollDocumentImport[]> {
+    const raw = await invoke<RawRecord>('stage_payroll_documents', {
+      input: { paths },
+    });
     return rawArray(raw, 'imports').map(payrollImportFromRaw);
   },
   async listPayrollDocumentImports(): Promise<PayrollDocumentImport[]> {
     const raw = await invoke<RawRecord>('list_payroll_document_imports');
     return rawArray(raw, 'imports').map(payrollImportFromRaw);
   },
-  async getPayrollDocumentPreview(id: string): Promise<{ mimeType: string; dataBase64: string }> {
+  async getPayrollDocumentPreview(
+    id: string,
+  ): Promise<{ mimeType: string; dataBase64: string }> {
     const raw = await invoke<RawRecord>('get_payroll_document_preview', { id });
     const mimeType = stringValue(raw.mime_type);
     const dataBase64 = stringValue(raw.data_base64);
-    if (!mimeType || !dataBase64) throw new Error("L’aperçu local du document est incomplet.");
+    if (!mimeType || !dataBase64)
+      throw new Error('L’aperçu local du document est incomplet.');
     return { mimeType, dataBase64 };
   },
-  async updatePayrollImportDraft(id: string, draft: PayrollImportDraft, extractionEngine: string, engineVersion: string, confidenceBp: number): Promise<PayrollDocumentImport> {
-    const row = await invoke<RawRecord>('update_payroll_import_draft', { input: { id, draft: payrollImportDraftToRaw(draft), extraction_engine: extractionEngine, engine_version: engineVersion || null, confidence_bp: confidenceBp } });
+  async updatePayrollImportDraft(
+    id: string,
+    draft: PayrollImportDraft,
+    extractionEngine: string,
+    engineVersion: string,
+    confidenceBp: number,
+  ): Promise<PayrollDocumentImport> {
+    const row = await invoke<RawRecord>('update_payroll_import_draft', {
+      input: {
+        id,
+        draft: payrollImportDraftToRaw(draft),
+        extraction_engine: extractionEngine,
+        engine_version: engineVersion || null,
+        confidence_bp: confidenceBp,
+      },
+    });
     return payrollImportFromRaw(row);
   },
-  async confirmPayrollDocumentImport(id: string, draft: PayrollImportDraft, employeeId?: string, replaceExistingTemplate = false): Promise<Workspace> {
-    await invoke('confirm_payroll_document_import', { input: { id, employee_id: employeeId || null, replace_existing_template: replaceExistingTemplate, draft: payrollImportDraftToRaw(draft) } });
+  async confirmPayrollDocumentImport(
+    id: string,
+    draft: PayrollImportDraft,
+    employeeId?: string,
+    replaceExistingTemplate = false,
+  ): Promise<Workspace> {
+    await invoke('confirm_payroll_document_import', {
+      input: {
+        id,
+        employee_id: employeeId || null,
+        replace_existing_template: replaceExistingTemplate,
+        draft: payrollImportDraftToRaw(draft),
+      },
+    });
     return loadWorkspace();
   },
   async rejectPayrollDocumentImport(id: string): Promise<Workspace> {
     await invoke('reject_payroll_document_import', { id });
     return loadWorkspace();
   },
-  async listAccounts() { return rawArray(await invoke<unknown>('list_accounts')).map(accountFromRaw); },
+  async listAccounts() {
+    return rawArray(await invoke<unknown>('list_accounts')).map(accountFromRaw);
+  },
   async upsertAccount(input: Omit<Account, 'id'> & { id?: string }) {
-    await invoke('upsert_account', { input: { id: input.id || null, code: input.code, name: input.name, account_type: input.accountType, normal_balance: input.normalBalance, report_section: input.reportSection, active: input.active } });
+    await invoke('upsert_account', {
+      input: {
+        id: input.id || null,
+        code: input.code,
+        name: input.name,
+        account_type: input.accountType,
+        normal_balance: input.normalBalance,
+        report_section: input.reportSection,
+        active: input.active,
+      },
+    });
   },
-  async deleteAccount(id: string) { await invoke('delete_account', { id }); },
-  async getAccountingSettings() { const raw = await invoke<RawRecord | null>('get_accounting_settings'); return accountingSettingsFromRaw(raw); },
-  async listAccountingPeriods(): Promise<AccountingPeriod[]> { return rawArray(await invoke<unknown>('list_accounting_periods')).map((row) => ({ id: stringValue(row.id), name: stringValue(row.name), dateFrom: stringValue(row.date_from), dateTo: stringValue(row.date_to), status: stringValue(row.status) as AccountingPeriod['status'], closedAt: stringValue(row.closed_at), createdAt: stringValue(row.created_at), updatedAt: stringValue(row.updated_at) })); },
-  async upsertAccountingPeriod(input: { id?: string; name: string; dateFrom: string; dateTo: string }) { await invoke('upsert_accounting_period', { input: { id: input.id || null, name: input.name, date_from: input.dateFrom, date_to: input.dateTo } }); },
-  async closeAccountingPeriod(id: string) { await invoke('close_accounting_period', { id }); },
+  async deleteAccount(id: string) {
+    await invoke('delete_account', { id });
+  },
+  async getAccountingSettings() {
+    const raw = await invoke<RawRecord | null>('get_accounting_settings');
+    return accountingSettingsFromRaw(raw);
+  },
+  async getAccountingContinuity() {
+    return accountingContinuityFromRaw(
+      await invoke<RawRecord>('get_accounting_continuity'),
+    );
+  },
+  async installSwissAccountingStarter() {
+    return accountingConfigurationFromRaw(
+      await invoke<unknown>('install_swiss_accounting_starter'),
+    );
+  },
+  async listAccountingPeriods(): Promise<AccountingPeriod[]> {
+    return rawArray(await invoke<unknown>('list_accounting_periods')).map(
+      (row) => ({
+        id: stringValue(row.id),
+        name: stringValue(row.name),
+        dateFrom: stringValue(row.date_from),
+        dateTo: stringValue(row.date_to),
+        status: stringValue(row.status) as AccountingPeriod['status'],
+        closedAt: stringValue(row.closed_at),
+        createdAt: stringValue(row.created_at),
+        updatedAt: stringValue(row.updated_at),
+      }),
+    );
+  },
+  async upsertAccountingPeriod(input: {
+    id?: string;
+    name: string;
+    dateFrom: string;
+    dateTo: string;
+  }) {
+    await invoke('upsert_accounting_period', {
+      input: {
+        id: input.id || null,
+        name: input.name,
+        date_from: input.dateFrom,
+        date_to: input.dateTo,
+      },
+    });
+  },
+  async closeAccountingPeriod(id: string) {
+    await invoke('close_accounting_period', { id });
+  },
   async configureAccounting(settings: AccountingSettings) {
-    await invoke('configure_accounting', { input: { enabled: settings.enabled, ar_account_id: settings.arAccountId || null, revenue_account_id: settings.revenueAccountId || null, vat_payable_account_id: settings.vatPayableAccountId || null, bank_account_id: settings.bankAccountId || null, expense_account_id: settings.expenseAccountId || null, vat_receivable_account_id: settings.vatReceivableAccountId || null, wages_expense_account_id: settings.wagesExpenseAccountId || null, wages_payable_account_id: settings.wagesPayableAccountId || null, social_expense_account_id: settings.socialExpenseAccountId || null, social_payable_account_id: settings.socialPayableAccountId || null } });
+    return accountingConfigurationFromRaw(
+      await invoke<unknown>('configure_accounting', {
+        input: {
+          enabled: settings.enabled,
+          ar_account_id: settings.arAccountId || null,
+          revenue_account_id: settings.revenueAccountId || null,
+          vat_payable_account_id: settings.vatPayableAccountId || null,
+          bank_account_id: settings.bankAccountId || null,
+          expense_account_id: settings.expenseAccountId || null,
+          vat_receivable_account_id: settings.vatReceivableAccountId || null,
+          wages_expense_account_id: settings.wagesExpenseAccountId || null,
+          wages_payable_account_id: settings.wagesPayableAccountId || null,
+          social_expense_account_id: settings.socialExpenseAccountId || null,
+          social_payable_account_id: settings.socialPayableAccountId || null,
+          supplier_payable_account_id:
+            settings.supplierPayableAccountId || null,
+        },
+      }),
+    );
   },
-  async postManualJournalEntry(input: { entryDate: string; description: string; lines: Array<{ accountId: string; debitCents: number; creditCents: number; memo?: string; projectId?: string; clientId?: string; employeeId?: string }> }) {
-    await invoke('post_manual_journal_entry', { input: { entry_date: input.entryDate, description: input.description, currency: 'CHF', lines: input.lines.map((line) => ({ account_id: line.accountId, debit_cents: line.debitCents, credit_cents: line.creditCents, memo: line.memo || null, project_id: line.projectId || null, client_id: line.clientId || null, employee_id: line.employeeId || null })) } });
+  async postManualJournalEntry(input: {
+    entryDate: string;
+    description: string;
+    lines: Array<{
+      accountId: string;
+      debitCents: number;
+      creditCents: number;
+      memo?: string;
+      projectId?: string;
+      clientId?: string;
+      employeeId?: string;
+    }>;
+  }) {
+    await invoke('post_manual_journal_entry', {
+      input: {
+        entry_date: input.entryDate,
+        description: input.description,
+        currency: 'CHF',
+        lines: input.lines.map((line) => ({
+          account_id: line.accountId,
+          debit_cents: line.debitCents,
+          credit_cents: line.creditCents,
+          memo: line.memo || null,
+          project_id: line.projectId || null,
+          client_id: line.clientId || null,
+          employee_id: line.employeeId || null,
+        })),
+      },
+    });
   },
-  async reverseJournalEntry(id: string, entryDate: string, description?: string) { await invoke('reverse_journal_entry', { id, entryDate, description: description || null }); },
-  async getJournal(filter: PeriodFilter): Promise<JournalReport> { const raw = await invoke<RawRecord>('get_journal', { filter: periodFilterToRaw(filter) }); return { entries: rawArray(raw.entries).map(journalEntryFromRaw), lines: rawArray(raw.lines).map(journalLineFromRaw) }; },
-  async getLedger(accountId: string, filter: PeriodFilter): Promise<LedgerReport> { const raw = await invoke<RawRecord>('get_ledger', { input: { account_id: accountId, ...periodFilterToRaw(filter) } }); return { account: accountFromRaw(raw.account as RawRecord), lines: rawArray(raw.lines).map(journalLineFromRaw), debitCents: numberValue(raw.debit_cents), creditCents: numberValue(raw.credit_cents), netDebitCents: numberValue(raw.net_debit_cents) }; },
-  async getTrialBalance(filter: PeriodFilter): Promise<TrialBalanceReport> { const raw = await invoke<RawRecord>('get_trial_balance', { filter: periodFilterToRaw(filter) }); const rows: TrialBalanceRow[] = rawArray(raw.rows).map((row) => ({ ...accountFromRaw(row), debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents), debitBalanceCents: numberValue(row.debit_balance_cents), creditBalanceCents: numberValue(row.credit_balance_cents) })); return { rows, debitCents: numberValue(raw.debit_cents), creditCents: numberValue(raw.credit_cents), balanced: boolValue(raw.balanced) }; },
-  async getBalanceSheet(filter: PeriodFilter): Promise<BalanceSheetReport> { const raw = await invoke<RawRecord>('get_balance_sheet', { filter: periodFilterToRaw(filter) }); return { asOf: stringValue(raw.as_of), exerciseFrom: stringValue(raw.exercise_from), scope: statementScopeFromRaw(raw.scope), currency: reportCurrencyFromRaw(raw.currency), rows: rawArray(raw.rows).map(statementRowFromRaw), sections: numberRecord(raw.sections), previousSections: numberRecord(raw.previous_sections), assetsCents: numberValue(raw.assets_cents), liabilitiesCents: numberValue(raw.liabilities_cents), equityCents: numberValue(raw.equity_cents), currentResultCents: numberValue(raw.current_result_cents), unallocatedPriorResultsCents: numberValue(raw.unallocated_prior_results_cents), balanced: boolValue(raw.balanced), previousAssetsCents: numberValue(raw.previous_assets_cents), previousLiabilitiesCents: numberValue(raw.previous_liabilities_cents), previousEquityCents: numberValue(raw.previous_equity_cents), previousCurrentResultCents: numberValue(raw.previous_current_result_cents), previousUnallocatedPriorResultsCents: numberValue(raw.previous_unallocated_prior_results_cents), previousBalanced: boolValue(raw.previous_balanced) }; },
-  async getIncomeStatement(filter: PeriodFilter): Promise<IncomeStatementReport> { const raw = await invoke<RawRecord>('get_income_statement', { filter: periodFilterToRaw(filter) }); return { scope: statementScopeFromRaw(raw.scope), currency: reportCurrencyFromRaw(raw.currency), rows: rawArray(raw.rows).map(statementRowFromRaw), sections: numberRecord(raw.sections), previousSections: numberRecord(raw.previous_sections), revenueCents: numberValue(raw.revenue_cents), expenseCents: numberValue(raw.expense_cents), profitCents: numberValue(raw.profit_cents), previousRevenueCents: numberValue(raw.previous_revenue_cents), previousExpenseCents: numberValue(raw.previous_expense_cents), previousProfitCents: numberValue(raw.previous_profit_cents) }; },
-  async getReminderSettings(): Promise<ReminderSettings> { const row = await invoke<RawRecord | null>('get_reminder_settings'); return { enabled: boolValue(row?.enabled), senderName: stringValue(row?.sender_name) }; },
-  async updateReminderSettings(settings: ReminderSettings) { await invoke('update_reminder_settings', { input: { enabled: settings.enabled, sender_name: settings.senderName || null } }); },
-  async listReminderTemplates(): Promise<ReminderTemplate[]> { return rawArray(await invoke<unknown>('list_reminder_templates')).map(reminderTemplateFromRaw); },
-  async upsertReminderTemplate(input: Omit<ReminderTemplate, 'id'> & { id?: string }) { await invoke('upsert_reminder_template', { input: { id: input.id || null, level: input.level, name: input.name, subject: input.subject, body: input.body, days_after_due: input.daysAfterDue, active: input.active } }); },
-  async deleteReminderTemplate(id: string) { await invoke('delete_reminder_template', { id }); },
-  async generateDueReminders(asOf?: string) { return rawArray(await invoke<unknown>('generate_due_reminders', { asOf: asOf || null }), 'reminders').map(reminderFromRaw); },
-  async listReminders(filter: { status?: ReminderStatus; invoiceId?: string; dateFrom?: string; dateTo?: string } = {}): Promise<Reminder[]> { return rawArray(await invoke<unknown>('list_reminders', { filter: { status: filter.status || null, invoice_id: filter.invoiceId || null, date_from: filter.dateFrom || null, date_to: filter.dateTo || null } }), 'reminders').map(reminderFromRaw); },
-  async getReminderHistory(reminderId: string): Promise<ReminderHistory[]> { return rawArray(await invoke<unknown>('get_reminder_history', { reminderId }), 'history').map((row) => ({ id: stringValue(row.id), reminderId: stringValue(row.reminder_id), action: stringValue(row.action), occurredAt: stringValue(row.occurred_at), note: stringValue(row.note) })); },
-  async markReminder(id: string, status: ReminderStatus, note?: string) { await invoke('mark_reminder', { input: { id, status, note: note || null } }); },
-  async recordReminderAction(id: string, action: 'printed' | 'exported' | 'sent_manually' | 'note', note?: string) { await invoke('record_reminder_action', { input: { id, action, note: note || null } }); },
-  async listPayrollContributionDefinitions(asOf?: string): Promise<PayrollContributionDefinition[]> { return rawArray(await invoke<unknown>('list_payroll_contribution_definitions', { asOf: asOf || null })).map(contributionFromRaw); },
-  async getPayrollRegulatoryProfiles(): Promise<PayrollRegulatoryProfile[]> { return rawArray(await invoke<unknown>('get_payroll_regulatory_profiles')).map((row) => ({ id: stringValue(row.id), label: stringValue(row.label), source: stringValue(row.source), effectiveFrom: stringValue(row.effective_from), effectiveTo: stringValue(row.effective_to), definitions: rawArray(row.definitions).map((definition) => { const normalized = contributionFromRaw(definition); return { code: normalized.code, label: normalized.label, category: normalized.category, side: normalized.side, calculationKind: normalized.calculationKind, rateBp: normalized.rateBp, fixedAmountCents: normalized.fixedAmountCents, annualCeilingCents: normalized.annualCeilingCents, basisKind: normalized.basisKind, source: normalized.source, effectiveFrom: normalized.effectiveFrom, effectiveTo: normalized.effectiveTo, active: normalized.active }; }), notIncluded: Array.isArray(row.not_included) ? row.not_included.map(stringValue) as PayrollRegulatoryProfile['notIncluded'] : [] })); },
-  async upsertPayrollContributionDefinition(input: Omit<PayrollContributionDefinition, 'id'> & { id?: string }) { await invoke('upsert_payroll_contribution_definition', { input: { id: input.id || null, code: input.code, label: input.label, category: input.category, side: input.side, calculation_kind: input.calculationKind, rate_bp: input.calculationKind === 'rate' ? input.rateBp : null, fixed_amount_cents: input.calculationKind === 'fixed' ? input.fixedAmountCents : null, annual_ceiling_cents: input.annualCeilingCents, basis_kind: input.basisKind, source: input.source, effective_from: input.effectiveFrom, effective_to: input.effectiveTo || null, active: input.active, liability_account_id: input.liabilityAccountId || null, expense_account_id: input.expenseAccountId || null } }); },
-  async deletePayrollContributionDefinition(id: string) { await invoke('delete_payroll_contribution_definition', { id }); },
-  async calculatePayrollContributions(input: { employeeId: string; period: string; grossCents: number; items: PayrollContributionSelection[] }): Promise<PayrollCalculation> { const raw = await invoke<RawRecord>('calculate_employee_payroll_contributions', { input: { employee_id: input.employeeId, period: input.period, gross_cents: input.grossCents, items: input.items.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents, year_to_date_basis_cents: item.yearToDateBasisCents })) } }); const items = rawArray(raw.items).map((row): CalculatedPayrollContribution => ({ ...contributionFromRaw(row), originalBasisCents: numberValue(row.original_basis_cents), basisCents: numberValue(row.basis_cents), yearToDateBasisCents: row.year_to_date_basis_cents === null || row.year_to_date_basis_cents === undefined ? null : numberValue(row.year_to_date_basis_cents), amountCents: numberValue(row.amount_cents), statutoryAnnualCeilingCents: row.statutory_annual_ceiling_cents === null || row.statutory_annual_ceiling_cents === undefined ? null : numberValue(row.statutory_annual_ceiling_cents), acProrationDays: row.ac_proration_days_30_360 === null || row.ac_proration_days_30_360 === undefined ? null : numberValue(row.ac_proration_days_30_360), acEmploymentFrom: stringValue(row.ac_employment_from), acEmploymentTo: stringValue(row.ac_employment_to), avsAllowanceAppliedCents: row.avs_allowance_applied_cents === null || row.avs_allowance_applied_cents === undefined ? null : numberValue(row.avs_allowance_applied_cents), avsAllowanceWaived: row.avs_allowance_waived === null || row.avs_allowance_waived === undefined ? null : boolValue(row.avs_allowance_waived) })); return { period: stringValue(raw.period) || input.period, grossCents: numberValue(raw.gross_cents), employeeDeductionsCents: numberValue(raw.employee_deductions_cents), employerCostsCents: numberValue(raw.employer_costs_cents), items }; },
-  async applyPayrollContributions(payslipId: string, period: string, items: PayrollContributionSelection[]) { await invoke('apply_payroll_contributions', { input: { payslip_id: payslipId, period, items: items.map((item) => ({ definition_id: item.definitionId, basis_cents: item.basisCents, year_to_date_basis_cents: item.yearToDateBasisCents })) } }); return loadWorkspace(); },
-  async getPayslipContributions(payslipId: string): Promise<PayslipContributionSnapshot[]> { return rawArray(await invoke<unknown>('get_payslip_contributions', { payslipId })).map(payslipContributionFromRaw); },
-  async postPayslip(payslipId: string, entryDate?: string): Promise<PostPayslipResult> {
-    const posted = await invoke<RawRecord>('post_payslip', { input: { payslip_id: payslipId, entry_date: entryDate || null } });
-    return { workspace: await loadWorkspace(), accountingFallbacks: accountingFallbacksFromPostPayslip(posted) };
+  async reverseJournalEntry(
+    id: string,
+    entryDate: string,
+    description?: string,
+  ) {
+    await invoke('reverse_journal_entry', {
+      id,
+      entryDate,
+      description: description || null,
+    });
   },
-  async payPayslip(payslipId: string, paymentDate: string, reference?: string) { await invoke('pay_payslip', { input: { payslip_id: payslipId, payment_date: paymentDate || null, reference: reference?.trim() || null } }); return loadWorkspace(); },
-  async exportPayslipPdf(payslipId: string, suggestedFileName: string): Promise<{ path: string; pages: number; finalDocument: boolean } | null> {
-    const selected = await chooseSaveFile({ title: 'Enregistrer la fiche de salaire PDF', defaultPath: suggestedFileName, filters: [{ name: 'Document PDF', extensions: ['pdf'] }] });
+  async getJournal(filter: PeriodFilter): Promise<JournalReport> {
+    const raw = await invoke<RawRecord>('get_journal', {
+      filter: periodFilterToRaw(filter),
+    });
+    return {
+      entries: rawArray(raw.entries).map(journalEntryFromRaw),
+      lines: rawArray(raw.lines).map(journalLineFromRaw),
+    };
+  },
+  async getLedger(
+    accountId: string,
+    filter: PeriodFilter,
+  ): Promise<LedgerReport> {
+    const raw = await invoke<RawRecord>('get_ledger', {
+      input: { account_id: accountId, ...periodFilterToRaw(filter) },
+    });
+    return {
+      account: accountFromRaw(raw.account as RawRecord),
+      lines: rawArray(raw.lines).map(journalLineFromRaw),
+      debitCents: numberValue(raw.debit_cents),
+      creditCents: numberValue(raw.credit_cents),
+      netDebitCents: numberValue(raw.net_debit_cents),
+    };
+  },
+  async getTrialBalance(filter: PeriodFilter): Promise<TrialBalanceReport> {
+    const raw = await invoke<RawRecord>('get_trial_balance', {
+      filter: periodFilterToRaw(filter),
+    });
+    const rows: TrialBalanceRow[] = rawArray(raw.rows).map((row) => ({
+      ...accountFromRaw(row),
+      debitCents: numberValue(row.debit_cents),
+      creditCents: numberValue(row.credit_cents),
+      debitBalanceCents: numberValue(row.debit_balance_cents),
+      creditBalanceCents: numberValue(row.credit_balance_cents),
+    }));
+    return {
+      rows,
+      debitCents: numberValue(raw.debit_cents),
+      creditCents: numberValue(raw.credit_cents),
+      balanced: boolValue(raw.balanced),
+    };
+  },
+  async getBalanceSheet(filter: PeriodFilter): Promise<BalanceSheetReport> {
+    const raw = await invoke<RawRecord>('get_balance_sheet', {
+      filter: periodFilterToRaw(filter),
+    });
+    return {
+      asOf: stringValue(raw.as_of),
+      exerciseFrom: stringValue(raw.exercise_from),
+      scope: statementScopeFromRaw(raw.scope),
+      currency: reportCurrencyFromRaw(raw.currency),
+      rows: rawArray(raw.rows).map(statementRowFromRaw),
+      sections: numberRecord(raw.sections),
+      previousSections: numberRecord(raw.previous_sections),
+      assetsCents: numberValue(raw.assets_cents),
+      liabilitiesCents: numberValue(raw.liabilities_cents),
+      equityCents: numberValue(raw.equity_cents),
+      currentResultCents: numberValue(raw.current_result_cents),
+      unallocatedPriorResultsCents: numberValue(
+        raw.unallocated_prior_results_cents,
+      ),
+      balanced: boolValue(raw.balanced),
+      previousAssetsCents: numberValue(raw.previous_assets_cents),
+      previousLiabilitiesCents: numberValue(raw.previous_liabilities_cents),
+      previousEquityCents: numberValue(raw.previous_equity_cents),
+      previousCurrentResultCents: numberValue(
+        raw.previous_current_result_cents,
+      ),
+      previousUnallocatedPriorResultsCents: numberValue(
+        raw.previous_unallocated_prior_results_cents,
+      ),
+      previousBalanced: boolValue(raw.previous_balanced),
+    };
+  },
+  async getIncomeStatement(
+    filter: PeriodFilter,
+  ): Promise<IncomeStatementReport> {
+    const raw = await invoke<RawRecord>('get_income_statement', {
+      filter: periodFilterToRaw(filter),
+    });
+    return {
+      scope: statementScopeFromRaw(raw.scope),
+      currency: reportCurrencyFromRaw(raw.currency),
+      rows: rawArray(raw.rows).map(statementRowFromRaw),
+      sections: numberRecord(raw.sections),
+      previousSections: numberRecord(raw.previous_sections),
+      revenueCents: numberValue(raw.revenue_cents),
+      expenseCents: numberValue(raw.expense_cents),
+      profitCents: numberValue(raw.profit_cents),
+      previousRevenueCents: numberValue(raw.previous_revenue_cents),
+      previousExpenseCents: numberValue(raw.previous_expense_cents),
+      previousProfitCents: numberValue(raw.previous_profit_cents),
+    };
+  },
+  async getReminderSettings(): Promise<ReminderSettings> {
+    const row = await invoke<RawRecord | null>('get_reminder_settings');
+    return {
+      enabled: boolValue(row?.enabled),
+      senderName: stringValue(row?.sender_name),
+    };
+  },
+  async updateReminderSettings(settings: ReminderSettings) {
+    await invoke('update_reminder_settings', {
+      input: {
+        enabled: settings.enabled,
+        sender_name: settings.senderName || null,
+      },
+    });
+  },
+  async listReminderTemplates(): Promise<ReminderTemplate[]> {
+    return rawArray(await invoke<unknown>('list_reminder_templates')).map(
+      reminderTemplateFromRaw,
+    );
+  },
+  async upsertReminderTemplate(
+    input: Omit<ReminderTemplate, 'id'> & { id?: string },
+  ) {
+    await invoke('upsert_reminder_template', {
+      input: {
+        id: input.id || null,
+        level: input.level,
+        name: input.name,
+        subject: input.subject,
+        body: input.body,
+        days_after_due: input.daysAfterDue,
+        active: input.active,
+      },
+    });
+  },
+  async deleteReminderTemplate(id: string) {
+    await invoke('delete_reminder_template', { id });
+  },
+  async generateDueReminders(asOf?: string) {
+    return rawArray(
+      await invoke<unknown>('generate_due_reminders', { asOf: asOf || null }),
+      'reminders',
+    ).map(reminderFromRaw);
+  },
+  async listReminders(
+    filter: {
+      status?: ReminderStatus;
+      invoiceId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    } = {},
+  ): Promise<Reminder[]> {
+    return rawArray(
+      await invoke<unknown>('list_reminders', {
+        filter: {
+          status: filter.status || null,
+          invoice_id: filter.invoiceId || null,
+          date_from: filter.dateFrom || null,
+          date_to: filter.dateTo || null,
+        },
+      }),
+      'reminders',
+    ).map(reminderFromRaw);
+  },
+  async getReminderHistory(reminderId: string): Promise<ReminderHistory[]> {
+    return rawArray(
+      await invoke<unknown>('get_reminder_history', { reminderId }),
+      'history',
+    ).map((row) => ({
+      id: stringValue(row.id),
+      reminderId: stringValue(row.reminder_id),
+      action: stringValue(row.action),
+      occurredAt: stringValue(row.occurred_at),
+      note: stringValue(row.note),
+    }));
+  },
+  async markReminder(id: string, status: ReminderStatus, note?: string) {
+    await invoke('mark_reminder', {
+      input: { id, status, note: note || null },
+    });
+  },
+  async recordReminderAction(
+    id: string,
+    action: 'printed' | 'exported' | 'sent_manually' | 'note',
+    note?: string,
+  ) {
+    await invoke('record_reminder_action', {
+      input: { id, action, note: note || null },
+    });
+  },
+  async listPayrollContributionDefinitions(
+    asOf?: string,
+  ): Promise<PayrollContributionDefinition[]> {
+    return rawArray(
+      await invoke<unknown>('list_payroll_contribution_definitions', {
+        asOf: asOf || null,
+      }),
+    ).map(contributionFromRaw);
+  },
+  async getPayrollRegulatoryProfiles(): Promise<PayrollRegulatoryProfile[]> {
+    return rawArray(
+      await invoke<unknown>('get_payroll_regulatory_profiles'),
+    ).map((row) => ({
+      id: stringValue(row.id),
+      label: stringValue(row.label),
+      source: stringValue(row.source),
+      effectiveFrom: stringValue(row.effective_from),
+      effectiveTo: stringValue(row.effective_to),
+      definitions: rawArray(row.definitions).map((definition) => {
+        const normalized = contributionFromRaw(definition);
+        return {
+          code: normalized.code,
+          label: normalized.label,
+          category: normalized.category,
+          side: normalized.side,
+          calculationKind: normalized.calculationKind,
+          rateBp: normalized.rateBp,
+          fixedAmountCents: normalized.fixedAmountCents,
+          annualCeilingCents: normalized.annualCeilingCents,
+          basisKind: normalized.basisKind,
+          source: normalized.source,
+          effectiveFrom: normalized.effectiveFrom,
+          effectiveTo: normalized.effectiveTo,
+          active: normalized.active,
+        };
+      }),
+      notIncluded: Array.isArray(row.not_included)
+        ? (row.not_included.map(
+            stringValue,
+          ) as PayrollRegulatoryProfile['notIncluded'])
+        : [],
+    }));
+  },
+  async upsertPayrollContributionDefinition(
+    input: Omit<PayrollContributionDefinition, 'id'> & { id?: string },
+  ) {
+    await invoke('upsert_payroll_contribution_definition', {
+      input: {
+        id: input.id || null,
+        code: input.code,
+        label: input.label,
+        category: input.category,
+        side: input.side,
+        calculation_kind: input.calculationKind,
+        rate_bp: input.calculationKind === 'rate' ? input.rateBp : null,
+        fixed_amount_cents:
+          input.calculationKind === 'fixed' ? input.fixedAmountCents : null,
+        annual_ceiling_cents: input.annualCeilingCents,
+        basis_kind: input.basisKind,
+        source: input.source,
+        effective_from: input.effectiveFrom,
+        effective_to: input.effectiveTo || null,
+        active: input.active,
+        liability_account_id: input.liabilityAccountId || null,
+        expense_account_id: input.expenseAccountId || null,
+      },
+    });
+  },
+  async deletePayrollContributionDefinition(id: string) {
+    await invoke('delete_payroll_contribution_definition', { id });
+  },
+  async calculatePayrollContributions(input: {
+    employeeId: string;
+    period: string;
+    grossCents: number;
+    items: PayrollContributionSelection[];
+  }): Promise<PayrollCalculation> {
+    const raw = await invoke<RawRecord>(
+      'calculate_employee_payroll_contributions',
+      {
+        input: {
+          employee_id: input.employeeId,
+          period: input.period,
+          gross_cents: input.grossCents,
+          items: input.items.map((item) => ({
+            definition_id: item.definitionId,
+            basis_cents: item.basisCents,
+            year_to_date_basis_cents: item.yearToDateBasisCents,
+          })),
+        },
+      },
+    );
+    const items = rawArray(raw.items).map(
+      (row): CalculatedPayrollContribution => ({
+        ...contributionFromRaw(row),
+        originalBasisCents: numberValue(row.original_basis_cents),
+        basisCents: numberValue(row.basis_cents),
+        yearToDateBasisCents:
+          row.year_to_date_basis_cents === null ||
+          row.year_to_date_basis_cents === undefined
+            ? null
+            : numberValue(row.year_to_date_basis_cents),
+        amountCents: numberValue(row.amount_cents),
+        statutoryAnnualCeilingCents:
+          row.statutory_annual_ceiling_cents === null ||
+          row.statutory_annual_ceiling_cents === undefined
+            ? null
+            : numberValue(row.statutory_annual_ceiling_cents),
+        acProrationDays:
+          row.ac_proration_days_30_360 === null ||
+          row.ac_proration_days_30_360 === undefined
+            ? null
+            : numberValue(row.ac_proration_days_30_360),
+        acEmploymentFrom: stringValue(row.ac_employment_from),
+        acEmploymentTo: stringValue(row.ac_employment_to),
+        avsAllowanceAppliedCents:
+          row.avs_allowance_applied_cents === null ||
+          row.avs_allowance_applied_cents === undefined
+            ? null
+            : numberValue(row.avs_allowance_applied_cents),
+        avsAllowanceWaived:
+          row.avs_allowance_waived === null ||
+          row.avs_allowance_waived === undefined
+            ? null
+            : boolValue(row.avs_allowance_waived),
+      }),
+    );
+    return {
+      period: stringValue(raw.period) || input.period,
+      grossCents: numberValue(raw.gross_cents),
+      employeeDeductionsCents: numberValue(raw.employee_deductions_cents),
+      employerCostsCents: numberValue(raw.employer_costs_cents),
+      items,
+    };
+  },
+  async applyPayrollContributions(
+    payslipId: string,
+    period: string,
+    items: PayrollContributionSelection[],
+  ) {
+    await invoke('apply_payroll_contributions', {
+      input: {
+        payslip_id: payslipId,
+        period,
+        items: items.map((item) => ({
+          definition_id: item.definitionId,
+          basis_cents: item.basisCents,
+          year_to_date_basis_cents: item.yearToDateBasisCents,
+        })),
+      },
+    });
+    return loadWorkspace();
+  },
+  async getPayslipContributions(
+    payslipId: string,
+  ): Promise<PayslipContributionSnapshot[]> {
+    return rawArray(
+      await invoke<unknown>('get_payslip_contributions', { payslipId }),
+    ).map(payslipContributionFromRaw);
+  },
+  async postPayslip(
+    payslipId: string,
+    entryDate?: string,
+  ): Promise<PostPayslipResult> {
+    const posted = await invoke<RawRecord>('post_payslip', {
+      input: { payslip_id: payslipId, entry_date: entryDate || null },
+    });
+    return {
+      workspace: await loadWorkspace(),
+      accountingFallbacks: accountingFallbacksFromPostPayslip(posted),
+    };
+  },
+  async payPayslip(payslipId: string, paymentDate: string, reference?: string) {
+    await invoke('pay_payslip', {
+      input: {
+        payslip_id: payslipId,
+        payment_date: paymentDate || null,
+        reference: reference?.trim() || null,
+      },
+    });
+    return loadWorkspace();
+  },
+  async exportPayslipPdf(
+    payslipId: string,
+    suggestedFileName: string,
+  ): Promise<{ path: string; pages: number; finalDocument: boolean } | null> {
+    const selected = await chooseSaveFile({
+      title: 'Enregistrer la fiche de salaire PDF',
+      defaultPath: suggestedFileName,
+      filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
+    });
     if (!selected) return null;
-    const destinationPath = selected.toLowerCase().endsWith('.pdf') ? selected : `${selected}.pdf`;
-    const raw = await invoke<RawRecord>('generate_payslip_pdf', { input: { payslip_id: payslipId, destination_path: destinationPath } });
-    return { path: stringValue(raw.path), pages: numberValue(raw.pages), finalDocument: boolValue(raw.final_document) };
+    const destinationPath = selected.toLowerCase().endsWith('.pdf')
+      ? selected
+      : `${selected}.pdf`;
+    const raw = await invoke<RawRecord>('generate_payslip_pdf', {
+      input: { payslip_id: payslipId, destination_path: destinationPath },
+    });
+    return {
+      path: stringValue(raw.path),
+      pages: numberValue(raw.pages),
+      finalDocument: boolValue(raw.final_document),
+    };
   },
-  async saveInvoiceQrBill(invoiceId: string, bill: SwissQrBillInput): Promise<StoredSwissQrBill> {
-    const raw = await invoke<RawRecord>('save_invoice_qr_bill', { input: { invoice_id: invoiceId, bill: qrInputToRaw(bill) } });
+  async saveInvoiceQrBill(
+    invoiceId: string,
+    bill: SwissQrBillInput,
+  ): Promise<StoredSwissQrBill> {
+    const raw = await invoke<RawRecord>('save_invoice_qr_bill', {
+      input: { invoice_id: invoiceId, bill: qrInputToRaw(bill) },
+    });
     const stored = storedQrBillFromRaw(raw, invoiceId);
-    if (!stored) throw new Error('La QR-facture validée n’a pas pu être relue après son enregistrement local.');
+    if (!stored)
+      throw new Error(
+        'La QR-facture validée n’a pas pu être relue après son enregistrement local.',
+      );
     return stored;
   },
   async getInvoiceQrBill(invoiceId: string): Promise<StoredSwissQrBill | null> {
-    const raw = await invoke<RawRecord | null>('get_invoice_qr_bill', { invoiceId });
+    const raw = await invoke<RawRecord | null>('get_invoice_qr_bill', {
+      invoiceId,
+    });
     return raw ? storedQrBillFromRaw(raw, invoiceId) : null;
   },
-  async validateSwissQrBill(input: SwissQrBillInput): Promise<SwissQrValidation> { const raw = await invoke<RawRecord>('validate_swiss_qr_bill', { input: qrInputToRaw(input) }); return { valid: boolValue(raw.valid), errors: Array.isArray(raw.errors) ? raw.errors.map(stringValue) : [], warnings: Array.isArray(raw.warnings) ? raw.warnings.map(stringValue) : [], normalized: qrInputFromRaw(raw.normalized as RawRecord), isQrIban: boolValue(raw.is_qr_iban) }; },
-  async generateSwissQrPayload(input: SwissQrBillInput): Promise<SwissQrPayload> { const raw = await invoke<RawRecord>('generate_swiss_qr_payload', { input: qrInputToRaw(input) }); return { payload: stringValue(raw.payload), lines: Array.isArray(raw.lines) ? raw.lines.map(stringValue) : [], referenceType: stringValue(raw.reference_type) as SwissQrBillInput['referenceType'], isQrIban: boolValue(raw.is_qr_iban), characterCount: numberValue(raw.character_count), byteCount: numberValue(raw.byte_count) }; },
+  async validateSwissQrBill(
+    input: SwissQrBillInput,
+  ): Promise<SwissQrValidation> {
+    const raw = await invoke<RawRecord>('validate_swiss_qr_bill', {
+      input: qrInputToRaw(input),
+    });
+    return {
+      valid: boolValue(raw.valid),
+      errors: Array.isArray(raw.errors) ? raw.errors.map(stringValue) : [],
+      warnings: Array.isArray(raw.warnings)
+        ? raw.warnings.map(stringValue)
+        : [],
+      normalized: qrInputFromRaw(raw.normalized as RawRecord),
+      isQrIban: boolValue(raw.is_qr_iban),
+    };
+  },
+  async generateSwissQrPayload(
+    input: SwissQrBillInput,
+  ): Promise<SwissQrPayload> {
+    const raw = await invoke<RawRecord>('generate_swiss_qr_payload', {
+      input: qrInputToRaw(input),
+    });
+    return {
+      payload: stringValue(raw.payload),
+      lines: Array.isArray(raw.lines) ? raw.lines.map(stringValue) : [],
+      referenceType: stringValue(
+        raw.reference_type,
+      ) as SwissQrBillInput['referenceType'],
+      isQrIban: boolValue(raw.is_qr_iban),
+      characterCount: numberValue(raw.character_count),
+      byteCount: numberValue(raw.byte_count),
+    };
+  },
   openDataFolder: () => invoke<string>('open_data_folder'),
 };

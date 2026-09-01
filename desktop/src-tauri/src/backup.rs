@@ -49,6 +49,7 @@ struct PreservedLicense {
     valid_until: String,
     verified_at: String,
     last_seen_date: String,
+    clock_anchor_version: i64,
 }
 
 struct RestoredDataSwap {
@@ -304,7 +305,7 @@ impl LocalStore {
         let connection = self.connect()?;
         connection
             .query_row(
-                "SELECT token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date FROM license_state WHERE id=1",
+                "SELECT token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version FROM license_state WHERE id=1",
                 [],
                 |row| {
                     Ok(PreservedLicense {
@@ -318,6 +319,7 @@ impl LocalStore {
                         valid_until: row.get(7)?,
                         verified_at: row.get(8)?,
                         last_seen_date: row.get(9)?,
+                        clock_anchor_version: row.get(10)?,
                     })
                 },
             )
@@ -330,7 +332,7 @@ impl LocalStore {
         connection.execute("DELETE FROM license_state", [])?;
         if let Some(license) = preserved {
             connection.execute(
-                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date) VALUES(1,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,?)",
                 params![
                     license.token,
                     license.license_id,
@@ -342,6 +344,7 @@ impl LocalStore {
                     license.valid_until,
                     license.verified_at,
                     license.last_seen_date,
+                    license.clock_anchor_version,
                 ],
             )?;
         }
@@ -734,7 +737,7 @@ mod tests {
             .connect()
             .unwrap()
             .execute(
-                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date) VALUES(1,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,1)",
                 params![
                     format!("token-{license_id}"),
                     license_id,
@@ -757,6 +760,19 @@ mod tests {
             .unwrap()
             .query_row(
                 "SELECT license_id FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap()
+    }
+
+    fn stored_clock_anchor_version(store: &LocalStore) -> Option<i64> {
+        store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT clock_anchor_version FROM license_state WHERE id=1",
                 [],
                 |row| row.get(0),
             )
@@ -799,6 +815,7 @@ mod tests {
             stored_license_id(&destination).as_deref(),
             Some("lic-destination")
         );
+        assert_eq!(stored_clock_anchor_version(&destination), Some(1));
         assert!(fs::read_dir(&destination.backups_dir)
             .unwrap()
             .filter_map(Result::ok)

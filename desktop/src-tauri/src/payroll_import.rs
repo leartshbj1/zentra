@@ -430,25 +430,36 @@ impl LocalStore {
             .filter(|value| !value.is_empty())
         {
             Some(existing_id) => {
-                let existing_avs: Option<String> = transaction
+                let existing_identity: (
+                    Option<String>,
+                    Option<String>,
+                    Option<String>,
+                    Option<String>,
+                ) = transaction
                     .query_row(
-                        "SELECT social_security_number FROM employees WHERE id=?",
+                        "SELECT social_security_number,employee_number,birth_date,iban FROM employees WHERE id=?",
                         params![existing_id],
-                        |row| row.get(0),
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                     )
                     .optional()?
                     .ok_or_else(|| AppError::NotFound(format!("employees/{existing_id}")))?;
                 validate_linked_employee_identity(
-                    existing_avs.as_deref(),
-                    &draft.employee.avs_number,
+                    existing_identity.0.as_deref(),
+                    existing_identity.1.as_deref(),
+                    existing_identity.2.as_deref(),
+                    existing_identity.3.as_deref(),
+                    &draft.employee,
                 )?;
                 existing_id.to_owned()
             }
-            None => insert_employee_from_draft(
-                &transaction,
-                &draft.employee,
-                recurring_base_salary_cents,
-            )?,
+            None => {
+                ensure_new_employee_identity_available(&transaction, &draft.employee)?;
+                insert_employee_from_draft(
+                    &transaction,
+                    &draft.employee,
+                    recurring_base_salary_cents,
+                )?
+            }
         };
         if replace_existing_template {
             let template_exists: bool = transaction.query_row(
@@ -999,6 +1010,33 @@ fn normalize_draft(draft: &mut PayrollImportDraft, strict: bool) -> AppResult<()
         .filter(|warning| !warning.is_empty())
         .take(30)
         .collect();
+    if let Some(review) = &mut draft.review {
+        review.employee_id = clean_text(&review.employee_id, 100);
+        review.employee_link_source = match review.employee_link_source.trim() {
+            "auto" => "auto".into(),
+            "manual" => "manual".into(),
+            _ => String::new(),
+        };
+        if let Some(evidence) = &mut review.ai_identity_evidence {
+            evidence.passes = evidence.passes.clamp(0, 2);
+            evidence.employee_number = clean_text(&evidence.employee_number, 80);
+            evidence.avs_number = normalize_avs(&evidence.avs_number);
+            evidence.birth_date = clean_text(&evidence.birth_date, 10);
+            evidence.iban = evidence
+                .iban
+                .chars()
+                .filter(|value| !value.is_whitespace())
+                .collect::<String>()
+                .to_uppercase();
+            evidence.conflicts = evidence
+                .conflicts
+                .iter()
+                .map(|conflict| clean_text(conflict, 100))
+                .filter(|conflict| !conflict.is_empty())
+                .take(10)
+                .collect();
+        }
+    }
     Ok(())
 }
 
@@ -1107,21 +1145,100 @@ fn insert_employee_from_draft(
     Ok(id)
 }
 
+fn ensure_new_employee_identity_available(
+    transaction: &rusqlite::Transaction<'_>,
+    employee: &PayrollImportEmployeeDraft,
+) -> AppResult<()> {
+    let imported_avs = employee
+        .avs_number
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>();
+    let imported_number = employee
+        .employee_number
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .flat_map(char::to_lowercase)
+        .collect::<String>();
+    if imported_avs.is_empty() && imported_number.is_empty() {
+        return Ok(());
+    }
+    let mut statement = transaction
+        .prepare("SELECT id,name,employee_number,social_security_number FROM employees")?;
+    let existing = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    for (id, name, employee_number, avs_number) in existing {
+        let same_avs = !imported_avs.is_empty()
+            && avs_number
+                .chars()
+                .filter(char::is_ascii_digit)
+                .eq(imported_avs.chars());
+        let same_number = !imported_number.is_empty()
+            && employee_number
+                .chars()
+                .filter(char::is_ascii_alphanumeric)
+                .flat_map(char::to_lowercase)
+                .eq(imported_number.chars());
+        if same_avs || same_number {
+            return Err(AppError::Validation(format!(
+                "Un collaborateur existant ({name}, identifiant {id}) possède déjà {}. Rattachez explicitement la fiche à ce profil au lieu d'en créer un nouveau.",
+                if same_avs { "ce numéro AVS" } else { "ce numéro employé" }
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn validate_linked_employee_identity(
     stored_avs_number: Option<&str>,
-    imported_avs_number: &str,
+    stored_employee_number: Option<&str>,
+    stored_birth_date: Option<&str>,
+    _stored_iban: Option<&str>,
+    imported: &PayrollImportEmployeeDraft,
 ) -> AppResult<()> {
-    let normalized = |value: &str| {
+    let normalized_avs = |value: &str| {
         value
             .chars()
             .filter(char::is_ascii_digit)
             .collect::<String>()
     };
-    let stored = stored_avs_number.map(normalized).unwrap_or_default();
-    let imported = normalized(imported_avs_number);
-    if !stored.is_empty() && !imported.is_empty() && stored != imported {
+    let normalized_employee_number = |value: &str| {
+        value
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let stored_avs = stored_avs_number.map(normalized_avs).unwrap_or_default();
+    let imported_avs = normalized_avs(&imported.avs_number);
+    if !stored_avs.is_empty() && !imported_avs.is_empty() && stored_avs != imported_avs {
         return Err(AppError::Validation(
             "Le numéro AVS du document ne correspond pas au collaborateur sélectionné. Corrigez le rattachement avant de confirmer.".into(),
+        ));
+    }
+    let stored_number = stored_employee_number
+        .map(normalized_employee_number)
+        .unwrap_or_default();
+    let imported_number = normalized_employee_number(&imported.employee_number);
+    if !stored_number.is_empty() && !imported_number.is_empty() && stored_number != imported_number
+    {
+        return Err(AppError::Validation(
+            "Le numéro employé du document ne correspond pas au collaborateur sélectionné. Corrigez le rattachement avant de confirmer.".into(),
+        ));
+    }
+    let stored_birth = stored_birth_date.unwrap_or_default().trim();
+    let imported_birth = imported.birth_date.trim();
+    if !stored_birth.is_empty() && !imported_birth.is_empty() && stored_birth != imported_birth {
+        return Err(AppError::Validation(
+            "La date de naissance du document ne correspond pas au collaborateur sélectionné. Corrigez le rattachement avant de confirmer.".into(),
         ));
     }
     Ok(())
@@ -1591,14 +1708,36 @@ mod tests {
 
     #[test]
     fn refuses_to_link_a_document_to_a_conflicting_avs_identity() {
-        validate_linked_employee_identity(Some("756.9217.0769.85"), "756 9217 0769 85")
+        let mut imported = empty_draft().employee;
+        imported.avs_number = "756 9217 0769 85".into();
+        validate_linked_employee_identity(Some("756.9217.0769.85"), None, None, None, &imported)
             .expect("formatting differences are harmless");
-        validate_linked_employee_identity(None, "756.9217.0769.85")
+        validate_linked_employee_identity(None, None, None, None, &imported)
             .expect("an empty stored AVS cannot contradict the document");
 
-        let error = validate_linked_employee_identity(Some("756.9217.0769.85"), "756.1234.5678.97")
-            .expect_err("different identities must be blocked");
+        imported.avs_number = "756.1234.5678.97".into();
+        let error = validate_linked_employee_identity(
+            Some("756.9217.0769.85"),
+            None,
+            None,
+            None,
+            &imported,
+        )
+        .expect_err("different identities must be blocked");
         assert!(error.to_string().contains("ne correspond pas"));
+
+        imported.avs_number.clear();
+        imported.employee_number = "E-002".into();
+        let error = validate_linked_employee_identity(None, Some("E-001"), None, None, &imported)
+            .expect_err("different employee numbers must be blocked");
+        assert!(error.to_string().contains("numéro employé"));
+
+        imported.employee_number.clear();
+        imported.birth_date = "1991-01-01".into();
+        let error =
+            validate_linked_employee_identity(None, None, Some("1990-01-01"), None, &imported)
+                .expect_err("different birth dates must be blocked");
+        assert!(error.to_string().contains("naissance"));
     }
 
     #[test]

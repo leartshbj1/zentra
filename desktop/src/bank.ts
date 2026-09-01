@@ -5,11 +5,18 @@ import type {
   BankReconciliationCandidate,
   BankReconciliationSuggestion,
   BankReconciliationResult,
+  BankSupplierReconciliation,
+  BankSupplierReconciliationCandidate,
+  BankSupplierReconciliationResult,
+  BankSupplierReconciliationSuggestion,
+  BankSupplierSuggestionKind,
   BankSuggestionKind,
   BankWorkspace,
   CamtImportResult,
   Client,
   Invoice,
+  Supplier,
+  SupplierInvoice,
 } from './types';
 
 export type BankMovementFilter = 'unreconciled' | 'pending' | 'reconciled' | 'all';
@@ -21,6 +28,14 @@ export type BankCandidateMatch = {
   issueDate: string;
   dueDate: string;
 };
+export type BankSupplierCandidateMatch = {
+  candidate: BankSupplierReconciliationCandidate;
+  supplierName: string;
+  supplierIban: string;
+  invoiceReference: string;
+  documentDate: string;
+  dueDate: string;
+};
 type RawRecord = Record<string, unknown>;
 
 const record = (value: unknown): RawRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as RawRecord : {};
@@ -30,6 +45,26 @@ const integer = (value: unknown): number => typeof value === 'number' && Number.
 const bool = (value: unknown): boolean => value === true || value === 1 || value === '1';
 
 const suggestionKinds = new Set<BankSuggestionKind>(['automatic_exact', 'automatic_partial', 'manual', 'review', 'none']);
+const supplierSuggestionKinds = new Set<BankSupplierSuggestionKind>(['supplier_match', 'supplier_manual', 'review', 'none']);
+
+const emptyCustomerSuggestion = (): BankReconciliationSuggestion => ({
+  kind: 'none',
+  invoiceId: null,
+  invoiceNumber: null,
+  reason: '',
+  confirmable: false,
+  candidates: [],
+});
+
+const emptySupplierSuggestion = (): BankSupplierReconciliationSuggestion => ({
+  entityType: 'supplier_invoice',
+  kind: 'none',
+  supplierInvoiceId: null,
+  reason: '',
+  confirmable: false,
+  requiresConfirmation: true,
+  candidates: [],
+});
 
 export function bankReconciliationFromRaw(value: unknown): BankReconciliation {
   const row = record(value);
@@ -38,6 +73,19 @@ export function bankReconciliationFromRaw(value: unknown): BankReconciliation {
     movementId: text(row.movement_id),
     invoiceId: text(row.invoice_id),
     paymentId: text(row.payment_id),
+    amountCents: integer(row.amount_cents),
+    confirmedAt: text(row.confirmed_at),
+    createdAt: text(row.created_at),
+  };
+}
+
+export function bankSupplierReconciliationFromRaw(value: unknown): BankSupplierReconciliation {
+  const row = record(value);
+  return {
+    id: text(row.id),
+    movementId: text(row.movement_id),
+    supplierInvoiceId: text(row.supplier_invoice_id),
+    supplierPaymentId: text(row.supplier_payment_id),
     amountCents: integer(row.amount_cents),
     confirmedAt: text(row.confirmed_at),
     createdAt: text(row.created_at),
@@ -69,9 +117,44 @@ function suggestionFromRaw(value: unknown): BankReconciliationSuggestion {
   };
 }
 
+function supplierCandidateFromRaw(value: unknown): BankSupplierReconciliationCandidate {
+  const row = record(value);
+  return {
+    supplierInvoiceId: text(row.supplier_invoice_id),
+    supplierId: text(row.supplier_id),
+    supplierName: text(row.supplier_name),
+    supplierIban: text(row.supplier_iban),
+    reference: text(row.reference),
+    documentDate: text(row.document_date),
+    remainingCents: integer(row.remaining_cents),
+    amountRelation: text(row.amount_relation),
+    matchKind: text(row.match_kind),
+    reason: text(row.reason),
+    confirmable: bool(row.confirmable),
+  };
+}
+
+function supplierSuggestionFromRaw(value: unknown): BankSupplierReconciliationSuggestion {
+  const row = record(value);
+  const candidateKind = text(row.kind) as BankSupplierSuggestionKind;
+  return {
+    entityType: 'supplier_invoice',
+    kind: supplierSuggestionKinds.has(candidateKind) ? candidateKind : 'none',
+    supplierInvoiceId: text(row.supplier_invoice_id) || null,
+    reason: text(row.reason),
+    confirmable: bool(row.confirmable),
+    requiresConfirmation: row.requires_confirmation === undefined ? true : bool(row.requires_confirmation),
+    candidates: array(row.candidates).map(supplierCandidateFromRaw).filter((item) => item.supplierInvoiceId),
+  };
+}
+
 export function bankMovementFromRaw(value: unknown): BankMovement {
   const row = record(value);
   const reconciliation = record(row.reconciliation);
+  const supplierReconciliation = record(row.supplier_reconciliation);
+  const creditDebit = text(row.credit_debit);
+  const customerRawSuggestion = row.customer_suggestion ?? (creditDebit === 'DBIT' ? undefined : row.suggestion);
+  const supplierRawSuggestion = row.supplier_suggestion ?? (creditDebit === 'DBIT' ? row.suggestion : undefined);
   return {
     id: text(row.id),
     importId: text(row.import_id),
@@ -79,7 +162,7 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
     accountCurrency: text(row.account_currency),
     amountCents: integer(row.amount_cents),
     currency: text(row.currency) || text(row.account_currency) || 'CHF',
-    creditDebit: text(row.credit_debit),
+    creditDebit,
     status: text(row.status),
     reversal: bool(row.reversal),
     bookingDate: text(row.booking_date),
@@ -91,11 +174,14 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
     referenceLevel: text(row.reference_level),
     reference: text(row.reference),
     unstructured: text(row.unstructured),
-    counterpartyName: text(row.counterparty_name) || text(row.debtor_name),
+    counterpartyName: text(row.counterparty_name) || text(row.debtor_name) || text(row.creditor_name),
+    counterpartyIban: text(row.counterparty_iban) || text(row.creditor_iban),
     strongKey: text(row.strong_key),
     createdAt: text(row.created_at),
     reconciliation: Object.keys(reconciliation).length ? bankReconciliationFromRaw(reconciliation) : null,
-    suggestion: suggestionFromRaw(row.suggestion),
+    supplierReconciliation: Object.keys(supplierReconciliation).length ? bankSupplierReconciliationFromRaw(supplierReconciliation) : null,
+    suggestion: customerRawSuggestion === undefined ? emptyCustomerSuggestion() : suggestionFromRaw(customerRawSuggestion),
+    supplierSuggestion: supplierRawSuggestion === undefined ? emptySupplierSuggestion() : supplierSuggestionFromRaw(supplierRawSuggestion),
   };
 }
 
@@ -125,8 +211,10 @@ export function bankWorkspaceFromRaw(value: unknown): BankWorkspace {
       importCount: integer(summary.import_count),
       movementCount: integer(summary.movement_count),
       unreconciledCount: integer(summary.unreconciled_count),
+      unreconciledSupplierCount: integer(summary.unreconciled_supplier_count),
       pendingCount: integer(summary.pending_count),
       bookedCreditCount: integer(summary.booked_credit_count),
+      bookedDebitCount: integer(summary.booked_debit_count),
     },
     accounts: array(row.accounts).map((account) => ({
       accountId: text(account.account_id),
@@ -138,6 +226,7 @@ export function bankWorkspaceFromRaw(value: unknown): BankWorkspace {
     imports: array(row.imports).map(bankImportFromRaw),
     movements: array(row.movements).map(bankMovementFromRaw),
     reconciliations: array(row.reconciliations).map(bankReconciliationFromRaw),
+    supplierReconciliations: array(row.supplier_reconciliations).map(bankSupplierReconciliationFromRaw),
   };
 }
 
@@ -174,12 +263,53 @@ export function bankReconciliationResultFromRaw(value: unknown): BankReconciliat
   };
 }
 
+export function bankSupplierReconciliationResultFromRaw(value: unknown): BankSupplierReconciliationResult {
+  const row = record(value);
+  const payment = record(row.payment);
+  const invoice = record(row.supplier_invoice);
+  const totalCents = integer(invoice.total_cents);
+  const paidCents = Math.max(0, Math.min(totalCents, integer(invoice.paid_cents)));
+  const supplierReconciliation = bankSupplierReconciliationFromRaw(row.supplier_reconciliation);
+  const movement = bankMovementFromRaw(row.movement);
+  movement.supplierReconciliation = supplierReconciliation.id ? supplierReconciliation : null;
+  return {
+    movement,
+    supplierReconciliation,
+    payment: {
+      id: text(payment.id),
+      supplierInvoiceId: text(payment.supplier_invoice_id),
+      requestId: text(payment.request_id),
+      date: text(payment.date),
+      amountCents: integer(payment.amount_cents),
+      method: text(payment.method),
+      reference: text(payment.reference),
+      notes: text(payment.notes),
+      journalEntryId: text(payment.journal_entry_id),
+      createdAt: text(payment.created_at),
+    },
+    supplierInvoice: {
+      id: text(invoice.id),
+      supplierId: text(invoice.supplier_id),
+      reference: text(invoice.reference),
+      documentStatus: text(invoice.status) === 'validated' ? 'validated' : 'draft',
+      totalCents,
+      paidCents,
+      balanceCents: Math.max(0, totalCents - paidCents),
+    },
+    idempotent: bool(row.idempotent),
+  };
+}
+
+export function movementHasReconciliation(movement: BankMovement): boolean {
+  return Boolean(movement.reconciliation || movement.supplierReconciliation);
+}
+
 export function filterBankMovements(movements: BankMovement[], filter: BankMovementFilter): BankMovement[] {
   return movements
     .filter((movement) => {
-      if (filter === 'pending') return movement.status === 'PDNG' && !movement.reconciliation;
-      if (filter === 'reconciled') return Boolean(movement.reconciliation);
-      if (filter === 'unreconciled') return movement.status === 'BOOK' && movement.creditDebit === 'CRDT' && !movement.reversal && !movement.reconciliation;
+      if (filter === 'pending') return movement.status === 'PDNG' && !movementHasReconciliation(movement);
+      if (filter === 'reconciled') return movementHasReconciliation(movement);
+      if (filter === 'unreconciled') return movement.status === 'BOOK' && ['CRDT', 'DBIT'].includes(movement.creditDebit) && !movement.reversal && !movementHasReconciliation(movement);
       return true;
     })
     .sort((left, right) => {
@@ -190,13 +320,25 @@ export function filterBankMovements(movements: BankMovement[], filter: BankMovem
 }
 
 export function initialInvoiceChoice(movement: BankMovement): string {
+  if (movement.creditDebit !== 'CRDT' || movementHasReconciliation(movement)) return '';
   if (!movement.suggestion.confirmable) return '';
   if (movement.suggestion.kind !== 'automatic_exact' && movement.suggestion.kind !== 'automatic_partial') return '';
   return movement.suggestion.invoiceId ?? '';
 }
 
+export function initialSupplierInvoiceChoice(movement: BankMovement): string {
+  if (movement.creditDebit !== 'DBIT' || movementHasReconciliation(movement)) return '';
+  if (!movement.supplierSuggestion.confirmable || !movement.supplierSuggestion.requiresConfirmation) return '';
+  if (movement.supplierSuggestion.kind !== 'supplier_match') return '';
+  return movement.supplierSuggestion.supplierInvoiceId ?? '';
+}
+
 export function candidateForInvoice(movement: BankMovement, invoiceId: string): BankReconciliationCandidate | undefined {
   return movement.suggestion.candidates.find((candidate) => candidate.invoiceId === invoiceId);
+}
+
+export function candidateForSupplierInvoice(movement: BankMovement, supplierInvoiceId: string): BankSupplierReconciliationCandidate | undefined {
+  return movement.supplierSuggestion.candidates.find((candidate) => candidate.supplierInvoiceId === supplierInvoiceId);
 }
 
 function normalizedCandidateQuery(value: string): string {
@@ -237,8 +379,45 @@ export function filterBankCandidates(
   });
 }
 
+export function filterBankSupplierCandidates(
+  movement: BankMovement,
+  invoices: SupplierInvoice[],
+  suppliers: Supplier[],
+  query: string,
+): BankSupplierCandidateMatch[] {
+  const normalizedQuery = normalizedCandidateQuery(query);
+  return movement.supplierSuggestion.candidates.map((candidate) => {
+    const invoice = invoices.find((item) => item.id === candidate.supplierInvoiceId);
+    const supplier = suppliers.find((item) => item.id === (candidate.supplierId || invoice?.supplierId));
+    return {
+      candidate,
+      supplierName: candidate.supplierName || invoice?.supplierName || supplier?.name || 'Fournisseur non renseigné',
+      supplierIban: candidate.supplierIban || supplier?.iban || '',
+      invoiceReference: candidate.reference || invoice?.reference || candidate.supplierInvoiceId,
+      documentDate: candidate.documentDate || invoice?.documentDate || '',
+      dueDate: invoice?.dueDate || '',
+    };
+  }).filter((item) => {
+    if (!normalizedQuery) return true;
+    const decimal = (item.candidate.remainingCents / 100).toFixed(2);
+    const searchable = normalizedCandidateQuery([
+      item.invoiceReference,
+      item.supplierName,
+      item.supplierIban,
+      item.documentDate,
+      item.dueDate,
+      item.candidate.matchKind,
+      item.candidate.remainingCents,
+      decimal,
+      decimal.replace('.', ','),
+      `${decimal} ${movement.currency}`,
+    ].join(' '));
+    return searchable.includes(normalizedQuery);
+  });
+}
+
 export function canConfirmBankReconciliation(movement: BankMovement, invoiceId: string): boolean {
-  if (!invoiceId || movement.reconciliation || movement.status !== 'BOOK' || movement.creditDebit !== 'CRDT' || movement.reversal || !movement.suggestion.confirmable) return false;
+  if (!invoiceId || movementHasReconciliation(movement) || movement.status !== 'BOOK' || movement.creditDebit !== 'CRDT' || movement.reversal || !movement.suggestion.confirmable) return false;
   const candidate = candidateForInvoice(movement, invoiceId);
   if (!candidate) return false;
   if (!candidate.confirmable) return false;
@@ -246,8 +425,19 @@ export function canConfirmBankReconciliation(movement: BankMovement, invoiceId: 
   return !['overpayment', 'exceeds_balance', 'greater_than_balance', 'too_high'].includes(candidate.amountRelation);
 }
 
+export function canConfirmSupplierBankReconciliation(movement: BankMovement, supplierInvoiceId: string): boolean {
+  if (!supplierInvoiceId || movementHasReconciliation(movement) || movement.status !== 'BOOK' || movement.creditDebit !== 'DBIT' || movement.reversal || !movement.supplierSuggestion.confirmable || !movement.supplierSuggestion.requiresConfirmation) return false;
+  const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
+  if (!candidate?.confirmable || candidate.remainingCents < Math.abs(movement.amountCents)) return false;
+  return !['overpayment', 'exceeds_balance', 'greater_than_balance', 'too_high', 'already_paid', 'currency_mismatch'].includes(candidate.amountRelation);
+}
+
 export function bankConfirmationPayload(movementId: string, invoiceId: string) {
   return { input: { movement_id: movementId, invoice_id: invoiceId } };
+}
+
+export function supplierBankConfirmationPayload(movementId: string, supplierInvoiceId: string) {
+  return { input: { movement_id: movementId, supplier_invoice_id: supplierInvoiceId } };
 }
 
 export function bankAccountAssociationPayload(accountId: string, currency: string) {

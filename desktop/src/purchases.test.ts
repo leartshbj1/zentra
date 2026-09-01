@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   expensePaymentStatusFromRaw,
   filterPurchaseExpenses,
+  filterSupplierInvoices,
   filterSuppliers,
   isExpenseOverdue,
+  isSupplierInvoiceOverdue,
   purchaseSummary,
   selectableSuppliers,
   supplierDueDate,
   supplierSnapshotForDraft,
 } from './purchases';
-import type { Expense, Project, Supplier } from './types';
+import type { Expense, Project, Supplier, SupplierInvoice } from './types';
+import { projectFinancials } from './utils';
+import { supplierInvoiceLineTotals } from './PurchasesScreen';
 
 const supplier: Supplier = {
   id: 'supplier-1',
@@ -74,9 +78,63 @@ const paid: Expense = {
   paidAt: null,
 };
 
+const supplierInvoice: SupplierInvoice = {
+  id: 'supplier-invoice-1',
+  supplierId: supplier.id,
+  projectId: project.id,
+  documentDate: '2026-08-10',
+  dueDate: '2026-08-30',
+  supplierName: supplier.name,
+  reference: 'FOUR-2026-001',
+  currency: 'CHF',
+  documentStatus: 'validated',
+  paymentStatus: 'partial',
+  netCents: 20_000,
+  vatCents: 0,
+  totalCents: 20_000,
+  paidCents: 8_000,
+  balanceCents: 12_000,
+  validatedAt: '2026-08-10T08:00:00Z',
+  validationJournalEntryId: 'journal-supplier-1',
+  note: 'Livraison principale',
+  lines: [{
+    id: 'supplier-line-1',
+    supplierInvoiceId: 'supplier-invoice-1',
+    position: 0,
+    description: 'Câbles cuivre',
+    quantityMilli: 2_000,
+    unit: 'bobine',
+    unitPriceCents: 10_000,
+    discountBp: 0,
+    vatBp: 0,
+    netCents: 20_000,
+    vatCents: 0,
+    totalCents: 20_000,
+    category: 'Matériaux',
+    expenseAccountId: null,
+    projectId: null,
+  }],
+  payments: [{
+    id: 'supplier-payment-1',
+    supplierInvoiceId: 'supplier-invoice-1',
+    requestId: '26ec4237-fdf6-4212-9302-e7140c34a4cf',
+    date: '2026-08-20',
+    amountCents: 8_000,
+    method: 'bank_transfer',
+    reference: 'VIR-BANQUE-77',
+    notes: 'Premier acompte',
+    journalEntryId: 'journal-payment-1',
+    createdAt: '2026-08-20T08:00:00Z',
+  }],
+  attachments: [],
+  createdAt: '2026-08-10T08:00:00Z',
+  updatedAt: '2026-08-20T08:00:00Z',
+};
+
 describe('compatibilité des achats', () => {
-  it('considère les anciennes dépenses sans nouveau champ comme déjà payées', () => {
-    expect(expensePaymentStatusFromRaw(undefined)).toBe('paid');
+  it('ne transforme jamais un statut ancien ou inconnu en paiement', () => {
+    expect(expensePaymentStatusFromRaw(undefined)).toBe('pending');
+    expect(expensePaymentStatusFromRaw('inconnu')).toBe('pending');
     expect(expensePaymentStatusFromRaw('paid')).toBe('paid');
     expect(expensePaymentStatusFromRaw('pending')).toBe('pending');
   });
@@ -90,6 +148,8 @@ describe('compatibilité des achats', () => {
 describe('pilotage des achats', () => {
   it('sépare les montants à payer, échus et payés', () => {
     expect(purchaseSummary([pending, paid], '2026-09-01')).toEqual({
+      draftCount: 0,
+      partialCount: 0,
       pendingCents: 10_810,
       overdueCents: 10_810,
       paidCents: 2_000,
@@ -98,6 +158,72 @@ describe('pilotage des achats', () => {
       paidCount: 1,
     });
     expect(isExpenseOverdue({ ...pending, dueDate: '2026-09-01' }, '2026-09-01')).toBe(false);
+  });
+
+  it('additionne le solde fournisseur, les acomptes et exclut les brouillons', () => {
+    const draft = {
+      ...supplierInvoice,
+      id: 'supplier-draft',
+      documentStatus: 'draft' as const,
+      paymentStatus: null,
+      paidCents: 0,
+      balanceCents: 20_000,
+      payments: [],
+      updatedAt: '2026-09-02T10:00:00Z',
+    };
+    const fullyPaid = {
+      ...supplierInvoice,
+      id: 'supplier-paid',
+      paymentStatus: 'paid' as const,
+      paidCents: 20_000,
+      balanceCents: 0,
+      dueDate: '2026-09-30',
+    };
+    expect(purchaseSummary([], '2026-09-01', [draft, supplierInvoice, fullyPaid])).toEqual({
+      draftCount: 1,
+      partialCount: 1,
+      pendingCents: 12_000,
+      overdueCents: 12_000,
+      paidCents: 28_000,
+      pendingCount: 1,
+      overdueCount: 1,
+      paidCount: 1,
+    });
+    expect(isSupplierInvoiceOverdue({ ...supplierInvoice, dueDate: '2026-09-01' }, '2026-09-01')).toBe(false);
+  });
+
+  it('filtre les quatre états et retrouve les lignes comme les références de paiement', () => {
+    const draft = { ...supplierInvoice, id: 'draft', documentStatus: 'draft' as const, paymentStatus: null, payments: [], updatedAt: '2026-09-02T10:00:00Z' };
+    const pendingInvoice = { ...supplierInvoice, id: 'pending', paymentStatus: 'pending' as const, paidCents: 0, balanceCents: 20_000, payments: [] };
+    const paidInvoice = { ...supplierInvoice, id: 'paid', paymentStatus: 'paid' as const, paidCents: 20_000, balanceCents: 0 };
+    const invoices = [pendingInvoice, supplierInvoice, paidInvoice, draft];
+    expect(filterSupplierInvoices(invoices, [project], '', 'draft').map((item) => item.id)).toEqual(['draft']);
+    expect(filterSupplierInvoices(invoices, [project], '', 'pending').map((item) => item.id)).toEqual(['pending']);
+    expect(filterSupplierInvoices(invoices, [project], 'câbles cuivre', 'partial').map((item) => item.id)).toEqual(['supplier-invoice-1']);
+    expect(filterSupplierInvoices(invoices, [project], 'VIR-BANQUE-77', 'paid').map((item) => item.id)).toEqual(['paid']);
+    expect(filterSupplierInvoices(invoices, [project], 'premier acompte', 'partial').map((item) => item.id)).toEqual(['supplier-invoice-1']);
+  });
+
+  it('intègre uniquement les lignes fournisseur validées à la rentabilité du projet', () => {
+    const draft = { ...supplierInvoice, id: 'draft-cost', documentStatus: 'draft' as const, paymentStatus: null };
+    const stats = projectFinancials(project, [], [], [], [], [supplierInvoice, draft]);
+    expect(stats.expenseNet).toBe(20_000);
+    expect(stats.margin).toBe(-20_000);
+  });
+
+  it('arrondit quantité, remise et TVA comme le moteur local', () => {
+    expect(supplierInvoiceLineTotals({
+      id: 'line-rounding',
+      description: 'Ligne arrondie',
+      quantityMilli: 1_333,
+      unit: 'heure',
+      unitPriceCents: 12_345,
+      discountBp: 750,
+      vatBp: 810,
+      category: 'Prestation',
+      expenseAccountId: '',
+      projectId: '',
+    })).toEqual({ netCents: 15_222, vatCents: 1_233, totalCents: 16_455 });
   });
 
   it('recherche dans le snapshot, la référence et le projet tout en acceptant un achat sans projet', () => {
