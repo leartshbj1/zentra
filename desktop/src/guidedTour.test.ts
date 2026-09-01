@@ -9,6 +9,7 @@ describe('guide interactif', () => {
       'clients',
       'catalog',
       'quotes',
+      'orders',
       'invoices',
       'reminders',
       'time',

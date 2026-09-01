@@ -16,6 +16,7 @@ export type TourView =
   | 'clients'
   | 'catalog'
   | 'quotes'
+  | 'orders'
   | 'invoices'
   | 'reminders'
   | 'time'
@@ -35,7 +36,7 @@ export type GuidedTourStep = {
   target: string;
 };
 
-const TOUR_STORAGE_KEY = 'elyko-guided-tour-v2';
+const TOUR_STORAGE_KEY = 'elyko-guided-tour-v3';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -84,6 +85,14 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     eyebrow: 'Vente',
     title: 'Passez du devis accepté à la facture',
     text: 'Émettez le devis, enregistrez son acceptation puis convertissez-le. Elyko conserve la liaison et empêche une double conversion.',
+    target: '.page-header',
+  },
+  {
+    id: 'recurring-documents',
+    view: 'orders',
+    eyebrow: 'Facturation récurrente',
+    title: 'Planifiez, puis contrôlez chaque brouillon',
+    text: 'Ouvrez une commande confirmée en CHF composée de prestations directes, choisissez son rythme et son délai de paiement. Elyko prépare les échéances localement quand l’application est ouverte, sans jamais les émettre, les envoyer ou les comptabiliser seul.',
     target: '.page-header',
   },
   {

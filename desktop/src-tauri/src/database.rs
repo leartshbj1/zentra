@@ -42,9 +42,9 @@ use crate::{
         MIGRATION_V18_SQL, MIGRATION_V19_FINALIZE_SQL, MIGRATION_V19_SQL,
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
-        MIGRATION_V22_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
-        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
-        SCHEMA_VERSION,
+        MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL,
+        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
+        SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -545,6 +545,11 @@ fn migrate_v22(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v23(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V23_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -881,6 +886,7 @@ impl LocalStore {
                 migrate_v20(&transaction)?;
                 migrate_v21(&transaction)?;
                 migrate_v22(&transaction)?;
+                migrate_v23(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -968,7 +974,7 @@ impl LocalStore {
                 migrate_v12(&transaction)?;
             }
             11 => migrate_v12(&transaction)?,
-            12..=21 => {}
+            12..=22 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -988,6 +994,7 @@ impl LocalStore {
             migrate_v20(&transaction)?;
             migrate_v21(&transaction)?;
             migrate_v22(&transaction)?;
+            migrate_v23(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1306,6 +1313,23 @@ impl LocalStore {
         let sales_order_invoice_allocations = query_all(
             connection,
             "SELECT * FROM sales_order_invoice_allocations ORDER BY batch_id,rowid",
+            [],
+        )?;
+        let recurrence_schedules = query_all(
+            connection,
+            "SELECT id,source_sales_order_id,frequency,anchor_date,anchor_day,
+                    anchor_is_month_end,payment_terms_days,next_scheduled_for,end_date,
+                    status,review_reason,source_order_snapshot_sha256,
+                    source_snapshot_sha256,completed_at,created_at,updated_at
+             FROM recurrence_schedules ORDER BY created_at DESC,id",
+            [],
+        )?;
+        let recurrence_occurrences = query_all(
+            connection,
+            "SELECT occurrence.*,invoice.status AS invoice_status,invoice.number AS invoice_number
+             FROM recurrence_occurrences occurrence
+             JOIN invoices invoice ON invoice.id=occurrence.invoice_id
+             ORDER BY occurrence.scheduled_for DESC,occurrence.sequence DESC",
             [],
         )?;
         let stock_availability = query_all(
@@ -1655,6 +1679,8 @@ impl LocalStore {
         workspace["stock_reservation_events"] = json!(stock_reservation_events);
         workspace["sales_order_invoice_batches"] = json!(sales_order_invoice_batches);
         workspace["sales_order_invoice_allocations"] = json!(sales_order_invoice_allocations);
+        workspace["recurrence_schedules"] = json!(recurrence_schedules);
+        workspace["recurrence_occurrences"] = json!(recurrence_occurrences);
         workspace["supplier_orders"] = json!(supplier_orders);
         workspace["supplier_order_lines"] = json!(supplier_order_lines);
         workspace["supplier_order_cancellation_lines"] = json!(supplier_order_cancellation_lines);
@@ -5171,7 +5197,7 @@ mod v22_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            SCHEMA_VERSION
+            22
         );
         assert_eq!(
             connection

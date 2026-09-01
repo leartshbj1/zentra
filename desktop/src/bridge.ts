@@ -19,6 +19,7 @@ import type {
   CalculatedPayrollContribution,
   CatalogItem,
   Client,
+  CreateRecurrenceScheduleInput,
   DeliveryNote,
   DeliveryNoteLine,
   DocumentLine,
@@ -37,6 +38,7 @@ import type {
   FrozenPayslipSnapshot,
   FrozenSalesOrderRecord,
   FrozenSalesOrderSnapshot,
+  GenerateRecurrenceOccurrencesInput,
   Invoice,
   IncomeStatementReport,
   JournalEntry,
@@ -62,6 +64,9 @@ import type {
   ProjectMilestone,
   ProjectTask,
   Quote,
+  RecurrenceFrequency,
+  RecurrenceOccurrence,
+  RecurrenceSchedule,
   Reminder,
   ReminderHistory,
   ReminderSettings,
@@ -108,6 +113,7 @@ import type {
   TimeBillingEntry,
   TrialBalanceReport,
   TrialBalanceRow,
+  UpdateRecurrenceScheduleInput,
   VatAdjustment,
   VatAdjustmentCategory,
   VatProfile,
@@ -165,6 +171,8 @@ type RawWorkspace = {
   quote_items?: RawRecord[];
   sales_orders?: RawRecord[];
   sales_order_lines?: RawRecord[];
+  recurrence_schedules?: RawRecord[];
+  recurrence_occurrences?: RawRecord[];
   delivery_notes?: RawRecord[];
   delivery_note_lines?: RawRecord[];
   stock_reservation_events?: RawRecord[];
@@ -704,6 +712,104 @@ const salesOrderStatusFromRaw = (value: unknown): SalesOrder['status'] => {
     return 'cancelled';
   return 'draft';
 };
+
+const recurrenceFrequencyFromRaw = (value: unknown): RecurrenceFrequency => {
+  const frequency = stringValue(value);
+  if (
+    frequency === 'monthly' ||
+    frequency === 'quarterly' ||
+    frequency === 'yearly'
+  )
+    return frequency;
+  return 'monthly';
+};
+
+const recurrenceScheduleStatusFromRaw = (
+  value: unknown,
+): RecurrenceSchedule['status'] => {
+  const status = stringValue(value);
+  if (
+    status === 'active' ||
+    status === 'paused' ||
+    status === 'review_required' ||
+    status === 'completed'
+  )
+    return status;
+  // Un état inconnu ne doit jamais relancer silencieusement la génération.
+  return 'review_required';
+};
+
+export function recurrenceScheduleFromRaw(row: RawRecord): RecurrenceSchedule {
+  const rawFrequency = stringValue(row.frequency);
+  const rawStatus = stringValue(row.status);
+  const anchorDay = Math.trunc(numberValue(row.anchor_day));
+  const paymentTermsDays = Math.trunc(numberValue(row.payment_terms_days));
+  const invalidFrequency = ![
+    'monthly',
+    'quarterly',
+    'yearly',
+  ].includes(rawFrequency);
+  const invalidStatus = ![
+    'active',
+    'paused',
+    'review_required',
+    'completed',
+  ].includes(rawStatus);
+  return {
+    id: stringValue(row.id),
+    sourceSalesOrderId: stringValue(row.source_sales_order_id),
+    frequency: recurrenceFrequencyFromRaw(row.frequency),
+    anchorDate: stringValue(row.anchor_date),
+    anchorDay: anchorDay >= 1 && anchorDay <= 31 ? anchorDay : 1,
+    anchorIsMonthEnd: boolValue(row.anchor_is_month_end),
+    paymentTermsDays:
+      paymentTermsDays >= 0 && paymentTermsDays <= 365
+        ? paymentTermsDays
+        : 30,
+    nextScheduledFor: stringValue(row.next_scheduled_for),
+    endDate: nullableString(row.end_date),
+    status:
+      invalidFrequency || invalidStatus
+        ? 'review_required'
+        : recurrenceScheduleStatusFromRaw(row.status),
+    reviewReason:
+      nullableString(row.review_reason) ??
+      (invalidFrequency || invalidStatus
+        ? 'La planification locale contient une valeur non reconnue et doit être contrôlée.'
+        : null),
+    sourceOrderSnapshotSha256: stringValue(
+      row.source_order_snapshot_sha256,
+    ),
+    sourceSnapshotSha256: stringValue(row.source_snapshot_sha256),
+    completedAt: nullableString(row.completed_at),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+export function recurrenceOccurrenceFromRaw(
+  row: RawRecord,
+): RecurrenceOccurrence {
+  const sequence = Math.trunc(numberValue(row.sequence));
+  return {
+    sequence: Math.max(0, sequence),
+    id: stringValue(row.id),
+    scheduleId: stringValue(row.schedule_id),
+    scheduledFor: stringValue(row.scheduled_for),
+    invoiceId: stringValue(row.invoice_id),
+    status:
+      stringValue(row.status) === 'draft_created'
+        ? 'draft_created'
+        : 'unknown',
+    message: nullableString(row.message),
+    requestId: stringValue(row.request_id),
+    payloadSha256: stringValue(row.payload_sha256),
+    sourceSnapshotSha256: stringValue(row.source_snapshot_sha256),
+    createdAt: stringValue(row.created_at),
+    invoiceStatus: invoiceStatusFromRaw(row.invoice_status),
+    invoiceNumber: nullableString(row.invoice_number),
+  };
+}
 
 const fulfillmentModeFromRaw = (
   value: unknown,
@@ -1498,6 +1604,12 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       snapshot: salesOrderSnapshotFromRaw(row.snapshot_json, appState.data_dir),
     };
   });
+  const recurrenceSchedules = (raw.recurrence_schedules ?? []).map(
+    recurrenceScheduleFromRaw,
+  );
+  const recurrenceOccurrences = (raw.recurrence_occurrences ?? []).map(
+    recurrenceOccurrenceFromRaw,
+  );
   const deliveryNotes: DeliveryNote[] = (raw.delivery_notes ?? []).map(
     (row) => {
       const id = stringValue(row.id);
@@ -2021,6 +2133,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     projectTasks,
     quotes,
     salesOrders,
+    recurrenceSchedules,
+    recurrenceOccurrences,
     deliveryNotes,
     stockReservationEvents,
     stockAvailability,
@@ -2082,6 +2196,8 @@ function emptyWorkspace(): Workspace {
     projectTasks: [],
     quotes: [],
     salesOrders: [],
+    recurrenceSchedules: [],
+    recurrenceOccurrences: [],
     deliveryNotes: [],
     stockReservationEvents: [],
     stockAvailability: [],
@@ -2250,6 +2366,64 @@ export function stockMovementMutation(
         reason: input.reason.trim(),
         reference: input.reference?.trim() || null,
         date: input.date || null,
+      },
+    },
+  };
+}
+
+export function createRecurrenceScheduleMutation(
+  input: CreateRecurrenceScheduleInput,
+) {
+  if (
+    !Number.isInteger(input.paymentTermsDays) ||
+    input.paymentTermsDays < 0 ||
+    input.paymentTermsDays > 365
+  ) {
+    throw new RangeError(
+      'Le délai de paiement doit être un nombre entier compris entre 0 et 365 jours.',
+    );
+  }
+  return {
+    command: 'create_recurrence_schedule' as const,
+    args: {
+      input: {
+        request_id: input.requestId.trim(),
+        source_sales_order_id: input.sourceSalesOrderId.trim(),
+        frequency: input.frequency,
+        start_date: input.startDate.trim(),
+        end_date: input.endDate?.trim() || null,
+        payment_terms_days: input.paymentTermsDays,
+      },
+    },
+  };
+}
+
+export function updateRecurrenceScheduleMutation(
+  input: UpdateRecurrenceScheduleInput,
+) {
+  return {
+    command: 'update_recurrence_schedule' as const,
+    args: {
+      input: {
+        request_id: input.requestId.trim(),
+        schedule_id: input.scheduleId.trim(),
+        status: input.status,
+        end_date: input.endDate?.trim() || null,
+      },
+    },
+  };
+}
+
+export function generateRecurrenceOccurrencesMutation(
+  input: GenerateRecurrenceOccurrencesInput,
+) {
+  return {
+    command: 'generate_recurrence_occurrences' as const,
+    args: {
+      input: {
+        request_id: input.requestId.trim(),
+        schedule_id: input.scheduleId.trim(),
+        through_date: input.throughDate.trim(),
       },
     },
   };
@@ -3773,6 +3947,23 @@ export const desktopApi = {
     await invoke('confirm_sales_order', {
       input: { request_id: requestId, sales_order_id: salesOrderId },
     });
+    return loadWorkspace();
+  },
+  async createRecurrenceSchedule(input: CreateRecurrenceScheduleInput) {
+    const mutation = createRecurrenceScheduleMutation(input);
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async updateRecurrenceSchedule(input: UpdateRecurrenceScheduleInput) {
+    const mutation = updateRecurrenceScheduleMutation(input);
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async generateRecurrenceOccurrences(
+    input: GenerateRecurrenceOccurrencesInput,
+  ) {
+    const mutation = generateRecurrenceOccurrencesMutation(input);
+    await invoke(mutation.command, mutation.args);
     return loadWorkspace();
   },
   async cancelSalesOrder(

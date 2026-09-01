@@ -258,6 +258,7 @@ export function FormActions({
 }
 
 const statusLabels: Record<string, string> = {
+  active: 'Actif',
   planned: 'Planifié',
   in_progress: 'En cours',
   paused: 'En pause',
@@ -275,6 +276,7 @@ const statusLabels: Record<string, string> = {
   approved: 'Approuvé',
   locked: 'Verrouillé',
   incomplete: 'Incomplet',
+  review_required: 'À contrôler',
   validated: 'Validé',
   posted: 'Comptabilisé',
 };

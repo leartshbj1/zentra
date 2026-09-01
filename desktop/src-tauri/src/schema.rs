@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 22;
+pub const SCHEMA_VERSION: i64 = 23;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -43,6 +43,9 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "sales_order_invoice_batches",
     "sales_order_invoice_allocations",
     "sales_operation_requests",
+    "recurrence_schedules",
+    "recurrence_occurrences",
+    "recurrence_operation_requests",
     "supplier_orders",
     "supplier_order_lines",
     "supplier_order_cancellation_lines",
@@ -4305,4 +4308,267 @@ CREATE TRIGGER IF NOT EXISTS closing_package_exports_no_delete
 BEFORE DELETE ON closing_package_exports BEGIN SELECT RAISE(ABORT,'closing package exports are immutable'); END;
 
 PRAGMA user_version=22;
+"#;
+
+/// Planifications de factures récurrentes V23. Une planification est un modèle
+/// supervisé fondé sur une commande confirmée et son snapshot figé. La
+/// migration ne crée aucune planification ni facture automatiquement.
+pub const MIGRATION_V23_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS recurrence_schedules (
+  id TEXT PRIMARY KEY CHECK (LENGTH(id)=36),
+  source_sales_order_id TEXT NOT NULL UNIQUE REFERENCES sales_orders(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  frequency TEXT NOT NULL CHECK (frequency IN ('monthly','quarterly','yearly')),
+  anchor_date TEXT NOT NULL CHECK (LENGTH(anchor_date)=10 AND anchor_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  anchor_day INTEGER NOT NULL CHECK (anchor_day BETWEEN 1 AND 31),
+  anchor_is_month_end INTEGER NOT NULL CHECK (anchor_is_month_end IN (0,1)),
+  payment_terms_days INTEGER NOT NULL CHECK (payment_terms_days BETWEEN 0 AND 365),
+  next_scheduled_for TEXT NOT NULL CHECK (LENGTH(next_scheduled_for)=10 AND next_scheduled_for GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  end_date TEXT CHECK (end_date IS NULL OR (LENGTH(end_date)=10 AND end_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND end_date>=anchor_date)),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','review_required','completed')),
+  review_reason TEXT CHECK (review_reason IS NULL OR LENGTH(TRIM(review_reason)) BETWEEN 1 AND 1000),
+  source_order_snapshot_sha256 TEXT NOT NULL CHECK (LENGTH(source_order_snapshot_sha256)=64 AND source_order_snapshot_sha256 NOT GLOB '*[^0-9a-f]*'),
+  source_snapshot_sha256 TEXT NOT NULL CHECK (LENGTH(source_snapshot_sha256)=64 AND source_snapshot_sha256 NOT GLOB '*[^0-9a-f]*'),
+  source_snapshot_json TEXT NOT NULL CHECK (LENGTH(source_snapshot_json) BETWEEN 2 AND 4000000),
+  completed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (
+    (status IN ('active','paused') AND review_reason IS NULL AND completed_at IS NULL) OR
+    (status='review_required' AND review_reason IS NOT NULL AND completed_at IS NULL) OR
+    (status='completed' AND review_reason IS NULL AND completed_at IS NOT NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_recurrence_schedules_due
+ON recurrence_schedules(status,next_scheduled_for,id);
+
+CREATE TABLE IF NOT EXISTS recurrence_occurrences (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE CHECK (LENGTH(id)=36),
+  schedule_id TEXT NOT NULL REFERENCES recurrence_schedules(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  scheduled_for TEXT NOT NULL CHECK (LENGTH(scheduled_for)=10 AND scheduled_for GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  invoice_id TEXT NOT NULL UNIQUE REFERENCES invoices(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'draft_created' CHECK (status='draft_created'),
+  message TEXT CHECK (message IS NULL OR LENGTH(message)<=1000),
+  request_id TEXT NOT NULL CHECK (LENGTH(request_id)=36),
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  source_snapshot_sha256 TEXT NOT NULL CHECK (LENGTH(source_snapshot_sha256)=64 AND source_snapshot_sha256 NOT GLOB '*[^0-9a-f]*'),
+  created_at TEXT NOT NULL,
+  UNIQUE(schedule_id,scheduled_for)
+);
+CREATE INDEX IF NOT EXISTS idx_recurrence_occurrences_schedule
+ON recurrence_occurrences(schedule_id,scheduled_for,sequence);
+CREATE INDEX IF NOT EXISTS idx_recurrence_occurrences_request
+ON recurrence_occurrences(request_id,sequence);
+
+CREATE TABLE IF NOT EXISTS recurrence_operation_requests (
+  request_id TEXT PRIMARY KEY CHECK (LENGTH(request_id)=36),
+  operation TEXT NOT NULL CHECK (operation IN ('create_schedule','update_schedule','generate_occurrences')),
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  payload_json TEXT NOT NULL CHECK (LENGTH(payload_json) BETWEEN 2 AND 100000),
+  response_json TEXT NOT NULL CHECK (LENGTH(response_json) BETWEEN 2 AND 4000000),
+  created_at TEXT NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS recurrence_schedules_insert_guard
+BEFORE INSERT ON recurrence_schedules WHEN NOT EXISTS(
+  SELECT 1 FROM sales_orders source
+  WHERE source.id=NEW.source_sales_order_id AND source.status='confirmed'
+    AND source.currency='CHF' AND source.snapshot_json IS NOT NULL
+    AND NEW.status='active' AND NEW.next_scheduled_for=NEW.anchor_date
+    AND json_valid(source.snapshot_json)=1
+    AND json_extract(source.snapshot_json,'$.schema')='helvichantier.sales_order_snapshot.v1'
+    AND json_extract(source.snapshot_json,'$.order.id')=source.id
+    AND json_extract(source.snapshot_json,'$.order.status')='confirmed'
+    AND json_extract(source.snapshot_json,'$.order.currency')='CHF'
+    AND json_valid(NEW.source_snapshot_json)=1
+    AND (SELECT COUNT(*) FROM json_each(NEW.source_snapshot_json))=6
+    AND json_extract(NEW.source_snapshot_json,'$.schema')='helvichantier.recurrence_template.v1'
+    AND json_extract(NEW.source_snapshot_json,'$.frequency')=NEW.frequency
+    AND json_extract(NEW.source_snapshot_json,'$.start_date')=NEW.anchor_date
+    AND json_type(NEW.source_snapshot_json,'$.payment_terms_days')='integer'
+    AND json_extract(NEW.source_snapshot_json,'$.payment_terms_days')=NEW.payment_terms_days
+    AND json_extract(NEW.source_snapshot_json,'$.source_order_snapshot_sha256')=NEW.source_order_snapshot_sha256
+    AND json_type(NEW.source_snapshot_json,'$.source_order_snapshot_json')='text'
+    AND json_extract(NEW.source_snapshot_json,'$.source_order_snapshot_json')=source.snapshot_json
+    AND EXISTS(SELECT 1 FROM sales_order_lines line WHERE line.sales_order_id=source.id)
+    AND NOT EXISTS(SELECT 1 FROM sales_order_lines line WHERE line.sales_order_id=source.id AND line.fulfillment_mode<>'direct')
+    AND NOT EXISTS(
+      SELECT 1 FROM sales_order_lines line
+      JOIN catalog_items item ON item.id=line.catalog_item_id
+      WHERE line.sales_order_id=source.id AND item.track_stock=1
+    )
+    AND NOT EXISTS(SELECT 1 FROM delivery_notes note WHERE note.sales_order_id=source.id)
+    AND NOT EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.sales_order_id=source.id)
+    AND NOT EXISTS(SELECT 1 FROM sales_order_cancellation_lines cancelled WHERE cancelled.sales_order_id=source.id)
+)
+BEGIN SELECT RAISE(ABORT,'recurrence source and frozen template must match exactly'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_schedules_template_immutable
+BEFORE UPDATE ON recurrence_schedules WHEN
+  NEW.id IS NOT OLD.id OR NEW.source_sales_order_id IS NOT OLD.source_sales_order_id OR
+  NEW.frequency IS NOT OLD.frequency OR NEW.anchor_date IS NOT OLD.anchor_date OR
+  NEW.anchor_day IS NOT OLD.anchor_day OR NEW.anchor_is_month_end IS NOT OLD.anchor_is_month_end OR
+  NEW.payment_terms_days IS NOT OLD.payment_terms_days OR
+  NEW.source_order_snapshot_sha256 IS NOT OLD.source_order_snapshot_sha256 OR
+  NEW.source_snapshot_sha256 IS NOT OLD.source_snapshot_sha256 OR
+  NEW.source_snapshot_json IS NOT OLD.source_snapshot_json OR NEW.created_at IS NOT OLD.created_at
+BEGIN SELECT RAISE(ABORT,'recurrence template is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_schedules_completed_terminal
+BEFORE UPDATE ON recurrence_schedules WHEN OLD.status='completed' AND (
+  NEW.status IS NOT OLD.status OR NEW.end_date IS NOT OLD.end_date OR
+  NEW.next_scheduled_for IS NOT OLD.next_scheduled_for OR
+  NEW.review_reason IS NOT OLD.review_reason OR NEW.completed_at IS NOT OLD.completed_at
+)
+BEGIN SELECT RAISE(ABORT,'completed recurrence schedule is terminal'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_schedules_end_date_occurrence_guard
+BEFORE UPDATE OF end_date ON recurrence_schedules
+WHEN NEW.end_date IS NOT NULL AND EXISTS(
+  SELECT 1 FROM recurrence_occurrences occurrence
+  WHERE occurrence.schedule_id=OLD.id AND occurrence.scheduled_for>NEW.end_date
+)
+BEGIN SELECT RAISE(ABORT,'recurrence end date precedes an existing occurrence'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_schedules_no_delete
+BEFORE DELETE ON recurrence_schedules
+BEGIN SELECT RAISE(ABORT,'recurrence schedules are retained for traceability'); END;
+
+CREATE TRIGGER IF NOT EXISTS recurrence_occurrences_insert_guard
+BEFORE INSERT ON recurrence_occurrences WHEN NOT EXISTS(
+  SELECT 1 FROM recurrence_schedules schedule
+  JOIN invoices invoice ON invoice.id=NEW.invoice_id
+  WHERE schedule.id=NEW.schedule_id
+    AND schedule.status='active'
+    AND NEW.scheduled_for>=schedule.anchor_date
+    AND (schedule.end_date IS NULL OR NEW.scheduled_for<=schedule.end_date)
+    AND NEW.source_snapshot_sha256=schedule.source_snapshot_sha256
+    AND invoice.type='standard' AND invoice.status='brouillon'
+    AND invoice.number IS NULL AND invoice.currency='CHF'
+    AND invoice.quote_id IS NULL AND invoice.original_invoice_id IS NULL
+    AND invoice.created_at=invoice.updated_at AND NEW.created_at=invoice.created_at
+    AND NEW.status='draft_created' AND NEW.message IS NULL
+    AND invoice.client_id IS json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.client_id'
+    )
+    AND invoice.project_id IS json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.project_id'
+    )
+    AND invoice.title='Facture récurrente — ' || json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.title'
+    )
+    AND invoice.issue_date=NEW.scheduled_for
+    AND invoice.due_date=date(NEW.scheduled_for,'+' || schedule.payment_terms_days || ' days')
+    AND invoice.service_date_from=NEW.scheduled_for
+    AND invoice.service_date_to=NEW.scheduled_for
+    AND invoice.subtotal_cents=json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.subtotal_cents'
+    )
+    AND invoice.discount_cents=json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.discount_cents'
+    )
+    AND invoice.vat_cents=json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.vat_cents'
+    )
+    AND invoice.total_cents=json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.total_cents'
+    )
+    AND invoice.paid_cents=0
+    AND invoice.notes IS json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.notes'
+    )
+    AND invoice.terms IS json_extract(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.order.terms'
+    )
+    AND json_valid(invoice.snapshot_json)=1
+    AND (SELECT COUNT(*) FROM json_each(invoice.snapshot_json))=7
+    AND json_extract(invoice.snapshot_json,'$.schema')='helvichantier.recurrence_invoice_draft.v1'
+    AND json_extract(invoice.snapshot_json,'$.schedule_id')=schedule.id
+    AND json_extract(invoice.snapshot_json,'$.scheduled_for')=NEW.scheduled_for
+    AND json_extract(invoice.snapshot_json,'$.source_sales_order_id')=schedule.source_sales_order_id
+    AND json_extract(invoice.snapshot_json,'$.source_snapshot_sha256')=schedule.source_snapshot_sha256
+    AND json_type(invoice.snapshot_json,'$.payment_terms_days')='integer'
+    AND json_extract(invoice.snapshot_json,'$.payment_terms_days')=schedule.payment_terms_days
+    AND json_extract(invoice.snapshot_json,'$.generated_at')=invoice.created_at
+    AND (
+      SELECT COUNT(*) FROM invoice_items item WHERE item.invoice_id=invoice.id
+    )=json_array_length(
+      json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+      '$.lines'
+    )
+    AND (
+      SELECT COUNT(DISTINCT item.position) FROM invoice_items item WHERE item.invoice_id=invoice.id
+    )=(
+      SELECT COUNT(*) FROM invoice_items item WHERE item.invoice_id=invoice.id
+    )
+    AND NOT EXISTS(
+      SELECT 1 FROM invoice_items item
+      WHERE item.invoice_id=invoice.id AND (
+        item.catalog_item_id IS NOT NULL OR NOT EXISTS(
+          SELECT 1
+          FROM json_each(
+            json_extract(schedule.source_snapshot_json,'$.source_order_snapshot_json'),
+            '$.lines'
+          ) frozen
+          WHERE json_extract(frozen.value,'$.position')=item.position
+            AND json_extract(frozen.value,'$.description')=item.description
+            AND ABS(
+              item.quantity - CAST(json_extract(frozen.value,'$.quantity_milli') AS REAL) / 1000.0
+            )<=0.000000001
+            AND json_extract(frozen.value,'$.unit')=item.unit
+            AND json_extract(frozen.value,'$.unit_price_cents')=item.unit_price_cents
+            AND json_extract(frozen.value,'$.discount_bp')=item.discount_bp
+            AND json_extract(frozen.value,'$.vat_bp')=item.vat_bp
+            AND json_extract(frozen.value,'$.line_net_cents')=item.line_net_cents
+            AND json_extract(frozen.value,'$.line_vat_cents')=item.line_vat_cents
+            AND json_extract(frozen.value,'$.line_total_cents')=item.line_total_cents
+        )
+      )
+    )
+    AND NOT EXISTS(SELECT 1 FROM invoice_qr_bills qr WHERE qr.invoice_id=invoice.id)
+    AND NOT EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_id=invoice.id)
+    AND NOT EXISTS(SELECT 1 FROM time_billing_batches batch WHERE batch.invoice_id=invoice.id)
+    AND NOT EXISTS(SELECT 1 FROM quote_conversions conversion WHERE conversion.invoice_id=invoice.id)
+    AND NOT EXISTS(SELECT 1 FROM payments payment WHERE payment.invoice_id=invoice.id)
+    AND NOT EXISTS(SELECT 1 FROM stock_movements movement WHERE movement.invoice_id=invoice.id)
+    AND NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_id=invoice.id)
+)
+BEGIN SELECT RAISE(ABORT,'recurrence occurrence requires an isolated draft invoice'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_occurrences_no_update
+BEFORE UPDATE ON recurrence_occurrences
+BEGIN SELECT RAISE(ABORT,'recurrence occurrences are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_occurrences_no_delete
+BEFORE DELETE ON recurrence_occurrences
+BEGIN SELECT RAISE(ABORT,'recurrence occurrences are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS recurrence_operation_requests_no_update
+BEFORE UPDATE ON recurrence_operation_requests
+BEGIN SELECT RAISE(ABORT,'recurrence operation requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS recurrence_operation_requests_no_delete
+BEFORE DELETE ON recurrence_operation_requests
+BEGIN SELECT RAISE(ABORT,'recurrence operation requests are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS delivery_notes_recurrence_model_guard
+BEFORE INSERT ON delivery_notes WHEN EXISTS(
+  SELECT 1 FROM recurrence_schedules schedule WHERE schedule.source_sales_order_id=NEW.sales_order_id
+)
+BEGIN SELECT RAISE(ABORT,'recurrence model cannot create delivery notes'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_invoice_batches_recurrence_model_guard
+BEFORE INSERT ON sales_order_invoice_batches WHEN EXISTS(
+  SELECT 1 FROM recurrence_schedules schedule WHERE schedule.source_sales_order_id=NEW.sales_order_id
+)
+BEGIN SELECT RAISE(ABORT,'recurrence model cannot enter standard invoicing'); END;
+CREATE TRIGGER IF NOT EXISTS sales_order_cancellation_lines_recurrence_model_guard
+BEFORE INSERT ON sales_order_cancellation_lines WHEN EXISTS(
+  SELECT 1 FROM recurrence_schedules schedule
+  WHERE schedule.source_sales_order_id=NEW.sales_order_id AND schedule.status<>'completed'
+)
+BEGIN SELECT RAISE(ABORT,'active recurrence model cannot be partially cancelled'); END;
+
+PRAGMA user_version=23;
 "#;

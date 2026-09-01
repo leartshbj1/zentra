@@ -32,6 +32,7 @@ import { MobileNavigation } from '@/components/mobile-navigation';
 import { PayrollLocalDemo } from '@/components/payroll-local-demo';
 import { ProductShowcase } from '@/components/product-showcase';
 import { PurchaseButton } from '@/components/purchase-button';
+import { RecurrenceDemo } from '@/components/recurrence-demo';
 import { VatClosingDemo } from '@/components/vat-closing-demo';
 import { ProductFlowDemo } from './product-flow-demo';
 import { ELYKO_VERSION } from '@/lib/downloads';
@@ -56,7 +57,7 @@ const features = [
   {
     icon: Receipt,
     title: 'Factures & paiements',
-    text: 'Factures standard, de situation ou finales, échéances, QR-facture suisse, avoirs et montants réellement encaissés.',
+    text: 'Factures uniques ou récurrentes supervisées, situations, échéances, QR-facture suisse, avoirs et montants réellement encaissés.',
   },
   {
     icon: Clock3,
@@ -243,10 +244,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-110"
+              href="#lot-111"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.10
+              Nouveautés 1.11
             </a>
             <a
               href="#capacites"
@@ -294,11 +295,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-110"
+            href="#lot-111"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Elyko 1.10 · paie et documents vérifiables
+            Elyko 1.11 · facturation récurrente supervisée
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -307,9 +308,9 @@ export default function Home() {
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
             Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
-            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;:
-            Elyko centralise votre gestion dans une application Windows, tandis
-            que vos données métier restent sur votre PC.
+            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;: Elyko
+            centralise votre gestion dans une application Windows, tandis que
+            vos données métier restent sur votre PC.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -366,57 +367,57 @@ export default function Home() {
       </section>
 
       <section
-        id="lot-110"
+        id="lot-111"
         className="scroll-mt-24 border-y border-[#d8d2c6] bg-[#fffaf1] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
-        aria-labelledby="lot-110-title"
+        aria-labelledby="lot-111-title"
       >
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Elyko 1.10 · preuves visibles et parcours guidé
+                Elyko 1.11 · facturation récurrente supervisée
               </p>
               <h2
-                id="lot-110-title"
+                id="lot-111-title"
                 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
               >
-                Chaque proposition montre d’où elle vient.
+                Planifiez. Elyko prépare. Vous décidez.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6f6659] lg:justify-self-end">
-              L’import salarial rapproche le texte et l’image page par page,
-              les documents émis conservent leur identité visuelle et les
-              paiements restent reliés à leur écriture. Elyko guide l’utilisateur
-              sans transformer une incertitude en donnée comptable.
+              À partir d’une commande de prestations confirmée, choisissez un
+              rythme mensuel, trimestriel ou annuel. Aux dates prévues, Elyko
+              crée uniquement des brouillons locaux&nbsp;: vous gardez la main
+              sur l’émission, le QR, l’envoi et la comptabilisation.
             </p>
           </div>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               {
-                icon: Users,
-                eyebrow: 'Paie locale',
-                title: 'La page source reste accessible.',
-                text: 'Pour un PDF multipage, chaque lot reçoit uniquement le texte de ses pages. Une identité ou une rubrique sans preuve concordante reste à confirmer.',
-              },
-              {
                 icon: FileCheck2,
-                eyebrow: 'Documents figés',
-                title: 'Le logo historique ne change plus.',
-                text: 'Commandes, bons de livraison, devis, factures et avoirs utilisent l’émetteur et le destinataire conservés lors de leur émission.',
+                eyebrow: 'Modèle contrôlé',
+                title: 'Une base claire avant de planifier.',
+                text: 'Le client, les lignes et le délai de paiement sont conservés avec le modèle récurrent.',
               },
               {
-                icon: BookOpenCheck,
-                eyebrow: 'Paiement → journal',
-                title: 'Une seule opération, une preuve contrôlée.',
-                text: 'L’encaissement, le solde et l’écriture banque contre débiteurs sont enregistrés ensemble. Une reprise ne crée aucun doublon.',
+                icon: Clock3,
+                eyebrow: 'Calendrier fiable',
+                title: 'Fin de mois et années bissextiles respectées.',
+                text: 'Le rythme mensuel, trimestriel ou annuel reste prévisible, y compris pour une date ancrée au dernier jour du mois.',
+              },
+              {
+                icon: HardDrive,
+                eyebrow: 'Automatisation locale',
+                title: 'Les échéances sont préparées sur ce PC.',
+                text: 'Elyko vérifie les modèles actifs au démarrage et pendant son utilisation. Aucun service cloud ne fabrique vos factures.',
               },
               {
                 icon: ShieldCheck,
-                eyebrow: 'Guide & maintenance',
-                title: 'Quatorze modules expliqués pas à pas.',
-                text: 'Le guide est relançable et accessible au clavier. L’updater distingue recherche, téléchargement, signature et installation Windows.',
+                eyebrow: 'Validation humaine',
+                title: 'Aucune facture n’est envoyée seule.',
+                text: 'Chaque occurrence reste un brouillon à contrôler. L’émission, le QR, l’envoi et l’écriture comptable sont des actions séparées.',
               },
             ].map(({ icon: Icon, eyebrow, title, text }) => (
               <article
@@ -435,11 +436,17 @@ export default function Home() {
             ))}
           </div>
 
+          <RecurrenceDemo />
+
           <div className="mt-5 flex flex-col gap-3 rounded-[22px] border border-[#cad9ce] bg-[#edf5ef] p-5 text-sm leading-6 text-[#42604f] sm:flex-row sm:items-center sm:justify-between">
             <p>
-              <strong className="text-[#244a35]">Toujours local et contrôlé.</strong>{' '}
-              L’IA prépare un brouillon sur le PC ; elle ne valide ni le salaire,
-              ni un taux contractuel, ni une écriture à la place du client.
+              <strong className="text-[#244a35]">
+                Toujours local et contrôlé.
+              </strong>{' '}
+              Le planning, les modèles et les brouillons restent dans la base
+              locale Elyko. La démonstration ci-dessus fonctionne uniquement
+              dans votre navigateur&nbsp;: elle n’enregistre et n’envoie aucune
+              donnée, et ne crée aucune facture réelle.
             </p>
             <a
               href="/telecharger"
@@ -486,25 +493,32 @@ export default function Home() {
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <article className="rounded-[24px] border border-[#cbd8ce] bg-[#173d2c] p-6 text-white sm:p-7">
-              <BookOpenCheck className="size-6 text-[#efb157]" aria-hidden="true" />
+              <BookOpenCheck
+                className="size-6 text-[#efb157]"
+                aria-hidden="true"
+              />
               <h3 className="mt-5 text-xl font-semibold">
                 Du journal jusqu’au dossier fiduciaire.
               </h3>
               <p className="mt-3 text-sm leading-7 text-white/72">
-                Journal, grand livre, balance, bilan, résultat, index des pièces,
-                audit, manifeste et SHA-256 sont réunis dans un ZIP DRAFT ou
-                FINAL, sans effacer l’historique.
+                Journal, grand livre, balance, bilan, résultat, index des
+                pièces, audit, manifeste et SHA-256 sont réunis dans un ZIP
+                DRAFT ou FINAL, sans effacer l’historique.
               </p>
             </article>
             <article className="rounded-[24px] border border-[#d9d1c3] bg-[#fffaf1] p-6 sm:p-7">
-              <ShieldCheck className="size-6 text-[#a8661e]" aria-hidden="true" />
+              <ShieldCheck
+                className="size-6 text-[#a8661e]"
+                aria-hidden="true"
+              />
               <h3 className="mt-5 text-xl font-semibold text-[#3f3528]">
                 Une portée réglementaire écrite noir sur blanc.
               </h3>
               <p className="mt-3 text-sm leading-7 text-[#6f6455]">
                 Le XML est destiné à l’import manuel dans Décompte TVA pro. Le
                 dossier soutient un processus orienté CO/Olico, mais Elyko ne
-                revendique ni transmission AFC, ni acceptation, ni certification.
+                revendique ni transmission AFC, ni acceptation, ni
+                certification.
               </p>
             </article>
           </div>

@@ -16,10 +16,10 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Elyko 1.10 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Elyko 1.11 | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
-| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ; QR, avoirs et relances locales ; identité et logo figés sur les documents émis | acomptes par montant/pourcentage, récurrence et modèles FR/DE/IT | P0 |
+| Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; QR, avoirs et relances locales ; identité et logo figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement → paiement et comptabilité ; avoir distinct validable et imputable à une facture | OCR des achats et rapprochement d'une facture avec plusieurs commandes | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
@@ -52,9 +52,11 @@ présenter une prochaine action claire et garder chaque transformation traçable
    multipage limité aux pages analysées, provenance visible, rattachement paie
    interdit sans page concordante, logo figé sur commandes et BL, reprise de
    paiement revalidant l’écriture, guide complet et updater étape par étape.
-6. **Automatiser sous contrôle** : récurrence, relances, OCR des achats et
-   règles bancaires proposent; l'utilisateur confirme les opérations
-   financières ambiguës.
+6. **Automatiser sous contrôle — récurrence livrée en 1.11** : Elyko prépare
+   localement des factures brouillon récurrentes par lots bornés, avec pause,
+   reprise, fin et revue obligatoire; l'émission, le QR, l'envoi, le stock et
+   la comptabilité restent manuels. L'envoi des relances, l'OCR des achats et
+   les règles bancaires contrôlées constituent la suite de ce lot.
 7. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
@@ -87,6 +89,9 @@ présenter une prochaine action claire et garder chaque transformation traçable
   commande, réception et facture.
 - L'OCR des factures et avoirs fournisseurs n'est pas livré. L'OCR local déjà
   présent concerne uniquement l'import de documents de paie.
+- Une planification récurrente ne fonctionne que lorsque l'application Windows
+  est ouverte. Elle crée des brouillons à contrôler et ne constitue ni un
+  service cloud d'envoi, ni une émission ou comptabilisation automatique.
 - Dans le cycle achats, ni la commande, ni le brouillon de réception, ni la
   facture, l'avoir, le rapprochement, le paiement ou la comptabilisation ne
   modifient le stock. Seules l'émission d'une réception et son extourne créent

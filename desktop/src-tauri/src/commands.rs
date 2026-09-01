@@ -16,9 +16,10 @@ use crate::{
         ConfirmBankReconciliationInput, ConfirmPayrollImportInput, ConfirmSalesOrderInput,
         ConfirmSupplierBankReconciliationInput, ConfirmSupplierOrderInput,
         ContributionDefinitionInput, ConvertQuoteInput, ConvertQuoteToSalesOrderInput,
-        CreateInvoiceFromTimeEntriesInput, CreateSalesOrderInvoiceInput, DeleteResult,
-        GeneratePayslipPdfInput, IssueDeliveryNoteInput, IssueSupplierReceiptInput, LedgerInput,
-        ManualJournalInput, MarkReminderInput, OnboardingInput, OnboardingValidation,
+        CreateInvoiceFromTimeEntriesInput, CreateRecurrenceScheduleInput,
+        CreateSalesOrderInvoiceInput, DeleteResult, GeneratePayslipPdfInput,
+        GenerateRecurrenceOccurrencesInput, IssueDeliveryNoteInput, IssueSupplierReceiptInput,
+        LedgerInput, ManualJournalInput, MarkReminderInput, OnboardingInput, OnboardingValidation,
         PayPayslipInput, PeriodFilter, PostPayslipInput, PreviewSalesOrderInvoiceInput,
         ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
         ReminderActionInput, ReminderFilter, ReminderSettingsInput, ReminderTemplateInput,
@@ -29,7 +30,8 @@ use crate::{
         SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput,
         SaveSupplierReceiptDraftInput, StagePayrollDocumentsInput, StockCorrectionInput,
         StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation,
-        TimerInput, UpdatePayrollImportDraftInput, ValidateSupplierCreditNoteInput,
+        TimerInput, UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
+        ValidateSupplierCreditNoteInput,
     },
     swiss_qr,
     vat_reporting::{
@@ -698,6 +700,42 @@ pub fn cancel_sales_order_invoice_draft(
     require_write(&state)?;
     state
         .cancel_sales_order_invoice_draft(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn create_recurrence_schedule(
+    state: State<'_, LocalStore>,
+    input: CreateRecurrenceScheduleInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .create_recurrence_schedule(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn update_recurrence_schedule(
+    state: State<'_, LocalStore>,
+    input: UpdateRecurrenceScheduleInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .update_recurrence_schedule(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn generate_recurrence_occurrences(
+    state: State<'_, LocalStore>,
+    input: GenerateRecurrenceOccurrencesInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .generate_recurrence_occurrences(input)
         .map_err(command_error)
 }
 

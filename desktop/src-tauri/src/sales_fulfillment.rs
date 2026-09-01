@@ -611,6 +611,48 @@ pub(crate) fn close_sales_order_if_fully_allocated(
     )? == 1)
 }
 
+fn ensure_not_recurrence_model(
+    transaction: &Transaction<'_>,
+    sales_order_id: &str,
+) -> AppResult<()> {
+    let has_schedule: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM recurrence_schedules WHERE source_sales_order_id=?)",
+        params![sales_order_id],
+        |row| row.get(0),
+    )?;
+    if has_schedule {
+        // Les planifications sont conservées sans suppression pour la piste
+        // d'audit. Le blocage porte donc volontairement sur leur présence,
+        // y compris après completion, afin d'éviter toute double facturation.
+        return Err(AppError::Validation(
+            "Cette commande est réservée au modèle récurrent; le flux de facture ou de bon de livraison standard reste bloqué pour éviter une double facturation."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_recurrence_can_cancel(
+    transaction: &Transaction<'_>,
+    sales_order_id: &str,
+) -> AppResult<()> {
+    let has_unfinished_schedule: bool = transaction.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM recurrence_schedules
+           WHERE source_sales_order_id=? AND status<>'completed'
+         )",
+        params![sales_order_id],
+        |row| row.get(0),
+    )?;
+    if has_unfinished_schedule {
+        return Err(AppError::Validation(
+            "Action bloquée : terminez définitivement la planification avant d’annuler cette commande."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 fn order_lines(transaction: &Transaction<'_>, sales_order_id: &str) -> AppResult<Vec<OrderLine>> {
     let mut statement = transaction.prepare(
         "SELECT id,catalog_item_id,position,description,quantity_milli,unit,unit_price_cents,discount_bp,vat_bp,fulfillment_mode FROM sales_order_lines WHERE sales_order_id=? ORDER BY position,created_at",
@@ -1031,6 +1073,7 @@ impl LocalStore {
             return Ok(result);
         }
         let sales_order_id = required_text(&input.sales_order_id, "sales_order_id", 255)?;
+        ensure_recurrence_can_cancel(&transaction, &sales_order_id)?;
         let status: String = transaction
             .query_row(
                 "SELECT status FROM sales_orders WHERE id=?",
@@ -1140,6 +1183,7 @@ impl LocalStore {
             return Ok(result);
         }
         let sales_order_id = required_text(&input.sales_order_id, "sales_order_id", 255)?;
+        ensure_recurrence_can_cancel(&transaction, &sales_order_id)?;
         let status: String = transaction
             .query_row(
                 "SELECT status FROM sales_orders WHERE id=?",
@@ -1258,6 +1302,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure_not_recurrence_model(&transaction, &sales_order_id)?;
         let order_status: String = transaction
             .query_row(
                 "SELECT status FROM sales_orders WHERE id=?",
@@ -1394,6 +1439,7 @@ impl LocalStore {
             .get("sales_order_id")
             .and_then(Value::as_str)
             .ok_or_else(|| AppError::Validation("Le BL n'a pas de commande.".into()))?;
+        ensure_not_recurrence_model(&transaction, sales_order_id)?;
         let order_status: String = transaction.query_row(
             "SELECT status FROM sales_orders WHERE id=?",
             params![sales_order_id],
@@ -2840,6 +2886,7 @@ fn prepare_invoice_preview(
     sales_order_id: &str,
     allocations: &[SalesOrderInvoiceAllocationInput],
 ) -> AppResult<InvoicePreview> {
+    ensure_not_recurrence_model(transaction, sales_order_id)?;
     if allocations.is_empty() || allocations.len() > MAX_LINES {
         return Err(AppError::Validation(format!(
             "Une facture de commande doit contenir entre 1 et {MAX_LINES} allocations."

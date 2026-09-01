@@ -11,7 +11,7 @@
     "start": "wrangler dev --config dist/server/wrangler.json",
     "audit:prod": "pnpm audit --prod --ignore GHSA-w3rx-r6r6-pgpr --ignore GHSA-5p2g-fcmc-qvqq",
     "db:generate": "drizzle-kit generate",
-    "lint": "oxlint app lib components/purchase-button.tsx components/license-delivery.tsx components/scroll-experience.tsx components/vat-closing-demo.tsx components/mobile-navigation.tsx components/ui/button.tsx",
+    "lint": "oxlint app lib components/purchase-button.tsx components/license-delivery.tsx components/scroll-experience.tsx components/vat-closing-demo.tsx components/recurrence-demo.tsx components/mobile-navigation.tsx components/ui/button.tsx",
     "format": "oxfmt"
   },
   "dependencies": {

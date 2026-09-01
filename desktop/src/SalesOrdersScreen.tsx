@@ -22,6 +22,11 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import { formatCatalogQuantity, stockQuantityFromInput } from './catalog';
+import { RecurringDocumentsPanel } from './RecurringDocumentsPanel';
+import {
+  pendingRecurringOccurrenceCount,
+  recurrenceOrderEligibility,
+} from './recurrenceUi';
 import {
   availabilityForCatalogItem,
   canCancelSalesOrderCompletely,
@@ -72,6 +77,7 @@ type ActionRunner = (
   action: () => Promise<Workspace>,
   message: string,
   close?: boolean,
+  onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 
 type OrderCorrectionAction =
@@ -118,6 +124,8 @@ export function SalesOrdersScreen({
   busy,
   readOnly,
   act,
+  openOrderId,
+  onOpenOrderHandled,
   onShowQuotes,
   onOpenInvoice,
   onIssueInvoice,
@@ -129,6 +137,8 @@ export function SalesOrdersScreen({
   busy: boolean;
   readOnly: boolean;
   act: ActionRunner;
+  openOrderId?: string | null;
+  onOpenOrderHandled?: () => void;
   onShowQuotes: () => void;
   onOpenInvoice: (invoice: Invoice) => void;
   onIssueInvoice: (invoice: Invoice) => void;
@@ -153,6 +163,16 @@ export function SalesOrdersScreen({
     [query, workspace.clients, workspace.salesOrders],
   );
 
+  useEffect(() => {
+    if (
+      openOrderId &&
+      workspace.salesOrders.some((order) => order.id === openOrderId)
+    ) {
+      setSelectedId(openOrderId);
+      onOpenOrderHandled?.();
+    }
+  }, [onOpenOrderHandled, openOrderId, workspace.salesOrders]);
+
   if (selected)
     return (
       <SalesOrderDetail
@@ -174,7 +194,7 @@ export function SalesOrdersScreen({
       <EmptyState
         icon={<ClipboardCheck size={27} />}
         title="Aucune commande client"
-        text="Une commande est créée depuis un devis accepté contenant au moins un produit à livrer. Les devis de services peuvent rester dans le flux de facturation simple."
+        text="Créez une commande depuis un devis accepté pour gérer une livraison ou préparer un modèle de facturation récurrente. Un service ponctuel peut rester dans le flux de facture simple."
         actionLabel="Voir les devis"
         onAction={onShowQuotes}
       />
@@ -228,6 +248,18 @@ export function SalesOrdersScreen({
             );
             const progress = salesOrderProgress(order, workspace);
             const display = salesOrderDisplayStatus(order, workspace);
+            const recurrence = workspace.recurrenceSchedules.find(
+              (schedule) => schedule.sourceSalesOrderId === order.id,
+            );
+            const recurrenceLabel = recurrence
+              ? recurrence.status === 'active'
+                ? 'Récurrence active'
+                : recurrence.status === 'paused'
+                  ? 'Récurrence en pause'
+                  : recurrence.status === 'review_required'
+                    ? 'Récurrence à contrôler'
+                    : 'Récurrence terminée'
+              : '';
             return (
               <li key={order.id}>
                 <button
@@ -249,15 +281,27 @@ export function SalesOrdersScreen({
                     </strong>
                   </span>
                   <span className="sales-order-card__progress">
-                    <small>
-                      Livré {progress.deliveryPercent} % · Préparé{' '}
-                      {progress.invoicePreparedPercent} % · Émis{' '}
-                      {progress.invoicePercent} %
+                    <small
+                      className={
+                        recurrence ? 'sales-order-card__recurrence' : undefined
+                      }
+                    >
+                      {recurrence
+                        ? `${recurrenceLabel} · prochaine échéance ${recurrence.status === 'completed' ? 'aucune' : formatDate(recurrence.nextScheduledFor)}`
+                        : `Livré ${progress.deliveryPercent} % · Préparé ${progress.invoicePreparedPercent} % · Émis ${progress.invoicePercent} %`}
                     </small>
                     <i>
                       <span
                         style={{
-                          width: `${Math.min(progress.deliveryPercent, progress.invoicePercent)}%`,
+                          width: recurrence
+                            ? recurrence.status === 'completed'
+                              ? '100%'
+                              : recurrence.status === 'active'
+                                ? '55%'
+                                : recurrence.status === 'paused'
+                                  ? '30%'
+                                  : '15%'
+                            : `${Math.min(progress.deliveryPercent, progress.invoicePercent)}%`,
                         }}
                       />
                     </i>
@@ -265,7 +309,10 @@ export function SalesOrdersScreen({
                   <span className="sales-order-card__total">
                     {formatMoney(order.totalCents)}
                   </span>
-                  <StatusBadge status={display.status} label={display.label} />
+                  <StatusBadge
+                    status={recurrence?.status || display.status}
+                    label={recurrenceLabel || display.label}
+                  />
                   <ArrowRight size={17} aria-hidden="true" />
                 </button>
               </li>
@@ -325,6 +372,24 @@ function SalesOrderDetail({
   const progress = salesOrderProgress(order, workspace);
   const display = salesOrderDisplayStatus(order, workspace);
   const nextAction = nextSalesOrderAction(order, workspace);
+  const currentDate = todayIso();
+  const recurrenceSchedule = workspace.recurrenceSchedules.find(
+    (schedule) => schedule.sourceSalesOrderId === order.id,
+  );
+  const recurrenceEligibility = recurrenceOrderEligibility(order, workspace);
+  const recurrenceOccurrences = recurrenceSchedule
+    ? workspace.recurrenceOccurrences.filter(
+        (occurrence) => occurrence.scheduleId === recurrenceSchedule.id,
+      )
+    : [];
+  const recurrenceDraftCount = recurrenceOccurrences.filter((occurrence) =>
+    ['draft', 'brouillon'].includes(occurrence.invoiceStatus.toLowerCase()),
+  ).length;
+  const recurrenceIssuedCount = recurrenceOccurrences.filter((occurrence) =>
+    ['issued', 'partially_paid', 'paid'].includes(
+      occurrence.invoiceStatus.toLowerCase(),
+    ),
+  ).length;
   const notes = workspace.deliveryNotes
     .filter((note) => note.salesOrderId === order.id)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -343,10 +408,13 @@ function SalesOrderDetail({
   const draftInvoice = batches.find(
     (entry) => entry.invoice.status === 'draft',
   )?.invoice;
-  const canCancelOrder = canCancelSalesOrderCompletely(order, workspace);
+  const canCancelOrder =
+    (!recurrenceSchedule || recurrenceSchedule.status === 'completed') &&
+    canCancelSalesOrderCompletely(order, workspace);
   const cancellableRemainder = cancellableSalesOrderRemainder(order, workspace);
   const canCancelRemainder =
     order.status === 'confirmed' &&
+    (!recurrenceSchedule || recurrenceSchedule.status === 'completed') &&
     !canCancelOrder &&
     cancellableRemainder.length > 0;
 
@@ -452,56 +520,156 @@ function SalesOrderDetail({
         </div>
       </section>
 
-      <section
-        className="panel order-progress-panel"
-        aria-label="Avancement de la commande"
-      >
-        <OrderProgress
-          label="Livraison"
-          percent={progress.deliveryPercent}
-          detail={
-            progress.deliveryLineCount
-              ? `${progress.deliveryCompletedLines}/${progress.deliveryLineCount} lignes terminées`
-              : 'Aucune livraison requise'
-          }
-        />
-        <OrderProgress
-          label="Factures émises"
-          percent={progress.invoicePercent}
-          detail={`${progress.invoiceCompletedLines}/${progress.invoiceLineCount} lignes émises · ${progress.invoicePreparedPercent} % préparé en brouillon`}
-        />
-      </section>
-
-      <section className="panel order-next-action">
-        <div className="order-next-action__icon">
-          <NextActionIcon action={nextAction} />
-        </div>
-        <div>
-          <p className="eyebrow">Prochaine étape</p>
-          <h3>{nextActionCopy[nextAction].title}</h3>
-          <p>{nextActionCopy[nextAction].description}</p>
-        </div>
-        {nextAction !== 'none' ? (
-          <Button
-            disabled={busy || readOnly}
-            title={
-              readOnly
-                ? 'Licence en lecture seule'
-                : nextActionCopy[nextAction].button
-            }
-            onClick={() => void runNextAction()}
+      {!recurrenceSchedule ? (
+        <>
+          <section
+            className="panel order-progress-panel"
+            aria-label="Avancement de la commande"
           >
-            {nextActionCopy[nextAction].button} <ArrowRight size={16} />
-          </Button>
-        ) : null}
-      </section>
+            <OrderProgress
+              label="Livraison"
+              percent={progress.deliveryPercent}
+              detail={
+                progress.deliveryLineCount
+                  ? `${progress.deliveryCompletedLines}/${progress.deliveryLineCount} lignes terminées`
+                  : 'Aucune livraison requise'
+              }
+            />
+            <OrderProgress
+              label="Factures émises"
+              percent={progress.invoicePercent}
+              detail={`${progress.invoiceCompletedLines}/${progress.invoiceLineCount} lignes émises · ${progress.invoicePreparedPercent} % préparé en brouillon`}
+            />
+          </section>
+
+          <section className="panel order-next-action">
+            <div className="order-next-action__icon">
+              <NextActionIcon action={nextAction} />
+            </div>
+            <div>
+              <p className="eyebrow">Prochaine étape</p>
+              <h3>{nextActionCopy[nextAction].title}</h3>
+              <p>{nextActionCopy[nextAction].description}</p>
+            </div>
+            {nextAction !== 'none' ? (
+              <Button
+                disabled={busy || readOnly}
+                title={
+                  readOnly
+                    ? 'Licence en lecture seule'
+                    : nextActionCopy[nextAction].button
+                }
+                onClick={() => void runNextAction()}
+              >
+                {nextActionCopy[nextAction].button} <ArrowRight size={16} />
+              </Button>
+            ) : null}
+          </section>
+        </>
+      ) : null}
+
+      <RecurringDocumentsPanel
+        order={{
+          id: order.id,
+          number: order.number || 'Sans numéro',
+          title: order.title,
+          clientName: client?.company || client?.name || 'Client introuvable',
+          orderDate: order.orderDate,
+          status: order.status,
+          eligible: recurrenceEligibility.eligible,
+          blockingReasons: recurrenceEligibility.reasons,
+        }}
+        schedule={
+          recurrenceSchedule
+            ? {
+                id: recurrenceSchedule.id,
+                sourceSalesOrderId: recurrenceSchedule.sourceSalesOrderId,
+                status: recurrenceSchedule.status,
+                frequency: recurrenceSchedule.frequency,
+                startDate: recurrenceSchedule.anchorDate,
+                endDate: recurrenceSchedule.endDate,
+                paymentTermsDays: recurrenceSchedule.paymentTermsDays,
+                nextOccurrenceOn:
+                  recurrenceSchedule.status === 'completed'
+                    ? null
+                    : recurrenceSchedule.nextScheduledFor,
+                pendingCatchUpCount: pendingRecurringOccurrenceCount(
+                  recurrenceSchedule,
+                  currentDate,
+                ),
+                reviewReason: recurrenceSchedule.reviewReason,
+                occurrences: recurrenceOccurrences,
+              }
+            : null
+        }
+        today={currentDate}
+        defaultPaymentTermsDays={
+          workspace.settings?.billing.paymentTermsDays ?? 30
+        }
+        busy={busy}
+        readOnly={readOnly}
+        onCreate={async (input) => {
+          let localReason: unknown;
+          const ok = await act(
+            () => desktopApi.createRecurrenceSchedule(input),
+            'La planification est créée. Chaque échéance préparera uniquement une facture brouillon à contrôler.',
+            false,
+            (reason) => {
+              localReason = reason;
+            },
+          );
+          if (!ok)
+            throw (
+              localReason ??
+              new Error('La planification n’a pas pu être créée.')
+            );
+        }}
+        onUpdate={async (input) => {
+          let localReason: unknown;
+          const message =
+            input.status === 'completed'
+              ? 'La planification est terminée définitivement. Son historique reste disponible.'
+              : input.status === 'paused'
+                ? 'La planification est en pause.'
+                : 'La planification est reprise. Les échéances dues seront préparées par lots contrôlés.';
+          const ok = await act(
+            () => desktopApi.updateRecurrenceSchedule(input),
+            message,
+            false,
+            (reason) => {
+              localReason = reason;
+            },
+          );
+          if (!ok)
+            throw (
+              localReason ??
+              new Error('La planification n’a pas pu être mise à jour.')
+            );
+        }}
+        onOpenDraftInvoice={(occurrence) => {
+          const invoice = workspace.invoices.find(
+            (item) => item.id === occurrence.invoiceId,
+          );
+          if (!invoice) {
+            setClientError(
+              'La facture liée à cette occurrence est introuvable. Relancez Elyko puis contrôlez la sauvegarde locale.',
+            );
+            return;
+          }
+          onOpenInvoice(invoice);
+        }}
+      />
       {clientError ? <ErrorPanel message={clientError} /> : null}
 
       <section className="panel order-lines-panel">
         <SectionHeading
-          eyebrow="Quantités contrôlées"
-          title="Articles et exécution"
-          description="Le stock physique, les réservations et les quantités disponibles restent distincts. Le backend revalide chaque action."
+          eyebrow={recurrenceSchedule ? 'Contenu du modèle' : 'Quantités contrôlées'}
+          title={recurrenceSchedule ? 'Montants par occurrence' : 'Articles et exécution'}
+          description={
+            recurrenceSchedule
+              ? 'Chaque brouillon reprend ce contenu figé. Les compteurs ci-dessous concernent la planification, pas le flux de livraison standard.'
+              : 'Le stock physique, les réservations et les quantités disponibles restent distincts. Le backend revalide chaque action.'
+          }
         />
         <div className="order-line-list">
           {order.lines.map((line) => {
@@ -565,7 +733,29 @@ function SalesOrderDetail({
                     </span>
                   </div>
                 )}
-                <div className="order-line-progress-facts">
+                {recurrenceSchedule ? (
+                  <div className="order-line-progress-facts">
+                    <small>
+                      <span>Quantité par occurrence</span>
+                      <strong>
+                        {formatCatalogQuantity(line.quantityMilli)} {line.unit}
+                      </strong>
+                    </small>
+                    <small>
+                      <span>Montant par occurrence</span>
+                      <strong>{formatMoney(line.lineTotalCents)}</strong>
+                    </small>
+                    <small>
+                      <span>Brouillons à contrôler</span>
+                      <strong>{recurrenceDraftCount}</strong>
+                    </small>
+                    <small>
+                      <span>Factures émises</span>
+                      <strong>{recurrenceIssuedCount}</strong>
+                    </small>
+                  </div>
+                ) : (
+                  <div className="order-line-progress-facts">
                   <small>
                     <span>Livré</span>
                     <strong>
@@ -600,14 +790,15 @@ function SalesOrderDetail({
                       </strong>
                     </small>
                   ) : null}
-                </div>
+                  </div>
+                )}
               </article>
             );
           })}
         </div>
       </section>
 
-      <div className="order-history-grid">
+      {!recurrenceSchedule ? <div className="order-history-grid">
         <section className="panel order-history-card">
           <SectionHeading eyebrow="Logistique" title="Bons de livraison" />
           {notes.length ? (
@@ -742,7 +933,7 @@ function SalesOrderDetail({
             </p>
           )}
         </section>
-      </div>
+      </div> : null}
 
       {canCancelOrder || canCancelRemainder ? (
         <section className="panel order-correction-panel">

@@ -446,6 +446,42 @@ pub struct CancelSalesOrderInvoiceDraftInput {
     pub reason: String,
 }
 
+/// Crée l'unique planification récurrente d'une commande client confirmée.
+/// La commande et ses lignes sont figées au premier enregistrement; les
+/// occurrences ultérieures ne relisent jamais les prix depuis les tables
+/// modifiables.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateRecurrenceScheduleInput {
+    pub request_id: String,
+    pub source_sales_order_id: String,
+    pub frequency: String,
+    pub start_date: String,
+    #[serde(default)]
+    pub end_date: Option<String>,
+    pub payment_terms_days: i64,
+}
+
+/// Modifie l'état supervisé d'une planification existante. `completed` permet
+/// une fin manuelle explicite; un planning terminé reste terminal et consultable.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UpdateRecurrenceScheduleInput {
+    pub request_id: String,
+    pub schedule_id: String,
+    pub status: String,
+    #[serde(default)]
+    pub end_date: Option<String>,
+}
+
+/// Génère, sur action explicite, au plus douze occurrences arrivées à échéance
+/// pour une seule planification. `through_date` rend le rattrapage testable et
+/// indépendant de l'horloge système.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GenerateRecurrenceOccurrencesInput {
+    pub request_id: String,
+    pub schedule_id: String,
+    pub through_date: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateInvoiceFromTimeEntriesInput {
     /// UUID stable généré avant l'appel. Une reprise strictement identique

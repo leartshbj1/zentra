@@ -3511,6 +3511,7 @@ fieldset {
 }
 .status--completed,
 .status--closed,
+.status--active,
 .status--paid,
 .status--accepted,
 .status--approved,
@@ -3522,6 +3523,10 @@ fieldset {
 .status--draft,
 .status--entered,
 .status--incomplete {
+  background: #fff0d9;
+  color: #94601f;
+}
+.status--review_required {
   background: #fff0d9;
   color: #94601f;
 }
@@ -10391,6 +10396,13 @@ select[aria-invalid='true']:focus {
   font-size: 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.sales-order-card__progress small.sales-order-card__recurrence {
+  overflow: visible;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
 }
 .sales-order-card__progress i,
 .order-progress > i {

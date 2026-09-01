@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Elyko
 
-État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.10.
+État de la comparaison : 1er septembre 2026. Version source documentée : Elyko 1.11.
 
 Cette feuille de route compare Elyko aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Elyko reste une application Windows locale, avec les données conservées chez le client.
 
@@ -24,7 +24,7 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 | Catalogue et stock | produits/services, prix, TVA, coûts, remises, stock minimal, mouvements, ajout aux devis/factures | Disponible : registre local immuable, réservation à la confirmation d'une commande de vente, sortie à l'émission du BL et entrée à l'émission d'une réception fournisseur ; l'extourne de la réception crée le mouvement inverse. Emplacements à venir |
 | Achats | fournisseurs, commandes, réceptions, factures et avoirs fournisseurs, justificatifs, rapprochement, échéances et paiements | Disponible : commande → réception partielle/complète → facture → rapprochement → paiement/comptabilité, avec avoir distinct imputable à une facture. Une facture se rapproche actuellement d'une seule commande ; multi-commandes et OCR des achats à venir |
 | Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible pour les crédits clients et débits fournisseurs ; périmètre détaillé ci-dessous |
-| Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Devis avec produits → commandes, BL partiels/complets et situations/finales par quantités ; prestations simples en facture directe ; acomptes par montant/pourcentage et récurrence à venir |
+| Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Devis avec produits → commandes, BL partiels/complets et situations/finales par quantités ; prestations simples en facture directe ; récurrence supervisée locale en 1.11 ; acomptes libres à venir |
 | Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Disponible dans le périmètre 1.9 : profils et calcul TVA contrôlés, XML eCH-0217 v2.0.0 local, pré-clôture et dossier fiduciaire DRAFT/FINAL ; aucune transmission ni certification AFC/Olico |
 | Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, tâches, jalons, responsables, échéances, temps, coûts, rentabilité et temps approuvés vers facture disponibles |
 | Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Analyse multipage avec provenance visible et versions de taux non chevauchantes en 1.10 ; Swissdec/ELM non certifié |
@@ -69,6 +69,14 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 - `FINAL` décrit uniquement l'état verrouillé dans Elyko. Il ne signifie pas que la fiduciaire, l'AFC ou une autre autorité a approuvé les comptes.
 - Ces fonctions soutiennent une organisation et une conservation orientées CO/Olico, mais Elyko n'est pas « certifié Olico ». La conformité dépend également des procédures internes, droits d'accès, supports de conservation, sauvegardes, migrations et contrôles de l'entreprise.
 
+## Périmètre des factures récurrentes d'Elyko 1.11
+
+- Depuis un devis de service accepté, l'utilisateur choisit une facture unique ou une commande modèle. Une planification n'est autorisée que sur une commande confirmée en CHF, composée uniquement de prestations directes, sans stock, livraison, facturation standard ou quantité annulée.
+- Le rythme mensuel, trimestriel ou annuel, la première échéance, la date de fin facultative et le délai de paiement sont figés avec une empreinte SHA-256. Modifier ensuite le client, les réglages ou le catalogue ne réécrit pas ce modèle.
+- Au démarrage, au retour au premier plan et toutes les cinq minutes tant qu'Elyko est ouvert, le moteur local traite les échéances dues. Chaque occurrence crée uniquement une facture brouillon indépendante : aucun numéro, QR-facture, envoi, mouvement de stock ou écriture comptable n'est produit automatiquement.
+- Après une période hors ligne, un lancement prépare au maximum douze brouillons. S'il reste des échéances, la planification passe en revue obligatoire; l'utilisateur reprend explicitement le lot suivant.
+- Pause, reprise et fin définitive sont journalisées et idempotentes. Une commande utilisée comme modèle ne peut jamais réintégrer le flux livraison/facturation standard, afin d'éviter une double facturation. Les occurrences et la planification restent conservées pour la traçabilité.
+
 ## Références officielles consultées
 
 - Fonctions : https://www.bexio.com/fr-CH/fonctions
@@ -99,7 +107,7 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 
 1. Étendre le rapprochement fournisseur à une facture couvrant plusieurs commandes et ajouter un OCR d'achats avec contrôle humain.
 2. Ajouter les acomptes de vente définis par montant ou pourcentage, avec imputation explicite sur la facture finale.
-3. Ajouter récurrence, modèles multilingues et envoi de documents ou relances explicitement configuré par le client.
+3. Ajouter les modèles multilingues et l'envoi de documents ou relances explicitement configuré par le client; la récurrence supervisée est disponible depuis 1.11.
 4. Étendre les pièces liées aux écritures et préparer un échange fiduciaire chiffré, sans transformer cet échange en synchronisation implicite.
 5. Ajouter import/export de contacts, catégories, rôles locaux et accès fiduciaire contrôlé.
 

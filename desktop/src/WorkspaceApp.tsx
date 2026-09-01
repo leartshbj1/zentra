@@ -106,6 +106,10 @@ import {
   type ProjectMilestoneDraft,
   type ProjectTaskDraft,
 } from './ProjectPlanningPanel';
+import {
+  processRecurrenceScheduleBatch,
+  recurrenceSchedulesDue,
+} from './recurrenceUi';
 import type {
   Account,
   AccountingPeriod,
@@ -309,10 +313,14 @@ export function WorkspaceApp({
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [orderToOpenId, setOrderToOpenId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const reminderScanStarted = useRef(false);
+  const recurrenceScanInFlight = useRef(false);
+  const recurrenceRequestIds = useRef(new Map<string, string>());
+  const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const guidedTour = useGuidedTour();
@@ -323,6 +331,16 @@ export function WorkspaceApp({
   }, []);
   const settings = workspace.settings!;
   const terminology = projectTerminology(settings.business.nogaSection);
+  const recurrenceScheduleSignal = workspace.recurrenceSchedules
+    .map(
+      (schedule) =>
+        `${schedule.id}:${schedule.status}:${schedule.nextScheduledFor}:${schedule.updatedAt}`,
+    )
+    .join('|');
+
+  useEffect(() => {
+    workspaceRef.current = workspace;
+  }, [workspace]);
 
   useEffect(() => {
     if (!workspace.activeTimer) {
@@ -344,6 +362,113 @@ export function WorkspaceApp({
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
   }, [workspace.activeTimer]);
+
+  const runRecurrenceScan = useCallback(async () => {
+    if (readOnly || recurrenceScanInFlight.current) return;
+    if (
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'hidden'
+    )
+      return;
+    const throughDate = todayIso();
+    const initialWorkspace = workspaceRef.current;
+    const dueSchedules = recurrenceSchedulesDue(
+      initialWorkspace.recurrenceSchedules,
+      throughDate,
+    );
+    if (!dueSchedules.length) return;
+
+    recurrenceScanInFlight.current = true;
+    const previousOccurrenceIds = new Set(
+      initialWorkspace.recurrenceOccurrences.map((item) => item.id),
+    );
+    try {
+      const batch = await processRecurrenceScheduleBatch({
+        schedules: dueSchedules,
+        throughDate,
+        requestIdFor: (schedule) => {
+          const requestKey = `${schedule.id}:${throughDate}`;
+          let requestId = recurrenceRequestIds.current.get(requestKey);
+          if (!requestId) {
+            requestId = createId();
+            recurrenceRequestIds.current.set(requestKey, requestId);
+          }
+          return requestId;
+        },
+        generate: (input) => desktopApi.generateRecurrenceOccurrences(input),
+        onSuccess: (nextWorkspace, schedule) => {
+          workspaceRef.current = nextWorkspace;
+          setWorkspace(nextWorkspace);
+          recurrenceRequestIds.current.delete(`${schedule.id}:${throughDate}`);
+        },
+      });
+      const latestWorkspace = batch.latestResult ?? initialWorkspace;
+      const createdCount = latestWorkspace.recurrenceOccurrences.filter(
+        (item) => !previousOccurrenceIds.has(item.id),
+      ).length;
+      const reviewCount = dueSchedules.filter((due) =>
+        latestWorkspace.recurrenceSchedules.some(
+          (item) =>
+            item.id === due.id && item.status === 'review_required',
+        ),
+      ).length;
+      const failureCount = batch.failures.length;
+      if (failureCount > 0 && createdCount > 0) {
+        setNotice({
+          tone: 'warning',
+          text: `${createdCount} facture${createdCount > 1 ? 's' : ''} brouillon ${createdCount > 1 ? 'ont' : 'a'} été préparée${createdCount > 1 ? 's' : ''} localement, mais ${failureCount} planification${failureCount > 1 ? 's ont' : ' a'} échoué. Les brouillons réussis sont conservés ; aucune facture n’a été émise.`,
+        });
+      } else if (failureCount > 0) {
+        setNotice({
+          tone: 'error',
+          text: errorMessage(
+            batch.failures[0]?.reason,
+            `Le contrôle local de ${failureCount} planification${failureCount > 1 ? 's' : ''} a échoué. Aucune facture n’a été émise.`,
+          ),
+        });
+      } else if (createdCount > 0) {
+        setNotice({
+          tone: reviewCount > 0 ? 'warning' : 'success',
+          text: `${createdCount} facture${createdCount > 1 ? 's' : ''} brouillon ${createdCount > 1 ? 'ont' : 'a'} été préparée${createdCount > 1 ? 's' : ''} localement. Contrôlez chaque facture avant émission.${reviewCount > 0 ? ' Une planification exige une reprise explicite.' : ''}`,
+        });
+      } else if (reviewCount > 0) {
+        setNotice({
+          tone: 'warning',
+          text: 'Une planification récurrente exige un contrôle avant de pouvoir reprendre.',
+        });
+      }
+    } catch (reason) {
+      setNotice({
+        tone: 'error',
+        text: errorMessage(
+          reason,
+          'Le contrôle local des documents récurrents a échoué. Aucune facture n’a été émise.',
+        ),
+      });
+    } finally {
+      recurrenceScanInFlight.current = false;
+    }
+  }, [readOnly, setWorkspace]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    const runWhenVisible = () => {
+      if (
+        typeof document === 'undefined' ||
+        document.visibilityState === 'visible'
+      )
+        void runRecurrenceScan();
+    };
+    runWhenVisible();
+    window.addEventListener('focus', runWhenVisible);
+    document.addEventListener('visibilitychange', runWhenVisible);
+    const interval = window.setInterval(runWhenVisible, 5 * 60 * 1000);
+    return () => {
+      window.removeEventListener('focus', runWhenVisible);
+      document.removeEventListener('visibilitychange', runWhenVisible);
+      window.clearInterval(interval);
+    };
+  }, [readOnly, recurrenceScheduleSignal, runRecurrenceScan]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -375,6 +500,7 @@ export function WorkspaceApp({
     action: () => Promise<Workspace>,
     message: string,
     close = true,
+    onError?: (reason: unknown) => void,
   ) {
     if (readOnly) {
       setNotice({
@@ -393,6 +519,7 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
+      onError?.(reason);
       setNotice({
         tone: 'error',
         text: errorMessage(reason, 'L’action locale a échoué.'),
@@ -449,13 +576,25 @@ export function WorkspaceApp({
       requestId = createId();
       quoteOrderRequestIds.current.set(item.id, requestId);
     }
+    let convertedWorkspace: Workspace | null = null;
     const converted = await act(
-      () => desktopApi.convertQuoteToSalesOrder(requestId!, item.id),
-      'La commande brouillon a été créée depuis le devis accepté. Contrôlez-la puis confirmez-la pour réserver le stock.',
+      async () => {
+        const nextWorkspace = await desktopApi.convertQuoteToSalesOrder(
+          requestId!,
+          item.id,
+        );
+        convertedWorkspace = nextWorkspace;
+        return nextWorkspace;
+      },
+      'Étape 1/2 : contrôlez puis confirmez la commande. Étape 2/2 : choisissez le rythme dans « Documents récurrents ».',
       false,
     );
     if (converted) {
       quoteOrderRequestIds.current.delete(item.id);
+      const createdOrder = (
+        convertedWorkspace as Workspace | null
+      )?.salesOrders.find((order) => order.quoteId === item.id);
+      setOrderToOpenId(createdOrder?.id ?? null);
       setView('orders');
       setSearch('');
       setMenuOpen(false);
@@ -1129,6 +1268,8 @@ export function WorkspaceApp({
               busy={busy}
               readOnly={readOnly}
               act={act}
+              openOrderId={orderToOpenId}
+              onOpenOrderHandled={() => setOrderToOpenId(null)}
               onShowQuotes={() => {
                 setView('quotes');
                 setSearch('');
@@ -1172,11 +1313,9 @@ export function WorkspaceApp({
               onIssue={issueInvoice}
               onPayment={(item) => setModal({ type: 'payment', invoice: item })}
               onOpenOrder={(orderId) => {
-                const order = workspace.salesOrders.find(
-                  (candidate) => candidate.id === orderId,
-                );
+                setOrderToOpenId(orderId);
                 setView('orders');
-                setSearch(order?.number || order?.title || '');
+                setSearch('');
                 setNotice({
                   tone: 'warning',
                   text: 'Cette facture brouillon est pilotée depuis sa commande. Émission et suppression y restent contrôlées.',
@@ -2618,27 +2757,41 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       {quote.status === 'accepted' &&
                       !converted &&
                       !convertedOrder ? (
-                        <Button
-                          variant="secondary"
-                          size="small"
-                          className="quote-convert-button"
-                          disabled={busy}
-                          onClick={() =>
-                            requiresOrder
-                              ? props.onCreateOrder(quote)
-                              : props.onConvert(quote)
-                          }
-                          title={
-                            requiresOrder
-                              ? 'Créer la commande client et préparer la réservation'
-                              : 'Créer la facture brouillon du flux service simple'
-                          }
-                        >
-                          <ArrowRight size={15} />{' '}
-                          {requiresOrder
-                            ? 'Créer la commande'
-                            : 'Créer la facture'}
-                        </Button>
+                        requiresOrder ? (
+                          <Button
+                            variant="secondary"
+                            size="small"
+                            className="quote-convert-button"
+                            disabled={busy}
+                            onClick={() => props.onCreateOrder(quote)}
+                            title="Créer la commande client et préparer la réservation"
+                          >
+                            <ArrowRight size={15} /> Créer la commande
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="small"
+                              className="quote-convert-button"
+                              disabled={busy}
+                              onClick={() => props.onConvert(quote)}
+                              title="Créer une facture brouillon unique"
+                            >
+                              <ArrowRight size={15} /> Créer la facture
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="small"
+                              className="quote-convert-button"
+                              disabled={busy}
+                              onClick={() => props.onCreateOrder(quote)}
+                              title="Créer une commande modèle pour planifier des factures récurrentes"
+                            >
+                              <CalendarDays size={15} /> Planifier
+                            </Button>
+                          </>
+                        )
                       ) : null}
                       {quote.status !== 'draft' ? (
                         <Button

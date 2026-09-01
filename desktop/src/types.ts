@@ -484,6 +484,76 @@ export type SalesOrder = {
   snapshot?: FrozenSalesOrderSnapshot | null;
 };
 
+export type RecurrenceFrequency = 'monthly' | 'quarterly' | 'yearly';
+
+export type RecurrenceScheduleStatus =
+  | 'active'
+  | 'paused'
+  | 'review_required'
+  | 'completed';
+
+export type RecurrenceSchedule = {
+  id: Identifier;
+  sourceSalesOrderId: Identifier;
+  frequency: RecurrenceFrequency;
+  anchorDate: string;
+  anchorDay: number;
+  anchorIsMonthEnd: boolean;
+  paymentTermsDays: number;
+  nextScheduledFor: string;
+  endDate: string | null;
+  status: RecurrenceScheduleStatus;
+  reviewReason: string | null;
+  sourceOrderSnapshotSha256: string;
+  sourceSnapshotSha256: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RecurrenceOccurrenceStatus = 'draft_created' | 'unknown';
+
+export type RecurrenceOccurrence = {
+  sequence: number;
+  id: Identifier;
+  scheduleId: Identifier;
+  scheduledFor: string;
+  invoiceId: Identifier;
+  status: RecurrenceOccurrenceStatus;
+  message: string | null;
+  requestId: Identifier;
+  payloadSha256: string;
+  sourceSnapshotSha256: string;
+  createdAt: string;
+  invoiceStatus: InvoiceStatus;
+  invoiceNumber: string | null;
+};
+
+export type CreateRecurrenceScheduleInput = {
+  requestId: string;
+  sourceSalesOrderId: string;
+  frequency: RecurrenceFrequency;
+  startDate: string;
+  endDate?: string | null;
+  paymentTermsDays: number;
+};
+
+export type UpdateRecurrenceScheduleInput = {
+  requestId: string;
+  scheduleId: string;
+  status: Extract<
+    RecurrenceScheduleStatus,
+    'active' | 'paused' | 'completed'
+  >;
+  endDate: string | null;
+};
+
+export type GenerateRecurrenceOccurrencesInput = {
+  requestId: string;
+  scheduleId: string;
+  throughDate: string;
+};
+
 export type DeliveryNoteStatus = 'draft' | 'issued' | 'reversed';
 
 export type DeliveryNoteLine = {
@@ -1339,6 +1409,8 @@ export type Workspace = {
   projectTasks: ProjectTask[];
   quotes: Quote[];
   salesOrders: SalesOrder[];
+  recurrenceSchedules: RecurrenceSchedule[];
+  recurrenceOccurrences: RecurrenceOccurrence[];
   deliveryNotes: DeliveryNote[];
   stockReservationEvents: StockReservationEvent[];
   stockAvailability: StockAvailability[];

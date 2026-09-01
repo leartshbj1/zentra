@@ -18,6 +18,7 @@ mod payroll;
 mod payroll_import;
 mod payroll_pdf;
 mod project_planning;
+mod recurrence;
 mod reminders;
 mod sales_fulfillment;
 mod schema;
@@ -112,6 +113,9 @@ pub fn run() {
             preview_sales_order_invoice,
             create_sales_order_invoice,
             cancel_sales_order_invoice_draft,
+            create_recurrence_schedule,
+            update_recurrence_schedule,
+            generate_recurrence_occurrences,
             record_payment,
             list_accounts,
             upsert_account,
