@@ -139,7 +139,7 @@ export default function DownloadPage() {
               <Laptop className="size-3.5" /> Windows 10/11
             </span>
             <span>64 bits</span>
-            <span>7,64 Mio</span>
+            <span>7,72 Mio</span>
             <span>50 CHF / mois</span>
           </div>
           <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
