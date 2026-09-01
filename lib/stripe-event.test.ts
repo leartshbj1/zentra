@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import {
   paidThroughFromInvoice,
   stripeReferenceId,
@@ -127,6 +127,27 @@ describe('Paid invoice entitlement', () => {
     expect(
       paidThroughFromInvoice(
         paidInvoice({ period_end: 1_999_999_999 }),
+        expectedInvoice,
+      ),
+    ).toBe(1_802_678_400);
+  });
+
+  it('normalizes Dahlia decimal amounts before granting entitlement', () => {
+    expect(
+      paidThroughFromInvoice(
+        paidInvoice(
+          {},
+          {
+            pricing: {
+              type: 'price_details',
+              unit_amount_decimal: Stripe.Decimal.from('5000'),
+              price_details: {
+                price: 'price_elyko',
+                product: 'prod_elyko',
+              },
+            },
+          },
+        ),
         expectedInvoice,
       ),
     ).toBe(1_802_678_400);
