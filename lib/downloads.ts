@@ -7,7 +7,9 @@ export const ZENTRA_INSTALLER_SHA256 =
   '925678D700168874F5DB50382E9EB56F171B04984EBFD54902DB92A2104F1CC5';
 
 export const ZENTRA_MAC_DMG_NAME = `Zentra_${ZENTRA_VERSION}_macos-universal.dmg`;
-export const ZENTRA_MAC_DMG_PATH = `/downloads/${ZENTRA_MAC_DMG_NAME}`;
+export const ZENTRA_RELEASES_ORIGIN =
+  'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases';
+export const ZENTRA_MAC_DMG_PATH = `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_MAC_DMG_NAME}`;
 export const ZENTRA_MAC_DMG_CHECKSUM_PATH = `${ZENTRA_MAC_DMG_PATH}.sha256.txt`;
 export const ZENTRA_MAC_DMG_SIZE_MIB = '19,81';
 export const ZENTRA_MAC_DMG_SHA256 =
