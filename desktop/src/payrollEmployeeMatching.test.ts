@@ -4,7 +4,7 @@ import type { Employee } from './types';
 import type { PayrollAiIdentityEvidence } from './types';
 
 const employee = (patch: Partial<Employee> = {}): Employee => ({
-  id: 'employee-a', employeeNumber: 'E-001', name: 'Alex Exemple', role: '', email: '', phone: '', address: '', addressLine1: '', addressLine2: '', postalCode: '', city: '', canton: '', country: 'CH', birthDate: '1990-01-02', avsNumber: '756.9217.0769.85', employmentStart: '', employmentEnd: '', referenceAgeDate: '', avsAllowanceWaived: null, employmentRate: 100, contractualWeeklyMinutes: null, acOpeningYear: null, acOpeningBasisCents: null, salaryMode: 'monthly', grossSalaryCents: 0, hourlyCostCents: 0, iban: 'CH93 0076 2011 6238 5295 7', active: true, notes: '', ...patch,
+  id: 'employee-a', employeeNumber: 'E-001', name: 'Alex Exemple', role: '', email: '', phone: '', address: '', addressLine1: '', addressLine2: '', postalCode: '', city: '', canton: '', country: 'CH', birthDate: '1990-01-02', avsNumber: '756.9217.0769.85', employmentStart: '', employmentEnd: '', employmentContractKind: null, lppAssessmentYear: null, lppAnnualSalaryCents: null, lppExceptionCode: null, lppExceptionEvidenceReference: '', referenceAgeDate: '', avsAllowanceWaived: null, employmentRate: 100, contractualWeeklyMinutes: null, acOpeningYear: null, acOpeningBasisCents: null, salaryMode: 'monthly', grossSalaryCents: 0, hourlyCostCents: 0, iban: 'CH93 0076 2011 6238 5295 7', active: true, notes: '', ...patch,
 });
 
 const evidence = (patch: Partial<PayrollAiIdentityEvidence> = {}): PayrollAiIdentityEvidence => ({

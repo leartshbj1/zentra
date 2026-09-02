@@ -8,6 +8,7 @@ import type {
 export type PayrollEligibilityAssessment = {
   blockers: string[];
   warnings: string[];
+  coordinatedAnnualSalaryCents: number | null;
   facts: Array<{
     label: string;
     value: string;
@@ -28,6 +29,15 @@ export type SwissFederalProfileAssessment = {
   issues: string[];
 };
 
+export type SwissLppUiAssessment = {
+  blockers: string[];
+  warnings: string[];
+  status: string;
+  statusTone: 'ok' | 'warning' | 'neutral';
+  annualSalaryCents: number | null;
+  coordinatedAnnualSalaryCents: number | null;
+};
+
 const FEDERAL_PROFILE = {
   avs_ai_apg: [
     ['AVS_EMPLOYEE', 'employee', 435, null],
@@ -44,6 +54,11 @@ const FEDERAL_PROFILE = {
 } as const;
 
 const SWISS_LAA_ANNUAL_CEILING_CENTS_2026 = 14_820_000;
+const SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026 = 2_268_000;
+const SWISS_LPP_ANNUAL_SALARY_CEILING_CENTS_2026 = 9_072_000;
+const SWISS_LPP_COORDINATION_DEDUCTION_CENTS_2026 = 2_646_000;
+const SWISS_LPP_MIN_COORDINATED_SALARY_CENTS_2026 = 378_000;
+const SWISS_LPP_MAX_COORDINATED_SALARY_CENTS_2026 = 6_426_000;
 
 function isRealIsoDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -56,6 +71,362 @@ function isRealIsoDate(value: string): boolean {
     date.getUTCFullYear() === year &&
     date.getUTCMonth() === month - 1 &&
     date.getUTCDate() === day
+  );
+}
+
+function addCalendarMonths(value: string, months: number): string | null {
+  if (!isRealIsoDate(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const monthIndex = month - 1 + months;
+  const targetYear = year + Math.floor(monthIndex / 12);
+  const targetMonthIndex = ((monthIndex % 12) + 12) % 12;
+  const lastDay = new Date(
+    Date.UTC(targetYear, targetMonthIndex + 1, 0),
+  ).getUTCDate();
+  const targetDay = Math.min(day, lastDay);
+  return `${targetYear.toString().padStart(4, '0')}-${(targetMonthIndex + 1)
+    .toString()
+    .padStart(2, '0')}-${targetDay.toString().padStart(2, '0')}`;
+}
+
+function formatChf(cents: number): string {
+  return (cents / 100).toLocaleString('fr-CH', {
+    style: 'currency',
+    currency: 'CHF',
+  });
+}
+
+/**
+ * Miroir explicatif et conservateur du moteur LPP Rust 2026. Le backend reste
+ * l'autorité et recalcule tout lors de la validation. Aucun taux de caisse
+ * n'est déduit ici : seuls le statut légal et le salaire coordonné indicatif
+ * sont établis à partir des données annuelles confirmées.
+ */
+export function assessSwissLppEligibility(input: {
+  employee: Employee;
+  settings: AppSettings;
+  period: string;
+  contributionDate?: string;
+  definitions: PayrollContributionDefinition[];
+  selectedIds: ReadonlySet<string>;
+}): SwissLppUiAssessment {
+  const employee = input.employee;
+  const definitions = input.definitions;
+  const [year, month] = input.period.split('-').map(Number);
+  const periodValid =
+    Number.isInteger(year) &&
+    year >= 2000 &&
+    Number.isInteger(month) &&
+    month >= 1 &&
+    month <= 12;
+  const selected = definitions.filter(
+    (definition) =>
+      definition.active &&
+      definition.category === 'lpp' &&
+      input.selectedIds.has(definition.id),
+  );
+  const applicable = selected.filter(
+    (definition) => definition.lppEmployeeId === employee.id,
+  );
+  const selectedPlan = selected.length > 0;
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const assessmentYear = employee.lppAssessmentYear ?? null;
+  const annualSalaryCents = employee.lppAnnualSalaryCents ?? null;
+
+  const result = (
+    status: string,
+    statusTone: SwissLppUiAssessment['statusTone'],
+    coordinatedAnnualSalaryCents: number | null = null,
+  ): SwissLppUiAssessment => ({
+    blockers: [...new Set(blockers)],
+    warnings: [...new Set(warnings)],
+    status,
+    statusTone,
+    annualSalaryCents,
+    coordinatedAnnualSalaryCents,
+  });
+
+  const validatePlanAndDefinitions = (
+    minimum: 'none' | 'risk' | 'risk_and_savings',
+    coordinatedAnnualSalaryCents: number | null,
+  ) => {
+    const minimumDue = minimum !== 'none';
+    if (!minimumDue && !selected.length) return;
+    if (minimumDue && !applicable.length)
+      blockers.push(
+        'La LPP est obligatoire pour cette période: sélectionnez une définition positive liée à ce collaborateur et au règlement de sa caisse.',
+      );
+    if (
+      selected.some((definition) => definition.lppEmployeeId !== employee.id)
+    )
+      blockers.push(
+        'Une cotisation LPP sélectionnée appartient à un autre collaborateur.',
+      );
+
+    for (const definition of selected) {
+      if (
+        definition.calculationKind !== 'fixed' ||
+        (definition.fixedAmountCents ?? 0) <= 0
+      )
+        blockers.push(
+          'Chaque définition LPP doit utiliser un montant fixe mensuel strictement positif issu du règlement.',
+        );
+      if (!['coordinated', 'custom'].includes(definition.basisKind))
+        blockers.push(
+          'Chaque définition LPP doit utiliser la base « salaire coordonné » ou une base personnalisée confirmée.',
+        );
+      if (
+        definition.basisKind === 'coordinated' &&
+        coordinatedAnnualSalaryCents === null
+      )
+        blockers.push(
+          'La base « salaire coordonné » est réservée au salaire coordonné légal calculé. Pour une couverture plus favorable ou une base propre au règlement, utilisez « base personnalisée ».',
+        );
+      if (!definition.lppComponent)
+        blockers.push(
+          'Chaque définition LPP doit préciser sa composante risque, épargne ou combinée.',
+        );
+    }
+
+    const plan = input.settings.payroll.lppPlanEvidence;
+    if (!input.settings.payroll.pensionFund.trim())
+      blockers.push(
+        'La caisse de pension manque pour la cotisation LPP sélectionnée.',
+      );
+    if (
+      !plan ||
+      !plan.contractNumber.trim() ||
+      !plan.regulationReference.trim() ||
+      !isRealIsoDate(plan.effectiveFrom) ||
+      !isRealIsoDate(plan.effectiveTo) ||
+      plan.effectiveTo < plan.effectiveFrom ||
+      !plan.employerAggregateShareConfirmed
+    ) {
+      blockers.push(
+        'Le plan LPP exige le numéro de contrat, la référence du règlement, sa période d’effet et l’attestation de la part employeur agrégée.',
+      );
+    } else {
+      const contributionDate =
+        input.contributionDate && isRealIsoDate(input.contributionDate)
+          ? input.contributionDate
+          : `${input.period}-01`;
+      if (
+        contributionDate < plan.effectiveFrom ||
+        contributionDate > plan.effectiveTo
+      )
+        blockers.push(
+          `La date réglementaire ${contributionDate} sort de la fenêtre du règlement LPP ${plan.contractNumber} (${plan.effectiveFrom} à ${plan.effectiveTo}).`,
+        );
+      if (
+        selected.some(
+          (definition) =>
+            definition.source.trim() !== plan.regulationReference.trim(),
+        )
+      )
+        blockers.push(
+          'La source de chaque définition LPP doit correspondre exactement à la référence du règlement conservée dans les paramètres.',
+        );
+      if (
+        selected.some(
+          (definition) =>
+            !isRealIsoDate(definition.effectiveFrom) ||
+            !isRealIsoDate(definition.effectiveTo) ||
+            definition.effectiveFrom < plan.effectiveFrom ||
+            definition.effectiveTo > plan.effectiveTo,
+        )
+      )
+        blockers.push(
+          'La période d’effet de chaque définition LPP doit rester entièrement comprise dans celle du règlement enregistré.',
+        );
+    }
+
+    const components = new Set(applicable.map((item) => item.lppComponent));
+    if (
+      minimum !== 'none' &&
+      applicable.length &&
+      !components.has('combined') &&
+      !components.has('risk')
+    )
+      blockers.push(
+        'La couverture LPP obligatoire doit inclure la composante risque.',
+      );
+    if (
+      minimum === 'risk_and_savings' &&
+      applicable.length &&
+      !components.has('combined') &&
+      !components.has('savings')
+    )
+      blockers.push(
+        'La couverture LPP obligatoire doit inclure la composante épargne dès le 1er janvier suivant le 24e anniversaire.',
+      );
+  };
+
+  if (!periodValid) {
+    blockers.push('La période LPP doit être au format AAAA-MM.');
+    return result('Période invalide', 'warning');
+  }
+  if (year !== 2026) {
+    blockers.push(
+      'Le contrôle LPP déterministe de cette version couvre uniquement 2026; utilisez un profil réglementaire adapté avant de valider.',
+    );
+    return result('Hors profil LPP 2026', 'warning');
+  }
+  if (!isRealIsoDate(employee.birthDate)) {
+    blockers.push(
+      'La date de naissance est obligatoire et doit être valide pour contrôler la LPP.',
+    );
+    return result('Date de naissance requise', 'warning');
+  }
+
+  const birthYear = Number(employee.birthDate.slice(0, 4));
+  const riskDue = year >= birthYear + 18;
+  const savingsDue = year >= birthYear + 25;
+  if (!riskDue) {
+    validatePlanAndDefinitions('none', null);
+    if (selectedPlan)
+      warnings.push(
+        'Une couverture LPP avant l’âge légal minimal est traitée comme un plan plus favorable; vérifiez-la dans le règlement de la caisse.',
+      );
+    return result(
+      selectedPlan
+        ? 'Plan plus favorable · avant l’âge légal'
+        : 'Non obligatoire · avant l’âge légal',
+      blockers.length || selectedPlan ? 'warning' : 'neutral',
+    );
+  }
+
+  if (
+    assessmentYear === null ||
+    annualSalaryCents === null ||
+    !Number.isInteger(assessmentYear) ||
+    !Number.isInteger(annualSalaryCents) ||
+    annualSalaryCents < 0
+  ) {
+    blockers.push(
+      'Confirmez ensemble l’année d’évaluation et le salaire annuel LPP sur la fiche collaborateur, zéro compris.',
+    );
+    return result('Évaluation annuelle requise', 'warning');
+  }
+  if (assessmentYear !== year) {
+    blockers.push(
+      `L’évaluation salariale LPP du collaborateur porte sur ${assessmentYear}; confirmez-la pour ${year}.`,
+    );
+    return result(`Évaluation ${year} requise`, 'warning');
+  }
+  if (annualSalaryCents <= SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026) {
+    validatePlanAndDefinitions('none', null);
+    if (selectedPlan)
+      warnings.push(
+        'La couverture sélectionnée sous le seuil légal est un plan plus favorable; ses montants doivent correspondre au règlement réel.',
+      );
+    return result(
+      selectedPlan
+        ? 'Plan plus favorable · sous le seuil légal'
+        : 'Non obligatoire · sous le seuil légal',
+      blockers.length || selectedPlan ? 'warning' : 'neutral',
+    );
+  }
+
+  if (!employee.employmentContractKind) {
+    blockers.push(
+      'Confirmez si le contrat est à durée indéterminée ou déterminée pour contrôler la LPP.',
+    );
+  }
+  if (!isRealIsoDate(employee.employmentStart)) {
+    blockers.push(
+      'La date de début du contrat est obligatoire et doit être valide pour contrôler la LPP.',
+    );
+  }
+  if (
+    employee.employmentContractKind === 'fixed' &&
+    !isRealIsoDate(employee.employmentEnd)
+  ) {
+    blockers.push(
+      'Un contrat à durée déterminée exige une date de fin valide pour contrôler la LPP.',
+    );
+  }
+  if (
+    isRealIsoDate(employee.employmentStart) &&
+    isRealIsoDate(employee.employmentEnd) &&
+    employee.employmentEnd < employee.employmentStart
+  ) {
+    blockers.push('La fin du contrat précède son début.');
+  }
+  if (isRealIsoDate(employee.employmentStart)) {
+    const periodStart = `${input.period}-01`;
+    const periodEnd = new Date(Date.UTC(year, month, 0))
+      .toISOString()
+      .slice(0, 10);
+    if (
+      employee.employmentStart > periodEnd ||
+      (isRealIsoDate(employee.employmentEnd) &&
+        employee.employmentEnd < periodStart)
+    ) {
+      blockers.push(
+        'La période LPP se situe hors des rapports de travail confirmés.',
+      );
+    }
+  }
+
+  const exceptionCode = employee.lppExceptionCode ?? '';
+  const exceptionEvidence = (
+    employee.lppExceptionEvidenceReference ?? ''
+  ).trim();
+  if (Boolean(exceptionCode) !== Boolean(exceptionEvidence)) {
+    blockers.push(
+      'Une exception LPP exige simultanément son motif et la référence de sa preuve.',
+    );
+  }
+  const threeMonthMark = addCalendarMonths(employee.employmentStart, 3);
+  const shortFixedContract = Boolean(
+    employee.employmentContractKind === 'fixed' &&
+      threeMonthMark &&
+      isRealIsoDate(employee.employmentEnd) &&
+      employee.employmentEnd < threeMonthMark,
+  );
+  if (shortFixedContract && !exceptionCode) {
+    blockers.push(
+      'Le contrat déterminé de trois mois au maximum exige une exception LPP documentée sur la fiche collaborateur.',
+    );
+  }
+  if (exceptionCode === 'short_fixed_contract' && !shortFixedContract) {
+    blockers.push(
+      'L’exception « contrat court » ne correspond pas aux dates et à la nature du contrat confirmées.',
+    );
+  }
+  const exempt =
+    Boolean(exceptionEvidence) &&
+    (exceptionCode === 'other_legal' ||
+      (exceptionCode === 'short_fixed_contract' && shortFixedContract));
+  if (exempt) {
+    validatePlanAndDefinitions('none', null);
+    return result(
+      'Exception documentée',
+      blockers.length ? 'warning' : 'ok',
+    );
+  }
+
+  const coordinatedAnnualSalaryCents = Math.min(
+    SWISS_LPP_MAX_COORDINATED_SALARY_CENTS_2026,
+    Math.max(
+      SWISS_LPP_MIN_COORDINATED_SALARY_CENTS_2026,
+      Math.min(
+        annualSalaryCents,
+        SWISS_LPP_ANNUAL_SALARY_CEILING_CENTS_2026,
+      ) - SWISS_LPP_COORDINATION_DEDUCTION_CENTS_2026,
+    ),
+  );
+
+  validatePlanAndDefinitions(
+    savingsDue ? 'risk_and_savings' : 'risk',
+    coordinatedAnnualSalaryCents,
+  );
+
+  return result(
+    savingsDue ? 'Obligatoire · risque et épargne' : 'Obligatoire · risque',
+    blockers.length ? 'warning' : 'ok',
+    coordinatedAnnualSalaryCents,
   );
 }
 
@@ -139,16 +510,17 @@ export function assessSwissPayrollEligibility(input: {
   settings: AppSettings;
   period: string;
   grossCents: number;
+  contributionDate?: string;
   definitions: PayrollContributionDefinition[];
   selectedIds: Set<string>;
   referenceAgeOverride?: RetirementReferenceOverride | null;
 }): PayrollEligibilityAssessment {
-  const { employee, settings, period, grossCents, definitions, selectedIds } =
-    input;
+  const { employee, settings, period, definitions, selectedIds } = input;
   if (!employee)
     return {
       blockers: ['Sélectionnez un collaborateur.'],
       warnings: [],
+      coordinatedAnnualSalaryCents: null,
       facts: [],
     };
   const [year, month] = period.split('-').map(Number);
@@ -163,7 +535,6 @@ export function assessSwissPayrollEligibility(input: {
     && Number.isFinite(employee.contractualWeeklyMinutes)
     ? employee.contractualWeeklyMinutes / 60
     : null;
-  const annualizedGrossCents = grossCents * 12;
   const selectedDefinitions = definitions.filter(
     (item) => item.active && selectedIds.has(item.id),
   );
@@ -175,6 +546,14 @@ export function assessSwissPayrollEligibility(input: {
   const federalProfile = assessSwissFederalProfile(definitions, selectedIds);
   const blockers: string[] = [];
   const warnings: string[] = [];
+  const lpp = assessSwissLppEligibility({
+    employee,
+    settings,
+    period,
+    contributionDate: input.contributionDate,
+    definitions,
+    selectedIds,
+  });
 
   const birthDateValid = isRealIsoDate(employee.birthDate);
   const birthYear = birthDateValid ? employee.birthDate.slice(0, 4) : null;
@@ -331,19 +710,8 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       'AANP est sélectionnée alors que le taux de travail indique moins de 8 h/semaine; contrôlez l’horaire réel.',
     );
-  if (
-    age !== null &&
-    age >= 18 &&
-    annualizedGrossCents >= 2_268_000 &&
-    !has('lpp')
-  )
-    warnings.push(
-      'Le salaire annualisé atteint le seuil LPP de CHF 22’680; documentez une éventuelle exception ou sélectionnez le plan de caisse.',
-    );
-  if (has('lpp') && !settings.payroll.pensionFund.trim())
-    blockers.push(
-      'La caisse de pension manque pour la cotisation LPP sélectionnée.',
-    );
+  blockers.push(...lpp.blockers);
+  warnings.push(...lpp.warnings);
   if ((has('aap') || has('aanp')) && !settings.payroll.accidentInsurer.trim())
     blockers.push(
       'L’assureur accidents manque pour les cotisations LAA sélectionnées.',
@@ -369,14 +737,10 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       `Confirmez sur la fiche collaborateur la base d’ouverture AC ${periodValid ? year : 'de l’année'} (zéro compris); Zentra ajoutera automatiquement les bases des fiches antérieures.`,
     );
-  if (grossCents > 0 && grossCents * 12 <= 250_000)
-    warnings.push(
-      'Salaire annualisé ≤ CHF 2’500: vérifiez la règle des rémunérations de minime importance et ses exceptions.',
-    );
-
   return {
     blockers: [...new Set(blockers)],
     warnings: [...new Set(warnings)],
+    coordinatedAnnualSalaryCents: lpp.coordinatedAnnualSalaryCents,
     facts: [
       {
         label: 'Âge à la période',
@@ -427,9 +791,26 @@ export function assessSwissPayrollEligibility(input: {
             : 'warning',
       },
       {
-        label: 'Salaire annualisé',
-        value: `${(annualizedGrossCents / 100).toLocaleString('fr-CH', { style: 'currency', currency: 'CHF' })}`,
-        tone: annualizedGrossCents >= 2_268_000 ? 'warning' : 'neutral',
+        label: 'Statut LPP 2026',
+        value: lpp.status,
+        tone: lpp.statusTone,
+      },
+      {
+        label: 'Salaire annuel LPP confirmé',
+        value:
+          lpp.annualSalaryCents === null
+            ? 'À confirmer sur la fiche'
+            : formatChf(lpp.annualSalaryCents),
+        tone: lpp.annualSalaryCents === null ? 'warning' : 'ok',
+      },
+      {
+        label: 'Salaire coordonné indicatif',
+        value:
+          lpp.coordinatedAnnualSalaryCents === null
+            ? 'Non applicable au statut actuel'
+            : formatChf(lpp.coordinatedAnnualSalaryCents),
+        tone:
+          lpp.coordinatedAnnualSalaryCents === null ? 'neutral' : 'ok',
       },
       {
         label: 'Entrée en fonction',

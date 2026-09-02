@@ -4,7 +4,10 @@ import {
   initialOnboardingSettings,
   settingsFromOnboardingDraft,
 } from './onboardingDraft';
-import { validateOnboarding } from './onboardingValidation';
+import {
+  normalizeOnboardingSettings,
+  validateOnboarding,
+} from './onboardingValidation';
 import type { NogaCatalog } from './types';
 
 const catalog: NogaCatalog = {
@@ -14,6 +17,46 @@ const catalog: NogaCatalog = {
 };
 
 describe('reprise du brouillon de configuration', () => {
+  it('refuse un règlement LPP partiel et normalise ses références sans inventer de valeur', () => {
+    const settings = {
+      ...initialOnboardingSettings,
+      payroll: {
+        ...initialOnboardingSettings.payroll,
+        enabled: true,
+        avsFund: 'Caisse AVS',
+        accidentInsurer: 'Assureur LAA',
+        payrollCanton: 'VD',
+        pensionFund: ' Fondation LPP ',
+        lppPlanEvidence: {
+          contractNumber: ' LPP-42 ',
+          regulationReference: ' Règlement signé ',
+          effectiveFrom: '2026-01-01',
+          effectiveTo: '',
+          employerAggregateShareConfirmed: false,
+        },
+      },
+    };
+    const normalized = normalizeOnboardingSettings(settings);
+    expect(normalized.payroll.pensionFund).toBe('Fondation LPP');
+    expect(normalized.payroll.lppPlanEvidence).toMatchObject({
+      contractNumber: 'LPP-42',
+      regulationReference: 'Règlement signé',
+      effectiveTo: '',
+    });
+    expect(
+      settingsFromOnboardingDraft(normalized).payroll.lppPlanEvidence,
+    ).toEqual(normalized.payroll.lppPlanEvidence);
+    const fields = validateOnboarding(
+      normalized,
+      catalog,
+      false,
+    ).map((issue) => issue.field);
+    expect(fields).toContain('payroll.lppPlanEvidence.effectiveTo');
+    expect(fields).toContain(
+      'payroll.lppPlanEvidence.employerAggregateShareConfirmed',
+    );
+  });
+
   it('protège toute saisie avancée avant un retour au parcours essentiel', () => {
     expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
       privacyConfirmed: false,

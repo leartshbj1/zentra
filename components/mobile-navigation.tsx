@@ -45,7 +45,7 @@ export function MobileNavigation() {
         className="grid size-11 place-items-center rounded-full border border-[#d4d2ca] bg-white/75 text-[#294536] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#315f47] focus-visible:ring-offset-2"
         aria-label={open ? 'Fermer le menu' : 'Ouvrir le menu'}
         aria-expanded={open}
-        aria-controls="elyko-mobile-navigation"
+        aria-controls="zentra-mobile-navigation"
         onClick={() => setOpen((current) => !current)}
       >
         <Plus
@@ -55,7 +55,7 @@ export function MobileNavigation() {
       </button>
       {open ? (
         <nav
-          id="elyko-mobile-navigation"
+          id="zentra-mobile-navigation"
           className="fixed inset-x-4 top-[4.75rem] z-50 grid min-w-0 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
           aria-label="Navigation mobile"
         >

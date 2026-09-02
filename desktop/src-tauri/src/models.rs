@@ -930,6 +930,10 @@ pub struct ContributionDefinitionInput {
     #[serde(default)]
     pub annual_ceiling_cents: Option<i64>,
     pub basis_kind: String,
+    #[serde(default)]
+    pub lpp_component: Option<String>,
+    #[serde(default)]
+    pub lpp_employee_id: Option<String>,
     pub source: String,
     pub effective_from: String,
     #[serde(default)]
@@ -1020,6 +1024,8 @@ pub struct PayPayslipInput {
     pub payment_date: Option<String>,
     #[serde(default)]
     pub reference: Option<String>,
+    #[serde(default)]
+    pub regulatory_override_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

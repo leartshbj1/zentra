@@ -258,10 +258,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-113"
+              href="#lot-114"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.13
+              Nouveautés 1.14
             </a>
             <a
               href="#capacites"
@@ -309,11 +309,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-113"
+            href="#lot-114"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Zentra 1.13 · identité, paie locale et gestion renforcées
+            Zentra 1.14 · identité, paie locale et gestion renforcées
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -381,10 +381,10 @@ export default function Home() {
       </section>
 
       <section
-        id="lot-113"
+        id="lot-114"
         className="scroll-mt-24 border-y border-[#d4ddd6] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
-        aria-labelledby="lot-113-title"
+        aria-labelledby="lot-114-title"
       >
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
@@ -393,7 +393,7 @@ export default function Home() {
                 Relances de factures supervisées
               </p>
               <h2
-                id="lot-113-title"
+                id="lot-114-title"
                 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
               >
                 Les relances avancent. Vous gardez le dernier mot.

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Months, NaiveDate};
 
 /// Plafond annuel du salaire soumis à l'assurance-chômage en 2026.
 pub(crate) const SWISS_AC_ANNUAL_CEILING_CENTS_2026: i64 = 14_820_000;
@@ -9,7 +9,115 @@ pub(crate) const SWISS_AC_ANNUAL_CEILING_CENTS_2026: i64 = 14_820_000;
 /// être remplacé par un taux national fictif.
 pub(crate) const SWISS_LAA_ANNUAL_CEILING_CENTS_2026: i64 = 14_820_000;
 pub(crate) const SWISS_AVS_REFERENCE_AGE_MONTHLY_ALLOWANCE_CENTS: i64 = 140_000;
+pub(crate) const SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026: i64 = 2_268_000;
+pub(crate) const SWISS_LPP_ANNUAL_SALARY_CEILING_CENTS_2026: i64 = 9_072_000;
+pub(crate) const SWISS_LPP_COORDINATION_DEDUCTION_CENTS_2026: i64 = 2_646_000;
+pub(crate) const SWISS_LPP_MIN_COORDINATED_SALARY_CENTS_2026: i64 = 378_000;
+pub(crate) const SWISS_LPP_MAX_COORDINATED_SALARY_CENTS_2026: i64 = 6_426_000;
 const SWISS_AC_YEAR_DAYS: i64 = 360;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LppAssessmentInput<'a> {
+    pub period: &'a str,
+    pub birth_date: Option<&'a str>,
+    pub employment_start: Option<&'a str>,
+    pub employment_end: Option<&'a str>,
+    pub employment_contract_kind: Option<&'a str>,
+    pub assessment_year: Option<i64>,
+    pub annual_salary_cents: Option<i64>,
+    pub exception_code: Option<&'a str>,
+    pub exception_evidence_reference: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LppCoverage {
+    NotDueUnderAge,
+    NotDueUnderThreshold,
+    Exempt,
+    RiskOnly,
+    RiskAndSavings,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LppAssessment {
+    pub coverage: LppCoverage,
+    pub annual_salary_cents: Option<i64>,
+    pub coordinated_annual_salary_cents: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LppAssessmentError {
+    InvalidPeriod,
+    UnsupportedYear,
+    BirthDateRequired,
+    InvalidBirthDate,
+    AssessmentRequired,
+    AssessmentYearMismatch,
+    InvalidAnnualSalary,
+    ContractKindRequired,
+    InvalidContractKind,
+    EmploymentStartRequired,
+    InvalidEmploymentStart,
+    EmploymentEndRequired,
+    InvalidEmploymentEnd,
+    EmploymentEndBeforeStart,
+    PeriodOutsideEmployment,
+    ExceptionEvidenceRequired,
+    InvalidException,
+}
+
+impl fmt::Display for LppAssessmentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::InvalidPeriod => "La période LPP doit être au format AAAA-MM.",
+            Self::UnsupportedYear => {
+                "Le moteur LPP déterministe ne prend en charge que les périodes 2026."
+            }
+            Self::BirthDateRequired => {
+                "La date de naissance est obligatoire pour contrôler l'assujettissement LPP."
+            }
+            Self::InvalidBirthDate => {
+                "La date de naissance LPP doit être une date valide au format AAAA-MM-JJ."
+            }
+            Self::AssessmentRequired => {
+                "L'année d'évaluation et le salaire annuel LPP doivent être confirmés ensemble."
+            }
+            Self::AssessmentYearMismatch => {
+                "L'évaluation salariale LPP ne correspond pas à l'année de la période."
+            }
+            Self::InvalidAnnualSalary => {
+                "Le salaire annuel LPP doit être un montant positif ou nul."
+            }
+            Self::ContractKindRequired => {
+                "La nature fixe ou indéterminée du contrat doit être confirmée pour la LPP."
+            }
+            Self::InvalidContractKind => "La nature du contrat LPP doit être indefinite ou fixed.",
+            Self::EmploymentStartRequired => {
+                "La date de début du contrat est obligatoire pour contrôler la LPP."
+            }
+            Self::InvalidEmploymentStart => "La date de début du contrat LPP est invalide.",
+            Self::EmploymentEndRequired => {
+                "Un contrat fixed exige une date de fin pour contrôler la LPP."
+            }
+            Self::InvalidEmploymentEnd => "La date de fin du contrat LPP est invalide.",
+            Self::EmploymentEndBeforeStart => {
+                "La date de fin du contrat LPP précède sa date de début."
+            }
+            Self::PeriodOutsideEmployment => {
+                "La période LPP se situe hors des rapports de travail confirmés."
+            }
+            Self::ExceptionEvidenceRequired => {
+                "Une exception LPP exige un code et une référence de preuve non vide."
+            }
+            Self::InvalidException => {
+                "L'exception LPP ne correspond pas aux caractéristiques confirmées du contrat."
+            }
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for LppAssessmentError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AcProratedCeiling {
@@ -188,6 +296,158 @@ pub(crate) fn avs_is_due_for_period(
     Ok(year >= birth_date.year().saturating_add(18))
 }
 
+/// Qualifie l'assujettissement LPP 2026 sans fabriquer de taux de caisse.
+/// Le moteur ne calcule que le statut légal et, lorsque la couverture est due,
+/// le salaire coordonné annuel obligatoire. Les cotisations effectives restent
+/// celles du règlement réel de l'institution de prévoyance.
+pub(crate) fn assess_lpp_2026(
+    input: LppAssessmentInput<'_>,
+) -> Result<LppAssessment, LppAssessmentError> {
+    let (year, month) =
+        parse_period(input.period).map_err(|_| LppAssessmentError::InvalidPeriod)?;
+    if year != 2026 {
+        return Err(LppAssessmentError::UnsupportedYear);
+    }
+    let birth_date = input
+        .birth_date
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(LppAssessmentError::BirthDateRequired)
+        .and_then(|value| {
+            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .map_err(|_| LppAssessmentError::InvalidBirthDate)
+        })?;
+
+    // Les risques décès et invalidité commencent le 1er janvier suivant le
+    // 17e anniversaire. Avant cette date, les autres données LPP ne sont pas
+    // nécessaires pour conclure avec certitude que la couverture n'est pas due.
+    if year < birth_date.year().saturating_add(18) {
+        return Ok(LppAssessment {
+            coverage: LppCoverage::NotDueUnderAge,
+            annual_salary_cents: None,
+            coordinated_annual_salary_cents: None,
+        });
+    }
+
+    let (assessment_year, annual_salary_cents) =
+        match (input.assessment_year, input.annual_salary_cents) {
+            (Some(assessment_year), Some(annual_salary_cents)) => {
+                (assessment_year, annual_salary_cents)
+            }
+            _ => return Err(LppAssessmentError::AssessmentRequired),
+        };
+    if assessment_year != i64::from(year) {
+        return Err(LppAssessmentError::AssessmentYearMismatch);
+    }
+    if annual_salary_cents < 0 {
+        return Err(LppAssessmentError::InvalidAnnualSalary);
+    }
+    // Le texte légal vise un salaire strictement supérieur au seuil d'entrée.
+    if annual_salary_cents <= SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026 {
+        return Ok(LppAssessment {
+            coverage: LppCoverage::NotDueUnderThreshold,
+            annual_salary_cents: Some(annual_salary_cents),
+            coordinated_annual_salary_cents: None,
+        });
+    }
+
+    let contract_kind = input
+        .employment_contract_kind
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(LppAssessmentError::ContractKindRequired)?;
+    if !matches!(contract_kind, "indefinite" | "fixed") {
+        return Err(LppAssessmentError::InvalidContractKind);
+    }
+    let employment_start = input
+        .employment_start
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(LppAssessmentError::EmploymentStartRequired)
+        .and_then(|value| {
+            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .map_err(|_| LppAssessmentError::InvalidEmploymentStart)
+        })?;
+    let employment_end = input
+        .employment_end
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .map_err(|_| LppAssessmentError::InvalidEmploymentEnd)
+        })
+        .transpose()?;
+    if contract_kind == "fixed" && employment_end.is_none() {
+        return Err(LppAssessmentError::EmploymentEndRequired);
+    }
+    if employment_end.is_some_and(|end| end < employment_start) {
+        return Err(LppAssessmentError::EmploymentEndBeforeStart);
+    }
+
+    let period_start = NaiveDate::from_ymd_opt(year, month, 1).expect("validated LPP period month");
+    let period_end = next_month_start(period_start)
+        .pred_opt()
+        .expect("validated LPP period has a previous day");
+    if employment_start > period_end || employment_end.is_some_and(|end| end < period_start) {
+        return Err(LppAssessmentError::PeriodOutsideEmployment);
+    }
+
+    let exception_code = input
+        .exception_code
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let exception_evidence = input
+        .exception_evidence_reference
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if exception_code.is_some() != exception_evidence.is_some() {
+        return Err(LppAssessmentError::ExceptionEvidenceRequired);
+    }
+    if exception_code.is_some_and(|code| !matches!(code, "short_fixed_contract" | "other_legal")) {
+        return Err(LppAssessmentError::InvalidException);
+    }
+
+    let short_fixed_contract = if contract_kind == "fixed" {
+        let employment_end = employment_end.expect("fixed contract end validated above");
+        let three_month_mark = employment_start
+            .checked_add_months(Months::new(3))
+            .ok_or(LppAssessmentError::InvalidEmploymentEnd)?;
+        employment_end < three_month_mark
+    } else {
+        false
+    };
+    match (short_fixed_contract, exception_code) {
+        (true, Some("short_fixed_contract" | "other_legal")) | (false, Some("other_legal")) => {
+            return Ok(LppAssessment {
+                coverage: LppCoverage::Exempt,
+                annual_salary_cents: Some(annual_salary_cents),
+                coordinated_annual_salary_cents: None,
+            })
+        }
+        (true, None) => return Err(LppAssessmentError::ExceptionEvidenceRequired),
+        (false, Some("short_fixed_contract")) => return Err(LppAssessmentError::InvalidException),
+        _ => {}
+    }
+
+    let coordinated_annual_salary_cents = annual_salary_cents
+        .min(SWISS_LPP_ANNUAL_SALARY_CEILING_CENTS_2026)
+        .saturating_sub(SWISS_LPP_COORDINATION_DEDUCTION_CENTS_2026)
+        .clamp(
+            SWISS_LPP_MIN_COORDINATED_SALARY_CENTS_2026,
+            SWISS_LPP_MAX_COORDINATED_SALARY_CENTS_2026,
+        );
+    let coverage = if year >= birth_date.year().saturating_add(25) {
+        LppCoverage::RiskAndSavings
+    } else {
+        LppCoverage::RiskOnly
+    };
+    Ok(LppAssessment {
+        coverage,
+        annual_salary_cents: Some(annual_salary_cents),
+        coordinated_annual_salary_cents: Some(coordinated_annual_salary_cents),
+    })
+}
+
 impl std::error::Error for SwissPayrollRuleError {}
 
 /// Indique si l'AC doit être calculée sans jamais inférer le sexe ou l'âge de
@@ -319,6 +579,135 @@ fn inclusive_days_30_360(start: NaiveDate, end: NaiveDate) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn lpp_input() -> LppAssessmentInput<'static> {
+        LppAssessmentInput {
+            period: "2026-06",
+            birth_date: Some("1990-06-15"),
+            employment_start: Some("2020-01-01"),
+            employment_end: None,
+            employment_contract_kind: Some("indefinite"),
+            assessment_year: Some(2026),
+            annual_salary_cents: Some(8_000_000),
+            exception_code: None,
+            exception_evidence_reference: None,
+        }
+    }
+
+    #[test]
+    fn lpp_threshold_is_strict_and_coordinated_salary_is_bounded() {
+        let at_threshold = assess_lpp_2026(LppAssessmentInput {
+            annual_salary_cents: Some(SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(at_threshold.coverage, LppCoverage::NotDueUnderThreshold);
+        assert_eq!(at_threshold.coordinated_annual_salary_cents, None);
+
+        let first_insured_cent = assess_lpp_2026(LppAssessmentInput {
+            annual_salary_cents: Some(SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026 + 1),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(
+            first_insured_cent.coordinated_annual_salary_cents,
+            Some(SWISS_LPP_MIN_COORDINATED_SALARY_CENTS_2026)
+        );
+
+        let at_salary_ceiling = assess_lpp_2026(LppAssessmentInput {
+            annual_salary_cents: Some(SWISS_LPP_ANNUAL_SALARY_CEILING_CENTS_2026),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(
+            at_salary_ceiling.coordinated_annual_salary_cents,
+            Some(SWISS_LPP_MAX_COORDINATED_SALARY_CENTS_2026)
+        );
+        let above_salary_ceiling = assess_lpp_2026(LppAssessmentInput {
+            annual_salary_cents: Some(SWISS_LPP_ANNUAL_SALARY_CEILING_CENTS_2026 * 2),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(
+            above_salary_ceiling.coordinated_annual_salary_cents,
+            Some(SWISS_LPP_MAX_COORDINATED_SALARY_CENTS_2026)
+        );
+    }
+
+    #[test]
+    fn lpp_risk_and_savings_start_on_the_required_january_first() {
+        let under_risk_age = assess_lpp_2026(LppAssessmentInput {
+            birth_date: Some("2009-01-01"),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(under_risk_age.coverage, LppCoverage::NotDueUnderAge);
+
+        let first_risk_year = assess_lpp_2026(LppAssessmentInput {
+            birth_date: Some("2008-12-31"),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(first_risk_year.coverage, LppCoverage::RiskOnly);
+
+        let last_risk_only_year = assess_lpp_2026(LppAssessmentInput {
+            birth_date: Some("2002-01-01"),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(last_risk_only_year.coverage, LppCoverage::RiskOnly);
+
+        let first_savings_year = assess_lpp_2026(LppAssessmentInput {
+            birth_date: Some("2001-12-31"),
+            ..lpp_input()
+        })
+        .unwrap();
+        assert_eq!(first_savings_year.coverage, LppCoverage::RiskAndSavings);
+    }
+
+    #[test]
+    fn lpp_fixed_contract_boundary_is_three_calendar_months() {
+        let exact_three_months = LppAssessmentInput {
+            period: "2026-03",
+            employment_start: Some("2026-01-01"),
+            employment_end: Some("2026-03-31"),
+            employment_contract_kind: Some("fixed"),
+            exception_code: Some("short_fixed_contract"),
+            exception_evidence_reference: Some("Contrat signé C-2026-001"),
+            ..lpp_input()
+        };
+        assert_eq!(
+            assess_lpp_2026(exact_three_months).unwrap().coverage,
+            LppCoverage::Exempt
+        );
+        assert_eq!(
+            assess_lpp_2026(LppAssessmentInput {
+                exception_code: None,
+                exception_evidence_reference: None,
+                ..exact_three_months
+            }),
+            Err(LppAssessmentError::ExceptionEvidenceRequired)
+        );
+
+        let more_than_three_months = LppAssessmentInput {
+            employment_end: Some("2026-04-01"),
+            exception_code: None,
+            exception_evidence_reference: None,
+            ..exact_three_months
+        };
+        assert_eq!(
+            assess_lpp_2026(more_than_three_months).unwrap().coverage,
+            LppCoverage::RiskAndSavings
+        );
+        assert_eq!(
+            assess_lpp_2026(LppAssessmentInput {
+                exception_code: Some("short_fixed_contract"),
+                exception_evidence_reference: Some("Contrat signé C-2026-001"),
+                ..more_than_three_months
+            }),
+            Err(LppAssessmentError::InvalidException)
+        );
+    }
 
     #[test]
     fn reproduces_the_official_partial_year_example() {

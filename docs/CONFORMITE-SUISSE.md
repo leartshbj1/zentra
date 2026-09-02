@@ -44,7 +44,7 @@ Sources : [SIX — QR-bill](https://www.six-group.com/en/products-services/bank
 ## Salaires 2026
 
 Les règles ci-dessous reflètent les sources officielles disponibles au
-1er septembre 2026. Tous les paramètres doivent rester versionnés par date de
+2 septembre 2026. Tous les paramètres doivent rester versionnés par date de
 validité ; les taux de caisse, d’assureur et les barèmes cantonaux ne peuvent pas
 être remplacés par une valeur nationale supposée.
 
@@ -196,6 +196,11 @@ Sources : [Swissdec — ELM](https://www.swissdec.ch/fr/elm), [Swissdec — arr
 - La fiche de salaire PDF est un décompte interne détaillé ; elle ne remplace
   ni le formulaire 11 annuel ni les déclarations aux caisses, assureurs et
   autorités.
+- Le garde LPP livré couvre les conditions minimales obligatoires 2026 et exige
+  le règlement réel, sa fenêtre de validité, le salarié concerné, les
+  composantes risque/épargne et une attestation de la part patronale globale.
+  Il ne calcule pas les taux propres à l'institution, ne couvre pas encore les
+  autres millésimes et ne remplace ni son règlement ni son décompte collectif.
 - Zentra ne génère pas encore le formulaire 11 et ne réalise aucun envoi direct
   aux administrations fiscales cantonales.
 - Zentra n’intègre pas un moteur officiel complet de barèmes d’impôt à la source :

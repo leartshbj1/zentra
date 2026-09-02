@@ -435,7 +435,7 @@ const panels = [
 
 export function ProductShowcase() {
   const [active, setActive] = useState(0);
-  const baseId = 'elyko-product-tour';
+  const baseId = 'zentra-product-tour';
 
   return (
     <div>

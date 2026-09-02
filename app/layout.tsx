@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+// PUBLIC_SITE_URL est l'origine canonique commune au site, à Stripe et aux
+// liens de licence. NEXT_PUBLIC_SITE_URL reste lu pour les anciens déploiements.
+const configuredSiteUrl =
+  process.env.PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
 const metadataBase = configuredSiteUrl ? new URL(configuredSiteUrl) : undefined;
 const socialImage = metadataBase
   ? new URL('/og.png', metadataBase).toString()
@@ -25,6 +28,7 @@ export const metadata: Metadata = {
   description:
     'L’application Windows locale pour piloter catalogue, devis, factures, fournisseurs, achats, import CAMT, projets, salaires et comptabilité dans tous les secteurs NOGA 2025.',
   applicationName: 'Zentra',
+  ...(metadataBase ? { alternates: { canonical: '/' } } : {}),
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',
@@ -32,6 +36,7 @@ export const metadata: Metadata = {
     title: 'Zentra — Toute votre entreprise, dans une seule application',
     description:
       'Le logiciel Windows suisse multisectoriel pour gérer catalogue, devis, factures, fournisseurs, achats, import CAMT, projets et comptabilité avec les données sur votre PC.',
+    ...(metadataBase ? { url: '/' } : {}),
     ...(socialImage
       ? {
           images: [

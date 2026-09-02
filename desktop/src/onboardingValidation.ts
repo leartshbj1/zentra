@@ -102,6 +102,25 @@ export function normalizeOnboardingSettings(settings: AppSettings): AppSettings 
         effectiveFrom: clean(settings.payroll.aanpEmployerCoverage?.effectiveFrom ?? ''),
         effectiveTo: clean(settings.payroll.aanpEmployerCoverage?.effectiveTo ?? ''),
       },
+      lppPlanEvidence: settings.payroll.lppPlanEvidence
+        ? {
+            contractNumber: clean(
+              settings.payroll.lppPlanEvidence.contractNumber,
+            ),
+            regulationReference: clean(
+              settings.payroll.lppPlanEvidence.regulationReference,
+            ),
+            effectiveFrom: clean(
+              settings.payroll.lppPlanEvidence.effectiveFrom,
+            ),
+            effectiveTo: clean(
+              settings.payroll.lppPlanEvidence.effectiveTo,
+            ),
+            employerAggregateShareConfirmed:
+              settings.payroll.lppPlanEvidence
+                .employerAggregateShareConfirmed === true,
+          }
+        : undefined,
       employeeRates: settings.payroll.enabled ? settings.payroll.employeeRates.map(normalizeRate) : [],
       employerRates: settings.payroll.enabled ? settings.payroll.employerRates.map(normalizeRate) : [],
     },
@@ -278,6 +297,62 @@ export function validateOnboarding(
           'payroll.aanpEmployerCoverage.effectiveTo',
           'La fin de prise en charge AANP',
           'La date de fin ne peut pas précéder la date de début.',
+        );
+    }
+    const lppPlan = payroll.lppPlanEvidence;
+    if (lppPlan) {
+      required(
+        4,
+        'payroll.pensionFund',
+        'L’institution LPP',
+        payroll.pensionFund,
+        200,
+      );
+      required(
+        4,
+        'payroll.lppPlanEvidence.contractNumber',
+        'Le numéro du contrat LPP',
+        lppPlan.contractNumber,
+        200,
+      );
+      required(
+        4,
+        'payroll.lppPlanEvidence.regulationReference',
+        'La référence du règlement LPP',
+        lppPlan.regulationReference,
+        500,
+      );
+      if (!isRealDate(lppPlan.effectiveFrom))
+        add(
+          4,
+          'payroll.lppPlanEvidence.effectiveFrom',
+          'Le début d’effet du règlement LPP',
+          'Choisissez une date de début valide pour le règlement LPP.',
+        );
+      if (!isRealDate(lppPlan.effectiveTo))
+        add(
+          4,
+          'payroll.lppPlanEvidence.effectiveTo',
+          'La fin d’effet du règlement LPP',
+          'Choisissez la date de fin valide du règlement LPP.',
+        );
+      if (
+        isRealDate(lppPlan.effectiveFrom) &&
+        isRealDate(lppPlan.effectiveTo) &&
+        lppPlan.effectiveTo < lppPlan.effectiveFrom
+      )
+        add(
+          4,
+          'payroll.lppPlanEvidence.effectiveTo',
+          'La fin d’effet du règlement LPP',
+          'La date de fin du règlement LPP ne peut pas précéder son début.',
+        );
+      if (!lppPlan.employerAggregateShareConfirmed)
+        add(
+          4,
+          'payroll.lppPlanEvidence.employerAggregateShareConfirmed',
+          'La part employeur agrégée LPP',
+          'Confirmez la règle agrégée employeur d’après le règlement réel.',
         );
     }
     const validateRates = (rates: PayrollRate[], target: 'employeeRates' | 'employerRates') => {

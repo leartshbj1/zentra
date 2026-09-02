@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 27;
+pub const SCHEMA_VERSION: i64 = 28;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -344,11 +344,16 @@ CREATE TABLE IF NOT EXISTS employees (
   iban TEXT,
   employment_start_date TEXT,
   employment_end_date TEXT,
+  employment_contract_kind TEXT CHECK (employment_contract_kind IS NULL OR employment_contract_kind IN ('indefinite','fixed')),
   reference_age_date TEXT,
   avs_allowance_waived INTEGER CHECK (avs_allowance_waived IS NULL OR avs_allowance_waived IN (0, 1)),
   contractual_weekly_minutes INTEGER CHECK (contractual_weekly_minutes IS NULL OR contractual_weekly_minutes BETWEEN 0 AND 10080),
   ac_opening_year INTEGER CHECK (ac_opening_year IS NULL OR ac_opening_year BETWEEN 1900 AND 9999),
   ac_opening_basis_cents INTEGER CHECK (ac_opening_basis_cents IS NULL OR ac_opening_basis_cents >= 0),
+  lpp_assessment_year INTEGER CHECK (lpp_assessment_year IS NULL OR lpp_assessment_year BETWEEN 1900 AND 9999),
+  lpp_annual_salary_cents INTEGER CHECK (lpp_annual_salary_cents IS NULL OR lpp_annual_salary_cents >= 0),
+  lpp_exception_code TEXT CHECK (lpp_exception_code IS NULL OR lpp_exception_code IN ('short_fixed_contract','other_legal')),
+  lpp_exception_evidence_reference TEXT CHECK (lpp_exception_evidence_reference IS NULL OR LENGTH(TRIM(lpp_exception_evidence_reference)) BETWEEN 1 AND 500),
   employment_rate INTEGER NOT NULL DEFAULT 100 CHECK (employment_rate BETWEEN 1 AND 100),
   hourly_rate_cents INTEGER NOT NULL DEFAULT 0 CHECK (hourly_rate_cents >= 0),
   monthly_salary_cents INTEGER NOT NULL DEFAULT 0 CHECK (monthly_salary_cents >= 0),
@@ -961,6 +966,8 @@ CREATE TABLE IF NOT EXISTS payroll_contribution_definitions (
   fixed_amount_cents INTEGER CHECK (fixed_amount_cents >= 0),
   annual_ceiling_cents INTEGER CHECK (annual_ceiling_cents IS NULL OR annual_ceiling_cents > 0),
   basis_kind TEXT NOT NULL CHECK (basis_kind IN ('gross','ahv_salary','coordinated','custom')),
+  lpp_component TEXT CHECK (lpp_component IS NULL OR lpp_component IN ('risk','savings','combined')),
+  lpp_employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   source TEXT NOT NULL,
   effective_from TEXT NOT NULL,
   effective_to TEXT,
@@ -988,6 +995,8 @@ CREATE TABLE IF NOT EXISTS payslip_contributions (
   fixed_amount_cents INTEGER,
   annual_ceiling_cents INTEGER,
   amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
+  lpp_component TEXT CHECK (lpp_component IS NULL OR lpp_component IN ('risk','savings','combined')),
+  lpp_employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   source TEXT NOT NULL,
   effective_from TEXT NOT NULL,
   effective_to TEXT,
@@ -4833,4 +4842,11 @@ BEFORE UPDATE ON supplier_invoices WHEN OLD.status='draft' AND NEW.status='valid
 BEGIN SELECT RAISE(ABORT,'supplier invoice validation requires its exact journal entry and posted expense accounts'); END;
 
 PRAGMA user_version=27;
+"#;
+
+/// Socle LPP V28. Les colonnes sont ajoutées conditionnellement par
+/// `migrate_v28`; aucune qualification de contrat, aucun salaire annuel et
+/// aucune preuve ne sont inventés pour les données historiques.
+pub const MIGRATION_V28_SQL: &str = r#"
+PRAGMA user_version=28;
 "#;

@@ -490,7 +490,7 @@ export function RecurringDocumentsPanel({
           Chaque échéance prépare une{' '}
           <strong>facture brouillon à contrôler</strong>. Aucune facture n’est
           émise, envoyée ou comptabilisée automatiquement. Le contrôle local
-          s’exécute au démarrage et tant qu’Zentra reste ouvert.
+          s’exécute au démarrage et tant que Zentra reste ouvert.
         </p>
       </div>
 

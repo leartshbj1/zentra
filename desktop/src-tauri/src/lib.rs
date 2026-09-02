@@ -432,7 +432,9 @@ mod tests {
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
-            .unwrap();
+            .optional()
+            .unwrap()
+            .unwrap_or((None, None));
         let definition = store
             .upsert_payroll_contribution_definition(ContributionDefinitionInput {
                 id: None,
@@ -445,6 +447,8 @@ mod tests {
                 fixed_amount_cents: None,
                 annual_ceiling_cents: Some(14_820_000),
                 basis_kind: "gross".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Police LAA explicite de test".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: Some("2026-12-31".into()),
@@ -458,6 +462,266 @@ mod tests {
             basis_cents: None,
             year_to_date_basis_cents: Some(0),
         }
+    }
+
+    /// Fixture adulte complète pour exercer la validation fédérale au moment
+    /// de la comptabilisation. Elle installe explicitement le profil figé 2026,
+    /// une police AAP et une retenue contractuelle dont la fenêtre se termine
+    /// avec août 2026.
+    fn configure_adult_test_payroll(
+        store: &LocalStore,
+        employee_id: &str,
+    ) -> Vec<ContributionSelectionInput> {
+        let workspace = store.get_workspace().unwrap();
+        let mut extra: serde_json::Value = serde_json::from_str(
+            workspace["settings"]["extra_settings_json"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        extra["payroll"] = json!({
+            "enabled": true,
+            "fiduciaryValidated": true,
+            "avsFund": "Caisse AVS de test",
+            "accidentInsurer": "Assureur LAA de test",
+            "pensionFund": "",
+            "dailyAllowanceInsurer": "",
+            "familyAllowanceFund": ""
+        });
+        store
+            .update_settings(json!({"extra_settings_json":extra}))
+            .unwrap();
+        store
+            .update_record(
+                "employees",
+                employee_id,
+                json!({
+                    "birth_date":"1990-01-01",
+                    "employment_start_date":"2026-01-01",
+                    "contractual_weekly_minutes":420,
+                    "ac_opening_year":2026,
+                    "ac_opening_basis_cents":0,
+                    "lpp_assessment_year":2026,
+                    "lpp_annual_salary_cents":0
+                }),
+            )
+            .unwrap();
+
+        let profile = store.get_payroll_regulatory_profiles().unwrap();
+        let federal = profile[0]["definitions"].as_array().unwrap();
+        let mut selections = Vec::with_capacity(federal.len() + 2);
+        for row in federal {
+            let definition = store
+                .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                    id: None,
+                    code: row["code"].as_str().unwrap().into(),
+                    label: row["label"].as_str().unwrap().into(),
+                    category: row["category"].as_str().unwrap().into(),
+                    side: row["side"].as_str().unwrap().into(),
+                    calculation_kind: row["calculation_kind"].as_str().unwrap().into(),
+                    rate_bp: row["rate_bp"].as_i64(),
+                    fixed_amount_cents: row["fixed_amount_cents"].as_i64(),
+                    annual_ceiling_cents: row["annual_ceiling_cents"].as_i64(),
+                    basis_kind: row["basis_kind"].as_str().unwrap().into(),
+                    lpp_component: None,
+                    lpp_employee_id: None,
+                    source: row["source"].as_str().unwrap().into(),
+                    effective_from: row["effective_from"].as_str().unwrap().into(),
+                    effective_to: row["effective_to"].as_str().map(str::to_owned),
+                    active: true,
+                    liability_account_id: None,
+                    expense_account_id: None,
+                })
+                .unwrap();
+            selections.push(ContributionSelectionInput {
+                definition_id: value_id(&definition),
+                basis_cents: Some(500_000),
+                year_to_date_basis_cents: (row["category"] == "ac").then_some(0),
+            });
+        }
+
+        let (liability_account_id, expense_account_id): (Option<String>, Option<String>) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT social_payable_account_id,social_expense_account_id FROM accounting_settings WHERE id=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .unwrap()
+            .unwrap_or((None, None));
+        for (code, label, category, side, effective_to, ceiling) in [
+            (
+                "AAP_ADULT_TEST",
+                "AAP adulte confirmée",
+                "aap",
+                "employer",
+                "2026-12-31",
+                Some(14_820_000),
+            ),
+            (
+                "RETENUE_AOUT_2026",
+                "Retenue contractuelle août 2026",
+                "other",
+                "employee",
+                "2026-08-31",
+                None,
+            ),
+        ] {
+            let definition = store
+                .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                    id: None,
+                    code: code.into(),
+                    label: label.into(),
+                    category: category.into(),
+                    side: side.into(),
+                    calculation_kind: "rate".into(),
+                    rate_bp: Some(100),
+                    fixed_amount_cents: None,
+                    annual_ceiling_cents: ceiling,
+                    basis_kind: "gross".into(),
+                    lpp_component: None,
+                    lpp_employee_id: None,
+                    source: "Police ou contrat explicite de test".into(),
+                    effective_from: "2026-01-01".into(),
+                    effective_to: Some(effective_to.into()),
+                    active: true,
+                    liability_account_id: liability_account_id.clone(),
+                    expense_account_id: (side == "employer")
+                        .then(|| expense_account_id.clone())
+                        .flatten(),
+                })
+                .unwrap();
+            selections.push(ContributionSelectionInput {
+                definition_id: value_id(&definition),
+                basis_cents: None,
+                year_to_date_basis_cents: ceiling.map(|_| 0),
+            });
+        }
+        selections
+    }
+
+    const LPP_TEST_REGULATION: &str = "Règlement LPP TEST-2026, art. 12";
+
+    fn set_lpp_plan_evidence(store: &LocalStore, evidence: Option<serde_json::Value>) {
+        let workspace = store.get_workspace().unwrap();
+        let mut extra: serde_json::Value = serde_json::from_str(
+            workspace["settings"]["extra_settings_json"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        let payroll = extra["payroll"].as_object_mut().unwrap();
+        payroll.insert("pensionFund".into(), json!("Fondation LPP de test"));
+        match evidence {
+            Some(value) => {
+                payroll.insert("lppPlanEvidence".into(), value);
+            }
+            None => {
+                payroll.remove("lppPlanEvidence");
+            }
+        }
+        store
+            .update_settings(json!({"extra_settings_json":extra}))
+            .unwrap();
+    }
+
+    fn valid_lpp_plan_evidence() -> serde_json::Value {
+        json!({
+            "contractNumber":"LPP-TEST-2026-001",
+            "regulationReference":LPP_TEST_REGULATION,
+            "effectiveFrom":"2026-01-01",
+            "effectiveTo":"2026-12-31",
+            "employerAggregateShareConfirmed":true
+        })
+    }
+
+    fn make_employee_lpp_due(store: &LocalStore, employee_id: &str, birth_date: &str) {
+        store
+            .update_record(
+                "employees",
+                employee_id,
+                json!({
+                    "birth_date":birth_date,
+                    "employment_start_date":"2020-01-01",
+                    "employment_contract_kind":"indefinite",
+                    "lpp_assessment_year":2026,
+                    "lpp_annual_salary_cents":6_000_000,
+                    "lpp_exception_code":null,
+                    "lpp_exception_evidence_reference":null
+                }),
+            )
+            .unwrap();
+    }
+
+    fn lpp_definition_input(
+        employee_id: &str,
+        code: &str,
+        side: &str,
+        component: &str,
+        amount_cents: i64,
+    ) -> ContributionDefinitionInput {
+        ContributionDefinitionInput {
+            id: None,
+            code: code.into(),
+            label: format!("LPP {component} {side}"),
+            category: "lpp".into(),
+            side: side.into(),
+            calculation_kind: "fixed".into(),
+            rate_bp: None,
+            fixed_amount_cents: Some(amount_cents),
+            annual_ceiling_cents: None,
+            basis_kind: "coordinated".into(),
+            lpp_component: Some(component.into()),
+            lpp_employee_id: Some(employee_id.into()),
+            source: LPP_TEST_REGULATION.into(),
+            effective_from: "2026-01-01".into(),
+            effective_to: Some("2026-12-31".into()),
+            active: true,
+            liability_account_id: None,
+            expense_account_id: None,
+        }
+    }
+
+    fn create_lpp_selection(
+        store: &LocalStore,
+        input: ContributionDefinitionInput,
+    ) -> ContributionSelectionInput {
+        let definition = store.upsert_payroll_contribution_definition(input).unwrap();
+        ContributionSelectionInput {
+            definition_id: value_id(&definition),
+            basis_cents: Some(3_354_000),
+            year_to_date_basis_cents: None,
+        }
+    }
+
+    fn valid_salary_line() -> PayslipManualLineInput {
+        PayslipManualLineInput {
+            id: None,
+            label: "Salaire brut".into(),
+            kind: "earning".into(),
+            amount_cents: 500_000,
+            posting_account_id: None,
+            expense_account_id: None,
+        }
+    }
+
+    fn save_valid_test_payslip(
+        store: &LocalStore,
+        employee_id: &str,
+        contributions: Vec<ContributionSelectionInput>,
+    ) -> crate::error::AppResult<serde_json::Value> {
+        store.save_payslip_with_contributions(SavePayslipWithContributionsInput {
+            id: None,
+            employee_id: employee_id.into(),
+            period: "2026-06".into(),
+            status: "valide".into(),
+            payment_date: None,
+            notes: None,
+            lines: vec![valid_salary_line()],
+            contributions,
+        })
     }
 
     fn test_invoice_qr_bill(invoice_id: &str, message: &str) -> SaveInvoiceQrBillInput {
@@ -4127,6 +4391,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             fixed_amount_cents: Some(10_000),
             annual_ceiling_cents: None,
             basis_kind: "gross".into(),
+            lpp_component: None,
+            lpp_employee_id: None,
             source: "Contrat de test contrôlé".into(),
             effective_from: "2026-01-01".into(),
             effective_to: None,
@@ -4152,6 +4418,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     fixed_amount_cents: Some(15_000),
                     annual_ceiling_cents: None,
                     basis_kind: "gross".into(),
+                    lpp_component: None,
+                    lpp_employee_id: None,
                     source: "Contrat de test contrôlé".into(),
                     effective_from: "2026-01-01".into(),
                     effective_to: None,
@@ -4316,6 +4584,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             payslip_id: payslip_id.clone(),
             payment_date: Some("2026-09-02".into()),
             reference: Some("PAY-2026-08-001".into()),
+            regulatory_override_reason: None,
         };
         let paid = store.pay_payslip(payment_input.clone()).unwrap();
         assert_eq!(paid["payslip"]["status"], "paye");
@@ -4372,6 +4641,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: Some(1_000),
                 annual_ceiling_cents: None,
                 basis_kind: "gross".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Contrôle comptable Zentra".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: None,
@@ -4526,6 +4797,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     fixed_amount_cents: Some(1_000),
                     annual_ceiling_cents: None,
                     basis_kind: "gross".into(),
+                    lpp_component: None,
+                    lpp_employee_id: None,
                     source: "Test de revalidation comptable".into(),
                     effective_from: "2026-01-01".into(),
                     effective_to: None,
@@ -4805,6 +5078,693 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn adult_post_replays_frozen_date_and_payment_rejects_changed_regulatory_window() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Employé adulte daté"}))
+                .unwrap(),
+        );
+        let contributions = configure_adult_test_payroll(&store, &employee_id);
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-08".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![PayslipManualLineInput {
+                    id: None,
+                    label: "Salaire brut".into(),
+                    kind: "earning".into(),
+                    amount_cents: 500_000,
+                    posting_account_id: None,
+                    expense_account_id: None,
+                }],
+                contributions,
+            })
+            .unwrap();
+        assert_eq!(saved["calculation"]["contribution_date"], "2026-08-01");
+        assert_eq!(saved["contributions"].as_array().unwrap().len(), 10);
+        let payslip_id = value_id(&saved["payslip"]);
+
+        let posted = store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-08-31".into()),
+            })
+            .unwrap();
+        assert_eq!(posted["payslip"]["status"], "comptabilise");
+        let snapshot: serde_json::Value =
+            serde_json::from_str(posted["payslip"]["snapshot_json"].as_str().unwrap()).unwrap();
+        assert_eq!(snapshot["contribution_date"], "2026-08-01");
+        assert_eq!(snapshot["contributions"].as_array().unwrap().len(), 10);
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "DELETE FROM payslip_contributions WHERE payslip_id=?",
+                rusqlite::params![payslip_id],
+            )
+            .unwrap();
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM payslip_contributions WHERE payslip_id=?",
+                    rusqlite::params![payslip_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0,
+            "le contrôle de paiement doit dépendre du snapshot immuable, pas de la table vivante"
+        );
+
+        let missing_date_error = store
+            .pay_payslip(PayPayslipInput {
+                payslip_id: payslip_id.clone(),
+                payment_date: None,
+                reference: Some("REF-SANS-DATE".into()),
+                regulatory_override_reason: None,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(
+            missing_date_error.contains("date réelle"),
+            "{missing_date_error}"
+        );
+        let unchanged_without_date: (String, Option<String>, Option<String>, Option<String>, i64) =
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT status,payment_date,payment_reference,payment_journal_entry_id,(SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=p.id AND source_event='payment') FROM payslips p WHERE id=?",
+                    rusqlite::params![payslip_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                )
+                .unwrap();
+        assert_eq!(
+            unchanged_without_date,
+            ("comptabilise".into(), None, None, None, 0)
+        );
+
+        for (payment_date, expected_error) in [
+            ("2027-01-02", "millésime réglementaire"),
+            ("2026-09-01", "fenêtre réglementaire"),
+        ] {
+            let error = store
+                .pay_payslip(PayPayslipInput {
+                    payslip_id: payslip_id.clone(),
+                    payment_date: Some(payment_date.into()),
+                    reference: Some(format!("REF-{payment_date}")),
+                    regulatory_override_reason: None,
+                })
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(expected_error), "{error}");
+            assert!(error.contains("recalculez"), "{error}");
+            let unchanged: (String, Option<String>, Option<String>, Option<String>, i64) = store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT status,payment_date,payment_reference,payment_journal_entry_id,(SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=p.id AND source_event='payment') FROM payslips p WHERE id=?",
+                    rusqlite::params![payslip_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                )
+                .unwrap();
+            assert_eq!(unchanged, ("comptabilise".into(), None, None, None, 0));
+        }
+
+        let paid = store
+            .pay_payslip(PayPayslipInput {
+                payslip_id,
+                payment_date: Some("2026-08-31".into()),
+                reference: Some("REF-DANS-FENETRE".into()),
+                regulatory_override_reason: None,
+            })
+            .unwrap();
+        assert_eq!(paid["payslip"]["status"], "paye");
+        assert_eq!(paid["payslip"]["payment_date"], "2026-08-31");
+    }
+
+    #[test]
+    fn historical_paid_regularization_requires_an_audited_regulatory_override() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Paiement historique contrôlé"}))
+                .unwrap(),
+        );
+        let contributions = configure_adult_test_payroll(&store, &employee_id);
+        let saved = store
+            .save_payslip_with_contributions(SavePayslipWithContributionsInput {
+                id: None,
+                employee_id,
+                period: "2026-08".into(),
+                status: "valide".into(),
+                payment_date: None,
+                notes: None,
+                lines: vec![valid_salary_line()],
+                contributions,
+            })
+            .unwrap();
+        let payslip_id = value_id(&saved["payslip"]);
+        store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-08-31".into()),
+            })
+            .unwrap();
+
+        let connection = store.connect().unwrap();
+        connection
+            .execute_batch("DROP TRIGGER payslips_posted_no_update;")
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE payslips SET status='paye',payment_date=NULL,payment_reference=NULL,payment_journal_entry_id=NULL WHERE id=?",
+                rusqlite::params![payslip_id],
+            )
+            .unwrap();
+        drop(connection);
+
+        let blocked = store
+            .pay_payslip(PayPayslipInput {
+                payslip_id: payslip_id.clone(),
+                payment_date: Some("2027-01-02".into()),
+                reference: Some("HIST-2027".into()),
+                regulatory_override_reason: None,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(blocked.contains("millésime réglementaire"), "{blocked}");
+        assert!(blocked.contains("dérogation exceptionnelle"), "{blocked}");
+
+        let repair_input = PayPayslipInput {
+            payslip_id: payslip_id.clone(),
+            payment_date: Some("2027-01-02".into()),
+            reference: Some("HIST-2027".into()),
+            regulatory_override_reason: Some(
+                "Paiement bancaire réel vérifié sur le relevé du 2 janvier 2027.".into(),
+            ),
+        };
+        let repaired = store.pay_payslip(repair_input.clone()).unwrap();
+        assert_eq!(repaired["regularized"], true);
+        assert_eq!(repaired["payslip"]["payment_date"], "2027-01-02");
+        let retry = store.pay_payslip(repair_input).unwrap();
+        assert_eq!(retry["idempotent"], true);
+
+        let payload: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT payload_json FROM audit_log WHERE action='regularize_payment' AND entity_id=? ORDER BY rowid DESC LIMIT 1",
+                rusqlite::params![payslip_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let audit: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(audit["regulatory_override"]["confirmed"], true);
+        assert_eq!(
+            audit["regulatory_override"]["reason"],
+            "Paiement bancaire réel vérifié sur le relevé du 2 janvier 2027."
+        );
+        assert!(audit["regulatory_override"]["blocked_check"]
+            .as_str()
+            .unwrap()
+            .contains("millésime réglementaire"));
+    }
+
+    #[test]
+    fn lpp_due_without_required_components_is_rejected() {
+        let (_temporary, store) = initialized_store();
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"LPP due sans ligne"}))
+                .unwrap(),
+        );
+        let contributions = configure_adult_test_payroll(&store, &employee_id);
+        make_employee_lpp_due(&store, &employee_id, "1990-01-01");
+        set_lpp_plan_evidence(&store, Some(valid_lpp_plan_evidence()));
+
+        let error = save_valid_test_payslip(&store, &employee_id, contributions)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("combined"), "{error}");
+        assert!(
+            error.contains("risk") && error.contains("savings"),
+            "{error}"
+        );
+        let count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM payslips", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "la sauvegarde valide doit rester atomique");
+    }
+
+    #[test]
+    fn lpp_plan_and_definition_contract_fail_closed() {
+        let (_temporary, store) = initialized_store();
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Contrat LPP contrôlé"}))
+                .unwrap(),
+        );
+        configure_adult_test_payroll(&store, &employee_id);
+        make_employee_lpp_due(&store, &employee_id, "1990-01-01");
+        let valid =
+            lpp_definition_input(&employee_id, "LPP_CONTRACT", "employee", "combined", 10_000);
+
+        set_lpp_plan_evidence(&store, None);
+        let absent = store
+            .upsert_payroll_contribution_definition(valid.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(absent.contains("attestation structurée"), "{absent}");
+
+        let mut unconfirmed = valid_lpp_plan_evidence();
+        unconfirmed["employerAggregateShareConfirmed"] = json!(false);
+        set_lpp_plan_evidence(&store, Some(unconfirmed));
+        let parity = store
+            .upsert_payroll_contribution_definition(valid.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(parity.contains("agrégée"), "{parity}");
+        assert!(parity.contains("fiche par fiche"), "{parity}");
+
+        let mut expired = valid_lpp_plan_evidence();
+        expired["effectiveTo"] = json!("2026-05-31");
+        set_lpp_plan_evidence(&store, Some(expired));
+        let window = store
+            .upsert_payroll_contribution_definition(valid.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(window.contains("sort de la fenêtre"), "{window}");
+
+        let mut imprecise = valid_lpp_plan_evidence();
+        imprecise["regulationReference"] = json!(format!(" {LPP_TEST_REGULATION}"));
+        set_lpp_plan_evidence(&store, Some(imprecise));
+        let exact_text = store
+            .upsert_payroll_contribution_definition(valid.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(exact_text.contains("espaces périphériques"), "{exact_text}");
+
+        set_lpp_plan_evidence(&store, Some(valid_lpp_plan_evidence()));
+        for (label, invalid, expected) in [
+            (
+                "source",
+                ContributionDefinitionInput {
+                    source: "Référence différente".into(),
+                    ..valid.clone()
+                },
+                "exactement",
+            ),
+            (
+                "composante",
+                ContributionDefinitionInput {
+                    lpp_component: None,
+                    ..valid.clone()
+                },
+                "lpp_component",
+            ),
+            (
+                "mode",
+                ContributionDefinitionInput {
+                    calculation_kind: "rate".into(),
+                    rate_bp: Some(100),
+                    fixed_amount_cents: None,
+                    ..valid.clone()
+                },
+                "montant fixe",
+            ),
+            (
+                "montant nul",
+                ContributionDefinitionInput {
+                    fixed_amount_cents: Some(0),
+                    ..valid.clone()
+                },
+                "strictement positif",
+            ),
+            (
+                "base",
+                ContributionDefinitionInput {
+                    basis_kind: "gross".into(),
+                    ..valid.clone()
+                },
+                "coordinated ou custom",
+            ),
+            (
+                "salarié absent",
+                ContributionDefinitionInput {
+                    lpp_employee_id: Some("employee-inexistant".into()),
+                    ..valid.clone()
+                },
+                "introuvable",
+            ),
+            (
+                "métadonnées étrangères",
+                ContributionDefinitionInput {
+                    category: "other".into(),
+                    ..valid.clone()
+                },
+                "doivent être null",
+            ),
+        ] {
+            let error = store
+                .upsert_payroll_contribution_definition(invalid)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(expected), "{label}: {error}");
+        }
+
+        let persisted = create_lpp_selection(&store, valid);
+        let mut expired_after_creation = valid_lpp_plan_evidence();
+        expired_after_creation["effectiveTo"] = json!("2026-05-31");
+        set_lpp_plan_evidence(&store, Some(expired_after_creation));
+        let revalidated = store
+            .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id,
+                period: "2026-06".into(),
+                payment_date: None,
+                gross_cents: 500_000,
+                items: vec![persisted],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(revalidated.contains("sort de la fenêtre"), "{revalidated}");
+    }
+
+    #[test]
+    fn lpp_is_scoped_to_one_employee_and_legacy_null_metadata_is_unusable() {
+        let (_temporary, store) = initialized_store();
+        let linked_employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Salarié lié au plan"}))
+                .unwrap(),
+        );
+        let payslip_employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Salarié de la fiche"}))
+                .unwrap(),
+        );
+        configure_adult_test_payroll(&store, &payslip_employee_id);
+        make_employee_lpp_due(&store, &payslip_employee_id, "1990-01-01");
+        set_lpp_plan_evidence(&store, Some(valid_lpp_plan_evidence()));
+        let wrong_employee = create_lpp_selection(
+            &store,
+            lpp_definition_input(
+                &linked_employee_id,
+                "LPP_WRONG_EMPLOYEE",
+                "employee",
+                "combined",
+                10_000,
+            ),
+        );
+        let error = store
+            .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id: payslip_employee_id.clone(),
+                period: "2026-06".into(),
+                payment_date: None,
+                gross_cents: 500_000,
+                items: vec![wrong_employee],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("autre collaborateur"), "{error}");
+
+        let legacy = store
+            .upsert_payroll_contribution_definition(ContributionDefinitionInput {
+                id: None,
+                code: "LEGACY_LPP_NULL".into(),
+                label: "Ancienne définition incomplète".into(),
+                category: "other".into(),
+                side: "employee".into(),
+                calculation_kind: "fixed".into(),
+                rate_bp: None,
+                fixed_amount_cents: Some(10_000),
+                annual_ceiling_cents: None,
+                basis_kind: "custom".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
+                source: LPP_TEST_REGULATION.into(),
+                effective_from: "2026-01-01".into(),
+                effective_to: Some("2026-12-31".into()),
+                active: true,
+                liability_account_id: None,
+                expense_account_id: None,
+            })
+            .unwrap();
+        let legacy_id = value_id(&legacy);
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE payroll_contribution_definitions SET category='lpp' WHERE id=?",
+                rusqlite::params![legacy_id],
+            )
+            .unwrap();
+        let legacy_error = store
+            .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
+                employee_id: payslip_employee_id,
+                period: "2026-06".into(),
+                payment_date: None,
+                gross_cents: 500_000,
+                items: vec![ContributionSelectionInput {
+                    definition_id: legacy_id,
+                    basis_cents: Some(3_354_000),
+                    year_to_date_basis_cents: None,
+                }],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(legacy_error.contains("lpp_component"), "{legacy_error}");
+    }
+
+    #[test]
+    fn lpp_minimum_components_and_more_favorable_plan_are_enforced() {
+        let scenario = |birth_date: &str,
+                        annual_salary_cents: i64,
+                        components: &[&str]|
+         -> crate::error::AppResult<serde_json::Value> {
+            let (_temporary, store) = initialized_store();
+            let employee_id = value_id(
+                &store
+                    .create_record("employees", json!({"name":"Scénario LPP"}))
+                    .unwrap(),
+            );
+            let mut contributions = configure_adult_test_payroll(&store, &employee_id);
+            make_employee_lpp_due(&store, &employee_id, birth_date);
+            store
+                .update_record(
+                    "employees",
+                    &employee_id,
+                    json!({
+                        "lpp_assessment_year":2026,
+                        "lpp_annual_salary_cents":annual_salary_cents
+                    }),
+                )
+                .unwrap();
+            set_lpp_plan_evidence(&store, Some(valid_lpp_plan_evidence()));
+            for (index, component) in components.iter().enumerate() {
+                let mut definition = lpp_definition_input(
+                    &employee_id,
+                    &format!("LPP_SCENARIO_{index}_{component}"),
+                    if index % 2 == 0 {
+                        "employee"
+                    } else {
+                        "employer"
+                    },
+                    component,
+                    10_000 + index as i64 * 1_000,
+                );
+                if annual_salary_cents <= 2_268_000 {
+                    definition.basis_kind = "custom".into();
+                }
+                contributions.push(create_lpp_selection(&store, definition));
+            }
+            save_valid_test_payslip(&store, &employee_id, contributions)
+        };
+
+        let risk_only_error = scenario("2002-01-01", 6_000_000, &["savings"])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            risk_only_error.contains("composante risque"),
+            "{risk_only_error}"
+        );
+        scenario("2002-01-01", 6_000_000, &["risk"]).unwrap();
+
+        let savings_error = scenario("1990-01-01", 6_000_000, &["risk"])
+            .unwrap_err()
+            .to_string();
+        assert!(savings_error.contains("risk et savings"), "{savings_error}");
+        scenario("1990-01-01", 6_000_000, &["risk", "savings"]).unwrap();
+        scenario("1990-01-01", 6_000_000, &["combined"]).unwrap();
+
+        // Le seuil légal n'interdit jamais une couverture plus favorable du
+        // règlement réel.
+        scenario("1990-01-01", 2_000_000, &["combined"]).unwrap();
+
+        let (_temporary, exempt_store) = initialized_store();
+        let exempt_employee_id = value_id(
+            &exempt_store
+                .create_record("employees", json!({"name":"Plan favorable exempté"}))
+                .unwrap(),
+        );
+        let mut exempt_contributions =
+            configure_adult_test_payroll(&exempt_store, &exempt_employee_id);
+        make_employee_lpp_due(&exempt_store, &exempt_employee_id, "1990-01-01");
+        exempt_store
+            .update_record(
+                "employees",
+                &exempt_employee_id,
+                json!({
+                    "employment_start_date":"2026-04-01",
+                    "employment_end_date":"2026-06-30",
+                    "employment_contract_kind":"fixed",
+                    "lpp_exception_code":"short_fixed_contract",
+                    "lpp_exception_evidence_reference":"Contrat signé LPP-COURT-1"
+                }),
+            )
+            .unwrap();
+        set_lpp_plan_evidence(&exempt_store, Some(valid_lpp_plan_evidence()));
+        let mut exempt_definition = lpp_definition_input(
+            &exempt_employee_id,
+            "LPP_EXEMPT_FAVORABLE",
+            "employee",
+            "combined",
+            10_000,
+        );
+        exempt_definition.basis_kind = "custom".into();
+        exempt_contributions.push(create_lpp_selection(&exempt_store, exempt_definition));
+        save_valid_test_payslip(&exempt_store, &exempt_employee_id, exempt_contributions).unwrap();
+    }
+
+    #[test]
+    fn lpp_coordinated_basis_must_match_the_legal_annual_basis() {
+        let (_temporary, store) = initialized_store();
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"Base LPP contrôlée"}))
+                .unwrap(),
+        );
+        let mut contributions = configure_adult_test_payroll(&store, &employee_id);
+        make_employee_lpp_due(&store, &employee_id, "1990-01-01");
+        set_lpp_plan_evidence(&store, Some(valid_lpp_plan_evidence()));
+        let mut invalid = create_lpp_selection(
+            &store,
+            lpp_definition_input(
+                &employee_id,
+                "LPP_WRONG_COORDINATED_BASIS",
+                "employee",
+                "combined",
+                10_000,
+            ),
+        );
+        invalid.basis_cents = Some(1);
+        contributions.push(invalid);
+
+        let error = save_valid_test_payslip(&store, &employee_id, contributions)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("3354000"), "{error}");
+        assert!(error.contains("salaire coordonné annuel légal"), "{error}");
+    }
+
+    #[test]
+    fn lpp_frozen_component_mutation_blocks_posting() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let employee_id = value_id(
+            &store
+                .create_record("employees", json!({"name":"LPP figée"}))
+                .unwrap(),
+        );
+        let mut contributions = configure_adult_test_payroll(&store, &employee_id);
+        make_employee_lpp_due(&store, &employee_id, "1990-01-01");
+        set_lpp_plan_evidence(&store, Some(valid_lpp_plan_evidence()));
+        contributions.push(create_lpp_selection(
+            &store,
+            lpp_definition_input(
+                &employee_id,
+                "LPP_FROZEN_COMBINED",
+                "employee",
+                "combined",
+                10_000,
+            ),
+        ));
+        let saved = save_valid_test_payslip(&store, &employee_id, contributions).unwrap();
+        let payslip_id = value_id(&saved["payslip"]);
+        let lpp_snapshot = saved["contributions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["category"] == "lpp")
+            .unwrap();
+        assert_eq!(lpp_snapshot["lpp_component"], "combined");
+        assert_eq!(lpp_snapshot["lpp_employee_id"], employee_id);
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE payslip_contributions SET lpp_component='risk' WHERE payslip_id=? AND category='lpp'",
+                rusqlite::params![payslip_id],
+            )
+            .unwrap();
+        let error = store
+            .post_payslip(PostPayslipInput {
+                payslip_id: payslip_id.clone(),
+                entry_date: Some("2026-06-30".into()),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("lpp_component"), "{error}");
+        let unchanged: (String, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status,(SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=p.id) FROM payslips p WHERE id=?",
+                rusqlite::params![payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(unchanged, ("valide".into(), 0));
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE payslip_contributions SET lpp_component='combined' WHERE payslip_id=? AND category='lpp'",
+                rusqlite::params![payslip_id],
+            )
+            .unwrap();
+        let posted = store
+            .post_payslip(PostPayslipInput {
+                payslip_id,
+                entry_date: Some("2026-06-30".into()),
+            })
+            .unwrap();
+        let snapshot: serde_json::Value =
+            serde_json::from_str(posted["payslip"]["snapshot_json"].as_str().unwrap()).unwrap();
+        let frozen_lpp = snapshot["contributions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["category"] == "lpp")
+            .unwrap();
+        assert_eq!(frozen_lpp["lpp_component"], "combined");
+        assert_eq!(frozen_lpp["lpp_employee_id"], employee_id);
+    }
+
+    #[test]
     fn payroll_payment_rolls_back_when_payment_period_is_closed() {
         let (_temporary, store) = initialized_store();
         enable_accounting(&store);
@@ -4855,6 +5815,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             payslip_id: payslip_id.clone(),
             payment_date: Some("2026-10-02".into()),
             reference: Some("CLOSED-1".into()),
+            regulatory_override_reason: None,
         });
         assert!(result.unwrap_err().to_string().contains("clôturée"));
         let persisted: (String, Option<String>, Option<String>, Option<String>, i64) = store
@@ -6332,6 +7293,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: Some(14_820_000),
                 basis_kind: "ahv_salary".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "https://www.bsv.admin.ch/fr/cotisations-apercu".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: Some("2026-12-31".into()),
@@ -6422,6 +7385,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: Some(14_820_000),
                 basis_kind: "ahv_salary".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "https://www.ahv-iv.ch/p/2.08.f".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: Some("2026-12-31".into()),
@@ -6507,6 +7472,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: None,
                 basis_kind: "ahv_salary".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Source officielle".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: Some("2026-12-31".into()),
@@ -6527,6 +7494,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: Some(14_820_000),
                 basis_kind: "ahv_salary".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Source officielle".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: Some("2026-12-31".into()),
@@ -6627,6 +7596,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                             fixed_amount_cents: None,
                             annual_ceiling_cents: ceiling,
                             basis_kind: "ahv_salary".into(),
+                            lpp_component: None,
+                            lpp_employee_id: None,
                             source: "Source officielle".into(),
                             effective_from: "2026-01-01".into(),
                             effective_to: Some("2026-12-31".into()),
@@ -6759,6 +7730,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: None,
                 basis_kind: "gross".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Test local".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: None,
@@ -6779,6 +7752,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: None,
                 basis_kind: "custom".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Test local".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: None,
@@ -6947,6 +7922,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: None,
                 basis_kind: "custom".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Source saisie séparément".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: None,
@@ -6977,6 +7954,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 fixed_amount_cents: None,
                 annual_ceiling_cents: None,
                 basis_kind: "gross".into(),
+                lpp_component: None,
+                lpp_employee_id: None,
                 source: "Modification dans le moteur de paie".into(),
                 effective_from: "2026-01-01".into(),
                 effective_to: None,

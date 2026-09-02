@@ -220,7 +220,7 @@ describe('rendu accessible de RecurringDocumentsPanel', () => {
     expect(html).toContain('Planifier cette commande');
     expect(html).toContain('facture brouillon à contrôler');
     expect(html).toContain('Aucune facture n’est émise');
-    expect(html).toContain('tant qu’Zentra reste ouvert');
+    expect(html).toContain('tant que Zentra reste ouvert');
     expect(html).toContain('aria-labelledby=');
   });
 

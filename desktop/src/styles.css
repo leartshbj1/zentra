@@ -4899,6 +4899,19 @@ table {
 .account-inline-form .form-actions {
   grid-column: 1 / -1;
 }
+.contribution-form__guidance {
+  margin-bottom: 14px;
+}
+.contribution-form__guidance p {
+  max-width: 72ch;
+}
+.lpp-plan-fields {
+  margin-top: 12px;
+  border-color: rgba(31, 94, 68, 0.2);
+  background:
+    linear-gradient(135deg, rgba(31, 94, 68, 0.045), transparent 58%),
+    #fff;
+}
 .journal-lines {
   margin-top: 13px;
   overflow-x: auto;

@@ -17,8 +17,9 @@ use crate::{
     },
     swiss_payroll_rules::{
         ac_is_due, ac_reference_age_status_for_period, apply_avs_reference_age_allowance,
-        avs_is_due_for_period, prorated_ac_ceiling_through_period,
-        SWISS_AC_ANNUAL_CEILING_CENTS_2026, SWISS_LAA_ANNUAL_CEILING_CENTS_2026,
+        assess_lpp_2026, avs_is_due_for_period, prorated_ac_ceiling_through_period,
+        LppAssessmentInput, LppCoverage, SWISS_AC_ANNUAL_CEILING_CENTS_2026,
+        SWISS_AVS_REFERENCE_AGE_MONTHLY_ALLOWANCE_CENTS, SWISS_LAA_ANNUAL_CEILING_CENTS_2026,
     },
 };
 
@@ -40,6 +41,8 @@ struct Definition {
     fixed_amount_cents: Option<i64>,
     annual_ceiling_cents: Option<i64>,
     basis_kind: String,
+    lpp_component: Option<String>,
+    lpp_employee_id: Option<String>,
     source: String,
     effective_from: String,
     effective_to: Option<String>,
@@ -58,6 +61,19 @@ struct EmployeePayrollContext {
     contractual_weekly_minutes: Option<i64>,
     ac_opening_year: Option<i64>,
     ac_opening_basis_cents: Option<i64>,
+    employment_contract_kind: Option<String>,
+    lpp_assessment_year: Option<i64>,
+    lpp_annual_salary_cents: Option<i64>,
+    lpp_exception_code: Option<String>,
+    lpp_exception_evidence_reference: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct LppPlanEvidence {
+    contract_number: String,
+    regulation_reference: String,
+    effective_from: String,
+    effective_to: String,
 }
 
 #[derive(Debug)]
@@ -390,7 +406,51 @@ impl LocalStore {
             &input.effective_from,
             input.effective_to.as_deref(),
         )?;
-        tx.execute("INSERT INTO payroll_contribution_definitions(id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active,liability_account_id,expense_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET code=excluded.code,label=excluded.label,category=excluded.category,side=excluded.side,calculation_kind=excluded.calculation_kind,rate_bp=excluded.rate_bp,fixed_amount_cents=excluded.fixed_amount_cents,annual_ceiling_cents=excluded.annual_ceiling_cents,basis_kind=excluded.basis_kind,source=excluded.source,effective_from=excluded.effective_from,effective_to=excluded.effective_to,active=excluded.active,liability_account_id=excluded.liability_account_id,expense_account_id=excluded.expense_account_id,updated_at=excluded.updated_at",params![id,normalized_code,input.label.trim(),input.category,input.side,input.calculation_kind,input.rate_bp,input.fixed_amount_cents,input.annual_ceiling_cents,input.basis_kind,input.source.trim(),input.effective_from,input.effective_to,input.active as i64,input.liability_account_id,input.expense_account_id,now,now])?;
+        let normalized_lpp_employee_id = input
+            .lpp_employee_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        tx.execute(
+            "INSERT INTO payroll_contribution_definitions(
+               id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,
+               annual_ceiling_cents,basis_kind,lpp_component,lpp_employee_id,source,
+               effective_from,effective_to,active,liability_account_id,expense_account_id,
+               created_at,updated_at
+             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             ON CONFLICT(id) DO UPDATE SET
+               code=excluded.code,label=excluded.label,category=excluded.category,
+               side=excluded.side,calculation_kind=excluded.calculation_kind,
+               rate_bp=excluded.rate_bp,fixed_amount_cents=excluded.fixed_amount_cents,
+               annual_ceiling_cents=excluded.annual_ceiling_cents,basis_kind=excluded.basis_kind,
+               lpp_component=excluded.lpp_component,lpp_employee_id=excluded.lpp_employee_id,
+               source=excluded.source,effective_from=excluded.effective_from,
+               effective_to=excluded.effective_to,active=excluded.active,
+               liability_account_id=excluded.liability_account_id,
+               expense_account_id=excluded.expense_account_id,updated_at=excluded.updated_at",
+            params![
+                id,
+                normalized_code,
+                input.label.trim(),
+                input.category,
+                input.side,
+                input.calculation_kind,
+                input.rate_bp,
+                input.fixed_amount_cents,
+                input.annual_ceiling_cents,
+                input.basis_kind,
+                input.lpp_component,
+                normalized_lpp_employee_id,
+                input.source.trim(),
+                input.effective_from,
+                input.effective_to,
+                input.active as i64,
+                input.liability_account_id,
+                input.expense_account_id,
+                now,
+                now
+            ],
+        )?;
         let record = tx.query_row(
             "SELECT * FROM payroll_contribution_definitions WHERE id=?",
             params![id],
@@ -611,11 +671,17 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (period, status, employee_id, gross_cents): (String, String, String, i64) = tx
+        let (period, status, employee_id, gross_cents, payment_date): (
+            String,
+            String,
+            String,
+            i64,
+            Option<String>,
+        ) = tx
             .query_row(
-                "SELECT period,status,employee_id,gross_cents FROM payslips WHERE id=?",
+                "SELECT period,status,employee_id,gross_cents,payment_date FROM payslips WHERE id=?",
                 params![input.payslip_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
             )
             .optional()?
             .ok_or_else(|| AppError::NotFound(format!("payslips/{}", input.payslip_id)))?;
@@ -648,12 +714,15 @@ impl LocalStore {
              WHERE pc.payslip_id=? ORDER BY pc.rowid",
             params![input.payslip_id],
         )?;
-        validate_validated_swiss_payslip(
+        let replayed_calculation = replay_persisted_payslip_calculation(
             &tx,
             &employee_id,
             &period,
-            &json!({"period":period,"gross_cents":gross_cents,"items":persisted_items}),
+            payment_date.as_deref(),
+            gross_cents,
+            &persisted_items,
         )?;
+        validate_validated_swiss_payslip(&tx, &employee_id, &period, &replayed_calculation)?;
         let journal = post_payslip_if_enabled(&tx, &input.payslip_id, &date)?.ok_or_else(|| {
             AppError::Validation(
                 "La comptabilité doit être configurée et activée avant de comptabiliser une fiche de salaire."
@@ -682,7 +751,7 @@ impl LocalStore {
             params![input.payslip_id],
         )?;
         let source_import_evidence = sealed_source_import_evidence(&current)?;
-        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"source_import_evidence":source_import_evidence});
+        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"contribution_date":replayed_calculation["contribution_date"],"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"source_import_evidence":source_import_evidence});
         tx.execute(
             "UPDATE payslips SET status='comptabilise',snapshot_json=?,updated_at=? WHERE id=?",
             params![
@@ -711,16 +780,34 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (status, stored_payment_date, stored_reference, stored_journal_id): (
+        let (
+            status,
+            stored_payment_date,
+            stored_reference,
+            stored_journal_id,
+            period,
+            snapshot_json,
+        ): (
             String,
             Option<String>,
             Option<String>,
             Option<String>,
+            String,
+            Option<String>,
         ) = tx
             .query_row(
-                "SELECT status,payment_date,payment_reference,payment_journal_entry_id FROM payslips WHERE id=?",
+                "SELECT status,payment_date,payment_reference,payment_journal_entry_id,period,snapshot_json FROM payslips WHERE id=?",
                 params![input.payslip_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
             )
             .optional()?
             .ok_or_else(|| AppError::NotFound(format!("payslips/{}", input.payslip_id)))?;
@@ -736,6 +823,20 @@ impl LocalStore {
         {
             return Err(AppError::Validation(
                 "La référence de paiement est limitée à 200 caractères sans contrôle invisible."
+                    .into(),
+            ));
+        }
+        let regulatory_override_reason = input
+            .regulatory_override_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned);
+        if regulatory_override_reason.as_deref().is_some_and(|value| {
+            !(10..=500).contains(&value.chars().count()) || value.chars().any(char::is_control)
+        }) {
+            return Err(AppError::Validation(
+                "Le motif de dérogation réglementaire doit contenir entre 10 et 500 caractères sans contrôle invisible."
                     .into(),
             ));
         }
@@ -771,8 +872,46 @@ impl LocalStore {
                         "Renseignez la date réelle du paiement historique; Zentra ne peut pas l'inventer."
                             .into(),
                     )
-                })?;
+            })?;
             validate_date(&payment_date, "payment_date")?;
+            let regulatory_override = match assess_frozen_payment_date(
+                snapshot_json.as_deref(),
+                &input.payslip_id,
+                &period,
+                &payment_date,
+            ) {
+                Ok(_frozen_contribution_date) => {
+                    if regulatory_override_reason.is_some() {
+                        return Err(AppError::Validation(
+                            "Aucune dérogation réglementaire n'est nécessaire pour cette date de paiement."
+                                .into(),
+                        ));
+                    }
+                    None
+                }
+                Err(FrozenPaymentDateError::RegulatoryDeviation {
+                    message,
+                    frozen_contribution_date,
+                }) => {
+                    let reason = regulatory_override_reason.as_deref().ok_or_else(|| {
+                        AppError::Validation(format!(
+                            "{message} Pour régulariser ce paiement historique déjà réalisé, confirmez la dérogation exceptionnelle et saisissez un motif précis."
+                        ))
+                    })?;
+                    Some(json!({
+                        "confirmed": true,
+                        "reason": reason,
+                        "blocked_check": message,
+                        "payment_date": payment_date,
+                        "frozen_contribution_date": frozen_contribution_date,
+                    }))
+                }
+                Err(FrozenPaymentDateError::Integrity(message)) => {
+                    return Err(AppError::Validation(format!(
+                        "{message} Cette anomalie d'intégrité ne peut pas être contournée par une dérogation; restaurez une sauvegarde fiable ou faites reconstruire la preuve avant la régularisation."
+                    )))
+                }
+            };
             let payment_reference = stored_reference.clone().or(requested_reference);
             let journal = match stored_journal_id.as_deref() {
                 Some(journal_id) => {
@@ -817,7 +956,11 @@ impl LocalStore {
                 "regularize_payment",
                 "payslip",
                 &input.payslip_id,
-                &json!({"payslip":payslip,"journal":journal}),
+                &json!({
+                    "payslip":payslip,
+                    "journal":journal,
+                    "regulatory_override":regulatory_override
+                }),
             )?;
             tx.commit()?;
             return Ok(
@@ -873,14 +1016,31 @@ impl LocalStore {
                 "Seule une fiche comptabilisée peut être marquée comme payée.".into(),
             ));
         }
+        if regulatory_override_reason.is_some() {
+            return Err(AppError::Validation(
+                "Une dérogation réglementaire est réservée à la régularisation explicite d'un paiement historique déjà réalisé."
+                    .into(),
+            ));
+        }
         let payment_date = input
             .payment_date
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(ToOwned::to_owned)
-            .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Renseignez la date réelle du paiement; Zentra ne peut pas l'inventer.".into(),
+                )
+            })?;
         validate_date(&payment_date, "payment_date")?;
+        assess_frozen_payment_date(
+            snapshot_json.as_deref(),
+            &input.payslip_id,
+            &period,
+            &payment_date,
+        )
+        .map_err(|error| AppError::Validation(error.to_string()))?;
         let journal = post_payslip_payment_if_enabled(
             &tx,
             &input.payslip_id,
@@ -953,6 +1113,196 @@ fn payroll_payment_journal(
         params![journal_id],
     )?;
     Ok(json!({"entry":entry,"lines":lines,"id":journal_id}))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FrozenPaymentDateError {
+    Integrity(String),
+    RegulatoryDeviation {
+        message: String,
+        frozen_contribution_date: String,
+    },
+}
+
+impl std::fmt::Display for FrozenPaymentDateError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Integrity(message) | Self::RegulatoryDeviation { message, .. } => {
+                formatter.write_str(message)
+            }
+        }
+    }
+}
+
+/// Parse une seule fois la preuve comptabilisée et la lie à l'identifiant et
+/// à la période de la fiche vivante avant de lire la moindre valeur métier.
+fn parse_frozen_payslip_snapshot(
+    snapshot_json: Option<&str>,
+    live_payslip_id: &str,
+    live_period: &str,
+) -> Result<Value, FrozenPaymentDateError> {
+    let raw_snapshot = snapshot_json
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            FrozenPaymentDateError::Integrity(
+                "Le snapshot comptabilisé de la fiche manque; les fenêtres réglementaires ne peuvent pas être contrôlées."
+                    .into(),
+            )
+        })?;
+    let snapshot: Value = serde_json::from_str(raw_snapshot).map_err(|_| {
+        FrozenPaymentDateError::Integrity(
+            "Le snapshot comptabilisé de la fiche est illisible; le paiement est refusé.".into(),
+        )
+    })?;
+    if snapshot["schema"].as_str() != Some("helvichantier.payslip_snapshot.v1") {
+        return Err(FrozenPaymentDateError::Integrity(
+            "Le snapshot comptabilisé de la fiche utilise un schéma inconnu; le paiement est refusé."
+                .into(),
+        ));
+    }
+    let snapshot_payslip = snapshot["payslip"].as_object().ok_or_else(|| {
+        FrozenPaymentDateError::Integrity(
+            "Le snapshot comptabilisé ne contient pas la fiche figée; le paiement est refusé."
+                .into(),
+        )
+    })?;
+    if snapshot_payslip.get("id").and_then(Value::as_str) != Some(live_payslip_id) {
+        return Err(FrozenPaymentDateError::Integrity(
+            "L'identifiant du snapshot comptabilisé diffère de la fiche; le paiement est refusé."
+                .into(),
+        ));
+    }
+    if snapshot_payslip.get("period").and_then(Value::as_str) != Some(live_period) {
+        return Err(FrozenPaymentDateError::Integrity(
+            "La période du snapshot comptabilisé diffère de la fiche; le paiement est refusé."
+                .into(),
+        ));
+    }
+    if !snapshot["contributions"].is_array() {
+        return Err(FrozenPaymentDateError::Integrity(
+            "Le snapshot comptabilisé ne contient pas la liste figée des cotisations; le paiement est refusé."
+                .into(),
+        ));
+    }
+    Ok(snapshot)
+}
+
+/// Retrouve la date réglementaire figée. Les snapshots antérieurs au champ
+/// dédié restent lisibles via leur date de paiement, puis `période-01`.
+fn resolve_frozen_contribution_date(
+    snapshot: &Value,
+    live_period: &str,
+) -> Result<String, FrozenPaymentDateError> {
+    if let Some(contribution_date) = snapshot["contribution_date"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        validate_date(contribution_date, "contribution_date figée")
+            .map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))?;
+        return Ok(contribution_date.to_owned());
+    }
+    if let Some(payment_date) = snapshot["payslip"]["payment_date"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        validate_date(payment_date, "payment_date figée")
+            .map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))?;
+        return Ok(payment_date.to_owned());
+    }
+    period_date(live_period).map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))
+}
+
+fn assess_frozen_payment_date(
+    snapshot_json: Option<&str>,
+    live_payslip_id: &str,
+    live_period: &str,
+    payment_date: &str,
+) -> Result<String, FrozenPaymentDateError> {
+    let snapshot = parse_frozen_payslip_snapshot(snapshot_json, live_payslip_id, live_period)?;
+    let frozen_contribution_date = resolve_frozen_contribution_date(&snapshot, live_period)?;
+    let frozen_contributions = snapshot["contributions"]
+        .as_array()
+        .expect("validated contribution array");
+    validate_payment_date_against_frozen_windows(
+        &frozen_contribution_date,
+        payment_date,
+        frozen_contributions,
+    )?;
+    Ok(frozen_contribution_date)
+}
+
+/// Une fiche comptabilisée ne peut plus changer de calcul. Une date de paiement
+/// différente reste donc acceptable uniquement dans le même millésime et dans
+/// chacune des fenêtres d'effet déjà figées. Sortir d'une seule fenêtre exige
+/// une décomptabilisation/extourne puis un recalcul contrôlé.
+fn validate_payment_date_against_frozen_windows(
+    frozen_contribution_date: &str,
+    payment_date: &str,
+    frozen_contributions: &[Value],
+) -> Result<(), FrozenPaymentDateError> {
+    validate_date(frozen_contribution_date, "contribution_date figée")
+        .map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))?;
+    validate_date(payment_date, "payment_date")
+        .map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))?;
+    if frozen_contribution_date.get(..4) != payment_date.get(..4) {
+        return Err(FrozenPaymentDateError::RegulatoryDeviation {
+            message: format!(
+                "La date de paiement {payment_date} change le millésime réglementaire figé au {frozen_contribution_date}. Décomptabilisez/extournez la fiche, recalculez les cotisations avec la date réelle puis faites-la revalider avant paiement."
+            ),
+            frozen_contribution_date: frozen_contribution_date.to_owned(),
+        });
+    }
+    for contribution in frozen_contributions {
+        let label = contribution["label"]
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("cotisation inconnue");
+        let effective_from = contribution["effective_from"]
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                FrozenPaymentDateError::Integrity(format!(
+                "La fenêtre réglementaire figée de {label} est incomplète; le paiement est refusé."
+            ))
+            })?;
+        validate_date(effective_from, "début d'effet figé")
+            .map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))?;
+        let effective_to = contribution["effective_to"]
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if let Some(value) = effective_to {
+            validate_date(value, "fin d'effet figée")
+                .map_err(|error| FrozenPaymentDateError::Integrity(error.to_string()))?;
+            if value < effective_from {
+                return Err(FrozenPaymentDateError::Integrity(format!(
+                    "La fenêtre réglementaire figée de {label} est incohérente; le paiement est refusé."
+                )));
+            }
+        }
+        let contains =
+            |date: &str| date >= effective_from && effective_to.is_none_or(|value| date <= value);
+        if !contains(frozen_contribution_date) {
+            return Err(FrozenPaymentDateError::Integrity(format!(
+                "La date réglementaire figée {frozen_contribution_date} n'appartient plus à la fenêtre de {label}; le paiement est refusé."
+            )));
+        }
+        if !contains(payment_date) {
+            return Err(FrozenPaymentDateError::RegulatoryDeviation {
+                message: format!(
+                    "La date de paiement {payment_date} sort de la fenêtre réglementaire figée de {label} ({effective_from} à {}). Décomptabilisez/extournez la fiche, recalculez les cotisations avec la date réelle puis faites-la revalider avant paiement.",
+                    effective_to.unwrap_or("sans fin")
+                ),
+                frozen_contribution_date: frozen_contribution_date.to_owned(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn validate_atomic_payslip_input(input: &SavePayslipWithContributionsInput) -> AppResult<()> {
@@ -1097,7 +1447,40 @@ fn apply_contributions_tx(
             "employer"
         };
         tx.execute("INSERT INTO payslip_items(id,payslip_id,position,label,kind,amount_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",params![item_id,payslip_id,10_000_i64+position as i64,item["label"].as_str(),kind,item["amount_cents"].as_i64(),now,now])?;
-        tx.execute("INSERT INTO payslip_contributions(id,payslip_id,definition_id,payslip_item_id,label,category,side,calculation_kind,basis_kind,basis_cents,year_to_date_basis_cents,rate_bp,fixed_amount_cents,annual_ceiling_cents,amount_cents,source,effective_from,effective_to,liability_account_id,expense_account_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![contribution_id,payslip_id,item["definition_id"].as_str(),item_id,item["label"].as_str(),item["category"].as_str(),side,item["calculation_kind"].as_str(),item["basis_kind"].as_str(),item["basis_cents"].as_i64(),item["year_to_date_basis_cents"].as_i64(),item["rate_bp"].as_i64(),item["fixed_amount_cents"].as_i64(),item["annual_ceiling_cents"].as_i64(),item["amount_cents"].as_i64(),item["source"].as_str(),item["effective_from"].as_str(),item["effective_to"].as_str(),item["liability_account_id"].as_str(),item["expense_account_id"].as_str(),now])?;
+        tx.execute(
+            "INSERT INTO payslip_contributions(
+               id,payslip_id,definition_id,payslip_item_id,label,category,side,
+               calculation_kind,basis_kind,basis_cents,year_to_date_basis_cents,
+               rate_bp,fixed_amount_cents,annual_ceiling_cents,amount_cents,
+               lpp_component,lpp_employee_id,source,effective_from,effective_to,
+               liability_account_id,expense_account_id,created_at
+             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            params![
+                contribution_id,
+                payslip_id,
+                item["definition_id"].as_str(),
+                item_id,
+                item["label"].as_str(),
+                item["category"].as_str(),
+                side,
+                item["calculation_kind"].as_str(),
+                item["basis_kind"].as_str(),
+                item["basis_cents"].as_i64(),
+                item["year_to_date_basis_cents"].as_i64(),
+                item["rate_bp"].as_i64(),
+                item["fixed_amount_cents"].as_i64(),
+                item["annual_ceiling_cents"].as_i64(),
+                item["amount_cents"].as_i64(),
+                item["lpp_component"].as_str(),
+                item["lpp_employee_id"].as_str(),
+                item["source"].as_str(),
+                item["effective_from"].as_str(),
+                item["effective_to"].as_str(),
+                item["liability_account_id"].as_str(),
+                item["expense_account_id"].as_str(),
+                now
+            ],
+        )?;
     }
     recompute_payslip(tx, payslip_id)?;
     Ok(
@@ -1166,6 +1549,20 @@ fn calculate(
             )));
         }
         validate_persisted_definition_policy(connection, &def)?;
+        if def.category == "lpp" {
+            let employee = employee_context.ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La cotisation LPP {} exige le collaborateur auquel le règlement a été lié.",
+                    def.code
+                ))
+            })?;
+            if def.lpp_employee_id.as_deref() != Some(employee.id.as_str()) {
+                return Err(AppError::Validation(format!(
+                    "La cotisation LPP {} est liée à un autre collaborateur que la fiche.",
+                    def.code
+                )));
+            }
+        }
         let mut basis = match (def.basis_kind.as_str(), selection.basis_cents) {
             ("gross", _) => gross,
             (_, Some(value)) => value,
@@ -1345,11 +1742,140 @@ fn calculate(
         } else {
             employer = employer.saturating_add(amount)
         };
-        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
+        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"lpp_component":def.lpp_component,"lpp_employee_id":def.lpp_employee_id,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
     }
     Ok(
         json!({"period":period,"work_period_date":work_period_date,"payment_date":normalized_payment_date,"contribution_date":contribution_date,"rounding_increment_cents":5,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
     )
+}
+
+/// Rejoue le calcul qui a produit les lignes de cotisation avant de
+/// comptabiliser une fiche. La date réglementaire est reconstruite avec la
+/// même règle que lors de l'enregistrement: date de paiement explicite, sinon
+/// premier jour de la période travaillée.
+///
+/// Les anciennes lignes ne conservent que leur base effective. Pour une base
+/// AVS après l'âge de référence, on réinjecte donc la franchise mensuelle avant
+/// de rappeler `calculate`; pour toute autre cotisation plafonnée, réutiliser la
+/// base effective produit le même résultat sans dépasser le plafond.
+fn replay_persisted_payslip_calculation(
+    connection: &Connection,
+    employee_id: &str,
+    period: &str,
+    payment_date: Option<&str>,
+    gross_cents: i64,
+    persisted_items: &[Value],
+) -> AppResult<Value> {
+    let employee = load_employee_payroll_context(connection, employee_id)?;
+    let reference_status = ac_reference_age_status_for_period(
+        period,
+        employee.birth_date.as_deref(),
+        employee.reference_age_date.as_deref(),
+    )
+    .map_err(|error| AppError::Validation(error.to_string()))?;
+    let restore_avs_allowance = matches!(
+        reference_status,
+        crate::swiss_payroll_rules::AcReferenceAgeStatus::ConfirmedExempt
+    ) && employee.avs_allowance_waived == Some(false);
+    let mut selections = Vec::with_capacity(persisted_items.len());
+    for item in persisted_items {
+        let definition_id = item["definition_id"]
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Une cotisation figée ne contient plus son identifiant de définition.".into(),
+                )
+            })?;
+        let basis_cents = if item["basis_kind"].as_str() == Some("gross") {
+            None
+        } else {
+            let mut basis = item["basis_cents"].as_i64().ok_or_else(|| {
+                AppError::Validation(
+                    "Une cotisation figée ne contient plus sa base de calcul.".into(),
+                )
+            })?;
+            if item["category"].as_str() == Some("avs_ai_apg") && restore_avs_allowance {
+                basis = basis
+                    .checked_add(SWISS_AVS_REFERENCE_AGE_MONTHLY_ALLOWANCE_CENTS)
+                    .ok_or_else(|| {
+                        AppError::Validation(
+                            "La base AVS figée dépasse la capacité de recalcul.".into(),
+                        )
+                    })?;
+            }
+            Some(basis)
+        };
+        selections.push(ContributionSelectionInput {
+            definition_id: definition_id.to_owned(),
+            basis_cents,
+            year_to_date_basis_cents: item["year_to_date_basis_cents"].as_i64(),
+        });
+    }
+    let replayed = calculate(
+        connection,
+        period,
+        payment_date,
+        gross_cents,
+        &selections,
+        Some(&employee),
+    )?;
+    let replayed_items = replayed["items"]
+        .as_array()
+        .ok_or_else(|| AppError::Validation("Le recalcul des cotisations est illisible.".into()))?;
+    if replayed_items.len() != persisted_items.len() {
+        return Err(AppError::Validation(
+            "Le nombre de cotisations recalculées diffère des lignes figées; la comptabilisation est refusée."
+                .into(),
+        ));
+    }
+    const FROZEN_FIELDS: [&str; 17] = [
+        "definition_id",
+        "code",
+        "label",
+        "category",
+        "side",
+        "calculation_kind",
+        "basis_kind",
+        "basis_cents",
+        "year_to_date_basis_cents",
+        "rate_bp",
+        "fixed_amount_cents",
+        "annual_ceiling_cents",
+        "amount_cents",
+        "lpp_component",
+        "lpp_employee_id",
+        "source",
+        "effective_from",
+    ];
+    for (persisted, recalculated) in persisted_items.iter().zip(replayed_items) {
+        for field in FROZEN_FIELDS {
+            if persisted.get(field).unwrap_or(&Value::Null)
+                != recalculated.get(field).unwrap_or(&Value::Null)
+            {
+                let code = persisted["code"].as_str().unwrap_or("cotisation inconnue");
+                return Err(AppError::Validation(format!(
+                    "La cotisation figée {code} ne correspond plus au recalcul ({field}); corrigez et revalidez la fiche avant comptabilisation."
+                )));
+            }
+        }
+        // Les comptes sont volontairement ceux figés sur la fiche: un
+        // remappage comptable ultérieur ne doit ni modifier ni invalider
+        // l'écriture attendue. La fenêtre réglementaire, elle, fait partie du
+        // calcul rejoué et doit toujours correspondre.
+        for field in ["effective_to"] {
+            if persisted.get(field).unwrap_or(&Value::Null)
+                != recalculated.get(field).unwrap_or(&Value::Null)
+            {
+                let code = persisted["code"].as_str().unwrap_or("cotisation inconnue");
+                return Err(AppError::Validation(format!(
+                    "La cotisation figée {code} ne correspond plus au recalcul ({field}); corrigez et revalidez la fiche avant comptabilisation."
+                )));
+            }
+        }
+    }
+    Ok(replayed)
 }
 
 /// Les six lignes AVS/AI/APG représentent une seule assiette légale. Les
@@ -1519,6 +2045,158 @@ fn validate_official_laa_group(items: &[Value], category: &str) -> AppResult<()>
     Ok(())
 }
 
+fn validate_lpp_payslip_2026(
+    employee_id: &str,
+    period: &str,
+    contribution_date: &str,
+    employee: &EmployeePayrollContext,
+    settings: &Value,
+    items: &[Value],
+) -> AppResult<()> {
+    let assessment = assess_lpp_2026(LppAssessmentInput {
+        period,
+        birth_date: employee.birth_date.as_deref(),
+        employment_start: employee.employment_start.as_deref(),
+        employment_end: employee.employment_end.as_deref(),
+        employment_contract_kind: employee.employment_contract_kind.as_deref(),
+        assessment_year: employee.lpp_assessment_year,
+        annual_salary_cents: employee.lpp_annual_salary_cents,
+        exception_code: employee.lpp_exception_code.as_deref(),
+        exception_evidence_reference: employee.lpp_exception_evidence_reference.as_deref(),
+    })
+    .map_err(|error| AppError::Validation(error.to_string()))?;
+    let lpp_items = items
+        .iter()
+        .filter(|item| item["category"].as_str() == Some("lpp"))
+        .collect::<Vec<_>>();
+    for item in items
+        .iter()
+        .filter(|item| item["category"].as_str() != Some("lpp"))
+    {
+        if !item["lpp_component"].is_null() || !item["lpp_employee_id"].is_null() {
+            return Err(AppError::Validation(
+                "Une cotisation non LPP contient des métadonnées LPP; recalculez la fiche.".into(),
+            ));
+        }
+    }
+    let minimum_due = matches!(
+        assessment.coverage,
+        LppCoverage::RiskOnly | LppCoverage::RiskAndSavings
+    );
+    let plan = if minimum_due || !lpp_items.is_empty() {
+        if payroll_setting_text(settings, "/payroll/pensionFund").is_empty() {
+            return Err(AppError::Validation(
+                "La caisse de pension doit être renseignée pour la couverture LPP.".into(),
+            ));
+        }
+        let plan = lpp_plan_evidence_from_settings(settings)?;
+        if contribution_date < plan.effective_from.as_str()
+            || contribution_date > plan.effective_to.as_str()
+        {
+            return Err(AppError::Validation(format!(
+                "La date réglementaire {contribution_date} sort de la fenêtre du règlement LPP {} ({} à {}).",
+                plan.contract_number, plan.effective_from, plan.effective_to
+            )));
+        }
+        Some(plan)
+    } else {
+        None
+    };
+
+    for item in &lpp_items {
+        if item["calculation_kind"].as_str() != Some("fixed")
+            || !item["fixed_amount_cents"]
+                .as_i64()
+                .is_some_and(|amount| amount > 0)
+            || !matches!(item["basis_kind"].as_str(), Some("coordinated" | "custom"))
+        {
+            return Err(AppError::Validation(
+                "Chaque ligne LPP doit être un montant fixe positif sur une base coordinated ou custom."
+                    .into(),
+            ));
+        }
+        if !matches!(
+            item["lpp_component"].as_str(),
+            Some("risk" | "savings" | "combined")
+        ) {
+            return Err(AppError::Validation(
+                "Chaque ligne LPP doit figer sa composante risk, savings ou combined.".into(),
+            ));
+        }
+        if item["lpp_employee_id"].as_str() != Some(employee_id) {
+            return Err(AppError::Validation(
+                "Toutes les lignes LPP doivent être liées au collaborateur de la fiche.".into(),
+            ));
+        }
+        if item["basis_kind"].as_str() == Some("coordinated") {
+            let expected_basis = assessment.coordinated_annual_salary_cents.ok_or_else(|| {
+                AppError::Validation(
+                    "Une base LPP coordinated n'est disponible que lorsque le salaire coordonné légal 2026 est dû; utilisez custom pour une couverture plus favorable ou une base propre au règlement."
+                        .into(),
+                )
+            })?;
+            if item["basis_cents"].as_i64() != Some(expected_basis) {
+                return Err(AppError::Validation(format!(
+                    "La base LPP coordinated doit correspondre au salaire coordonné annuel légal 2026 de {expected_basis} centimes; recalculez la fiche ou utilisez custom si le règlement applique une autre base."
+                )));
+            }
+        }
+        let plan = plan.as_ref().ok_or_else(|| {
+            AppError::Validation(
+                "L’attestation du plan LPP n’a pas été validée pour cette ligne.".into(),
+            )
+        })?;
+        if item["source"].as_str() != Some(plan.regulation_reference.as_str()) {
+            return Err(AppError::Validation(
+                "La source figée d’une ligne LPP diffère de la référence du règlement.".into(),
+            ));
+        }
+        let effective_from = item["effective_from"].as_str().ok_or_else(|| {
+            AppError::Validation("Le début d’effet figé de la ligne LPP est absent.".into())
+        })?;
+        let effective_to = item["effective_to"].as_str().ok_or_else(|| {
+            AppError::Validation("La fin d’effet figée de la ligne LPP est absente.".into())
+        })?;
+        if effective_from < plan.effective_from.as_str()
+            || effective_to > plan.effective_to.as_str()
+        {
+            return Err(AppError::Validation(
+                "La fenêtre figée d’une ligne LPP sort de celle du règlement enregistré.".into(),
+            ));
+        }
+    }
+
+    let has_component = |component: &str| {
+        lpp_items
+            .iter()
+            .any(|item| item["lpp_component"].as_str() == Some(component))
+    };
+    match assessment.coverage {
+        LppCoverage::RiskOnly => {
+            if !has_component("risk") && !has_component("combined") {
+                return Err(AppError::Validation(
+                    "La couverture LPP minimale exige une composante risque (risk ou combined)."
+                        .into(),
+                ));
+            }
+        }
+        LppCoverage::RiskAndSavings => {
+            if !has_component("combined") && !(has_component("risk") && has_component("savings")) {
+                return Err(AppError::Validation(
+                    "La couverture LPP minimale exige combined, ou les deux composantes risk et savings."
+                        .into(),
+                ));
+            }
+        }
+        LppCoverage::NotDueUnderAge | LppCoverage::NotDueUnderThreshold | LppCoverage::Exempt => {
+            // Un règlement peut offrir une couverture plus favorable. Les
+            // lignes restent admises lorsqu'elles satisfont toutes les gardes
+            // ci-dessus; leur absence n'est simplement pas bloquante.
+        }
+    }
+    Ok(())
+}
+
 /// Garde serveur du statut `valide`. L'interface ne constitue jamais une
 /// frontière de sécurité : cette validation est rejouée dans la transaction
 /// Rust avant chaque enregistrement ou modification d'une fiche validée.
@@ -1603,11 +2281,6 @@ fn validate_validated_swiss_payslip(
     }
     for (category, setting, message) in [
         (
-            "lpp",
-            "/payroll/pensionFund",
-            "La caisse de pension doit être renseignée pour la cotisation LPP sélectionnée.",
-        ),
-        (
             "ijm",
             "/payroll/dailyAllowanceInsurer",
             "L’assureur IJM doit être renseigné pour la cotisation sélectionnée.",
@@ -1623,6 +2296,21 @@ fn validate_validated_swiss_payslip(
         }
     }
 
+    let contribution_date = calculation["contribution_date"].as_str().ok_or_else(|| {
+        AppError::Validation(
+            "La date réglementaire du calcul de paie est absente; recalculez les cotisations."
+                .into(),
+        )
+    })?;
+    validate_lpp_payslip_2026(
+        employee_id,
+        period,
+        contribution_date,
+        &employee,
+        &settings,
+        items,
+    )?;
+
     let avs_due = avs_is_due_for_period(period, employee.birth_date.as_deref())
         .map_err(|error| AppError::Validation(error.to_string()))?;
     if !avs_due {
@@ -1634,12 +2322,6 @@ fn validate_validated_swiss_payslip(
         }
         return Ok(());
     }
-    let contribution_date = calculation["contribution_date"].as_str().ok_or_else(|| {
-        AppError::Validation(
-            "La date réglementaire du calcul de paie est absente; recalculez les cotisations."
-                .into(),
-        )
-    })?;
     if !contribution_date.starts_with("2026-") {
         return Err(AppError::Validation(
             "Zentra ne possède un profil fédéral figé que pour les versements 2026; chargez et contrôlez le profil officiel de l’année avant validation."
@@ -1808,7 +2490,12 @@ fn load_employee_payroll_context(
     }
     connection
         .query_row(
-            "SELECT id,birth_date,employment_start_date,employment_end_date,reference_age_date,avs_allowance_waived,contractual_weekly_minutes,ac_opening_year,ac_opening_basis_cents FROM employees WHERE id=?",
+            "SELECT id,birth_date,employment_start_date,employment_end_date,
+                    reference_age_date,avs_allowance_waived,contractual_weekly_minutes,
+                    ac_opening_year,ac_opening_basis_cents,employment_contract_kind,
+                    lpp_assessment_year,lpp_annual_salary_cents,lpp_exception_code,
+                    lpp_exception_evidence_reference
+             FROM employees WHERE id=?",
             params![employee_id],
             |row| {
                 Ok(EmployeePayrollContext {
@@ -1821,6 +2508,11 @@ fn load_employee_payroll_context(
                     contractual_weekly_minutes: row.get(6)?,
                     ac_opening_year: row.get(7)?,
                     ac_opening_basis_cents: row.get(8)?,
+                    employment_contract_kind: row.get(9)?,
+                    lpp_assessment_year: row.get(10)?,
+                    lpp_annual_salary_cents: row.get(11)?,
+                    lpp_exception_code: row.get(12)?,
+                    lpp_exception_evidence_reference: row.get(13)?,
                 })
             },
         )
@@ -1829,7 +2521,38 @@ fn load_employee_payroll_context(
 }
 
 fn load_definition(connection: &Connection, id: &str) -> AppResult<Definition> {
-    connection.query_row("SELECT id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,annual_ceiling_cents,basis_kind,source,effective_from,effective_to,liability_account_id,expense_account_id FROM payroll_contribution_definitions WHERE id=? AND active=1",params![id],|r|Ok(Definition{id:r.get(0)?,code:r.get(1)?,label:r.get(2)?,category:r.get(3)?,side:r.get(4)?,calculation_kind:r.get(5)?,rate_bp:r.get(6)?,fixed_amount_cents:r.get(7)?,annual_ceiling_cents:r.get(8)?,basis_kind:r.get(9)?,source:r.get(10)?,effective_from:r.get(11)?,effective_to:r.get(12)?,liability_account_id:r.get(13)?,expense_account_id:r.get(14)?})).optional()?.ok_or_else(||AppError::NotFound(format!("payroll_contribution_definitions/{id}")))
+    connection
+        .query_row(
+            "SELECT id,code,label,category,side,calculation_kind,rate_bp,
+                    fixed_amount_cents,annual_ceiling_cents,basis_kind,lpp_component,
+                    lpp_employee_id,source,effective_from,effective_to,
+                    liability_account_id,expense_account_id
+             FROM payroll_contribution_definitions WHERE id=? AND active=1",
+            params![id],
+            |row| {
+                Ok(Definition {
+                    id: row.get(0)?,
+                    code: row.get(1)?,
+                    label: row.get(2)?,
+                    category: row.get(3)?,
+                    side: row.get(4)?,
+                    calculation_kind: row.get(5)?,
+                    rate_bp: row.get(6)?,
+                    fixed_amount_cents: row.get(7)?,
+                    annual_ceiling_cents: row.get(8)?,
+                    basis_kind: row.get(9)?,
+                    lpp_component: row.get(10)?,
+                    lpp_employee_id: row.get(11)?,
+                    source: row.get(12)?,
+                    effective_from: row.get(13)?,
+                    effective_to: row.get(14)?,
+                    liability_account_id: row.get(15)?,
+                    expense_account_id: row.get(16)?,
+                })
+            },
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("payroll_contribution_definitions/{id}")))
 }
 
 /// Verrouille les côtés légaux certains même pour une définition historique
@@ -1984,10 +2707,211 @@ fn validate_employee_family_allowance_policy(
     Ok(())
 }
 
+fn required_exact_lpp_text(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+    label: &str,
+    maximum: usize,
+) -> AppResult<String> {
+    let value = object.get(field).and_then(Value::as_str).ok_or_else(|| {
+        AppError::Validation(format!(
+            "{label} doit être un texte explicite dans l’attestation du plan LPP."
+        ))
+    })?;
+    if value.is_empty() || value != value.trim() || value.chars().count() > maximum {
+        return Err(AppError::Validation(format!(
+            "{label} doit être un texte non vide, sans espaces périphériques et limité à {maximum} caractères."
+        )));
+    }
+    Ok(value.to_owned())
+}
+
+fn lpp_plan_evidence_from_settings(settings: &Value) -> AppResult<LppPlanEvidence> {
+    let object = settings
+        .pointer("/payroll/lppPlanEvidence")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "Enregistrez l’attestation structurée du règlement LPP avant d’utiliser une cotisation LPP."
+                    .into(),
+            )
+        })?;
+    let contract_number =
+        required_exact_lpp_text(object, "contractNumber", "Le numéro de contrat LPP", 200)?;
+    let regulation_reference = required_exact_lpp_text(
+        object,
+        "regulationReference",
+        "La référence du règlement LPP",
+        500,
+    )?;
+    let effective_from = required_exact_lpp_text(
+        object,
+        "effectiveFrom",
+        "Le début d’effet du règlement LPP",
+        10,
+    )?;
+    let effective_to =
+        required_exact_lpp_text(object, "effectiveTo", "La fin d’effet du règlement LPP", 10)?;
+    validate_date(&effective_from, "début d’effet du règlement LPP")?;
+    validate_date(&effective_to, "fin d’effet du règlement LPP")?;
+    if effective_to < effective_from {
+        return Err(AppError::Validation(
+            "La fin d’effet du règlement LPP précède son début.".into(),
+        ));
+    }
+    if object
+        .get("employerAggregateShareConfirmed")
+        .and_then(Value::as_bool)
+        != Some(true)
+    {
+        return Err(AppError::Validation(
+            "Confirmez que la part employeur LPP agrégée atteint au moins la somme des parts salariés; aucune égalité n’est déduite fiche par fiche."
+                .into(),
+        ));
+    }
+    Ok(LppPlanEvidence {
+        contract_number,
+        regulation_reference,
+        effective_from,
+        effective_to,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_lpp_definition_shape(
+    category: &str,
+    calculation_kind: &str,
+    rate_bp: Option<i64>,
+    fixed_amount_cents: Option<i64>,
+    basis_kind: &str,
+    lpp_component: Option<&str>,
+    lpp_employee_id: Option<&str>,
+    source: &str,
+) -> AppResult<()> {
+    if category != "lpp" {
+        if lpp_component.is_some() || lpp_employee_id.is_some() {
+            return Err(AppError::Validation(
+                "lpp_component et lpp_employee_id doivent être null pour une cotisation non LPP."
+                    .into(),
+            ));
+        }
+        return Ok(());
+    }
+    if calculation_kind != "fixed"
+        || rate_bp.is_some()
+        || !fixed_amount_cents.is_some_and(|amount| amount > 0)
+    {
+        return Err(AppError::Validation(
+            "Une cotisation LPP doit être un montant fixe strictement positif; Zentra n’invente aucun taux de caisse."
+                .into(),
+        ));
+    }
+    if !matches!(basis_kind, "coordinated" | "custom") {
+        return Err(AppError::Validation(
+            "Une cotisation LPP doit utiliser une base coordinated ou custom issue du règlement réel."
+                .into(),
+        ));
+    }
+    if !matches!(lpp_component, Some("risk" | "savings" | "combined")) {
+        return Err(AppError::Validation(
+            "Une cotisation LPP doit préciser lpp_component: risk, savings ou combined.".into(),
+        ));
+    }
+    let employee_id = lpp_employee_id.ok_or_else(|| {
+        AppError::Validation(
+            "Une cotisation LPP doit être liée explicitement à un collaborateur.".into(),
+        )
+    })?;
+    if employee_id.is_empty()
+        || employee_id != employee_id.trim()
+        || employee_id.chars().count() > 500
+    {
+        return Err(AppError::Validation(
+            "lpp_employee_id doit être un identifiant exact, non vide et limité à 500 caractères."
+                .into(),
+        ));
+    }
+    if source != source.trim() {
+        return Err(AppError::Validation(
+            "La source LPP ne peut pas contenir d’espaces périphériques; elle doit correspondre exactement au règlement."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_lpp_definition_against_plan(
+    connection: &Connection,
+    category: &str,
+    lpp_employee_id: Option<&str>,
+    source: &str,
+    effective_from: &str,
+    effective_to: Option<&str>,
+) -> AppResult<()> {
+    if category != "lpp" {
+        return Ok(());
+    }
+    let employee_id = lpp_employee_id.ok_or_else(|| {
+        AppError::Validation(
+            "Une définition LPP historique sans lpp_employee_id est inutilisable; recréez-la avec le salarié exact."
+                .into(),
+        )
+    })?;
+    let employee_exists: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM employees WHERE id=?)",
+        params![employee_id],
+        |row| row.get(0),
+    )?;
+    if !employee_exists {
+        return Err(AppError::Validation(format!(
+            "lpp_employee_id référence un collaborateur introuvable: {employee_id}."
+        )));
+    }
+    let settings_json: String = connection.query_row(
+        "SELECT extra_settings_json FROM settings WHERE id=1",
+        [],
+        |row| row.get(0),
+    )?;
+    let settings: Value = serde_json::from_str(&settings_json).map_err(|_| {
+        AppError::Validation("La configuration locale de paie est illisible.".into())
+    })?;
+    let plan = lpp_plan_evidence_from_settings(&settings)?;
+    if source != plan.regulation_reference {
+        return Err(AppError::Validation(
+            "La source de la définition LPP doit être exactement la référence du règlement enregistrée."
+                .into(),
+        ));
+    }
+    validate_date(effective_from, "début d’effet de la définition LPP")?;
+    let effective_to = effective_to.ok_or_else(|| {
+        AppError::Validation(
+            "La définition LPP doit avoir une fin d’effet incluse dans le règlement enregistré."
+                .into(),
+        )
+    })?;
+    validate_date(effective_to, "fin d’effet de la définition LPP")?;
+    if effective_from < plan.effective_from.as_str() || effective_to > plan.effective_to.as_str() {
+        return Err(AppError::Validation(format!(
+            "La définition LPP ({effective_from} à {effective_to}) sort de la fenêtre du règlement {} ({} à {}).",
+            plan.contract_number, plan.effective_from, plan.effective_to
+        )));
+    }
+    Ok(())
+}
+
 fn validate_definition_configuration_policy(
     connection: &Connection,
     input: &ContributionDefinitionInput,
 ) -> AppResult<()> {
+    validate_lpp_definition_against_plan(
+        connection,
+        &input.category,
+        input.lpp_employee_id.as_deref(),
+        &input.source,
+        &input.effective_from,
+        input.effective_to.as_deref(),
+    )?;
     validate_aanp_employer_coverage(
         connection,
         &input.category,
@@ -2017,6 +2941,24 @@ fn validate_persisted_definition_policy(
     connection: &Connection,
     definition: &Definition,
 ) -> AppResult<()> {
+    validate_lpp_definition_shape(
+        &definition.category,
+        &definition.calculation_kind,
+        definition.rate_bp,
+        definition.fixed_amount_cents,
+        &definition.basis_kind,
+        definition.lpp_component.as_deref(),
+        definition.lpp_employee_id.as_deref(),
+        &definition.source,
+    )?;
+    validate_lpp_definition_against_plan(
+        connection,
+        &definition.category,
+        definition.lpp_employee_id.as_deref(),
+        &definition.source,
+        &definition.effective_from,
+        definition.effective_to.as_deref(),
+    )?;
     validate_statutory_contribution_side(&definition.category, &definition.side)?;
     validate_aanp_employer_coverage(
         connection,
@@ -2079,6 +3021,16 @@ fn validate_definition_input(i: &ContributionDefinitionInput) -> AppResult<()> {
         return Err(AppError::Validation("basis_kind invalide.".into()));
     }
     match i.calculation_kind.as_str(){"rate" if i.rate_bp.is_some()&&i.fixed_amount_cents.is_none()&&i.rate_bp.is_some_and(|v|(0..=10_000).contains(&v))=>{},"fixed" if i.fixed_amount_cents.is_some_and(|v|v>=0)&&i.rate_bp.is_none()=>{},_=>return Err(AppError::Validation("Une cotisation rate exige uniquement rate_bp; fixed exige uniquement fixed_amount_cents.".into()))}
+    validate_lpp_definition_shape(
+        &i.category,
+        &i.calculation_kind,
+        i.rate_bp,
+        i.fixed_amount_cents,
+        &i.basis_kind,
+        i.lpp_component.as_deref(),
+        i.lpp_employee_id.as_deref(),
+        &i.source,
+    )?;
     if i.annual_ceiling_cents.is_some_and(|v| v <= 0) {
         return Err(AppError::Validation(
             "annual_ceiling_cents doit être positif.".into(),
@@ -2255,7 +3207,7 @@ fn profile_line(
     rate_bp: i64,
     ceiling: Option<i64>,
 ) -> Value {
-    json!({"code":code,"label":label,"category":category,"side":side,"calculation_kind":"rate","rate_bp":rate_bp,"fixed_amount_cents":null,"annual_ceiling_cents":ceiling,"basis_kind":"ahv_salary","source":CH_2026_SOURCE,"effective_from":"2026-01-01","effective_to":"2026-12-31","active":true})
+    json!({"code":code,"label":label,"category":category,"side":side,"calculation_kind":"rate","rate_bp":rate_bp,"fixed_amount_cents":null,"annual_ceiling_cents":ceiling,"basis_kind":"ahv_salary","lpp_component":null,"lpp_employee_id":null,"source":CH_2026_SOURCE,"effective_from":"2026-01-01","effective_to":"2026-12-31","active":true})
 }
 
 #[cfg(test)]
@@ -2270,7 +3222,8 @@ mod contribution_date_and_rounding_tests {
                    id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,category TEXT NOT NULL,\
                    side TEXT NOT NULL,calculation_kind TEXT NOT NULL,rate_bp INTEGER,\
                    fixed_amount_cents INTEGER,annual_ceiling_cents INTEGER,basis_kind TEXT NOT NULL,\
-                   source TEXT NOT NULL,effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,\
+                   lpp_component TEXT,lpp_employee_id TEXT,source TEXT NOT NULL,\
+                   effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,\
                    liability_account_id TEXT,expense_account_id TEXT\
                  );\
                  INSERT INTO payroll_contribution_definitions(\
@@ -2358,6 +3311,11 @@ mod contribution_date_and_rounding_tests {
             contractual_weekly_minutes: None,
             ac_opening_year: None,
             ac_opening_basis_cents: None,
+            employment_contract_kind: None,
+            lpp_assessment_year: None,
+            lpp_annual_salary_cents: None,
+            lpp_exception_code: None,
+            lpp_exception_evidence_reference: None,
         };
         let selection = [ContributionSelectionInput {
             definition_id: "avs-deferred".into(),
@@ -2376,6 +3334,65 @@ mod contribution_date_and_rounding_tests {
         .expect_err("AVS liability must remain tied to the worked period")
         .to_string();
         assert!(error.contains("17e anniversaire"), "{error}");
+    }
+
+    #[test]
+    fn historical_snapshot_derives_frozen_date_and_rejects_an_unreadable_one() {
+        let without_payment_date = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "payslip":{"id":"payslip-test","period":"2026-08","payment_date":null},
+            "contributions":[]
+        })
+        .to_string();
+        let without_payment_date =
+            parse_frozen_payslip_snapshot(Some(&without_payment_date), "payslip-test", "2026-08")
+                .unwrap();
+        assert_eq!(
+            resolve_frozen_contribution_date(&without_payment_date, "2026-08").unwrap(),
+            "2026-08-01"
+        );
+
+        let with_payment_date = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "payslip":{"id":"payslip-test","period":"2026-08","payment_date":"2026-09-03"},
+            "contributions":[]
+        })
+        .to_string();
+        let with_payment_date =
+            parse_frozen_payslip_snapshot(Some(&with_payment_date), "payslip-test", "2026-08")
+                .unwrap();
+        assert_eq!(
+            resolve_frozen_contribution_date(&with_payment_date, "2026-08").unwrap(),
+            "2026-09-03"
+        );
+
+        let invalid = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "contribution_date":"2026-02-31",
+            "payslip":{"id":"payslip-test","period":"2026-08"},
+            "contributions":[]
+        })
+        .to_string();
+        let invalid =
+            parse_frozen_payslip_snapshot(Some(&invalid), "payslip-test", "2026-08").unwrap();
+        assert!(resolve_frozen_contribution_date(&invalid, "2026-08").is_err());
+
+        let foreign = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "contribution_date":"2026-08-01",
+            "payslip":{"id":"autre-fiche","period":"2025-12"},
+            "contributions":[]
+        })
+        .to_string();
+        assert!(parse_frozen_payslip_snapshot(Some(&foreign), "payslip-test", "2026-08").is_err());
+    }
+
+    #[test]
+    fn empty_frozen_contribution_list_still_blocks_a_regulatory_year_change() {
+        let error = validate_payment_date_against_frozen_windows("2026-12-01", "2027-01-02", &[])
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("millésime réglementaire"), "{error}");
     }
 }
 
@@ -2655,7 +3672,8 @@ mod laa_policy_tests {
                    id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,category TEXT NOT NULL,\
                    side TEXT NOT NULL,calculation_kind TEXT NOT NULL,rate_bp INTEGER,\
                    fixed_amount_cents INTEGER,annual_ceiling_cents INTEGER,basis_kind TEXT NOT NULL,\
-                   source TEXT NOT NULL,effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,\
+                   lpp_component TEXT,lpp_employee_id TEXT,source TEXT NOT NULL,\
+                   effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,\
                    liability_account_id TEXT,expense_account_id TEXT\
                  );\
                  INSERT INTO payroll_contribution_definitions(\

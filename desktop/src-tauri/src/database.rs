@@ -43,9 +43,9 @@ use crate::{
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
         MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
-        MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL,
-        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
-        SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V28_SQL, MIGRATION_V2_SQL,
+        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
+        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -803,6 +803,60 @@ fn migrate_v27(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v28(transaction: &Transaction<'_>) -> AppResult<()> {
+    for (table, column, definition) in [
+        (
+            "employees",
+            "employment_contract_kind",
+            "employment_contract_kind TEXT CHECK (employment_contract_kind IS NULL OR employment_contract_kind IN ('indefinite','fixed'))",
+        ),
+        (
+            "employees",
+            "lpp_assessment_year",
+            "lpp_assessment_year INTEGER CHECK (lpp_assessment_year IS NULL OR lpp_assessment_year BETWEEN 1900 AND 9999)",
+        ),
+        (
+            "employees",
+            "lpp_annual_salary_cents",
+            "lpp_annual_salary_cents INTEGER CHECK (lpp_annual_salary_cents IS NULL OR lpp_annual_salary_cents >= 0)",
+        ),
+        (
+            "employees",
+            "lpp_exception_code",
+            "lpp_exception_code TEXT CHECK (lpp_exception_code IS NULL OR lpp_exception_code IN ('short_fixed_contract','other_legal'))",
+        ),
+        (
+            "employees",
+            "lpp_exception_evidence_reference",
+            "lpp_exception_evidence_reference TEXT CHECK (lpp_exception_evidence_reference IS NULL OR LENGTH(TRIM(lpp_exception_evidence_reference)) BETWEEN 1 AND 500)",
+        ),
+        (
+            "payroll_contribution_definitions",
+            "lpp_component",
+            "lpp_component TEXT CHECK (lpp_component IS NULL OR lpp_component IN ('risk','savings','combined'))",
+        ),
+        (
+            "payroll_contribution_definitions",
+            "lpp_employee_id",
+            "lpp_employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+        (
+            "payslip_contributions",
+            "lpp_component",
+            "lpp_component TEXT CHECK (lpp_component IS NULL OR lpp_component IN ('risk','savings','combined'))",
+        ),
+        (
+            "payslip_contributions",
+            "lpp_employee_id",
+            "lpp_employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        ),
+    ] {
+        add_column_if_missing(transaction, table, column, definition)?;
+    }
+    transaction.execute_batch(MIGRATION_V28_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1180,6 +1234,7 @@ impl LocalStore {
                 migrate_v25(&transaction)?;
                 migrate_v26(&transaction)?;
                 migrate_v27(&transaction)?;
+                migrate_v28(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -1272,12 +1327,18 @@ impl LocalStore {
                 migrate_v25(&transaction)?;
                 migrate_v26(&transaction)?;
                 migrate_v27(&transaction)?;
+                migrate_v28(&transaction)?;
             }
             25 => {
                 migrate_v26(&transaction)?;
                 migrate_v27(&transaction)?;
+                migrate_v28(&transaction)?;
             }
-            26 => migrate_v27(&transaction)?,
+            26 => {
+                migrate_v27(&transaction)?;
+                migrate_v28(&transaction)?;
+            }
+            27 => migrate_v28(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1302,6 +1363,7 @@ impl LocalStore {
             migrate_v25(&transaction)?;
             migrate_v26(&transaction)?;
             migrate_v27(&transaction)?;
+            migrate_v28(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -3489,11 +3551,16 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "iban",
                 "employment_start_date",
                 "employment_end_date",
+                "employment_contract_kind",
                 "reference_age_date",
                 "avs_allowance_waived",
                 "contractual_weekly_minutes",
                 "ac_opening_year",
                 "ac_opening_basis_cents",
+                "lpp_assessment_year",
+                "lpp_annual_salary_cents",
+                "lpp_exception_code",
+                "lpp_exception_evidence_reference",
                 "employment_rate",
                 "hourly_rate_cents",
                 "monthly_salary_cents",
@@ -3867,6 +3934,104 @@ fn normalize_record(
             if start.zip(end).is_some_and(|(from, to)| to < from) {
                 return Err(AppError::Validation(
                     "La fin du contrat précède son début.".into(),
+                ));
+            }
+            for (field, maximum) in [
+                ("employment_contract_kind", 20),
+                ("lpp_exception_code", 40),
+                ("lpp_exception_evidence_reference", 500),
+            ] {
+                match object.get(field).cloned() {
+                    Some(Value::String(value)) => {
+                        let trimmed = value.trim();
+                        if trimmed.is_empty() {
+                            object.insert(field.into(), Value::Null);
+                        } else if trimmed.chars().count() <= maximum {
+                            object.insert(field.into(), Value::String(trimmed.to_owned()));
+                        } else {
+                            return Err(AppError::Validation(format!(
+                                "{field} ne peut pas dépasser {maximum} caractères."
+                            )));
+                        }
+                    }
+                    Some(Value::Null) | None => {}
+                    Some(_) => {
+                        return Err(AppError::Validation(format!(
+                            "{field} doit être du texte ou null."
+                        )))
+                    }
+                }
+            }
+            let employment_contract_kind = object
+                .get("employment_contract_kind")
+                .and_then(Value::as_str);
+            if employment_contract_kind
+                .is_some_and(|value| !matches!(value, "indefinite" | "fixed"))
+            {
+                return Err(AppError::Validation(
+                    "employment_contract_kind doit être indefinite, fixed ou null.".into(),
+                ));
+            }
+            if employment_contract_kind == Some("fixed") && (start.is_none() || end.is_none()) {
+                return Err(AppError::Validation(
+                    "Un contrat fixed exige ses dates de début et de fin.".into(),
+                ));
+            }
+
+            let lpp_assessment_year = object.get("lpp_assessment_year");
+            let lpp_annual_salary = object.get("lpp_annual_salary_cents");
+            let assessment_year_present = lpp_assessment_year.is_some_and(|value| !value.is_null());
+            let annual_salary_present = lpp_annual_salary.is_some_and(|value| !value.is_null());
+            if assessment_year_present != annual_salary_present {
+                return Err(AppError::Validation(
+                    "L’année d’évaluation LPP et le salaire annuel LPP doivent être confirmés ensemble, même si le salaire vaut zéro."
+                        .into(),
+                ));
+            }
+            if assessment_year_present
+                && !lpp_assessment_year
+                    .and_then(Value::as_i64)
+                    .is_some_and(|year| (1900..=9999).contains(&year))
+            {
+                return Err(AppError::Validation(
+                    "lpp_assessment_year doit être une année comprise entre 1900 et 9999.".into(),
+                ));
+            }
+            if annual_salary_present
+                && !lpp_annual_salary
+                    .and_then(Value::as_i64)
+                    .is_some_and(|salary| salary >= 0)
+            {
+                return Err(AppError::Validation(
+                    "lpp_annual_salary_cents doit être un montant entier positif ou nul.".into(),
+                ));
+            }
+
+            let lpp_exception_code = object.get("lpp_exception_code").and_then(Value::as_str);
+            if lpp_exception_code
+                .is_some_and(|value| !matches!(value, "short_fixed_contract" | "other_legal"))
+            {
+                return Err(AppError::Validation(
+                    "lpp_exception_code doit être short_fixed_contract, other_legal ou null."
+                        .into(),
+                ));
+            }
+            let exception_evidence_present = object
+                .get("lpp_exception_evidence_reference")
+                .and_then(Value::as_str)
+                .is_some_and(|value| !value.is_empty());
+            if lpp_exception_code.is_some() != exception_evidence_present {
+                return Err(AppError::Validation(
+                    "Une exception LPP exige simultanément son code et une référence de preuve non vide."
+                        .into(),
+                ));
+            }
+            if lpp_exception_code == Some("short_fixed_contract")
+                && (employment_contract_kind != Some("fixed") || start.is_none() || end.is_none())
+            {
+                return Err(AppError::Validation(
+                    "L’exception LPP short_fixed_contract exige un contrat fixed et ses deux dates."
+                        .into(),
                 ));
             }
             if birth
@@ -6020,7 +6185,7 @@ mod v25_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            27
+            28
         );
         assert_eq!(
             connection
@@ -6396,5 +6561,166 @@ mod v27_migration_tests {
         assert!(validation_guard.contains("GROUP BY match_row.supplier_invoice_id"));
         assert!(!validation_guard
             .contains("GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id"));
+    }
+}
+
+#[cfg(test)]
+mod v28_migration_tests {
+    use super::*;
+
+    fn table_columns(connection: &Connection, table: &str) -> HashSet<String> {
+        let mut statement = connection
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .unwrap();
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<HashSet<_>, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn migration_v28_is_additive_replayable_and_invents_no_lpp_data() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE employees(id TEXT PRIMARY KEY,name TEXT NOT NULL);
+                 CREATE TABLE payroll_contribution_definitions(id TEXT PRIMARY KEY);
+                 CREATE TABLE payslip_contributions(id TEXT PRIMARY KEY);
+                 INSERT INTO employees(id,name) VALUES('employee-v27','Employé conservé');
+                 INSERT INTO payroll_contribution_definitions(id) VALUES('definition-v27');
+                 INSERT INTO payslip_contributions(id) VALUES('snapshot-v27');
+                 PRAGMA user_version=27;",
+            )
+            .unwrap();
+
+        for pass in 0..2 {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v28(&tx).unwrap();
+            tx.commit().unwrap();
+            if pass == 0 {
+                connection.pragma_update(None, "user_version", 27).unwrap();
+            }
+        }
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            28
+        );
+        let employee_columns = table_columns(&connection, "employees");
+        for column in [
+            "employment_contract_kind",
+            "lpp_assessment_year",
+            "lpp_annual_salary_cents",
+            "lpp_exception_code",
+            "lpp_exception_evidence_reference",
+        ] {
+            assert!(employee_columns.contains(column), "missing {column}");
+        }
+        for table in ["payroll_contribution_definitions", "payslip_contributions"] {
+            let columns = table_columns(&connection, table);
+            assert!(columns.contains("lpp_component"));
+            assert!(columns.contains("lpp_employee_id"));
+        }
+
+        let preserved: (String, Option<String>, Option<i64>, Option<i64>, Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT name,employment_contract_kind,lpp_assessment_year,lpp_annual_salary_cents,lpp_exception_code,lpp_exception_evidence_reference FROM employees WHERE id='employee-v27'",
+                [],
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            preserved,
+            ("Employé conservé".into(), None, None, None, None, None)
+        );
+        let definition_lpp: (Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT lpp_component,lpp_employee_id FROM payroll_contribution_definitions WHERE id='definition-v27'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(definition_lpp, (None, None));
+        let snapshot_lpp: (Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT lpp_component,lpp_employee_id FROM payslip_contributions WHERE id='snapshot-v27'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(snapshot_lpp, (None, None));
+
+        assert!(connection
+            .execute(
+                "UPDATE employees SET employment_contract_kind='invented' WHERE id='employee-v27'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE payroll_contribution_definitions SET lpp_component='invented' WHERE id='definition-v27'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE payslip_contributions SET lpp_employee_id='missing-employee' WHERE id='snapshot-v27'",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn employee_lpp_fields_are_whitelisted_and_validated_together() {
+        let spec = entity_spec("employees").unwrap();
+        for field in [
+            "employment_contract_kind",
+            "lpp_assessment_year",
+            "lpp_annual_salary_cents",
+            "lpp_exception_code",
+            "lpp_exception_evidence_reference",
+        ] {
+            assert!(spec.fields.contains(&field), "{field} is not whitelisted");
+        }
+
+        let mut valid = json!({
+            "employment_contract_kind":"fixed",
+            "employment_start_date":"2026-01-01",
+            "employment_end_date":"2026-04-01",
+            "lpp_assessment_year":2026,
+            "lpp_annual_salary_cents":2_268_001,
+            "lpp_exception_code":"short_fixed_contract",
+            "lpp_exception_evidence_reference":"Contrat signé C-2026-001"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        normalize_record("employees", &mut valid, true).unwrap();
+
+        let mut missing_salary = json!({"lpp_assessment_year":2026})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert!(normalize_record("employees", &mut missing_salary, true).is_err());
+
+        let mut missing_evidence = json!({"lpp_exception_code":"other_legal"})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert!(normalize_record("employees", &mut missing_evidence, true).is_err());
+
+        let mut undated_fixed = json!({"employment_contract_kind":"fixed"})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert!(normalize_record("employees", &mut undated_fixed, true).is_err());
     }
 }

@@ -2120,6 +2120,25 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     avsNumber: stringValue(row.social_security_number),
     employmentStart: stringValue(row.employment_start_date),
     employmentEnd: stringValue(row.employment_end_date),
+    employmentContractKind: nullableString(
+      row.employment_contract_kind,
+    ) as Employee['employmentContractKind'],
+    lppAssessmentYear:
+      row.lpp_assessment_year === null ||
+      row.lpp_assessment_year === undefined
+        ? null
+        : numberValue(row.lpp_assessment_year),
+    lppAnnualSalaryCents:
+      row.lpp_annual_salary_cents === null ||
+      row.lpp_annual_salary_cents === undefined
+        ? null
+        : numberValue(row.lpp_annual_salary_cents),
+    lppExceptionCode: nullableString(
+      row.lpp_exception_code,
+    ) as Employee['lppExceptionCode'],
+    lppExceptionEvidenceReference: stringValue(
+      row.lpp_exception_evidence_reference,
+    ),
     referenceAgeDate: stringValue(row.reference_age_date),
     avsAllowanceWaived:
       row.avs_allowance_waived === null ||
@@ -3607,7 +3626,9 @@ export function reminderActionResultFromRaw(
   };
 }
 
-function contributionFromRaw(row: RawRecord): PayrollContributionDefinition {
+export function contributionFromRaw(
+  row: RawRecord,
+): PayrollContributionDefinition {
   return {
     id: stringValue(row.id) || stringValue(row.definition_id),
     code: stringValue(row.code),
@@ -3635,6 +3656,10 @@ function contributionFromRaw(row: RawRecord): PayrollContributionDefinition {
     basisKind: stringValue(
       row.basis_kind,
     ) as PayrollContributionDefinition['basisKind'],
+    lppComponent: nullableString(
+      row.lpp_component,
+    ) as PayrollContributionDefinition['lppComponent'],
+    lppEmployeeId: nullableString(row.lpp_employee_id),
     source: stringValue(row.source),
     effectiveFrom: stringValue(row.effective_from),
     effectiveTo: stringValue(row.effective_to),
@@ -3644,7 +3669,33 @@ function contributionFromRaw(row: RawRecord): PayrollContributionDefinition {
   };
 }
 
-function payslipContributionFromRaw(
+export function payrollContributionDefinitionToRaw(
+  input: Omit<PayrollContributionDefinition, 'id'> & { id?: string },
+): RawRecord {
+  return {
+    id: input.id || null,
+    code: input.code,
+    label: input.label,
+    category: input.category,
+    side: input.side,
+    calculation_kind: input.calculationKind,
+    rate_bp: input.calculationKind === 'rate' ? input.rateBp : null,
+    fixed_amount_cents:
+      input.calculationKind === 'fixed' ? input.fixedAmountCents : null,
+    annual_ceiling_cents: input.annualCeilingCents,
+    basis_kind: input.basisKind,
+    lpp_component: input.lppComponent,
+    lpp_employee_id: input.lppEmployeeId,
+    source: input.source,
+    effective_from: input.effectiveFrom,
+    effective_to: input.effectiveTo || null,
+    active: input.active,
+    liability_account_id: input.liabilityAccountId || null,
+    expense_account_id: input.expenseAccountId || null,
+  };
+}
+
+export function payslipContributionFromRaw(
   row: RawRecord,
 ): PayslipContributionSnapshot {
   return {
@@ -3683,6 +3734,10 @@ function payslipContributionFromRaw(
         ? null
         : numberValue(row.annual_ceiling_cents),
     amountCents: numberValue(row.amount_cents),
+    lppComponent: nullableString(
+      row.lpp_component,
+    ) as PayslipContributionSnapshot['lppComponent'],
+    lppEmployeeId: nullableString(row.lpp_employee_id),
     source: stringValue(row.source),
     effectiveFrom: stringValue(row.effective_from),
     effectiveTo: stringValue(row.effective_to),
@@ -3712,6 +3767,25 @@ function frozenEmployeeFromRaw(row: RawRecord): FrozenEmployee {
     avsNumber: stringValue(row.social_security_number),
     iban: stringValue(row.iban),
     employmentRate: numberValue(row.employment_rate),
+    employmentContractKind: nullableString(
+      row.employment_contract_kind,
+    ) as FrozenEmployee['employmentContractKind'],
+    lppAssessmentYear:
+      row.lpp_assessment_year === null ||
+      row.lpp_assessment_year === undefined
+        ? null
+        : numberValue(row.lpp_assessment_year),
+    lppAnnualSalaryCents:
+      row.lpp_annual_salary_cents === null ||
+      row.lpp_annual_salary_cents === undefined
+        ? null
+        : numberValue(row.lpp_annual_salary_cents),
+    lppExceptionCode: nullableString(
+      row.lpp_exception_code,
+    ) as FrozenEmployee['lppExceptionCode'],
+    lppExceptionEvidenceReference: stringValue(
+      row.lpp_exception_evidence_reference,
+    ),
   };
 }
 
@@ -3723,12 +3797,18 @@ function payslipSnapshotFromRaw(
   if (!root || stringValue(root.schema) !== 'helvichantier.payslip_snapshot.v1')
     return null;
   const payslip = recordValue(root.payslip);
+  const period = stringValue(payslip.period);
+  const paymentDate = stringValue(payslip.payment_date);
   return {
     capturedAt: stringValue(root.captured_at),
+    contributionDate:
+      stringValue(root.contribution_date) ||
+      paymentDate ||
+      (period ? `${period}-01` : ''),
     issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir),
     employee: frozenEmployeeFromRaw(recordValue(root.employee)),
-    period: stringValue(payslip.period),
-    paymentDate: stringValue(payslip.payment_date),
+    period,
+    paymentDate,
     notes: stringValue(payslip.notes),
     items: rawArray(root.items).map((item) => ({
       id: stringValue(item.id),
@@ -5633,6 +5713,8 @@ export const desktopApi = {
           fixedAmountCents: normalized.fixedAmountCents,
           annualCeilingCents: normalized.annualCeilingCents,
           basisKind: normalized.basisKind,
+          lppComponent: normalized.lppComponent,
+          lppEmployeeId: normalized.lppEmployeeId,
           source: normalized.source,
           effectiveFrom: normalized.effectiveFrom,
           effectiveTo: normalized.effectiveTo,
@@ -5650,25 +5732,7 @@ export const desktopApi = {
     input: Omit<PayrollContributionDefinition, 'id'> & { id?: string },
   ) {
     await invoke('upsert_payroll_contribution_definition', {
-      input: {
-        id: input.id || null,
-        code: input.code,
-        label: input.label,
-        category: input.category,
-        side: input.side,
-        calculation_kind: input.calculationKind,
-        rate_bp: input.calculationKind === 'rate' ? input.rateBp : null,
-        fixed_amount_cents:
-          input.calculationKind === 'fixed' ? input.fixedAmountCents : null,
-        annual_ceiling_cents: input.annualCeilingCents,
-        basis_kind: input.basisKind,
-        source: input.source,
-        effective_from: input.effectiveFrom,
-        effective_to: input.effectiveTo || null,
-        active: input.active,
-        liability_account_id: input.liabilityAccountId || null,
-        expense_account_id: input.expenseAccountId || null,
-      },
+      input: payrollContributionDefinitionToRaw(input),
     });
   },
   async deletePayrollContributionDefinition(id: string) {
@@ -5777,12 +5841,19 @@ export const desktopApi = {
       accountingFallbacks: accountingFallbacksFromPostPayslip(posted),
     };
   },
-  async payPayslip(payslipId: string, paymentDate: string, reference?: string) {
+  async payPayslip(
+    payslipId: string,
+    paymentDate: string,
+    reference?: string,
+    regulatoryOverrideReason?: string,
+  ) {
     await invoke('pay_payslip', {
       input: {
         payslip_id: payslipId,
         payment_date: paymentDate || null,
         reference: reference?.trim() || null,
+        regulatory_override_reason:
+          regulatoryOverrideReason?.trim() || null,
       },
     });
     return loadWorkspace();

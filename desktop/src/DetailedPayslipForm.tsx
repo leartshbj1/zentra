@@ -240,6 +240,7 @@ export function DetailedPayslipForm({
         ),
         settings: workspace.settings!,
         period,
+        contributionDate: paymentDate || (period ? `${period}-01` : ''),
         grossCents: totals.earnings,
         definitions,
         selectedIds: new Set(Object.keys(selections)),
@@ -247,6 +248,7 @@ export function DetailedPayslipForm({
     [
       definitions,
       employeeId,
+      paymentDate,
       period,
       selections,
       totals.earnings,
@@ -254,6 +256,29 @@ export function DetailedPayslipForm({
       workspace.settings,
     ],
   );
+
+  useEffect(() => {
+    const coordinatedIds = definitions
+      .filter(
+        (definition) =>
+          definition.category === 'lpp' &&
+          definition.basisKind === 'coordinated',
+      )
+      .map((definition) => definition.id);
+    if (!coordinatedIds.length) return;
+    const expected = eligibility.coordinatedAnnualSalaryCents ?? undefined;
+    setSelections((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const id of coordinatedIds) {
+        if (next[id] && next[id].basisCents !== expected) {
+          next[id] = { ...next[id], basisCents: expected };
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [definitions, eligibility.coordinatedAnnualSalaryCents]);
 
   useEffect(() => {
     const grossDefinitionIds = new Set(
@@ -345,7 +370,11 @@ export function DetailedPayslipForm({
               candidate.basisKind === 'gross' &&
               current[candidate.id],
           ));
-      const basisCents = groupUsesGross
+      const basisCents =
+        definition.category === 'lpp' &&
+        definition.basisKind === 'coordinated'
+        ? eligibility.coordinatedAnnualSalaryCents ?? undefined
+        : groupUsesGross
         ? totals.earnings
         : sharesStatutoryBasis && shared
           ? current[shared.id].basisCents
@@ -383,7 +412,9 @@ export function DetailedPayslipForm({
     const definition = definitions.find((candidate) => candidate.id === id);
     if (!definition) return;
     if (
-      definition.basisKind === 'gross' &&
+      (definition.basisKind === 'gross' ||
+        (definition.category === 'lpp' &&
+          definition.basisKind === 'coordinated')) &&
       Object.prototype.hasOwnProperty.call(patch, 'basisCents')
     )
       return;
@@ -960,7 +991,21 @@ export function DetailedPayslipForm({
                     </label>
                     {selected ? (
                       <div className="selection-bases">
-                        <Field label="Base de calcul (CHF)" required>
+                        <Field
+                          label={
+                            definition.category === 'lpp' &&
+                            definition.basisKind === 'coordinated'
+                              ? 'Salaire coordonné annuel 2026 (CHF)'
+                              : 'Base de calcul (CHF)'
+                          }
+                          hint={
+                            definition.category === 'lpp' &&
+                            definition.basisKind === 'coordinated'
+                              ? 'Calculé automatiquement depuis le salaire annuel LPP et les bornes légales 2026.'
+                              : undefined
+                          }
+                          required
+                        >
                           <input
                             type="number"
                             min="0"
@@ -976,6 +1021,10 @@ export function DetailedPayslipForm({
                                   (event.target.valueAsNumber || 0) * 100,
                                 ),
                               })
+                            }
+                            readOnly={
+                              definition.category === 'lpp' &&
+                              definition.basisKind === 'coordinated'
                             }
                             required
                           />

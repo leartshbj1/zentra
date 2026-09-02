@@ -78,6 +78,7 @@ import {
 } from './PaymentAccountingProofs';
 import { RemindersScreen } from './RemindersScreen';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
+import { assessPayrollPaymentDate } from './payrollPaymentDate';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
 import {
@@ -3818,6 +3819,10 @@ function SettingsScreen({
 }) {
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
   const [vatDraft, setVatDraft] = useState('');
+  const storedLppPlan = settings.payroll.lppPlanEvidence;
+  const [lppPlanEnabled, setLppPlanEnabled] = useState(
+    Boolean(storedLppPlan),
+  );
   const org = settings.organization;
   const billing = settings.billing;
   const accountingReadiness = buildSetupReadiness(workspace, settings).steps.find(
@@ -4637,6 +4642,46 @@ function SettingsScreen({
                 'La fin de prise en charge AANP doit être une date valide postérieure ou égale au début.',
               );
             }
+            const lppPlanEvidence = lppPlanEnabled
+              ? {
+                  contractNumber: String(
+                    form.get('lppPlanContractNumber'),
+                  ).trim(),
+                  regulationReference: String(
+                    form.get('lppPlanRegulationReference'),
+                  ).trim(),
+                  effectiveFrom: String(
+                    form.get('lppPlanEffectiveFrom'),
+                  ).trim(),
+                  effectiveTo: String(
+                    form.get('lppPlanEffectiveTo'),
+                  ).trim(),
+                  employerAggregateShareConfirmed:
+                    form.get('lppPlanEmployerShareConfirmed') === 'on',
+                }
+              : undefined;
+            if (
+              lppPlanEvidence &&
+              (!lppPlanEvidence.contractNumber ||
+                !lppPlanEvidence.regulationReference ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(
+                  lppPlanEvidence.effectiveFrom,
+                ) ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(
+                  lppPlanEvidence.effectiveTo,
+                ) ||
+                !lppPlanEvidence.employerAggregateShareConfirmed)
+            )
+              throw new Error(
+                'Le plan LPP exige le numéro de contrat, la référence du règlement, sa date de début et l’attestation de la part employeur agrégée.',
+              );
+            if (
+              lppPlanEvidence &&
+              lppPlanEvidence.effectiveTo < lppPlanEvidence.effectiveFrom
+            )
+              throw new Error(
+                'La fin du règlement LPP doit être une date valide postérieure ou égale au début.',
+              );
             const next = {
               ...settings,
               payroll: {
@@ -4652,6 +4697,7 @@ function SettingsScreen({
                 familyAllowanceFund: String(form.get('familyAllowanceFund')),
                 payrollCanton: String(form.get('payrollCanton')),
                 aanpEmployerCoverage,
+                lppPlanEvidence,
               },
             };
             setSettings(next);
@@ -4738,6 +4784,84 @@ function SettingsScreen({
                 defaultValue={settings.payroll.pensionFund}
               />
             </Field>
+            <label className="check-card field--wide">
+              <input
+                name="lppPlanEnabled"
+                type="checkbox"
+                checked={lppPlanEnabled}
+                onChange={(event) =>
+                  setLppPlanEnabled(event.target.checked)
+                }
+              />
+              <span>
+                <strong>Configurer le règlement LPP de l’entreprise</strong>
+                <small>
+                  Activez seulement avec le contrat et le règlement réels de
+                  la caisse. Aucun taux n’est inventé.
+                </small>
+              </span>
+            </label>
+            {lppPlanEnabled ? (
+              <>
+                <Field label="Numéro du contrat LPP" required>
+                  <input
+                    name="lppPlanContractNumber"
+                    maxLength={200}
+                    defaultValue={storedLppPlan?.contractNumber ?? ''}
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Référence exacte du règlement LPP"
+                  hint="Recopiez cette référence comme source de chaque définition LPP."
+                  required
+                  wide
+                >
+                  <input
+                    name="lppPlanRegulationReference"
+                    maxLength={500}
+                    defaultValue={storedLppPlan?.regulationReference ?? ''}
+                    required
+                  />
+                </Field>
+                <Field label="Début d’effet du règlement LPP" required>
+                  <input
+                    name="lppPlanEffectiveFrom"
+                    type="date"
+                    defaultValue={storedLppPlan?.effectiveFrom ?? ''}
+                    required
+                  />
+                </Field>
+                <Field label="Fin d’effet du règlement LPP" required>
+                  <input
+                    name="lppPlanEffectiveTo"
+                    type="date"
+                    defaultValue={storedLppPlan?.effectiveTo ?? ''}
+                    required
+                  />
+                </Field>
+                <label className="check-card field--wide">
+                  <input
+                    name="lppPlanEmployerShareConfirmed"
+                    type="checkbox"
+                    defaultChecked={
+                      storedLppPlan?.employerAggregateShareConfirmed ?? false
+                    }
+                    required
+                  />
+                  <span>
+                    <strong>
+                      Part employeur agrégée contrôlée dans le règlement
+                    </strong>
+                    <small>
+                      Je confirme que le total des contributions employeur est
+                      au moins égal au total des contributions des salariés,
+                      selon le règlement réel du plan.
+                    </small>
+                  </span>
+                </label>
+              </>
+            ) : null}
             <Field label="Assureur indemnités journalières">
               <input
                 name="dailyAllowanceInsurer"
@@ -5570,6 +5694,12 @@ function EmployeeForm({
   const [salaryMode, setSalaryMode] = useState<Employee['salaryMode'] | ''>(
     item?.salaryMode ?? '',
   );
+  const [employmentContractKind, setEmploymentContractKind] = useState<
+    'indefinite' | 'fixed' | ''
+  >(item?.employmentContractKind ?? '');
+  const [lppExceptionCode, setLppExceptionCode] = useState<
+    '' | 'short_fixed_contract' | 'other_legal'
+  >(item?.lppExceptionCode ?? '');
   return (
     <Modal
       title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
@@ -5587,6 +5717,34 @@ function EmployeeForm({
           const acOpeningBasis = String(
             form.get('acOpeningBasis') ?? '',
           ).trim();
+          const lppAssessmentYear = String(
+            form.get('lppAssessmentYear') ?? '',
+          ).trim();
+          const lppAnnualSalary = String(
+            form.get('lppAnnualSalary') ?? '',
+          ).trim();
+          const lppExceptionEvidenceReference = String(
+            form.get('lppExceptionEvidenceReference') ?? '',
+          ).trim();
+          if (Boolean(lppAssessmentYear) !== Boolean(lppAnnualSalary))
+            throw new Error(
+              'L’année et le salaire annuel LPP doivent être confirmés ensemble, zéro compris.',
+            );
+          if (
+            employmentContractKind === 'fixed' &&
+            (!String(form.get('employmentStart')) ||
+              !String(form.get('employmentEnd')))
+          )
+            throw new Error(
+              'Un contrat à durée déterminée exige ses dates de début et de fin.',
+            );
+          if (
+            Boolean(lppExceptionCode) !==
+            Boolean(lppExceptionEvidenceReference)
+          )
+            throw new Error(
+              'Une exception LPP exige son motif et la référence de la preuve.',
+            );
           const data = {
             employeeNumber: String(form.get('employeeNumber')),
             name: String(form.get('name')),
@@ -5604,6 +5762,7 @@ function EmployeeForm({
             iban: String(form.get('iban')),
             employmentStartDate: String(form.get('employmentStart')),
             employmentEndDate: String(form.get('employmentEnd')),
+            employmentContractKind: employmentContractKind || null,
             referenceAgeDate:
               String(form.get('referenceAgeDate') ?? '') || null,
             avsAllowanceWaived: allowanceChoice
@@ -5621,6 +5780,15 @@ function EmployeeForm({
             acOpeningBasisCents: acOpeningBasis
               ? centsFromInput(form.get('acOpeningBasis'))
               : null,
+            lppAssessmentYear: lppAssessmentYear
+              ? numberFromInput(form.get('lppAssessmentYear'))
+              : null,
+            lppAnnualSalaryCents: lppAnnualSalary
+              ? centsFromInput(form.get('lppAnnualSalary'))
+              : null,
+            lppExceptionCode: lppExceptionCode || null,
+            lppExceptionEvidenceReference:
+              lppExceptionEvidenceReference || null,
             hourlyRateCents: centsFromInput(form.get('hourlyCost')),
             monthlySalaryCents:
               salaryMode === 'monthly'
@@ -5734,6 +5902,102 @@ function EmployeeForm({
               defaultValue={item?.employmentEnd}
             />
           </Field>
+          <Field
+            label="Nature du contrat pour la LPP"
+            hint="Confirmez la nature réelle du contrat. Zentra ne la déduit ni des dates ni du salaire."
+          >
+            <select
+              name="employmentContractKind"
+              value={employmentContractKind}
+              onChange={(event) =>
+                setEmploymentContractKind(
+                  event.target.value as 'indefinite' | 'fixed' | '',
+                )
+              }
+            >
+              <option value="">À confirmer</option>
+              <option value="indefinite">Durée indéterminée</option>
+              <option value="fixed">Durée déterminée</option>
+            </select>
+          </Field>
+          <Field
+            label="Année d’évaluation LPP"
+            hint="À confirmer avec le salaire annuel LPP, pour chaque année contrôlée."
+          >
+            <input
+              name="lppAssessmentYear"
+              type="number"
+              min="2000"
+              max="9999"
+              step="1"
+              defaultValue={item?.lppAssessmentYear ?? ''}
+            />
+          </Field>
+          <Field
+            label="Salaire annuel LPP confirmé (CHF)"
+            hint="Montant annuel déterminant confirmé; saisissez 0 si la valeur réelle est zéro. Le brut du mois n’est jamais annualisé automatiquement."
+          >
+            <input
+              name="lppAnnualSalary"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={
+                item?.lppAnnualSalaryCents === null ||
+                item?.lppAnnualSalaryCents === undefined
+                  ? ''
+                  : item.lppAnnualSalaryCents / 100
+              }
+            />
+          </Field>
+          <Field
+            label="Exception LPP documentée"
+            hint="Laissez vide sans exception. Toute exception doit être confirmée par une pièce réelle."
+          >
+            <select
+              name="lppExceptionCode"
+              value={lppExceptionCode}
+              onChange={(event) =>
+                setLppExceptionCode(
+                  event.target.value as
+                    | ''
+                    | 'short_fixed_contract'
+                    | 'other_legal',
+                )
+              }
+            >
+              <option value="">Aucune exception</option>
+              <option value="short_fixed_contract">
+                Contrat déterminé de trois mois au maximum
+              </option>
+              <option value="other_legal">
+                Autre exception légale confirmée
+              </option>
+            </select>
+          </Field>
+          {lppExceptionCode ? (
+            <Field
+              label="Référence de la preuve d’exception LPP"
+              hint="Ex. contrat signé, article du règlement ou décision écrite de la caisse."
+              required
+              wide
+            >
+              <input
+                name="lppExceptionEvidenceReference"
+                maxLength={500}
+                defaultValue={item?.lppExceptionEvidenceReference ?? ''}
+                required
+              />
+            </Field>
+          ) : null}
+          <div className="info-strip field--wide">
+            <ShieldCheck size={17} />
+            <span>
+              Ces données servent uniquement à qualifier l’assujettissement
+              LPP 2026 et le salaire coordonné indicatif. Les montants de
+              cotisation doivent toujours venir du règlement réel de la caisse.
+            </span>
+          </div>
           <Field
             label="Année d’ouverture AC"
             hint="Année du cumul importé. À confirmer chaque année, même lorsque le montant est zéro."
@@ -6299,6 +6563,20 @@ function PayslipPaymentForm({
   );
   const net = payslipTotals(payslip).net;
   const repairingLegacy = payslip.status === 'paid';
+  const [paymentDate, setPaymentDate] = useState(
+    payslip.paymentDate || todayIso(),
+  );
+  const [regulatoryOverrideConfirmed, setRegulatoryOverrideConfirmed] =
+    useState(false);
+  const [regulatoryOverrideReason, setRegulatoryOverrideReason] = useState('');
+  const paymentDateAssessment = useMemo(
+    () => assessPayrollPaymentDate(payslip, paymentDate),
+    [paymentDate, payslip],
+  );
+  const requiresRegulatoryOverride =
+    repairingLegacy &&
+    paymentDateAssessment.blocked &&
+    paymentDateAssessment.overrideAllowed;
   return (
     <Modal
       title={
@@ -6311,12 +6589,25 @@ function PayslipPaymentForm({
     >
       <form
         onSubmit={submitForm(async (form) => {
+          if (!repairingLegacy && paymentDateAssessment.blocked)
+            throw new Error(paymentDateAssessment.reason);
+          if (
+            requiresRegulatoryOverride &&
+            (!regulatoryOverrideConfirmed ||
+              regulatoryOverrideReason.trim().length < 10)
+          )
+            throw new Error(
+              'Confirmez la dérogation et décrivez précisément le motif de cette régularisation historique.',
+            );
           await act(
             () =>
               desktopApi.payPayslip(
                 payslip.id,
-                String(form.get('paymentDate')),
+                paymentDate,
                 String(form.get('reference')),
+                requiresRegulatoryOverride
+                  ? regulatoryOverrideReason
+                  : undefined,
               ),
             repairingLegacy
               ? 'Le paiement historique a été relié à son écriture comptable sans modifier la fiche de salaire.'
@@ -6356,7 +6647,8 @@ function PayslipPaymentForm({
             <input
               name="paymentDate"
               type="date"
-              defaultValue={payslip.paymentDate || todayIso()}
+              value={paymentDate}
+              onChange={(event) => setPaymentDate(event.target.value)}
               required
               autoFocus
             />
@@ -6372,6 +6664,54 @@ function PayslipPaymentForm({
             />
           </Field>
         </div>
+        {paymentDateAssessment.blocked ? (
+          <ErrorPanel
+            message={
+              repairingLegacy
+                ? paymentDateAssessment.overrideAllowed
+                  ? `${paymentDateAssessment.reason} Le salaire est déjà marqué payé : une régularisation reste possible uniquement avec une dérogation explicite et auditée.`
+                  : `${paymentDateAssessment.reason} Cette anomalie d’intégrité ne peut pas être contournée. Restaurez une sauvegarde fiable ou faites reconstruire la preuve avant de poursuivre.`
+                : paymentDateAssessment.reason
+            }
+          />
+        ) : null}
+        {requiresRegulatoryOverride ? (
+          <div className="stack-layout payroll-regulatory-override">
+            <Field
+              label="Motif précis de la régularisation"
+              hint="10 à 500 caractères. Ce motif sera conservé dans le journal d’audit."
+              required
+            >
+              <textarea
+                value={regulatoryOverrideReason}
+                onChange={(event) =>
+                  setRegulatoryOverrideReason(event.target.value)
+                }
+                minLength={10}
+                maxLength={500}
+                rows={3}
+                required
+              />
+            </Field>
+            <label className="check-card">
+              <input
+                type="checkbox"
+                checked={regulatoryOverrideConfirmed}
+                onChange={(event) =>
+                  setRegulatoryOverrideConfirmed(event.target.checked)
+                }
+              />
+              <span>
+                <strong>Je confirme cette dérogation historique</strong>
+                <small>
+                  J’ai vérifié la date réelle et j’accepte que l’écart au calcul
+                  réglementaire figé soit tracé sans modifier les montants de
+                  la fiche.
+                </small>
+              </span>
+            </label>
+          </div>
+        ) : null}
         <div className="info-strip">
           <Landmark size={17} />
           <span>
@@ -6383,6 +6723,13 @@ function PayslipPaymentForm({
         <FormActions
           onCancel={close}
           busy={busy}
+          disabled={
+            (paymentDateAssessment.blocked &&
+              (!repairingLegacy || !paymentDateAssessment.overrideAllowed)) ||
+            (requiresRegulatoryOverride &&
+              (!regulatoryOverrideConfirmed ||
+                regulatoryOverrideReason.trim().length < 10))
+          }
           submitLabel={
             repairingLegacy
               ? 'Régulariser le paiement'

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assessSwissFederalProfile,
+  assessSwissLppEligibility,
   assessSwissPayrollEligibility,
 } from './payrollEligibility';
 import type {
@@ -27,6 +28,8 @@ function definition(
     fixedAmountCents: null,
     annualCeilingCents,
     basisKind: 'gross',
+    lppComponent: null,
+    lppEmployeeId: null,
     source: 'source officielle',
     effectiveFrom: '2026-01-01',
     effectiveTo: '2026-12-31',
@@ -48,6 +51,68 @@ const federal = [
 ];
 const aap = definition('AAP_CONFIRMED', 'aap', 'employer', 100, 14_820_000);
 const aanp = definition('AANP_CONFIRMED', 'aanp', 'employee', 100, 14_820_000);
+
+const lppSettings = {
+  payroll: {
+    avsFund: '',
+    accidentInsurer: '',
+    pensionFund: 'Fondation Exemple',
+    dailyAllowanceInsurer: '',
+    familyAllowanceFund: '',
+    payrollCanton: 'VD',
+    lppPlanEvidence: {
+      contractNumber: 'LPP-2026-0042',
+      regulationReference: 'Règlement LPP 2026, édition signée',
+      effectiveFrom: '2026-01-01',
+      effectiveTo: '2026-12-31',
+      employerAggregateShareConfirmed: true,
+    },
+  },
+} as AppSettings;
+
+function lppDefinition(
+  employeeId = 'e',
+  component: 'risk' | 'savings' | 'combined' = 'combined',
+): PayrollContributionDefinition {
+  return {
+    id: `LPP_${employeeId}_${component}`,
+    code: `LPP_${component.toUpperCase()}`,
+    label: `LPP ${component}`,
+    category: 'lpp',
+    side: 'employee',
+    calculationKind: 'fixed',
+    rateBp: null,
+    fixedAmountCents: 24_500,
+    annualCeilingCents: null,
+    basisKind: 'coordinated',
+    source: 'Règlement LPP 2026, édition signée',
+    effectiveFrom: '2026-01-01',
+    effectiveTo: '2026-12-31',
+    active: true,
+    liabilityAccountId: '',
+    expenseAccountId: '',
+    lppComponent: component,
+    lppEmployeeId: employeeId,
+  } as PayrollContributionDefinition;
+}
+
+function lppEmployee(
+  patch: Partial<Employee> & Record<string, unknown> = {},
+): Employee {
+  return {
+    id: 'e',
+    name: 'Test LPP',
+    birthDate: '1990-06-15',
+    employmentStart: '2020-01-01',
+    employmentEnd: '',
+    employmentContractKind: 'indefinite',
+    lppAssessmentYear: 2026,
+    lppAnnualSalaryCents: 8_000_000,
+    lppExceptionCode: '',
+    lppExceptionEvidenceReference: '',
+    ...patch,
+  } as Employee;
+}
 
 describe('profil fédéral suisse', () => {
   it('refuse une catégorie partiellement sélectionnée', () => {
@@ -287,5 +352,165 @@ describe('assujettissement par date', () => {
       selectedIds,
     });
     expect(october.blockers.join(' ')).toContain('retirez l’AC');
+  });
+});
+
+describe('miroir LPP 2026', () => {
+  it('utilise seulement le salaire annuel LPP confirmé, jamais le brut mensuel multiplié par douze', () => {
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({ lppAnnualSalaryCents: 2_268_000 }),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.status).toContain('sous le seuil légal');
+    expect(result.blockers.join(' ')).not.toContain('LPP est obligatoire');
+    expect(result.annualSalaryCents).toBe(2_268_000);
+  });
+
+  it('bloque une LPP obligatoire sans définition liée au collaborateur', () => {
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee(),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.status).toBe('Obligatoire · risque et épargne');
+    expect(result.blockers.join(' ')).toContain('LPP est obligatoire');
+    expect(result.coordinatedAnnualSalaryCents).toBe(5_354_000);
+  });
+
+  it('exige une évaluation annuelle explicite pour décider', () => {
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({
+        lppAssessmentYear: null,
+        lppAnnualSalaryCents: null,
+      }),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.status).toBe('Évaluation annuelle requise');
+    expect(result.blockers.join(' ')).toContain('salaire annuel LPP');
+  });
+
+  it('présente sans l’interdire un plan plus favorable avant l’âge légal', () => {
+    const definition = { ...lppDefinition(), basisKind: 'custom' as const };
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({ birthDate: '2010-01-01' }),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [definition],
+      selectedIds: new Set([definition.id]),
+    });
+    expect(result.status).toContain('Plan plus favorable');
+    expect(result.blockers).toEqual([]);
+    expect(result.warnings.join(' ')).toContain('plan plus favorable');
+  });
+
+  it('réserve la base coordonnée au salaire coordonné légal calculé', () => {
+    const definition = lppDefinition();
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({ lppAnnualSalaryCents: 2_000_000 }),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [definition],
+      selectedIds: new Set([definition.id]),
+    });
+    expect(result.blockers.join(' ')).toContain(
+      'base « salaire coordonné » est réservée',
+    );
+  });
+
+  it('borne le salaire coordonné légal sans inventer de taux de caisse', () => {
+    const definition = lppDefinition();
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({ lppAnnualSalaryCents: 50_000_000 }),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [definition],
+      selectedIds: new Set([definition.id]),
+    });
+    expect(result.coordinatedAnnualSalaryCents).toBe(6_426_000);
+    expect(result.blockers).toEqual([]);
+  });
+
+  it('contrôle la fenêtre du règlement à la date de cotisation effective', () => {
+    const definition = {
+      ...lppDefinition(),
+      effectiveTo: '2026-12-31',
+    };
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee(),
+      settings: {
+        ...lppSettings,
+        payroll: {
+          ...lppSettings.payroll,
+          lppPlanEvidence: {
+            ...lppSettings.payroll.lppPlanEvidence,
+            effectiveTo: '2026-06-30',
+          },
+        },
+      } as AppSettings,
+      period: '2026-06',
+      contributionDate: '2026-07-02',
+      definitions: [definition],
+      selectedIds: new Set([definition.id]),
+    });
+    expect(result.blockers.join(' ')).toContain(
+      'date réglementaire 2026-07-02 sort de la fenêtre',
+    );
+  });
+
+  it('exige la composante épargne dès l’année suivant le 24e anniversaire', () => {
+    const risk = lppDefinition('e', 'risk');
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({ birthDate: '1990-06-15' }),
+      settings: lppSettings,
+      period: '2026-08',
+      definitions: [risk],
+      selectedIds: new Set([risk.id]),
+    });
+    expect(result.blockers.join(' ')).toContain('composante épargne');
+  });
+
+  it('accepte une exception de contrat court uniquement avec sa preuve', () => {
+    const result = assessSwissLppEligibility({
+      employee: lppEmployee({
+        employmentContractKind: 'fixed',
+        employmentStart: '2026-01-01',
+        employmentEnd: '2026-03-31',
+        lppExceptionCode: 'short_fixed_contract',
+        lppExceptionEvidenceReference: 'Contrat signé C-2026-001',
+      }),
+      settings: lppSettings,
+      period: '2026-03',
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.status).toBe('Exception documentée');
+    expect(result.blockers).toEqual([]);
+  });
+
+  it('ne réintroduit pas l’avertissement fictif CHF 2’500 dérivé du mois', () => {
+    const employee = lppEmployee({
+      birthDate: '2010-01-01',
+      contractualWeeklyMinutes: 400,
+    });
+    const result = assessSwissPayrollEligibility({
+      employee,
+      settings: lppSettings,
+      period: '2026-08',
+      grossCents: 100_000,
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.warnings.join(' ')).not.toContain('2’500');
+    expect(result.facts.map((fact) => fact.label)).not.toContain(
+      'Salaire annualisé',
+    );
   });
 });

@@ -1,4 +1,8 @@
-import type { AppSettings, PayrollRate } from './types';
+import type {
+  AppSettings,
+  PayrollLppPlanEvidence,
+  PayrollRate,
+} from './types';
 import { createId } from './utils';
 
 export const initialOnboardingSettings: AppSettings = {
@@ -122,6 +126,20 @@ function safeDraftRates(value: unknown): PayrollRate[] {
   });
 }
 
+function safeLppPlanEvidence(value: unknown): PayrollLppPlanEvidence | undefined {
+  if (!isRecord(value)) return undefined;
+  const text = (key: keyof PayrollLppPlanEvidence) =>
+    typeof value[key] === 'string' ? String(value[key]) : '';
+  return {
+    contractNumber: text('contractNumber'),
+    regulationReference: text('regulationReference'),
+    effectiveFrom: text('effectiveFrom'),
+    effectiveTo: text('effectiveTo'),
+    employerAggregateShareConfirmed:
+      value.employerAggregateShareConfirmed === true,
+  };
+}
+
 /**
  * Recharge uniquement la forme de configuration connue. Les champs optionnels
  * autorisés (logo et numéro de bâtiment) font partie du gabarit afin de ne pas
@@ -133,6 +151,7 @@ export function settingsFromOnboardingDraft(value: unknown): AppSettings {
   const billing = isRecord(root.billing) ? root.billing : {};
   const work = isRecord(root.work) ? root.work : {};
   const payroll = isRecord(root.payroll) ? root.payroll : {};
+  const lppPlanEvidence = safeLppPlanEvidence(payroll.lppPlanEvidence);
   return {
     ...merged,
     billing: {
@@ -149,6 +168,7 @@ export function settingsFromOnboardingDraft(value: unknown): AppSettings {
     },
     payroll: {
       ...merged.payroll,
+      ...(lppPlanEvidence ? { lppPlanEvidence } : {}),
       employeeRates: safeDraftRates(payroll.employeeRates),
       employerRates: safeDraftRates(payroll.employerRates),
     },

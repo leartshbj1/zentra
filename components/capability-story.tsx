@@ -81,7 +81,7 @@ export function CapabilityStory() {
       <section
         className="border-y border-[#d9ded9] bg-[#173d2c] px-5 py-16 text-white sm:py-24 lg:px-8"
         data-reveal
-        aria-labelledby="journee-elyko-title"
+        aria-labelledby="journee-zentra-title"
       >
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-7 lg:grid-cols-[.76fr_1.24fr] lg:items-end">
@@ -90,7 +90,7 @@ export function CapabilityStory() {
                 Une journée dans Zentra
               </p>
               <h2
-                id="journee-elyko-title"
+                id="journee-zentra-title"
                 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
               >
                 Une action métier. Une suite logique et vérifiable.

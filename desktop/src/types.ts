@@ -74,6 +74,8 @@ export type PayrollSettings = {
    * défaut: la prime est supportée par le salarié.
    */
   aanpEmployerCoverage?: PayrollInsuranceCoverageEvidence;
+  /** Attestation du règlement réel; son absence bloque uniquement les lignes LPP. */
+  lppPlanEvidence?: PayrollLppPlanEvidence;
   employeeRates: PayrollRate[];
   employerRates: PayrollRate[];
 };
@@ -83,6 +85,15 @@ export type PayrollInsuranceCoverageEvidence = {
   reference: string;
   effectiveFrom: string;
   effectiveTo: string;
+};
+
+export type PayrollLppPlanEvidence = {
+  contractNumber: string;
+  regulationReference: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  /** Parité contrôlée sur l'ensemble du plan, jamais déduite fiche par fiche. */
+  employerAggregateShareConfirmed: boolean;
 };
 
 export type PayrollRate = {
@@ -724,6 +735,11 @@ export type Employee = {
   avsNumber: string;
   employmentStart: string;
   employmentEnd: string;
+  employmentContractKind: 'indefinite' | 'fixed' | null;
+  lppAssessmentYear: number | null;
+  lppAnnualSalaryCents: number | null;
+  lppExceptionCode: 'short_fixed_contract' | 'other_legal' | null;
+  lppExceptionEvidenceReference: string;
   /** Date confirmée par la caisse/fiduciaire; jamais déduite du sexe. */
   referenceAgeDate: string;
   /** true = renonciation confirmée, false = franchise conservée, null = à confirmer. */
@@ -1312,10 +1328,17 @@ export type FrozenEmployee = {
   avsNumber: string;
   iban: string;
   employmentRate: number;
+  employmentContractKind: 'indefinite' | 'fixed' | null;
+  lppAssessmentYear: number | null;
+  lppAnnualSalaryCents: number | null;
+  lppExceptionCode: 'short_fixed_contract' | 'other_legal' | null;
+  lppExceptionEvidenceReference: string;
 };
 
 export type FrozenPayslipSnapshot = {
   capturedAt: string;
+  /** Date réglementaire figée pour sélectionner les versions de cotisations. */
+  contributionDate: string;
   issuer: FrozenIssuer;
   employee: FrozenEmployee;
   period: string;
@@ -2198,6 +2221,7 @@ export type ContributionCategory =
   | 'family_allowance'
   | 'source_tax'
   | 'other';
+export type LppComponent = 'risk' | 'savings' | 'combined';
 export type PayrollContributionDefinition = {
   id: Identifier;
   code: string;
@@ -2209,6 +2233,8 @@ export type PayrollContributionDefinition = {
   fixedAmountCents: number | null;
   annualCeilingCents: number | null;
   basisKind: 'gross' | 'ahv_salary' | 'coordinated' | 'custom';
+  lppComponent: LppComponent | null;
+  lppEmployeeId: Identifier | null;
   source: string;
   effectiveFrom: string;
   effectiveTo: string;
@@ -2270,6 +2296,8 @@ export type PayslipContributionSnapshot = {
   fixedAmountCents: number | null;
   annualCeilingCents: number | null;
   amountCents: number;
+  lppComponent: LppComponent | null;
+  lppEmployeeId: Identifier | null;
   source: string;
   effectiveFrom: string;
   effectiveTo: string;
