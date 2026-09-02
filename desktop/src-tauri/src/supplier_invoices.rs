@@ -607,7 +607,7 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
            SELECT 1 FROM supplier_invoice_matches match_row
            JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
            WHERE match_row.supplier_invoice_id=?
-           GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+           GROUP BY match_row.supplier_invoice_id
            HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
              OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
              OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
@@ -840,7 +840,7 @@ fn supplier_invoice_bundle(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
                     SELECT 1 FROM supplier_invoice_matches match_row
                     JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
                     WHERE match_row.supplier_invoice_id=invoice.id
-                    GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+                    GROUP BY match_row.supplier_invoice_id
                     HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
                       OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
                       OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1

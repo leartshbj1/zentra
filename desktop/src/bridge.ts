@@ -106,6 +106,7 @@ import type {
   SupplierInvoice,
   SupplierInvoiceItem,
   SupplierInvoiceMatch,
+  SaveSupplierInvoiceMatchDraftInput,
   SupplierInvoicePayment,
   SupplierOrder,
   SupplierOrderCancellationLine,
@@ -136,6 +137,7 @@ import type {
   VatSubmissionType,
   Workspace,
 } from './types';
+import type { OnboardingValidationScope } from './onboardingValidation';
 import {
   bankAccountAssociationPayload,
   bankConfirmationPayload,
@@ -903,6 +905,7 @@ function settingsFromRaw(
   if (!row || !stringValue(row.company_name)) return null;
   const extra = parseExtra(row);
   const extraBilling = extra.billing;
+  const deferred = extra.setupDeferred;
   const configuredVat =
     extraBilling?.vatRatesBp?.filter((rate) => Number.isFinite(rate)) ?? [];
   const defaultVat = numberValue(row.default_vat_bp);
@@ -1005,6 +1008,11 @@ function settingsFromRaw(
       retentionWeekly: 0,
       retentionMonthly: 0,
       recoveryConfirmed: false,
+    },
+    setupDeferred: {
+      billing: deferred?.billing === true,
+      work: deferred?.work === true,
+      backup: deferred?.backup === true,
     },
   };
 }
@@ -2636,6 +2644,11 @@ function backendExtra(settings: AppSettings): string {
     work: settings.work,
     payroll: settings.payroll,
     backup: settings.backup,
+    setupDeferred: settings.setupDeferred ?? {
+      billing: false,
+      work: false,
+      backup: false,
+    },
   });
 }
 
@@ -3843,19 +3856,25 @@ export const desktopApi = {
   },
   async validateOnboarding(
     settings: OnboardingPayload,
+    scope: OnboardingValidationScope = 'complete',
   ): Promise<OnboardingValidationResult> {
     return onboardingValidationFromRaw(
       await invoke<RawRecord>('validate_onboarding', {
         input: settingsToBackend(settings),
+        scope,
       }),
     );
   },
-  async completeOnboarding(settings: OnboardingPayload) {
+  async completeOnboarding(
+    settings: OnboardingPayload,
+    scope: OnboardingValidationScope = 'complete',
+  ) {
     let response: RawRecord;
     try {
       response = recordValue(
         await invoke<RawRecord>('complete_onboarding', {
           input: settingsToBackend(settings),
+          scope,
         }),
       );
     } catch (reason) {
@@ -4144,28 +4163,40 @@ export const desktopApi = {
     });
     return loadWorkspace();
   },
-  async saveSupplierInvoiceMatch(input: {
-    requestId: string;
-    supplierInvoiceId: string;
-    supplierOrderId: string;
-    allocations: Array<{
-      supplierInvoiceItemId: string;
-      supplierOrderLineId: string;
-      supplierReceiptLineId?: string | null;
-      quantityMilli: number;
-    }>;
-  }) {
+  async saveSupplierInvoiceMatch(input: SaveSupplierInvoiceMatchDraftInput) {
+    const allocationsByOrder = new Map<
+      string,
+      SaveSupplierInvoiceMatchDraftInput['allocations']
+    >();
+    for (const allocation of input.allocations) {
+      const orderId = allocation.supplierOrderId || input.supplierOrderId;
+      const group = allocationsByOrder.get(orderId) ?? [];
+      group.push(allocation);
+      allocationsByOrder.set(orderId, group);
+    }
+    const serializeAllocations = (
+      allocations: SaveSupplierInvoiceMatchDraftInput['allocations'],
+    ) =>
+      allocations.map((allocation) => ({
+        supplier_invoice_item_id: allocation.supplierInvoiceItemId,
+        supplier_order_line_id: allocation.supplierOrderLineId,
+        supplier_receipt_line_id: allocation.supplierReceiptLineId ?? null,
+        quantity_milli: allocation.quantityMilli,
+      }));
     await invoke('save_supplier_invoice_match', {
       input: {
         request_id: input.requestId,
         supplier_invoice_id: input.supplierInvoiceId,
         supplier_order_id: input.supplierOrderId,
-        allocations: input.allocations.map((allocation) => ({
-          supplier_invoice_item_id: allocation.supplierInvoiceItemId,
-          supplier_order_line_id: allocation.supplierOrderLineId,
-          supplier_receipt_line_id: allocation.supplierReceiptLineId ?? null,
-          quantity_milli: allocation.quantityMilli,
-        })),
+        allocations: serializeAllocations(
+          allocationsByOrder.get(input.supplierOrderId) ?? [],
+        ),
+        order_allocations: [...allocationsByOrder.entries()]
+          .filter(([orderId]) => orderId !== input.supplierOrderId)
+          .map(([orderId, allocations]) => ({
+            supplier_order_id: orderId,
+            allocations: serializeAllocations(allocations),
+          })),
       },
     });
     return loadWorkspace();
@@ -5646,6 +5677,7 @@ export const desktopApi = {
   async calculatePayrollContributions(input: {
     employeeId: string;
     period: string;
+    paymentDate: string;
     grossCents: number;
     items: PayrollContributionSelection[];
   }): Promise<PayrollCalculation> {
@@ -5655,6 +5687,7 @@ export const desktopApi = {
         input: {
           employee_id: input.employeeId,
           period: input.period,
+          payment_date: input.paymentDate || null,
           gross_cents: input.grossCents,
           items: input.items.map((item) => ({
             definition_id: item.definitionId,

@@ -2,6 +2,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Clock3,
   Database,
   Landmark,
   ReceiptText,
@@ -13,6 +14,7 @@ import type { AccountingSettings, AppSettings, Workspace } from './types';
 export const SETTINGS_READINESS_TARGETS = {
   identity: 'settings-company-identity',
   billing: 'settings-company-billing',
+  work: 'settings-work-rules',
   accounting: 'settings-accounting-links',
   payroll: 'settings-payroll-organizations',
   backup: 'settings-backup',
@@ -35,6 +37,23 @@ export type SetupReadiness = {
   totalCount: number;
   percent: number;
 };
+
+export type DeferredSetupArea = 'billing' | 'work' | 'backup';
+
+export function confirmDeferredSetup(
+  settings: AppSettings,
+  area: DeferredSetupArea,
+): AppSettings {
+  return {
+    ...settings,
+    setupDeferred: {
+      billing: settings.setupDeferred?.billing === true,
+      work: settings.setupDeferred?.work === true,
+      backup: settings.setupDeferred?.backup === true,
+      [area]: false,
+    },
+  };
+}
 
 const coreAccountingMappingKeys: Array<Exclude<keyof AccountingSettings, 'enabled'>> = [
   'arAccountId',
@@ -79,9 +98,7 @@ function normalizedWindowsPath(value: string | null | undefined) {
 
 function missingSummary(missing: string[]) {
   if (!missing.length) return '';
-  const visible = missing.slice(0, 3).join(', ');
-  const remaining = missing.length - 3;
-  return `À renseigner : ${visible}${remaining > 0 ? ` et ${remaining} autre${remaining > 1 ? 's' : ''}` : ''}.`;
+  return `À renseigner : ${missing.join(', ')}.`;
 }
 
 function step(
@@ -104,7 +121,7 @@ export function buildSetupReadiness(
   workspace: Workspace,
   settings: AppSettings,
 ): SetupReadiness {
-  const { organization, billing, payroll, backup } = settings;
+  const { organization, billing, work, payroll, backup } = settings;
   const identityMissing: string[] = [];
   if (!hasText(organization.legalName)) identityMissing.push('raison sociale');
   if (!hasText(organization.contactName)) identityMissing.push('responsable');
@@ -117,6 +134,8 @@ export function buildSetupReadiness(
     identityMissing.push('pays');
 
   const billingMissing: string[] = [];
+  if (settings.setupDeferred?.billing)
+    billingMissing.push('confirmation des réglages de facturation');
   if (!isValidSwissIban(billing.iban)) billingMissing.push('IBAN CH/LI valide');
   if (!hasText(billing.accountHolder)) billingMissing.push('titulaire du compte');
   if (!hasText(billing.quotePrefix)) billingMissing.push('préfixe devis');
@@ -131,6 +150,21 @@ export function buildSetupReadiness(
     if (!billing.vatRatesBp.some((rate) => Number.isInteger(rate) && rate > 0))
       billingMissing.push('taux TVA');
   }
+
+  const workMissing: string[] = [];
+  if (settings.setupDeferred?.work)
+    workMissing.push('confirmation des règles de temps et de coûts');
+  if (!Number.isFinite(work.workWeekHours) || work.workWeekHours <= 0 || work.workWeekHours > 168)
+    workMissing.push('heures hebdomadaires');
+  if (!Number.isFinite(work.dailyHours) || work.dailyHours <= 0 || work.dailyHours > 24)
+    workMissing.push('heures journalières');
+  else if (work.workWeekHours > 0 && work.dailyHours > work.workWeekHours)
+    workMissing.push('durée journalière cohérente');
+  if (![0, 1, 5, 10, 15].includes(work.roundingMinutes))
+    workMissing.push('règle d’arrondi');
+  if (!Number.isInteger(work.breakMinutes) || work.breakMinutes < 0 || work.breakMinutes > 1_440)
+    workMissing.push('pause habituelle');
+  if (!work.costCategories.length) workMissing.push('catégories de coûts');
 
   const accountingMissing: string[] = [];
   const accounting = workspace.accountingSettings;
@@ -186,6 +220,12 @@ export function buildSetupReadiness(
         : 'Coordonnées bancaires et numérotation sont renseignées; entreprise déclarée non assujettie.',
     ),
     step(
+      'work',
+      'Temps et coûts',
+      workMissing,
+      'Durées, arrondi, pause et catégories de coûts sont renseignés.',
+    ),
+    step(
       'accounting',
       'Comptabilité',
       accountingMissing,
@@ -226,6 +266,8 @@ export function buildSetupReadiness(
   }
 
   const backupMissing: string[] = [];
+  if (settings.setupDeferred?.backup)
+    backupMissing.push('confirmation de la stratégie de sauvegarde');
   if (!hasText(backup.folder)) backupMissing.push('dossier de sauvegarde');
   if (!backup.recoveryConfirmed) backupMissing.push('stratégie de récupération confirmée');
   if (!workspace.backupStatus.lastSuccessAt) backupMissing.push('première sauvegarde réussie');
@@ -257,6 +299,7 @@ export function buildSetupReadiness(
 function StepIcon({ id }: { id: SetupReadinessStepId }) {
   if (id === 'identity') return <Building2 size={20} aria-hidden="true" />;
   if (id === 'billing') return <ReceiptText size={20} aria-hidden="true" />;
+  if (id === 'work') return <Clock3 size={20} aria-hidden="true" />;
   if (id === 'accounting') return <Landmark size={20} aria-hidden="true" />;
   if (id === 'payroll') return <Users size={20} aria-hidden="true" />;
   return <Database size={20} aria-hidden="true" />;

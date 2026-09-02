@@ -40,7 +40,10 @@ export type SupplierThreeWayMatchStatus = {
 
 type PurchaseFlowWorkspace = Pick<
   Workspace,
-  'supplierReceipts' | 'supplierInvoices' | 'supplierInvoiceMatches'
+  | 'supplierOrders'
+  | 'supplierReceipts'
+  | 'supplierInvoices'
+  | 'supplierInvoiceMatches'
 >;
 
 const nonNegative = (value: number) => Math.max(0, Math.trunc(value));
@@ -264,8 +267,15 @@ export function supplierInvoiceOrderMatchAmountMismatch(
   order: SupplierOrder,
   workspace: PurchaseFlowWorkspace,
 ): boolean {
-  const orderLineById = new Map(order.lines.map((line) => [line.id, line]));
-  const invoiceOrderMatches = matchesForOrder(order, workspace).filter(
+  const orderLineById = new Map(
+    [
+      order,
+      ...workspace.supplierOrders.filter((candidate) => candidate.id !== order.id),
+    ].flatMap((candidate) =>
+      candidate.lines.map((line) => [line.id, line] as const),
+    ),
+  );
+  const invoiceOrderMatches = workspace.supplierInvoiceMatches.filter(
     (match) => match.supplierInvoiceId === invoiceId,
   );
   if (!invoiceOrderMatches.length) return false;

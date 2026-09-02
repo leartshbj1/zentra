@@ -5,7 +5,7 @@ use tauri::{AppHandle, State};
 
 use crate::{
     attachments::AddSupplierInvoiceAttachmentInput,
-    database::LocalStore,
+    database::{LocalStore, OnboardingValidationScope},
     error::command_error,
     models::{
         AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
@@ -96,9 +96,14 @@ pub fn get_app_state(state: State<'_, LocalStore>, app: AppHandle) -> Result<App
 pub fn validate_onboarding(
     state: State<'_, LocalStore>,
     input: OnboardingInput,
+    scope: Option<String>,
 ) -> Result<OnboardingValidation, String> {
     let _guard = state.lock().map_err(command_error)?;
-    Ok(state.validate_onboarding(input))
+    let scope = onboarding_validation_scope(scope.as_deref())?;
+    Ok(match scope {
+        OnboardingValidationScope::Essential => state.validate_onboarding_scoped(input, scope),
+        OnboardingValidationScope::Complete => state.validate_onboarding(input),
+    })
 }
 
 #[tauri::command]
@@ -106,8 +111,10 @@ pub fn complete_onboarding(
     state: State<'_, LocalStore>,
     app: AppHandle,
     input: OnboardingInput,
+    scope: Option<String>,
 ) -> Result<CompleteOnboardingResult, String> {
     let _guard = state.lock().map_err(command_error)?;
+    let scope = onboarding_validation_scope(scope.as_deref())?;
     if state
         .app_state(&app_version(&app))
         .map_err(command_error)?
@@ -115,9 +122,21 @@ pub fn complete_onboarding(
     {
         require_write(&state)?;
     }
-    state
-        .complete_onboarding(input, &app_version(&app))
-        .map_err(command_error)
+    match scope {
+        OnboardingValidationScope::Essential => {
+            state.complete_onboarding_scoped(input, &app_version(&app), scope)
+        }
+        OnboardingValidationScope::Complete => state.complete_onboarding(input, &app_version(&app)),
+    }
+    .map_err(command_error)
+}
+
+fn onboarding_validation_scope(value: Option<&str>) -> Result<OnboardingValidationScope, String> {
+    match value.unwrap_or("complete") {
+        "essential" => Ok(OnboardingValidationScope::Essential),
+        "complete" => Ok(OnboardingValidationScope::Complete),
+        _ => Err("scope doit valoir « essential » ou « complete ».".into()),
+    }
 }
 
 #[tauri::command]

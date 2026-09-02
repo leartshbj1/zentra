@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Zentra
 
-État de la comparaison : 1er septembre 2026. Version source documentée : Zentra 1.13.
+État de la comparaison : 1er septembre 2026. Version source documentée : Zentra 1.15 source, sans publication annoncée.
 
 Cette feuille de route compare Zentra aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Zentra reste une application Windows locale, avec les données conservées chez le client.
 
@@ -19,27 +19,34 @@ La matrice détaillée et l'ordre produit retenu sont documentés dans
 
 | Lot | Fonctions attendues | État |
 | --- | --- | --- |
-| Socle local | installation Windows, configuration guidée, SQLite locale, sauvegardes, audit, mises à jour signées | Disponible ; guide relançable et updater avec reprise guidée en 1.10 ; Authenticode reste à acquérir |
-| Vente essentiel | clients, devis, acceptation, conversion en facture, facture QR, avoir, paiements, relances | Disponible ; PDF A4 natifs devis/factures depuis l’instantané figé, QR vectoriel, logo et identité figés, paiement relié à une écriture active revalidée ; automatisation d'envoi à compléter |
+| Socle local | installation Windows, configuration guidée, SQLite locale, sauvegardes, audit, mises à jour signées | Disponible ; onboarding progressif après confirmation de l'identité et de l'activité, avec réglages de facturation, temps/coûts et sauvegarde différés jusqu'à leur confirmation explicite en 1.15 source ; guide relançable et updater avec reprise guidée en 1.10 ; Authenticode reste à acquérir |
+| Vente essentiel | clients, devis, acceptation, conversion en facture, facture QR, avoir, paiements, relances | Disponible ; PDF A4 natifs devis/factures depuis l’instantané figé, QR vectoriel, logo et identité figés, paiement relié à une écriture active revalidée ; aucun envoi automatique réel des relances n'est livré |
 | Catalogue et stock | produits/services, prix, TVA, coûts, remises, stock minimal, mouvements, ajout aux devis/factures | Disponible : registre local immuable, réservation à la confirmation d'une commande de vente, sortie à l'émission du BL et entrée à l'émission d'une réception fournisseur ; l'extourne de la réception crée le mouvement inverse. Emplacements à venir |
-| Achats | fournisseurs, commandes, réceptions, factures et avoirs fournisseurs, justificatifs, rapprochement, échéances et paiements | Disponible : commande → réception partielle/complète → facture → rapprochement → paiement/comptabilité, avec avoir distinct imputable à une facture. Une facture se rapproche actuellement d'une seule commande ; multi-commandes et OCR des achats à venir |
+| Achats | fournisseurs, commandes, réceptions, factures et avoirs fournisseurs, justificatifs, rapprochement, échéances et paiements | Disponible : commande → réception partielle/complète → facture → rapprochement multi-commandes → paiement/comptabilité, avec tolérance globale, protection des ventilations et avoir distinct imputable à une facture ; OCR des achats non livré |
 | Banque locale | import CAMT.053/054, dédoublonnage, propositions de rapprochement, validation humaine | Disponible pour les crédits clients et débits fournisseurs ; périmètre détaillé ci-dessous |
 | Cycle commercial avancé | commande, bulletin de livraison, acomptes/partielles, récurrence | Devis avec produits → commandes, BL partiels/complets et situations/finales par quantités ; prestations simples en facture directe ; récurrence supervisée locale en 1.11 ; acomptes libres à venir |
 | Comptabilité et TVA | journal, grand livre, balance, résultat, bilan, journal TVA et clôture explicable | Disponible dans le périmètre 1.9 : profils et calcul TVA contrôlés, XML eCH-0217 v2.0.0 local, pré-clôture et dossier fiduciaire DRAFT/FINAL ; aucune transmission ni certification AFC/Olico |
 | Projets et temps | projets/chantiers, tâches, temps, coûts, rentabilité, temps vers facture | Projets, tâches, jalons, responsables, échéances, temps, coûts, rentabilité et temps approuvés vers facture disponibles |
-| Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Analyse locale multipage à double lecture, document hashé, provenance par occurrence, file reprenable et confirmation humaine en 1.13 ; Swissdec/ELM non certifié |
+| Paie suisse | employés, cotisations versionnées, fiches, import OCR local des documents de paie, écritures | Analyse locale multipage à double lecture, document hashé, provenance par occurrence, file reprenable et confirmation humaine en 1.13 ; date de paiement et arrondi au CHF 0.05 des cotisations calculées par taux en 1.15 source ; QST autonome, contrôles LPP/CAF complets, ELM et certification Swissdec non livrés |
 | Collaboration | rôles locaux, accès fiduciaire, verrouillage, journal d'audit | Verrouillage de période et audit disponibles ; rôles locaux et accès fiduciaire simultané planifiés |
 | Écosystème | API locale, connecteurs isolés, compagnon mobile | Ultérieur |
 
-## Périmètre achats de Zentra 1.8
+## Périmètre du démarrage progressif de Zentra 1.15 source
+
+- L'utilisateur peut créer son espace après avoir confirmé l'identité de l'entreprise et son domaine d'activité, ou poursuivre immédiatement la configuration complète.
+- En parcours progressif, les valeurs techniques proposées pour la facturation, le temps/coûts et la sauvegarde restent marquées comme non confirmées dans le centre de préparation. Elles ne sont pas présentées comme des choix de l'utilisateur.
+- Les flux de devis/factures et de temps restent bloqués tant que leur groupe de réglages n'a pas été enregistré explicitement. La sauvegarde reste incomplète jusqu'à la confirmation de sa stratégie et à une première archive réussie.
+
+## Périmètre achats de Zentra 1.8, étendu en 1.15 source
 
 - Une commande fournisseur est préparée en brouillon puis confirmée avec ses lignes, quantités, prix, TVA, comptes de charge et, le cas échéant, projet et article de catalogue.
 - Une commande ouverte accepte une ou plusieurs réceptions partielles ou une réception complète. Le brouillon ne touche jamais le stock : seule l'émission d'une réception crée une entrée pour les produits suivis. Son extourne motivée conserve l'historique et crée la sortie inverse.
-- Une facture fournisseur peut être autonome ou rapprochée des lignes d'une commande et de ses réceptions émises. Zentra contrôle alors les quantités, les montants nets et la TVA avant validation.
-- Une facture ne peut actuellement être rapprochée qu'avec une seule commande fournisseur. Le rapprochement d'une facture couvrant plusieurs commandes est un lot futur.
+- Une facture fournisseur peut être autonome ou rapprochée des lignes d'une ou plusieurs commandes confirmées compatibles et de leurs réceptions émises. Toutes les commandes doivent correspondre au fournisseur et à la devise de la facture, et ne peuvent pas être postérieures à celle-ci.
+- Le rapprochement multi-commandes est enregistré atomiquement. Zentra contrôle les quantités et les montants HT, TVA et TTC ligne par ligne, puis applique à l'ensemble de la facture une tolérance maximale d'un centime pour chacun de ces totaux : la tolérance ne se multiplie pas avec le nombre de commandes.
+- Une ligne déjà ventilée sur plusieurs commandes ne peut pas être écrasée silencieusement par l'éditeur. Il faut retirer explicitement le rapprochement existant avant de le remplacer ; une tentative invalide conserve les allocations précédentes.
 - Un avoir fournisseur est un document comptable distinct : il peut être validé et imputé à une facture, puis cette imputation peut être extournée avec traçabilité. Il réduit le solde restant, mais ne remplace pas la facture dans le rapprochement commande-réception-facture et ne crée aucun mouvement de stock.
 - La validation, le paiement manuel ou bancaire confirmé et les écritures comptables restent des opérations distinctes et auditables. Ni la facture, ni l'avoir, le rapprochement, le paiement ou la comptabilisation ne modifient le stock.
-- Aucun OCR d'achats n'est livré en 1.8. L'OCR local existant est réservé à l'import de documents de paie.
+- Aucun OCR d'achats n'est livré, y compris dans la source 1.15. L'OCR local existant est réservé à l'import de documents de paie.
 
 ## Périmètre bancaire local de Zentra 1.8
 
@@ -77,13 +84,16 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 - Après une période hors ligne, un lancement prépare au maximum douze brouillons. S'il reste des échéances, la planification passe en revue obligatoire; l'utilisateur reprend explicitement le lot suivant.
 - Pause, reprise et fin définitive sont journalisées et idempotentes. Une commande utilisée comme modèle ne peut jamais réintégrer le flux livraison/facturation standard, afin d'éviter une double facturation. Les occurrences et la planification restent conservées pour la traçabilité.
 
-## Périmètre documentaire et paie de Zentra 1.13
+## Périmètre documentaire et paie de Zentra 1.13, complété en 1.15 source
 
 - Les devis et factures sont exportés par le moteur natif de l’application en A4. Un document émis est rendu depuis son instantané figé; une identité, un destinataire, un logo ou des montants finaux manquants ou incohérents bloquent l’export au lieu d’être reconstruits silencieusement.
 - La section QR d’une facture utilise le payload SPC enregistré, régénéré et comparé avant export. Le code est vectoriel, en correction d’erreur M, dimensionné à 46 mm, avec symbole suisse et zone libre; il n’apparaît que sur la dernière page. Cette implémentation doit encore passer une validation externe avant toute revendication de certification.
 - Les documents de paie PDF ou image sont copiés dans le stockage géré, hashés en SHA-256 et relus depuis ces mêmes octets. Les aperçus, mises à jour d’analyse et confirmations revérifient le hash; une altération bloque le parcours.
 - SmolVLM fonctionne localement en deux lectures par lot de pages. Zentra conserve les occurrences répétées, rattache les indications aux pages et remplace les anciennes propositions IA lors d’une relance sans écraser les corrections humaines.
 - Une rubrique salariale récurrente exige une case cochée explicitement. Le brut historique d’une fiche ne devient jamais à lui seul un modèle salarial. Les cotisations et le rattachement au collaborateur restent soumis aux contrôles déterministes et à la confirmation finale.
+- La date de paiement d'une fiche sélectionne la fenêtre de validité des taux, franchises et plafonds de cotisations, tandis que l'âge et l'assujettissement restent rattachés à la période travaillée. Sans date explicite, le calcul utilise le premier jour de cette période.
+- Chaque cotisation calculée par taux est arrondie commercialement au CHF 0.05. Les montants fixes configurés restent inchangés.
+- Le calcul autonome de l'impôt à la source (QST), les contrôles LPP et CAF complets, la génération ou transmission ELM et la certification Swissdec ne sont pas livrés. Ces fonctions d'aide locale ne constituent ni une validation de conformité globale, ni une certification.
 
 ## Références officielles consultées
 
@@ -113,10 +123,10 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 
 ## Prochains lots, dans l'ordre
 
-1. Étendre le rapprochement fournisseur à une facture couvrant plusieurs commandes et ajouter un OCR d'achats avec contrôle humain.
+1. Ajouter un OCR des factures et avoirs fournisseurs avec contrôle humain ; le rapprochement multi-commandes est déjà implémenté dans la source 1.15.
 2. Ajouter les acomptes de vente définis par montant ou pourcentage, avec imputation explicite sur la facture finale.
-3. Ajouter les modèles multilingues et l'envoi de documents ou relances explicitement configuré par le client; la récurrence supervisée est disponible depuis 1.11.
+3. Ajouter les modèles multilingues et l'envoi automatique réel de documents ou relances explicitement configuré par le client ; la récurrence supervisée est disponible depuis 1.11, mais aucun message ne part seul aujourd'hui.
 4. Étendre les pièces liées aux écritures et préparer un échange fiduciaire chiffré, sans transformer cet échange en synchronisation implicite.
 5. Ajouter import/export de contacts, catégories, rôles locaux et accès fiduciaire contrôlé.
 
-Swissdec/ELM reste un programme de certification distinct : Zentra doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant que cette certification n'est pas obtenue. Le XML eCH-0217 est un export local pour import manuel et ne constitue ni une transmission ni une certification AFC. Le dossier DRAFT/FINAL et ses empreintes SHA-256 soutiennent le contrôle et la conservation, sans constituer une certification Olico.
+Swissdec/ELM reste un programme distinct et non livré : Zentra ne génère ni ne transmet de déclaration ELM et doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant qu'une certification n'est pas obtenue. Le calcul QST autonome et les contrôles LPP/CAF complets restent également non livrés. Le XML eCH-0217 est un export local pour import manuel et ne constitue ni une transmission ni une certification AFC. Le dossier DRAFT/FINAL et ses empreintes SHA-256 soutiennent le contrôle et la conservation, sans constituer une certification Olico. Aucun des lots 1.15 source ne vaut validation de conformité ou certification.

@@ -451,6 +451,7 @@ impl LocalStore {
         calculate(
             &connection,
             &input.period,
+            input.payment_date.as_deref(),
             input.gross_cents,
             &input.items,
             None,
@@ -467,6 +468,7 @@ impl LocalStore {
         calculate(
             &connection,
             &input.period,
+            input.payment_date.as_deref(),
             input.gross_cents,
             &input.items,
             Some(&employee),
@@ -1021,11 +1023,25 @@ fn apply_contributions_tx(
     requested_period: &str,
     items: &[ContributionSelectionInput],
 ) -> AppResult<Value> {
-    let (period, gross, status, employee_id): (String, i64, String, String) = tx
+    let (period, payment_date, gross, status, employee_id): (
+        String,
+        Option<String>,
+        i64,
+        String,
+        String,
+    ) = tx
         .query_row(
-            "SELECT period,gross_cents,status,employee_id FROM payslips WHERE id=?",
+            "SELECT period,payment_date,gross_cents,status,employee_id FROM payslips WHERE id=?",
             params![payslip_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .optional()?
         .ok_or_else(|| AppError::NotFound(format!("payslips/{payslip_id}")))?;
@@ -1040,7 +1056,14 @@ fn apply_contributions_tx(
         ));
     }
     let employee = load_employee_payroll_context(tx, &employee_id)?;
-    let calculation = calculate(tx, &period, gross, items, Some(&employee))?;
+    let calculation = calculate(
+        tx,
+        &period,
+        payment_date.as_deref(),
+        gross,
+        items,
+        Some(&employee),
+    )?;
     if status == "valide" {
         validate_validated_swiss_payslip(tx, &employee_id, &period, &calculation)?;
     }
@@ -1085,6 +1108,7 @@ fn apply_contributions_tx(
 fn calculate(
     connection: &Connection,
     period: &str,
+    payment_date: Option<&str>,
     gross: i64,
     selections: &[ContributionSelectionInput],
     employee_context: Option<&EmployeePayrollContext>,
@@ -1094,7 +1118,18 @@ fn calculate(
             "gross_cents ne peut pas être négatif.".into(),
         ));
     }
-    let date = period_date(period)?;
+    // AVS 2.01: l'assujettissement et l'âge restent rattachés à la période
+    // travaillée; les taux, franchises et plafonds sont ceux de la date du
+    // versement. Sans date de versement explicite, une paie non différée reste
+    // rattachée au premier jour de sa période.
+    let work_period_date = period_date(period)?;
+    let normalized_payment_date = payment_date
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(value) = normalized_payment_date {
+        validate_date(value, "payment_date")?;
+    }
+    let contribution_date = normalized_payment_date.unwrap_or(&work_period_date);
     validate_shared_statutory_bases(connection, gross, selections)?;
     let mut seen = HashSet::new();
     let mut items = Vec::new();
@@ -1111,10 +1146,23 @@ fn calculate(
             )));
         }
         let def = load_definition(connection, &selection.definition_id)?;
-        if date < def.effective_from || def.effective_to.as_ref().is_some_and(|to| date > *to) {
+        if contribution_date < def.effective_from.as_str()
+            || def
+                .effective_to
+                .as_ref()
+                .is_some_and(|to| contribution_date > to.as_str())
+        {
             return Err(AppError::Validation(format!(
-                "La cotisation {} n'est pas valable pour {period}.",
-                def.code
+                "La cotisation {} n'est pas valable à la date de versement {} (période travaillée {}).",
+                def.code, contribution_date, period
+            )));
+        }
+        if matches!(def.category.as_str(), "avs_ai_apg" | "ac")
+            && !contribution_date.starts_with("2026-")
+        {
+            return Err(AppError::Validation(format!(
+                "Zentra ne possède un profil fédéral figé que pour les versements 2026; chargez et contrôlez le profil officiel de {} avant ce calcul.",
+                &contribution_date[..4]
             )));
         }
         validate_persisted_definition_policy(connection, &def)?;
@@ -1282,7 +1330,7 @@ fn calculate(
             }
         }
         let amount = match def.calculation_kind.as_str() {
-            "rate" => round_rate(
+            "rate" => round_rate_to_five_cents(
                 basis,
                 def.rate_bp
                     .ok_or_else(|| AppError::Validation("rate_bp manquant.".into()))?,
@@ -1300,7 +1348,7 @@ fn calculate(
         items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
     }
     Ok(
-        json!({"period":period,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
+        json!({"period":period,"work_period_date":work_period_date,"payment_date":normalized_payment_date,"contribution_date":contribution_date,"rounding_increment_cents":5,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
     )
 }
 
@@ -1586,9 +1634,15 @@ fn validate_validated_swiss_payslip(
         }
         return Ok(());
     }
-    if !period.starts_with("2026-") {
+    let contribution_date = calculation["contribution_date"].as_str().ok_or_else(|| {
+        AppError::Validation(
+            "La date réglementaire du calcul de paie est absente; recalculez les cotisations."
+                .into(),
+        )
+    })?;
+    if !contribution_date.starts_with("2026-") {
         return Err(AppError::Validation(
-            "Zentra ne possède un profil fédéral figé que pour 2026; chargez et contrôlez le profil officiel de l’année avant validation."
+            "Zentra ne possède un profil fédéral figé que pour les versements 2026; chargez et contrôlez le profil officiel de l’année avant validation."
                 .into(),
         ));
     }
@@ -2159,8 +2213,17 @@ fn period_date(period: &str) -> AppResult<String> {
     validate_date(&date, "period")?;
     Ok(date)
 }
-fn round_rate(basis: i64, rate: i64) -> i64 {
-    ((basis as i128 * rate as i128 + 5_000) / 10_000) as i64
+/// Arrondi commercial suisse au CHF 0.05 des cotisations calculées par taux.
+///
+/// Le périmètre reste volontairement borné: un montant fixe configuré est
+/// conservé tel quel, car il ne résulte pas d'un calcul effectué ici. La paie
+/// multi-devise n'est pas prise en charge par ce moteur CHF.
+fn round_rate_to_five_cents(basis: i64, rate: i64) -> i64 {
+    const RATE_DENOMINATOR_TIMES_FIVE_CENTS: i128 = 50_000;
+    let numerator = basis as i128 * rate as i128;
+    let five_cent_units =
+        (numerator + RATE_DENOMINATOR_TIMES_FIVE_CENTS / 2) / RATE_DENOMINATOR_TIMES_FIVE_CENTS;
+    (five_cent_units * 5) as i64
 }
 fn recompute_payslip(tx: &rusqlite::Transaction<'_>, id: &str) -> AppResult<()> {
     let (gross, deductions, employer_costs, reimbursements): (i64, i64, i64, i64) = tx
@@ -2193,6 +2256,127 @@ fn profile_line(
     ceiling: Option<i64>,
 ) -> Value {
     json!({"code":code,"label":label,"category":category,"side":side,"calculation_kind":"rate","rate_bp":rate_bp,"fixed_amount_cents":null,"annual_ceiling_cents":ceiling,"basis_kind":"ahv_salary","source":CH_2026_SOURCE,"effective_from":"2026-01-01","effective_to":"2026-12-31","active":true})
+}
+
+#[cfg(test)]
+mod contribution_date_and_rounding_tests {
+    use super::*;
+
+    fn definition_connection() -> Connection {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE payroll_contribution_definitions(\
+                   id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,category TEXT NOT NULL,\
+                   side TEXT NOT NULL,calculation_kind TEXT NOT NULL,rate_bp INTEGER,\
+                   fixed_amount_cents INTEGER,annual_ceiling_cents INTEGER,basis_kind TEXT NOT NULL,\
+                   source TEXT NOT NULL,effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,\
+                   liability_account_id TEXT,expense_account_id TEXT\
+                 );\
+                 INSERT INTO payroll_contribution_definitions(\
+                   id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,\
+                   annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active\
+                 ) VALUES\
+                   ('rate-old','RATE_TEST','Ancien taux','other','employee','rate',100,NULL,NULL,\
+                    'gross','Barème test daté','2026-01-01','2026-06-30',1),\
+                   ('rate-new','RATE_TEST','Nouveau taux','other','employee','rate',200,NULL,NULL,\
+                    'gross','Barème test daté','2026-07-01','2026-12-31',1),\
+                   ('avs-deferred','AVS_DEFERRED','AVS différée','avs_ai_apg','employee','rate',435,NULL,NULL,\
+                    'ahv_salary','Barème fédéral test','2026-01-01','2026-12-31',1);",
+            )
+            .expect("minimal contribution schema");
+        connection
+    }
+
+    #[test]
+    fn swiss_commercial_rounding_maps_54_725_to_54_75() {
+        // CHF 4'975.00 × 1.10 % = CHF 54.725 before commercial rounding.
+        assert_eq!(round_rate_to_five_cents(497_500, 110), 5_475);
+    }
+
+    #[test]
+    fn payment_date_selects_new_rate_window_while_work_period_stays_unchanged() {
+        let connection = definition_connection();
+        let new_rate = [ContributionSelectionInput {
+            definition_id: "rate-new".into(),
+            basis_cents: None,
+            year_to_date_basis_cents: None,
+        }];
+        let deferred = calculate(
+            &connection,
+            "2026-06",
+            Some("2026-07-05"),
+            100_000,
+            &new_rate,
+            None,
+        )
+        .expect("the payment date must select the July rate window");
+
+        assert_eq!(deferred["period"], "2026-06");
+        assert_eq!(deferred["work_period_date"], "2026-06-01");
+        assert_eq!(deferred["payment_date"], "2026-07-05");
+        assert_eq!(deferred["contribution_date"], "2026-07-05");
+        assert_eq!(deferred["rounding_increment_cents"], 5);
+        assert_eq!(deferred["items"][0]["rate_bp"], 200);
+        assert_eq!(deferred["items"][0]["amount_cents"], 2_000);
+
+        assert!(
+            calculate(&connection, "2026-06", None, 100_000, &new_rate, None,)
+                .expect_err("without a deferred payment date, the July definition is invalid")
+                .to_string()
+                .contains("2026-06-01")
+        );
+
+        let old_rate = [ContributionSelectionInput {
+            definition_id: "rate-old".into(),
+            basis_cents: None,
+            year_to_date_basis_cents: None,
+        }];
+        assert!(calculate(
+            &connection,
+            "2026-06",
+            Some("2026-07-05"),
+            100_000,
+            &old_rate,
+            None,
+        )
+        .expect_err("the old definition must not leak into the new payment window")
+        .to_string()
+        .contains("2026-07-05"));
+    }
+
+    #[test]
+    fn deferred_payment_does_not_move_avs_liability_into_the_payment_period() {
+        let connection = definition_connection();
+        let employee = EmployeePayrollContext {
+            id: "young-employee".into(),
+            birth_date: Some("2008-05-01".into()),
+            employment_start: Some("2025-01-01".into()),
+            employment_end: None,
+            reference_age_date: None,
+            avs_allowance_waived: None,
+            contractual_weekly_minutes: None,
+            ac_opening_year: None,
+            ac_opening_basis_cents: None,
+        };
+        let selection = [ContributionSelectionInput {
+            definition_id: "avs-deferred".into(),
+            basis_cents: Some(100_000),
+            year_to_date_basis_cents: None,
+        }];
+
+        let error = calculate(
+            &connection,
+            "2025-12",
+            Some("2026-01-05"),
+            100_000,
+            &selection,
+            Some(&employee),
+        )
+        .expect_err("AVS liability must remain tied to the worked period")
+        .to_string();
+        assert!(error.contains("17e anniversaire"), "{error}");
+    }
 }
 
 #[cfg(test)]
@@ -2489,7 +2673,7 @@ mod laa_policy_tests {
             year_to_date_basis_cents: None,
         }];
 
-        let aap_error = calculate(&connection, "2026-06", 500_000, &selections, None)
+        let aap_error = calculate(&connection, "2026-06", None, 500_000, &selections, None)
             .expect_err("legacy employee AAP must be blocked at calculation")
             .to_string();
         assert!(aap_error.contains("ne peut jamais être retenue"));
@@ -2500,7 +2684,7 @@ mod laa_policy_tests {
                 [],
             )
             .expect("switch legacy definition to AANP");
-        let aanp_error = calculate(&connection, "2026-06", 500_000, &selections, None)
+        let aanp_error = calculate(&connection, "2026-06", None, 500_000, &selections, None)
             .expect_err("legacy employer AANP must be blocked without structured proof")
             .to_string();
         assert!(aanp_error.contains("convention plus favorable"));
@@ -2533,8 +2717,15 @@ mod laa_policy_tests {
             basis_cents: None,
             year_to_date_basis_cents: Some(0),
         }];
-        let covered = calculate(&connection, "2026-06", 500_000, &covered_selections, None)
-            .expect("structured employer coverage must calculate");
+        let covered = calculate(
+            &connection,
+            "2026-06",
+            None,
+            500_000,
+            &covered_selections,
+            None,
+        )
+        .expect("structured employer coverage must calculate");
         assert_eq!(covered["employer_costs_cents"], 5_000);
 
         connection
@@ -2543,8 +2734,15 @@ mod laa_policy_tests {
                 params![CH_2026_FAMILY_ALLOWANCE_SOURCE],
             )
             .expect("switch legacy definition to official Valais CAF");
-        let valais = calculate(&connection, "2026-06", 500_000, &covered_selections, None)
-            .expect("official employee CAF must calculate in Valais");
+        let valais = calculate(
+            &connection,
+            "2026-06",
+            None,
+            500_000,
+            &covered_selections,
+            None,
+        )
+        .expect("official employee CAF must calculate in Valais");
         assert_eq!(valais["employee_deductions_cents"], 650);
 
         connection
@@ -2553,9 +2751,16 @@ mod laa_policy_tests {
                 [],
             )
             .expect("switch payroll canton");
-        let canton_error = calculate(&connection, "2026-06", 500_000, &covered_selections, None)
-            .expect_err("employee CAF outside Valais must be blocked")
-            .to_string();
+        let canton_error = calculate(
+            &connection,
+            "2026-06",
+            None,
+            500_000,
+            &covered_selections,
+            None,
+        )
+        .expect_err("employee CAF outside Valais must be blocked")
+        .to_string();
         assert!(canton_error.contains("qu’en Valais"));
     }
 }

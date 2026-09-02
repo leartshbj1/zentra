@@ -216,13 +216,13 @@ mod tests {
     use std::collections::HashMap;
 
     use pretty_assertions::assert_eq;
-    use rusqlite::OptionalExtension;
+    use rusqlite::{OptionalExtension, TransactionBehavior};
     use serde_json::json;
     use sha2::{Digest, Sha256};
 
     use crate::{
         attachments::AddSupplierInvoiceAttachmentInput,
-        database::{now_iso, LocalStore},
+        database::{now_iso, require_setup_confirmed, LocalStore, OnboardingValidationScope},
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, ApplyPayrollInput,
             ApplySupplierCreditInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
@@ -241,8 +241,9 @@ mod tests {
             SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput, ScanRemindersInput,
             StockCorrectionInput, StockEntryInput, StockExitInput,
             SupplierExpenseReclassificationLineInput, SupplierInvoiceLineInput,
-            SupplierInvoiceMatchAllocationInput, SupplierOrderDraftInput, SupplierOrderLineInput,
-            SupplierReceiptDraftInput, SupplierReceiptLineInput, SwissQrBillInput, SwissQrParty,
+            SupplierInvoiceMatchAllocationInput, SupplierInvoiceOrderAllocationsInput,
+            SupplierOrderDraftInput, SupplierOrderLineInput, SupplierReceiptDraftInput,
+            SupplierReceiptLineInput, SwissQrBillInput, SwissQrParty,
             ValidateSupplierCreditNoteInput,
         },
         schema::{BUSINESS_TABLES, SCHEMA_SQL, SCHEMA_VERSION},
@@ -985,6 +986,15 @@ mod tests {
         assert_eq!(issue.step, 2);
         assert_eq!(issue.label, "L’IBAN");
         assert!(issue.message.contains("IBAN CH ou LI"));
+        let progressive =
+            store.validate_onboarding_scoped(input.clone(), OnboardingValidationScope::Essential);
+        assert!(
+            progressive
+                .issues
+                .iter()
+                .any(|issue| issue.field == "billing.iban"),
+            "an explicitly entered invalid IBAN must never be discarded silently"
+        );
 
         let error = store
             .complete_onboarding(input, "1.0.0")
@@ -996,6 +1006,117 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))
             .unwrap();
         assert_eq!(settings_count, 0);
+    }
+
+    #[test]
+    fn onboarding_accepts_deferred_billing_without_inventing_an_iban() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        let mut input = test_onboarding();
+        input.vat_registered = true;
+        input.uid_number = Some("CHE-000.000.000 TVA".into());
+        input.default_vat_bp = None;
+        input.iban = None;
+        input.bank_name = None;
+        input.extra_settings_json = Some(json!({
+            "billing": { "accountHolder": "" },
+            "work": {
+                "workWeekHours": 0,
+                "dailyHours": 0,
+                "roundingMinutes": 5,
+                "breakMinutes": 0,
+                "costCategories": []
+            },
+            "payroll": { "enabled": false },
+            "backup": {
+                "automatic": false,
+                "folder": "",
+                "frequency": "manual",
+                "retentionDaily": 0,
+                "retentionWeekly": 0,
+                "retentionMonthly": 0,
+                "recoveryConfirmed": false
+            }
+        }));
+
+        let complete_validation = store.validate_onboarding(input.clone());
+        assert!(!complete_validation.valid);
+        assert!(complete_validation
+            .issues
+            .iter()
+            .any(|issue| issue.field == "billing.iban"));
+        assert!(complete_validation
+            .issues
+            .iter()
+            .any(|issue| issue.field == "billing.vatRatesBp"));
+
+        let validation =
+            store.validate_onboarding_scoped(input.clone(), OnboardingValidationScope::Essential);
+        assert!(
+            validation.valid,
+            "unexpected issues: {:?}",
+            validation.issues
+        );
+
+        let completed = store
+            .complete_onboarding_scoped(input, "1.0.0", OnboardingValidationScope::Essential)
+            .expect("minimal onboarding must commit atomically");
+        assert_eq!(completed.workspace["settings"]["iban"], "");
+        assert_eq!(completed.workspace["settings"]["default_vat_bp"], 0);
+        let extra: serde_json::Value = serde_json::from_str(
+            completed.workspace["settings"]["extra_settings_json"]
+                .as_str()
+                .expect("extended settings JSON"),
+        )
+        .expect("valid extended settings");
+        assert_eq!(
+            extra["setupDeferred"],
+            json!({ "billing": true, "work": true, "backup": true })
+        );
+        let mut connection = store.connect().expect("reopen settings");
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .expect("read deferred state transactionally");
+        assert!(require_setup_confirmed(&transaction, "billing")
+            .expect_err("billing must remain gated")
+            .to_string()
+            .contains("Confirmez les réglages de facturation"));
+        assert!(require_setup_confirmed(&transaction, "work")
+            .expect_err("time rules must remain gated")
+            .to_string()
+            .contains("Confirmez les règles de temps et de coûts"));
+        drop(transaction);
+
+        let mut work_confirmed_extra = extra.clone();
+        work_confirmed_extra["setupDeferred"]["work"] = json!(false);
+        let updated = store
+            .update_settings(json!({ "extra_settings_json": work_confirmed_extra }))
+            .expect("work setup can be confirmed while billing remains deferred");
+        let updated_extra: serde_json::Value = serde_json::from_str(
+            updated["extra_settings_json"]
+                .as_str()
+                .expect("updated extended settings JSON"),
+        )
+        .expect("valid updated extended settings");
+        assert_eq!(updated_extra["setupDeferred"]["work"], false);
+        assert_eq!(updated_extra["setupDeferred"]["billing"], true);
+
+        let mut falsely_confirmed_billing = updated_extra;
+        falsely_confirmed_billing["setupDeferred"]["billing"] = json!(false);
+        assert!(store
+            .update_settings(json!({ "extra_settings_json": falsely_confirmed_billing }))
+            .expect_err("billing cannot be confirmed without an explicit VAT rate")
+            .to_string()
+            .contains("Un taux de TVA explicite est obligatoire"));
+        assert!(completed.workspace["clients"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(completed.workspace["projects"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -6232,6 +6353,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             store.calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
                 employee_id: employee_id.clone(),
                 period: "2026-12".into(),
+                payment_date: None,
                 gross_cents: 500000,
                 items: vec![ContributionSelectionInput {
                     definition_id: definition_id.clone(),
@@ -6251,6 +6373,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
                 employee_id: employee_id.clone(),
                 period: "2026-12".into(),
+                payment_date: None,
                 gross_cents: 500000,
                 items: vec![selection.clone()],
             })
@@ -6331,6 +6454,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
                 employee_id: employee_id.clone(),
                 period: "2026-12".into(),
+                payment_date: None,
                 gross_cents: 20_000_000,
                 items: vec![selection.clone()],
             })
@@ -6338,7 +6462,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(preview["items"][0]["ac_proration_days_30_360"], 255);
         assert_eq!(preview["items"][0]["annual_ceiling_cents"], 10_497_500);
         assert_eq!(preview["items"][0]["basis_cents"], 497_500);
-        assert_eq!(preview["items"][0]["amount_cents"], 5_473);
+        assert_eq!(preview["items"][0]["amount_cents"], 5_475);
 
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
@@ -6365,7 +6489,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             saved["contributions"][0]["annual_ceiling_cents"],
             10_497_500
         );
-        assert_eq!(saved["contributions"][0]["amount_cents"], 5_473);
+        assert_eq!(saved["contributions"][0]["amount_cents"], 5_475);
     }
 
     #[test]
@@ -6428,6 +6552,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let avs_input = |employee_id: &str| CalculateEmployeePayrollInput {
             employee_id: employee_id.into(),
             period: "2026-08".into(),
+            payment_date: None,
             gross_cents: 500_000,
             items: vec![ContributionSelectionInput {
                 definition_id: value_id(&avs),
@@ -6473,6 +6598,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
                 employee_id,
                 period: "2026-08".into(),
+                payment_date: None,
                 gross_cents: 500_000,
                 items: vec![ContributionSelectionInput {
                     definition_id: value_id(&ac),
@@ -6533,6 +6659,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             store.calculate_employee_payroll_contributions(CalculateEmployeePayrollInput {
                 employee_id: employee_id.clone(),
                 period: "2026-12".into(),
+                payment_date: None,
                 gross_cents: 500_000,
                 items,
             })
@@ -6677,6 +6804,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let first = store
             .calculate_payroll_contributions(CalculatePayrollInput {
                 period: "2026-08".into(),
+                payment_date: None,
                 gross_cents: 500_000,
                 items: selections.clone(),
             })
@@ -6688,6 +6816,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let second = store
             .calculate_payroll_contributions(CalculatePayrollInput {
                 period: "2026-08".into(),
+                payment_date: None,
                 gross_cents: 700_000,
                 items: selections,
             })
@@ -6787,6 +6916,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let calculated = store
             .calculate_payroll_contributions(CalculatePayrollInput {
                 period: "2026-08".into(),
+                payment_date: None,
                 gross_cents: 500_000,
                 items: vec![
                     ContributionSelectionInput {
@@ -6897,6 +7027,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let recalculated = store
             .calculate_payroll_contributions(CalculatePayrollInput {
                 period: "2026-08".into(),
+                payment_date: None,
                 gross_cents: 500_000,
                 items: vec![ContributionSelectionInput {
                     definition_id: employee_id,
@@ -7664,6 +7795,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     supplier_receipt_line_id: Some(receipt_line_id),
                     quantity_milli: 1_000,
                 }],
+                order_allocations: vec![],
             })
             .unwrap();
         assert_eq!(
@@ -7792,6 +7924,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 supplier_receipt_line_id: Some(receipt_two_line_id.clone()),
                 quantity_milli: 1_000,
             }],
+            order_allocations: vec![],
         };
         store
             .save_supplier_invoice_draft(second_invoice_input.clone())
@@ -8215,6 +8348,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     supplier_receipt_line_id: None,
                     quantity_milli: 1_000,
                 }],
+                order_allocations: vec![],
             })
             .unwrap();
         store.validate_supplier_invoice(invoice_id).unwrap();
@@ -8505,6 +8639,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     supplier_receipt_line_id: Some(receipt_line_id),
                     quantity_milli: 1_000,
                 }],
+                order_allocations: vec![],
             })
             .unwrap();
         let edit_error = store
@@ -8557,6 +8692,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             supplier_invoice_id: draft_invoice_id.into(),
             supplier_order_id: order_id.into(),
             allocations: vec![],
+            order_allocations: vec![],
         };
         let cleared = store
             .save_supplier_invoice_match(clear_match.clone())
@@ -8786,6 +8922,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     supplier_invoice_id: invoice_id.into(),
                     supplier_order_id: order_id.into(),
                     allocations: vec![],
+                    order_allocations: vec![],
                 })
                 .is_err(),
             "une liste vide ne crée pas un rapprochement initial"
@@ -8801,6 +8938,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     supplier_receipt_line_id: None,
                     quantity_milli: 1_000,
                 }],
+                order_allocations: vec![],
             })
             .unwrap();
         let before = store.get_workspace().unwrap();
@@ -8829,7 +8967,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
-    fn supplier_match_rounding_allocates_the_exact_invoice_line_total() {
+    fn supplier_match_rounding_is_exact_across_multiple_orders() {
         let (_temporary, store) = initialized_store();
         enable_accounting(&store);
         let supplier_id = value_id(
@@ -8934,6 +9072,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         quantity_milli: 1_000,
                     },
                 ],
+                order_allocations: vec![],
             })
             .unwrap();
         let allocated = matched["matches"].as_array().unwrap();
@@ -8996,78 +9135,132 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 supplier_order_id: alternate_order_id.into(),
             })
             .unwrap();
-        let mut cross_order_connection = store.connect().unwrap();
-        let cross_order_tx = cross_order_connection.transaction().unwrap();
-        cross_order_tx
-            .execute(
-                "DELETE FROM supplier_invoice_matches WHERE supplier_invoice_id=?",
-                rusqlite::params![invoice_id],
-            )
+        let multi_request = SaveSupplierInvoiceMatchInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            supplier_invoice_id: invoice_id.into(),
+            supplier_order_id: order_id.into(),
+            allocations: vec![SupplierInvoiceMatchAllocationInput {
+                supplier_invoice_item_id: invoice_item_id.into(),
+                supplier_order_line_id: first_order_line_id.into(),
+                supplier_receipt_line_id: None,
+                quantity_milli: 1_000,
+            }],
+            order_allocations: vec![SupplierInvoiceOrderAllocationsInput {
+                supplier_order_id: alternate_order_id.into(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: invoice_item_id.into(),
+                    supplier_order_line_id: alternate_line_id.into(),
+                    supplier_receipt_line_id: None,
+                    quantity_milli: 1_000,
+                }],
+            }],
+        };
+        let multi = store
+            .save_supplier_invoice_match(multi_request.clone())
             .unwrap();
-        let direct_match_id = uuid::Uuid::new_v4().to_string();
-        cross_order_tx.execute(
-            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            rusqlite::params![direct_match_id,uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,order_id,first_order_line_id,1_000,0,0,0,"2026-08-16T00:00:02Z"],
-        ).unwrap();
-        let cross_order_error = cross_order_tx.execute(
-            "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,alternate_order_id,alternate_line_id,1_000,1,0,1,"2026-08-16T00:00:03Z"],
-        ).unwrap_err().to_string();
-        assert!(
-            cross_order_error.contains("only be matched to one supplier order"),
-            "la garde SQL doit refuser une seconde commande: {cross_order_error}"
+        assert_eq!(multi["orders"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            multi["matches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| row["quantity_milli"].as_i64().unwrap())
+                .sum::<i64>(),
+            2_000
         );
-        assert!(
-            cross_order_tx
-                .execute(
-                    "UPDATE supplier_invoice_matches SET supplier_order_id=?,supplier_order_line_id=? WHERE id=?",
-                    rusqlite::params![alternate_order_id, alternate_line_id, direct_match_id],
-                )
-                .is_err(),
-            "la commande d’un rapprochement existant est immuable en SQL"
+        assert_eq!(
+            multi["matches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| row["net_cents"].as_i64().unwrap())
+                .sum::<i64>(),
+            1,
+            "le centime de la facture est réparti une seule fois entre les commandes"
         );
-        cross_order_tx.rollback().unwrap();
-        assert!(
-            store
-                .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
-                    request_id: uuid::Uuid::new_v4().to_string(),
-                    supplier_invoice_id: invoice_id.into(),
-                    supplier_order_id: alternate_order_id.into(),
+        assert_eq!(
+            store.save_supplier_invoice_match(multi_request).unwrap()["idempotent"],
+            true
+        );
+        let foreign_supplier_id = value_id(
+            &store
+                .create_record("suppliers", json!({"name":"Autre fournisseur SA"}))
+                .unwrap(),
+        );
+        let foreign_order_id = "0a66b1bd-ffb8-4c86-9f4f-76aca1489432";
+        let foreign_line_id = "1099e70f-241c-4d60-9dd8-c0a573685e84";
+        store
+            .save_supplier_order_draft(SaveSupplierOrderDraftInput {
+                order: SupplierOrderDraftInput {
+                    id: Some(foreign_order_id.into()),
+                    supplier_id: foreign_supplier_id,
+                    project_id: None,
+                    title: "Commande étrangère".into(),
+                    order_date: "2026-08-15".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![make_line(foreign_line_id, 0)],
+            })
+            .unwrap();
+        store
+            .confirm_supplier_order(ConfirmSupplierOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_order_id: foreign_order_id.into(),
+            })
+            .unwrap();
+        let invalid_multi = store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: invoice_id.into(),
+                supplier_order_id: order_id.into(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: invoice_item_id.into(),
+                    supplier_order_line_id: first_order_line_id.into(),
+                    supplier_receipt_line_id: None,
+                    quantity_milli: 1_000,
+                }],
+                order_allocations: vec![SupplierInvoiceOrderAllocationsInput {
+                    supplier_order_id: foreign_order_id.into(),
                     allocations: vec![SupplierInvoiceMatchAllocationInput {
                         supplier_invoice_item_id: invoice_item_id.into(),
-                        supplier_order_line_id: alternate_line_id.into(),
+                        supplier_order_line_id: foreign_line_id.into(),
                         supplier_receipt_line_id: None,
-                        quantity_milli: 2_000,
+                        quantity_milli: 1_000,
                     }],
-                })
-                .is_err(),
-            "changer de commande exige un retrait explicite préalable"
+                }],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(
+            invalid_multi.contains("même fournisseur"),
+            "{invalid_multi}"
         );
         assert_eq!(
             store
                 .connect()
                 .unwrap()
                 .query_row(
-                    "SELECT COUNT(*) FROM supplier_invoice_matches WHERE supplier_invoice_id=? AND supplier_order_id=?",
-                    rusqlite::params![invoice_id, order_id],
+                    "SELECT COUNT(*) FROM supplier_invoice_matches WHERE supplier_invoice_id=?",
+                    rusqlite::params![invoice_id],
                     |row| row.get::<_, i64>(0),
                 )
                 .unwrap(),
             2,
-            "le rapprochement d’origine ne doit pas être remplacé silencieusement"
+            "une commande incompatible ne doit supprimer aucune allocation existante"
         );
-        let acceptable_global_gap: i64 = store
-            .connect()
-            .unwrap()
-            .query_row(
-                "SELECT ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))) FROM supplier_invoice_matches match_row JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id WHERE match_row.supplier_invoice_id=? AND match_row.supplier_order_id=?",
-                rusqlite::params![invoice_id,order_id],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            acceptable_global_gap, 1,
-            "un seul centime d’écart global reste dans la tolérance"
+        let direct_match_id = multi["matches"][0]["id"].as_str().unwrap();
+        assert!(
+            store
+                .connect()
+                .unwrap()
+                .execute(
+                    "UPDATE supplier_invoice_matches SET supplier_order_id=? WHERE id=?",
+                    rusqlite::params![alternate_order_id, direct_match_id],
+                )
+                .is_err(),
+            "une allocation enregistrée reste immuable en SQL"
         );
         store.validate_supplier_invoice(invoice_id).unwrap();
         assert_eq!(
@@ -9080,8 +9273,106 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     |row| row.get::<_, String>(0),
                 )
                 .unwrap(),
-            "closed"
+            "confirmed",
+            "la première commande reste ouverte car une de ses lignes n’est pas rapprochée"
         );
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT status FROM supplier_orders WHERE id=?",
+                    rusqlite::params![alternate_order_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "confirmed",
+            "la commande supplémentaire reste ouverte pour son reliquat"
+        );
+
+        let global_tolerance_invoice_id = "791c8b1c-4fab-49f1-95fc-e6797f2e9512";
+        let global_tolerance_item_ids = [
+            "fc903077-a9e8-4d34-bb38-c7b95df52169",
+            "d8b0a95c-6098-4c1e-900b-6f68a59fa470",
+        ];
+        store
+            .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+                id: Some(global_tolerance_invoice_id.into()),
+                supplier_id: supplier_id.clone(),
+                project_id: None,
+                date: "2026-08-17".into(),
+                due_date: "2026-09-16".into(),
+                reference: Some("TOLERANCE-GLOBALE-DEUX-COMMANDES".into()),
+                note: None,
+                items: global_tolerance_item_ids
+                    .iter()
+                    .enumerate()
+                    .map(|(position, id)| SupplierInvoiceLineInput {
+                        id: Some((*id).into()),
+                        description: format!("Écart global {}", position + 1),
+                        quantity_milli: 1_000,
+                        unit: Some("unité".into()),
+                        unit_price_cents: 2,
+                        discount_bp: 0,
+                        vat_bp: 0,
+                        category: "Charges".into(),
+                        expense_account_id: None,
+                        project_id: None,
+                    })
+                    .collect(),
+            })
+            .unwrap();
+        store
+            .save_supplier_invoice_match(SaveSupplierInvoiceMatchInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                supplier_invoice_id: global_tolerance_invoice_id.into(),
+                supplier_order_id: order_id.into(),
+                allocations: vec![SupplierInvoiceMatchAllocationInput {
+                    supplier_invoice_item_id: global_tolerance_item_ids[0].into(),
+                    supplier_order_line_id: second_order_line_id.into(),
+                    supplier_receipt_line_id: None,
+                    quantity_milli: 1_000,
+                }],
+                order_allocations: vec![SupplierInvoiceOrderAllocationsInput {
+                    supplier_order_id: alternate_order_id.into(),
+                    allocations: vec![SupplierInvoiceMatchAllocationInput {
+                        supplier_invoice_item_id: global_tolerance_item_ids[1].into(),
+                        supplier_order_line_id: alternate_line_id.into(),
+                        supplier_receipt_line_id: None,
+                        quantity_milli: 1_000,
+                    }],
+                }],
+            })
+            .unwrap();
+        let global_tolerance_workspace = store.get_workspace().unwrap();
+        assert_eq!(
+            global_tolerance_workspace["supplier_invoices"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["id"] == global_tolerance_invoice_id)
+                .unwrap()["match_status"],
+            "mismatch",
+            "deux écarts unitaires tolérés ne doivent pas multiplier la tolérance par commande"
+        );
+        assert!(store
+            .validate_supplier_invoice(global_tolerance_invoice_id)
+            .is_err());
+        for linked_order_id in [order_id, alternate_order_id] {
+            assert_eq!(
+                store
+                    .connect()
+                    .unwrap()
+                    .query_row(
+                        "SELECT status FROM supplier_orders WHERE id=?",
+                        rusqlite::params![linked_order_id],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .unwrap(),
+                "confirmed",
+                "un écart global supérieur à la tolérance ne doit clôturer aucune commande"
+            );
+        }
 
         let amplified_order_id = "1c35b60c-98aa-4815-a0cf-bff167c1e078";
         let amplified_line_ids = [
@@ -9176,6 +9467,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         quantity_milli: 1_000,
                     })
                     .collect(),
+                order_allocations: vec![],
             })
             .unwrap();
         let amplified_workspace = store.get_workspace().unwrap();

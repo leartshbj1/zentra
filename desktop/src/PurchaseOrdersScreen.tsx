@@ -254,6 +254,167 @@ export function existingInvoiceItemMatchDraft(
   };
 }
 
+export function existingInvoiceItemMultiOrderMatchDraft(
+  allocations: Array<{
+    supplierInvoiceId: string;
+    supplierInvoiceItemId: string;
+    supplierOrderId: string;
+    supplierOrderLineId: string;
+    quantityMilli: number;
+  }>,
+  supplierInvoiceId: string,
+  supplierInvoiceItemId: string,
+) {
+  const matches = allocations.filter(
+    (match) =>
+      match.supplierInvoiceId === supplierInvoiceId &&
+      match.supplierInvoiceItemId === supplierInvoiceItemId,
+  );
+  const links = new Set(
+    matches.map(
+      (match) => `${match.supplierOrderId}\0${match.supplierOrderLineId}`,
+    ),
+  );
+  if (!matches.length || links.size !== 1) return null;
+  return {
+    supplierOrderId: matches[0].supplierOrderId,
+    supplierOrderLineId: matches[0].supplierOrderLineId,
+    quantityMilli: matches.reduce(
+      (total, match) => total + match.quantityMilli,
+      0,
+    ),
+  };
+}
+
+export function invoiceItemHasMultipleOrderLineMatches(
+  allocations: Array<{
+    supplierInvoiceId: string;
+    supplierInvoiceItemId: string;
+    supplierOrderId: string;
+    supplierOrderLineId: string;
+  }>,
+  supplierInvoiceId: string,
+  supplierInvoiceItemId: string,
+) {
+  return (
+    new Set(
+      allocations
+        .filter(
+          (match) =>
+            match.supplierInvoiceId === supplierInvoiceId &&
+            match.supplierInvoiceItemId === supplierInvoiceItemId,
+        )
+        .map((match) =>
+          JSON.stringify([
+            match.supplierOrderId,
+            match.supplierOrderLineId,
+          ]),
+        ),
+    ).size > 1
+  );
+}
+
+export function supplierInvoiceMatchPreviewAmountDifference(
+  invoice: SupplierInvoice,
+  orders: SupplierOrder[],
+  allocations: Array<{
+    supplierInvoiceItemId: string;
+    supplierOrderId?: string;
+    supplierOrderLineId: string;
+    quantityMilli: number;
+  }>,
+  fallbackOrderId: string,
+) {
+  const invoiceItemById = new Map(invoice.lines.map((item) => [item.id, item]));
+  const orderLineById = new Map(
+    orders.flatMap((order) =>
+      order.lines.map((line) => [
+        JSON.stringify([order.id, line.id]),
+        line,
+      ] as const),
+    ),
+  );
+  const quantityByInvoiceItem = new Map<string, number>();
+  let expectedNetCents = 0;
+  let expectedVatCents = 0;
+  let expectedTotalCents = 0;
+  let invalid = false;
+  for (const allocation of allocations) {
+    const item = invoiceItemById.get(allocation.supplierInvoiceItemId);
+    const orderId = allocation.supplierOrderId || fallbackOrderId;
+    const line = orderLineById.get(
+      JSON.stringify([orderId, allocation.supplierOrderLineId]),
+    );
+    if (!item || !line || allocation.quantityMilli <= 0) {
+      invalid = true;
+      continue;
+    }
+    quantityByInvoiceItem.set(
+      item.id,
+      (quantityByInvoiceItem.get(item.id) || 0) + allocation.quantityMilli,
+    );
+    expectedNetCents += Math.round(
+      (line.lineNetCents * allocation.quantityMilli) / line.quantityMilli,
+    );
+    expectedVatCents += Math.round(
+      (line.lineVatCents * allocation.quantityMilli) / line.quantityMilli,
+    );
+    expectedTotalCents += Math.round(
+      (line.lineTotalCents * allocation.quantityMilli) / line.quantityMilli,
+    );
+  }
+  let actualNetCents = 0;
+  let actualVatCents = 0;
+  let actualTotalCents = 0;
+  for (const [itemId, quantityMilli] of quantityByInvoiceItem) {
+    const item = invoiceItemById.get(itemId);
+    if (!item || item.quantityMilli <= 0 || quantityMilli > item.quantityMilli) {
+      invalid = true;
+      continue;
+    }
+    const allocatedNetCents = Math.round(
+      (item.netCents * quantityMilli) / item.quantityMilli,
+    );
+    const allocatedVatCents = Math.round(
+      (item.vatCents * quantityMilli) / item.quantityMilli,
+    );
+    actualNetCents += allocatedNetCents;
+    actualVatCents += allocatedVatCents;
+    actualTotalCents += allocatedNetCents + allocatedVatCents;
+  }
+  return {
+    invalid,
+    netCents: actualNetCents - expectedNetCents,
+    vatCents: actualVatCents - expectedVatCents,
+    totalCents: actualTotalCents - expectedTotalCents,
+  };
+}
+
+export function supplierOrderLineLinkValue(
+  supplierOrderId: string,
+  supplierOrderLineId: string,
+) {
+  return JSON.stringify([supplierOrderId, supplierOrderLineId]);
+}
+
+export function parseSupplierOrderLineLink(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== 2 ||
+      typeof parsed[0] !== 'string' ||
+      typeof parsed[1] !== 'string' ||
+      !parsed[0] ||
+      !parsed[1]
+    )
+      return null;
+    return { supplierOrderId: parsed[0], supplierOrderLineId: parsed[1] };
+  } catch {
+    return null;
+  }
+}
+
 export function replacementMatchableQuantity(
   baseMatchableMilli: number,
   currentInvoiceMatchedMilli: number,
@@ -1000,8 +1161,8 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () => desktopApi.saveSupplierInvoiceMatch(input),
               input.allocations.length
-                ? 'Le rapprochement a été enregistré. Contrôlez puis validez la facture : cette validation clôturera la commande si les trois pièces concordent.'
-                : 'Le rapprochement a été retiré. La réception peut maintenant être corrigée et la facture reste en brouillon.',
+                ? 'Le rapprochement multi-commandes a été enregistré atomiquement. Contrôlez puis validez la facture : chaque commande complète sera clôturée.'
+                : 'Tous les rapprochements de cette facture ont été retirés. Les réceptions peuvent maintenant être corrigées et la facture reste en brouillon.',
             )
           }
         />
@@ -3146,10 +3307,6 @@ function SupplierInvoiceMatchModal({
       )
     );
   });
-  const [orderId, setOrderId] = useState(initialOrder.id);
-  const order =
-    eligibleOrders.find((candidate) => candidate.id === orderId) ||
-    initialOrder;
   const eligibleInvoices = workspace.supplierInvoices.filter((candidate) => {
     if (
       candidate.supplierId !== supplierId ||
@@ -3158,12 +3315,7 @@ function SupplierInvoiceMatchModal({
         candidate.id !== initialInvoice?.id)
     )
       return false;
-    const existingOrderIds = new Set(
-      workspace.supplierInvoiceMatches
-        .filter((match) => match.supplierInvoiceId === candidate.id)
-        .map((match) => match.supplierOrderId),
-    );
-    return existingOrderIds.size === 0 || existingOrderIds.has(order.id);
+    return true;
   });
   const [invoiceId, setInvoiceId] = useState(
     initialInvoice?.id || eligibleInvoices[0]?.id || '',
@@ -3171,21 +3323,32 @@ function SupplierInvoiceMatchModal({
   const invoice = eligibleInvoices.find(
     (candidate) => candidate.id === invoiceId,
   );
+  const protectedSplitItemIds = invoice
+    ? invoice.lines
+        .filter((item) =>
+          invoiceItemHasMultipleOrderLineMatches(
+            workspace.supplierInvoiceMatches,
+            invoice.id,
+            item.id,
+          ),
+        )
+        .map((item) => item.id)
+    : [];
+  const hasProtectedSplitMatches = protectedSplitItemIds.length > 0;
+  const compatibleOrders = eligibleOrders.filter(
+    (candidate) =>
+      !invoice ||
+      (candidate.currency === invoice.currency &&
+        candidate.orderDate <= invoice.documentDate),
+  );
   const [lineLinks, setLineLinks] = useState<Record<string, string>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [confirmClear, setConfirmClear] = useState(false);
-  const issuedReceipts = workspace.supplierReceipts
-    .filter(
-      (receipt) =>
-        receipt.supplierOrderId === order.id && receipt.status === 'issued',
-    )
-    .sort(
-      (left, right) =>
-        left.receiptDate.localeCompare(right.receiptDate) ||
-        left.createdAt.localeCompare(right.createdAt),
-    );
 
-  function matchableForLine(line: SupplierOrder['lines'][number]) {
+  function matchableForLine(
+    order: SupplierOrder,
+    line: SupplierOrder['lines'][number],
+  ) {
     const base = supplierOrderLineMatchableMilli(line, workspace, order);
     const currentInvoiceMatched = invoice
       ? workspace.supplierInvoiceMatches
@@ -3206,54 +3369,92 @@ function SupplierInvoiceMatchModal({
     );
   }
 
+  function selectedOrderAndLine(itemId: string) {
+    const link = parseSupplierOrderLineLink(lineLinks[itemId] || '');
+    if (!link) return null;
+    const order = compatibleOrders.find(
+      (candidate) => candidate.id === link.supplierOrderId,
+    );
+    const line = order?.lines.find(
+      (candidate) => candidate.id === link.supplierOrderLineId,
+    );
+    return order && line ? { order, line } : null;
+  }
+
   useEffect(() => {
     setConfirmClear(nextMatchClearConfirmation('selection-change'));
     if (!invoice) return;
     const nextLines: Record<string, string> = {};
     const nextQuantities: Record<string, number> = {};
     for (const item of invoice.lines) {
-      const existingMatch = existingInvoiceItemMatchDraft(
+      const existingMatch = existingInvoiceItemMultiOrderMatchDraft(
         workspace.supplierInvoiceMatches,
         invoice.id,
         item.id,
-        order.id,
       );
       if (existingMatch) {
-        nextLines[item.id] = existingMatch.supplierOrderLineId;
+        nextLines[item.id] = supplierOrderLineLinkValue(
+          existingMatch.supplierOrderId,
+          existingMatch.supplierOrderLineId,
+        );
         nextQuantities[item.id] = existingMatch.quantityMilli;
         continue;
       }
+      if (
+        invoiceItemHasMultipleOrderLineMatches(
+          workspace.supplierInvoiceMatches,
+          invoice.id,
+          item.id,
+        )
+      )
+        continue;
       const normalizedItem = item.description.toLocaleLowerCase('fr-CH');
-      const availableLines = order.lines.filter(
-        (candidate) => matchableForLine(candidate) > 0,
+      const availableLines = compatibleOrders.flatMap((order) =>
+        order.lines
+          .filter((line) => matchableForLine(order, line) > 0)
+          .map((line) => ({ order, line })),
       );
-      const line =
-        availableLines.find(
-          (candidate) =>
-            candidate.description
+      const preferredLines = [
+        ...availableLines.filter(({ order }) => order.id === initialOrder.id),
+        ...availableLines.filter(({ order }) => order.id !== initialOrder.id),
+      ];
+      const selected =
+        preferredLines.find(
+          ({ line }) =>
+            line.description
               .toLocaleLowerCase('fr-CH')
               .includes(normalizedItem) ||
-            normalizedItem.includes(
-              candidate.description.toLocaleLowerCase('fr-CH'),
-            ),
-        ) || (invoice.lines.length === 1 ? availableLines[0] : undefined);
-      if (!line) continue;
-      nextLines[item.id] = line.id;
+            normalizedItem.includes(line.description.toLocaleLowerCase('fr-CH')),
+        ) || (invoice.lines.length === 1 ? preferredLines[0] : undefined);
+      if (!selected) continue;
+      nextLines[item.id] = supplierOrderLineLinkValue(
+        selected.order.id,
+        selected.line.id,
+      );
       nextQuantities[item.id] = Math.min(
         item.quantityMilli,
-        matchableForLine(line),
+        matchableForLine(selected.order, selected.line),
       );
     }
     setLineLinks(nextLines);
     setQuantities(nextQuantities);
-  }, [invoiceId, orderId]);
+  }, [invoiceId]);
 
-  function lineFor(itemId: string) {
-    return order.lines.find((line) => line.id === lineLinks[itemId]);
+  function issuedReceiptsFor(orderId: string) {
+    return workspace.supplierReceipts
+      .filter(
+        (receipt) =>
+          receipt.supplierOrderId === orderId && receipt.status === 'issued',
+      )
+      .sort(
+        (left, right) =>
+          left.receiptDate.localeCompare(right.receiptDate) ||
+          left.createdAt.localeCompare(right.createdAt),
+      );
   }
 
-  function receiptLinesFor(orderLineId: string) {
-    return issuedReceipts.flatMap((receipt) =>
+  function receiptLinesFor(orderId: string, orderLineId: string) {
+    return issuedReceiptsFor(orderId).flatMap((receipt) =>
       receipt.lines
         .filter((line) => line.supplierOrderLineId === orderLineId)
         .map((line) => ({ receipt, line })),
@@ -3271,15 +3472,17 @@ function SupplierInvoiceMatchModal({
     const missingItemIds: string[] = [];
     if (!invoice) return { allocations, missingItemIds };
     for (const item of invoice.lines) {
-      const line = lineFor(item.id);
+      const selected = selectedOrderAndLine(item.id);
       const quantityMilli = quantities[item.id] || 0;
-      if (!line) continue;
+      if (!selected) continue;
+      const { order, line } = selected;
       if (quantityMilli <= 0) {
         missingItemIds.push(item.id);
         continue;
       }
       if (line.fulfillmentMode === 'direct') {
         allocations.push({
+          supplierOrderId: order.id,
           supplierInvoiceItemId: item.id,
           supplierOrderLineId: line.id,
           supplierReceiptLineId: null,
@@ -3287,10 +3490,12 @@ function SupplierInvoiceMatchModal({
         });
         continue;
       }
-      const receiptLines = receiptLinesFor(line.id).map(({ line: row }) => ({
-        id: row.id,
-        quantityMilli: row.quantityMilli,
-      }));
+      const receiptLines = receiptLinesFor(order.id, line.id).map(
+        ({ line: row }) => ({
+          id: row.id,
+          quantityMilli: row.quantityMilli,
+        }),
+      );
       const split = allocateSupplierReceiptQuantity(
         quantityMilli,
         receiptLines,
@@ -3302,6 +3507,7 @@ function SupplierInvoiceMatchModal({
       }
       for (const part of split.allocations) {
         allocations.push({
+          supplierOrderId: order.id,
           supplierInvoiceItemId: item.id,
           supplierOrderLineId: line.id,
           supplierReceiptLineId: part.supplierReceiptLineId,
@@ -3314,30 +3520,55 @@ function SupplierInvoiceMatchModal({
   }
 
   const preview = buildAllocationPreview();
-  const overAllocatedOrderLine = order.lines.some((line) => {
-    const selected =
-      invoice?.lines.reduce(
-        (total, item) =>
-          lineLinks[item.id] === line.id
-            ? total + (quantities[item.id] || 0)
-            : total,
-        0,
-      ) || 0;
-    return selected > matchableForLine(line);
-  });
+  const previewAmountDifference = invoice
+    ? supplierInvoiceMatchPreviewAmountDifference(
+        invoice,
+        compatibleOrders,
+        preview.allocations,
+        initialOrder.id,
+      )
+    : null;
+  const globalAmountMismatch = Boolean(
+    previewAmountDifference &&
+      preview.allocations.length > 0 &&
+      (previewAmountDifference.invalid ||
+        Math.abs(previewAmountDifference.netCents) > 1 ||
+        Math.abs(previewAmountDifference.vatCents) > 1 ||
+        Math.abs(previewAmountDifference.totalCents) > 1),
+  );
+  const overAllocatedOrderLine = compatibleOrders.some((order) =>
+    order.lines.some((line) => {
+      const linkValue = supplierOrderLineLinkValue(order.id, line.id);
+      const selected =
+        invoice?.lines.reduce(
+          (total, item) =>
+            lineLinks[item.id] === linkValue
+              ? total + (quantities[item.id] || 0)
+              : total,
+          0,
+        ) || 0;
+      return selected > matchableForLine(order, line);
+    }),
+  );
   const invalidItem = invoice?.lines.some((item) => {
-    const line = lineFor(item.id);
+    const selected = selectedOrderAndLine(item.id);
     const quantity = quantities[item.id] || 0;
-    if (!line) return false;
+    if (!selected) return false;
     return (
       quantity <= 0 ||
-      quantity > Math.min(item.quantityMilli, matchableForLine(line))
+      quantity >
+        Math.min(
+          item.quantityMilli,
+          matchableForLine(selected.order, selected.line),
+        )
     );
   });
   const error = !invoice
     ? 'Aucune facture brouillon de ce fournisseur ne peut être rapprochée.'
-    : invoice.documentDate < order.orderDate
-      ? 'La facture ne peut pas précéder la commande.'
+    : hasProtectedSplitMatches
+      ? `Cette facture contient ${protectedSplitItemIds.length} ligne${protectedSplitItemIds.length > 1 ? 's' : ''} déjà répartie${protectedSplitItemIds.length > 1 ? 's' : ''} sur plusieurs commandes. Pour éviter toute perte, retirez d’abord le rapprochement existant; aucune allocation ne sera remplacée par cet éditeur.`
+      : compatibleOrders.length === 0
+      ? 'Aucune commande confirmée de même fournisseur, devise et date ne peut être rapprochée.'
       : overAllocatedOrderLine
         ? 'Les allocations cumulées dépassent une ligne de commande.'
         : invalidItem
@@ -3347,21 +3578,37 @@ function SupplierInvoiceMatchModal({
             : preview.allocations.length === 0
               ? 'Rapprochez au moins une ligne de facture à la commande.'
               : '';
+  const globalAmountWarning =
+    globalAmountMismatch && previewAmountDifference
+      ? `L’écart global de la facture dépasse 1 centime (HT ${formatMoney(previewAmountDifference.netCents)}, TVA ${formatMoney(previewAmountDifference.vatCents)}, TTC ${formatMoney(previewAmountDifference.totalCents)}).`
+      : '';
   const hasExistingMatches = Boolean(
     invoice &&
     workspace.supplierInvoiceMatches.some(
-      (match) =>
-        match.supplierInvoiceId === invoice.id &&
-        match.supplierOrderId === order.id,
+      (match) => match.supplierInvoiceId === invoice.id,
     ),
   );
+  const existingOrderIds = [
+    ...new Set(
+      workspace.supplierInvoiceMatches
+        .filter((match) => match.supplierInvoiceId === invoice?.id)
+        .map((match) => match.supplierOrderId),
+    ),
+  ];
+  const linkedOrderCount = new Set(
+    preview.allocations.map(
+      (allocation) => allocation.supplierOrderId || initialOrder.id,
+    ),
+  ).size;
 
   function save() {
     if (!invoice || error) return;
+    const primaryOrderId =
+      preview.allocations[0]?.supplierOrderId || initialOrder.id;
     onSave({
       requestId: createId(),
       supplierInvoiceId: invoice.id,
-      supplierOrderId: order.id,
+      supplierOrderId: primaryOrderId,
       allocations: preview.allocations,
     });
   }
@@ -3374,43 +3621,6 @@ function SupplierInvoiceMatchModal({
       onClose={onClose}
     >
       <div className="form-grid">
-        <Field
-          label="Commande"
-          hint={
-            hasExistingMatches
-              ? 'Retirez le rapprochement actuel avant de choisir une autre commande.'
-              : eligibleOrders.length > 1
-                ? 'Choisissez la commande réellement facturée.'
-                : undefined
-          }
-        >
-          <select
-            value={order.id}
-            disabled={hasExistingMatches}
-            onChange={(event) => {
-              const nextOrderId = event.target.value;
-              const currentInvoiceMatches = invoice
-                ? workspace.supplierInvoiceMatches.filter(
-                    (match) => match.supplierInvoiceId === invoice.id,
-                  )
-                : [];
-              setOrderId(nextOrderId);
-              if (
-                currentInvoiceMatches.length > 0 &&
-                currentInvoiceMatches.some(
-                  (match) => match.supplierOrderId !== nextOrderId,
-                )
-              )
-                setInvoiceId('');
-            }}
-          >
-            {eligibleOrders.map((row) => (
-              <option key={row.id} value={row.id}>
-                {orderName(row)} · {supplierName(workspace, row.supplierId)}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="Facture fournisseur" required>
           <select
             value={invoiceId}
@@ -3424,20 +3634,35 @@ function SupplierInvoiceMatchModal({
             ))}
           </select>
         </Field>
+        <Field
+          label="Commandes compatibles"
+          hint="Chaque ligne peut pointer vers une commande différente. L’enregistrement remplace tous les liens en une seule opération."
+        >
+          <output className="field-output">
+            {compatibleOrders.length} commande
+            {compatibleOrders.length > 1 ? 's' : ''} disponible
+            {compatibleOrders.length > 1 ? 's' : ''}
+          </output>
+        </Field>
       </div>
       {invoice ? (
         <div className="match-editor">
           <div className="match-editor__heading">
             <span>Ligne de facture</span>
-            <span>Ligne de commande</span>
+            <span>Commande / ligne</span>
             <span>Réceptions</span>
             <span>Quantité</span>
             <span>Contrôle prix</span>
           </div>
           {invoice.lines.map((item) => {
-            const line = lineFor(item.id);
-            const max = line
-              ? Math.min(item.quantityMilli, matchableForLine(line))
+            const selected = selectedOrderAndLine(item.id);
+            const order = selected?.order;
+            const line = selected?.line;
+            const max = selected
+              ? Math.min(
+                  item.quantityMilli,
+                  matchableForLine(selected.order, selected.line),
+                )
               : 0;
             const quantity = quantities[item.id] || 0;
             const expectedNet = line?.quantityMilli
@@ -3455,7 +3680,9 @@ function SupplierInvoiceMatchModal({
             const netDifference = invoicedNet - expectedNet;
             const vatDifference = invoicedVat - expectedVat;
             const amountsConcord =
-              Math.abs(netDifference) <= 1 && Math.abs(vatDifference) <= 1;
+              !globalAmountMismatch &&
+              Math.abs(netDifference) <= 1 &&
+              Math.abs(vatDifference) <= 1;
             const splitParts = preview.allocations.filter(
               (allocation) =>
                 allocation.supplierInvoiceItemId === item.id &&
@@ -3467,13 +3694,20 @@ function SupplierInvoiceMatchModal({
                   <strong>{item.description}</strong>
                   <small>{formatMoney(item.totalCents)}</small>
                 </span>
-                <label data-mobile-label="Ligne de commande">
+                <label data-mobile-label="Commande / ligne">
                   <select
-                    aria-label={`Ligne de commande pour ${item.description}`}
+                    aria-label={`Commande et ligne pour ${item.description}`}
                     value={lineLinks[item.id] || ''}
+                    disabled={hasProtectedSplitMatches}
                     onChange={(event) => {
-                      const next = order.lines.find(
-                        (row) => row.id === event.target.value,
+                      const nextLink = parseSupplierOrderLineLink(
+                        event.target.value,
+                      );
+                      const nextOrder = compatibleOrders.find(
+                        (row) => row.id === nextLink?.supplierOrderId,
+                      );
+                      const next = nextOrder?.lines.find(
+                        (row) => row.id === nextLink?.supplierOrderLineId,
                       );
                       setLineLinks((rows) => ({
                         ...rows,
@@ -3481,20 +3715,39 @@ function SupplierInvoiceMatchModal({
                       }));
                       setQuantities((rows) => ({
                         ...rows,
-                        [item.id]: next
-                          ? Math.min(item.quantityMilli, matchableForLine(next))
+                        [item.id]: next && nextOrder
+                          ? Math.min(
+                              item.quantityMilli,
+                              matchableForLine(nextOrder, next),
+                            )
                           : 0,
                       }));
                     }}
                   >
                     <option value="">Hors commande / ne pas rapprocher</option>
-                    {order.lines
-                      .filter((row) => matchableForLine(row) > 0)
-                      .map((row) => (
-                        <option key={row.id} value={row.id}>
-                          {row.description}
-                        </option>
-                      ))}
+                    {compatibleOrders.map((candidateOrder) => (
+                      <optgroup
+                        key={candidateOrder.id}
+                        label={`${orderName(candidateOrder)} · ${formatDate(candidateOrder.orderDate)}`}
+                      >
+                        {candidateOrder.lines
+                          .filter(
+                            (row) =>
+                              matchableForLine(candidateOrder, row) > 0,
+                          )
+                          .map((row) => (
+                            <option
+                              key={row.id}
+                              value={supplierOrderLineLinkValue(
+                                candidateOrder.id,
+                                row.id,
+                              )}
+                            >
+                              {row.description}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </label>
                 {!line ? (
@@ -3521,7 +3774,8 @@ function SupplierInvoiceMatchModal({
                       {splitParts.length
                         ? splitParts
                             .map((part) => {
-                              const link = issuedReceipts
+                              const link = order
+                                ? issuedReceiptsFor(order.id)
                                 .flatMap((receipt) =>
                                   receipt.lines.map((receiptLine) => ({
                                     receipt,
@@ -3532,7 +3786,8 @@ function SupplierInvoiceMatchModal({
                                   ({ receiptLine }) =>
                                     receiptLine.id ===
                                     part.supplierReceiptLineId,
-                                );
+                                )
+                                : undefined;
                               return `${link ? receiptName(link.receipt) : 'Réception'} ${formatCatalogQuantity(part.quantityMilli)}`;
                             })
                             .join(' + ')
@@ -3548,7 +3803,7 @@ function SupplierInvoiceMatchModal({
                     max={max / 1_000}
                     step="0.001"
                     value={quantity / 1_000}
-                    disabled={!line}
+                    disabled={!line || hasProtectedSplitMatches}
                     onChange={(event) =>
                       setQuantities((rows) => ({
                         ...rows,
@@ -3571,7 +3826,9 @@ function SupplierInvoiceMatchModal({
                     ? 'Non rapprochée'
                     : amountsConcord
                       ? 'Concorde'
-                      : `Écart HT ${formatMoney(netDifference)} · TVA ${formatMoney(vatDifference)}`}
+                      : globalAmountMismatch
+                        ? 'Écart global à corriger'
+                        : `Écart HT ${formatMoney(netDifference)} · TVA ${formatMoney(vatDifference)}`}
                 </span>
               </div>
             );
@@ -3584,23 +3841,32 @@ function SupplierInvoiceMatchModal({
           <p>
             {
               workspace.supplierInvoiceMatches.filter(
-                (match) =>
-                  match.supplierInvoiceId === invoice?.id &&
-                  match.supplierOrderId === order.id,
+                (match) => match.supplierInvoiceId === invoice?.id,
               ).length
             }{' '}
-            allocations seront dissociées. La facture restera en brouillon et
-            aucune réception ne sera supprimée.
+            allocations sur {existingOrderIds.length} commande
+            {existingOrderIds.length > 1 ? 's' : ''} seront dissociées. La
+            facture restera en brouillon et aucune réception ne sera supprimée.
           </p>
         </div>
       ) : error ? (
         <ErrorPanel message={error} />
+      ) : globalAmountWarning ? (
+        <div className="correction-preview" role="alert">
+          <strong>Écart global à corriger</strong>
+          <p>
+            {globalAmountWarning} Le rapprochement peut rester en brouillon,
+            mais la facture ne sera ni marquée « Concorde » ni validable et
+            aucune commande ne sera clôturée.
+          </p>
+        </div>
       ) : (
         <div className="confirmation-callout">
           <ClipboardCheck size={19} />
           <p>
-            Contrôlez les associations, la répartition 5 + 5 des réceptions
-            partielles et les écarts. La commande sera clôturée automatiquement
+            Contrôlez les associations sur {linkedOrderCount} commande
+            {linkedOrderCount > 1 ? 's' : ''}, la répartition des réceptions
+            partielles et les écarts. Chaque commande complète sera clôturée
             lors de la validation de la facture si tout concorde.
           </p>
         </div>
@@ -3619,7 +3885,7 @@ function SupplierInvoiceMatchModal({
               onSave({
                 requestId: createId(),
                 supplierInvoiceId: invoice.id,
-                supplierOrderId: order.id,
+                supplierOrderId: existingOrderIds[0] || initialOrder.id,
                 allocations: [],
               });
             }}

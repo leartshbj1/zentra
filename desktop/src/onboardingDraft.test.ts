@@ -1,8 +1,71 @@
 import { describe, expect, it } from 'vitest';
-import { initialOnboardingSettings, settingsFromOnboardingDraft } from './onboardingDraft';
+import {
+  hasAdvancedOnboardingInput,
+  initialOnboardingSettings,
+  settingsFromOnboardingDraft,
+} from './onboardingDraft';
 import { validateOnboarding } from './onboardingValidation';
+import type { NogaCatalog } from './types';
+
+const catalog: NogaCatalog = {
+  version: '2025',
+  source: 'local-test',
+  sections: [{ code: 'M', label: 'Activités spécialisées', divisions: [{ code: '69', label: 'Activités juridiques et comptables' }] }],
+};
 
 describe('reprise du brouillon de configuration', () => {
+  it('protège toute saisie avancée avant un retour au parcours essentiel', () => {
+    expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
+      privacyConfirmed: false,
+      vatText: '',
+    })).toBe(false);
+    expect(hasAdvancedOnboardingInput({
+      ...initialOnboardingSettings,
+      billing: { ...initialOnboardingSettings.billing, vatRatesBp: [810] },
+    }, { privacyConfirmed: false, vatText: '' })).toBe(true);
+    expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
+      privacyConfirmed: true,
+      vatText: '',
+    })).toBe(true);
+    expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
+      privacyConfirmed: false,
+      vatText: '8.1',
+    })).toBe(true);
+  });
+
+  it('autorise le démarrage essentiel et conserve les réglages métier pour plus tard', () => {
+    const settings = settingsFromOnboardingDraft({
+      ...initialOnboardingSettings,
+      organization: {
+        ...initialOnboardingSettings.organization,
+        legalName: 'Cabinet local SA',
+        contactName: 'Aline Exemple',
+        email: 'aline@example.ch',
+        address: {
+          ...initialOnboardingSettings.organization.address,
+          street: 'Rue du Lac',
+          postalCode: '1000',
+          city: 'Lausanne',
+          canton: 'VD',
+        },
+      },
+      business: {
+        nogaSection: 'M',
+        nogaDivision: '69',
+        activityDescription: 'Conseil juridique indépendant',
+        nogaDetailedCode: '',
+      },
+    });
+
+    expect(validateOnboarding(settings, catalog, false, 'essential')).toEqual([]);
+    expect(validateOnboarding(settings, catalog, false, 'complete').map((issue) => issue.field)).toEqual(
+      expect.arrayContaining(['billing.iban', 'work.workWeekHours', 'backup.folder']),
+    );
+    expect(settings.billing.iban).toBe('');
+    expect(settings.work.costCategories).toEqual([]);
+    expect(settings.backup.folder).toBe('');
+  });
+
   it('conserve le logo local et le numéro de bâtiment après un redémarrage', () => {
     const restored = settingsFromOnboardingDraft({
       ...initialOnboardingSettings,

@@ -36,6 +36,8 @@ export type GuidedTourStep = {
   target: string;
 };
 
+export type GuidedTourMode = 'automatic' | 'complete';
+
 const TOUR_STORAGE_KEY = 'elyko-guided-tour-v3';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -169,6 +171,19 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
   },
 ];
 
+export const automaticGuidedTourSteps: readonly GuidedTourStep[] = [
+  guidedTourSteps[0],
+  guidedTourSteps[1],
+  {
+    id: 'readiness',
+    view: 'settings',
+    eyebrow: 'À votre rythme',
+    title: 'Finalisez seulement les réglages utiles',
+    text: 'Le centre de préparation indique précisément ce qui manque pour la facturation, le temps, la comptabilité et les sauvegardes. Vos données réelles restent vides tant que vous ne les saisissez pas.',
+    target: '.setup-readiness',
+  },
+];
+
 function initialOpen() {
   try {
     return window.localStorage.getItem(TOUR_STORAGE_KEY) !== 'completed';
@@ -186,31 +201,39 @@ function rememberCompletion() {
 }
 
 export function useGuidedTour() {
-  const [open, setOpen] = useState(initialOpen);
+  const [state, setState] = useState(() => ({
+    open: initialOpen(),
+    mode: 'automatic' as GuidedTourMode,
+  }));
   return {
-    open,
-    start: () => setOpen(true),
-    close: () => setOpen(false),
+    open: state.open,
+    mode: state.mode,
+    start: () => setState({ open: true, mode: 'complete' }),
+    close: () => setState((current) => ({ ...current, open: false })),
   };
 }
 
 export function GuidedTour({
   open,
+  mode,
   onClose,
   onNavigate,
 }: {
   open: boolean;
+  mode: GuidedTourMode;
   onClose: () => void;
   onNavigate: (view: TourView) => void;
 }) {
   if (!open) return null;
-  return <GuidedTourDialog onClose={onClose} onNavigate={onNavigate} />;
+  return <GuidedTourDialog mode={mode} onClose={onClose} onNavigate={onNavigate} />;
 }
 
 function GuidedTourDialog({
+  mode,
   onClose,
   onNavigate,
 }: {
+  mode: GuidedTourMode;
   onClose: () => void;
   onNavigate: (view: TourView) => void;
 }) {
@@ -219,17 +242,18 @@ function GuidedTourDialog({
   const dialogRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const step = guidedTourSteps[index];
+  const steps = mode === 'automatic' ? automaticGuidedTourSteps : guidedTourSteps;
+  const step = steps[index];
 
   const finish = useCallback((completed: boolean) => {
-    if (completed) rememberCompletion();
+    if (mode === 'automatic' && completed) rememberCompletion();
     onClose();
-  }, [onClose]);
+  }, [mode, onClose]);
 
   const next = useCallback(() => {
-    if (index === guidedTourSteps.length - 1) finish(true);
-    else setIndex((current) => Math.min(guidedTourSteps.length - 1, current + 1));
-  }, [finish, index]);
+    if (index === steps.length - 1) finish(true);
+    else setIndex((current) => Math.min(steps.length - 1, current + 1));
+  }, [finish, index, steps.length]);
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement
@@ -334,7 +358,7 @@ function GuidedTourDialog({
   const highlightStyle: CSSProperties | undefined = rect
     ? highlightBounds(rect)
     : undefined;
-  const percent = ((index + 1) / guidedTourSteps.length) * 100;
+  const percent = ((index + 1) / steps.length) * 100;
 
   return <div className="guided-tour">
     {rect
@@ -355,7 +379,7 @@ function GuidedTourDialog({
           <p>{step.eyebrow}</p>
           <strong id="guided-tour-title" ref={titleRef} tabIndex={-1}>{step.title}</strong>
         </div>
-        <button type="button" onClick={() => finish(false)} aria-label="Fermer le guide pour maintenant">
+        <button type="button" onClick={() => finish(mode === 'automatic')} aria-label={mode === 'automatic' ? 'Fermer le guide automatique' : 'Fermer le guide complet'}>
           <X size={18} />
         </button>
       </header>
@@ -365,15 +389,17 @@ function GuidedTourDialog({
         role="progressbar"
         aria-label="Progression du guide"
         aria-valuemin={1}
-        aria-valuemax={guidedTourSteps.length}
+        aria-valuemax={steps.length}
         aria-valuenow={index + 1}
-        aria-valuetext={`Étape ${index + 1} sur ${guidedTourSteps.length}`}
+        aria-valuetext={`Étape ${index + 1} sur ${steps.length}`}
       >
         <span><i style={{ width: `${percent}%` }} /></span>
-        <strong>{index + 1} / {guidedTourSteps.length}</strong>
+        <strong>{index + 1} / {steps.length}</strong>
       </div>
       <footer>
-        <Button type="button" variant="ghost" size="small" onClick={() => finish(true)}>Ne plus afficher automatiquement</Button>
+        <Button type="button" variant="ghost" size="small" onClick={() => finish(mode === 'automatic')}>
+          {mode === 'automatic' ? 'Ne plus afficher automatiquement' : 'Fermer le guide'}
+        </Button>
         <span />
         <Button
           type="button"
@@ -385,7 +411,7 @@ function GuidedTourDialog({
           <ArrowLeft size={15} /> Retour
         </Button>
         <Button type="button" size="small" onClick={next}>
-          {index === guidedTourSteps.length - 1
+          {index === steps.length - 1
             ? <><CheckCircle2 size={15} /> Terminer</>
             : <>{index === 0 ? <Sparkles size={15} /> : null} Suivant <ArrowRight size={15} /></>}
         </Button>

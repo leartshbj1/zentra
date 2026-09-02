@@ -61,6 +61,25 @@ export const initialOnboardingSettings: AppSettings = {
   },
 };
 
+/**
+ * Détecte une saisie effectuée hors identité/NOGA. Le parcours essentiel ne
+ * doit jamais écarter silencieusement ces valeurs lorsque l’utilisateur revient
+ * à la première étape.
+ */
+export function hasAdvancedOnboardingInput(
+  settings: AppSettings,
+  signals: { privacyConfirmed: boolean; vatText: string },
+) {
+  return Boolean(
+    signals.privacyConfirmed
+      || signals.vatText.trim()
+      || JSON.stringify(settings.billing) !== JSON.stringify(initialOnboardingSettings.billing)
+      || JSON.stringify(settings.work) !== JSON.stringify(initialOnboardingSettings.work)
+      || JSON.stringify(settings.payroll) !== JSON.stringify(initialOnboardingSettings.payroll)
+      || JSON.stringify(settings.backup) !== JSON.stringify(initialOnboardingSettings.backup),
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

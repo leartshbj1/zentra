@@ -7,6 +7,8 @@ export type OnboardingIssue = {
   message: string;
 };
 
+export type OnboardingValidationScope = 'essential' | 'complete';
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PREFIX = /^[A-Z0-9-]{1,12}$/;
 const COUNTRY = /^[A-Z]{2}$/;
@@ -122,6 +124,7 @@ export function validateOnboarding(
   rawSettings: AppSettings,
   catalog: NogaCatalog | null,
   privacyConfirmed: boolean,
+  scope: OnboardingValidationScope = 'complete',
 ): OnboardingIssue[] {
   const settings = normalizeOnboardingSettings(rawSettings);
   const issues: OnboardingIssue[] = [];
@@ -177,6 +180,11 @@ export function validateOnboarding(
       !business.nogaDetailedCode.startsWith(business.nogaDivision))
   )
     add(1, 'business.nogaDetailedCode', 'Le code NOGA détaillé', 'Le code doit contenir 3, 4 ou 6 chiffres et commencer par la division choisie.');
+
+  // Le démarrage progressif crée uniquement le socle d'identité et d'activité.
+  // Les autres sections restent vides et sont signalées par le centre de
+  // préparation, sans inventer de coordonnées bancaires ou de règles métier.
+  if (scope === 'essential') return issues;
 
   const billing = settings.billing;
   if (!billing.iban)

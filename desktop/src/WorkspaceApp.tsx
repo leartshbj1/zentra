@@ -68,7 +68,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
-import { BrandMark, BrandWordmark } from './BrandMark';
+import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import { AccountingScreen } from './AccountingScreen';
 import { AppUpdater } from './AppUpdater';
 import { BusinessProfileFields } from './BusinessProfileEditor';
@@ -102,6 +102,7 @@ import {
   SETTINGS_READINESS_TARGETS,
   SetupReadinessCenter,
   buildSetupReadiness,
+  confirmDeferredSetup,
 } from './SetupReadinessCenter';
 import { TimeBillingWizard } from './TimeBillingWizard';
 import {
@@ -200,6 +201,10 @@ import {
   submitForm,
 } from './ui';
 import { projectTerminology } from './terminology';
+import {
+  COMPACT_NAVIGATION_QUERY,
+  compactSidebarHidden,
+} from './compactNavigation';
 import {
   creationBlockReason,
   timerBlockReason,
@@ -323,6 +328,11 @@ export function WorkspaceApp({
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(() =>
+    typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia(COMPACT_NAVIGATION_QUERY).matches,
+  );
   const [orderToOpenId, setOrderToOpenId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
@@ -338,6 +348,16 @@ export function WorkspaceApp({
   const actionInFlight = useRef(false);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const guidedTour = useGuidedTour();
+  const sidebarHidden = compactSidebarHidden(compactNavigation, menuOpen);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia(COMPACT_NAVIGATION_QUERY);
+    const synchronize = () => setCompactNavigation(media.matches);
+    synchronize();
+    media.addEventListener('change', synchronize);
+    return () => media.removeEventListener('change', synchronize);
+  }, []);
   const navigateTour = useCallback((nextView: TourView) => {
     setAccountingEntryFocus(null);
     setView(nextView);
@@ -953,6 +973,8 @@ export function WorkspaceApp({
       (supplier) => !supplier.archivedAt,
     ).length,
     costCategories: settings.work.costCategories.length,
+    billingSetupDeferred: settings.setupDeferred?.billing === true,
+    workSetupDeferred: settings.setupDeferred?.work === true,
   };
   const dashboardTimerBlock = timerBlockReason(
     prerequisites,
@@ -961,7 +983,12 @@ export function WorkspaceApp({
 
   return (
     <div className="desktop-app">
-      <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
+      <aside
+        id="primary-navigation"
+        className={`sidebar ${menuOpen ? 'is-open' : ''}`}
+        aria-hidden={sidebarHidden ? true : undefined}
+        inert={sidebarHidden ? true : undefined}
+      >
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
             <BrandWordmark />
@@ -972,6 +999,9 @@ export function WorkspaceApp({
             size="icon"
             className="sidebar__close"
             onClick={() => setMenuOpen(false)}
+            aria-label="Fermer la navigation"
+            title="Fermer la navigation"
+            aria-controls="primary-navigation"
           >
             <X size={18} />
           </Button>
@@ -1033,6 +1063,10 @@ export function WorkspaceApp({
               size="icon"
               className="menu-button"
               onClick={() => setMenuOpen(true)}
+              aria-label="Ouvrir la navigation"
+              title="Ouvrir la navigation"
+              aria-controls="primary-navigation"
+              aria-expanded={menuOpen}
             >
               <Menu size={20} />
             </Button>
@@ -1057,15 +1091,13 @@ export function WorkspaceApp({
               variant="ghost"
               size="small"
               className="tour-launcher"
-              aria-label="Relancer le guide interactif"
-              title="Relancer le guide interactif"
+              aria-label="Ouvrir le guide complet"
+              title="Ouvrir le guide complet"
               onClick={guidedTour.start}
             >
               <CircleHelp size={16} /> Guide
             </Button>
-            <div className="company-avatar">
-              {settings.organization.legalName.slice(0, 2).toUpperCase()}
-            </div>
+            <CompanyAvatar organization={settings.organization} />
           </div>
         </header>
 
@@ -1559,6 +1591,7 @@ export function WorkspaceApp({
       ) : null}
       <GuidedTour
         open={guidedTour.open}
+        mode={guidedTour.mode}
         onClose={guidedTour.close}
         onNavigate={navigateTour}
       />
@@ -1634,6 +1667,8 @@ function Dashboard({
       (supplier) => !supplier.archivedAt,
     ).length,
     costCategories: workspace.settings!.work.costCategories.length,
+    billingSetupDeferred: workspace.settings!.setupDeferred?.billing === true,
+    workSetupDeferred: workspace.settings!.setupDeferred?.work === true,
   };
   const projectBlock = creationBlockReason('projects', prerequisites);
   const quoteBlock = creationBlockReason('quotes', prerequisites);
@@ -3156,6 +3191,8 @@ function TimeScreen({
       (supplier) => !supplier.archivedAt,
     ).length,
     costCategories: workspace.settings!.work.costCategories.length,
+    billingSetupDeferred: workspace.settings!.setupDeferred?.billing === true,
+    workSetupDeferred: workspace.settings!.setupDeferred?.work === true,
   };
   const entryBlock = creationBlockReason('time', prerequisites);
   const timerBlock = timerBlockReason(
@@ -4009,7 +4046,7 @@ function SettingsScreen({
               return;
             }
             const country = String(form.get('country')).trim().toUpperCase();
-            const next: AppSettings = {
+            const next = confirmDeferredSetup({
               ...settings,
               organization: {
                 ...org,
@@ -4044,8 +4081,7 @@ function SettingsScreen({
                 ),
                 defaultFooter: String(form.get('defaultFooter')),
               },
-            };
-            setSettings(next);
+            }, 'billing');
             await execute(
               () => desktopApi.saveSettings(next),
               'Les paramètres ont été enregistrés localement.',
@@ -4413,7 +4449,11 @@ function SettingsScreen({
         </p>
       </section>
 
-      <section className="panel settings-card settings-card--wide">
+      <section
+        id={SETTINGS_READINESS_TARGETS.work}
+        className="panel settings-card settings-card--wide settings-scroll-target"
+        tabIndex={-1}
+      >
         <SectionHeading
           eyebrow="Temps et coûts"
           title="Règles de travail"
@@ -4425,7 +4465,7 @@ function SettingsScreen({
               .split('\n')
               .map((value) => value.trim())
               .filter(Boolean);
-            const next = {
+            const next = confirmDeferredSetup({
               ...settings,
               work: {
                 workWeekHours: numberFromInput(form.get('workWeekHours')),
@@ -4434,8 +4474,7 @@ function SettingsScreen({
                 breakMinutes: numberFromInput(form.get('breakMinutes')),
                 costCategories: categories,
               },
-            };
-            setSettings(next);
+            }, 'work');
             await execute(
               () => desktopApi.saveSettings(next),
               'Les règles de temps et de coûts ont été enregistrées.',
@@ -4791,12 +4830,13 @@ function SettingsScreen({
           <Button
             variant="ghost"
             disabled={busy || !settings.backup.folder}
-            onClick={() =>
+            onClick={() => {
+              const next = confirmDeferredSetup(settings, 'backup');
               void execute(
-                () => desktopApi.saveSettings(settings),
+                () => desktopApi.saveSettings(next),
                 'La stratégie de sauvegarde a été enregistrée.',
-              )
-            }
+              );
+            }}
           >
             <CheckCircle2 size={16} /> Enregistrer la stratégie
           </Button>

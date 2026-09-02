@@ -7,12 +7,20 @@ export type WorkspacePrerequisites = {
   activeEmployees: number;
   activeSuppliers: number;
   costCategories: number;
+  billingSetupDeferred?: boolean;
+  workSetupDeferred?: boolean;
 };
 
 export function creationBlockReason(view: CreationView, prerequisites: WorkspacePrerequisites): string {
   if (view === 'projects' && prerequisites.clients === 0) return 'Ajoutez d’abord un client.';
-  if ((view === 'quotes' || view === 'invoices') && prerequisites.clients === 0) return 'Ajoutez d’abord un client.';
+  if (view === 'quotes' || view === 'invoices') {
+    if (prerequisites.billingSetupDeferred)
+      return 'Confirmez d’abord les réglages de facturation dans Paramètres.';
+    if (prerequisites.clients === 0) return 'Ajoutez d’abord un client.';
+  }
   if (view === 'time') {
+    if (prerequisites.workSetupDeferred)
+      return 'Confirmez d’abord les règles de temps et de coûts dans Paramètres.';
     if (prerequisites.trackableProjects === 0 && prerequisites.activeEmployees === 0) return 'Ajoutez d’abord un projet non clôturé et un collaborateur actif.';
     if (prerequisites.trackableProjects === 0) return 'Ajoutez ou rouvrez d’abord un projet non clôturé.';
     if (prerequisites.activeEmployees === 0) return 'Ajoutez d’abord un collaborateur actif.';

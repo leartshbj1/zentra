@@ -1,6 +1,6 @@
 # Intégration Stripe Zentra
 
-Ce plan a été produit avec le planificateur d’implémentation Stripe officiel pour Zentra, logiciel de comptabilité Windows vendu 50 CHF par mois. L’ordre obligatoire est sandbox, recette complète, puis production.
+Ce plan a été préparé à partir de la documentation Stripe officielle pour Zentra, logiciel de comptabilité Windows vendu 50 CHF par mois. Le planificateur MCP Stripe devra encore le valider dès que l’autorisation OAuth sera terminée. L’ordre obligatoire est sandbox, recette complète, puis production.
 
 ## Architecture retenue
 

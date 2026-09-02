@@ -78,6 +78,7 @@ export function DetailedPayslipForm({
   const [loadingRates, setLoadingRates] = useState(true);
   const [existingBlocked, setExistingBlocked] = useState(false);
   const [localError, setLocalError] = useState('');
+  const hydratedPayslipIdRef = useRef<string | null>(null);
   const totals = payslipTotals({
     id: item?.id ?? '',
     employeeId,
@@ -122,8 +123,10 @@ export function DetailedPayslipForm({
   useEffect(() => {
     let active = true;
     setLoadingRates(true);
+    const contributionDate =
+      paymentDate || (period ? `${period}-01` : undefined);
     void Promise.all([
-      desktopApi.listPayrollContributionDefinitions(period || undefined),
+      desktopApi.listPayrollContributionDefinitions(contributionDate),
       item ? desktopApi.getPayslipContributions(item.id) : Promise.resolve([]),
     ])
       .then(([items, snapshots]) => {
@@ -132,8 +135,12 @@ export function DetailedPayslipForm({
         const linkedItems = new Set(
           snapshots.map((snapshot) => snapshot.payslipItemId),
         );
-        const restoresOriginalPeriod = Boolean(item && period === item.period);
-        const periodSnapshots = restoresOriginalPeriod ? snapshots : [];
+        const restoresOriginalContext = Boolean(
+          item &&
+            period === item.period &&
+            paymentDate === item.paymentDate,
+        );
+        const periodSnapshots = restoresOriginalContext ? snapshots : [];
         const missing = periodSnapshots.filter(
           (snapshot) =>
             !available.some(
@@ -141,12 +148,14 @@ export function DetailedPayslipForm({
             ),
         );
         setDefinitions(available);
-        if (item)
+        if (item && hydratedPayslipIdRef.current !== item.id) {
           setLines(
             item.lines
               .filter((line) => !linkedItems.has(line.id))
               .map((line) => ({ ...line })),
           );
+          hydratedPayslipIdRef.current = item.id;
+        }
         setSelections(
           Object.fromEntries(
             periodSnapshots.map((snapshot) => [
@@ -182,7 +191,7 @@ export function DetailedPayslipForm({
     return () => {
       active = false;
     };
-  }, [item, period]);
+  }, [item, paymentDate, period]);
 
   const selectedItems = useMemo<PayrollContributionSelection[]>(
     () =>
@@ -197,10 +206,11 @@ export function DetailedPayslipForm({
       payrollCalculationFingerprint({
         employeeId,
         period,
+        paymentDate,
         lines,
         selections: selectedItems,
       }),
-    [employeeId, lines, period, selectedItems],
+    [employeeId, lines, paymentDate, period, selectedItems],
   );
   const currentFingerprintRef = useRef(currentCalculationFingerprint);
   const previousFingerprintRef = useRef(currentCalculationFingerprint);
@@ -497,6 +507,7 @@ export function DetailedPayslipForm({
       const result = await desktopApi.calculatePayrollContributions({
         employeeId,
         period,
+        paymentDate,
         grossCents: totals.earnings,
         items: selectedItems,
       });

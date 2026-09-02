@@ -43,9 +43,9 @@ use crate::{
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
         MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
-        MIGRATION_V26_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
-        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
-        SCHEMA_VERSION,
+        MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V2_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL,
+        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
+        SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -82,6 +82,7 @@ type SettingsValidationRow = (
     Option<String>,
     Option<String>,
     Option<String>,
+    Option<String>,
 );
 
 #[derive(Debug)]
@@ -103,6 +104,15 @@ struct PreparedOnboarding {
     iban: String,
     settings_rates_to_import: Option<Value>,
     extra_settings_json: String,
+    payment_terms_days: i64,
+    quote_validity_days: i64,
+    default_hourly_rate_cents: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OnboardingValidationScope {
+    Essential,
+    Complete,
 }
 
 fn migrate_v6(transaction: &Transaction<'_>) -> AppResult<()> {
@@ -788,6 +798,11 @@ fn migrate_v26(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v27(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V27_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -804,7 +819,11 @@ fn validation_message(error: AppError) -> String {
     }
 }
 
-fn prepare_onboarding(input: OnboardingInput) -> Result<PreparedOnboarding, Vec<OnboardingIssue>> {
+fn prepare_onboarding(
+    input: OnboardingInput,
+    scope: OnboardingValidationScope,
+) -> Result<PreparedOnboarding, Vec<OnboardingIssue>> {
+    let essential = scope == OnboardingValidationScope::Essential;
     let mut issues = Vec::new();
     let company_name = match required_text(&input.company_name, "company_name", 200) {
         Ok(value) => value,
@@ -893,6 +912,16 @@ fn prepare_onboarding(input: OnboardingInput) -> Result<PreparedOnboarding, Vec<
             json!({})
         }
     };
+    if let Some(extra) = extra_value.as_object_mut() {
+        extra.insert(
+            "setupDeferred".into(),
+            json!({
+                "billing": essential,
+                "work": essential,
+                "backup": essential,
+            }),
+        );
+    }
     let billing = extra_value
         .get("billing")
         .and_then(Value::as_object)
@@ -952,6 +981,7 @@ fn prepare_onboarding(input: OnboardingInput) -> Result<PreparedOnboarding, Vec<
     );
     let default_vat_bp = match (input.vat_registered, input.default_vat_bp) {
         (true, Some(value)) if (1..=10_000).contains(&value) => value,
+        (true, None | Some(0)) if essential => 0,
         (true, _) => {
             issues.push(onboarding_issue(
                 2,
@@ -984,49 +1014,67 @@ fn prepare_onboarding(input: OnboardingInput) -> Result<PreparedOnboarding, Vec<
             validation_message(error),
         ));
     }
-    let iban = match normalize_and_validate_iban(input.iban.as_deref().unwrap_or("")) {
-        Ok(value) => value,
-        Err(error) => {
+    let raw_iban = input.iban.as_deref().unwrap_or("").trim();
+    let iban = if raw_iban.is_empty() {
+        // Les coordonnées bancaires peuvent être complétées après le premier
+        // lancement. Toute valeur effectivement fournie reste validée avant la
+        // transaction, et les flux qui exigent un IBAN restent fail-closed.
+        if !essential {
             issues.push(onboarding_issue(
                 2,
                 "billing.iban",
                 "L’IBAN",
-                validation_message(error),
+                "L’IBAN ou le QR-IBAN est obligatoire pour la configuration complète.".into(),
             ));
-            input
-                .iban
-                .as_deref()
-                .unwrap_or("")
-                .chars()
-                .filter(|character| !character.is_whitespace())
-                .collect::<String>()
-                .to_uppercase()
+        }
+        String::new()
+    } else {
+        match normalize_and_validate_iban(raw_iban) {
+            Ok(value) => value,
+            Err(error) => {
+                issues.push(onboarding_issue(
+                    2,
+                    "billing.iban",
+                    "L’IBAN",
+                    validation_message(error),
+                ));
+                String::new()
+            }
         }
     };
-    if !(1..=365).contains(&input.payment_terms_days) {
+    let payment_terms_days = if (1..=365).contains(&input.payment_terms_days) {
+        input.payment_terms_days
+    } else {
         issues.push(onboarding_issue(
             2,
             "billing.paymentTermsDays",
             "Le délai de paiement",
             "Le délai de paiement doit être compris entre 1 et 365 jours.".into(),
         ));
-    }
-    if !(1..=365).contains(&input.quote_validity_days) {
+        30
+    };
+    let quote_validity_days = if (1..=365).contains(&input.quote_validity_days) {
+        input.quote_validity_days
+    } else {
         issues.push(onboarding_issue(
             2,
             "billing.quoteValidityDays",
             "La validité des devis",
             "La validité des devis doit être comprise entre 1 et 365 jours.".into(),
         ));
-    }
-    if input.default_hourly_rate_cents < 0 {
+        30
+    };
+    let default_hourly_rate_cents = if input.default_hourly_rate_cents >= 0 {
+        input.default_hourly_rate_cents
+    } else {
         issues.push(onboarding_issue(
             3,
             "work.defaultHourlyRateCents",
             "Le coût horaire par défaut",
             "default_hourly_rate_cents ne peut pas être négatif.".into(),
         ));
-    }
+        0
+    };
     let settings_rates_to_import = take_explicit_settings_rates(&mut extra_value);
     if let Some(rates) = settings_rates_to_import.as_ref() {
         issues.extend(explicit_settings_rate_issues(rates));
@@ -1064,6 +1112,9 @@ fn prepare_onboarding(input: OnboardingInput) -> Result<PreparedOnboarding, Vec<
         iban,
         settings_rates_to_import,
         extra_settings_json,
+        payment_terms_days,
+        quote_validity_days,
+        default_hourly_rate_cents,
     })
 }
 
@@ -1128,6 +1179,7 @@ impl LocalStore {
                 migrate_v24(&transaction)?;
                 migrate_v25(&transaction)?;
                 migrate_v26(&transaction)?;
+                migrate_v27(&transaction)?;
             }
             1 => {
                 transaction.execute_batch(MIGRATION_V2_SQL)?;
@@ -1219,8 +1271,13 @@ impl LocalStore {
             24 => {
                 migrate_v25(&transaction)?;
                 migrate_v26(&transaction)?;
+                migrate_v27(&transaction)?;
             }
-            25 => migrate_v26(&transaction)?,
+            25 => {
+                migrate_v26(&transaction)?;
+                migrate_v27(&transaction)?;
+            }
+            26 => migrate_v27(&transaction)?,
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1244,6 +1301,7 @@ impl LocalStore {
             migrate_v24(&transaction)?;
             migrate_v25(&transaction)?;
             migrate_v26(&transaction)?;
+            migrate_v27(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1302,7 +1360,15 @@ impl LocalStore {
     }
 
     pub fn validate_onboarding(&self, input: OnboardingInput) -> OnboardingValidation {
-        match prepare_onboarding(input) {
+        self.validate_onboarding_scoped(input, OnboardingValidationScope::Complete)
+    }
+
+    pub(crate) fn validate_onboarding_scoped(
+        &self,
+        input: OnboardingInput,
+        scope: OnboardingValidationScope,
+    ) -> OnboardingValidation {
+        match prepare_onboarding(input, scope) {
             Ok(_) => OnboardingValidation {
                 valid: true,
                 issues: Vec::new(),
@@ -1319,7 +1385,16 @@ impl LocalStore {
         input: OnboardingInput,
         app_version: &str,
     ) -> AppResult<CompleteOnboardingResult> {
-        let prepared = prepare_onboarding(input).map_err(|issues| {
+        self.complete_onboarding_scoped(input, app_version, OnboardingValidationScope::Complete)
+    }
+
+    pub(crate) fn complete_onboarding_scoped(
+        &self,
+        input: OnboardingInput,
+        app_version: &str,
+        scope: OnboardingValidationScope,
+    ) -> AppResult<CompleteOnboardingResult> {
+        let prepared = prepare_onboarding(input, scope).map_err(|issues| {
             AppError::Validation(
                 issues
                     .into_iter()
@@ -1346,6 +1421,9 @@ impl LocalStore {
             iban,
             settings_rates_to_import,
             extra_settings_json,
+            payment_terms_days,
+            quote_validity_days,
+            default_hourly_rate_cents,
         } = prepared;
         let now = now_iso();
         let mut connection = self.connect()?;
@@ -1415,9 +1493,9 @@ impl LocalStore {
                 quote_start_number,
                 invoice_start_number,
                 credit_note_start_number,
-                input.payment_terms_days,
-                input.quote_validity_days,
-                input.default_hourly_rate_cents,
+                payment_terms_days,
+                quote_validity_days,
+                default_hourly_rate_cents,
                 clean_optional(input.logo_path, 2000),
                 extra_settings_json,
                 now,
@@ -1656,7 +1734,7 @@ impl LocalStore {
                         SELECT 1 FROM supplier_invoice_matches match_row
                         JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
                         WHERE match_row.supplier_invoice_id=invoice.id
-                        GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+                        GROUP BY match_row.supplier_invoice_id
                         HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
                           OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
                           OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
@@ -2056,6 +2134,7 @@ impl LocalStore {
 
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if entity == "time_entries" {
+            require_setup_confirmed(&transaction, "work")?;
             validate_time_entry_task_link(&transaction, &object, None)?;
         }
         if entity == "payslip_items" {
@@ -2268,6 +2347,7 @@ impl LocalStore {
         ensure_record_mutable(&transaction, entity, &previous)?;
         normalize_record_patch(entity, &mut object, &previous)?;
         if entity == "time_entries" {
+            require_setup_confirmed(&transaction, "work")?;
             validate_time_entry_task_link(&transaction, &object, Some(&previous))?;
         }
         if object.is_empty() {
@@ -2412,8 +2492,9 @@ impl LocalStore {
             current_activity_description,
             current_noga_detailed_code,
             current_iban,
+            current_extra_settings_json,
         ): SettingsValidationRow = transaction.query_row(
-            "SELECT vat_registered,default_vat_bp,uid_number,vat_number,noga_section,noga_division,activity_description,noga_detailed_code,iban FROM settings WHERE id=1",
+            "SELECT vat_registered,default_vat_bp,uid_number,vat_number,noga_section,noga_division,activity_description,noga_detailed_code,iban,extra_settings_json FROM settings WHERE id=1",
             [],
             |row| {
                 Ok((
@@ -2426,6 +2507,7 @@ impl LocalStore {
                     row.get(6)?,
                     row.get(7)?,
                     row.get(8)?,
+                    row.get(9)?,
                 ))
             },
         )?;
@@ -2438,7 +2520,18 @@ impl LocalStore {
             .get("default_vat_bp")
             .and_then(Value::as_i64)
             .unwrap_or(current_vat_bp);
-        validate_vat_configuration(vat_registered == 1, vat_bp)?;
+        let effective_extra_settings_json = object
+            .get("extra_settings_json")
+            .and_then(Value::as_str)
+            .or(current_extra_settings_json.as_deref())
+            .unwrap_or("{}");
+        let billing_deferred = serde_json::from_str::<Value>(effective_extra_settings_json)?
+            .pointer("/setupDeferred/billing")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if !(billing_deferred && vat_registered == 1 && vat_bp == 0) {
+            validate_vat_configuration(vat_registered == 1, vat_bp)?;
+        }
         let effective_text = |field: &str, current: Option<String>| match object.get(field) {
             Some(Value::Null) => None,
             Some(Value::String(value)) => Some(value.clone()),
@@ -3003,6 +3096,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        require_setup_confirmed(&transaction, "work")?;
         let project_exists: bool = transaction.query_row(
             "SELECT EXISTS(SELECT 1 FROM projects WHERE id = ?)",
             params![project_id],
@@ -4930,6 +5024,9 @@ pub(crate) fn assign_document_number(
     document_type: &str,
     issue_date: &str,
 ) -> AppResult<String> {
+    if matches!(document_type, "quote" | "invoice" | "credit_note") {
+        require_setup_confirmed(transaction, "billing")?;
+    }
     let existing: Option<String> = transaction
         .query_row(
             &format!("SELECT number FROM {table} WHERE id = ?"),
@@ -4977,6 +5074,28 @@ pub(crate) fn assign_document_number(
         params![document_type, year, next + 1],
     )?;
     Ok(format!("{prefix}-{year}-{next:04}"))
+}
+
+pub(crate) fn require_setup_confirmed(transaction: &Transaction<'_>, area: &str) -> AppResult<()> {
+    let extra_settings_json: String = transaction.query_row(
+        "SELECT extra_settings_json FROM settings WHERE id=1",
+        [],
+        |row| row.get(0),
+    )?;
+    let extra: Value = serde_json::from_str(&extra_settings_json)?;
+    let deferred = extra
+        .pointer(&format!("/setupDeferred/{area}"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !deferred {
+        return Ok(());
+    }
+    let message = match area {
+        "billing" => "Confirmez les réglages de facturation dans Paramètres avant d’émettre ou numéroter un document.",
+        "work" => "Confirmez les règles de temps et de coûts dans Paramètres avant de saisir ou chronométrer des heures.",
+        _ => "Confirmez les réglages différés dans Paramètres avant de continuer.",
+    };
+    Err(AppError::Validation(message.into()))
 }
 
 pub(crate) fn query_record_tx(
@@ -5901,7 +6020,7 @@ mod v25_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            26
+            27
         );
         assert_eq!(
             connection
@@ -6201,5 +6320,81 @@ mod v26_migration_tests {
                 params!["b".repeat(64)],
             )
             .is_err());
+    }
+}
+
+#[cfg(test)]
+mod v27_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_v27_enables_multi_order_global_tolerance_and_is_replayable() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA_SQL).unwrap();
+        {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v20(&tx).unwrap();
+            migrate_v21(&tx).unwrap();
+            migrate_v22(&tx).unwrap();
+            migrate_v23(&tx).unwrap();
+            migrate_v24(&tx).unwrap();
+            migrate_v25(&tx).unwrap();
+            migrate_v26(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+
+        for pass in 0..2 {
+            let tx = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v27(&tx).unwrap();
+            tx.commit().unwrap();
+            if pass == 0 {
+                connection.pragma_update(None, "user_version", 26).unwrap();
+            }
+        }
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            27
+        );
+        let triggers = {
+            let mut statement = connection
+                .prepare("SELECT name FROM sqlite_master WHERE type='trigger'")
+                .unwrap();
+            statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<HashSet<_>, _>>()
+                .unwrap()
+        };
+        assert!(!triggers.contains("supplier_invoice_matches_single_order_insert_guard"));
+        assert!(!triggers.contains("supplier_invoice_matches_single_order_update_guard"));
+        assert!(triggers.contains("supplier_invoice_matches_no_update"));
+        let close_guard: String = connection
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='supplier_orders_close_guard'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(close_guard.contains("linked.supplier_invoice_id"));
+        assert!(close_guard.contains("GROUP BY match_row.supplier_invoice_id"));
+        assert!(!close_guard
+            .contains("GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id"));
+        let validation_guard: String = connection
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='supplier_invoices_validation_guard'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(validation_guard.contains("GROUP BY match_row.supplier_invoice_id"));
+        assert!(!validation_guard
+            .contains("GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id"));
     }
 }

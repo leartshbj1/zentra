@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
   allocateSupplierReceiptQuantity,
   existingInvoiceItemMatchDraft,
+  existingInvoiceItemMultiOrderMatchDraft,
+  invoiceItemHasMultipleOrderLineMatches,
   nextMatchClearConfirmation,
+  parseSupplierOrderLineLink,
   purchaseVatOptions,
   receiptAllocationUsageOutsideInvoice,
   replacementMatchableQuantity,
+  supplierOrderLineLinkValue,
   supplierDraftLineTotals,
   supplierInvoiceNeedsAttention,
+  supplierInvoiceMatchPreviewAmountDifference,
 } from './PurchaseOrdersScreen';
+import type { SupplierInvoice, SupplierOrder } from './types';
 
 describe('confirmation de retrait du rapprochement', () => {
   it('est réinitialisée dès que la sélection de facture change, même vers Choisir…', () => {
@@ -124,6 +130,177 @@ describe('existingInvoiceItemMatchDraft', () => {
         'order-current',
       ),
     ).toBeNull();
+  });
+});
+
+describe('existingInvoiceItemMultiOrderMatchDraft', () => {
+  it('recharge la commande, la ligne et la quantité répartie sur plusieurs réceptions', () => {
+    expect(
+      existingInvoiceItemMultiOrderMatchDraft(
+        [
+          {
+            supplierInvoiceId: 'invoice-current',
+            supplierInvoiceItemId: 'item-current',
+            supplierOrderId: 'order-secondary',
+            supplierOrderLineId: 'order-line-2',
+            quantityMilli: 4_000,
+          },
+          {
+            supplierInvoiceId: 'invoice-current',
+            supplierInvoiceItemId: 'item-current',
+            supplierOrderId: 'order-secondary',
+            supplierOrderLineId: 'order-line-2',
+            quantityMilli: 3_000,
+          },
+        ],
+        'invoice-current',
+        'item-current',
+      ),
+    ).toEqual({
+      supplierOrderId: 'order-secondary',
+      supplierOrderLineId: 'order-line-2',
+      quantityMilli: 7_000,
+    });
+  });
+
+  it('refuse de deviner si un poste couvre plusieurs commandes', () => {
+    expect(
+      existingInvoiceItemMultiOrderMatchDraft(
+        [
+          {
+            supplierInvoiceId: 'invoice-current',
+            supplierInvoiceItemId: 'item-current',
+            supplierOrderId: 'order-1',
+            supplierOrderLineId: 'line-1',
+            quantityMilli: 1_000,
+          },
+          {
+            supplierInvoiceId: 'invoice-current',
+            supplierInvoiceItemId: 'item-current',
+            supplierOrderId: 'order-2',
+            supplierOrderLineId: 'line-2',
+            quantityMilli: 1_000,
+          },
+        ],
+        'invoice-current',
+        'item-current',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('supplierOrderLineLinkValue', () => {
+  it('encode et relit sans ambiguïté une paire commande-ligne', () => {
+    const value = supplierOrderLineLinkValue('order-2', 'line-7');
+
+    expect(parseSupplierOrderLineLink(value)).toEqual({
+      supplierOrderId: 'order-2',
+      supplierOrderLineId: 'line-7',
+    });
+    expect(parseSupplierOrderLineLink('valeur-invalide')).toBeNull();
+  });
+});
+
+describe('protection des répartitions multi-commandes', () => {
+  const splitMatches = [
+    {
+      supplierInvoiceId: 'invoice-current',
+      supplierInvoiceItemId: 'item-current',
+      supplierOrderId: 'order-1',
+      supplierOrderLineId: 'line-1',
+    },
+    {
+      supplierInvoiceId: 'invoice-current',
+      supplierInvoiceItemId: 'item-current',
+      supplierOrderId: 'order-2',
+      supplierOrderLineId: 'line-2',
+    },
+  ];
+
+  it('distingue une répartition existante afin que l’éditeur ne la remplace pas', () => {
+    expect(
+      invoiceItemHasMultipleOrderLineMatches(
+        splitMatches,
+        'invoice-current',
+        'item-current',
+      ),
+    ).toBe(true);
+    expect(
+      invoiceItemHasMultipleOrderLineMatches(
+        splitMatches.slice(0, 1),
+        'invoice-current',
+        'item-current',
+      ),
+    ).toBe(false);
+  });
+
+  it('cumule une différence de deux centimes sur deux commandes', () => {
+    const invoice = {
+      lines: [
+        {
+          id: 'item-1',
+          quantityMilli: 1_000,
+          netCents: 2,
+          vatCents: 0,
+          totalCents: 2,
+        },
+        {
+          id: 'item-2',
+          quantityMilli: 1_000,
+          netCents: 2,
+          vatCents: 0,
+          totalCents: 2,
+        },
+      ],
+    } as SupplierInvoice;
+    const orders = [
+      {
+        id: 'order-1',
+        lines: [
+          {
+            id: 'line-1',
+            quantityMilli: 1_000,
+            lineNetCents: 1,
+            lineVatCents: 0,
+            lineTotalCents: 1,
+          },
+        ],
+      },
+      {
+        id: 'order-2',
+        lines: [
+          {
+            id: 'line-2',
+            quantityMilli: 1_000,
+            lineNetCents: 1,
+            lineVatCents: 0,
+            lineTotalCents: 1,
+          },
+        ],
+      },
+    ] as SupplierOrder[];
+
+    expect(
+      supplierInvoiceMatchPreviewAmountDifference(
+        invoice,
+        orders,
+        [
+          {
+            supplierInvoiceItemId: 'item-1',
+            supplierOrderId: 'order-1',
+            supplierOrderLineId: 'line-1',
+            quantityMilli: 1_000,
+          },
+          {
+            supplierInvoiceItemId: 'item-2',
+            supplierOrderId: 'order-2',
+            supplierOrderLineId: 'line-2',
+            quantityMilli: 1_000,
+          },
+        ],
+        'order-1',
+      ),
+    ).toEqual({ invalid: false, netCents: 2, vatCents: 0, totalCents: 2 });
   });
 });
 

@@ -3,6 +3,7 @@ import type { PayrollContributionSelection, PayslipLine } from './types';
 export type PayrollCalculationFingerprintInput = {
   employeeId: string;
   period: string;
+  paymentDate: string;
   lines: PayslipLine[];
   selections: PayrollContributionSelection[];
 };
@@ -18,6 +19,7 @@ export function payrollCalculationFingerprint(
   return JSON.stringify({
     employeeId: input.employeeId.trim(),
     period: input.period,
+    paymentDate: input.paymentDate,
     lines: input.lines.map((line) => ({
       id: line.id,
       label: line.label,

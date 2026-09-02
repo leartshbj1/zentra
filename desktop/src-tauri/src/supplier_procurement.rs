@@ -278,8 +278,19 @@ fn finish_operation(
 
 fn compact_operation_response(operation: &str, response: &Value) -> AppResult<String> {
     let context = if operation == "save_supplier_invoice_match" {
+        let order_ids = response
+            .get("orders")
+            .and_then(Value::as_array)
+            .map(|orders| {
+                orders
+                    .iter()
+                    .filter_map(|order| order.pointer("/order/id").and_then(Value::as_str))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         json!({
-            "supplier_order_id":response.pointer("/order/order/id").and_then(Value::as_str)
+            "supplier_order_id":response.pointer("/order/order/id").and_then(Value::as_str),
+            "supplier_order_ids":order_ids
         })
     } else {
         json!({})
@@ -562,11 +573,29 @@ fn replay_operation(
                         "Le contexte compact du rapprochement idempotent est incomplet.".into(),
                     )
                 })?;
+            let mut order_ids = stored_response
+                .pointer("/context/supplier_order_ids")
+                .and_then(Value::as_array)
+                .map(|ids| {
+                    ids.iter()
+                        .filter_map(Value::as_str)
+                        .map(ToOwned::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if order_ids.is_empty() {
+                order_ids.push(order_id.to_owned());
+            }
+            let mut orders = Vec::with_capacity(order_ids.len());
+            for linked_order_id in order_ids {
+                orders.push(supplier_order_bundle(tx, &linked_order_id, false)?);
+            }
             Ok(json!({
                 "invoice":query_record_tx(tx,"supplier_invoices",entity_id)?,
                 "items":query_all(tx,"SELECT * FROM supplier_invoice_items WHERE supplier_invoice_id=? ORDER BY position,rowid",params![entity_id])?,
                 "matches":query_all(tx,"SELECT * FROM supplier_invoice_matches WHERE supplier_invoice_id=? ORDER BY supplier_invoice_item_id,created_at,id",params![entity_id])?,
                 "order":supplier_order_bundle(tx,order_id,false)?,
+                "orders":orders,
                 "idempotent":true
             }))
         }
@@ -1252,12 +1281,19 @@ impl LocalStore {
         &self,
         input: SaveSupplierInvoiceMatchInput,
     ) -> AppResult<Value> {
-        if input.allocations.len() > MAX_LINES {
+        let allocation_count = input
+            .order_allocations
+            .iter()
+            .try_fold(input.allocations.len(), |total, group| {
+                total.checked_add(group.allocations.len())
+            })
+            .ok_or_else(|| AppError::Validation("Trop d’allocations de rapprochement.".into()))?;
+        if allocation_count > MAX_LINES {
             return Err(AppError::Validation(format!(
                 "Le rapprochement ne peut pas dépasser {MAX_LINES} allocations."
             )));
         }
-        let clearing = input.allocations.is_empty();
+        let clearing = allocation_count == 0;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -1272,53 +1308,82 @@ impl LocalStore {
             return Ok(result);
         }
         let invoice_id = required_text(&input.supplier_invoice_id, "supplier_invoice_id", 255)?;
-        let order_id = required_text(&input.supplier_order_id, "supplier_order_id", 255)?;
-        let invoice_context: Option<(String, String, String)> = tx
+        let primary_order_id = required_text(&input.supplier_order_id, "supplier_order_id", 255)?;
+        let mut order_ids_seen = HashSet::new();
+        order_ids_seen.insert(primary_order_id.clone());
+        let mut grouped_allocations = Vec::with_capacity(input.order_allocations.len() + 1);
+        grouped_allocations.push((primary_order_id.clone(), input.allocations));
+        for group in input.order_allocations {
+            let order_id = required_text(&group.supplier_order_id, "supplier_order_id", 255)?;
+            if group.allocations.is_empty() {
+                return Err(AppError::Validation(
+                    "Une commande supplémentaire sans allocation ne peut pas être rapprochée."
+                        .into(),
+                ));
+            }
+            if !order_ids_seen.insert(order_id.clone()) {
+                return Err(AppError::Validation(
+                    "Une commande ne peut apparaître qu’une fois dans le rapprochement.".into(),
+                ));
+            }
+            grouped_allocations.push((order_id, group.allocations));
+        }
+        let linked_order_ids = if clearing {
+            vec![primary_order_id.clone()]
+        } else {
+            grouped_allocations
+                .iter()
+                .filter(|(_, allocations)| !allocations.is_empty())
+                .map(|(order_id, _)| order_id.clone())
+                .collect::<Vec<_>>()
+        };
+        let invoice_context: Option<(String, String, String, String)> = tx
             .query_row(
-                "SELECT status,supplier_id,currency FROM supplier_invoices WHERE id=?",
+                "SELECT status,supplier_id,currency,document_date FROM supplier_invoices WHERE id=?",
                 params![invoice_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()?;
-        let (invoice_status, invoice_supplier, invoice_currency) = invoice_context
+        let (invoice_status, invoice_supplier, invoice_currency, invoice_date) = invoice_context
             .ok_or_else(|| AppError::NotFound(format!("supplier_invoices/{invoice_id}")))?;
         if invoice_status != "draft" {
             return Err(AppError::Validation(
                 "Le rapprochement doit être finalisé avant la validation de la facture fournisseur.".into(),
             ));
         }
-        let order_context: Option<(String, String, String)> = tx
-            .query_row(
-                "SELECT status,supplier_id,currency FROM supplier_orders WHERE id=?",
-                params![order_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .optional()?;
-        let (order_status, order_supplier, order_currency) = order_context
-            .ok_or_else(|| AppError::NotFound(format!("supplier_orders/{order_id}")))?;
-        if order_status != "confirmed" {
-            return Err(AppError::Validation(
-                "La commande fournisseur doit être confirmée et ouverte.".into(),
-            ));
-        }
-        if invoice_supplier != order_supplier || invoice_currency != order_currency {
-            return Err(AppError::Validation(
-                "La facture et la commande doivent avoir le même fournisseur et la même devise."
-                    .into(),
-            ));
+        for (order_id, _) in &grouped_allocations {
+            let order_context: Option<(String, String, String, String)> = tx
+                .query_row(
+                    "SELECT status,supplier_id,currency,order_date FROM supplier_orders WHERE id=?",
+                    params![order_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .optional()?;
+            let (order_status, order_supplier, order_currency, order_date) = order_context
+                .ok_or_else(|| AppError::NotFound(format!("supplier_orders/{order_id}")))?;
+            if order_status != "confirmed" {
+                return Err(AppError::Validation(format!(
+                    "La commande fournisseur {order_id} doit être confirmée et ouverte."
+                )));
+            }
+            if invoice_supplier != order_supplier || invoice_currency != order_currency {
+                return Err(AppError::Validation(
+                    "Toutes les commandes rapprochées doivent avoir le même fournisseur et la même devise que la facture."
+                        .into(),
+                ));
+            }
+            if invoice_date < order_date {
+                return Err(AppError::Validation(
+                    "La facture fournisseur ne peut pas précéder une commande rapprochée.".into(),
+                ));
+            }
         }
 
-        let (existing_match_count, foreign_order_match_count): (i64, i64) = tx.query_row(
-            "SELECT COUNT(*),COALESCE(SUM(CASE WHEN supplier_order_id<>? THEN 1 ELSE 0 END),0) FROM supplier_invoice_matches WHERE supplier_invoice_id=?",
-            params![order_id,invoice_id],
-            |row| Ok((row.get(0)?,row.get(1)?)),
+        let existing_match_count: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM supplier_invoice_matches WHERE supplier_invoice_id=?",
+            params![invoice_id],
+            |row| row.get(0),
         )?;
-        if foreign_order_match_count != 0 {
-            return Err(AppError::Validation(
-                "Cette facture est déjà rapprochée avec une autre commande. Retirez explicitement ce rapprochement avant d’en choisir une autre."
-                    .into(),
-            ));
-        }
         if clearing && existing_match_count == 0 {
             return Err(AppError::Validation(
                 "Aucun rapprochement brouillon n’existe pour cette facture.".into(),
@@ -1336,6 +1401,7 @@ impl LocalStore {
         #[derive(Debug)]
         struct PendingMatch {
             invoice_item_id: String,
+            order_id: String,
             order_line_id: String,
             receipt_line_id: Option<String>,
             quantity: i64,
@@ -1343,143 +1409,148 @@ impl LocalStore {
             invoice_net: i64,
             invoice_vat: i64,
         }
-        let mut pending = Vec::with_capacity(input.allocations.len());
+        let mut pending = Vec::with_capacity(allocation_count);
         let mut seen = HashSet::new();
         let mut by_invoice_item: HashMap<String, i64> = HashMap::new();
         let mut by_order_line: HashMap<String, i64> = HashMap::new();
         let mut by_receipt_line: HashMap<String, i64> = HashMap::new();
-        for allocation in input.allocations {
-            let invoice_item_id = required_text(
-                &allocation.supplier_invoice_item_id,
-                "supplier_invoice_item_id",
-                255,
-            )?;
-            let order_line_id = required_text(
-                &allocation.supplier_order_line_id,
-                "supplier_order_line_id",
-                255,
-            )?;
-            let receipt_line_id = optional_id(allocation.supplier_receipt_line_id);
-            let quantity = validate_quantity(allocation.quantity_milli, "quantity_milli")?;
-            let key = format!(
-                "{invoice_item_id}\0{order_line_id}\0{}",
-                receipt_line_id.as_deref().unwrap_or("")
-            );
-            if !seen.insert(key) {
-                return Err(AppError::Validation(
-                    "Une allocation identique apparaît deux fois.".into(),
-                ));
-            }
-            let invoice_line: Option<(i64, i64, i64)> = tx
+        for (order_id, allocations) in grouped_allocations {
+            for allocation in allocations {
+                let invoice_item_id = required_text(
+                    &allocation.supplier_invoice_item_id,
+                    "supplier_invoice_item_id",
+                    255,
+                )?;
+                let order_line_id = required_text(
+                    &allocation.supplier_order_line_id,
+                    "supplier_order_line_id",
+                    255,
+                )?;
+                let receipt_line_id = optional_id(allocation.supplier_receipt_line_id);
+                let quantity = validate_quantity(allocation.quantity_milli, "quantity_milli")?;
+                let key = format!(
+                    "{invoice_item_id}\0{order_id}\0{order_line_id}\0{}",
+                    receipt_line_id.as_deref().unwrap_or("")
+                );
+                if !seen.insert(key) {
+                    return Err(AppError::Validation(
+                        "Une allocation identique apparaît deux fois.".into(),
+                    ));
+                }
+                let invoice_line: Option<(i64, i64, i64)> = tx
                 .query_row(
                     "SELECT quantity_milli,line_net_cents,line_vat_cents FROM supplier_invoice_items WHERE id=? AND supplier_invoice_id=?",
                     params![invoice_item_id,invoice_id],
                     |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
                 )
                 .optional()?;
-            let (invoice_quantity, invoice_net, invoice_vat) = invoice_line.ok_or_else(|| {
-                AppError::Validation(
-                    "Une ligne rapprochée n’appartient pas à cette facture.".into(),
-                )
-            })?;
-            let order_line: Option<(i64, String)> = tx
+                let (invoice_quantity, invoice_net, invoice_vat) =
+                    invoice_line.ok_or_else(|| {
+                        AppError::Validation(
+                            "Une ligne rapprochée n’appartient pas à cette facture.".into(),
+                        )
+                    })?;
+                let order_line: Option<(i64, String)> = tx
                 .query_row(
                     "SELECT quantity_milli,fulfillment_mode FROM supplier_order_lines WHERE id=? AND supplier_order_id=?",
                     params![order_line_id,order_id],
                     |row| Ok((row.get(0)?,row.get(1)?)),
                 )
                 .optional()?;
-            let (ordered, mode) = order_line.ok_or_else(|| {
-                AppError::Validation(
-                    "Une ligne rapprochée n’appartient pas à cette commande.".into(),
-                )
-            })?;
-            let cancelled: i64 = tx.query_row(
+                let (ordered, mode) = order_line.ok_or_else(|| {
+                    AppError::Validation(
+                        "Une ligne rapprochée n’appartient pas à cette commande.".into(),
+                    )
+                })?;
+                let cancelled: i64 = tx.query_row(
                 "SELECT COALESCE(SUM(quantity_milli),0) FROM supplier_order_cancellation_lines WHERE supplier_order_line_id=?",
                 params![order_line_id],
                 |row| row.get(0),
             )?;
-            let already_order_matched: i64 = tx.query_row(
+                let already_order_matched: i64 = tx.query_row(
                 "SELECT COALESCE(SUM(quantity_milli),0) FROM supplier_invoice_matches WHERE supplier_order_line_id=?",
                 params![order_line_id],
                 |row| row.get(0),
             )?;
-            let requested_order = by_order_line.entry(order_line_id.clone()).or_default();
-            *requested_order = requested_order
-                .checked_add(quantity)
-                .ok_or_else(|| AppError::Validation("Quantité rapprochée trop élevée.".into()))?;
-            if already_order_matched + *requested_order > ordered - cancelled {
-                return Err(AppError::Validation(format!(
-                    "Le rapprochement dépasse le reliquat de la ligne {order_line_id}."
-                )));
-            }
-            let requested_item = by_invoice_item.entry(invoice_item_id.clone()).or_default();
-            *requested_item = requested_item
-                .checked_add(quantity)
-                .ok_or_else(|| AppError::Validation("Quantité rapprochée trop élevée.".into()))?;
-            if *requested_item > invoice_quantity {
-                return Err(AppError::Validation(format!(
+                let requested_order = by_order_line.entry(order_line_id.clone()).or_default();
+                *requested_order = requested_order.checked_add(quantity).ok_or_else(|| {
+                    AppError::Validation("Quantité rapprochée trop élevée.".into())
+                })?;
+                if already_order_matched + *requested_order > ordered - cancelled {
+                    return Err(AppError::Validation(format!(
+                        "Le rapprochement dépasse le reliquat de la ligne {order_line_id}."
+                    )));
+                }
+                let requested_item = by_invoice_item.entry(invoice_item_id.clone()).or_default();
+                *requested_item = requested_item.checked_add(quantity).ok_or_else(|| {
+                    AppError::Validation("Quantité rapprochée trop élevée.".into())
+                })?;
+                if *requested_item > invoice_quantity {
+                    return Err(AppError::Validation(format!(
                     "Le rapprochement dépasse la quantité de la ligne de facture {invoice_item_id}."
                 )));
-            }
-            match mode.as_str() {
-                "direct" if receipt_line_id.is_none() => {}
-                "stocked_receipt" | "untracked_receipt" => {
-                    let receipt_id = receipt_line_id.as_deref().ok_or_else(|| {
-                        AppError::Validation(
-                            "Une ligne réceptionnable doit pointer vers une réception émise."
-                                .into(),
-                        )
-                    })?;
-                    let received: Option<i64> = tx
+                }
+                match mode.as_str() {
+                    "direct" if receipt_line_id.is_none() => {}
+                    "stocked_receipt" | "untracked_receipt" => {
+                        let receipt_id = receipt_line_id.as_deref().ok_or_else(|| {
+                            AppError::Validation(
+                                "Une ligne réceptionnable doit pointer vers une réception émise."
+                                    .into(),
+                            )
+                        })?;
+                        let received: Option<i64> = tx
                         .query_row(
                             "SELECT receipt_line.quantity_milli FROM supplier_receipt_lines receipt_line JOIN supplier_receipts receipt ON receipt.id=receipt_line.supplier_receipt_id WHERE receipt_line.id=? AND receipt_line.supplier_order_line_id=? AND receipt.supplier_order_id=? AND receipt.status='issued'",
                             params![receipt_id,order_line_id,order_id],
                             |row| row.get(0),
                         )
                         .optional()?;
-                    let received = received.ok_or_else(|| {
-                        AppError::Validation(
-                            "La réception liée est absente, extournée ou incohérente.".into(),
-                        )
-                    })?;
-                    let already_receipt_matched: i64 = tx.query_row(
+                        let received = received.ok_or_else(|| {
+                            AppError::Validation(
+                                "La réception liée est absente, extournée ou incohérente.".into(),
+                            )
+                        })?;
+                        let already_receipt_matched: i64 = tx.query_row(
                         "SELECT COALESCE(SUM(quantity_milli),0) FROM supplier_invoice_matches WHERE supplier_receipt_line_id=?",
                         params![receipt_id],
                         |row| row.get(0),
                     )?;
-                    let requested_receipt =
-                        by_receipt_line.entry(receipt_id.to_owned()).or_default();
-                    *requested_receipt =
-                        requested_receipt.checked_add(quantity).ok_or_else(|| {
-                            AppError::Validation("Quantité rapprochée trop élevée.".into())
-                        })?;
-                    if already_receipt_matched + *requested_receipt > received {
-                        return Err(AppError::Validation(
-                            "Le rapprochement dépasse la quantité de la réception liée.".into(),
-                        ));
+                        let requested_receipt =
+                            by_receipt_line.entry(receipt_id.to_owned()).or_default();
+                        *requested_receipt =
+                            requested_receipt.checked_add(quantity).ok_or_else(|| {
+                                AppError::Validation("Quantité rapprochée trop élevée.".into())
+                            })?;
+                        if already_receipt_matched + *requested_receipt > received {
+                            return Err(AppError::Validation(
+                                "Le rapprochement dépasse la quantité de la réception liée.".into(),
+                            ));
+                        }
                     }
-                }
-                _ => {
-                    return Err(AppError::Validation(
+                    _ => {
+                        return Err(AppError::Validation(
                         "Le lien de réception ne correspond pas au mode de la ligne de commande."
                             .into(),
                     ));
+                    }
                 }
+                pending.push(PendingMatch {
+                    invoice_item_id,
+                    order_id: order_id.clone(),
+                    order_line_id,
+                    receipt_line_id,
+                    quantity,
+                    invoice_quantity,
+                    invoice_net,
+                    invoice_vat,
+                });
             }
-            pending.push(PendingMatch {
-                invoice_item_id,
-                order_line_id,
-                receipt_line_id,
-                quantity,
-                invoice_quantity,
-                invoice_net,
-                invoice_vat,
-            });
         }
         pending.sort_by(|left, right| {
             left.invoice_item_id
                 .cmp(&right.invoice_item_id)
+                .then_with(|| left.order_id.cmp(&right.order_id))
                 .then_with(|| left.order_line_id.cmp(&right.order_line_id))
                 .then_with(|| left.receipt_line_id.cmp(&right.receipt_line_id))
         });
@@ -1519,7 +1590,7 @@ impl LocalStore {
                 .ok_or_else(|| AppError::Validation("Montant rapproché trop élevé.".into()))?;
             tx.execute(
                 "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,supplier_receipt_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                params![Uuid::new_v4().to_string(),operation.request_id,invoice_id,match_row.invoice_item_id,order_id,match_row.order_line_id,match_row.receipt_line_id,match_row.quantity,net,vat,total,now],
+                params![Uuid::new_v4().to_string(),operation.request_id,invoice_id,match_row.invoice_item_id,match_row.order_id,match_row.order_line_id,match_row.receipt_line_id,match_row.quantity,net,vat,total,now],
             )?;
             allocated_quantity_by_item.insert(match_row.invoice_item_id, cumulative_quantity);
         }
@@ -1528,11 +1599,16 @@ impl LocalStore {
             "SELECT * FROM supplier_invoice_matches WHERE supplier_invoice_id=? ORDER BY supplier_invoice_item_id,created_at,id",
             params![invoice_id],
         )?;
+        let mut orders = Vec::with_capacity(linked_order_ids.len());
+        for order_id in &linked_order_ids {
+            orders.push(supplier_order_bundle(&tx, order_id, false)?);
+        }
         let result = json!({
             "invoice":query_record_tx(&tx,"supplier_invoices",&invoice_id)?,
             "items":query_all(&tx,"SELECT * FROM supplier_invoice_items WHERE supplier_invoice_id=? ORDER BY position,rowid",params![invoice_id])?,
             "matches":matches,
-            "order":supplier_order_bundle(&tx,&order_id,false)?,
+            "order":supplier_order_bundle(&tx,&primary_order_id,false)?,
+            "orders":orders,
             "idempotent":false
         });
         finish_operation(
@@ -2202,10 +2278,22 @@ mod operation_storage_tests {
                     },
                 )
                 .collect(),
+            order_allocations: vec![],
         };
         assert!(serde_json::to_vec(&input).unwrap().len() > 100_000);
+        assert!(
+            serde_json::to_value(&input)
+                .unwrap()
+                .get("order_allocations")
+                .is_none(),
+            "une liste supplémentaire vide reste absente du contrat JSON historique"
+        );
         let (_, stored_payload) = payload_sha256(&input).unwrap();
         assert!(stored_payload.len() < 1_000);
+        assert!(
+            !stored_payload.contains("order_allocations"),
+            "un appel historique sans commande supplémentaire conserve le même JSON idempotent"
+        );
 
         let large_response = json!({
             "order":{"order":{"id":input.supplier_order_id.clone()}},

@@ -20,6 +20,17 @@ describe('prérequis des actions de création', () => {
     expect(timerBlockReason(ready, true)).toBe('Un pointage est déjà en cours.');
   });
 
+  it('bloque les flux qui utiliseraient des réglages encore non confirmés', () => {
+    expect(creationBlockReason('quotes', { ...ready, billingSetupDeferred: true }))
+      .toBe('Confirmez d’abord les réglages de facturation dans Paramètres.');
+    expect(creationBlockReason('invoices', { ...ready, billingSetupDeferred: true }))
+      .toBe('Confirmez d’abord les réglages de facturation dans Paramètres.');
+    expect(creationBlockReason('time', { ...ready, workSetupDeferred: true }))
+      .toBe('Confirmez d’abord les règles de temps et de coûts dans Paramètres.');
+    expect(timerBlockReason({ ...ready, workSetupDeferred: true }, false))
+      .toBe('Confirmez d’abord les règles de temps et de coûts dans Paramètres.');
+  });
+
   it('détecte une configuration de dépenses sans catégorie', () => {
     expect(creationBlockReason('expenses', { ...ready, costCategories: 0 }))
       .toBe('Ajoutez d’abord une catégorie de coûts dans Paramètres.');

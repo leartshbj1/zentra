@@ -156,6 +156,16 @@ export type AppSettings = {
   work: WorkSettings;
   payroll: PayrollSettings;
   backup: BackupSettings;
+  /**
+   * Sections dont les valeurs techniques existent uniquement pour assurer la
+   * compatibilité du stockage, mais n’ont pas encore été confirmées par
+   * l’utilisateur après un démarrage progressif.
+   */
+  setupDeferred?: {
+    billing: boolean;
+    work: boolean;
+    backup: boolean;
+  };
 };
 
 export type Client = {
@@ -993,6 +1003,23 @@ export type SupplierInvoiceMatch = {
   vatCents: number;
   totalCents: number;
   createdAt: string;
+};
+
+export type SupplierInvoiceMatchDraftAllocation = {
+  /** Absent pour conserver le contrat historique de la commande principale. */
+  supplierOrderId?: Identifier;
+  supplierInvoiceItemId: Identifier;
+  supplierOrderLineId: Identifier;
+  supplierReceiptLineId?: Identifier | null;
+  quantityMilli: number;
+};
+
+export type SaveSupplierInvoiceMatchDraftInput = {
+  requestId: string;
+  supplierInvoiceId: Identifier;
+  /** Commande principale utilisée aussi par les anciennes versions du bridge. */
+  supplierOrderId: Identifier;
+  allocations: SupplierInvoiceMatchDraftAllocation[];
 };
 
 export type SupplierCreditNoteItem = Omit<

@@ -1127,6 +1127,36 @@ fieldset {
   padding-top: 18px;
   border-top: 1px solid var(--line);
 }
+.onboarding__next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-left: auto;
+}
+.onboarding__advanced-draft-note {
+  flex: 1 0 100%;
+  max-width: 560px;
+  margin: 0 0 3px auto;
+  color: var(--amber-700);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: right;
+}
+.progressive-setup-note {
+  align-items: flex-start;
+  border: 1px solid rgba(52, 102, 77, 0.12);
+}
+.progressive-setup-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.progressive-setup-note strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--green-900);
+}
 
 /* Coquille application */
 .desktop-app {
@@ -1394,6 +1424,17 @@ fieldset {
   color: #fff;
   font-size: 10px;
   font-weight: 750;
+}
+.company-avatar img {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  border-radius: inherit;
+  background: #fff;
+  object-fit: contain;
+}
+.company-avatar span {
+  line-height: 1;
 }
 .timer-ribbon {
   display: flex;
@@ -8875,8 +8916,25 @@ select[aria-invalid='true']:focus {
     grid-template-columns: minmax(90px, 0.7fr) minmax(0, 1.3fr);
   }
   .onboarding__actions {
+    align-items: stretch;
+    flex-direction: column;
     margin-top: 20px;
     padding-top: 16px;
+  }
+  .onboarding__next-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    margin-left: 0;
+  }
+  .onboarding__advanced-draft-note {
+    max-width: none;
+    margin: 0 0 4px;
+    text-align: left;
+  }
+  .onboarding__next-actions .button,
+  .onboarding__actions > .button {
+    width: 100%;
   }
   .topbar {
     min-height: 64px;

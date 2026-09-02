@@ -70,7 +70,7 @@ export function App() {
   const activityProfileMissing = Boolean(workspace.settings && (!workspace.settings.business.nogaSection || !workspace.settings.business.nogaDivision || !workspace.settings.business.activityDescription.trim()));
   const content = !workspace.onboardingCompleted || !workspace.settings ? (
       <Onboarding
-        onComplete={async (settings: AppSettings) => setWorkspace(await desktopApi.completeOnboarding(settings))}
+        onComplete={async (settings: AppSettings, scope) => setWorkspace(await desktopApi.completeOnboarding(settings, scope))}
         onRestore={async (path: string) => setWorkspace(await desktopApi.restoreBackup(path))}
       />
     ) : workspace.activityProfileRequired || activityProfileMissing ? <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} /> : <WorkspaceApp workspace={workspace} setWorkspace={setWorkspace} readOnly={license?.readOnly ?? false} />;

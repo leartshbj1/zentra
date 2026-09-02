@@ -213,7 +213,13 @@ const flow = (
   supplierReceipts: SupplierReceipt[] = [],
   supplierInvoices: SupplierInvoice[] = [],
   supplierInvoiceMatches: SupplierInvoiceMatch[] = [],
-) => ({ supplierReceipts, supplierInvoices, supplierInvoiceMatches });
+  supplierOrders: SupplierOrder[] = [order],
+) => ({
+  supplierOrders,
+  supplierReceipts,
+  supplierInvoices,
+  supplierInvoiceMatches,
+});
 
 describe('flux achats fournisseurs', () => {
   it('guide sans ressaisie de la confirmation jusqu’au rapprochement', () => {
@@ -296,7 +302,7 @@ describe('flux achats fournisseurs', () => {
     );
   });
 
-  it('refuse un écart global de deux centimes réparti sur deux lignes', () => {
+  it('refuse deux écarts tolérés séparément mais cumulés sur deux commandes', () => {
     const invoice = supplierInvoice();
     const globallyMismatchedInvoice = {
       ...invoice,
@@ -309,6 +315,18 @@ describe('flux achats fournisseurs', () => {
         totalCents: line.totalCents + 1,
       })),
     };
+    const secondOrder: SupplierOrder = {
+      ...order,
+      id: 'po-2',
+      number: 'CF-2026-002',
+      lines: [
+        {
+          ...order.lines[1],
+          id: 'po-2-line-service',
+          supplierOrderId: 'po-2',
+        },
+      ],
+    };
     const matches = [
       match(
         'match-product-global-rounding',
@@ -319,20 +337,24 @@ describe('flux achats fournisseurs', () => {
         810,
         'receipt-line-1',
       ),
-      match(
-        'match-service-global-rounding',
-        'po-line-service',
-        'invoice-line-service',
-        1_000,
-        2_001,
-        162,
-        null,
-      ),
+      {
+        ...match(
+          'match-service-global-rounding',
+          'po-2-line-service',
+          'invoice-line-service',
+          1_000,
+          2_001,
+          162,
+          null,
+        ),
+        supplierOrderId: secondOrder.id,
+      },
     ];
     const workspace = flow(
       [receipt(10_000)],
       [globallyMismatchedInvoice],
       matches,
+      [order, secondOrder],
     );
 
     expect(

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SetupReadinessCenter,
   buildSetupReadiness,
+  confirmDeferredSetup,
 } from './SetupReadinessCenter';
 import { backupStatusFromRaw } from './bridge';
 import type { Account, AccountingSettings, AppSettings, Workspace } from './types';
@@ -135,17 +136,39 @@ function workspace(
 }
 
 describe('centre de préparation', () => {
-  it('calcule quatre étapes prêtes lorsque la paie est désactivée', () => {
+  it('calcule cinq étapes prêtes lorsque la paie est désactivée', () => {
     const result = buildSetupReadiness(workspace(), baseSettings);
 
-    expect(result).toMatchObject({ readyCount: 4, totalCount: 4, percent: 100 });
+    expect(result).toMatchObject({ readyCount: 5, totalCount: 5, percent: 100 });
     expect(result.steps.map((item) => item.id)).toEqual([
       'identity',
       'billing',
+      'work',
       'accounting',
       'backup',
     ]);
     expect(result.steps.every((item) => item.ready)).toBe(true);
+  });
+
+  it('signale précisément les règles de temps différées au premier lancement', () => {
+    const settings = {
+      ...baseSettings,
+      work: {
+        ...baseSettings.work,
+        workWeekHours: 0,
+        dailyHours: 0,
+        costCategories: [],
+      },
+    };
+    const result = buildSetupReadiness(workspace(settings), settings);
+    const work = result.steps.find((item) => item.id === 'work');
+
+    expect(work).toMatchObject({
+      ready: false,
+      missing: ['heures hebdomadaires', 'heures journalières', 'catégories de coûts'],
+    });
+    expect(work?.summary).toContain('heures hebdomadaires, heures journalières, catégories de coûts');
+    expect(work?.targetId).toBe('settings-work-rules');
   });
 
   it('considère le logo client comme facultatif sans masquer son statut', () => {
@@ -233,7 +256,36 @@ describe('centre de préparation', () => {
 
     expect(backup).toMatchObject({ ready: false });
     expect(backup?.missing).toContain('première sauvegarde réussie');
-    expect(result.percent).toBe(75);
+    expect(result.percent).toBe(80);
+  });
+
+  it('ne considère jamais les valeurs techniques par défaut comme confirmées', () => {
+    const deferred: AppSettings = {
+      ...baseSettings,
+      setupDeferred: { billing: true, work: true, backup: true },
+    };
+    const result = buildSetupReadiness(workspace(deferred), deferred);
+
+    expect(result.steps.find((item) => item.id === 'billing')?.missing)
+      .toContain('confirmation des réglages de facturation');
+    expect(result.steps.find((item) => item.id === 'work')?.missing)
+      .toContain('confirmation des règles de temps et de coûts');
+    expect(result.steps.find((item) => item.id === 'backup')?.missing)
+      .toContain('confirmation de la stratégie de sauvegarde');
+    expect(result.readyCount).toBe(2);
+  });
+
+  it('retire uniquement le marqueur explicitement confirmé', () => {
+    const deferred: AppSettings = {
+      ...baseSettings,
+      setupDeferred: { billing: true, work: true, backup: true },
+    };
+
+    expect(confirmDeferredSetup(deferred, 'work').setupDeferred).toEqual({
+      billing: true,
+      work: false,
+      backup: true,
+    });
   });
 
   it('invalide une ancienne sauvegarde lorsque le dossier configuré a changé', () => {
@@ -283,7 +335,7 @@ describe('centre de préparation', () => {
     const result = buildSetupReadiness(workspace(settings), settings);
     const payroll = result.steps.find((item) => item.id === 'payroll');
 
-    expect(result.totalCount).toBe(5);
+    expect(result.totalCount).toBe(6);
     expect(payroll).toMatchObject({ ready: false });
     expect(payroll?.missing).toEqual([
       'caisse de pension',
@@ -302,8 +354,8 @@ describe('centre de préparation', () => {
       />,
     );
 
-    expect(html).toContain('4 étapes prêtes sur 4');
-    expect(html.match(/Prêt/g)).toHaveLength(4);
+    expect(html).toContain('5 étapes prêtes sur 5');
+    expect(html.match(/Prêt/g)).toHaveLength(5);
     expect(html).toContain('ne remplace ni un contrôle légal');
     expect(html).toContain('aria-valuenow="100"');
   });

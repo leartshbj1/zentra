@@ -27,13 +27,18 @@ import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './t
 import { createId, errorMessage } from './utils';
 import { Button, ErrorPanel, Field } from './ui';
 import { projectTerminology } from './terminology';
-import { initialOnboardingSettings, settingsFromOnboardingDraft } from './onboardingDraft';
+import {
+  hasAdvancedOnboardingInput,
+  initialOnboardingSettings,
+  settingsFromOnboardingDraft,
+} from './onboardingDraft';
 import {
   backendOnboardingIssue,
   normalizeIban,
   normalizeOnboardingSettings,
   validateOnboarding,
   type OnboardingIssue,
+  type OnboardingValidationScope,
 } from './onboardingValidation';
 
 const steps = [
@@ -101,7 +106,7 @@ export function Onboarding({
   onComplete,
   onRestore,
 }: {
-  onComplete: (settings: AppSettings) => Promise<void>;
+  onComplete: (settings: AppSettings, scope: OnboardingValidationScope) => Promise<void>;
   onRestore: (path: string) => Promise<void>;
 }) {
   const [draft] = useState(readOnboardingDraft);
@@ -138,6 +143,10 @@ export function Onboarding({
   const allIssues = useMemo(
     () => validateOnboarding(settings, nogaCatalog, privacyConfirmed),
     [nogaCatalog, privacyConfirmed, settings],
+  );
+  const advancedDraftPresent = useMemo(
+    () => hasAdvancedOnboardingInput(settings, { privacyConfirmed, vatText }),
+    [privacyConfirmed, settings, vatText],
   );
   const visibleIssues = useMemo(
     () => [...allIssues.filter((issue) => validatedSteps.includes(issue.step)), ...backendIssues],
@@ -220,15 +229,17 @@ export function Onboarding({
     }
   }
 
-  async function finish() {
+  async function finish(scope: OnboardingValidationScope = 'complete') {
     if (submitting.current) return;
     const normalized = normalizeOnboardingSettings(settings);
     setSettings(normalized);
-    setValidatedSteps([1, 2, 3, 4, 5]);
+    setValidatedSteps(scope === 'essential' ? [1] : [1, 2, 3, 4, 5]);
     setBackendIssues([]);
-    const issues = validateOnboarding(normalized, nogaCatalog, privacyConfirmed);
+    const issues = validateOnboarding(normalized, nogaCatalog, privacyConfirmed, scope);
     if (issues.length) {
-      setError('Certaines informations doivent être corrigées avant de créer votre espace.');
+      setError(scope === 'essential'
+        ? 'Complétez l’identité essentielle et le domaine d’activité avant de créer votre espace.'
+        : 'Certaines informations doivent être corrigées avant de créer votre espace.');
       focusIssue(issues[0]);
       return;
     }
@@ -236,8 +247,10 @@ export function Onboarding({
     setBusy(true);
     setError('');
     try {
-      setSavePhase('Vérification complète des informations…');
-      const preflight = await desktopApi.validateOnboarding(normalized);
+      setSavePhase(scope === 'essential'
+        ? 'Vérification de l’identité et du domaine…'
+        : 'Vérification complète des informations…');
+      const preflight = await desktopApi.validateOnboarding(normalized, scope);
       if (!preflight.valid) {
         const serverIssues = preflight.issues.map((issue) => ({ ...issue, step: Number(issue.step) }));
         setBackendIssues(serverIssues);
@@ -246,8 +259,10 @@ export function Onboarding({
         if (serverIssues[0]) focusIssue(serverIssues[0]);
         return;
       }
-      setSavePhase('Création de votre espace local…');
-      await onComplete(normalized);
+      setSavePhase(scope === 'essential'
+        ? 'Création de votre espace progressif…'
+        : 'Création de votre espace local…');
+      await onComplete(normalized, scope);
       try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* La transaction est déjà terminée avec succès. */ }
     } catch (reason) {
       const message = errorMessage(reason, 'La configuration n’a pas pu être enregistrée.');
@@ -346,10 +361,32 @@ export function Onboarding({
               <Button variant="secondary" onClick={() => { setError(''); setStep((value) => Math.max(0, value - 1)); }} disabled={busy}>
                 <ArrowLeft size={17} /> Retour
               </Button>
-              {step < steps.length - 1 ? (
+              {step === 1 ? (
+                <div className="onboarding__next-actions">
+                  {advancedDraftPresent ? (
+                    <p className="onboarding__advanced-draft-note" role="status">
+                      Des réglages avancés sont déjà saisis dans ce brouillon. Pour ne rien perdre,
+                      poursuivez le parcours complet et vérifiez-les avant création.
+                    </p>
+                  ) : null}
+                  <Button variant="secondary" onClick={next} disabled={busy}>
+                    Tout configurer maintenant <ArrowRight size={17} />
+                  </Button>
+                  <Button
+                    onClick={() => void finish('essential')}
+                    disabled={busy || advancedDraftPresent}
+                    title={advancedDraftPresent
+                      ? 'Parcours complet requis pour conserver les réglages déjà saisis.'
+                      : 'Créer l’espace avec uniquement l’identité et le domaine confirmés.'}
+                  >
+                    {busy ? <LoaderCircle className="spin" size={17} /> : <Check size={17} />}
+                    {busy ? 'Création…' : 'Créer avec l’essentiel'}
+                  </Button>
+                </div>
+              ) : step < steps.length - 1 ? (
                 <Button onClick={next} disabled={busy}>Continuer <ArrowRight size={17} /></Button>
               ) : (
-                <Button size="large" onClick={() => void finish()} disabled={busy}>
+                <Button size="large" onClick={() => void finish('complete')} disabled={busy}>
                   {busy ? <LoaderCircle className="spin" size={18} /> : <Check size={18} />}
                   {busy ? 'Finalisation en cours…' : 'Créer mon espace local'}
                 </Button>
@@ -369,10 +406,10 @@ function StepHeader({ eyebrow, title, text }: { eyebrow: string; title: string; 
 function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRestore: () => void; busy: boolean }) {
   return (
     <div>
-      <StepHeader eyebrow="Bienvenue" title="Votre gestion d’activité commence ici." text="Aucun client, montant ou document fictif ne sera créé. Vous partez uniquement de vos propres informations." />
+      <StepHeader eyebrow="Bienvenue" title="Votre gestion d’activité commence ici." text="Créez d’abord le socle réel de votre entreprise, puis complétez les réglages à votre rythme. Aucun client, montant ou document fictif ne sera créé." />
       <div className="setup-choice-grid">
         <button className="setup-choice setup-choice--primary" onClick={onCreate} disabled={busy}>
-          <span><BriefcaseBusiness size={25} /></span><div><strong>Créer mon entreprise</strong><p>Configurer l’identité, la facturation, le temps, la paie et les sauvegardes.</p></div><ArrowRight size={20} />
+          <span><BriefcaseBusiness size={25} /></span><div><strong>Créer mon entreprise</strong><p>Commencer par l’identité et le domaine, puis choisir entre un accès rapide et la configuration complète.</p></div><ArrowRight size={20} />
         </button>
         <button className="setup-choice" onClick={onRestore} disabled={busy}>
           <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>Reprendre une archive .zentra, .elyko ou .hchantier provenant d’un autre ordinateur.</p></div><FolderOpen size={20} />
@@ -414,8 +451,12 @@ function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCat
 
   return (
     <div>
-      <StepHeader eyebrow="Étape 1 sur 5" title="Identité de l’entreprise" text="Ces informations apparaîtront sur vos devis, factures et documents de salaire." />
+      <StepHeader eyebrow="Étape essentielle" title="Identité de l’entreprise" text="Ces informations définissent votre entreprise et son domaine. Après cette étape, vous pouvez accéder à Zentra ou continuer immédiatement avec tous les réglages." />
       <div className="form-grid setup-form">
+        <div className="info-strip field--wide progressive-setup-note">
+          <Check size={18} />
+          <span><strong>Démarrage progressif</strong> Facturation, temps, coûts et sauvegardes resteront non confirmés dans le centre de préparation. Les valeurs techniques proposées ne seront pas considérées comme vos choix tant que vous ne les aurez pas enregistrées.</span>
+        </div>
         <div className="company-logo-setting onboarding-logo-setting field--wide">
           <div className="company-logo-setting__preview">{org.logoPath ? <img src={convertFileSrc(org.logoPath)} alt={`Logo de ${org.legalName || 'l’entreprise'}`} /> : <Building2 size={30} />}</div>
           <div className="company-logo-setting__copy">

@@ -708,11 +708,22 @@ pub struct SupplierInvoiceMatchAllocationInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplierInvoiceOrderAllocationsInput {
+    pub supplier_order_id: String,
+    pub allocations: Vec<SupplierInvoiceMatchAllocationInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SaveSupplierInvoiceMatchInput {
     pub request_id: String,
     pub supplier_invoice_id: String,
+    /// Commande principale et repli pour le contrat historique `allocations`.
     pub supplier_order_id: String,
+    /// Allocations de la commande principale. Conservé pour les clients 1.8–1.14.
     pub allocations: Vec<SupplierInvoiceMatchAllocationInput>,
+    /// Commandes supplémentaires remplacées dans la même transaction.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order_allocations: Vec<SupplierInvoiceOrderAllocationsInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -943,6 +954,8 @@ pub struct ContributionSelectionInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalculatePayrollInput {
     pub period: String,
+    #[serde(default)]
+    pub payment_date: Option<String>,
     pub gross_cents: i64,
     pub items: Vec<ContributionSelectionInput>,
 }
@@ -951,6 +964,8 @@ pub struct CalculatePayrollInput {
 pub struct CalculateEmployeePayrollInput {
     pub employee_id: String,
     pub period: String,
+    #[serde(default)]
+    pub payment_date: Option<String>,
     pub gross_cents: i64,
     pub items: Vec<ContributionSelectionInput>,
 }

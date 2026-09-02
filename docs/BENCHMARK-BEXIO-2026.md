@@ -16,16 +16,16 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Zentra 1.13 | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Zentra 1.15 source | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; PDF A4 natifs devis/factures, QR vectoriel, avoirs et relances locales ; identité, logo et montants figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
-| Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement → paiement et comptabilité ; avoir distinct validable et imputable à une facture | OCR des achats et rapprochement d'une facture avec plusieurs commandes | P1 |
+| Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement multi-commandes → paiement et comptabilité ; tolérance contrôlée globalement et ventilations existantes protégées ; avoir distinct validable et imputable à une facture | OCR des achats | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, paiement client relié à une écriture active avec chaîne d’extournes vérifiée, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
-| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et analyse SmolVLM locale multipage à double lecture ; hash du document, provenance par occurrence et validation humaine obligatoire ; aucune récurrence salariale n’est créée implicitement | certificats annuels, barèmes cantonaux complets puis certification externe | P0 conformité — en cours |
+| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et analyse SmolVLM locale multipage à double lecture ; date de paiement prise en compte pour sélectionner les cotisations applicables et cotisations calculées par taux arrondies au CHF 0.05 ; hash du document, provenance par occurrence et validation humaine obligatoire ; aucune récurrence salariale n’est créée implicitement | QST autonome, contrôles LPP/CAF complets, Swissdec/ELM, certificats annuels et certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
@@ -61,7 +61,13 @@ présenter une prochaine action claire et garder chaque transformation traçable
    paginé depuis les instantanés figés, QR-facture vectorielle contrôlée,
    preuve paiement-écriture fail-closed et import de paie multipage dont chaque
    proposition reste locale, traçable et soumise à une confirmation humaine.
-8. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
+8. **Progresser sans inventer les choix — livré en 1.15 source** : création de
+   l'espace après l'identité et l'activité essentielles, puis confirmation
+   différée des réglages de facturation, de temps/coûts et de sauvegarde ;
+   rapprochement fournisseur multi-commandes avec tolérance globale et
+   protection des ventilations ; date de paiement utilisée pour les cotisations
+   de paie calculées par taux et arrondies au CHF 0.05.
+9. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer
@@ -85,14 +91,26 @@ présenter une prochaine action claire et garder chaque transformation traçable
 - La version 1.8 facture progressivement le livré des lignes de vente
   concernées et facture directement les prestations sans BL. Elle ne crée pas
   encore un acompte défini librement par montant ou pourcentage.
-- Une facture fournisseur peut rester autonome ou être rapprochée, mais un
-  rapprochement ne porte actuellement que sur une seule commande fournisseur.
-  Le regroupement de plusieurs commandes sur une facture reste à réaliser.
+- Une facture fournisseur peut rester autonome ou être rapprochée à plusieurs
+  commandes compatibles dans une transaction unique. L'écart est contrôlé sur
+  l'ensemble de la facture, avec une tolérance maximale d'un centime sur les
+  totaux HT, TVA et TTC, et non une tolérance multipliée par commande. Une
+  ventilation existante sur plusieurs commandes ne peut pas être remplacée
+  silencieusement : son retrait doit être confirmé explicitement.
 - L'avoir fournisseur est un document comptable distinct, imputable à une
   facture validée; il ne remplace pas la facture dans le rapprochement entre
   commande, réception et facture.
 - L'OCR des factures et avoirs fournisseurs n'est pas livré. L'OCR local déjà
   présent concerne uniquement l'import de documents de paie.
+- Les relances restent supervisées : Zentra peut préparer une relance et ouvrir
+  un e-mail prérempli, mais aucun envoi automatique réel n'est livré et aucun
+  message ne part seul.
+- La date de paiement sélectionne la fenêtre de validité des cotisations et les
+  cotisations calculées par taux sont arrondies commercialement au CHF 0.05.
+  Zentra ne calcule pas encore la QST de manière autonome, ne réalise pas les
+  contrôles LPP et CAF complets, ne génère ni ne transmet de déclaration ELM et
+  n'est pas certifié Swissdec. Ces aides ne constituent ni une validation de
+  conformité globale, ni une certification.
 - Une planification récurrente ne fonctionne que lorsque l'application Windows
   est ouverte. Elle crée des brouillons à contrôler et ne constitue ni un
   service cloud d'envoi, ni une émission ou comptabilisation automatique.

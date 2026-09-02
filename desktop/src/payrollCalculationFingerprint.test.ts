@@ -7,6 +7,7 @@ import {
 const base = {
   employeeId: 'employee-a',
   period: '2026-08',
+  paymentDate: '2026-08-25',
   lines: [
     {
       id: 'salary',
@@ -38,6 +39,7 @@ describe('empreinte du calcul de paie', () => {
   it.each([
     ['collaborateur', { employeeId: 'employee-b' }],
     ['période', { period: '2026-09' }],
+    ['date de versement', { paymentDate: '2026-09-01' }],
     ['brut', { lines: [{ ...base.lines[0], amountCents: 510_000 }] }],
     ['libellé de ligne', { lines: [{ ...base.lines[0], label: 'Prime' }] }],
     ['choix de cotisations', { selections: [base.selections[0]] }],

@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 26;
+pub const SCHEMA_VERSION: i64 = 27;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -3567,10 +3567,14 @@ BEFORE UPDATE OF status ON supplier_orders WHEN OLD.status='confirmed' AND NEW.s
   )
   OR EXISTS(
     SELECT 1 FROM supplier_invoice_matches match_row
-    JOIN supplier_invoices invoice ON invoice.id=match_row.supplier_invoice_id
     JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
-    WHERE match_row.supplier_order_id=OLD.id AND invoice.status='validated'
-    GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+    WHERE match_row.supplier_invoice_id IN (
+      SELECT linked.supplier_invoice_id
+      FROM supplier_invoice_matches linked
+      JOIN supplier_invoices linked_invoice ON linked_invoice.id=linked.supplier_invoice_id
+      WHERE linked.supplier_order_id=OLD.id AND linked_invoice.status='validated'
+    )
+    GROUP BY match_row.supplier_invoice_id
     HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
       OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
       OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
@@ -3881,7 +3885,7 @@ BEFORE UPDATE ON supplier_invoices WHEN OLD.status='draft' AND NEW.status='valid
     SELECT 1 FROM supplier_invoice_matches match_row
     JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
     WHERE match_row.supplier_invoice_id=NEW.id
-    GROUP BY match_row.supplier_invoice_id,match_row.supplier_order_id
+    GROUP BY match_row.supplier_invoice_id
     HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
       OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
       OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
@@ -4747,4 +4751,86 @@ WHEN OLD.source_payroll_import_id IS NOT NULL AND (
 BEGIN SELECT RAISE(ABORT,'payslip source import evidence is immutable'); END;
 
 PRAGMA user_version=26;
+"#;
+
+/// Autorise une facture fournisseur à rapprocher atomiquement plusieurs
+/// commandes. Toutes les gardes de fournisseur, devise, quantité, réception
+/// et immutabilité restent portées par les déclencheurs génériques V21. Les
+/// écarts de prix restent évalués une seule fois sur toute la facture, y
+/// compris lors de sa validation et de la clôture de chaque commande liée.
+pub const MIGRATION_V27_SQL: &str = r#"
+DROP TRIGGER IF EXISTS supplier_invoice_matches_single_order_insert_guard;
+DROP TRIGGER IF EXISTS supplier_invoice_matches_single_order_update_guard;
+
+DROP TRIGGER IF EXISTS supplier_orders_close_guard;
+CREATE TRIGGER supplier_orders_close_guard
+BEFORE UPDATE OF status ON supplier_orders WHEN OLD.status='confirmed' AND NEW.status='closed' AND (
+  NEW.closed_at IS NULL
+  OR
+  COALESCE((SELECT SUM(line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)) FROM supplier_order_lines line WHERE line.supplier_order_id=OLD.id),0)<=0
+  OR EXISTS(
+    SELECT 1 FROM supplier_order_lines line WHERE line.supplier_order_id=OLD.id AND
+      COALESCE((SELECT SUM(match_row.quantity_milli) FROM supplier_invoice_matches match_row JOIN supplier_invoices invoice ON invoice.id=match_row.supplier_invoice_id WHERE match_row.supplier_order_line_id=line.id AND invoice.status='validated'),0)
+      < line.quantity_milli-COALESCE((SELECT SUM(cancelled.quantity_milli) FROM supplier_order_cancellation_lines cancelled WHERE cancelled.supplier_order_line_id=line.id),0)
+  )
+  OR EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_invoices invoice ON invoice.id=match_row.supplier_invoice_id
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_order_id=OLD.id AND invoice.status='validated' AND (
+      ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+    )
+  )
+  OR EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_invoice_id IN (
+      SELECT linked.supplier_invoice_id
+      FROM supplier_invoice_matches linked
+      JOIN supplier_invoices linked_invoice ON linked_invoice.id=linked.supplier_invoice_id
+      WHERE linked.supplier_order_id=OLD.id AND linked_invoice.status='validated'
+    )
+    GROUP BY match_row.supplier_invoice_id
+    HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+  )
+)
+BEGIN SELECT RAISE(ABORT,'supplier order closure requires validated invoice matches for every effective quantity'); END;
+
+DROP TRIGGER IF EXISTS supplier_invoices_validation_guard;
+CREATE TRIGGER supplier_invoices_validation_guard
+BEFORE UPDATE ON supplier_invoices WHEN OLD.status='draft' AND NEW.status='validated' AND NOT (
+  NEW.reference_normalized IS NOT NULL AND TRIM(NEW.reference_normalized)<>''
+  AND NEW.total_cents>0 AND NEW.paid_cents=0 AND NEW.credited_cents=0 AND NEW.due_date>=NEW.document_date
+  AND EXISTS(SELECT 1 FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NEW.net_cents=(SELECT COALESCE(SUM(item.line_net_cents),0) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NEW.vat_cents=(SELECT COALESCE(SUM(item.line_vat_cents),0) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NEW.total_cents=(SELECT COALESCE(SUM(item.line_total_cents),0) FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id)
+  AND NOT EXISTS(SELECT 1 FROM supplier_invoice_items item WHERE item.supplier_invoice_id=NEW.id AND item.line_net_cents>0 AND item.posted_expense_account_id IS NULL)
+  AND NOT EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_invoice_id=NEW.id AND (
+      ABS(match_row.net_cents-CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.vat_cents-CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+      OR ABS(match_row.total_cents-CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER))>1
+    )
+  )
+  AND NOT EXISTS(
+    SELECT 1 FROM supplier_invoice_matches match_row
+    JOIN supplier_order_lines order_line ON order_line.id=match_row.supplier_order_line_id
+    WHERE match_row.supplier_invoice_id=NEW.id
+    GROUP BY match_row.supplier_invoice_id
+    HAVING ABS(SUM(match_row.net_cents)-SUM(CAST(ROUND(CAST(order_line.line_net_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.vat_cents)-SUM(CAST(ROUND(CAST(order_line.line_vat_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+      OR ABS(SUM(match_row.total_cents)-SUM(CAST(ROUND(CAST(order_line.line_total_cents AS REAL)*CAST(match_row.quantity_milli AS REAL)/CAST(order_line.quantity_milli AS REAL)) AS INTEGER)))>1
+  )
+  AND EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.id=NEW.validation_journal_entry_id AND entry.source_type='supplier_invoice' AND entry.source_id=NEW.id AND entry.source_event='validate' AND entry.entry_date=NEW.document_date)
+)
+BEGIN SELECT RAISE(ABORT,'supplier invoice validation requires its exact journal entry and posted expense accounts'); END;
+
+PRAGMA user_version=27;
 "#;
