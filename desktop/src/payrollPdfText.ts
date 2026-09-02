@@ -25,7 +25,11 @@ export async function extractPayrollPdfTextByPage(
     for (let pageNumber = 1; pageNumber <= limit; pageNumber += 1) {
       const page = await pdfDocument.getPage(pageNumber);
       const content = await page.getTextContent();
-      pages.push(normalizePayrollPdfTextItems(content.items));
+      const viewport = page.getViewport({ scale: 1 });
+      pages.push(normalizePayrollPdfTextItems(content.items, {
+        width: viewport.width,
+        height: viewport.height,
+      }));
       page.cleanup();
     }
     return { pageCount: pdfDocument.numPages, pages };

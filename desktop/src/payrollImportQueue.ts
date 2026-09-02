@@ -7,7 +7,7 @@ export function hasCompletedLocalPayrollAiAnalysis(item: PayrollDocumentImport) 
     && manifest?.analyzedPages.length === expectedPageCount
     && manifest.analyzedPages.every((page, index) => page === index + 1);
   return item.extractionEngine.startsWith('smolvlm-500m-')
-    && manifest?.schemaVersion === 1
+    && (manifest?.schemaVersion === 1 || manifest?.schemaVersion === 2)
     && manifest.passes >= 1
     && hasCompletePageCoverage
     && manifest.inputSha256.toLowerCase() === item.fileSha256.toLowerCase();

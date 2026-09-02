@@ -156,6 +156,10 @@ export function deterministicPayrollAiConfidence(pages: number[], passes: number
   return passes >= 2 ? 9_000 : 6_500;
 }
 
+function visualManifestConfidence(passes: number) {
+  return passes >= 2 ? 7_000 : 5_200;
+}
+
 /**
  * SmolVLM peut proposer sa propre confiance, mais elle n'est pas calibrée.
  * Zentra remplace donc ce nombre par un score déterministe fondé uniquement sur
@@ -183,7 +187,9 @@ export function calibratePayrollAiDraftConfidence(
       return {
         ...line,
         recurring: source?.pages.length ? line.recurring : false,
-        confidenceBp: deterministicPayrollAiConfidence(source?.pages ?? [], passes),
+        confidenceBp: source?.confidenceBp === undefined
+          ? deterministicPayrollAiConfidence(source?.pages ?? [], passes)
+          : Math.max(0, Math.min(10_000, Math.round(source.confidenceBp))),
       };
     }),
     warnings: [...draft.warnings],
@@ -199,6 +205,7 @@ export function payrollAnalysisManifestFromAi(input: {
   inputSha256: string;
   analyzedPageCount: number;
   passes: number;
+  hasTextLayer: boolean;
   analyzedAt?: string;
 }): PayrollAnalysisManifest {
   const passes = Math.max(1, Math.min(4, Math.round(input.passes)));
@@ -216,7 +223,9 @@ export function payrollAnalysisManifestFromAi(input: {
         value,
         pages: [...new Set(pages)].sort((left, right) => left - right),
         passIndexes,
-        confidenceBp: deterministicPayrollAiConfidence(pages, passes),
+      confidenceBp: input.provenance.fieldConfidenceBp?.[field] === undefined
+          ? visualManifestConfidence(passes)
+          : Math.max(0, Math.min(10_000, Math.round(input.provenance.fieldConfidenceBp[field]))),
       }];
     });
   const usedLineIndexes = new Set<number>();
@@ -245,7 +254,9 @@ export function payrollAnalysisManifestFromAi(input: {
       amountCents: line.amountCents,
       pages: [...new Set(source.pages)].sort((left, right) => left - right),
       passIndexes,
-      confidenceBp: deterministicPayrollAiConfidence(source.pages, passes),
+      confidenceBp: source.confidenceBp === undefined
+        ? visualManifestConfidence(passes)
+        : Math.max(0, Math.min(10_000, Math.round(source.confidenceBp))),
     }];
   });
   const conflictTargets = new Set<string>();
@@ -271,7 +282,11 @@ export function payrollAnalysisManifestFromAi(input: {
   const conflictingTargets = new Set(conflicts.map((conflict) => conflict.target));
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    corroborationMethod: input.hasTextLayer
+      ? 'local_visual_read_with_pdf_text'
+      : 'local_visual_read',
+    corroborationAlgorithmVersion: 'zentra.payroll-evidence-corroboration.v1',
     modelId: input.modelId.trim(),
     modelRevision: input.modelRevision.trim(),
     inputSha256: input.inputSha256.trim().toLowerCase(),
@@ -288,16 +303,27 @@ export function payrollAiProvenanceFromManifest(
   manifest: PayrollAnalysisManifest | null,
 ): PayrollAiProvenance | undefined {
   if (!manifest) return undefined;
+  const fieldConfidenceBp = Object.fromEntries(
+    manifest.fieldProvenance.flatMap((item) => (
+      item.confidenceBp === deterministicPayrollAiConfidence(item.pages, manifest.passes)
+        ? []
+        : [[item.field, item.confidenceBp]]
+    )),
+  );
   return {
     fields: Object.fromEntries(
       manifest.fieldProvenance.map((item) => [item.field, [...item.pages]]),
     ),
+    ...(Object.keys(fieldConfidenceBp).length ? { fieldConfidenceBp } : {}),
     lines: manifest.lineProvenance.map((item) => ({
       lineIndex: item.lineIndex,
       label: item.label,
       kind: item.kind,
       amountCents: item.amountCents,
       pages: [...item.pages],
+      ...(item.confidenceBp === deterministicPayrollAiConfidence(item.pages, manifest.passes)
+        ? {}
+        : { confidenceBp: item.confidenceBp }),
     })),
   };
 }

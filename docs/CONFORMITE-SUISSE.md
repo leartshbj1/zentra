@@ -120,6 +120,24 @@ Source : [OFAS — montants AVS/AI/APG/PC/LPP valables dès le 1er janvier 2026
   la caisse ; une seule allocation est versée par enfant. La participation du
   salarié au financement dans le canton du Valais est de 0,13 % de la masse
   salariale en 2026 et doit rester un paramètre cantonal daté.
+- Le contrôle local exige exactement une ligne AAP et, lorsque le seuil de huit
+  heures est atteint, exactement une ligne AANP ; il rejette les doublons et
+  l’AANP non applicable. Il vérifie le plafond LAA proratisé selon la période
+  d’emploi 30/360, le côté payeur, l’assiette, la date réellement contrôlée et
+  la preuve de police. Le seuil AANP
+  exige un horaire régulier confirmé ou, pour un horaire irrégulier, une moyenne
+  hebdomadaire représentative documentée ; une valeur absente laisse la décision
+  bloquée. Pour la CAF, chaque ligne doit être un taux positif sans plafond libre,
+  appliqué au salaire soumis AVS, avec le canton, la caisse, la période et la
+  source du tarif. L’exception salarié du Valais est liée au tableau synoptique
+  2026 qui publie réellement le taux de 0,13 %, et non au tableau distinct qui ne
+  publie que les montants des prestations.
+- Une configuration IJM ne peut pas être déclarée complète avec le seul nom de
+  l’assureur et une prime. Tant que le régime LAMal/LCA, le numéro de police, le
+  taux de couverture, le délai d’attente, la durée des prestations et la
+  répartition employeur/salarié ne sont pas conservés sous forme structurée,
+  Zentra maintient ce contrôle en état incomplet et demande une validation
+  contractuelle externe.
 - Il n’existe pas de taux national unique d’impôt à la source. Le calcul exige
   notamment le canton compétent, le code-barème, l’état civil, le nombre
   d’enfants, l’appartenance religieuse lorsque pertinente, le taux d’occupation,
@@ -127,7 +145,7 @@ Source : [OFAS — montants AVS/AI/APG/PC/LPP valables dès le 1er janvier 2026
   cantonaux officiels 2026 et leur format doivent être importés et datés ; le
   montant retenu doit figurer sur la fiche.
 
-Sources : [Suva — personnes assurées selon la LAA](https://www.suva.ch/fr-ch/assurance/assurance-accidents/assurance-accidents-laa/assurance-accidents-qui-est-assure), [Suva — gain assuré maximal](https://www.suva.ch/fr-ch/accident/prestations-de-la-suva/prestations-en-especes), [Suva — déclaration des salaires et profil d’assurance](https://www.suva.ch/fr-ch/assurance/salaires-et-primes/declaration-des-salaires), [OFAS — allocations familiales, prestations et conditions](https://www.bsv.admin.ch/fr/allocations-familiales-prestations-et-conditions), [OFAS — montants cantonaux 2026](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf), [AFC — impôt à la source](https://www.estv.admin.ch/fr/impot-a-la-source), [AFC — publication des barèmes 2026](https://www.estv.admin.ch/fr/newnsb/oVGe4ukuBCkl).
+Sources : [Suva — personnes assurées selon la LAA](https://www.suva.ch/fr-ch/assurance/assurance-accidents/assurance-accidents-laa/assurance-accidents-qui-est-assure), [Suva — gain assuré maximal](https://www.suva.ch/fr-ch/accident/prestations-de-la-suva/prestations-en-especes), [Suva — déclaration des salaires et profil d’assurance](https://www.suva.ch/fr-ch/assurance/salaires-et-primes/declaration-des-salaires), [AVS/AI — tableau synoptique 2026, y compris le taux CAF salarié du Valais](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf), [OFAS — allocations familiales, prestations et conditions](https://www.bsv.admin.ch/fr/allocations-familiales-prestations-et-conditions), [OFAS — montants cantonaux 2026](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf), [AFC — impôt à la source](https://www.estv.admin.ch/fr/impot-a-la-source), [AFC — publication des barèmes 2026](https://www.estv.admin.ch/fr/newnsb/oVGe4ukuBCkl).
 
 ### Fiche de salaire et certificat annuel — formulaire 11
 

@@ -3922,7 +3922,16 @@ function SettingsScreen({
   }
 
   async function chooseLogo() {
-    const sourcePath = await desktopApi.chooseLogo();
+    let sourcePath: string | null;
+    try {
+      sourcePath = await desktopApi.chooseLogo();
+    } catch (reason) {
+      onNotice({
+        tone: 'error',
+        text: errorMessage(reason, 'Le sélecteur du logo n’a pas pu être ouvert.'),
+      });
+      return;
+    }
     if (!sourcePath) return;
     await execute(async () => {
       const logoPath = await desktopApi.stageCompanyLogo(sourcePath);
@@ -4107,9 +4116,9 @@ function SettingsScreen({
             <div className="company-logo-setting__copy">
               <strong>Logo de l’entreprise</strong>
               <p>
-                PNG, JPEG ou WebP · 8 Mo maximum. Zentra vérifie l’image puis en
-                conserve une copie locale versionnée, incluse dans vos
-                sauvegardes.
+                PNG, JPEG ou WebP · 16 à 4096 px par côté · 8 Mo maximum.
+                Zentra contrôle le contenu puis en conserve une copie locale
+                immuable, incluse dans vos sauvegardes.
               </p>
               <div className="settings-inline-actions">
                 <Button
@@ -5717,6 +5726,12 @@ function EmployeeForm({
           const acOpeningBasis = String(
             form.get('acOpeningBasis') ?? '',
           ).trim();
+          const laaOpeningYear = String(
+            form.get('laaOpeningYear') ?? '',
+          ).trim();
+          const laaOpeningBasis = String(
+            form.get('laaOpeningBasis') ?? '',
+          ).trim();
           const lppAssessmentYear = String(
             form.get('lppAssessmentYear') ?? '',
           ).trim();
@@ -5729,6 +5744,14 @@ function EmployeeForm({
           if (Boolean(lppAssessmentYear) !== Boolean(lppAnnualSalary))
             throw new Error(
               'L’année et le salaire annuel LPP doivent être confirmés ensemble, zéro compris.',
+            );
+          if (Boolean(acOpeningYear) !== Boolean(acOpeningBasis))
+            throw new Error(
+              'L’année et la base d’ouverture AC doivent être confirmées ensemble, zéro compris.',
+            );
+          if (Boolean(laaOpeningYear) !== Boolean(laaOpeningBasis))
+            throw new Error(
+              'L’année et la base d’ouverture LAA doivent être confirmées ensemble, zéro compris.',
             );
           if (
             employmentContractKind === 'fixed' &&
@@ -5780,6 +5803,12 @@ function EmployeeForm({
             acOpeningBasisCents: acOpeningBasis
               ? centsFromInput(form.get('acOpeningBasis'))
               : null,
+            laaOpeningYear: laaOpeningYear
+              ? numberFromInput(form.get('laaOpeningYear'))
+              : null,
+            laaOpeningBasisCents: laaOpeningBasis
+              ? centsFromInput(form.get('laaOpeningBasis'))
+              : null,
             lppAssessmentYear: lppAssessmentYear
               ? numberFromInput(form.get('lppAssessmentYear'))
               : null,
@@ -5830,8 +5859,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Horaire contractuel (h/semaine)"
-            hint="Valeur réelle chez cet employeur; elle décide la couverture AANP au seuil de 8 h."
+            label="Horaire AANP confirmé (h/semaine)"
+            hint="Saisissez l’horaire contractuel régulier ou, pour un horaire irrégulier, une moyenne hebdomadaire représentative documentée. Laissez vide tant que cette moyenne n’est pas confirmée: la décision AANP restera bloquée."
           >
             <input
               name="contractualWeeklyHours"
@@ -6025,6 +6054,36 @@ function EmployeeForm({
                 item?.acOpeningBasisCents === undefined
                   ? ''
                   : item.acOpeningBasisCents / 100
+              }
+            />
+          </Field>
+          <Field
+            label="Année d’ouverture LAA"
+            hint="Année du gain assuré accidents déjà acquis. À confirmer chaque année, même lorsque le montant est zéro."
+          >
+            <input
+              name="laaOpeningYear"
+              type="number"
+              min="2000"
+              max="9999"
+              step="1"
+              defaultValue={item?.laaOpeningYear ?? ''}
+            />
+          </Field>
+          <Field
+            label="Base LAA avant Zentra (CHF)"
+            hint="Gain assuré LAA déjà acquis hors Zentra durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucun."
+          >
+            <input
+              name="laaOpeningBasis"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={
+                item?.laaOpeningBasisCents === null ||
+                item?.laaOpeningBasisCents === undefined
+                  ? ''
+                  : item.laaOpeningBasisCents / 100
               }
             />
           </Field>

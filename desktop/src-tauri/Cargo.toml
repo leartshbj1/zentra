@@ -1,6 +1,6 @@
 [package]
 name = "helvichantier"
-version = "1.16.0"
+version = "1.17.0"
 description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows"
 authors = ["Zentra"]
 edition = "2021"
@@ -43,6 +43,7 @@ tauri-plugin-updater = "2"
 tempfile = "3"
 thiserror = "2"
 url = "2"
+unicode-normalization = "0.1"
 uuid = { version = "1", features = ["serde", "v4"] }
 walkdir = "2"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }

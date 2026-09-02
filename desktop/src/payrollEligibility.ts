@@ -4,6 +4,10 @@ import type {
   Employee,
   PayrollContributionDefinition,
 } from './types';
+import {
+  SWISS_FEDERAL_SOCIAL_INSURANCE_2026_SOURCE,
+  VALAIS_EMPLOYEE_CAF_RATE_BP_2026,
+} from './swissPayrollInsuranceReadiness';
 
 export type PayrollEligibilityAssessment = {
   blockers: string[];
@@ -660,12 +664,44 @@ export function assessSwissPayrollEligibility(input: {
           (item.rateBp ?? 0) <= 0 ||
           item.annualCeilingCents !==
             SWISS_LAA_ANNUAL_CEILING_CENTS_2026 ||
+          (item.basisKind !== 'ahv_salary' && item.basisKind !== 'custom') ||
           !item.source.trim(),
       ),
   );
   for (const category of invalidLaaCategories)
     blockers.push(
-      `${category.toUpperCase()} doit utiliser le taux positif de la police LAA, sa source et le plafond fédéral 2026 de CHF 148’200.`,
+      `${category.toUpperCase()} doit utiliser le taux positif de la police LAA, une assiette salaire AVS ou personnalisée documentée, sa source et le plafond fédéral 2026 de CHF 148’200.`,
+    );
+
+  const familyAllowanceDefinitions = selectedDefinitions.filter(
+    (item) => item.category === 'family_allowance',
+  );
+  if (familyAllowanceDefinitions.some((item) => (
+    item.calculationKind !== 'rate'
+    || item.fixedAmountCents !== null
+    || !Number.isInteger(item.rateBp)
+    || (item.rateBp ?? 0) <= 0
+    || (item.rateBp ?? 0) > 10_000
+    || item.basisKind !== 'ahv_salary'
+    || item.annualCeilingCents !== null
+    || item.source.trim().length < 8
+  )))
+    blockers.push(
+      'Chaque cotisation CAF doit utiliser le taux positif documenté de la caisse, le salaire soumis AVS et aucun plafond annuel libre.',
+    );
+  const employeeFamilyAllowanceDefinitions = familyAllowanceDefinitions.filter(
+    (item) => item.side === 'employee',
+  );
+  const payrollCanton = (settings.payroll.payrollCanton ?? '').trim().toUpperCase();
+  if (employeeFamilyAllowanceDefinitions.some((item) => (
+    payrollCanton !== 'VS'
+    || item.rateBp !== VALAIS_EMPLOYEE_CAF_RATE_BP_2026
+    || !item.source.includes(SWISS_FEDERAL_SOCIAL_INSURANCE_2026_SOURCE)
+    || item.effectiveFrom !== '2026-01-01'
+    || item.effectiveTo !== '2026-12-31'
+  )))
+    blockers.push(
+      'Une part salarié CAF n’est admise que pour le profil Valais 2026 officiel à 0,13 %.',
     );
   const aanpEmployerDefinitions = selectedDefinitions.filter(
     (item) => item.category === 'aanp' && item.side === 'employer',

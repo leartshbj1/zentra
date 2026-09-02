@@ -28,7 +28,7 @@ import {
   type PayrollAiProvenance,
   type PayrollImportConfirmedAiFields,
 } from './payrollImportAiDraft';
-import { findStrongEmployeeMatch } from './payrollEmployeeMatching';
+import { findPotentialPayrollEmployeeDuplicate, findStrongEmployeeMatch } from './payrollEmployeeMatching';
 import { payrollLocalAi, type PayrollAiMode, type PayrollAiProgress } from './payrollLocalAi';
 import {
   assertPayrollAnalysisDraftUnchanged,
@@ -42,6 +42,7 @@ import {
 } from './payrollAnalysisManifest';
 import { extractPayrollPdfTextByPage } from './payrollPdfText';
 import { payrollTextForPageBatch } from './payrollPdfTextUtils';
+import { corroboratePayrollAiEvidence } from './payrollEvidenceCorroboration';
 import { hasCompletedLocalPayrollAiAnalysis, pendingLocalPayrollAiImports } from './payrollImportQueue';
 import { assessPayrollDraft, payrollControlQualityLabel, payrollImportTotals } from './payrollImportQuality';
 import type {
@@ -398,9 +399,20 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
 
     const combinedAiDraft = combinePayrollAiPageBatches(pageBatches);
     const analysisPasses = combinedAiDraft.validatedPasses;
+    const corroboratedAiDraft = corroboratePayrollAiEvidence({
+      draft: combinedAiDraft.draft,
+      provenance: combinedAiDraft.provenance,
+      pageTexts: target.mediaKind === 'pdf' ? textPages : [],
+      passes: analysisPasses,
+    });
     const aiDraft = {
       ...combinedAiDraft,
-      draft: calibratePayrollAiDraftConfidence(combinedAiDraft.draft, combinedAiDraft.provenance, analysisPasses),
+      provenance: corroboratedAiDraft.provenance,
+      draft: calibratePayrollAiDraftConfidence(
+        corroboratedAiDraft.draft,
+        corroboratedAiDraft.provenance,
+        analysisPasses,
+      ),
     };
     const match = findStrongEmployeeMatch(aiDraft.identity, workspace.employees);
     const preserveManualLink = employeeLinkSources[target.id] === 'manual';
@@ -434,6 +446,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       inputSha256: target.fileSha256,
       analyzedPageCount: imageUrls.length,
       passes: analysisPasses,
+      hasTextLayer: corroboratedAiDraft.hasTextLayer,
     });
     const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `smolvlm-500m-${latestResult.mode}-multipage-double-read-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
     setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
@@ -536,13 +549,11 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     const avsMismatch = Boolean(importedAvs && storedAvs && importedAvs !== storedAvs);
     const employeeNumberMismatch = Boolean(importedEmployeeNumber && storedEmployeeNumber && importedEmployeeNumber !== storedEmployeeNumber);
     const birthMismatch = Boolean(draft.employee.birthDate && linkedEmployeeRecord?.birthDate && draft.employee.birthDate !== linkedEmployeeRecord.birthDate);
-    const existingIdentityOwner = !linkedEmployee ? workspace.employees.find((employee) => {
-      const candidateAvs = normalizedIdentity(employee.avsNumber);
-      const candidateNumber = normalizedIdentity(employee.employeeNumber);
-      return Boolean((importedAvs && candidateAvs === importedAvs) || (importedEmployeeNumber && candidateNumber === importedEmployeeNumber));
-    }) : undefined;
-    if (existingIdentityOwner) {
-      setLocalError(`Un collaborateur existant (${existingIdentityOwner.name}) possède déjà ce numéro AVS ou ce numéro employé. Sélectionnez son profil au lieu de créer un doublon.`);
+    const duplicateRisk = !linkedEmployee
+      ? findPotentialPayrollEmployeeDuplicate(draft.employee, workspace.employees)
+      : null;
+    if (duplicateRisk?.employeeIds.length) {
+      setLocalError(`${duplicateRisk.reason} Sélectionnez explicitement le profil existant au lieu de créer un doublon.`);
       return;
     }
     if (avsMismatch || employeeNumberMismatch || birthMismatch) {
@@ -661,12 +672,10 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const linkedEmployeeNumberMismatch = Boolean(importedEmployeeNumber && linkedEmployeeNumber && importedEmployeeNumber !== linkedEmployeeNumber);
   const linkedBirthMismatch = Boolean(draft?.employee.birthDate && linkedEmployee?.birthDate && draft.employee.birthDate !== linkedEmployee.birthDate);
   const linkedIdentityMismatch = linkedAvsMismatch || linkedEmployeeNumberMismatch || linkedBirthMismatch;
-  const existingIdentityOwner = !linkedEmployeeId ? workspace.employees.find((employee) => {
-    const candidateAvs = normalizedIdentity(employee.avsNumber);
-    const candidateNumber = normalizedIdentity(employee.employeeNumber);
-    return Boolean((importedAvs && candidateAvs === importedAvs) || (importedEmployeeNumber && candidateNumber === importedEmployeeNumber));
-  }) : undefined;
-  const duplicateCreationRisk = Boolean(existingIdentityOwner);
+  const potentialDuplicate = !linkedEmployeeId && draft
+    ? findPotentialPayrollEmployeeDuplicate(draft.employee, workspace.employees)
+    : null;
+  const duplicateCreationRisk = Boolean(potentialDuplicate?.employeeIds.length);
   const existingTemplate = linkedEmployeeId ? workspace.employeePayrollTemplates.find((template) => template.employeeId === linkedEmployeeId) : undefined;
   const hasRecurringEarnings = Boolean(draft?.lines.some((line) => (
     isExplicitlyConfirmedRecurringLine(draft, line)
@@ -746,7 +755,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             <header className="payroll-lines-heading"><div><span>3</span><div><strong>Rattachement et confirmation</strong><small>La fiche créée restera « à contrôler »</small></div></div></header>
             <Field label="Rattacher à un collaborateur"><select value={employeeLinks[active.id] ?? ''} onChange={(event) => { const employeeId = event.target.value; setEmployeeLinks((current) => ({ ...current, [active.id]: employeeId })); setEmployeeLinkSources((current) => ({ ...current, [active.id]: 'manual' })); setEmployeeMatchNotes((current) => ({ ...current, [active.id]: employeeId ? 'Collaborateur choisi manuellement; ce choix ne sera jamais remplacé par l’IA.' : 'Création d’un nouveau collaborateur choisie manuellement.' })); setReplaceTemplates((current) => ({ ...current, [active.id]: false })); updateDraft((current) => ({ ...current, review: { ...current.review, employeeId, employeeLinkSource: 'manual' } })); }}><option value="">Créer un nouveau collaborateur avec les champs ci-dessus</option>{workspace.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{employee.employeeNumber ? ` · ${employee.employeeNumber}` : ''}</option>)}</select></Field>
             {employeeMatchNotes[active.id] ? <p className={linkedIdentityMismatch ? 'link-note link-note--error' : 'link-note'}>{employeeMatchNotes[active.id]}</p> : null}
-            {duplicateCreationRisk ? <p className="link-note link-note--error">Création bloquée : {existingIdentityOwner?.name} possède déjà ce numéro AVS ou ce numéro employé. Sélectionnez ce profil dans la liste.</p> : null}
+            {duplicateCreationRisk ? <p className="link-note link-note--error">Création bloquée : {potentialDuplicate?.reason} Sélectionnez ce profil dans la liste; Zentra ne rattache jamais une personne sur son nom seul.</p> : null}
             {linkedEmployeeId ? <p className={linkedIdentityMismatch ? 'link-note link-note--error' : 'link-note'}>{linkedIdentityMismatch ? 'Rattachement bloqué : au moins un identifiant fort du document (AVS, numéro employé ou naissance) diffère du collaborateur sélectionné.' : 'Le profil et le modèle salarial actuels du collaborateur sont préservés par défaut. La fiche historique sera seulement ajoutée à la période indiquée.'}</p> : null}
             {existingTemplate && hasRecurringEarnings ? <label className={`review-confirmation ${replaceTemplates[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(replaceTemplates[active.id])} onChange={(event) => { setReplaceTemplates((current) => ({ ...current, [active.id]: event.target.checked })); setReviewed((current) => ({ ...current, [active.id]: false })); }} /><span><strong>Remplacer explicitement le modèle salarial actuel</strong><small>Les gains marqués « Récurrent » dans cette fiche historique deviendront le nouveau modèle. Cette action est facultative et ne se fera jamais automatiquement.</small></span></label> : existingTemplate ? <p className="link-note">Aucun gain récurrent contrôlé n’a été identifié : le modèle salarial actuel ne peut pas être remplacé depuis cette fiche.</p> : null}
             <label className={`review-confirmation ${reviewed[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(reviewed[active.id])} onChange={(event) => setReviewed((current) => ({ ...current, [active.id]: event.target.checked }))} /><span><strong>J’ai comparé les champs et montants au document original</strong><small>Je comprends que SmolVLM peut se tromper et qu’aucune cotisation manquante ne sera inventée.</small></span></label>

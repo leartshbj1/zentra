@@ -24,7 +24,6 @@ use crate::{
 };
 
 const CH_2026_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf";
-const CH_2026_FAMILY_ALLOWANCE_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf";
 const VALAIS_2026_EMPLOYEE_CAF_RATE_BP: i64 = 13;
 const SETTINGS_RATE_ID_PREFIX: &str = "settings-rate-";
 const SETTINGS_RATE_SOURCE: &str = "Questionnaire local Zentra (saisie client)";
@@ -61,6 +60,8 @@ struct EmployeePayrollContext {
     contractual_weekly_minutes: Option<i64>,
     ac_opening_year: Option<i64>,
     ac_opening_basis_cents: Option<i64>,
+    laa_opening_year: Option<i64>,
+    laa_opening_basis_cents: Option<i64>,
     employment_contract_kind: Option<String>,
     lpp_assessment_year: Option<i64>,
     lpp_annual_salary_cents: Option<i64>,
@@ -751,7 +752,7 @@ impl LocalStore {
             params![input.payslip_id],
         )?;
         let source_import_evidence = sealed_source_import_evidence(&current)?;
-        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"contribution_date":replayed_calculation["contribution_date"],"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"source_import_evidence":source_import_evidence});
+        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"contribution_date":replayed_calculation["contribution_date"],"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"contribution_calculation":replayed_calculation,"source_import_evidence":source_import_evidence});
         tx.execute(
             "UPDATE payslips SET status='comptabilise',snapshot_json=?,updated_at=? WHERE id=?",
             params![
@@ -1521,6 +1522,7 @@ fn calculate(
     let mut avs_effective_basis: Option<(i64, String)> = None;
     let mut ac_effective_basis: Option<(i64, String)> = None;
     let mut derived_ac_ytd: Option<i64> = None;
+    let mut derived_laa_ytd: Option<i64> = None;
     for selection in selections {
         if !seen.insert(&selection.definition_id) {
             return Err(AppError::Validation(format!(
@@ -1624,6 +1626,9 @@ fn calculate(
         let mut ac_proration_days = None;
         let mut ac_employment_from = None;
         let mut ac_employment_to = None;
+        let mut laa_proration_days = None;
+        let mut laa_employment_from = None;
+        let mut laa_employment_to = None;
         if def.category == "ac" {
             let employee = statutory_employee.expect("statutory employee validated above");
             let expected_ytd = match derived_ac_ytd {
@@ -1689,6 +1694,60 @@ fn calculate(
             ac_employment_from = Some(proration.employment_from.to_string());
             ac_employment_to = Some(proration.employment_to.to_string());
         }
+        if matches!(def.category.as_str(), "aap" | "aanp") {
+            let employee = employee_context.ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La cotisation {} exige un collaborateur et sa base d’ouverture LAA confirmée.",
+                    def.code
+                ))
+            })?;
+            let expected_ytd = match derived_laa_ytd {
+                Some(value) => value,
+                None => {
+                    let value = derived_laa_year_to_date_basis(connection, employee, period)?;
+                    derived_laa_ytd = Some(value);
+                    value
+                }
+            };
+            if selection
+                .year_to_date_basis_cents
+                .is_some_and(|provided| provided != expected_ytd)
+            {
+                return Err(AppError::Validation(format!(
+                    "Le cumul annuel LAA de {} doit être celui calculé localement par Zentra: {} centimes (ouverture confirmée et fiches antérieures), pas {:?}.",
+                    def.code, expected_ytd, selection.year_to_date_basis_cents
+                )));
+            }
+            effective_ytd_basis = Some(expected_ytd);
+            let start = employee
+                .employment_start
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AppError::Validation(format!(
+                        "La date d'entrée en fonction est obligatoire pour proratiser le plafond LAA de {}.",
+                        def.code
+                    ))
+                })?;
+            let statutory_ceiling = statutory_annual_ceiling.ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La cotisation LAA {} doit posséder le plafond annuel statutaire explicite.",
+                    def.code
+                ))
+            })?;
+            let proration = prorated_ac_ceiling_through_period(
+                statutory_ceiling,
+                period,
+                start,
+                employee.employment_end.as_deref(),
+            )
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+            effective_ceiling = Some(proration.ceiling_cents);
+            laa_proration_days = Some(proration.days_30_360);
+            laa_employment_from = Some(proration.employment_from.to_string());
+            laa_employment_to = Some(proration.employment_to.to_string());
+        }
         if let Some(ceiling) = effective_ceiling {
             let ytd = effective_ytd_basis.ok_or_else(|| {
                 AppError::Validation(format!(
@@ -1704,6 +1763,12 @@ fn calculate(
             if def.category == "ac" && ytd > ceiling {
                 return Err(AppError::Validation(format!(
                     "Le cumul annuel AC confirmé ({ytd} centimes) dépasse le plafond proratisé de {} centimes pour {period}.",
+                    ceiling
+                )));
+            }
+            if matches!(def.category.as_str(), "aap" | "aanp") && ytd > ceiling {
+                return Err(AppError::Validation(format!(
+                    "Le cumul annuel LAA confirmé ({ytd} centimes) dépasse le plafond assuré de {} centimes pour {period}.",
                     ceiling
                 )));
             }
@@ -1742,7 +1807,7 @@ fn calculate(
         } else {
             employer = employer.saturating_add(amount)
         };
-        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"lpp_component":def.lpp_component,"lpp_employee_id":def.lpp_employee_id,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
+        items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"laa_proration_days_30_360":laa_proration_days,"laa_employment_from":laa_employment_from,"laa_employment_to":laa_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"lpp_component":def.lpp_component,"lpp_employee_id":def.lpp_employee_id,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
     }
     Ok(
         json!({"period":period,"work_period_date":work_period_date,"payment_date":normalized_payment_date,"contribution_date":contribution_date,"rounding_increment_cents":5,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
@@ -1879,7 +1944,8 @@ fn replay_persisted_payslip_calculation(
 }
 
 /// Les six lignes AVS/AI/APG représentent une seule assiette légale. Les
-/// deux parts AC représentent elles aussi une seule assiette et un seul cumul.
+/// parts AC et les primes AAP/AANP représentent chacune une assiette et un
+/// cumul communs. Aucune valeur libre de l'IPC ne peut scinder ces bases.
 /// Cette validation s'exécute avant tout calcul de montant et reste côté Rust,
 /// même si un client contourne l'interface.
 fn validate_shared_statutory_bases(
@@ -1891,6 +1957,8 @@ fn validate_shared_statutory_bases(
     let mut avs_basis: Option<(i64, String)> = None;
     let mut ac_basis: Option<(i64, String)> = None;
     let mut ac_ytd: Option<(Option<i64>, String)> = None;
+    let mut laa_basis: Option<(i64, String)> = None;
+    let mut laa_ytd: Option<(Option<i64>, String)> = None;
     for selection in selections {
         if !seen.insert(&selection.definition_id) {
             return Err(AppError::Validation(format!(
@@ -1899,7 +1967,10 @@ fn validate_shared_statutory_bases(
             )));
         }
         let definition = load_definition(connection, &selection.definition_id)?;
-        if !matches!(definition.category.as_str(), "avs_ai_apg" | "ac") {
+        if !matches!(
+            definition.category.as_str(),
+            "avs_ai_apg" | "ac" | "aap" | "aanp"
+        ) {
             continue;
         }
         let basis = if definition.basis_kind == "gross" {
@@ -1917,10 +1988,10 @@ fn validate_shared_statutory_bases(
                 "basis_cents ne peut pas être négatif.".into(),
             ));
         }
-        let (expected_basis, label) = if definition.category == "avs_ai_apg" {
-            (&mut avs_basis, "AVS/AI/APG")
-        } else {
-            (&mut ac_basis, "AC")
+        let (expected_basis, label) = match definition.category.as_str() {
+            "avs_ai_apg" => (&mut avs_basis, "AVS/AI/APG"),
+            "ac" => (&mut ac_basis, "AC"),
+            _ => (&mut laa_basis, "LAA (AAP/AANP)"),
         };
         match expected_basis {
             Some((expected, expected_code)) if *expected != basis => {
@@ -1947,6 +2018,28 @@ fn validate_shared_statutory_bases(
                 }
                 None => {
                     ac_ytd = Some((
+                        selection.year_to_date_basis_cents,
+                        definition.code.clone(),
+                    ))
+                }
+                _ => {}
+            }
+        }
+        if matches!(definition.category.as_str(), "aap" | "aanp") {
+            match &laa_ytd {
+                Some((expected, expected_code))
+                    if *expected != selection.year_to_date_basis_cents =>
+                {
+                    return Err(AppError::Validation(format!(
+                        "Le cumul annuel LAA doit être identique pour AAP/AANP: {} utilise {:?}, contre {:?} pour {}.",
+                        definition.code,
+                        selection.year_to_date_basis_cents,
+                        expected,
+                        expected_code
+                    )))
+                }
+                None => {
+                    laa_ytd = Some((
                         selection.year_to_date_basis_cents,
                         definition.code.clone(),
                     ))
@@ -2032,13 +2125,14 @@ fn validate_official_laa_group(items: &[Value], category: &str) -> AppResult<()>
         if item["calculation_kind"].as_str() != Some("rate")
             || !rate_bp.is_some_and(|rate| (1..=10_000).contains(&rate))
             || actual_ceiling != Some(SWISS_LAA_ANNUAL_CEILING_CENTS_2026)
+            || !matches!(item["basis_kind"].as_str(), Some("ahv_salary" | "custom"))
             || item["source"]
                 .as_str()
                 .map(str::trim)
                 .is_none_or(str::is_empty)
         {
             return Err(AppError::Validation(format!(
-                "La couverture {category} doit utiliser le taux positif de la police LAA, citer sa source et appliquer le plafond fédéral 2026 de CHF 148'200."
+                "La couverture {category} doit utiliser le taux positif de la police LAA, une assiette salaire AVS ou personnalisée documentée, citer sa source et appliquer le plafond fédéral 2026 de CHF 148'200."
             )));
         }
     }
@@ -2197,6 +2291,33 @@ fn validate_lpp_payslip_2026(
     Ok(())
 }
 
+fn validate_laa_category_cardinality(items: &[Value], weekly_minutes: i64) -> AppResult<()> {
+    let count = |category: &str| {
+        items
+            .iter()
+            .filter(|item| item["category"].as_str() == Some(category))
+            .count()
+    };
+    let aap_count = count("aap");
+    if aap_count != 1 {
+        return Err(AppError::Validation(format!(
+            "Une fiche validée doit contenir exactement une définition AAP; {aap_count} ligne(s) ont été trouvée(s)."
+        )));
+    }
+    let aanp_count = count("aanp");
+    if weekly_minutes >= 480 && aanp_count != 1 {
+        return Err(AppError::Validation(format!(
+            "Le contrat atteint 8 heures par semaine: la fiche validée doit contenir exactement une définition AANP; {aanp_count} ligne(s) ont été trouvée(s)."
+        )));
+    }
+    if weekly_minutes < 480 && aanp_count != 0 {
+        return Err(AppError::Validation(format!(
+            "AANP n'est pas applicable sous 8 heures par semaine; la fiche validée contient pourtant {aanp_count} ligne(s)."
+        )));
+    }
+    Ok(())
+}
+
 /// Garde serveur du statut `valide`. L'interface ne constitue jamais une
 /// frontière de sécurité : cette validation est rejouée dans la transaction
 /// Rust avant chaque enregistrement ou modification d'une fiche validée.
@@ -2237,15 +2358,17 @@ fn validate_validated_swiss_payslip(
             .iter()
             .any(|item| item["category"].as_str() == Some(category))
     };
+    let weekly_minutes = employee.contractual_weekly_minutes.ok_or_else(|| {
+        AppError::Validation(
+            "Confirmez les minutes contractuelles hebdomadaires pour décider l’assujettissement AANP."
+                .into(),
+        )
+    })?;
+    validate_laa_category_cardinality(items, weekly_minutes)?;
+    validate_family_allowance_items(items, &settings)?;
     if has_category("source_tax") {
         return Err(AppError::Validation(
             "L’impôt à la source ne peut pas être validé comme cotisation à taux linéaire; saisissez le montant officiel cantonal comme retenue manuelle et conservez sa référence."
-                .into(),
-        ));
-    }
-    if !has_category("aap") {
-        return Err(AppError::Validation(
-            "La prime accidents professionnels AAP doit être configurée pour valider toute fiche de salarié."
                 .into(),
         ));
     }
@@ -2255,27 +2378,6 @@ fn validate_validated_swiss_payslip(
         ));
     }
     validate_official_laa_group(items, "aap")?;
-    let weekly_minutes = employee.contractual_weekly_minutes.ok_or_else(|| {
-        AppError::Validation(
-            "Confirmez les minutes contractuelles hebdomadaires pour décider l’assujettissement AANP."
-                .into(),
-        )
-    })?;
-    match (weekly_minutes >= 480, has_category("aanp")) {
-        (true, false) => {
-            return Err(AppError::Validation(
-                "Le contrat atteint 8 heures par semaine: une couverture AANP explicite est obligatoire."
-                    .into(),
-            ))
-        }
-        (false, true) => {
-            return Err(AppError::Validation(
-                "AANP est sélectionnée alors que le contrat confirmé est inférieur à 8 heures par semaine."
-                    .into(),
-            ))
-        }
-        _ => {}
-    }
     if weekly_minutes >= 480 {
         validate_official_laa_group(items, "aanp")?;
     }
@@ -2481,6 +2583,89 @@ fn derived_ac_year_to_date_basis(
     Ok(ytd)
 }
 
+/// Le cumul LAA est dérivé d'une ouverture annuelle confirmée et d'une seule
+/// base assurée par fiche antérieure. Les parts AAP/AANP peuvent produire
+/// plusieurs lignes, mais elles ne doivent jamais multiplier le gain assuré.
+fn derived_laa_year_to_date_basis(
+    connection: &Connection,
+    employee: &EmployeePayrollContext,
+    period: &str,
+) -> AppResult<i64> {
+    let year = period
+        .get(..4)
+        .and_then(|value| value.parse::<i64>().ok())
+        .ok_or_else(|| AppError::Validation("La période LAA est invalide.".into()))?;
+    let opening_basis = match (employee.laa_opening_year, employee.laa_opening_basis_cents) {
+        (Some(opening_year), Some(basis)) if opening_year == year => basis,
+        (Some(opening_year), Some(_)) => {
+            return Err(AppError::Validation(format!(
+                "La base d’ouverture LAA est confirmée pour {opening_year}, pas pour {year}. Confirmez l’ouverture {year}, même si elle vaut zéro."
+            )))
+        }
+        (None, None) => {
+            return Err(AppError::Validation(format!(
+                "Confirmez la base d’ouverture LAA {year} du collaborateur, même si elle vaut zéro."
+            )))
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "L’année et la base d’ouverture LAA doivent être confirmées ensemble.".into(),
+            ))
+        }
+    };
+    if opening_basis < 0 {
+        return Err(AppError::Validation(
+            "La base d’ouverture LAA ne peut pas être négative.".into(),
+        ));
+    }
+
+    let year_start = format!("{year:04}-01");
+    let mut statement = connection.prepare(
+        "SELECT p.period,p.status, \
+                SUM(CASE WHEN pc.category='aap' THEN 1 ELSE 0 END), \
+                COUNT(pc.id),MIN(pc.basis_cents),MAX(pc.basis_cents) \
+         FROM payslips p \
+         LEFT JOIN payslip_contributions pc ON pc.payslip_id=p.id \
+              AND pc.category IN('aap','aanp') \
+         WHERE p.employee_id=? AND p.period>=? AND p.period<? \
+         GROUP BY p.id,p.period,p.status ORDER BY p.period",
+    )?;
+    let rows = statement.query_map(params![employee.id, year_start, period], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, Option<i64>>(4)?,
+            row.get::<_, Option<i64>>(5)?,
+        ))
+    })?;
+    let mut ytd = opening_basis;
+    for row in rows {
+        let (prior_period, status, aap_count, laa_line_count, minimum_basis, maximum_basis) = row?;
+        if !matches!(status.as_str(), "valide" | "comptabilise" | "paye") {
+            return Err(AppError::Validation(format!(
+                "La fiche LAA {prior_period} doit être validée avant de calculer la période {period}."
+            )));
+        }
+        if aap_count != 1
+            || !(1..=2).contains(&laa_line_count)
+            || minimum_basis.is_none()
+            || minimum_basis != maximum_basis
+        {
+            return Err(AppError::Validation(format!(
+                "La fiche {prior_period} doit contenir exactement une prime AAP et, si applicable, une prime AANP sur la même base avant de continuer."
+            )));
+        }
+        ytd = ytd
+            .checked_add(maximum_basis.expect("validated LAA basis"))
+            .ok_or_else(|| {
+                AppError::Validation("Le cumul annuel LAA dépasse la capacité de calcul.".into())
+            })?;
+    }
+    Ok(ytd)
+}
+
 fn load_employee_payroll_context(
     connection: &Connection,
     employee_id: &str,
@@ -2492,7 +2677,8 @@ fn load_employee_payroll_context(
         .query_row(
             "SELECT id,birth_date,employment_start_date,employment_end_date,
                     reference_age_date,avs_allowance_waived,contractual_weekly_minutes,
-                    ac_opening_year,ac_opening_basis_cents,employment_contract_kind,
+                    ac_opening_year,ac_opening_basis_cents,
+                    laa_opening_year,laa_opening_basis_cents,employment_contract_kind,
                     lpp_assessment_year,lpp_annual_salary_cents,lpp_exception_code,
                     lpp_exception_evidence_reference
              FROM employees WHERE id=?",
@@ -2508,11 +2694,13 @@ fn load_employee_payroll_context(
                     contractual_weekly_minutes: row.get(6)?,
                     ac_opening_year: row.get(7)?,
                     ac_opening_basis_cents: row.get(8)?,
-                    employment_contract_kind: row.get(9)?,
-                    lpp_assessment_year: row.get(10)?,
-                    lpp_annual_salary_cents: row.get(11)?,
-                    lpp_exception_code: row.get(12)?,
-                    lpp_exception_evidence_reference: row.get(13)?,
+                    laa_opening_year: row.get(9)?,
+                    laa_opening_basis_cents: row.get(10)?,
+                    employment_contract_kind: row.get(11)?,
+                    lpp_assessment_year: row.get(12)?,
+                    lpp_annual_salary_cents: row.get(13)?,
+                    lpp_exception_code: row.get(14)?,
+                    lpp_exception_evidence_reference: row.get(15)?,
                 })
             },
         )
@@ -2567,6 +2755,16 @@ fn validate_statutory_contribution_side(category: &str, side: &str) -> AppResult
         )),
         _ => Ok(()),
     }
+}
+
+fn validate_insurance_contribution_basis(category: &str, basis_kind: &str) -> AppResult<()> {
+    if matches!(category, "aap" | "aanp") && !matches!(basis_kind, "ahv_salary" | "custom") {
+        return Err(AppError::Validation(
+            "Une prime LAA doit utiliser le salaire soumis AVS ou une base personnalisée explicitement documentée par la police."
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 /// L'art. 91 LAA réserve les conventions plus favorables aux assurés. Une
@@ -2662,39 +2860,101 @@ fn configured_payroll_canton(connection: &Connection) -> AppResult<Option<String
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validate_employee_family_allowance_policy(
+fn validate_family_allowance_policy(
     category: &str,
     side: &str,
     calculation_kind: &str,
     rate_bp: Option<i64>,
+    fixed_amount_cents: Option<i64>,
+    annual_ceiling_cents: Option<i64>,
+    basis_kind: &str,
     source: &str,
     effective_from: &str,
     effective_to: Option<&str>,
     payroll_canton: Option<&str>,
 ) -> AppResult<()> {
-    if category != "family_allowance" || side != "employee" {
+    if category != "family_allowance" {
         return Ok(());
     }
-    if payroll_canton
+    let canton = payroll_canton
         .map(str::trim)
         .map(str::to_uppercase)
-        .as_deref()
-        != Some("VS")
+        .unwrap_or_default();
+    if !matches!(
+        canton.as_str(),
+        "AG" | "AI"
+            | "AR"
+            | "BE"
+            | "BL"
+            | "BS"
+            | "FR"
+            | "GE"
+            | "GL"
+            | "GR"
+            | "JU"
+            | "LU"
+            | "NE"
+            | "NW"
+            | "OW"
+            | "SG"
+            | "SH"
+            | "SO"
+            | "SZ"
+            | "TG"
+            | "TI"
+            | "UR"
+            | "VD"
+            | "VS"
+            | "ZG"
+            | "ZH"
+    ) {
+        return Err(AppError::Validation(
+            "Une cotisation CAF exige un canton suisse de paie valide dans les paramètres.".into(),
+        ));
+    }
+    if calculation_kind != "rate"
+        || !rate_bp.is_some_and(|rate| (1..=10_000).contains(&rate))
+        || fixed_amount_cents.is_some()
     {
+        return Err(AppError::Validation(
+            "Une cotisation CAF doit utiliser uniquement le taux positif communiqué par la caisse."
+                .into(),
+        ));
+    }
+    if basis_kind != "ahv_salary" {
+        return Err(AppError::Validation(
+            "Une cotisation CAF doit être calculée sur le salaire soumis AVS.".into(),
+        ));
+    }
+    if annual_ceiling_cents.is_some() {
+        return Err(AppError::Validation(
+            "Une cotisation CAF ne peut pas être limitée par un plafond annuel libre.".into(),
+        ));
+    }
+    if source.trim().chars().count() < 8 {
+        return Err(AppError::Validation(
+            "Une cotisation CAF doit citer précisément le tarif ou le décompte de la caisse."
+                .into(),
+        ));
+    }
+    if side == "employer" {
+        return Ok(());
+    }
+    if canton != "VS" {
         return Err(AppError::Validation(
             "Une contribution CAF côté salarié n’est admise qu’en Valais. Renseignez explicitement VS comme canton de paie ou placez la contribution côté employeur."
                 .into(),
         ));
     }
-    if calculation_kind != "rate" || rate_bp != Some(VALAIS_2026_EMPLOYEE_CAF_RATE_BP) {
+    if rate_bp != Some(VALAIS_2026_EMPLOYEE_CAF_RATE_BP) {
         return Err(AppError::Validation(
             "En Valais, la contribution CAF côté salarié doit utiliser le taux officiel 2026 de 0,13 %."
                 .into(),
         ));
     }
-    if !source.contains(CH_2026_FAMILY_ALLOWANCE_SOURCE) {
+    if !source.contains(CH_2026_SOURCE) {
         return Err(AppError::Validation(
-            "La contribution CAF salarié Valais 2026 doit citer le tableau cantonal officiel 2026 comme source."
+            "La contribution CAF salarié Valais 2026 doit citer le tableau synoptique officiel 2026 qui publie ce taux."
                 .into(),
         ));
     }
@@ -2703,6 +2963,33 @@ fn validate_employee_family_allowance_policy(
             "La contribution CAF salarié Valais connue par Zentra est valable uniquement du 01.01.2026 au 31.12.2026; créez une version datée distincte pour une autre année."
                 .into(),
         ));
+    }
+    Ok(())
+}
+
+fn validate_family_allowance_items(items: &[Value], settings: &Value) -> AppResult<()> {
+    let payroll_canton = settings
+        .pointer("/payroll/payrollCanton")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    for item in items
+        .iter()
+        .filter(|item| item["category"].as_str() == Some("family_allowance"))
+    {
+        validate_family_allowance_policy(
+            "family_allowance",
+            item["side"].as_str().unwrap_or_default(),
+            item["calculation_kind"].as_str().unwrap_or_default(),
+            item["rate_bp"].as_i64(),
+            item["fixed_amount_cents"].as_i64(),
+            item["annual_ceiling_cents"].as_i64(),
+            item["basis_kind"].as_str().unwrap_or_default(),
+            item["source"].as_str().unwrap_or_default(),
+            item["effective_from"].as_str().unwrap_or_default(),
+            item["effective_to"].as_str(),
+            payroll_canton,
+        )?;
     }
     Ok(())
 }
@@ -2904,6 +3191,7 @@ fn validate_definition_configuration_policy(
     connection: &Connection,
     input: &ContributionDefinitionInput,
 ) -> AppResult<()> {
+    validate_insurance_contribution_basis(&input.category, &input.basis_kind)?;
     validate_lpp_definition_against_plan(
         connection,
         &input.category,
@@ -2920,16 +3208,19 @@ fn validate_definition_configuration_policy(
         &input.effective_from,
         input.effective_to.as_deref(),
     )?;
-    let payroll_canton = if input.category == "family_allowance" && input.side == "employee" {
+    let payroll_canton = if input.category == "family_allowance" {
         configured_payroll_canton(connection)?
     } else {
         None
     };
-    validate_employee_family_allowance_policy(
+    validate_family_allowance_policy(
         &input.category,
         &input.side,
         &input.calculation_kind,
         input.rate_bp,
+        input.fixed_amount_cents,
+        input.annual_ceiling_cents,
+        &input.basis_kind,
         &input.source,
         &input.effective_from,
         input.effective_to.as_deref(),
@@ -2941,6 +3232,7 @@ fn validate_persisted_definition_policy(
     connection: &Connection,
     definition: &Definition,
 ) -> AppResult<()> {
+    validate_insurance_contribution_basis(&definition.category, &definition.basis_kind)?;
     validate_lpp_definition_shape(
         &definition.category,
         &definition.calculation_kind,
@@ -2968,17 +3260,19 @@ fn validate_persisted_definition_policy(
         &definition.effective_from,
         definition.effective_to.as_deref(),
     )?;
-    let payroll_canton =
-        if definition.category == "family_allowance" && definition.side == "employee" {
-            configured_payroll_canton(connection)?
-        } else {
-            None
-        };
-    validate_employee_family_allowance_policy(
+    let payroll_canton = if definition.category == "family_allowance" {
+        configured_payroll_canton(connection)?
+    } else {
+        None
+    };
+    validate_family_allowance_policy(
         &definition.category,
         &definition.side,
         &definition.calculation_kind,
         definition.rate_bp,
+        definition.fixed_amount_cents,
+        definition.annual_ceiling_cents,
+        &definition.basis_kind,
         &definition.source,
         &definition.effective_from,
         definition.effective_to.as_deref(),
@@ -3311,6 +3605,8 @@ mod contribution_date_and_rounding_tests {
             contractual_weekly_minutes: None,
             ac_opening_year: None,
             ac_opening_basis_cents: None,
+            laa_opening_year: None,
+            laa_opening_basis_cents: None,
             employment_contract_kind: None,
             lpp_assessment_year: None,
             lpp_annual_salary_cents: None,
@@ -3439,6 +3735,145 @@ mod source_import_evidence_tests {
 mod laa_policy_tests {
     use super::*;
 
+    fn laa_calculation_connection() -> Connection {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE payslips(
+                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL
+                 );
+                 CREATE TABLE payslip_contributions(
+                   id TEXT PRIMARY KEY,payslip_id TEXT NOT NULL,category TEXT NOT NULL,basis_cents INTEGER NOT NULL
+                 );
+                 CREATE TABLE payroll_contribution_definitions(
+                   id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,category TEXT NOT NULL,
+                   side TEXT NOT NULL,calculation_kind TEXT NOT NULL,rate_bp INTEGER,
+                   fixed_amount_cents INTEGER,annual_ceiling_cents INTEGER,basis_kind TEXT NOT NULL,
+                   lpp_component TEXT,lpp_employee_id TEXT,source TEXT NOT NULL,
+                   effective_from TEXT NOT NULL,effective_to TEXT,active INTEGER NOT NULL,
+                   liability_account_id TEXT,expense_account_id TEXT
+                 );
+                 INSERT INTO payroll_contribution_definitions(
+                   id,code,label,category,side,calculation_kind,rate_bp,fixed_amount_cents,
+                   annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active
+                 ) VALUES(
+                   'aap-2026','AAP_2026','AAP 2026','aap','employer','rate',100,NULL,14820000,
+                   'ahv_salary','Police LAA 2026','2026-01-01','2026-12-31',1
+                 );",
+            )
+            .expect("minimal LAA calculation schema");
+        connection
+    }
+
+    fn laa_employee(start: &str, end: Option<&str>) -> EmployeePayrollContext {
+        EmployeePayrollContext {
+            id: "employee-laa-proration".into(),
+            birth_date: Some("1990-01-01".into()),
+            employment_start: Some(start.into()),
+            employment_end: end.map(str::to_owned),
+            reference_age_date: None,
+            avs_allowance_waived: None,
+            contractual_weekly_minutes: Some(2_400),
+            ac_opening_year: None,
+            ac_opening_basis_cents: None,
+            laa_opening_year: Some(2026),
+            laa_opening_basis_cents: Some(0),
+            employment_contract_kind: None,
+            lpp_assessment_year: None,
+            lpp_annual_salary_cents: None,
+            lpp_exception_code: None,
+            lpp_exception_evidence_reference: None,
+        }
+    }
+
+    fn calculate_laa_case(
+        connection: &Connection,
+        period: &str,
+        start: &str,
+        end: Option<&str>,
+    ) -> Value {
+        calculate(
+            connection,
+            period,
+            None,
+            20_000_000,
+            &[ContributionSelectionInput {
+                definition_id: "aap-2026".into(),
+                basis_cents: Some(20_000_000),
+                year_to_date_basis_cents: None,
+            }],
+            Some(&laa_employee(start, end)),
+        )
+        .expect("LAA proration must calculate")
+    }
+
+    #[test]
+    fn laa_ceiling_uses_30_360_for_full_year_entry_and_exit() {
+        let connection = laa_calculation_connection();
+        for (period, start, end, days, effective_ceiling, from, to) in [
+            (
+                "2026-12",
+                "2020-07-01",
+                None,
+                360,
+                SWISS_LAA_ANNUAL_CEILING_CENTS_2026,
+                "2026-01-01",
+                "2026-12-31",
+            ),
+            (
+                "2026-12",
+                "2026-04-15",
+                None,
+                256,
+                10_538_667,
+                "2026-04-15",
+                "2026-12-31",
+            ),
+            (
+                "2026-08",
+                "2026-01-01",
+                Some("2026-08-12"),
+                222,
+                9_139_000,
+                "2026-01-01",
+                "2026-08-12",
+            ),
+        ] {
+            let result = calculate_laa_case(&connection, period, start, end);
+            let item = &result["items"][0];
+            assert_eq!(item["statutory_annual_ceiling_cents"], 14_820_000);
+            assert_eq!(item["annual_ceiling_cents"], effective_ceiling);
+            assert_eq!(item["basis_cents"], effective_ceiling);
+            assert_eq!(item["laa_proration_days_30_360"], days);
+            assert_eq!(item["laa_employment_from"], from);
+            assert_eq!(item["laa_employment_to"], to);
+        }
+    }
+
+    #[test]
+    fn validated_payslip_requires_exactly_one_aap_and_one_required_aanp() {
+        let aap = json!({"category":"aap"});
+        let aanp = json!({"category":"aanp"});
+        assert!(validate_laa_category_cardinality(&[aap.clone()], 479).is_ok());
+        assert!(validate_laa_category_cardinality(&[aap.clone(), aanp.clone()], 480).is_ok());
+
+        let duplicate_aap = validate_laa_category_cardinality(&[aap.clone(), aap.clone()], 479)
+            .expect_err("two AAP definitions must be refused")
+            .to_string();
+        assert!(duplicate_aap.contains("exactement une définition AAP"));
+
+        let duplicate_aanp =
+            validate_laa_category_cardinality(&[aap.clone(), aanp.clone(), aanp], 480)
+                .expect_err("two AANP definitions must be refused")
+                .to_string();
+        assert!(duplicate_aanp.contains("exactement une définition AANP"));
+
+        assert!(validate_laa_category_cardinality(&[aap.clone()], 480).is_err());
+        assert!(
+            validate_laa_category_cardinality(&[aap, json!({"category":"aanp"})], 479).is_err()
+        );
+    }
+
     #[test]
     fn contribution_version_windows_are_inclusive_and_allow_adjacent_years() {
         assert!(inclusive_date_windows_overlap(
@@ -3515,17 +3950,86 @@ mod laa_policy_tests {
             "calculation_kind":"rate",
             "rate_bp":125,
             "annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,
+            "basis_kind":"ahv_salary",
             "source":"Police LAA 2026, classe confirmée"
         })];
         assert!(validate_official_laa_group(&valid, "aap").is_ok());
 
         for invalid in [
-            json!({"category":"aap","calculation_kind":"fixed","fixed_amount_cents":500,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"source":"Police"}),
-            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"source":"Police"}),
-            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"source":""}),
+            json!({"category":"aap","calculation_kind":"fixed","fixed_amount_cents":500,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"basis_kind":"ahv_salary","source":"Police"}),
+            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"basis_kind":"ahv_salary","source":"Police"}),
+            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"basis_kind":"gross","source":"Police LAA 2026"}),
+            json!({"category":"aap","calculation_kind":"rate","rate_bp":125,"annual_ceiling_cents":SWISS_LAA_ANNUAL_CEILING_CENTS_2026,"basis_kind":"ahv_salary","source":""}),
         ] {
             assert!(validate_official_laa_group(&[invalid], "aap").is_err());
         }
+    }
+
+    #[test]
+    fn laa_year_to_date_basis_uses_one_frozen_basis_per_prior_payslip() {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE payslips(
+                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL
+                 );
+                 CREATE TABLE payslip_contributions(
+                   id TEXT PRIMARY KEY,payslip_id TEXT NOT NULL,category TEXT NOT NULL,basis_cents INTEGER NOT NULL
+                 );
+                 INSERT INTO payslips(id,employee_id,period,status)
+                 VALUES('jan','employee-laa','2026-01','valide');
+                 INSERT INTO payslip_contributions(id,payslip_id,category,basis_cents)
+                 VALUES
+                   ('jan-aap','jan','aap',500000),
+                   ('jan-aanp','jan','aanp',500000);",
+            )
+            .expect("minimal frozen LAA history");
+        let employee = EmployeePayrollContext {
+            id: "employee-laa".into(),
+            birth_date: Some("1990-01-01".into()),
+            employment_start: Some("2026-01-01".into()),
+            employment_end: None,
+            reference_age_date: None,
+            avs_allowance_waived: None,
+            contractual_weekly_minutes: Some(2_400),
+            ac_opening_year: None,
+            ac_opening_basis_cents: None,
+            laa_opening_year: Some(2026),
+            laa_opening_basis_cents: Some(100_000),
+            employment_contract_kind: None,
+            lpp_assessment_year: None,
+            lpp_annual_salary_cents: None,
+            lpp_exception_code: None,
+            lpp_exception_evidence_reference: None,
+        };
+
+        assert_eq!(
+            derived_laa_year_to_date_basis(&connection, &employee, "2026-02")
+                .expect("AAP and AANP share one insured basis"),
+            600_000
+        );
+
+        connection
+            .execute(
+                "UPDATE payslip_contributions SET basis_cents=499999 WHERE id='jan-aanp'",
+                [],
+            )
+            .unwrap();
+        assert!(
+            derived_laa_year_to_date_basis(&connection, &employee, "2026-02")
+                .expect_err("split AAP/AANP bases must fail closed")
+                .to_string()
+                .contains("même base")
+        );
+
+        let mut wrong_year = employee;
+        wrong_year.laa_opening_year = Some(2025);
+        assert!(
+            derived_laa_year_to_date_basis(&connection, &wrong_year, "2026-02")
+                .expect_err("opening year must match the payroll year")
+                .to_string()
+                .contains("pas pour 2026")
+        );
     }
 
     #[test]
@@ -3584,25 +4088,31 @@ mod laa_policy_tests {
     }
 
     #[test]
-    fn employee_caf_is_limited_to_the_official_valais_2026_profile() {
+    fn family_allowance_requires_a_rate_on_ahv_salary_and_limits_the_employee_side_to_valais() {
         let valid = || {
-            validate_employee_family_allowance_policy(
+            validate_family_allowance_policy(
                 "family_allowance",
                 "employee",
                 "rate",
                 Some(13),
-                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                None,
+                None,
+                "ahv_salary",
+                CH_2026_SOURCE,
                 "2026-01-01",
                 Some("2026-12-31"),
                 Some("VS"),
             )
         };
         valid().expect("official Valais profile must be accepted");
-        assert!(validate_employee_family_allowance_policy(
+        assert!(validate_family_allowance_policy(
             "family_allowance",
             "employer",
             "rate",
             Some(200),
+            None,
+            None,
+            "ahv_salary",
             "Taux de la caisse",
             "2026-01-01",
             None,
@@ -3610,18 +4120,40 @@ mod laa_policy_tests {
         )
         .is_ok());
 
+        for (calculation_kind, rate_bp, fixed_amount_cents, ceiling, basis_kind) in [
+            ("fixed", None, Some(2_000), None, "ahv_salary"),
+            ("rate", Some(0), None, None, "ahv_salary"),
+            ("rate", Some(200), None, None, "gross"),
+            ("rate", Some(200), None, Some(10_000_000), "ahv_salary"),
+        ] {
+            assert!(validate_family_allowance_policy(
+                "family_allowance",
+                "employer",
+                calculation_kind,
+                rate_bp,
+                fixed_amount_cents,
+                ceiling,
+                basis_kind,
+                "Taux de la caisse",
+                "2026-01-01",
+                None,
+                Some("VD"),
+            )
+            .is_err());
+        }
+
         for invalid in [
             (
                 Some("VD"),
                 Some(13),
-                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                CH_2026_SOURCE,
                 "2026-01-01",
                 Some("2026-12-31"),
             ),
             (
                 Some("VS"),
                 Some(14),
-                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                CH_2026_SOURCE,
                 "2026-01-01",
                 Some("2026-12-31"),
             ),
@@ -3635,23 +4167,20 @@ mod laa_policy_tests {
             (
                 Some("VS"),
                 Some(13),
-                CH_2026_FAMILY_ALLOWANCE_SOURCE,
+                CH_2026_SOURCE,
                 "2025-01-01",
                 Some("2026-12-31"),
             ),
-            (
-                Some("VS"),
-                Some(13),
-                CH_2026_FAMILY_ALLOWANCE_SOURCE,
-                "2026-01-01",
-                None,
-            ),
+            (Some("VS"), Some(13), CH_2026_SOURCE, "2026-01-01", None),
         ] {
-            assert!(validate_employee_family_allowance_policy(
+            assert!(validate_family_allowance_policy(
                 "family_allowance",
                 "employee",
                 "rate",
                 invalid.1,
+                None,
+                None,
+                "ahv_salary",
                 invalid.2,
                 invalid.3,
                 invalid.4,
@@ -3668,6 +4197,12 @@ mod laa_policy_tests {
             .execute_batch(
                 "CREATE TABLE settings(id INTEGER PRIMARY KEY,extra_settings_json TEXT NOT NULL);\
                  INSERT INTO settings(id,extra_settings_json) VALUES(1,'{\"payroll\":{\"payrollCanton\":\"VS\"}}');\
+                 CREATE TABLE payslips(
+                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL
+                 );\
+                 CREATE TABLE payslip_contributions(
+                   id TEXT PRIMARY KEY,payslip_id TEXT NOT NULL,category TEXT NOT NULL,basis_cents INTEGER NOT NULL
+                 );\
                  CREATE TABLE payroll_contribution_definitions(\
                    id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,category TEXT NOT NULL,\
                    side TEXT NOT NULL,calculation_kind TEXT NOT NULL,rate_bp INTEGER,\
@@ -3681,13 +4216,13 @@ mod laa_policy_tests {
                    annual_ceiling_cents,basis_kind,source,effective_from,effective_to,active\
                  ) VALUES(\
                    'legacy','AAP_LEGACY','AAP historique','aap','employee','rate',100,NULL,NULL,\
-                   'gross','Police LAA','2026-01-01','2026-12-31',1\
+                    'ahv_salary','Police LAA','2026-01-01','2026-12-31',1\
                  );",
             )
             .expect("minimal payroll policy schema");
         let selections = [ContributionSelectionInput {
             definition_id: "legacy".into(),
-            basis_cents: None,
+            basis_cents: Some(500_000),
             year_to_date_basis_cents: None,
         }];
 
@@ -3732,24 +4267,58 @@ mod laa_policy_tests {
             .expect("align the definition with the convention");
         let covered_selections = [ContributionSelectionInput {
             definition_id: "legacy".into(),
-            basis_cents: None,
+            basis_cents: Some(500_000),
             year_to_date_basis_cents: Some(0),
         }];
+        let laa_employee = EmployeePayrollContext {
+            id: "employee-laa-policy".into(),
+            birth_date: Some("1990-01-01".into()),
+            employment_start: Some("2026-01-01".into()),
+            employment_end: None,
+            reference_age_date: None,
+            avs_allowance_waived: None,
+            contractual_weekly_minutes: Some(2_400),
+            ac_opening_year: None,
+            ac_opening_basis_cents: None,
+            laa_opening_year: Some(2026),
+            laa_opening_basis_cents: Some(0),
+            employment_contract_kind: None,
+            lpp_assessment_year: None,
+            lpp_annual_salary_cents: None,
+            lpp_exception_code: None,
+            lpp_exception_evidence_reference: None,
+        };
         let covered = calculate(
             &connection,
             "2026-06",
             None,
             500_000,
             &covered_selections,
-            None,
+            Some(&laa_employee),
         )
         .expect("structured employer coverage must calculate");
         assert_eq!(covered["employer_costs_cents"], 5_000);
+        let spoofed_ytd = [ContributionSelectionInput {
+            definition_id: "legacy".into(),
+            basis_cents: Some(500_000),
+            year_to_date_basis_cents: Some(1),
+        }];
+        assert!(calculate(
+            &connection,
+            "2026-06",
+            None,
+            500_000,
+            &spoofed_ytd,
+            Some(&laa_employee),
+        )
+        .expect_err("a free LAA cumulative basis must never override local history")
+        .to_string()
+        .contains("calculé localement"));
 
         connection
             .execute(
-                "UPDATE payroll_contribution_definitions SET code='CAF_VS_2026',category='family_allowance',side='employee',rate_bp=13,source=?,effective_from='2026-01-01',effective_to='2026-12-31' WHERE id='legacy'",
-                params![CH_2026_FAMILY_ALLOWANCE_SOURCE],
+                "UPDATE payroll_contribution_definitions SET code='CAF_VS_2026',category='family_allowance',side='employee',rate_bp=13,annual_ceiling_cents=NULL,source=?,effective_from='2026-01-01',effective_to='2026-12-31' WHERE id='legacy'",
+                params![CH_2026_SOURCE],
             )
             .expect("switch legacy definition to official Valais CAF");
         let valais = calculate(

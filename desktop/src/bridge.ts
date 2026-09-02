@@ -554,6 +554,7 @@ const payrollManifestFieldTargets = new Set([
 
 export function payrollAnalysisManifestFromRaw(
   value: unknown,
+  mediaKind?: 'pdf' | 'image',
 ): PayrollAnalysisManifest | undefined {
   const root =
     typeof value === 'string'
@@ -561,6 +562,9 @@ export function payrollAnalysisManifestFromRaw(
       : recordValue(value);
   if (!Object.keys(root).length) return undefined;
   const schemaVersion = root.schema_version ?? root.schemaVersion;
+  const corroborationMethod = root.corroboration_method ?? root.corroborationMethod;
+  const corroborationAlgorithmVersion =
+    root.corroboration_algorithm_version ?? root.corroborationAlgorithmVersion;
   const modelId = validManifestText(root.model_id ?? root.modelId, 200);
   const modelRevision = validManifestText(
     root.model_revision ?? root.modelRevision,
@@ -583,7 +587,7 @@ export function payrollAnalysisManifestFromRaw(
   const timestampPattern =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
   if (
-    schemaVersion !== 1 ||
+    (schemaVersion !== 1 && schemaVersion !== 2) ||
     !modelId ||
     !modelRevision ||
     !inputSha256 ||
@@ -599,6 +603,40 @@ export function payrollAnalysisManifestFromRaw(
   ) {
     return undefined;
   }
+  if (
+    schemaVersion === 2 &&
+    (
+      !['local_visual_read', 'local_visual_read_with_pdf_text'].includes(
+        String(corroborationMethod),
+      ) ||
+      corroborationAlgorithmVersion !==
+        'zentra.payroll-evidence-corroboration.v1'
+    )
+  ) {
+    return undefined;
+  }
+  if (
+    schemaVersion === 2 &&
+    mediaKind === 'image' &&
+    corroborationMethod === 'local_visual_read_with_pdf_text'
+  ) {
+    return undefined;
+  }
+  const validConfidence = (confidenceBp: unknown): confidenceBp is number => {
+    if (
+      typeof confidenceBp !== 'number' ||
+      !Number.isSafeInteger(confidenceBp) ||
+      confidenceBp < 0 ||
+      confidenceBp > 10_000
+    ) return false;
+    if (schemaVersion === 1) return true;
+    const visual = passes >= 2 ? 7_000 : 5_200;
+    const textCorroborated = passes >= 2 ? 9_200 : 7_800;
+    return confidenceBp === visual || (
+      corroborationMethod === 'local_visual_read_with_pdf_text' &&
+      confidenceBp === textCorroborated
+    );
+  };
   const analyzedPageSet = new Set(analyzedPages);
 
   const fieldProvenance: PayrollAnalysisManifest['fieldProvenance'] = [];
@@ -611,7 +649,12 @@ export function payrollAnalysisManifestFromRaw(
     const row = recordValue(value);
     // V1 historique ne liait pas la page à une valeur. Conserver le reste du
     // manifeste, mais ne jamais restaurer cette ancienne indication ambiguë.
-    if (row.value === undefined) continue;
+    // En v2, la valeur fait partie du contrat de preuve : son absence rend le
+    // manifeste incomplet et doit donc échouer sans réparation silencieuse.
+    if (row.value === undefined) {
+      if (schemaVersion === 1) continue;
+      return undefined;
+    }
     const field = validManifestTarget(row.field);
     const fieldValue = validManifestText(row.value, 500);
     const pages = strictIntegerList(row.pages, 1, 12);
@@ -629,10 +672,7 @@ export function payrollAnalysisManifestFromRaw(
       !pages ||
       pages.some((page) => !analyzedPageSet.has(page)) ||
       !passIndexes ||
-      typeof confidenceBp !== 'number' ||
-      !Number.isSafeInteger(confidenceBp) ||
-      confidenceBp < 0 ||
-      confidenceBp > 10_000
+      !validConfidence(confidenceBp)
     ) {
       return undefined;
     }
@@ -680,10 +720,7 @@ export function payrollAnalysisManifestFromRaw(
       !pages ||
       pages.some((page) => !analyzedPageSet.has(page)) ||
       !passIndexes ||
-      typeof confidenceBp !== 'number' ||
-      !Number.isSafeInteger(confidenceBp) ||
-      confidenceBp < 0 ||
-      confidenceBp > 10_000
+      !validConfidence(confidenceBp)
     ) {
       return undefined;
     }
@@ -739,8 +776,7 @@ export function payrollAnalysisManifestFromRaw(
     });
   }
 
-  return {
-    schemaVersion,
+  const common = {
     modelId,
     modelRevision,
     inputSha256,
@@ -751,6 +787,17 @@ export function payrollAnalysisManifestFromRaw(
     conflicts,
     analyzedAt,
   };
+  return schemaVersion === 2
+    ? {
+        ...common,
+        schemaVersion: 2,
+        corroborationMethod: corroborationMethod as
+          | 'local_visual_read'
+          | 'local_visual_read_with_pdf_text',
+        corroborationAlgorithmVersion:
+          'zentra.payroll-evidence-corroboration.v1',
+      }
+    : { ...common, schemaVersion: 1 };
 }
 
 export function payrollAnalysisManifestToRaw(
@@ -758,6 +805,13 @@ export function payrollAnalysisManifestToRaw(
 ): RawRecord {
   return {
     schema_version: manifest.schemaVersion,
+    ...(manifest.schemaVersion === 2
+      ? {
+          corroboration_method: manifest.corroborationMethod,
+          corroboration_algorithm_version:
+            manifest.corroborationAlgorithmVersion,
+        }
+      : {}),
     model_id: manifest.modelId,
     model_revision: manifest.modelRevision,
     input_sha256: manifest.inputSha256,
@@ -805,6 +859,7 @@ function payrollImportFromRaw(row: RawRecord): PayrollDocumentImport {
     analysisManifest:
       payrollAnalysisManifestFromRaw(
         row.analysis_manifest_json ?? row.analysisManifest,
+        stringValue(row.media_kind) === 'image' ? 'image' : 'pdf',
       ) ?? null,
     confidenceBp: numberValue(row.confidence_bp),
     status: (['needs_review', 'confirmed', 'rejected', 'error'].includes(
@@ -2160,6 +2215,15 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       row.ac_opening_basis_cents === undefined
         ? null
         : numberValue(row.ac_opening_basis_cents),
+    laaOpeningYear:
+      row.laa_opening_year === null || row.laa_opening_year === undefined
+        ? null
+        : numberValue(row.laa_opening_year),
+    laaOpeningBasisCents:
+      row.laa_opening_basis_cents === null ||
+      row.laa_opening_basis_cents === undefined
+        ? null
+        : numberValue(row.laa_opening_basis_cents),
     salaryMode:
       numberValue(row.monthly_salary_cents) > 0 ? 'monthly' : 'hourly',
     grossSalaryCents: numberValue(row.monthly_salary_cents),

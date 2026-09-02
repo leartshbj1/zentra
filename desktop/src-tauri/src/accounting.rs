@@ -1087,6 +1087,248 @@ impl LocalStore {
     }
 }
 
+#[derive(Debug)]
+struct PaymentAccountingState {
+    invoice_id: String,
+    invoice_type: String,
+    invoice_status: String,
+    invoice_number: Option<String>,
+    issue_date: Option<String>,
+    total_cents: i64,
+    stored_paid_cents: i64,
+}
+
+fn canonical_accounting_date(value: &str) -> bool {
+    chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
+        .is_ok_and(|date| date.format("%Y-%m-%d").to_string() == value)
+}
+
+/// Explique pourquoi une ligne de paiement historique ne peut pas devenir une
+/// écriture. Le contrôle porte sur toute la chaîne de règlement de la facture,
+/// car une ligne négative ou un avoir mal signé fausserait aussi le solde des
+/// autres encaissements.
+pub(crate) fn payment_accounting_block_reason(
+    connection: &Connection,
+    payment_id: &str,
+) -> AppResult<Option<String>> {
+    let linked_invoice_id = connection
+        .query_row(
+            "SELECT invoice_id FROM payments WHERE id=?",
+            params![payment_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound(format!("payments/{payment_id}")))?;
+    let state = connection
+        .query_row(
+            "SELECT invoice.id,invoice.type,invoice.status,invoice.number,invoice.issue_date,invoice.total_cents,invoice.paid_cents
+               FROM payments payment JOIN invoices invoice ON invoice.id=payment.invoice_id
+              WHERE payment.id=?",
+            params![payment_id],
+            |row| {
+                Ok(PaymentAccountingState {
+                    invoice_id: row.get(0)?,
+                    invoice_type: row.get(1)?,
+                    invoice_status: row.get(2)?,
+                    invoice_number: row.get(3)?,
+                    issue_date: row.get(4)?,
+                    total_cents: row.get(5)?,
+                    stored_paid_cents: row.get(6)?,
+                })
+            },
+        )
+        .optional()?;
+    let Some(state) = state else {
+        return Ok(Some(format!(
+            "la facture liée {linked_invoice_id} est introuvable"
+        )));
+    };
+    if state.invoice_type == "avoir" {
+        return Ok(Some("un avoir ne peut recevoir aucun encaissement".into()));
+    }
+    if !matches!(
+        state.invoice_status.as_str(),
+        "emise" | "en_retard" | "partiellement_payee" | "payee"
+    ) {
+        return Ok(Some(
+            "la facture liée n'est pas une facture émise et active".into(),
+        ));
+    }
+    if state
+        .invoice_number
+        .as_deref()
+        .is_none_or(|number| number.trim().is_empty())
+    {
+        return Ok(Some("la facture liée n'a pas de numéro d'émission".into()));
+    }
+    let Some(issue_date) = state.issue_date.as_deref() else {
+        return Ok(Some("la facture liée n'a pas de date d'émission".into()));
+    };
+    if !canonical_accounting_date(issue_date) {
+        return Ok(Some(
+            "la date d'émission de la facture n'est pas canonique".into(),
+        ));
+    }
+    if state.total_cents <= 0 {
+        return Ok(Some("la facture liée n'a aucun montant payable".into()));
+    }
+
+    let payments = {
+        let mut statement = connection.prepare(
+            "SELECT id,date,amount_cents FROM payments WHERE invoice_id=? ORDER BY date,created_at,id",
+        )?;
+        let rows = statement
+            .query_map(params![state.invoice_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let mut paid_cents = 0_i64;
+    for (related_id, date, amount_cents) in &payments {
+        if *amount_cents <= 0 {
+            return Ok(Some(format!(
+                "le paiement lié {related_id} possède un montant nul ou négatif"
+            )));
+        }
+        if !canonical_accounting_date(&date) {
+            return Ok(Some(format!(
+                "le paiement lié {related_id} possède une date non canonique"
+            )));
+        }
+        if date.as_str() < issue_date {
+            return Ok(Some(format!(
+                "le paiement lié {related_id} précède la date d'émission de la facture"
+            )));
+        }
+        let Some(total) = paid_cents.checked_add(*amount_cents) else {
+            return Ok(Some(
+                "le cumul des paiements dépasse la capacité monétaire locale".into(),
+            ));
+        };
+        paid_cents = total;
+    }
+    if state.stored_paid_cents != paid_cents {
+        return Ok(Some(format!(
+            "le total encaissé mémorisé ({}) ne correspond pas aux paiements ({paid_cents})",
+            state.stored_paid_cents
+        )));
+    }
+
+    let credits = {
+        let mut statement = connection.prepare(
+            "SELECT id,total_cents,issue_date FROM invoices WHERE type='avoir' AND original_invoice_id=? AND number IS NOT NULL AND status<>'annulee' ORDER BY issue_date,created_at,id",
+        )?;
+        let rows = statement
+            .query_map(params![state.invoice_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let mut validated_credits = Vec::with_capacity(credits.len());
+    for (credit_id, total_cents, credit_date) in credits {
+        let Some(credit_amount) = total_cents.checked_neg().filter(|value| *value > 0) else {
+            return Ok(Some(format!(
+                "l'avoir lié {credit_id} ne possède pas un montant créditeur valide"
+            )));
+        };
+        let Some(credit_date) = credit_date else {
+            return Ok(Some(format!(
+                "l'avoir lié {credit_id} n'a pas de date d'émission"
+            )));
+        };
+        if !canonical_accounting_date(&credit_date) {
+            return Ok(Some(format!(
+                "l'avoir lié {credit_id} possède une date non canonique"
+            )));
+        }
+        validated_credits.push((credit_id, credit_date, credit_amount));
+    }
+    let mut running_paid = 0_i64;
+    for (related_id, payment_date, amount_cents) in payments {
+        running_paid = running_paid.checked_add(amount_cents).ok_or_else(|| {
+            AppError::Validation(
+                "Le cumul des paiements dépasse la capacité monétaire locale.".into(),
+            )
+        })?;
+        let credited_at_payment = validated_credits
+            .iter()
+            .filter(|(_, credit_date, _)| credit_date <= &payment_date)
+            .try_fold(0_i64, |total, (_, _, amount)| total.checked_add(*amount));
+        if credited_at_payment
+            .and_then(|credited| running_paid.checked_add(credited))
+            .is_none_or(|settled| settled > state.total_cents)
+        {
+            return Ok(Some(format!(
+                "le paiement lié {related_id} dépasse le solde ouvert à sa date"
+            )));
+        }
+    }
+    Ok(None)
+}
+
+pub(crate) fn validate_payment_for_accounting(
+    connection: &Connection,
+    payment_id: &str,
+) -> AppResult<()> {
+    if let Some(reason) = payment_accounting_block_reason(connection, payment_id)? {
+        return Err(AppError::Validation(format!(
+            "Le paiement {payment_id} est bloqué : {reason}."
+        )));
+    }
+    Ok(())
+}
+
+fn blocked_unposted_payments(
+    connection: &Connection,
+    backfill_candidates_only: bool,
+) -> AppResult<Vec<Value>> {
+    let ids = {
+        let mut statement = connection.prepare(
+            "SELECT payment.id,payment.invoice_id
+               FROM payments payment LEFT JOIN invoices invoice ON invoice.id=payment.invoice_id
+              WHERE NOT EXISTS(
+                      SELECT 1 FROM journal_entries entry
+                       WHERE entry.source_type='payment' AND entry.source_id=payment.id
+                    )
+                AND (?=0 OR (
+                      COALESCE(invoice.status,'')<>'annulee'
+                      AND NOT EXISTS(
+                        SELECT 1 FROM accounting_periods period
+                         WHERE period.status='closed' AND payment.date BETWEEN period.date_from AND period.date_to
+                      )
+                    ))
+              ORDER BY payment.date,payment.created_at,payment.id",
+        )?;
+        let rows = statement
+            .query_map(params![i64::from(backfill_candidates_only)], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let mut blocked = Vec::new();
+    for (payment_id, invoice_id) in ids {
+        if let Some(reason) = payment_accounting_block_reason(connection, &payment_id)? {
+            blocked.push(json!({
+                "id": payment_id,
+                "invoice_id": invoice_id,
+                "reason": reason,
+            }));
+        }
+    }
+    Ok(blocked)
+}
+
 fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
     let enabled: bool = connection
         .query_row(
@@ -1161,6 +1403,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         [],
         |row| row.get(0),
     )?;
+    let blocked_payments = blocked_unposted_payments(connection, false)?;
     let payroll_mappings_required = payroll_accounting_mappings_required(connection)?;
     let mapping_ready_sql = if payroll_mappings_required {
         "SELECT EXISTS(SELECT 1 FROM accounting_settings s
@@ -1254,6 +1497,8 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         "closed_history_requires_opening": closed_history_requires_opening,
         "skipped_cancelled_invoices": skipped_cancelled_invoices,
         "cancelled_invoice_payments": cancelled_invoice_payments,
+        "blocked_payment_count": blocked_payments.len(),
+        "blocked_payments": blocked_payments,
         "reversed_sources": reversed_sources,
         "cancelled_active_postings": cancelled_active_postings,
         "semantic_posting_mismatches": semantic_posting_mismatches,
@@ -1294,6 +1539,25 @@ fn closed_history_unposted_count(connection: &Connection) -> AppResult<i64> {
 fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
     if accounting_map(tx)?.is_none() {
         return accounting_continuity_report(tx);
+    }
+    let blocked_payments = blocked_unposted_payments(tx, true)?;
+    if !blocked_payments.is_empty() {
+        let summary = blocked_payments
+            .iter()
+            .take(5)
+            .map(|payment| {
+                format!(
+                    "{}: {}",
+                    payment["id"].as_str().unwrap_or("paiement inconnu"),
+                    payment["reason"].as_str().unwrap_or("donnée invalide")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(AppError::Validation(format!(
+            "La synchronisation comptable est bloquée par {} paiement(s) historique(s) invalide(s) ({summary}). Aucun journal n'a été créé; corrigez ces données avant de relancer.",
+            blocked_payments.len()
+        )));
     }
     let events = {
         let mut statement = tx.prepare(
@@ -2038,9 +2302,14 @@ pub(crate) fn post_payment_if_enabled(
     let Some(map) = accounting_map(tx)? else {
         return Ok(None);
     };
+    validate_payment_for_accounting(tx, payment_id)?;
     let (invoice_id,date,amount,currency,project,client):(String,String,i64,String,Option<String>,Option<String>)=tx.query_row("SELECT p.invoice_id,p.date,p.amount_cents,i.currency,i.project_id,i.client_id FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE p.id=?",params![payment_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?;
     let ar_account = posted_invoice_account(tx, &invoice_id, "Créance client", "asset")?
-        .unwrap_or_else(|| map.ar.clone());
+        .ok_or_else(|| {
+            AppError::Validation(format!(
+                "Le paiement {payment_id} est bloqué : la facture {invoice_id} ne possède pas d'écriture d'émission active et conforme."
+            ))
+        })?;
     let mut lines = Vec::new();
     push_line(
         &mut lines,
@@ -2074,6 +2343,27 @@ pub(crate) fn post_payment_if_enabled(
         lines,
     )?;
     post_cash_vat_reclassification(tx, &map, payment_id)?;
+    let has_unposted_sibling: bool = tx.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM payments sibling
+            WHERE sibling.invoice_id=?
+              AND NOT EXISTS(
+                SELECT 1 FROM journal_entries entry
+                 WHERE entry.source_type='payment' AND entry.source_id=sibling.id
+              )
+              AND NOT EXISTS(
+                SELECT 1 FROM accounting_periods period
+                 WHERE period.status='closed' AND sibling.date BETWEEN period.date_from AND period.date_to
+              )
+         )",
+        params![invoice_id],
+        |row| row.get(0),
+    )?;
+    if !has_unposted_sibling && !cash_vat_invoice_is_consistent(tx, &invoice_id)? {
+        return Err(AppError::Validation(format!(
+            "Le paiement {payment_id} est bloqué : la chaîne de TVA de la facture {invoice_id} est absente ou incohérente. Aucune écriture n'a été conservée."
+        )));
+    }
     Ok(Some(journal))
 }
 
@@ -3240,7 +3530,10 @@ fn account_has_type(connection: &Connection, account_id: &str, expected: &str) -
     )?)
 }
 
-fn cash_vat_invoice_is_consistent(connection: &Connection, invoice_id: &str) -> AppResult<bool> {
+pub(crate) fn cash_vat_invoice_is_consistent(
+    connection: &Connection,
+    invoice_id: &str,
+) -> AppResult<bool> {
     let original = effective_postings(connection, "invoice", invoice_id, "issue")?;
     let deferred_account = original.first().and_then(|posting| {
         posting
@@ -3929,5 +4222,143 @@ fn period_parts(
         Ok((String::new(), vals))
     } else {
         Ok((format!("{prefix} {}", clauses.join(" AND ")), vals))
+    }
+}
+
+#[cfg(test)]
+mod historical_payment_guard_tests {
+    use super::*;
+
+    #[test]
+    fn business_guard_rechecks_status_dates_amounts_and_open_balance() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE invoices(
+                   id TEXT PRIMARY KEY,type TEXT NOT NULL,status TEXT NOT NULL,number TEXT,
+                   issue_date TEXT,total_cents INTEGER NOT NULL,paid_cents INTEGER NOT NULL,
+                   original_invoice_id TEXT,created_at TEXT NOT NULL
+                 );
+                 CREATE TABLE payments(
+                   id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL,date TEXT NOT NULL,
+                   amount_cents INTEGER NOT NULL,created_at TEXT NOT NULL
+                 );
+                 INSERT INTO invoices(id,type,status,number,issue_date,total_cents,paid_cents,created_at)
+                 VALUES('invoice-1','standard','partiellement_payee','F-2026-0001','2026-09-01',10000,4000,'2026-09-01T08:00:00Z');
+                 INSERT INTO payments(id,invoice_id,date,amount_cents,created_at)
+                 VALUES('payment-1','invoice-1','2026-09-02',4000,'2026-09-02T08:00:00Z');",
+            )
+            .unwrap();
+        assert_eq!(
+            payment_accounting_block_reason(&connection, "payment-1").unwrap(),
+            None
+        );
+
+        connection
+            .execute(
+                "UPDATE payments SET date='2026-08-31' WHERE id='payment-1'",
+                [],
+            )
+            .unwrap();
+        assert!(payment_accounting_block_reason(&connection, "payment-1")
+            .unwrap()
+            .unwrap()
+            .contains("précède"));
+
+        connection
+            .execute_batch(
+                "UPDATE payments SET date='2026-09-02',amount_cents=11000 WHERE id='payment-1';
+                 UPDATE invoices SET paid_cents=11000 WHERE id='invoice-1';",
+            )
+            .unwrap();
+        assert!(payment_accounting_block_reason(&connection, "payment-1")
+            .unwrap()
+            .unwrap()
+            .contains("dépasse le solde ouvert"));
+
+        connection
+            .execute_batch(
+                "UPDATE payments SET amount_cents=4000 WHERE id='payment-1';
+                 UPDATE invoices SET paid_cents=4000,status='brouillon' WHERE id='invoice-1';",
+            )
+            .unwrap();
+        assert!(payment_accounting_block_reason(&connection, "payment-1")
+            .unwrap()
+            .unwrap()
+            .contains("émise et active"));
+
+        connection
+            .execute("UPDATE invoices SET type='avoir' WHERE id='invoice-1'", [])
+            .unwrap();
+        assert!(payment_accounting_block_reason(&connection, "payment-1")
+            .unwrap()
+            .unwrap()
+            .contains("avoir"));
+    }
+
+    #[test]
+    fn v29_historical_invalid_payment_stays_visible_and_aborts_backfill_atomically() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        {
+            let connection = store.connect().unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at)
+                     VALUES(1,1,'Entreprise historique','G','47','Commerce','2026-08-01T00:00:00Z','2026-08-01T00:00:00Z');
+                     DROP TRIGGER IF EXISTS payments_invoice_issue_date_guard;
+                     DROP TRIGGER IF EXISTS invoices_issued_no_unsafe_cancel;
+                     INSERT INTO invoices(id,number,title,type,status,issue_date,due_date,currency,total_cents,paid_cents,created_at,updated_at)
+                     VALUES('invoice-history','F-2026-0001','Facture historique','standard','partiellement_payee','2026-09-01','2026-09-30','CHF',10000,5000,'2026-09-01T08:00:00Z','2026-09-01T08:00:00Z');
+                     INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at)
+                     VALUES('payment-antedated','invoice-history','2026-08-31',5000,'2026-09-02T08:00:00Z','2026-09-02T08:00:00Z');
+                     PRAGMA user_version=29;",
+                )
+                .unwrap();
+        }
+        store.migrate().unwrap();
+
+        let continuity = store.get_accounting_continuity().unwrap();
+        assert_eq!(continuity["blocked_payment_count"], 1);
+        assert_eq!(continuity["blocked_payments"][0]["id"], "payment-antedated");
+        assert!(continuity["blocked_payments"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("précède"));
+
+        let error = store.install_swiss_accounting_starter().unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("payment-antedated"));
+        assert!(message.contains("Aucun journal n'a été créé"));
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM journal_entries", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM accounts", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0,
+            "le plan comptable et son backfill doivent être atomiques"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM payments WHERE id='payment-antedated'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1,
+            "la donnée historique bloquée reste consultable"
+        );
     }
 }

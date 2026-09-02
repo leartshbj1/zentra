@@ -1215,6 +1215,10 @@ pub struct PayrollAnalysisConflict {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PayrollAnalysisManifest {
     pub schema_version: i64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub corroboration_method: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub corroboration_algorithm_version: String,
     pub model_id: String,
     pub model_revision: String,
     pub input_sha256: String,

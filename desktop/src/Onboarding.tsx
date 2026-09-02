@@ -457,13 +457,16 @@ function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCat
           <Check size={18} />
           <span><strong>Démarrage progressif</strong> Facturation, temps, coûts et sauvegardes resteront non confirmés dans le centre de préparation. Les valeurs techniques proposées ne seront pas considérées comme vos choix tant que vous ne les aurez pas enregistrées.</span>
         </div>
-        <div className="company-logo-setting onboarding-logo-setting field--wide">
+        <div
+          className={`company-logo-setting onboarding-logo-setting field--wide ${issues['organization.logoPath'] ? 'field--error' : ''}`}
+          data-field-action="organization.logoPath"
+        >
           <div className="company-logo-setting__preview">{org.logoPath ? <img src={convertFileSrc(org.logoPath)} alt={`Logo de ${org.legalName || 'l’entreprise'}`} /> : <Building2 size={30} />}</div>
           <div className="company-logo-setting__copy">
             <strong>Logo de l’entreprise</strong>
-            <p>Facultatif · PNG, JPEG ou WebP, 8 Mo maximum. Zentra vérifie l’image et en conserve une copie locale pour vos devis, factures et fiches de salaire.</p>
+            <p>Facultatif · PNG, JPEG ou WebP, de 16 × 16 à 4096 × 4096 px, 8 Mo maximum. Zentra contrôle le contenu et en conserve une copie locale immuable pour vos devis, factures et fiches de salaire.</p>
             <div className="settings-inline-actions">
-              <Button type="button" variant="secondary" disabled={choosingLogo} onClick={() => void chooseLogo()}>
+              <Button data-field="organization.logoPath" aria-invalid={Boolean(issues['organization.logoPath'])} type="button" variant="secondary" disabled={choosingLogo} onClick={() => void chooseLogo()}>
                 {choosingLogo ? <LoaderCircle className="spin" size={16} /> : <FolderOpen size={16} />} {choosingLogo ? 'Vérification…' : org.logoPath ? 'Remplacer le logo' : 'Choisir le logo'}
               </Button>
               {org.logoPath ? <Button type="button" variant="ghost" disabled={choosingLogo} onClick={() => { setLogoError(''); patch({ logoPath: '' }); }}><Trash2 size={15} /> Retirer</Button> : null}
@@ -471,7 +474,7 @@ function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCat
             {org.logoPath ? <span className="path-note"><ShieldCheck size={14} /> Copie locale prête pour les documents</span> : <span className="path-note">Vous pourrez aussi l’ajouter plus tard dans Paramètres.</span>}
           </div>
         </div>
-        {logoError ? <div className="field--wide"><ErrorPanel title="Logo non importé" message={logoError} /></div> : null}
+        {logoError || issues['organization.logoPath'] ? <div className="field--wide"><ErrorPanel title="Logo non importé" message={logoError || issues['organization.logoPath']} /></div> : null}
         <Field label="Raison sociale" required wide error={issues['organization.legalName']}><input data-field="organization.legalName" aria-invalid={Boolean(issues['organization.legalName'])} value={org.legalName} onChange={(e) => patch({ legalName: e.target.value })} autoFocus /></Field>
         <Field label="Forme juridique"><input value={org.legalForm} onChange={(e) => patch({ legalForm: e.target.value })} /></Field>
         <Field label="Responsable" required error={issues['organization.contactName']}><input data-field="organization.contactName" aria-invalid={Boolean(issues['organization.contactName'])} value={org.contactName} onChange={(e) => patch({ contactName: e.target.value })} /></Field>

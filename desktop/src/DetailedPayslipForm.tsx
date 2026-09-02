@@ -1029,7 +1029,8 @@ export function DetailedPayslipForm({
                             required
                           />
                         </Field>
-                        {definition.annualCeilingCents && definition.category !== 'ac' ? (
+                        {definition.annualCeilingCents &&
+                        !['ac', 'aap', 'aanp'].includes(definition.category) ? (
                           <Field
                             label="Base cumulée avant ce mois (CHF)"
                             required
@@ -1054,11 +1055,11 @@ export function DetailedPayslipForm({
                               required
                             />
                           </Field>
-                        ) : definition.category === 'ac' ? (
+                        ) : ['ac', 'aap', 'aanp'].includes(definition.category) ? (
                           <div className="info-strip">
                             <ShieldCheck size={16} />
                             <span>
-                              Le cumul AC est calculé côté Rust : base d’ouverture confirmée du collaborateur + bases AC des fiches Zentra antérieures de la même année.
+                              Le cumul {definition.category === 'ac' ? 'AC' : 'LAA'} est calculé côté Rust : base d’ouverture confirmée du collaborateur + bases {definition.category === 'ac' ? 'AC' : 'LAA'} des fiches Zentra antérieures de la même année.
                             </span>
                           </div>
                         ) : null}

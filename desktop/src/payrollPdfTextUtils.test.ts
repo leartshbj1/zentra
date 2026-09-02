@@ -22,4 +22,21 @@ describe('couche texte PDF de paie par page', () => {
   it('ignore les pages sans couche texte au lieu de fabriquer du contenu', () => {
     expect(payrollTextForPageBatch(['', '  ', 'net 4 500'], 1, 3)).toBe('[PAGE 3]\nnet 4 500');
   });
+
+  it('isole les fragments lorsque PDF.js ne fournit ni fin de ligne ni géométrie', () => {
+    expect(normalizePayrollPdfTextItems([
+      { str: 'Salaire brut', hasEOL: false },
+      { str: "6'500.00", hasEOL: false },
+      { str: 'Autre rubrique', hasEOL: false },
+    ])).toBe("Salaire brut\n6'500.00\nAutre rubrique");
+  });
+
+  it('reconstruit les lignes par coordonnées et ignore le texte hors page', () => {
+    expect(normalizePayrollPdfTextItems([
+      { str: 'Salaire brut', transform: [1, 0, 0, 10, 40, 700], width: 70, height: 10 },
+      { str: "6'500.00", transform: [1, 0, 0, 10, 420, 700], width: 50, height: 10 },
+      { str: 'AVS', transform: [1, 0, 0, 10, 40, 680], width: 20, height: 10 },
+      { str: 'FAUX 9999.00', transform: [1, 0, 0, 10, 40, 2_000], width: 80, height: 10 },
+    ], { width: 595, height: 842 })).toBe("Salaire brut 6'500.00\nAVS");
+  });
 });

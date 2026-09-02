@@ -48,11 +48,14 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: 'A'.repeat(64),
       analyzedPageCount: 2,
       passes: 2,
+      hasTextLayer: true,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
 
     expect(manifest).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
+      corroborationMethod: 'local_visual_read_with_pdf_text',
+      corroborationAlgorithmVersion: 'zentra.payroll-evidence-corroboration.v1',
       inputSha256: 'a'.repeat(64),
       analyzedPages: [1, 2],
       passes: 2,
@@ -64,11 +67,12 @@ describe('preuve persistante de l’analyse paie', () => {
       expect.objectContaining({ field: 'gross_cents', value: '500000' }),
     ]));
     expect(manifest.lineProvenance).toEqual([
-      expect.objectContaining({ lineIndex: 0, label: 'Salaire mensuel', confidenceBp: 9_000 }),
+      expect.objectContaining({ lineIndex: 0, label: 'Salaire mensuel', confidenceBp: 7_000 }),
     ]);
     expect(payrollAiProvenanceFromManifest(manifest)).toEqual({
       fields: { period: [1], gross_cents: [1] },
-      lines: [{ lineIndex: 0, label: 'Salaire mensuel', kind: 'earning', amountCents: 500_000, pages: [1] }],
+      fieldConfidenceBp: { period: 7_000, gross_cents: 7_000 },
+      lines: [{ lineIndex: 0, label: 'Salaire mensuel', kind: 'earning', amountCents: 500_000, pages: [1], confidenceBp: 7_000 }],
     });
   });
 
@@ -81,6 +85,7 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: 'c'.repeat(64),
       analyzedPageCount: 1,
       passes: 1,
+      hasTextLayer: false,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
 
@@ -100,6 +105,7 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: 'd'.repeat(64),
       analyzedPageCount: 2,
       passes: 2,
+      hasTextLayer: false,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
 
@@ -132,6 +138,7 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: 'b'.repeat(64),
       analyzedPageCount: 2,
       passes: 2,
+      hasTextLayer: false,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
 
@@ -156,6 +163,7 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: 'e'.repeat(64),
       analyzedPageCount: 2,
       passes: 2,
+      hasTextLayer: false,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
     const edit = recordPayrollManualChanges(draft, {
@@ -192,6 +200,7 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: 'f'.repeat(64),
       analyzedPageCount: 2,
       passes: 2,
+      hasTextLayer: false,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
     const addedLine: PayrollImportDraft['lines'][number] = {
@@ -244,6 +253,7 @@ describe('preuve persistante de l’analyse paie', () => {
       inputSha256: '1'.repeat(64),
       analyzedPageCount: 2,
       passes: 2,
+      hasTextLayer: false,
       analyzedAt: '2026-09-01T12:00:00.000Z',
     });
     const nextDraft: PayrollImportDraft = {

@@ -20,10 +20,12 @@ use uuid::Uuid;
 
 use crate::{
     accounting::{
-        ensure_accounting_date_open, post_expense_if_enabled, post_invoice_if_enabled,
-        post_payment_if_enabled,
+        cash_vat_invoice_is_consistent, ensure_accounting_date_open,
+        payment_accounting_block_reason, post_expense_if_enabled, post_invoice_if_enabled,
+        post_payment_if_enabled, validate_payment_for_accounting,
     },
     audit::{append_audit, verify_audit_chain},
+    branding::stage_active_company_logo_for_snapshot,
     error::{AppError, AppResult},
     installation::load_or_create,
     models::{
@@ -43,7 +45,8 @@ use crate::{
         MIGRATION_V20_REBUILD_STOCK_SQL, MIGRATION_V20_SQL, MIGRATION_V20_STOCK_TRIGGERS_SQL,
         MIGRATION_V21_REBUILD_STOCK_SQL, MIGRATION_V21_SQL, MIGRATION_V21_STOCK_TRIGGERS_SQL,
         MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
-        MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V28_SQL, MIGRATION_V2_SQL,
+        MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V28_SQL, MIGRATION_V29_SQL,
+        MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
         MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
         MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
@@ -857,6 +860,40 @@ fn migrate_v28(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v29(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V29_SQL)?;
+    Ok(())
+}
+
+fn migrate_v30(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V30_SQL)?;
+    Ok(())
+}
+
+fn migrate_v31(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V31_SQL)?;
+    Ok(())
+}
+
+fn migrate_v32(transaction: &Transaction<'_>) -> AppResult<()> {
+    for (table, column, definition) in [
+        (
+            "employees",
+            "laa_opening_year",
+            "laa_opening_year INTEGER CHECK (laa_opening_year IS NULL OR laa_opening_year BETWEEN 1900 AND 9999)",
+        ),
+        (
+            "employees",
+            "laa_opening_basis_cents",
+            "laa_opening_basis_cents INTEGER CHECK (laa_opening_basis_cents IS NULL OR laa_opening_basis_cents >= 0)",
+        ),
+    ] {
+        add_column_if_missing(transaction, table, column, definition)?;
+    }
+    transaction.execute_batch(MIGRATION_V32_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1339,6 +1376,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
+            28 | 29 | 30 | 31 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1364,6 +1402,18 @@ impl LocalStore {
             migrate_v26(&transaction)?;
             migrate_v27(&transaction)?;
             migrate_v28(&transaction)?;
+        }
+        if current < 29 {
+            migrate_v29(&transaction)?;
+        }
+        if current < 30 {
+            migrate_v30(&transaction)?;
+        }
+        if current < 31 {
+            migrate_v31(&transaction)?;
+        }
+        if current < 32 {
+            migrate_v32(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1430,15 +1480,19 @@ impl LocalStore {
         input: OnboardingInput,
         scope: OnboardingValidationScope,
     ) -> OnboardingValidation {
-        match prepare_onboarding(input, scope) {
-            Ok(_) => OnboardingValidation {
-                valid: true,
-                issues: Vec::new(),
-            },
-            Err(issues) => OnboardingValidation {
-                valid: false,
-                issues,
-            },
+        let logo_path = input.logo_path.clone();
+        let mut issues = prepare_onboarding(input, scope).err().unwrap_or_default();
+        if let Err(error) = self.validate_company_logo_source(logo_path.as_deref()) {
+            issues.push(onboarding_issue(
+                1,
+                "organization.logoPath",
+                "Le logo de l'entreprise",
+                validation_message(error),
+            ));
+        }
+        OnboardingValidation {
+            valid: issues.is_empty(),
+            issues,
         }
     }
 
@@ -1452,10 +1506,12 @@ impl LocalStore {
 
     pub(crate) fn complete_onboarding_scoped(
         &self,
-        input: OnboardingInput,
+        mut input: OnboardingInput,
         app_version: &str,
         scope: OnboardingValidationScope,
     ) -> AppResult<CompleteOnboardingResult> {
+        let stored_logo = self.store_company_logo_reference(input.logo_path.as_deref())?;
+        input.logo_path = stored_logo;
         let prepared = prepare_onboarding(input, scope).map_err(|issues| {
             AppError::Validation(
                 issues
@@ -1893,7 +1949,7 @@ impl LocalStore {
             "SELECT * FROM payslip_items ORDER BY payslip_id, position, created_at",
             [],
         )?;
-        let payments = query_all(
+        let mut payments = query_all(
             connection,
             "SELECT payment.*,
                     entry.id AS journal_entry_id,
@@ -1962,6 +2018,39 @@ impl LocalStore {
              ORDER BY payment.date DESC,payment.created_at DESC",
             [],
         )?;
+        // La preuve verte affichée par l'interface couvre aussi la TVA sur
+        // encaissements. Une écriture banque/débiteurs correcte ne suffit pas
+        // si la reclassification TVA liée manque ou ne correspond plus au
+        // cumul de la facture.
+        for payment in &mut payments {
+            let accounting_block_reason = payment
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|payment_id| {
+                    payment_accounting_block_reason(connection, payment_id)
+                        .unwrap_or_else(|error| Some(error.to_string()))
+                })
+                .unwrap_or_else(|| Some("Identifiant du paiement invalide.".into()));
+            payment["accounting_blocked"] = json!(accounting_block_reason.is_some());
+            payment["accounting_block_reason"] = accounting_block_reason
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+            let sql_proof_valid = payment["journal_entry_semantically_valid"]
+                .as_bool()
+                .or_else(|| {
+                    payment["journal_entry_semantically_valid"]
+                        .as_i64()
+                        .map(|value| value != 0)
+                })
+                .unwrap_or(false);
+            let cash_vat_valid = payment
+                .get("invoice_id")
+                .and_then(Value::as_str)
+                .is_some_and(|invoice_id| {
+                    cash_vat_invoice_is_consistent(connection, invoice_id).unwrap_or(false)
+                });
+            payment["journal_entry_semantically_valid"] = json!(sql_proof_valid && cash_vat_valid);
+        }
         let bank_imports = query_all(
             connection,
             "SELECT * FROM bank_imports ORDER BY created_at DESC,rowid DESC",
@@ -2543,6 +2632,44 @@ impl LocalStore {
 
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
+        if let Some(requested_logo) = object.get("logo_path").cloned() {
+            let current_logo: Option<String> =
+                connection.query_row("SELECT logo_path FROM settings WHERE id=1", [], |row| {
+                    row.get(0)
+                })?;
+            let normalized_logo = match requested_logo {
+                Value::Null => None,
+                Value::String(path) if path.trim().is_empty() => None,
+                Value::String(path) => {
+                    match self.store_company_logo_reference(Some(path.as_str())) {
+                        Ok(stored) => stored,
+                        Err(_error)
+                            if current_logo
+                                .as_deref()
+                                .is_some_and(|current| current.trim() == path.trim())
+                                && !crate::branding::is_managed_logo_reference(&path) =>
+                        {
+                            // Compatibilité ciblée : un profil ancien peut encore
+                            // pointer vers un logo externe aujourd'hui indisponible.
+                            // Une sauvegarde ou un réglage sans rapport ne doit pas
+                            // effacer cette donnée. Dès que le fichier redevient
+                            // accessible, le même flux le recopiera localement.
+                            current_logo.clone()
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
+                _ => {
+                    return Err(AppError::Validation(
+                        "logo_path doit être un chemin de fichier ou null.".into(),
+                    ))
+                }
+            };
+            object.insert(
+                "logo_path".into(),
+                normalized_logo.map(Value::String).unwrap_or(Value::Null),
+            );
+        }
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let (
             current_vat_registered,
@@ -2874,14 +3001,21 @@ impl LocalStore {
         }
         if let Some((original, original_total)) = original_credit_limit {
             let already_credited: i64 = transaction.query_row(
-                "SELECT COALESCE(SUM(-total_cents),0) FROM invoices WHERE type='avoir' AND original_invoice_id=? AND number IS NOT NULL AND id<>?",
+                "SELECT COALESCE(SUM(-total_cents),0) FROM invoices WHERE type='avoir' AND original_invoice_id=? AND number IS NOT NULL AND status<>'annulee' AND id<>?",
                 params![original, id],
                 |row| row.get(0),
             )?;
             let requested_credit = totals.2.checked_neg().ok_or_else(|| {
                 AppError::Validation("Le montant de l'avoir dépasse la capacité locale.".into())
             })?;
-            if already_credited.saturating_add(requested_credit) > original_total {
+            let total_credit = already_credited
+                .checked_add(requested_credit)
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "Le cumul des avoirs dépasse la capacité monétaire locale.".into(),
+                    )
+                })?;
+            if total_credit > original_total {
                 return Err(AppError::Validation(
                     "Le cumul des avoirs ne peut pas dépasser le total de la facture originale."
                         .into(),
@@ -3557,6 +3691,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "contractual_weekly_minutes",
                 "ac_opening_year",
                 "ac_opening_basis_cents",
+                "laa_opening_year",
+                "laa_opening_basis_cents",
                 "lpp_assessment_year",
                 "lpp_annual_salary_cents",
                 "lpp_exception_code",
@@ -4092,6 +4228,34 @@ fn normalize_record(
             {
                 return Err(AppError::Validation(
                     "ac_opening_basis_cents doit être un montant entier positif ou nul.".into(),
+                ));
+            }
+            let laa_opening_year = object.get("laa_opening_year");
+            let laa_opening_basis = object.get("laa_opening_basis_cents");
+            let laa_year_present = laa_opening_year.is_some_and(|value| !value.is_null());
+            let laa_basis_present = laa_opening_basis.is_some_and(|value| !value.is_null());
+            if laa_year_present != laa_basis_present {
+                return Err(AppError::Validation(
+                    "L’année et la base d’ouverture LAA doivent être confirmées ensemble, même si la base est zéro."
+                        .into(),
+                ));
+            }
+            if laa_year_present
+                && !laa_opening_year
+                    .and_then(Value::as_i64)
+                    .is_some_and(|year| (1900..=9999).contains(&year))
+            {
+                return Err(AppError::Validation(
+                    "laa_opening_year doit être une année comprise entre 1900 et 9999.".into(),
+                ));
+            }
+            if laa_basis_present
+                && !laa_opening_basis
+                    .and_then(Value::as_i64)
+                    .is_some_and(|basis| basis >= 0)
+            {
+                return Err(AppError::Validation(
+                    "laa_opening_basis_cents doit être un montant entier positif ou nul.".into(),
                 ));
             }
         }
@@ -4934,7 +5098,17 @@ pub(crate) fn record_payment_in_transaction(
             "Le montant du paiement doit être supérieur à zéro.".into(),
         ));
     }
-    let date = normalized_date(input.date.as_deref().unwrap_or(&today()), "date")?;
+    let raw_date = input
+        .date
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            AppError::Validation(
+                "La date réelle de l'encaissement est obligatoire; Zentra ne la remplace jamais par la date du jour."
+                    .into(),
+            )
+        })?;
+    let date = normalized_date(raw_date, "date")?;
     let method = clean_optional(input.method, 80);
     let reference = clean_optional(input.reference, 160);
     let notes = clean_optional(input.notes, 5000);
@@ -4968,24 +5142,33 @@ pub(crate) fn record_payment_in_transaction(
                 .into(),
         ));
     }
-    let (total_cents, paid_cents, credited_cents, invoice_type, number, issue_date): (
+    let (total_cents, paid_cents, credited_cents, invoice_type, invoice_status, number, issue_date): (
         i64,
         i64,
         i64,
+        String,
         String,
         Option<String>,
         Option<String>,
     ) = transaction
         .query_row(
-            "SELECT i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.number,i.issue_date FROM invoices i WHERE i.id = ?",
+            "SELECT i.total_cents,COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.status,i.number,i.issue_date FROM invoices i WHERE i.id = ?",
             params![input.invoice_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
         )
         .optional()?
         .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
     if invoice_type == "avoir" {
         return Err(AppError::Validation(
             "Un avoir ne peut recevoir aucun encaissement.".into(),
+        ));
+    }
+    if !matches!(
+        invoice_status.as_str(),
+        "emise" | "en_retard" | "partiellement_payee" | "payee"
+    ) {
+        return Err(AppError::Validation(
+            "Seule une facture émise et active peut recevoir un encaissement.".into(),
         ));
     }
     if number.is_none() {
@@ -5009,11 +5192,15 @@ pub(crate) fn record_payment_in_transaction(
             "Cette facture ne possède aucun montant payable.".into(),
         ));
     }
-    if paid_cents
-        .saturating_add(credited_cents)
-        .saturating_add(input.amount_cents)
-        > total_cents
-    {
+    let settled_after_payment = paid_cents
+        .checked_add(credited_cents)
+        .and_then(|value| value.checked_add(input.amount_cents))
+        .ok_or_else(|| {
+            AppError::Validation(
+                "Le cumul des paiements et avoirs dépasse la capacité monétaire locale.".into(),
+            )
+        })?;
+    if settled_after_payment > total_cents {
         return Err(AppError::Validation(
             "Le paiement dépasse le solde restant de la facture.".into(),
         ));
@@ -5060,6 +5247,7 @@ pub(crate) fn payment_record_with_journal(
     transaction: &Transaction<'_>,
     payment_id: &str,
 ) -> AppResult<Value> {
+    validate_payment_for_accounting(transaction, payment_id)?;
     let record = query_optional_tx(
         transaction,
         "SELECT payment.*,
@@ -5162,6 +5350,27 @@ pub(crate) fn payment_record_with_journal(
             "L'écriture comptable reliée au paiement {payment_id} n'est plus active, équilibrée ou conforme à sa source. La reprise est bloquée."
         )));
     }
+    let invoice_id = record["invoice_id"]
+        .as_str()
+        .ok_or_else(|| AppError::Validation("Facture du paiement invalide.".into()))?;
+    let invoice_status: String = transaction.query_row(
+        "SELECT status FROM invoices WHERE id=?",
+        params![invoice_id],
+        |row| row.get(0),
+    )?;
+    if !matches!(
+        invoice_status.as_str(),
+        "emise" | "en_retard" | "partiellement_payee" | "payee"
+    ) {
+        return Err(AppError::Validation(format!(
+            "La facture liée au paiement {payment_id} n'est plus active. La reprise est bloquée."
+        )));
+    }
+    if !cash_vat_invoice_is_consistent(transaction, invoice_id)? {
+        return Err(AppError::Validation(format!(
+            "La chaîne de TVA sur encaissements liée au paiement {payment_id} est absente ou incohérente. La reprise est bloquée."
+        )));
+    }
     Ok(record)
 }
 
@@ -5174,7 +5383,11 @@ pub(crate) fn refresh_invoice_payment_state(
         params![invoice_id],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
-    let settled = paid.saturating_add(credited);
+    let settled = paid.checked_add(credited).ok_or_else(|| {
+        AppError::Validation(
+            "Le cumul des paiements et avoirs dépasse la capacité monétaire locale.".into(),
+        )
+    })?;
     transaction.execute(
         "UPDATE invoices SET paid_cents=?, status=CASE WHEN status='annulee' THEN status WHEN ? >= total_cents AND total_cents > 0 THEN 'payee' WHEN ? > 0 THEN 'partiellement_payee' WHEN number IS NOT NULL THEN 'emise' ELSE 'brouillon' END, updated_at=? WHERE id=?",
         params![paid, settled, paid, now_iso(), invoice_id],
@@ -5376,6 +5589,19 @@ fn build_document_snapshot(
 /// du logo local immuable et le numéro de bâtiment conservé dans les réglages
 /// étendus.
 pub(crate) fn build_issuer_snapshot(transaction: &Transaction<'_>) -> AppResult<Value> {
+    let active_logo: Option<String> = transaction
+        .query_row("SELECT logo_path FROM settings WHERE id=1", [], |row| {
+            row.get(0)
+        })
+        .optional()?
+        .flatten();
+    if let Some(active_logo) = active_logo.filter(|path| !path.trim().is_empty()) {
+        stage_active_company_logo_for_snapshot(transaction, &active_logo).map_err(|error| {
+            AppError::Validation(format!(
+                "Le logo actif n'a pas pu être figé dans le stockage local avant l'émission : {error}"
+            ))
+        })?;
+    }
     enrich_issuer_snapshot(
         query_optional_tx(
             transaction,
@@ -6170,12 +6396,50 @@ mod v25_migration_tests {
     use super::*;
 
     #[test]
-    fn migration_dispatch_upgrades_an_existing_v24_profile_to_latest() {
+    fn migration_dispatch_upgrades_a_profile_without_v29_v30_objects_to_latest() {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
         {
             let connection = store.connect().unwrap();
-            connection.pragma_update(None, "user_version", 24).unwrap();
+            connection
+                .execute_batch(
+                    "DROP TRIGGER IF EXISTS settings_logo_asset_insert_guard;
+                     DROP TRIGGER IF EXISTS settings_logo_asset_update_guard;
+                     DROP TRIGGER IF EXISTS payments_invoice_issue_date_guard;
+                     DROP TRIGGER IF EXISTS invoices_issued_no_unsafe_cancel;
+                     DROP TABLE IF EXISTS company_brand_assets;
+                     INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at)
+                     VALUES(1,0,'Profil pré-V29 conservé','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z');
+                     PRAGMA user_version=28;",
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO payroll_contribution_definitions(
+                       id,code,label,category,side,calculation_kind,rate_bp,
+                       fixed_amount_cents,annual_ceiling_cents,basis_kind,source,
+                       effective_from,effective_to,active,created_at,updated_at
+                     ) VALUES(
+                       'caf-vs-v28','CAF_VS_2026','CAF salarié VS 2026',
+                       'family_allowance','employee','rate',13,NULL,NULL,'gross',?1,
+                       '2026-01-01','2026-12-31',1,
+                       '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'
+                     )",
+                    params!["https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf"],
+                )
+                .unwrap();
+            let new_object_count: i64 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE name IN(
+                       'company_brand_assets','settings_logo_asset_insert_guard',
+                       'settings_logo_asset_update_guard','payments_invoice_issue_date_guard',
+                       'invoices_issued_no_unsafe_cancel'
+                     )",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(new_object_count, 0);
         }
 
         store.migrate().unwrap();
@@ -6185,7 +6449,7 @@ mod v25_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            28
+            SCHEMA_VERSION
         );
         assert_eq!(
             connection
@@ -6196,6 +6460,48 @@ mod v25_migration_tests {
                 )
                 .unwrap(),
             1
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT company_name FROM settings WHERE id=1", [], |row| {
+                    row.get::<_, String>(0)
+                })
+                .unwrap(),
+            "Profil pré-V29 conservé"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT source FROM payroll_contribution_definitions WHERE id='caf-vs-v28'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE name IN(
+                       'company_brand_assets','settings_logo_asset_insert_guard',
+                       'settings_logo_asset_update_guard','payments_invoice_issue_date_guard',
+                       'invoices_issued_no_unsafe_cancel'
+                     )",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            5
+        );
+        drop(connection);
+
+        store.migrate().unwrap();
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
         );
         assert_eq!(
             connection
@@ -6722,5 +7028,719 @@ mod v28_migration_tests {
             .unwrap()
             .clone();
         assert!(normalize_record("employees", &mut undated_fixed, true).is_err());
+    }
+}
+
+#[cfg(test)]
+mod v29_logo_migration_tests {
+    use super::*;
+    use image::{DynamicImage, ImageFormat};
+
+    #[test]
+    fn migration_v29_is_replayable_and_only_allows_registered_new_logo_paths() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE settings(id INTEGER PRIMARY KEY,logo_path TEXT);
+                 INSERT INTO settings(id,logo_path) VALUES(1,'C:\\ancien\\logo-client.png');
+                 PRAGMA user_version=28;",
+            )
+            .unwrap();
+
+        for pass in 0..2 {
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v29(&transaction).unwrap();
+            transaction.commit().unwrap();
+            if pass == 0 {
+                connection.pragma_update(None, "user_version", 28).unwrap();
+            }
+        }
+
+        assert_eq!(
+            connection
+                .query_row("SELECT logo_path FROM settings WHERE id=1", [], |row| {
+                    row.get::<_, String>(0)
+                })
+                .unwrap(),
+            "C:\\ancien\\logo-client.png"
+        );
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            29
+        );
+        assert!(connection
+            .execute(
+                "UPDATE settings SET logo_path='C:\\injected\\logo.png' WHERE id=1",
+                [],
+            )
+            .is_err());
+
+        let digest = "a".repeat(64);
+        let file_name = format!("logo-{digest}.png");
+        connection
+            .execute(
+                "INSERT INTO company_brand_assets(sha256,file_name,media_type,byte_size,width,height,created_at,last_verified_at) VALUES(?,?,?,?,?,?,?,?)",
+                params![digest, file_name, "image/png", 1024, 120, 60, "2026-09-02T10:00:00Z", "2026-09-02T10:00:00Z"],
+            )
+            .unwrap();
+        let managed_path = format!("C:\\Profil\\Zentra\\attachments\\branding\\{}", file_name);
+        connection
+            .execute(
+                "UPDATE settings SET logo_path=? WHERE id=1",
+                params![managed_path],
+            )
+            .unwrap();
+        connection
+            .execute("UPDATE settings SET logo_path=NULL WHERE id=1", [])
+            .unwrap();
+    }
+
+    #[test]
+    fn first_snapshot_after_v28_upgrade_stages_the_active_logo_without_rewriting_history() {
+        let temporary = tempfile::tempdir().unwrap();
+        let profile = temporary.path().join("profile");
+        let legacy_logo = temporary.path().join("logo-externe-client.png");
+        DynamicImage::new_rgba8(96, 48)
+            .save_with_format(&legacy_logo, ImageFormat::Png)
+            .unwrap();
+        let store = LocalStore::initialize(profile).unwrap();
+        let legacy_path = legacy_logo.to_string_lossy().into_owned();
+        let historical_snapshot = json!({
+            "schema": "helvichantier.document_snapshot.v1",
+            "issuer": {"logo_path": legacy_path.clone()},
+            "document": {"id": "quote-before-v29"}
+        })
+        .to_string();
+        {
+            let connection = store.connect().unwrap();
+            connection
+                .execute_batch(
+                    "DROP TRIGGER IF EXISTS settings_logo_asset_insert_guard;
+                     DROP TRIGGER IF EXISTS settings_logo_asset_update_guard;
+                     DROP TABLE IF EXISTS company_brand_assets;",
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO settings(id,onboarding_completed,company_name,logo_path,created_at,updated_at)
+                     VALUES(1,1,'Entreprise V28',?,'2026-08-01T00:00:00Z','2026-08-01T00:00:00Z')",
+                    params![legacy_path],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO quotes(id,number,title,status,issue_date,currency,snapshot_json,created_at,updated_at)
+                     VALUES('quote-before-v29','D-2026-0001','Ancien devis','envoye','2026-08-01','CHF',?,'2026-08-01T00:00:00Z','2026-08-01T00:00:00Z')",
+                    params![historical_snapshot],
+                )
+                .unwrap();
+            connection.pragma_update(None, "user_version", 28).unwrap();
+        }
+
+        store.migrate().unwrap();
+        let issuer = {
+            let mut connection = store.connect().unwrap();
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            let issuer = build_issuer_snapshot(&transaction).unwrap();
+            transaction.commit().unwrap();
+            issuer
+        };
+        let managed_path = issuer["logo_path"].as_str().unwrap();
+        assert_ne!(managed_path, legacy_path);
+        assert!(crate::branding::is_managed_logo_reference(managed_path));
+        assert!(Path::new(managed_path).starts_with(store.attachments_dir.join("branding")));
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT logo_path FROM settings WHERE id=1", [], |row| {
+                    row.get::<_, String>(0)
+                })
+                .unwrap(),
+            managed_path
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT snapshot_json FROM quotes WHERE id='quote-before-v29'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            historical_snapshot,
+            "la migration active ne doit jamais modifier un snapshot déjà émis"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM company_brand_assets", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn first_snapshot_after_v28_upgrade_fails_closed_when_legacy_logo_is_unreadable() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let missing_logo = temporary.path().join("logo-supprime.png");
+        let missing_path = missing_logo.to_string_lossy().into_owned();
+        {
+            let connection = store.connect().unwrap();
+            connection
+                .execute_batch(
+                    "DROP TRIGGER IF EXISTS settings_logo_asset_insert_guard;
+                     DROP TRIGGER IF EXISTS settings_logo_asset_update_guard;
+                     DROP TABLE IF EXISTS company_brand_assets;",
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO settings(id,onboarding_completed,company_name,logo_path,created_at,updated_at)
+                     VALUES(1,1,'Entreprise V28',?,'2026-08-01T00:00:00Z','2026-08-01T00:00:00Z')",
+                    params![missing_path],
+                )
+                .unwrap();
+            connection.pragma_update(None, "user_version", 28).unwrap();
+        }
+
+        store.migrate().unwrap();
+        let mut connection = store.connect().unwrap();
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let error = build_issuer_snapshot(&transaction).unwrap_err();
+        assert!(error.to_string().contains("avant l'émission"));
+        drop(transaction);
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT logo_path FROM settings WHERE id=1", [], |row| {
+                    row.get::<_, String>(0)
+                })
+                .unwrap(),
+            missing_path
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM company_brand_assets", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+}
+
+#[cfg(test)]
+mod v30_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migration_v30_is_replayable_and_guards_invoice_payment_integrity() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE invoices(
+                    id TEXT PRIMARY KEY,
+                    number TEXT,
+                    type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    issue_date TEXT,
+                    total_cents INTEGER NOT NULL,
+                    original_invoice_id TEXT
+                 );
+                 CREATE TABLE payments(
+                    id TEXT PRIMARY KEY,
+                    invoice_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    amount_cents INTEGER NOT NULL
+                 );
+                 INSERT INTO invoices(id,number,type,status,issue_date,total_cents)
+                 VALUES
+                    ('invoice-open','F-2026-0001','standard','emise','2026-09-01',10000),
+                    ('invoice-cancelled','F-2026-0002','standard','annulee','2026-09-01',10000),
+                    ('credit-note','A-2026-0001','avoir','emise','2026-09-01',-1000),
+                    ('invoice-draft',NULL,'standard','brouillon','2026-09-01',10000),
+                    ('invoice-numbered-draft','F-2026-0003','standard','brouillon','2026-09-01',10000),
+                    ('invoice-date','F-2026-0004','standard','emise','2026-09-01',10000);
+                 PRAGMA user_version=29;",
+            )
+            .unwrap();
+
+        for pass in 0..2 {
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v30(&transaction).unwrap();
+            transaction.commit().unwrap();
+            if pass == 0 {
+                connection.pragma_update(None, "user_version", 29).unwrap();
+            }
+        }
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            30
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN('payments_invoice_issue_date_guard','invoices_issued_no_unsafe_cancel')",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2
+        );
+
+        connection
+            .execute(
+                "INSERT INTO payments(id,invoice_id,date,amount_cents) VALUES('payment-1','invoice-open','2026-09-02',6000)",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "INSERT INTO payments(id,invoice_id,date,amount_cents) VALUES('payment-over','invoice-open','2026-09-03',4001)",
+                [],
+            )
+            .is_err());
+        connection
+            .execute(
+                "INSERT INTO payments(id,invoice_id,date,amount_cents) VALUES('payment-2','invoice-open','2026-09-03',4000)",
+                [],
+            )
+            .unwrap();
+        for (id, invoice_id, date) in [
+            ("payment-before", "invoice-open", "2026-08-31"),
+            ("payment-cancelled", "invoice-cancelled", "2026-09-02"),
+            ("payment-credit", "credit-note", "2026-09-02"),
+            ("payment-draft", "invoice-draft", "2026-09-02"),
+            (
+                "payment-numbered-draft",
+                "invoice-numbered-draft",
+                "2026-09-02",
+            ),
+            ("payment-invalid-date", "invoice-date", "demain"),
+            ("payment-impossible-date", "invoice-date", "2026-02-30"),
+            ("payment-impossible-month", "invoice-date", "2026-19-09"),
+        ] {
+            assert!(connection
+                .execute(
+                    "INSERT INTO payments(id,invoice_id,date,amount_cents) VALUES(?,?,?,100)",
+                    params![id, invoice_id, date],
+                )
+                .is_err());
+        }
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET status='annulee' WHERE id='invoice-open'",
+                [],
+            )
+            .is_err());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM invoices WHERE id='invoice-open'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "emise"
+        );
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET status='annulee' WHERE id='credit-note'",
+                [],
+            )
+            .is_err());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM invoices WHERE id='credit-note'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "emise",
+            "un avoir numéroté est aussi un document émis; sa correction exige un document inverse traçable"
+        );
+    }
+}
+
+#[cfg(test)]
+mod v31_caf_source_migration_tests {
+    use super::*;
+
+    const LEGACY_CAF_AMOUNTS_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf";
+    const OFFICIAL_CAF_RATE_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf";
+
+    fn definition_sources(connection: &Connection) -> Vec<(String, String)> {
+        let mut statement = connection
+            .prepare("SELECT id,source FROM payroll_contribution_definitions ORDER BY id")
+            .unwrap();
+        statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn migration_v31_replaces_only_the_legacy_valais_employee_caf_2026_source_and_replays() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE payroll_contribution_definitions(
+                   id TEXT PRIMARY KEY,
+                   category TEXT NOT NULL,
+                   side TEXT NOT NULL,
+                   calculation_kind TEXT NOT NULL,
+                   rate_bp INTEGER,
+                   source TEXT NOT NULL,
+                   effective_from TEXT NOT NULL,
+                   effective_to TEXT,
+                   updated_at TEXT NOT NULL
+                 );
+                 CREATE TABLE payslip_contributions(
+                   id TEXT PRIMARY KEY,
+                   source TEXT NOT NULL
+                 );
+                 PRAGMA user_version=30;",
+            )
+            .unwrap();
+
+        for (id, category, side, rate_bp, effective_from, effective_to, source) in [
+            (
+                "caf-vs-target",
+                "family_allowance",
+                "employee",
+                13,
+                "2026-01-01",
+                Some("2026-12-31"),
+                format!("Décision caisse; {LEGACY_CAF_AMOUNTS_SOURCE}; dossier local"),
+            ),
+            (
+                "caf-vs-already-current",
+                "family_allowance",
+                "employee",
+                13,
+                "2026-01-01",
+                Some("2026-12-31"),
+                OFFICIAL_CAF_RATE_SOURCE.to_owned(),
+            ),
+            (
+                "caf-employer",
+                "family_allowance",
+                "employer",
+                13,
+                "2026-01-01",
+                Some("2026-12-31"),
+                LEGACY_CAF_AMOUNTS_SOURCE.to_owned(),
+            ),
+            (
+                "caf-other-rate",
+                "family_allowance",
+                "employee",
+                14,
+                "2026-01-01",
+                Some("2026-12-31"),
+                LEGACY_CAF_AMOUNTS_SOURCE.to_owned(),
+            ),
+            (
+                "caf-other-year",
+                "family_allowance",
+                "employee",
+                13,
+                "2025-01-01",
+                Some("2025-12-31"),
+                LEGACY_CAF_AMOUNTS_SOURCE.to_owned(),
+            ),
+            (
+                "other-category",
+                "other",
+                "employee",
+                13,
+                "2026-01-01",
+                Some("2026-12-31"),
+                LEGACY_CAF_AMOUNTS_SOURCE.to_owned(),
+            ),
+        ] {
+            connection
+                .execute(
+                    "INSERT INTO payroll_contribution_definitions(
+                       id,category,side,calculation_kind,rate_bp,source,
+                       effective_from,effective_to,updated_at
+                     ) VALUES(?,?,?,'rate',?,?,?,?,?)",
+                    params![
+                        id,
+                        category,
+                        side,
+                        rate_bp,
+                        source,
+                        effective_from,
+                        effective_to,
+                        "2026-08-31T12:00:00Z"
+                    ],
+                )
+                .unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO payslip_contributions(id,source) VALUES('frozen-payslip',?)",
+                params![LEGACY_CAF_AMOUNTS_SOURCE],
+            )
+            .unwrap();
+
+        let before = definition_sources(&connection);
+        let mut after_first_pass = None;
+        for pass in 0..2 {
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v31(&transaction).unwrap();
+            transaction.commit().unwrap();
+            if pass == 0 {
+                after_first_pass = Some(definition_sources(&connection));
+                connection.pragma_update(None, "user_version", 30).unwrap();
+            }
+        }
+        let after = definition_sources(&connection);
+
+        assert_eq!(after_first_pass.as_ref(), Some(&after));
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            31
+        );
+        assert_eq!(
+            after
+                .iter()
+                .find(|(id, _)| id == "caf-vs-target")
+                .unwrap()
+                .1,
+            format!("Décision caisse; {OFFICIAL_CAF_RATE_SOURCE}; dossier local")
+        );
+        assert_eq!(
+            after
+                .iter()
+                .find(|(id, _)| id == "caf-vs-already-current")
+                .unwrap()
+                .1,
+            OFFICIAL_CAF_RATE_SOURCE
+        );
+        for untouched_id in [
+            "caf-employer",
+            "caf-other-rate",
+            "caf-other-year",
+            "other-category",
+        ] {
+            assert_eq!(
+                after.iter().find(|(id, _)| id == untouched_id),
+                before.iter().find(|(id, _)| id == untouched_id),
+                "V31 ne doit pas modifier le profil {untouched_id}"
+            );
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT source FROM payslip_contributions WHERE id='frozen-payslip'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            LEGACY_CAF_AMOUNTS_SOURCE,
+            "la preuve source d'une fiche historique doit rester figée"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT updated_at FROM payroll_contribution_definitions WHERE id='caf-vs-target'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "2026-08-31T12:00:00Z",
+            "la correction réglementaire ne doit pas falsifier la date de saisie utilisateur"
+        );
+    }
+}
+
+#[cfg(test)]
+mod v32_laa_opening_migration_tests {
+    use super::*;
+
+    fn employee_columns(connection: &Connection) -> HashSet<String> {
+        let mut statement = connection.prepare("PRAGMA table_info(employees)").unwrap();
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<HashSet<_>, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn migration_v32_is_additive_replayable_and_preserves_existing_opening_data() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE employees(
+                   id TEXT PRIMARY KEY,
+                   name TEXT NOT NULL,
+                   ac_opening_year INTEGER CHECK(ac_opening_year IS NULL OR ac_opening_year BETWEEN 1900 AND 9999),
+                   ac_opening_basis_cents INTEGER CHECK(ac_opening_basis_cents IS NULL OR ac_opening_basis_cents>=0)
+                 );
+                 CREATE TRIGGER employees_payroll_decisions_insert_guard
+                 BEFORE INSERT ON employees
+                 WHEN (NEW.ac_opening_year IS NULL)<>(NEW.ac_opening_basis_cents IS NULL)
+                 BEGIN SELECT RAISE(ABORT,'AC opening year and basis must be confirmed together'); END;
+                 CREATE TRIGGER employees_payroll_decisions_update_guard
+                 BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
+                 WHEN (NEW.ac_opening_year IS NULL)<>(NEW.ac_opening_basis_cents IS NULL)
+                 BEGIN SELECT RAISE(ABORT,'AC opening year and basis must be confirmed together'); END;
+                 INSERT INTO employees(id,name,ac_opening_year,ac_opening_basis_cents)
+                 VALUES('employee-v31','Employé conservé',2026,123456);
+                 PRAGMA user_version=31;",
+            )
+            .unwrap();
+
+        for pass in 0..2 {
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            migrate_v32(&transaction).unwrap();
+            transaction.commit().unwrap();
+            if pass == 0 {
+                connection.pragma_update(None, "user_version", 31).unwrap();
+            }
+        }
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            32
+        );
+        let columns = employee_columns(&connection);
+        assert!(columns.contains("laa_opening_year"));
+        assert!(columns.contains("laa_opening_basis_cents"));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT name,ac_opening_year,ac_opening_basis_cents,laa_opening_year,laa_opening_basis_cents FROM employees WHERE id='employee-v31'",
+                    [],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, Option<i64>>(1)?,
+                            row.get::<_, Option<i64>>(2)?,
+                            row.get::<_, Option<i64>>(3)?,
+                            row.get::<_, Option<i64>>(4)?,
+                        ))
+                    },
+                )
+                .unwrap(),
+            (
+                "Employé conservé".into(),
+                Some(2026),
+                Some(123456),
+                None,
+                None
+            )
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN('employees_payroll_decisions_insert_guard','employees_payroll_decisions_update_guard')",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2
+        );
+
+        connection
+            .execute(
+                "INSERT INTO employees(id,name,laa_opening_year,laa_opening_basis_cents) VALUES('valid-laa','Base zéro',2026,0)",
+                [],
+            )
+            .unwrap();
+        for sql in [
+            "INSERT INTO employees(id,name,laa_opening_year) VALUES('missing-laa-basis','Incomplet',2026)",
+            "INSERT INTO employees(id,name,laa_opening_basis_cents) VALUES('missing-laa-year','Incomplet',100)",
+            "INSERT INTO employees(id,name,laa_opening_year,laa_opening_basis_cents) VALUES('bad-laa-year','Année invalide',1899,100)",
+            "INSERT INTO employees(id,name,laa_opening_year,laa_opening_basis_cents) VALUES('bad-laa-basis','Base invalide',2026,-1)",
+            "INSERT INTO employees(id,name,ac_opening_year) VALUES('missing-ac-basis','AC incomplet',2026)",
+            "UPDATE employees SET laa_opening_basis_cents=NULL WHERE id='valid-laa'",
+        ] {
+            assert!(connection.execute(sql, []).is_err(), "SQL accepté: {sql}");
+        }
+    }
+
+    #[test]
+    fn fresh_v32_database_and_employee_normalization_enforce_the_laa_opening_pair() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
+        );
+        let columns = employee_columns(&connection);
+        assert!(columns.contains("laa_opening_year"));
+        assert!(columns.contains("laa_opening_basis_cents"));
+        connection
+            .execute(
+                "INSERT INTO employees(id,name,laa_opening_year,laa_opening_basis_cents,created_at,updated_at) VALUES('fresh-valid','Employé neuf',2026,0,'2026-09-02T00:00:00Z','2026-09-02T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "INSERT INTO employees(id,name,laa_opening_year,created_at,updated_at) VALUES('fresh-invalid','Employé incomplet',2026,'2026-09-02T00:00:00Z','2026-09-02T00:00:00Z')",
+                [],
+            )
+            .is_err());
+        drop(connection);
+
+        let spec = entity_spec("employees").unwrap();
+        assert!(spec.fields.contains(&"laa_opening_year"));
+        assert!(spec.fields.contains(&"laa_opening_basis_cents"));
+
+        let mut valid = json!({
+            "name":"Employé normalisé",
+            "laa_opening_year":2026,
+            "laa_opening_basis_cents":0
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        normalize_record("employees", &mut valid, true).unwrap();
+
+        for invalid in [
+            json!({"name":"Incomplet","laa_opening_year":2026}),
+            json!({"name":"Incomplet","laa_opening_basis_cents":0}),
+            json!({"name":"Année invalide","laa_opening_year":1899,"laa_opening_basis_cents":0}),
+            json!({"name":"Base invalide","laa_opening_year":2026,"laa_opening_basis_cents":-1}),
+        ] {
+            let mut object = invalid.as_object().unwrap().clone();
+            assert!(normalize_record("employees", &mut object, true).is_err());
+        }
     }
 }

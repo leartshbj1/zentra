@@ -1929,13 +1929,23 @@ macro_rules! sales_fulfillment_tests {
 
     #[test]
     fn confirmed_order_and_issued_delivery_freeze_the_company_logo_and_parties() {
-        let (_temporary, store) = initialized_store();
+        let (temporary, store) = initialized_store();
+        let stage_logo = |name: &str, width: u32| {
+            let source = temporary.path().join(name);
+            image::DynamicImage::new_rgb8(width, 40)
+                .save_with_format(&source, image::ImageFormat::Png)
+                .expect("write logistics logo");
+            store
+                .stage_company_logo(source.to_str().expect("logo source path"))
+                .expect("stage logistics logo")
+        };
+        let order_logo = stage_logo("logo-commande.png", 80);
         store
             .connect()
             .unwrap()
             .execute(
                 "UPDATE settings SET legal_form='Sàrl',logo_path=? WHERE id=1",
-                params!["C:\\profil-local\\attachments\\branding\\logo-commande.png"],
+                params![order_logo],
             )
             .unwrap();
         let (client_id, _catalog_item_id, sales_order_id, sales_order_line_id) =
@@ -1957,7 +1967,7 @@ macro_rules! sales_fulfillment_tests {
         );
         assert_eq!(
             order_snapshot["issuer"]["logo_path"],
-            "C:\\profil-local\\attachments\\branding\\logo-commande.png"
+            order_logo
         );
         assert_eq!(order_snapshot["issuer"]["legal_form"], "Sàrl");
         assert_eq!(order_snapshot["order"]["status"], "confirmed");
@@ -1968,12 +1978,13 @@ macro_rules! sales_fulfillment_tests {
         assert_eq!(order_snapshot["lines"].as_array().unwrap().len(), 1);
         assert!(order_snapshot["order"].get("snapshot_json").is_none());
 
+        let delivery_logo = stage_logo("logo-livraison.png", 96);
         store
             .connect()
             .unwrap()
             .execute(
                 "UPDATE settings SET logo_path=? WHERE id=1",
-                params!["C:\\profil-local\\attachments\\branding\\logo-livraison.png"],
+                params![delivery_logo],
             )
             .unwrap();
         store
@@ -2007,7 +2018,7 @@ macro_rules! sales_fulfillment_tests {
         );
         assert_eq!(
             delivery_snapshot["issuer"]["logo_path"],
-            "C:\\profil-local\\attachments\\branding\\logo-livraison.png"
+            delivery_logo
         );
         assert_eq!(
             delivery_snapshot["customer"]["name"],
@@ -2023,12 +2034,13 @@ macro_rules! sales_fulfillment_tests {
         );
         assert!(delivery_snapshot["order"].get("snapshot_json").is_none());
 
+        let future_logo = stage_logo("logo-futur.png", 112);
         store
             .connect()
             .unwrap()
             .execute(
                 "UPDATE settings SET logo_path=? WHERE id=1",
-                params!["C:\\profil-local\\attachments\\branding\\logo-futur.png"],
+                params![future_logo],
             )
             .unwrap();
         store

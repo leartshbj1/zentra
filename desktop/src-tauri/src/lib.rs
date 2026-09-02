@@ -283,7 +283,7 @@ mod tests {
             payment_terms_days: 30,
             quote_validity_days: 30,
             default_hourly_rate_cents: 0,
-            logo_path: Some("C:\\donnees-locales\\logo-test.png".into()),
+            logo_path: None,
             extra_settings_json: Some(json!({
                 "organization": {"address": {"buildingNumber": "17B"}},
                 "work": {"roundingMinutes": 15, "breakMinutes": 5},
@@ -393,6 +393,7 @@ mod tests {
     fn configure_minor_test_payroll(
         store: &LocalStore,
         employee_id: &str,
+        laa_basis_cents: i64,
     ) -> ContributionSelectionInput {
         let workspace = store.get_workspace().unwrap();
         let mut extra: serde_json::Value = serde_json::from_str(
@@ -420,7 +421,9 @@ mod tests {
                 json!({
                     "birth_date":"2010-01-01",
                     "employment_start_date":"2026-01-01",
-                    "contractual_weekly_minutes":420
+                    "contractual_weekly_minutes":420,
+                    "laa_opening_year":2026,
+                    "laa_opening_basis_cents":0
                 }),
             )
             .unwrap();
@@ -446,7 +449,7 @@ mod tests {
                 rate_bp: Some(100),
                 fixed_amount_cents: None,
                 annual_ceiling_cents: Some(14_820_000),
-                basis_kind: "gross".into(),
+                basis_kind: "ahv_salary".into(),
                 lpp_component: None,
                 lpp_employee_id: None,
                 source: "Police LAA explicite de test".into(),
@@ -459,7 +462,7 @@ mod tests {
             .unwrap();
         ContributionSelectionInput {
             definition_id: value_id(&definition),
-            basis_cents: None,
+            basis_cents: Some(laa_basis_cents),
             year_to_date_basis_cents: Some(0),
         }
     }
@@ -501,6 +504,8 @@ mod tests {
                     "contractual_weekly_minutes":420,
                     "ac_opening_year":2026,
                     "ac_opening_basis_cents":0,
+                    "laa_opening_year":2026,
+                    "laa_opening_basis_cents":0,
                     "lpp_assessment_year":2026,
                     "lpp_annual_salary_cents":0
                 }),
@@ -580,7 +585,11 @@ mod tests {
                     rate_bp: Some(100),
                     fixed_amount_cents: None,
                     annual_ceiling_cents: ceiling,
-                    basis_kind: "gross".into(),
+                    basis_kind: if category == "aap" {
+                        "ahv_salary".into()
+                    } else {
+                        "gross".into()
+                    },
                     lpp_component: None,
                     lpp_employee_id: None,
                     source: "Police ou contrat explicite de test".into(),
@@ -595,7 +604,7 @@ mod tests {
                 .unwrap();
             selections.push(ContributionSelectionInput {
                 definition_id: value_id(&definition),
-                basis_cents: None,
+                basis_cents: (category == "aap").then_some(500_000),
                 year_to_date_basis_cents: ceiling.map(|_| 0),
             });
         }
@@ -2402,6 +2411,16 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     #[test]
     fn backup_restore_round_trip_recovers_local_rows() {
         let (temporary, store) = initialized_store();
+        let logo_source = temporary.path().join("logo-sauvegarde.png");
+        image::DynamicImage::new_rgba8(96, 48)
+            .save_with_format(&logo_source, image::ImageFormat::Png)
+            .expect("write backup logo");
+        let original_logo = store
+            .stage_company_logo(logo_source.to_str().expect("logo path"))
+            .expect("stage backup logo");
+        store
+            .update_settings(json!({ "logo_path": original_logo.clone() }))
+            .expect("configure backup logo");
         let client = store
             .create_record("clients", json!({"name": "Client à sauvegarder"}))
             .expect("create client");
@@ -2416,7 +2435,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 "noga_division":"41",
                 "activity_description":"Construction de bâtiments",
                 "noga_detailed_code":"410000",
-                "logo_path":"C:\\autre-logo.png",
+                "logo_path":null,
                 "extra_settings_json":{"organization":{"address":{"buildingNumber":"99"}}}
             }))
             .expect("mutate settings after backup");
@@ -2449,7 +2468,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 "43".into(),
                 "Travaux de construction spécialisés".into(),
                 "432100".into(),
-                "C:\\donnees-locales\\logo-test.png".into()
+                original_logo
             )
         );
         let restored_extra: String = connection
@@ -2768,12 +2787,26 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     fn configured_sequences_credit_notes_and_document_immutability_are_enforced() {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let initial_logo_source = temporary.path().join("logo-initial.png");
+        image::DynamicImage::new_rgba8(120, 60)
+            .save_with_format(&initial_logo_source, image::ImageFormat::Png)
+            .expect("write initial company logo");
         let mut onboarding = test_onboarding();
+        onboarding.logo_path = Some(initial_logo_source.to_string_lossy().into_owned());
         onboarding.quote_start_number = Some(7);
         onboarding.invoice_start_number = Some(20);
         onboarding.credit_note_start_number = Some(30);
         onboarding.credit_note_prefix = Some("NC".into());
         store.complete_onboarding(onboarding, "1.0.0").unwrap();
+        let initial_logo: String = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT logo_path FROM settings WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .expect("read managed initial logo");
+        assert!(initial_logo.contains("attachments"));
+        assert!(initial_logo.contains("branding"));
         enable_accounting(&store);
         let client_id=value_id(&store.create_record("clients",json!({"name":"Client documents","address_line1":"Rue du Test","address_line2":"4","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap());
         let quote_id = value_id(
@@ -2795,10 +2828,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(quote["number"], "D-2026-0007");
         let quote_snapshot: serde_json::Value =
             serde_json::from_str(quote["snapshot_json"].as_str().unwrap()).unwrap();
-        assert_eq!(
-            quote_snapshot["issuer"]["logo_path"],
-            "C:\\donnees-locales\\logo-test.png"
-        );
+        assert_eq!(quote_snapshot["issuer"]["logo_path"], initial_logo);
         assert_eq!(quote_snapshot["document"]["number"], "D-2026-0007");
         let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture originale","service_date_from":"2026-02-01","service_date_to":"2026-02-28"})).unwrap());
         store.create_record("invoice_items",json!({"invoice_id":invoice_id,"description":"Travaux","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
@@ -2813,19 +2843,24 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let snapshot = invoice["snapshot_json"].as_str().unwrap().to_owned();
         let parsed_snapshot: serde_json::Value = serde_json::from_str(&snapshot).unwrap();
         assert_eq!(parsed_snapshot["issuer"]["building_number"], "17B");
-        assert_eq!(
-            parsed_snapshot["issuer"]["logo_path"],
-            "C:\\donnees-locales\\logo-test.png"
-        );
+        assert_eq!(parsed_snapshot["issuer"]["logo_path"], initial_logo);
         assert_eq!(parsed_snapshot["issuer"]["noga_section"], "F");
         assert_eq!(parsed_snapshot["issuer"]["noga_division"], "43");
-        store
+        let modified_logo_source = temporary.path().join("logo-modifie.webp");
+        image::DynamicImage::new_rgb8(160, 80)
+            .save_with_format(&modified_logo_source, image::ImageFormat::WebP)
+            .expect("write replacement company logo");
+        let updated_settings = store
             .update_settings(json!({
                 "company_name":"Nouvelle raison sociale",
-                "logo_path":"C:\\logo-modifie.png",
+                "logo_path":modified_logo_source.to_string_lossy(),
                 "extra_settings_json":{"organization":{"address":{"buildingNumber":"99"}}}
             }))
             .unwrap();
+        let modified_logo = updated_settings["logo_path"]
+            .as_str()
+            .expect("managed replacement logo")
+            .to_owned();
         let unchanged = store
             .connect()
             .unwrap()
@@ -2838,10 +2873,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(unchanged, snapshot);
         let frozen_snapshot: serde_json::Value = serde_json::from_str(&unchanged).unwrap();
         assert_eq!(frozen_snapshot["issuer"]["building_number"], "17B");
-        assert_eq!(
-            frozen_snapshot["issuer"]["logo_path"],
-            "C:\\donnees-locales\\logo-test.png"
-        );
+        assert_eq!(frozen_snapshot["issuer"]["logo_path"], initial_logo);
         let credit_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"original_invoice_id":invoice_id,"title":"Correction","type":"credit_note","service_date_from":"2026-02-01","service_date_to":"2026-02-28"})).unwrap());
         store.create_record("invoice_items",json!({"invoice_id":credit_id,"description":"Correction","quantity":1,"unit":"forfait","unit_price_cents":2500,"vat_bp":0})).unwrap();
         let credit = store
@@ -2851,10 +2883,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(credit["total_cents"], -2500);
         let credit_snapshot: serde_json::Value =
             serde_json::from_str(credit["snapshot_json"].as_str().unwrap()).unwrap();
-        assert_eq!(
-            credit_snapshot["issuer"]["logo_path"],
-            "C:\\logo-modifie.png"
-        );
+        assert_eq!(credit_snapshot["issuer"]["logo_path"], modified_logo);
         assert_eq!(credit_snapshot["document"]["number"], "NC-2026-0030");
         let original_status: String = store
             .connect()
@@ -3736,7 +3765,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .create_record("employees", json!({"name":"Employé comptable"}))
                 .unwrap(),
         );
-        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id, 500_000);
         let mut payroll_lines = Vec::new();
         for (position, kind, amount) in [
             (0, "earning", 500000),
@@ -3783,10 +3812,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let payslip_snapshot: serde_json::Value =
             serde_json::from_str(posted["payslip"]["snapshot_json"].as_str().unwrap()).unwrap();
         assert_eq!(payslip_snapshot["issuer"]["building_number"], "17B");
-        assert_eq!(
-            payslip_snapshot["issuer"]["logo_path"],
-            "C:\\donnees-locales\\logo-test.png"
-        );
+        assert!(payslip_snapshot["issuer"]["logo_path"].is_null());
         assert_eq!(payslip_snapshot["issuer"]["noga_division"], "43");
         let connection = store.connect().unwrap();
         let payment_count: i64 = connection
@@ -3962,7 +3988,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 notes: None,
             })
             .unwrap();
-        store.record_payment(first_payment).unwrap();
+        store.record_payment(first_payment.clone()).unwrap();
 
         let connection = store.connect().unwrap();
         let issue_vat: (i64, i64) = connection
@@ -4054,6 +4080,37 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         drop(connection);
         let continuity = store.get_accounting_continuity().unwrap();
         assert_eq!(continuity["semantic_posting_mismatches"], 0);
+
+        // Une preuve banque/débiteurs ne doit jamais rester affichée comme
+        // conforme si la reclassification de TVA sur encaissement est
+        // historiquement absente ou altérée.
+        let connection = store.connect().unwrap();
+        connection
+            .execute_batch(
+                "DROP TRIGGER journal_lines_no_update;
+                 UPDATE journal_lines
+                    SET debit_cents=debit_cents-1
+                  WHERE journal_entry_id=(
+                    SELECT id FROM journal_entries
+                    WHERE source_type='vat_cash_reclassification'
+                      AND source_id='296f7196-3cd8-4d99-8a20-209578d49696'
+                  ) AND memo='Reclassement TVA à régulariser';
+                 CREATE TRIGGER journal_lines_no_update
+                 BEFORE UPDATE ON journal_lines
+                 BEGIN SELECT RAISE(ABORT,'posted journal lines are immutable'); END;",
+            )
+            .unwrap();
+        drop(connection);
+        let replay_error = store.record_payment(first_payment).unwrap_err().to_string();
+        assert!(replay_error.contains("chaîne de TVA sur encaissements"));
+        let workspace = store.get_workspace().unwrap();
+        let payment = workspace["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|payment| payment["id"].as_str() == Some("296f7196-3cd8-4d99-8a20-209578d49696"))
+            .unwrap();
+        assert_eq!(payment["journal_entry_semantically_valid"], false);
     }
 
     #[test]
@@ -4434,7 +4491,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .create_record("employees", json!({"name":"Employé ventilé"}))
                 .unwrap(),
         );
-        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id, 500_000);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -4813,7 +4870,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .create_record("employees", json!({"name":"Employé revalidation"}))
                 .unwrap(),
         );
-        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id, 100_000);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -4944,7 +5001,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .create_record("employees", json!({"name":"Employé avec frais"}))
                 .unwrap(),
         );
-        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id, 500_000);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -5027,6 +5084,13 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap();
         assert_eq!(balance, (510_000, 510_000));
 
+        let next_period_aap = ContributionSelectionInput {
+            definition_id: aap_selection.definition_id,
+            basis_cents: Some(100_000),
+            // Le moteur reprend l'ouverture et les fiches antérieures; aucun
+            // cumul transmis par l'interface ne doit pouvoir le remplacer.
+            year_to_date_basis_cents: None,
+        };
         let invalid = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -5053,7 +5117,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         expense_account_id: None,
                     },
                 ],
-                contributions: vec![aap_selection],
+                contributions: vec![next_period_aap],
             })
             .unwrap();
         let invalid_id = value_id(&invalid["payslip"]);
@@ -5773,7 +5837,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .create_record("employees", json!({"name":"Employé clôture"}))
                 .unwrap(),
         );
-        let aap_selection = configure_minor_test_payroll(&store, &employee_id);
+        let aap_selection = configure_minor_test_payroll(&store, &employee_id, 100_000);
         let saved = store
             .save_payslip_with_contributions(SavePayslipWithContributionsInput {
                 id: None,
@@ -5908,6 +5972,98 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(payments, 0);
         assert_eq!(payment_entries, 0);
         assert_eq!(invoice_state, (0, "emise".into()));
+    }
+
+    #[test]
+    fn customer_payment_requires_an_explicit_date_and_an_active_invoice() {
+        let (_temporary, store) = initialized_store();
+        enable_accounting(&store);
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client date réelle"))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture à encaisser explicitement",
+                        "service_date_from":"2026-08-01",
+                        "service_date_to":"2026-08-31"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some("2026-09-01".into()), None)
+            .unwrap();
+
+        let missing_date = store
+            .record_payment(RecordPaymentInput {
+                request_id: "b5d471c1-7c24-42bc-96ea-84edab6f6eab".into(),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 10_000,
+                date: None,
+                method: Some("Virement".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(missing_date.contains("date réelle"));
+
+        // Simule une ligne héritée d'une version antérieure à la garde V30 :
+        // le contrôle applicatif doit lui aussi refuser l'encaissement.
+        let connection = store.connect().unwrap();
+        connection
+            .execute_batch(
+                "DROP TRIGGER invoices_issued_no_unsafe_cancel;
+                 UPDATE invoices SET status='annulee' WHERE id=(SELECT id FROM invoices WHERE title='Facture à encaisser explicitement');",
+            )
+            .unwrap();
+        drop(connection);
+        let cancelled = store
+            .record_payment(RecordPaymentInput {
+                request_id: "542c6125-c0db-4d90-87c2-fdcfa70f349b".into(),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 10_000,
+                date: Some("2026-09-02".into()),
+                method: Some("Virement".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(cancelled.contains("facture émise et active"));
+        let state: (i64, i64, String) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM payments WHERE invoice_id=?1),
+                    (SELECT COUNT(*) FROM journal_entries WHERE source_type='payment'),
+                    status
+                 FROM invoices WHERE id=?1",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (0, 0, "annulee".into()));
     }
 
     #[test]
@@ -8687,10 +8843,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(confirmed["order"]["status"], "confirmed");
         let supplier_order_snapshot: serde_json::Value =
             serde_json::from_str(confirmed["order"]["snapshot_json"].as_str().unwrap()).unwrap();
-        assert_eq!(
-            supplier_order_snapshot["issuer"]["logo_path"],
-            "C:\\donnees-locales\\logo-test.png"
-        );
+        assert!(supplier_order_snapshot["issuer"]["logo_path"].is_null());
         assert_eq!(supplier_order_snapshot["order"]["status"], "confirmed");
         assert_eq!(
             supplier_order_snapshot["order"]["number"],

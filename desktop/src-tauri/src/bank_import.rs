@@ -1446,7 +1446,7 @@ mod tests {
         )
     }
 
-    fn create_open_invoice_of_type(
+    fn create_draft_invoice_of_type(
         store: &LocalStore,
         amount_cents: i64,
         currency: &str,
@@ -1478,6 +1478,16 @@ mod tests {
                 json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":amount_cents,"vat_bp":0}),
             )
             .unwrap();
+        invoice_id
+    }
+
+    fn create_open_invoice_of_type(
+        store: &LocalStore,
+        amount_cents: i64,
+        currency: &str,
+        invoice_type: &str,
+    ) -> String {
+        let invoice_id = create_draft_invoice_of_type(store, amount_cents, currency, invoice_type);
         store
             .issue_invoice(
                 &invoice_id,
@@ -1544,12 +1554,15 @@ mod tests {
         let situation = create_open_invoice_of_type(&store, 11_000, "CHF", "situation");
         let finale = create_open_invoice_of_type(&store, 12_000, "CHF", "finale");
         let deposit = create_open_invoice_of_type(&store, 13_000, "CHF", "deposit");
-        let cancelled = create_open_invoice_of_type(&store, 14_000, "CHF", "standard");
+        let cancelled = create_draft_invoice_of_type(&store, 14_000, "CHF", "standard");
 
         let connection = store.connect().unwrap();
+        // Représente un document historique déjà annulé. Le test ne contourne
+        // pas la règle V30 qui interdit désormais d'annuler une facture émise;
+        // ce parcours métier exige un avoir traçable.
         connection
             .execute(
-                "UPDATE invoices SET status='annulee' WHERE id=?",
+                "UPDATE invoices SET number='F-2026-TEST-CANCELLED',issue_date='2026-08-01',status='annulee' WHERE id=?",
                 params![cancelled],
             )
             .unwrap();

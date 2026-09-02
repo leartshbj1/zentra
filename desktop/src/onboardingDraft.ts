@@ -88,6 +88,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Le brouillon vit dans localStorage et ne constitue donc jamais une source de
+ * confiance. On ne réaffiche qu'une référence issue du stockage géré par
+ * Zentra; le backend revérifie ensuite le fichier et son SHA-256.
+ */
+export function safeDraftLogoPath(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const path = value.trim();
+  if (!path || path.length > 2_000 || path.includes('\0')) return '';
+  const absolute = /^[A-Za-z]:[\\/]/.test(path) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(path) || path.startsWith('/');
+  if (!absolute || path.split(/[\\/]+/).includes('..')) return '';
+  return /[\\/]attachments[\\/]branding[\\/]logo-[0-9a-f]{64}\.(?:png|jpg|webp)$/i.test(path)
+    ? path
+    : '';
+}
+
 function mergeDraftValue<T>(base: T, value: unknown): T {
   if (Array.isArray(base)) return (Array.isArray(value) ? [...value] : [...base]) as T;
   if (isRecord(base)) {
@@ -148,12 +164,17 @@ function safeLppPlanEvidence(value: unknown): PayrollLppPlanEvidence | undefined
 export function settingsFromOnboardingDraft(value: unknown): AppSettings {
   const merged = mergeDraftValue(initialOnboardingSettings, value);
   const root = isRecord(value) ? value : {};
+  const organization = isRecord(root.organization) ? root.organization : {};
   const billing = isRecord(root.billing) ? root.billing : {};
   const work = isRecord(root.work) ? root.work : {};
   const payroll = isRecord(root.payroll) ? root.payroll : {};
   const lppPlanEvidence = safeLppPlanEvidence(payroll.lppPlanEvidence);
   return {
     ...merged,
+    organization: {
+      ...merged.organization,
+      logoPath: safeDraftLogoPath(organization.logoPath),
+    },
     billing: {
       ...merged.billing,
       vatRatesBp: Array.isArray(billing.vatRatesBp)

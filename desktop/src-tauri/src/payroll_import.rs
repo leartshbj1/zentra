@@ -3,6 +3,7 @@ use std::{
     fs,
     io::Cursor,
     path::{Path, PathBuf},
+    sync::OnceLock,
 };
 
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -12,6 +13,7 @@ use regex::Regex;
 use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 use uuid::Uuid;
 
 use crate::{
@@ -31,8 +33,10 @@ const MAX_IMAGE_EDGE: u32 = 8_192;
 const MAX_IMAGE_PIXELS: u64 = 24_000_000;
 const MAX_EXTRACTED_TEXT_CHARS: usize = 80_000;
 const MAX_PDF_PAGES: usize = 12;
-const ENGINE_VERSION: &str = "elyko-local-parser-2";
-const ANALYSIS_MANIFEST_SCHEMA_VERSION: i64 = 1;
+const ENGINE_VERSION: &str = "zentra-local-parser-3";
+const ANALYSIS_MANIFEST_SCHEMA_VERSION: i64 = 2;
+const LEGACY_ANALYSIS_MANIFEST_SCHEMA_VERSION: i64 = 1;
+const CORROBORATION_ALGORITHM_VERSION: &str = "zentra.payroll-evidence-corroboration.v1";
 const MAX_ANALYSIS_PASSES: i64 = 4;
 const MAX_FIELD_PROVENANCE_ITEMS: usize = 256;
 const MAX_LINE_PROVENANCE_ITEMS: usize = 512;
@@ -69,6 +73,8 @@ fn confirmation_analysis_summary(manifest_json: Option<&str>) -> AppResult<Value
     Ok(json!({
         "sha256": format!("{:x}", Sha256::digest(manifest_json.as_bytes())),
         "schema_version": manifest.schema_version,
+        "corroboration_method": manifest.corroboration_method,
+        "corroboration_algorithm_version": manifest.corroboration_algorithm_version,
         "model_id": manifest.model_id,
         "model_revision": manifest.model_revision,
         "input_sha256": manifest.input_sha256,
@@ -79,6 +85,39 @@ fn confirmation_analysis_summary(manifest_json: Option<&str>) -> AppResult<Value
         "line_provenance_count": manifest.line_provenance.len(),
         "conflict_count": manifest.conflicts.len(),
     }))
+}
+
+/// Une ligne SQLite locale n'est pas une frontière de confiance. Même lorsque
+/// le brouillon confirmé est byte-for-byte identique au brouillon enregistré,
+/// le manifeste est revalidé contre le hash, le type et le nombre de pages du
+/// document géré avant d'être inclus dans la preuve de confirmation.
+fn normalize_stored_manifest_for_confirmation(
+    stored_manifest_json: Option<&str>,
+    draft: &PayrollImportDraft,
+    expected_sha256: &str,
+    media_kind: &str,
+    page_count: Option<i64>,
+    verified_document_bytes: &[u8],
+) -> AppResult<Option<String>> {
+    let Some(stored_manifest_json) = stored_manifest_json else {
+        return Ok(None);
+    };
+    let manifest: PayrollAnalysisManifest =
+        serde_json::from_str(stored_manifest_json).map_err(|_| {
+            AppError::Validation(
+            "Le manifeste d’analyse local est illisible; relancez l’analyse avant de confirmer."
+                .into(),
+        )
+        })?;
+    let normalized = normalize_analysis_manifest(
+        manifest,
+        expected_sha256,
+        media_kind,
+        page_count,
+        draft,
+        Some(verified_document_bytes),
+    )?;
+    Ok(Some(serde_json::to_string(&normalized)?))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -229,18 +268,454 @@ fn normalize_manifest_passes(
     Ok(())
 }
 
+fn validate_v2_manifest_confidence(
+    confidence_bp: i64,
+    passes: i64,
+    corroboration_method: &str,
+) -> bool {
+    let (visual, text_corroborated) = v2_manifest_confidence_levels(passes);
+    confidence_bp == visual
+        || (corroboration_method == "local_visual_read_with_pdf_text"
+            && confidence_bp == text_corroborated)
+}
+
+fn v2_manifest_confidence_levels(passes: i64) -> (i64, i64) {
+    if passes >= 2 {
+        (7_000, 9_200)
+    } else {
+        (5_200, 7_800)
+    }
+}
+
+fn fold_manifest_evidence_text(value: &str) -> String {
+    let mut folded = String::with_capacity(value.len());
+    for character in value
+        .nfkd()
+        .filter(|character| !is_combining_mark(*character))
+    {
+        for character in character.to_lowercase() {
+            if character.is_ascii_alphanumeric() || matches!(character, '\'' | '.' | ',') {
+                folded.push(character);
+            } else if matches!(character, '\u{2019}' | '`') {
+                folded.push('\'');
+            } else {
+                folded.push(' ');
+            }
+        }
+    }
+    folded.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn compact_manifest_evidence_text(value: &str) -> String {
+    fold_manifest_evidence_text(value)
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .collect()
+}
+
+fn manifest_label_tokens(value: &str) -> Vec<String> {
+    const IGNORED: &[&str] = &[
+        "chf",
+        "part",
+        "total",
+        "montant",
+        "betrag",
+        "amount",
+        "importo",
+        "employe",
+        "employee",
+        "arbeitnehmer",
+        "dipendente",
+    ];
+    let mut seen = HashSet::new();
+    fold_manifest_evidence_text(value)
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| token.len() >= 2 && !IGNORED.contains(token))
+        .filter_map(|token| seen.insert(token.to_owned()).then_some(token.to_owned()))
+        .collect()
+}
+
+fn parse_manifest_printed_money(value: &str) -> Option<i64> {
+    static CHF: OnceLock<Regex> = OnceLock::new();
+    static DECIMAL: OnceLock<Regex> = OnceLock::new();
+    static INTEGER: OnceLock<Regex> = OnceLock::new();
+    let chf = CHF.get_or_init(|| Regex::new(r"(?i)\bCHF\b").expect("CHF regex"));
+    let decimal = DECIMAL.get_or_init(|| {
+        Regex::new(r"^(\d{1,3}(?:['’ ]\d{3})+|\d+)[.,](\d{2})$").expect("printed decimal regex")
+    });
+    let integer = INTEGER.get_or_init(|| {
+        Regex::new(r"^(\d{1,3}(?:['’ ]\d{3})+|\d+)$").expect("printed integer regex")
+    });
+    let had_chf = chf.is_match(value);
+    let compact = chf
+        .replace_all(value, "")
+        .replace(['\u{00a0}', '\u{202f}'], " ");
+    let compact = compact.trim();
+    if let Some(captures) = decimal.captures(compact) {
+        let francs = captures
+            .get(1)?
+            .as_str()
+            .replace(['\'', '\u{2019}', ' '], "")
+            .parse::<i64>()
+            .ok()?;
+        let cents = captures.get(2)?.as_str().parse::<i64>().ok()?;
+        return francs.checked_mul(100)?.checked_add(cents);
+    }
+    let captures = integer.captures(compact)?;
+    if !had_chf
+        && !compact
+            .chars()
+            .any(|character| matches!(character, '\'' | '\u{2019}' | ' '))
+    {
+        return None;
+    }
+    captures
+        .get(1)?
+        .as_str()
+        .replace(['\'', '\u{2019}', ' '], "")
+        .parse::<i64>()
+        .ok()?
+        .checked_mul(100)
+}
+
+fn manifest_money_values_on_line(line: &str) -> Vec<i64> {
+    static MONEY_CANDIDATE: OnceLock<Regex> = OnceLock::new();
+    let pattern = MONEY_CANDIDATE.get_or_init(|| {
+        Regex::new(
+            r"(?i)(?:\bCHF\s*)?(?:\d{1,3}(?:['’\u{00a0}\u{202f} ]\d{3})+|\d+)(?:[.,]\d{2})?(?:\s*CHF\b)?",
+        )
+        .expect("printed money candidate regex")
+    });
+    pattern
+        .find_iter(line)
+        .filter_map(|candidate| parse_manifest_printed_money(candidate.as_str()))
+        .collect()
+}
+
+fn manifest_line_contains_any_label(line: &str, labels: &[&str]) -> bool {
+    let compact_line = compact_manifest_evidence_text(line);
+    labels.iter().any(|label| {
+        let compact_label = compact_manifest_evidence_text(label);
+        !compact_label.is_empty() && compact_line.contains(&compact_label)
+    })
+}
+
+fn manifest_page_corroborates_labeled_amount(
+    page_text: &str,
+    amount_cents: i64,
+    labels: &[&str],
+) -> bool {
+    amount_cents > 0
+        && page_text.lines().any(|line| {
+            manifest_money_values_on_line(line).contains(&amount_cents)
+                && manifest_line_contains_any_label(line, labels)
+        })
+}
+
+fn manifest_page_corroborates_labeled_text(page_text: &str, value: &str, labels: &[&str]) -> bool {
+    let compact_value = compact_manifest_evidence_text(value);
+    compact_value.len() >= 2
+        && page_text.lines().any(|line| {
+            compact_manifest_evidence_text(line).contains(&compact_value)
+                && manifest_line_contains_any_label(line, labels)
+        })
+}
+
+fn manifest_period_variants(value: &str) -> Vec<String> {
+    const MONTHS: [&[&str]; 12] = [
+        &["janvier", "januar", "gennaio", "january"],
+        &["fevrier", "februar", "febbraio", "february"],
+        &["mars", "marz", "marzo", "march"],
+        &["avril", "april", "aprile"],
+        &["mai", "maggio", "may"],
+        &["juin", "juni", "giugno", "june"],
+        &["juillet", "juli", "luglio", "july"],
+        &["aout", "august", "agosto"],
+        &["septembre", "september", "settembre"],
+        &["octobre", "oktober", "ottobre", "october"],
+        &["novembre", "november"],
+        &["decembre", "dezember", "dicembre", "december"],
+    ];
+    let Some((year, month)) = value.trim().split_once('-') else {
+        return Vec::new();
+    };
+    let Ok(month_number) = month.parse::<usize>() else {
+        return Vec::new();
+    };
+    if year.len() != 4
+        || !year.chars().all(|character| character.is_ascii_digit())
+        || !(1..=12).contains(&month_number)
+        || month.len() != 2
+    {
+        return Vec::new();
+    }
+    let mut variants = vec![
+        format!("{month} {year}"),
+        format!("{month_number} {year}"),
+        format!("{month}{year}"),
+    ];
+    variants.extend(
+        MONTHS[month_number - 1]
+            .iter()
+            .map(|name| format!("{name} {year}")),
+    );
+    variants
+        .into_iter()
+        .map(|variant| compact_manifest_evidence_text(&variant))
+        .collect()
+}
+
+fn manifest_page_corroborates_field(page_text: &str, field: &str, value: &str) -> bool {
+    const EMPLOYEE_NUMBER_LABELS: &[&str] = &[
+        "numero employe",
+        "numero collaborateur",
+        "matricule",
+        "personalnummer",
+        "mitarbeiternummer",
+        "numero dipendente",
+        "employee number",
+    ];
+    const BIRTH_DATE_LABELS: &[&str] = &[
+        "date de naissance",
+        "ne le",
+        "nee le",
+        "geburtsdatum",
+        "nato il",
+        "nata il",
+        "date of birth",
+    ];
+    const AVS_NUMBER_LABELS: &[&str] = &[
+        "numero avs",
+        "no avs",
+        "avs nr",
+        "ahv nr",
+        "numero avs ai",
+        "social security number",
+    ];
+    const EMPLOYMENT_RATE_LABELS: &[&str] = &[
+        "taux d'activite",
+        "taux d'occupation",
+        "taux activite",
+        "taux occupation",
+        "pensum",
+        "beschaftigungsgrad",
+        "grado occupazione",
+        "employment rate",
+    ];
+    const PAYMENT_DATE_LABELS: &[&str] = &[
+        "date de paiement",
+        "date de versement",
+        "paye le",
+        "auszahlungsdatum",
+        "zahlungsdatum",
+        "data pagamento",
+        "payment date",
+    ];
+    const GROSS_LABELS: &[&str] = &[
+        "salaire brut",
+        "total brut",
+        "bruttolohn",
+        "brutto lohn",
+        "salario lordo",
+        "gross salary",
+        "gross pay",
+    ];
+    const NET_LABELS: &[&str] = &[
+        "net a payer",
+        "salaire net",
+        "total net",
+        "nettolohn",
+        "netto lohn",
+        "salario netto",
+        "net pay",
+        "net salary",
+    ];
+    const MONTHLY_LABELS: &[&str] = &[
+        "salaire mensuel",
+        "traitement mensuel",
+        "monatslohn",
+        "salario mensile",
+        "monthly salary",
+        "monthly wage",
+    ];
+    const HOURLY_LABELS: &[&str] = &[
+        "salaire horaire",
+        "taux horaire",
+        "stundenlohn",
+        "salario orario",
+        "hourly salary",
+        "hourly wage",
+    ];
+
+    if value.is_empty() {
+        return false;
+    }
+    match field {
+        "gross_cents" => value.parse::<i64>().ok().is_some_and(|amount| {
+            manifest_page_corroborates_labeled_amount(page_text, amount, GROSS_LABELS)
+        }),
+        "net_cents" => value.parse::<i64>().ok().is_some_and(|amount| {
+            manifest_page_corroborates_labeled_amount(page_text, amount, NET_LABELS)
+        }),
+        "period" => {
+            let compact_page = compact_manifest_evidence_text(page_text);
+            manifest_period_variants(value)
+                .iter()
+                .any(|variant| !variant.is_empty() && compact_page.contains(variant))
+        }
+        "employee.employee_number" => {
+            manifest_page_corroborates_labeled_text(page_text, value, EMPLOYEE_NUMBER_LABELS)
+        }
+        "employee.birth_date" => {
+            manifest_page_corroborates_labeled_text(page_text, value, BIRTH_DATE_LABELS)
+        }
+        "employee.avs_number" => {
+            manifest_page_corroborates_labeled_text(page_text, value, AVS_NUMBER_LABELS)
+        }
+        "employee.employment_rate" => {
+            let Ok(rate) = value.parse::<i64>() else {
+                return false;
+            };
+            let rate_pattern = Regex::new(&format!(r"(^|\D){rate}(?:[.,]0+)?\s*%"))
+                .expect("employment rate regex");
+            page_text.lines().any(|line| {
+                manifest_line_contains_any_label(line, EMPLOYMENT_RATE_LABELS)
+                    && rate_pattern.is_match(line)
+            })
+        }
+        "employee.salary_mode" => {
+            let labels = if value == "monthly" {
+                MONTHLY_LABELS
+            } else {
+                HOURLY_LABELS
+            };
+            page_text
+                .lines()
+                .any(|line| manifest_line_contains_any_label(line, labels))
+        }
+        "payment_date" => {
+            manifest_page_corroborates_labeled_text(page_text, value, PAYMENT_DATE_LABELS)
+        }
+        _ => {
+            let compact_page = compact_manifest_evidence_text(page_text);
+            let compact_value = compact_manifest_evidence_text(value);
+            compact_value.len() >= 4 && compact_page.contains(&compact_value)
+        }
+    }
+}
+
+fn manifest_page_corroborates_line(page_text: &str, label: &str, amount_cents: i64) -> bool {
+    let tokens = manifest_label_tokens(label);
+    if tokens.is_empty() || amount_cents <= 0 {
+        return false;
+    }
+    page_text.lines().any(|line| {
+        if !manifest_money_values_on_line(line).contains(&amount_cents) {
+            return false;
+        }
+        let line_tokens = fold_manifest_evidence_text(line)
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .filter(|token| !token.is_empty())
+            .map(str::to_owned)
+            .collect::<HashSet<_>>();
+        let matches = tokens
+            .iter()
+            .filter(|token| line_tokens.contains(*token))
+            .count();
+        let required = if tokens.len() == 1 {
+            1
+        } else {
+            usize::min(2, tokens.len())
+        };
+        matches >= required
+    })
+}
+
+fn extract_verified_manifest_pdf_page_texts(
+    verified_document_bytes: Option<&[u8]>,
+    expected_sha256: &str,
+    expected_page_count: Option<i64>,
+) -> AppResult<Vec<String>> {
+    let bytes = verified_document_bytes.ok_or_else(|| {
+        AppError::Validation(
+            "Les octets locaux vérifiés du PDF sont requis pour corroborer sa couche texte.".into(),
+        )
+    })?;
+    verify_document_content_hash(bytes, expected_sha256)?;
+    let synthetic_source = Path::new("fiche-salaire.pdf");
+    validate_document_signature(synthetic_source, bytes, PayrollDocumentType::Pdf)?;
+    let actual_page_count = document_page_count(synthetic_source, bytes, PayrollDocumentType::Pdf)?;
+    let page_texts = pdf_extract::extract_text_from_mem_by_pages(bytes).map_err(|_| {
+        AppError::Validation(
+            "La couche texte du PDF local n'a pas pu être relue page par page; utilisez une confiance visuelle et contrôlez le document original."
+                .into(),
+        )
+    })?;
+    if page_texts.len() != actual_page_count
+        || expected_page_count.is_some_and(|count| count != actual_page_count as i64)
+    {
+        return Err(AppError::Validation(
+            "Le nombre de pages relues dans le PDF local ne correspond pas au document importé."
+                .into(),
+        ));
+    }
+    Ok(page_texts
+        .into_iter()
+        .map(|text| limit_chars(normalize_extracted_text(&text), 8_000))
+        .collect())
+}
+
 fn normalize_analysis_manifest(
     mut manifest: PayrollAnalysisManifest,
     expected_sha256: &str,
     media_kind: &str,
     page_count: Option<i64>,
     draft: &PayrollImportDraft,
+    verified_document_bytes: Option<&[u8]>,
 ) -> AppResult<PayrollAnalysisManifest> {
-    if manifest.schema_version != ANALYSIS_MANIFEST_SCHEMA_VERSION {
+    if !matches!(
+        manifest.schema_version,
+        LEGACY_ANALYSIS_MANIFEST_SCHEMA_VERSION | ANALYSIS_MANIFEST_SCHEMA_VERSION
+    ) {
         return Err(AppError::Validation(format!(
             "La version {} du manifeste d'analyse n'est pas prise en charge.",
             manifest.schema_version
         )));
+    }
+    if manifest.schema_version == ANALYSIS_MANIFEST_SCHEMA_VERSION {
+        manifest.corroboration_method =
+            manifest_text(&manifest.corroboration_method, "corroboration_method", 80)?;
+        if !matches!(
+            manifest.corroboration_method.as_str(),
+            "local_visual_read" | "local_visual_read_with_pdf_text"
+        ) {
+            return Err(AppError::Validation(
+                "La méthode de corroboration du manifeste n'est pas prise en charge.".into(),
+            ));
+        }
+        if media_kind == "image"
+            && manifest.corroboration_method == "local_visual_read_with_pdf_text"
+        {
+            return Err(AppError::Validation(
+                "Une image ne peut pas déclarer de corroboration par couche texte PDF.".into(),
+            ));
+        }
+        manifest.corroboration_algorithm_version = manifest_text(
+            &manifest.corroboration_algorithm_version,
+            "corroboration_algorithm_version",
+            120,
+        )?;
+        if manifest.corroboration_algorithm_version != CORROBORATION_ALGORITHM_VERSION {
+            return Err(AppError::Validation(
+                "La version de l'algorithme de corroboration du manifeste n'est pas prise en charge."
+                    .into(),
+            ));
+        }
+    } else {
+        // Les manifestes v1 déjà stockés restent lisibles, mais ne peuvent pas
+        // prétendre documenter une méthode de corroboration ajoutée en v2.
+        manifest.corroboration_method.clear();
+        manifest.corroboration_algorithm_version.clear();
     }
     manifest.model_id = manifest_text(&manifest.model_id, "model_id", 200)?;
     manifest.model_revision = manifest_text(&manifest.model_revision, "model_revision", 200)?;
@@ -290,6 +765,42 @@ fn normalize_analysis_manifest(
         .iter()
         .copied()
         .collect::<HashSet<_>>();
+    let uses_pdf_text = manifest.schema_version == ANALYSIS_MANIFEST_SCHEMA_VERSION
+        && manifest.corroboration_method == "local_visual_read_with_pdf_text";
+    if uses_pdf_text && media_kind != "pdf" {
+        return Err(AppError::Validation(
+            "La corroboration par couche texte est réservée aux documents PDF.".into(),
+        ));
+    }
+    let corroboration_page_texts = uses_pdf_text
+        .then(|| {
+            extract_verified_manifest_pdf_page_texts(
+                verified_document_bytes,
+                expected_sha256,
+                page_count,
+            )
+        })
+        .transpose()?;
+    if corroboration_page_texts.as_ref().is_some_and(|pages| {
+        manifest
+            .analyzed_pages
+            .iter()
+            .any(|page| *page < 1 || *page as usize > pages.len())
+    }) {
+        return Err(AppError::Validation(
+            "Les pages analysées du manifeste dépassent les pages relues dans le PDF local.".into(),
+        ));
+    }
+    let (_, text_corroborated_confidence) = v2_manifest_confidence_levels(manifest.passes);
+    let mut corroborated_evidence_count = 0_usize;
+    if manifest.schema_version == LEGACY_ANALYSIS_MANIFEST_SCHEMA_VERSION {
+        // Le tout premier format v1 n'enregistrait pas la valeur scalaire.
+        // Une telle indication reste lisible mais elle est supprimée avant
+        // scellement, car elle ne prouve pas quelle valeur figurait sur la page.
+        manifest
+            .field_provenance
+            .retain(|provenance| !provenance.value.trim().is_empty());
+    }
     if manifest.field_provenance.len() > MAX_FIELD_PROVENANCE_ITEMS {
         return Err(AppError::Validation(
             "Le manifeste contient trop de provenances de champs.".into(),
@@ -330,6 +841,41 @@ fn normalize_analysis_manifest(
                 "La confiance du champ {} est invalide.",
                 provenance.field
             )));
+        }
+        if manifest.schema_version == ANALYSIS_MANIFEST_SCHEMA_VERSION
+            && !validate_v2_manifest_confidence(
+                provenance.confidence_bp,
+                manifest.passes,
+                &manifest.corroboration_method,
+            )
+        {
+            return Err(AppError::Validation(format!(
+                "La confiance du champ {} ne correspond pas à l'algorithme de corroboration déclaré.",
+                provenance.field
+            )));
+        }
+        if manifest.schema_version == ANALYSIS_MANIFEST_SCHEMA_VERSION
+            && provenance.confidence_bp == text_corroborated_confidence
+        {
+            let corroborated = provenance.pages.iter().any(|page| {
+                corroboration_page_texts
+                    .as_ref()
+                    .and_then(|pages| pages.get((*page - 1) as usize))
+                    .is_some_and(|page_text| {
+                        manifest_page_corroborates_field(
+                            page_text,
+                            &provenance.field,
+                            &provenance.value,
+                        )
+                    })
+            });
+            if !corroborated {
+                return Err(AppError::Validation(format!(
+                    "La confiance corroborée du champ {} n'est pas justifiée par sa valeur dans la couche texte de la page déclarée.",
+                    provenance.field
+                )));
+            }
+            corroborated_evidence_count += 1;
         }
     }
     manifest
@@ -384,10 +930,52 @@ fn normalize_analysis_manifest(
                 provenance.line_index + 1
             )));
         }
+        if manifest.schema_version == ANALYSIS_MANIFEST_SCHEMA_VERSION
+            && !validate_v2_manifest_confidence(
+                provenance.confidence_bp,
+                manifest.passes,
+                &manifest.corroboration_method,
+            )
+        {
+            return Err(AppError::Validation(format!(
+                "La confiance de la rubrique {} ne correspond pas à l'algorithme de corroboration déclaré.",
+                provenance.line_index + 1
+            )));
+        }
+        if manifest.schema_version == ANALYSIS_MANIFEST_SCHEMA_VERSION
+            && provenance.confidence_bp == text_corroborated_confidence
+        {
+            let corroborated = provenance.pages.iter().any(|page| {
+                corroboration_page_texts
+                    .as_ref()
+                    .and_then(|pages| pages.get((*page - 1) as usize))
+                    .is_some_and(|page_text| {
+                        manifest_page_corroborates_line(
+                            page_text,
+                            &provenance.label,
+                            provenance.amount_cents,
+                        )
+                    })
+            });
+            if !corroborated {
+                return Err(AppError::Validation(format!(
+                    "La confiance corroborée de la rubrique {} n'est pas justifiée par son libellé et son montant dans la couche texte de la page déclarée.",
+                    provenance.line_index + 1
+                )));
+            }
+            corroborated_evidence_count += 1;
+        }
     }
     manifest
         .line_provenance
         .sort_by_key(|provenance| provenance.line_index);
+
+    if uses_pdf_text && corroborated_evidence_count == 0 {
+        return Err(AppError::Validation(
+            "La méthode de corroboration par couche texte exige au moins une preuve réellement corroborée sur une page déclarée."
+                .into(),
+        ));
+    }
 
     if manifest.conflicts.len() > MAX_ANALYSIS_CONFLICTS {
         return Err(AppError::Validation(
@@ -579,6 +1167,7 @@ fn reconcile_stored_analysis_manifest(
     expected_sha256: &str,
     media_kind: &str,
     page_count: Option<i64>,
+    verified_document_bytes: &[u8],
 ) -> Option<String> {
     let previous_draft = serde_json::from_str::<PayrollImportDraft>(stored_draft_json).ok()?;
     let manifest = serde_json::from_str::<PayrollAnalysisManifest>(stored_manifest_json?).ok()?;
@@ -589,6 +1178,7 @@ fn reconcile_stored_analysis_manifest(
         media_kind,
         page_count,
         next_draft,
+        Some(verified_document_bytes),
     )
     .ok()?;
     serde_json::to_string(&normalized).ok()
@@ -1070,12 +1660,31 @@ impl LocalStore {
             }
             Some(state) => state,
         };
-        if analysis_manifest.is_some() {
-            read_verified_managed_payroll_copy(&self.attachments_dir, &stored_path, &file_sha256)?;
-        }
+        let draft_json = serde_json::to_string(&draft)?;
+        let draft_changed = !stored_draft_matches(&stored_draft_json, &draft_json);
+        let has_new_manifest = analysis_manifest.is_some();
+        let needs_verified_document = has_new_manifest
+            || (!clear_analysis_manifest && draft_changed && stored_manifest_json.is_some());
+        let verified_document_bytes = needs_verified_document
+            .then(|| {
+                read_verified_managed_payroll_copy(
+                    &self.attachments_dir,
+                    &stored_path,
+                    &file_sha256,
+                )
+                .map(|(_, bytes)| bytes)
+            })
+            .transpose()?;
         let manifest_json = analysis_manifest
             .map(|manifest| {
-                normalize_analysis_manifest(manifest, &file_sha256, &media_kind, page_count, &draft)
+                normalize_analysis_manifest(
+                    manifest,
+                    &file_sha256,
+                    &media_kind,
+                    page_count,
+                    &draft,
+                    verified_document_bytes.as_deref(),
+                )
             })
             .transpose()?
             .map(|manifest| serde_json::to_string(&manifest))
@@ -1084,20 +1693,20 @@ impl LocalStore {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty());
-        let draft_json = serde_json::to_string(&draft)?;
-        let draft_changed = !stored_draft_matches(&stored_draft_json, &draft_json);
-        let reconciled_manifest_json = draft_changed
-            .then(|| {
-                reconcile_stored_analysis_manifest(
-                    stored_manifest_json.as_deref(),
-                    &stored_draft_json,
-                    &draft,
-                    &file_sha256,
-                    &media_kind,
-                    page_count,
-                )
-            })
-            .flatten();
+        let reconciled_manifest_json =
+            (!has_new_manifest && !clear_analysis_manifest && draft_changed)
+                .then(|| {
+                    reconcile_stored_analysis_manifest(
+                        stored_manifest_json.as_deref(),
+                        &stored_draft_json,
+                        &draft,
+                        &file_sha256,
+                        &media_kind,
+                        page_count,
+                        verified_document_bytes.as_deref()?,
+                    )
+                })
+                .flatten();
         let updated_at = now_iso();
         if let Some(manifest_json) = manifest_json {
             transaction.execute(
@@ -1273,7 +1882,8 @@ impl LocalStore {
             }
             Some(state) => state,
         };
-        read_verified_managed_payroll_copy(&self.attachments_dir, &stored_path, &file_sha256)?;
+        let (_, verified_document_bytes) =
+            read_verified_managed_payroll_copy(&self.attachments_dir, &stored_path, &file_sha256)?;
         let draft_json = serde_json::to_string(&draft)?;
         let draft_changed = !stored_draft_matches(&stored_draft_json, &draft_json);
         let retained_manifest_json = if draft_changed {
@@ -1284,9 +1894,17 @@ impl LocalStore {
                 &file_sha256,
                 &media_kind,
                 page_count,
+                &verified_document_bytes,
             )
         } else {
-            stored_manifest_json
+            normalize_stored_manifest_for_confirmation(
+                stored_manifest_json.as_deref(),
+                &draft,
+                &file_sha256,
+                &media_kind,
+                page_count,
+                &verified_document_bytes,
+            )?
         };
 
         // Un bulletin historique ne doit jamais devenir implicitement le
@@ -2239,6 +2857,23 @@ fn insert_employee_from_draft(
     Ok(id)
 }
 
+fn normalized_person_name(value: &str) -> String {
+    value
+        .nfd()
+        .filter(|character| !is_combining_mark(*character))
+        .flat_map(char::to_lowercase)
+        .filter(|character| character.is_alphanumeric())
+        .collect()
+}
+
+fn normalized_identity_iban(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .flat_map(char::to_uppercase)
+        .collect()
+}
+
 fn ensure_new_employee_identity_available(
     transaction: &rusqlite::Transaction<'_>,
     employee: &PayrollImportEmployeeDraft,
@@ -2254,11 +2889,17 @@ fn ensure_new_employee_identity_available(
         .filter(char::is_ascii_alphanumeric)
         .flat_map(char::to_lowercase)
         .collect::<String>();
-    if imported_avs.is_empty() && imported_number.is_empty() {
+    let imported_name = normalized_person_name(&employee.name);
+    let imported_birth = employee.birth_date.trim();
+    let imported_iban = normalized_identity_iban(&employee.iban);
+    let has_probable_identity =
+        !imported_name.is_empty() && (!imported_birth.is_empty() || !imported_iban.is_empty());
+    if imported_avs.is_empty() && imported_number.is_empty() && !has_probable_identity {
         return Ok(());
     }
-    let mut statement = transaction
-        .prepare("SELECT id,name,employee_number,social_security_number FROM employees")?;
+    let mut statement = transaction.prepare(
+        "SELECT id,name,employee_number,social_security_number,birth_date,iban FROM employees",
+    )?;
     let existing = statement
         .query_map([], |row| {
             Ok((
@@ -2266,10 +2907,12 @@ fn ensure_new_employee_identity_available(
                 row.get::<_, String>(1)?,
                 row.get::<_, Option<String>>(2)?.unwrap_or_default(),
                 row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                row.get::<_, Option<String>>(5)?.unwrap_or_default(),
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    for (id, name, employee_number, avs_number) in existing {
+    for (id, name, employee_number, avs_number, birth_date, iban) in existing {
         let same_avs = !imported_avs.is_empty()
             && avs_number
                 .chars()
@@ -2281,10 +2924,24 @@ fn ensure_new_employee_identity_available(
                 .filter(char::is_ascii_alphanumeric)
                 .flat_map(char::to_lowercase)
                 .eq(imported_number.chars());
-        if same_avs || same_number {
+        let same_name = !imported_name.is_empty() && normalized_person_name(&name) == imported_name;
+        let same_name_birth =
+            same_name && !imported_birth.is_empty() && birth_date.trim() == imported_birth;
+        let same_name_iban = same_name
+            && !imported_iban.is_empty()
+            && normalized_identity_iban(&iban) == imported_iban;
+        if same_avs || same_number || same_name_birth || same_name_iban {
+            let signal = if same_avs {
+                "ce numéro AVS"
+            } else if same_number {
+                "ce numéro employé"
+            } else if same_name_birth {
+                "le même nom et la même date de naissance"
+            } else {
+                "le même nom et le même IBAN"
+            };
             return Err(AppError::Validation(format!(
-                "Un collaborateur existant ({name}, identifiant {id}) possède déjà {}. Rattachez explicitement la fiche à ce profil au lieu d'en créer un nouveau.",
-                if same_avs { "ce numéro AVS" } else { "ce numéro employé" }
+                "Un collaborateur existant ({name}, identifiant {id}) possède déjà {signal}. Rattachez explicitement la fiche à ce profil au lieu d'en créer un nouveau."
             )));
         }
     }
@@ -2786,6 +3443,78 @@ mod tests {
         bytes
     }
 
+    fn pdf_with_page_texts(page_texts: &[&str]) -> Vec<u8> {
+        use lopdf::{
+            content::{Content, Operation},
+            Object, Stream,
+        };
+
+        let mut document = lopdf::Document::with_version("1.5");
+        let pages_id = document.new_object_id();
+        let font_id = document.add_object(lopdf::dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+        let resources_id = document.add_object(lopdf::dictionary! {
+            "Font" => lopdf::dictionary! { "F1" => font_id },
+        });
+        let mut kids = Vec::new();
+        for page_text in page_texts {
+            let mut operations = vec![
+                Operation::new("BT", vec![]),
+                Operation::new("Tf", vec![Object::Name(b"F1".to_vec()), 12.into()]),
+                Operation::new("Td", vec![40.into(), 760.into()]),
+            ];
+            for (index, line) in page_text.lines().enumerate() {
+                if index > 0 {
+                    operations.push(Operation::new("Td", vec![0.into(), (-18).into()]));
+                }
+                operations.push(Operation::new("Tj", vec![Object::string_literal(line)]));
+            }
+            operations.push(Operation::new("ET", vec![]));
+            let content_id = document.add_object(Stream::new(
+                lopdf::dictionary! {},
+                Content { operations }
+                    .encode()
+                    .expect("encode multipage PDF text content"),
+            ));
+            let page_id = document.add_object(lopdf::dictionary! {
+                "Type" => "Page",
+                "Parent" => pages_id,
+                "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+                "Resources" => resources_id,
+                "Contents" => content_id,
+            });
+            kids.push(lopdf::Object::Reference(page_id));
+        }
+        document.objects.insert(
+            pages_id,
+            lopdf::Object::Dictionary(lopdf::dictionary! {
+                "Type" => "Pages",
+                "Kids" => kids,
+                "Count" => page_texts.len() as i64,
+            }),
+        );
+        let catalog_id = document.add_object(lopdf::dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        document.trailer.set("Root", catalog_id);
+        let mut bytes = Vec::new();
+        document
+            .save_to(&mut bytes)
+            .expect("serialize multipage text PDF");
+        bytes
+    }
+
+    fn analysis_pdf_bytes() -> Vec<u8> {
+        pdf_with_page_texts(&[
+            "Collaborateur Alex Exemple",
+            "Periode aout 2026\nSalaire mensuel CHF 5'000.00",
+        ])
+    }
+
     fn manifest_draft() -> PayrollImportDraft {
         let mut draft = empty_draft();
         draft.employee.name = "Alex Exemple".into();
@@ -2806,6 +3535,8 @@ mod tests {
     fn analysis_manifest(input_sha256: &str) -> PayrollAnalysisManifest {
         PayrollAnalysisManifest {
             schema_version: ANALYSIS_MANIFEST_SCHEMA_VERSION,
+            corroboration_method: "local_visual_read_with_pdf_text".into(),
+            corroboration_algorithm_version: CORROBORATION_ALGORITHM_VERSION.into(),
             model_id: "HuggingFaceTB/SmolVLM-500M-Instruct".into(),
             model_revision: "revision-locale-figee".into(),
             input_sha256: input_sha256.into(),
@@ -2817,14 +3548,14 @@ mod tests {
                     value: "Alex Exemple".into(),
                     pages: vec![1],
                     pass_indexes: vec![2, 1, 2],
-                    confidence_bp: 9_250,
+                    confidence_bp: 9_200,
                 },
                 PayrollAnalysisFieldProvenance {
                     field: "period".into(),
                     value: "2026-08".into(),
                     pages: vec![2],
                     pass_indexes: vec![1, 2],
-                    confidence_bp: 9_000,
+                    confidence_bp: 7_000,
                 },
             ],
             line_provenance: vec![PayrollAnalysisLineProvenance {
@@ -2834,7 +3565,7 @@ mod tests {
                 amount_cents: 500_000,
                 pages: vec![2],
                 pass_indexes: vec![2, 1],
-                confidence_bp: 9_000,
+                confidence_bp: 9_200,
             }],
             conflicts: vec![PayrollAnalysisConflict {
                 target: "employee.avs_number".into(),
@@ -2848,80 +3579,304 @@ mod tests {
 
     #[test]
     fn normalizes_manifest_evidence_and_rejects_document_or_line_tampering() {
-        let hash = "a".repeat(64);
+        let document_bytes = analysis_pdf_bytes();
+        let hash = format!("{:x}", Sha256::digest(&document_bytes));
         let draft = manifest_draft();
-        let normalized =
-            normalize_analysis_manifest(analysis_manifest(&hash), &hash, "pdf", Some(2), &draft)
-                .expect("valid local analysis manifest");
+        let normalized = normalize_analysis_manifest(
+            analysis_manifest(&hash),
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect("valid local analysis manifest");
         assert_eq!(normalized.analyzed_pages, vec![1, 2]);
         assert_eq!(normalized.field_provenance[0].pass_indexes, vec![1, 2]);
         assert_eq!(normalized.conflicts[0].values, vec!["valeur A", "valeur B"]);
 
         let mut wrong_hash = analysis_manifest(&"b".repeat(64));
-        assert!(
-            normalize_analysis_manifest(wrong_hash.clone(), &hash, "pdf", Some(2), &draft,)
-                .expect_err("the evidence must be bound to the stored bytes")
-                .to_string()
-                .contains("hash d'entrée")
-        );
+        assert!(normalize_analysis_manifest(
+            wrong_hash.clone(),
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("the evidence must be bound to the stored bytes")
+        .to_string()
+        .contains("hash d'entrée"));
 
         wrong_hash.input_sha256 = hash.clone();
         wrong_hash.line_provenance[0].amount_cents = 499_999;
-        assert!(
-            normalize_analysis_manifest(wrong_hash, &hash, "pdf", Some(2), &draft,)
-                .expect_err("line evidence must match the saved draft")
-                .to_string()
-                .contains("ne correspond pas au brouillon")
-        );
+        assert!(normalize_analysis_manifest(
+            wrong_hash,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("line evidence must match the saved draft")
+        .to_string()
+        .contains("ne correspond pas au brouillon"));
 
         let mut missing_page = analysis_manifest(&hash);
         missing_page.analyzed_pages = vec![3];
-        assert!(
-            normalize_analysis_manifest(missing_page, &hash, "pdf", Some(2), &draft,)
-                .expect_err("pages beyond the local document must be refused")
-                .to_string()
-                .contains("pages analysées")
-        );
+        assert!(normalize_analysis_manifest(
+            missing_page,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("pages beyond the local document must be refused")
+        .to_string()
+        .contains("pages analysées"));
         let mut partial_coverage = analysis_manifest(&hash);
         partial_coverage.analyzed_pages = vec![1];
-        assert!(
-            normalize_analysis_manifest(partial_coverage, &hash, "pdf", Some(2), &draft,)
-                .expect_err("every stored page must be covered")
-                .to_string()
-                .contains("toutes les pages")
-        );
+        assert!(normalize_analysis_manifest(
+            partial_coverage,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("every stored page must be covered")
+        .to_string()
+        .contains("toutes les pages"));
         let mut unknown_field = analysis_manifest(&hash);
         unknown_field.field_provenance[0].field = "employee.untrusted_field".into();
-        assert!(
-            normalize_analysis_manifest(unknown_field, &hash, "pdf", Some(2), &draft,)
-                .expect_err("unknown scalar targets must not acquire page provenance")
-                .to_string()
-                .contains("aucun champ de paie")
-        );
+        assert!(normalize_analysis_manifest(
+            unknown_field,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("unknown scalar targets must not acquire page provenance")
+        .to_string()
+        .contains("aucun champ de paie"));
+        let mut missing_corroboration = analysis_manifest(&hash);
+        missing_corroboration.corroboration_method.clear();
+        assert!(normalize_analysis_manifest(
+            missing_corroboration,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("a v2 manifest must identify its corroboration method")
+        .to_string()
+        .contains("corroboration_method"));
+        let image_text_claim = analysis_manifest(&hash);
+        assert!(normalize_analysis_manifest(
+            image_text_claim,
+            &hash,
+            "image",
+            Some(1),
+            &draft,
+            None
+        )
+        .expect_err("an image must not claim a PDF text layer")
+        .to_string()
+        .contains("image"));
+        let mut fabricated_score = analysis_manifest(&hash);
+        fabricated_score.field_provenance[0].confidence_bp = 9_000;
+        assert!(normalize_analysis_manifest(
+            fabricated_score,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("v2 confidence must follow the declared algorithm")
+        .to_string()
+        .contains("algorithme de corroboration"));
+        let mut legacy = analysis_manifest(&hash);
+        legacy.schema_version = LEGACY_ANALYSIS_MANIFEST_SCHEMA_VERSION;
+        legacy.corroboration_method = "untrusted-method".into();
+        legacy.corroboration_algorithm_version = "untrusted-version".into();
+        legacy.field_provenance[0].value.clear();
+        let legacy = normalize_analysis_manifest(legacy, &hash, "pdf", Some(2), &draft, None)
+            .expect("stored v1 manifests remain readable without claiming v2 provenance");
+        assert!(legacy.corroboration_method.is_empty());
+        assert!(legacy.corroboration_algorithm_version.is_empty());
+        assert_eq!(legacy.field_provenance.len(), 1);
+        assert_eq!(legacy.field_provenance[0].field, "period");
         let mut wrong_field_value = analysis_manifest(&hash);
         wrong_field_value.field_provenance[0].value = "Une autre personne".into();
-        assert!(
-            normalize_analysis_manifest(wrong_field_value, &hash, "pdf", Some(2), &draft,)
-                .expect_err("scalar evidence must be bound to the saved value")
-                .to_string()
-                .contains("valeur du brouillon")
-        );
+        assert!(normalize_analysis_manifest(
+            wrong_field_value,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("scalar evidence must be bound to the saved value")
+        .to_string()
+        .contains("valeur du brouillon"));
         let mut unknown_conflict = analysis_manifest(&hash);
         unknown_conflict.conflicts[0].target = "employee.untrusted_field".into();
-        assert!(
-            normalize_analysis_manifest(unknown_conflict, &hash, "pdf", Some(2), &draft,)
-                .expect_err("unknown conflict targets must fail closed")
-                .to_string()
-                .contains("aucun champ de paie")
-        );
+        assert!(normalize_analysis_manifest(
+            unknown_conflict,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("unknown conflict targets must fail closed")
+        .to_string()
+        .contains("aucun champ de paie"));
         let mut overlapping_conflict = analysis_manifest(&hash);
         overlapping_conflict.conflicts[0].target = "employee.name".into();
+        assert!(normalize_analysis_manifest(
+            overlapping_conflict,
+            &hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&document_bytes),
+        )
+        .expect_err("resolved provenance and conflicts must be mutually exclusive")
+        .to_string()
+        .contains("simultanément"));
+    }
+
+    #[test]
+    fn rejects_fabricated_pdf_text_corroboration_for_scans_values_and_pages() {
+        let draft = manifest_draft();
+
+        let scan_bytes = pdf_with_page_count(2);
+        let scan_hash = format!("{:x}", Sha256::digest(&scan_bytes));
+        let scan_error = normalize_analysis_manifest(
+            analysis_manifest(&scan_hash),
+            &scan_hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&scan_bytes),
+        )
+        .expect_err("a scan without text must not carry a text-corroborated score");
         assert!(
-            normalize_analysis_manifest(overlapping_conflict, &hash, "pdf", Some(2), &draft,)
-                .expect_err("resolved provenance and conflicts must be mutually exclusive")
-                .to_string()
-                .contains("simultanément")
+            scan_error.to_string().contains("couche texte"),
+            "unexpected scan rejection: {scan_error}"
         );
+
+        let wrong_value_bytes = pdf_with_page_texts(&[
+            "Collaborateur Beatrice Exemple",
+            "Periode aout 2026\nSalaire mensuel CHF 5'000.00",
+        ]);
+        let wrong_value_hash = format!("{:x}", Sha256::digest(&wrong_value_bytes));
+        let wrong_value_error = normalize_analysis_manifest(
+            analysis_manifest(&wrong_value_hash),
+            &wrong_value_hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&wrong_value_bytes),
+        )
+        .expect_err("a different printed value must not justify the score");
+        assert!(
+            wrong_value_error
+                .to_string()
+                .contains("champ employee.name"),
+            "unexpected value rejection: {wrong_value_error}"
+        );
+
+        let wrong_page_bytes = analysis_pdf_bytes();
+        let wrong_page_hash = format!("{:x}", Sha256::digest(&wrong_page_bytes));
+        let mut wrong_page_manifest = analysis_manifest(&wrong_page_hash);
+        wrong_page_manifest.line_provenance[0].pages = vec![1];
+        let wrong_page_error = normalize_analysis_manifest(
+            wrong_page_manifest,
+            &wrong_page_hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&wrong_page_bytes),
+        )
+        .expect_err("text on another page must not justify the declared page");
+        assert!(
+            wrong_page_error.to_string().contains("rubrique 1"),
+            "unexpected page rejection: {wrong_page_error}"
+        );
+
+        let mut text_method_without_proof = analysis_manifest(&wrong_page_hash);
+        for provenance in &mut text_method_without_proof.field_provenance {
+            provenance.confidence_bp = 7_000;
+        }
+        for provenance in &mut text_method_without_proof.line_provenance {
+            provenance.confidence_bp = 7_000;
+        }
+        let no_proof_error = normalize_analysis_manifest(
+            text_method_without_proof,
+            &wrong_page_hash,
+            "pdf",
+            Some(2),
+            &draft,
+            Some(&wrong_page_bytes),
+        )
+        .expect_err("a PDF text method must retain at least one corroborated proof");
+        assert!(
+            no_proof_error.to_string().contains("au moins une preuve"),
+            "unexpected no-proof rejection: {no_proof_error}"
+        );
+    }
+
+    #[test]
+    fn confirmation_revalidates_an_unchanged_manifest_against_the_managed_document() {
+        let document_bytes = analysis_pdf_bytes();
+        let hash = format!("{:x}", Sha256::digest(&document_bytes));
+        let draft = manifest_draft();
+        let canonical = serde_json::to_string(&analysis_manifest(&hash)).unwrap();
+        let normalized = normalize_stored_manifest_for_confirmation(
+            Some(&canonical),
+            &draft,
+            &hash,
+            "pdf",
+            Some(2),
+            &document_bytes,
+        )
+        .expect("valid unchanged evidence")
+        .expect("manifest retained");
+        let parsed: PayrollAnalysisManifest = serde_json::from_str(&normalized).unwrap();
+        assert_eq!(parsed.analyzed_pages, vec![1, 2]);
+        assert_eq!(parsed.field_provenance[0].pass_indexes, vec![1, 2]);
+
+        let tampered_hash = serde_json::to_string(&analysis_manifest(&"b".repeat(64))).unwrap();
+        let error = normalize_stored_manifest_for_confirmation(
+            Some(&tampered_hash),
+            &draft,
+            &hash,
+            "pdf",
+            Some(2),
+            &document_bytes,
+        )
+        .expect_err("a modified local manifest must never be sealed");
+        assert!(error.to_string().contains("hash d'entrée"));
+
+        let mut tampered_confidence = analysis_manifest(&hash);
+        tampered_confidence.field_provenance[0].confidence_bp = 10_001;
+        let tampered_confidence = serde_json::to_string(&tampered_confidence).unwrap();
+        let error = normalize_stored_manifest_for_confirmation(
+            Some(&tampered_confidence),
+            &draft,
+            &hash,
+            "pdf",
+            Some(2),
+            &document_bytes,
+        )
+        .expect_err("out-of-range confidence must never be sealed");
+        assert!(error.to_string().contains("confiance"));
     }
 
     #[test]
@@ -3074,8 +4029,8 @@ mod tests {
         let temporary = tempfile::tempdir().expect("temporary Zentra profile");
         let store = LocalStore::initialize(temporary.path().join("profile"))
             .expect("initialize local store");
-        let document_bytes = b"local payslip evidence";
-        let hash = format!("{:x}", Sha256::digest(document_bytes));
+        let document_bytes = analysis_pdf_bytes();
+        let hash = format!("{:x}", Sha256::digest(&document_bytes));
         let draft = manifest_draft();
         let stored_path = store
             .attachments_dir
@@ -3083,7 +4038,7 @@ mod tests {
             .join("import-proof.pdf");
         fs::create_dir_all(stored_path.parent().expect("payroll import parent"))
             .expect("create payroll import parent");
-        fs::write(&stored_path, document_bytes).expect("managed document copy");
+        fs::write(&stored_path, &document_bytes).expect("managed document copy");
         {
             let connection = store.connect().expect("open test database");
             connection
@@ -3158,7 +4113,7 @@ mod tests {
         assert!(tampered_error
             .to_string()
             .contains("a changé depuis son import"));
-        fs::write(&stored_path, document_bytes).expect("restore managed copy");
+        fs::write(&stored_path, &document_bytes).expect("restore managed copy");
 
         let legacy_input: UpdatePayrollImportDraftInput = serde_json::from_value(json!({
             "id": "import-proof",
@@ -3917,6 +4872,112 @@ mod tests {
         )
         .expect_err("different IBANs must be blocked");
         assert!(error.to_string().contains("IBAN"));
+    }
+
+    #[test]
+    fn blocks_probable_duplicate_employee_by_name_and_second_factor() {
+        let mut connection = rusqlite::Connection::open_in_memory().expect("open memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE employees(
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    employee_number TEXT,
+                    social_security_number TEXT,
+                    birth_date TEXT,
+                    iban TEXT
+                );
+                INSERT INTO employees(id,name,employee_number,social_security_number,birth_date,iban)
+                VALUES('employee-a','Élodie Exemple',NULL,NULL,'1990-01-02','CH9300762011623852957');",
+            )
+            .expect("create employee fixture");
+        let transaction = connection.transaction().expect("begin transaction");
+
+        let mut imported = empty_draft().employee;
+        imported.name = "Elodie  Exemple".into();
+        imported.birth_date = "1990-01-02".into();
+        let error = ensure_new_employee_identity_available(&transaction, &imported)
+            .expect_err("same normalized name and birth date must require an explicit link");
+        assert!(error
+            .to_string()
+            .contains("même nom et la même date de naissance"));
+
+        imported.birth_date.clear();
+        imported.iban = "CH93 0076 2011 6238 5295 7".into();
+        let error = ensure_new_employee_identity_available(&transaction, &imported)
+            .expect_err("same normalized name and IBAN must require an explicit link");
+        assert!(error.to_string().contains("même nom et le même IBAN"));
+
+        imported.iban.clear();
+        ensure_new_employee_identity_available(&transaction, &imported)
+            .expect("a name alone must never block a homonym");
+    }
+
+    #[test]
+    fn confirmation_keeps_import_pending_when_a_probable_employee_duplicate_exists() {
+        let temporary = tempfile::tempdir().expect("temporary Zentra profile");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local store");
+        {
+            let connection = store.connect().expect("open test database");
+            connection
+                .execute(
+                    "INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise locale','2026-09-01T10:00:00Z','2026-09-01T10:00:00Z')",
+                    [],
+                )
+                .expect("completed onboarding marker");
+            connection
+                .execute(
+                    "INSERT INTO employees(id,name,birth_date,employment_rate,hourly_rate_cents,monthly_salary_cents,status,created_at,updated_at) VALUES('employee-existing','Alex Exemple','1990-01-02',100,0,0,'actif','2026-09-01T10:00:00Z','2026-09-01T10:00:00Z')",
+                    [],
+                )
+                .expect("existing employee");
+        }
+        let source_path = temporary.path().join("fiche.png");
+        fs::write(&source_path, png_with_declared_dimensions(1, 1)).expect("source PNG");
+        let staged = store
+            .stage_payroll_documents(StagePayrollDocumentsInput {
+                paths: vec![source_path.to_string_lossy().into_owned()],
+            })
+            .expect("stage document");
+        let import_id = staged["imports"][0]["id"]
+            .as_str()
+            .expect("import id")
+            .to_owned();
+        let mut draft = manifest_draft();
+        draft.employee.birth_date = "1990-01-02".into();
+
+        let error = store
+            .confirm_payroll_document_import(ConfirmPayrollImportInput {
+                id: import_id.clone(),
+                employee_id: None,
+                replace_existing_template: false,
+                human_review_attested: true,
+                human_review_attestation_version: HUMAN_REVIEW_ATTESTATION_VERSION.into(),
+                draft,
+            })
+            .expect_err("confirmation must require selecting the existing employee");
+        assert!(error
+            .to_string()
+            .contains("même nom et la même date de naissance"));
+
+        let connection = store.connect().expect("reopen test database");
+        let status: String = connection
+            .query_row(
+                "SELECT status FROM payroll_document_imports WHERE id=?",
+                params![import_id],
+                |row| row.get(0),
+            )
+            .expect("pending import status");
+        assert_eq!(status, "needs_review");
+        let employee_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM employees", [], |row| row.get(0))
+            .expect("employee count");
+        let payslip_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM payslips", [], |row| row.get(0))
+            .expect("payslip count");
+        assert_eq!(employee_count, 1);
+        assert_eq!(payslip_count, 0);
     }
 
     #[test]

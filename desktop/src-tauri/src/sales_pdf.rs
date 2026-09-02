@@ -3472,6 +3472,81 @@ mod tests {
     }
 
     #[test]
+    fn managed_company_logo_is_embedded_and_drawn_in_sales_pdf_header() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(directory.path().join("profile")).expect("store");
+        let source = directory.path().join("logo-client.png");
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            180,
+            72,
+            image::Rgb([18, 72, 50]),
+        ))
+        .save_with_format(&source, image::ImageFormat::Png)
+        .expect("write company logo");
+        let staged = store
+            .stage_company_logo(source.to_str().expect("source path"))
+            .expect("stage company logo");
+        let mut data = sample_data(2, false);
+        data.issuer.logo_path = staged;
+        let destination = directory.path().join("devis-logo.pdf");
+
+        render_sales_pdf(
+            &destination,
+            &data,
+            Some(store.attachments_dir.join("branding").as_path()),
+        )
+        .expect("render PDF with company logo");
+        if let Some(requested) = std::env::var_os("ZENTRA_SALES_LOGO_SAMPLE_PDF") {
+            let requested = PathBuf::from(requested);
+            if let Some(parent) = requested.parent() {
+                fs::create_dir_all(parent).expect("create visual QA directory");
+            }
+            fs::copy(&destination, requested).expect("copy visual QA PDF");
+        }
+        let parsed = Document::load(&destination).expect("parse generated PDF");
+        let first_page = *parsed.get_pages().values().next().expect("first PDF page");
+        let (inline_resources, resource_ids) = parsed
+            .get_page_resources(first_page)
+            .expect("read page resources");
+        let resources = inline_resources
+            .or_else(|| {
+                resource_ids
+                    .first()
+                    .and_then(|id| parsed.get_dictionary(*id).ok())
+            })
+            .expect("page resources");
+        let xobjects = resources
+            .get(b"XObject")
+            .and_then(Object::as_dict)
+            .expect("image resources");
+        let logo_id = xobjects
+            .get(b"Logo")
+            .and_then(Object::as_reference)
+            .expect("logo resource");
+        let logo = parsed
+            .get_object(logo_id)
+            .and_then(Object::as_stream)
+            .expect("logo image stream");
+        assert_eq!(
+            logo.dict.get(b"Subtype").unwrap(),
+            &Object::Name(b"Image".to_vec())
+        );
+        assert_eq!(logo.dict.get(b"Width").unwrap(), &Object::Integer(180));
+        assert_eq!(logo.dict.get(b"Height").unwrap(), &Object::Integer(72));
+
+        let content = Content::decode(
+            &parsed
+                .get_page_content(first_page)
+                .expect("read first page content"),
+        )
+        .expect("decode first page operations");
+        assert!(content.operations.iter().any(|operation| {
+            operation.operator == "Do"
+                && operation.operands.first() == Some(&Object::Name(b"Logo".to_vec()))
+        }));
+    }
+
+    #[test]
     fn tampered_immutable_logo_is_rejected_for_final_invoice_and_quote() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let (staged_logo, branding_dir) = stage_then_tamper_logo(&directory);

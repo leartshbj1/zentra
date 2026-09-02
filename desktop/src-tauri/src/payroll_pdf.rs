@@ -23,9 +23,9 @@ use crate::{
 const PAGE_WIDTH: f32 = 595.28;
 const PAGE_HEIGHT: f32 = 841.89;
 const MARGIN: f32 = 42.0;
-const NAVY: [f32; 3] = [0.047, 0.102, 0.173];
-const BLUE: [f32; 3] = [0.102, 0.333, 0.878];
-const PALE_BLUE: [f32; 3] = [0.929, 0.953, 1.0];
+const FOREST: [f32; 3] = [0.055, 0.165, 0.118];
+const BRAND: [f32; 3] = [0.075, 0.30, 0.20];
+const BRAND_PALE: [f32; 3] = [0.925, 0.965, 0.945];
 const INK: [f32; 3] = [0.075, 0.102, 0.145];
 const MUTED: [f32; 3] = [0.365, 0.408, 0.475];
 const LINE: [f32; 3] = [0.843, 0.867, 0.902];
@@ -34,6 +34,10 @@ const GREEN: [f32; 3] = [0.059, 0.478, 0.333];
 const GREEN_PALE: [f32; 3] = [0.918, 0.976, 0.949];
 const AMBER: [f32; 3] = [0.714, 0.365, 0.0];
 const AMBER_PALE: [f32; 3] = [1.0, 0.969, 0.878];
+const RED: [f32; 3] = [0.60, 0.20, 0.18];
+const RED_PALE: [f32; 3] = [0.99, 0.945, 0.94];
+const INDIGO: [f32; 3] = [0.25, 0.27, 0.56];
+const INDIGO_PALE: [f32; 3] = [0.945, 0.945, 0.985];
 
 #[derive(Debug, Clone)]
 struct PayslipPdfLine {
@@ -531,7 +535,7 @@ fn balanced_split(lines: &[PayslipPdfLine], first_budget: f32, last_budget: f32)
 }
 
 fn paginate_payslip_lines(lines: &[PayslipPdfLine]) -> Vec<Vec<PayslipPdfLine>> {
-    const SINGLE_PAGE_BUDGET: f32 = 285.0;
+    const SINGLE_PAGE_BUDGET: f32 = 265.0;
     const FIRST_NON_FINAL_BUDGET: f32 = 420.0;
     const CONTINUATION_NON_FINAL_BUDGET: f32 = 600.0;
     const LAST_CONTINUATION_BUDGET: f32 = 465.0;
@@ -615,7 +619,7 @@ fn render_page(
     logo: Option<&PdfLogo>,
 ) -> Vec<Operation> {
     let mut ops = Vec::new();
-    fill_rect(&mut ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, BLUE);
+    fill_rect(&mut ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, BRAND);
     let brand_text_x = if let Some(logo) = logo {
         let (width, height) = fitted_size(logo.width, logo.height, 72.0, 25.0);
         draw_image(&mut ops, "Logo", MARGIN, 786.0, width, height);
@@ -627,10 +631,19 @@ fn render_page(
         &mut ops,
         brand_text_x,
         798.0,
-        9.0,
+        9.5,
         "F2",
-        BLUE,
-        "ZENTRA · PAIE LOCALE",
+        FOREST,
+        &truncate(&fallback(&data.company_name), 34),
+    );
+    text(
+        &mut ops,
+        brand_text_x,
+        786.0,
+        6.8,
+        "F1",
+        MUTED,
+        "Document de paie local - généré avec Zentra",
     );
     text_right(
         &mut ops,
@@ -650,8 +663,26 @@ fn render_page(
             763.0,
             23.0,
             "F2",
-            NAVY,
+            FOREST,
             "FICHE DE SALAIRE",
+        );
+        text(
+            &mut ops,
+            MARGIN,
+            747.0,
+            7.5,
+            "F1",
+            MUTED,
+            "Bulletin individuel - montants en francs suisses",
+        );
+        text_right(
+            &mut ops,
+            PAGE_WIDTH - MARGIN,
+            781.0,
+            6.8,
+            "F2",
+            MUTED,
+            "PÉRIODE",
         );
         text_right(
             &mut ops,
@@ -659,7 +690,7 @@ fn render_page(
             764.0,
             16.0,
             "F2",
-            NAVY,
+            FOREST,
             &format_period(&data.period),
         );
 
@@ -690,7 +721,7 @@ fn render_page(
             666.0,
             PAGE_WIDTH - MARGIN - 308.0,
             73.0,
-            PALE_BLUE,
+            BRAND_PALE,
         );
         label_value_block(
             &mut ops,
@@ -754,7 +785,7 @@ fn render_page(
             769.0,
             16.0,
             "F2",
-            NAVY,
+            FOREST,
             "FICHE DE SALAIRE · SUITE",
         );
         text_right(
@@ -763,7 +794,7 @@ fn render_page(
             770.0,
             10.0,
             "F2",
-            NAVY,
+            FOREST,
             &format!("{} · {}", data.employee_name, format_period(&data.period)),
         );
         table_y = 738.0;
@@ -775,7 +806,7 @@ fn render_page(
         table_y - 2.0,
         PAGE_WIDTH - 2.0 * MARGIN,
         22.0,
-        NAVY,
+        FOREST,
     );
     text(
         &mut ops,
@@ -809,28 +840,23 @@ fn render_page(
     let mut previous_kind = "";
     for line in lines {
         if line.kind != previous_kind {
-            let heading = match line.kind.as_str() {
-                "earning" => "RÉMUNÉRATION",
-                "reimbursement" => "REMBOURSEMENTS HORS BRUT",
-                "deduction" => "RETENUES EMPLOYÉ",
-                "employer" => "COTISATIONS EMPLOYEUR · INFORMATIF",
-                _ => "AUTRES ÉLÉMENTS",
-            };
+            let (heading, accent, background) = category_style(&line.kind);
             fill_rect(
                 &mut ops,
                 MARGIN,
                 table_y - 17.0,
                 PAGE_WIDTH - 2.0 * MARGIN,
                 18.0,
-                PALE,
+                background,
             );
+            fill_rect(&mut ops, MARGIN, table_y - 17.0, 3.0, 18.0, accent);
             text(
                 &mut ops,
                 MARGIN + 10.0,
                 table_y - 11.0,
                 7.0,
                 "F2",
-                BLUE,
+                accent,
                 heading,
             );
             table_y -= 18.0;
@@ -881,6 +907,16 @@ fn render_page(
     ops
 }
 
+fn category_style(kind: &str) -> (&'static str, [f32; 3], [f32; 3]) {
+    match kind {
+        "earning" => ("GAINS ET RÉMUNÉRATION", BRAND, BRAND_PALE),
+        "reimbursement" => ("REMBOURSEMENTS DE FRAIS", AMBER, AMBER_PALE),
+        "deduction" => ("RETENUES EMPLOYÉ", RED, RED_PALE),
+        "employer" => ("COTISATIONS EMPLOYEUR - HORS NET", INDIGO, INDIGO_PALE),
+        _ => ("AUTRES ÉLÉMENTS", MUTED, PALE),
+    }
+}
+
 fn fitted_size(width: u32, height: u32, max_width: f32, max_height: f32) -> (f32, f32) {
     let width = width.max(1) as f32;
     let height = height.max(1) as f32;
@@ -909,38 +945,139 @@ fn draw_image(ops: &mut Vec<Operation>, name: &str, x: f32, y: f32, width: f32, 
 }
 
 fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
-    fill_rect(ops, 290.0, 87.0, PAGE_WIDTH - MARGIN - 290.0, 130.0, PALE);
-    total_row(ops, 305.0, 197.0, "Salaire brut", data.gross_cents, false);
+    const TOP: f32 = 235.0;
+    const BOTTOM: f32 = 82.0;
+    const LEFT_WIDTH: f32 = 225.0;
+    const RIGHT_X: f32 = 290.0;
+    const RIGHT_WIDTH: f32 = PAGE_WIDTH - MARGIN - RIGHT_X;
+
+    fill_rect(ops, MARGIN, BOTTOM, LEFT_WIDTH, TOP - BOTTOM, PALE);
+    fill_rect(ops, MARGIN, BOTTOM, 4.0, TOP - BOTTOM, BRAND);
+    text(ops, MARGIN + 14.0, 216.0, 7.0, "F2", BRAND, "VERSEMENT");
+    text(
+        ops,
+        MARGIN + 14.0,
+        197.0,
+        7.0,
+        "F1",
+        MUTED,
+        "Date de valeur",
+    );
+    text(
+        ops,
+        MARGIN + 14.0,
+        183.0,
+        9.0,
+        "F2",
+        INK,
+        &format_date(&data.payment_date),
+    );
+    text(
+        ops,
+        MARGIN + 14.0,
+        163.0,
+        7.0,
+        "F1",
+        MUTED,
+        "Compte du collaborateur",
+    );
+    text(
+        ops,
+        MARGIN + 14.0,
+        149.0,
+        8.2,
+        "F2",
+        INK,
+        &truncate(&fallback(&data.employee_iban), 38),
+    );
+    if !data.notes.trim().is_empty() {
+        text(ops, MARGIN + 14.0, 128.0, 6.8, "F2", MUTED, "REMARQUE");
+        text(
+            ops,
+            MARGIN + 14.0,
+            114.0,
+            7.2,
+            "F1",
+            INK,
+            &truncate(data.notes.trim(), 52),
+        );
+    }
+    text(
+        ops,
+        MARGIN + 14.0,
+        99.0,
+        6.7,
+        "F2",
+        BRAND,
+        "CONTRÔLE DU NET",
+    );
+    text(
+        ops,
+        MARGIN + 14.0,
+        87.0,
+        6.5,
+        "F1",
+        MUTED,
+        "Gains + frais - retenues = net à payer",
+    );
+
+    fill_rect(ops, RIGHT_X, BOTTOM, RIGHT_WIDTH, TOP - BOTTOM, BRAND_PALE);
+    text(
+        ops,
+        RIGHT_X + 15.0,
+        216.0,
+        7.2,
+        "F2",
+        BRAND,
+        "CUMUL DU BULLETIN",
+    );
+    text(
+        ops,
+        RIGHT_X + 15.0,
+        203.0,
+        6.5,
+        "F1",
+        MUTED,
+        "Totaux de la période - non annuels",
+    );
     total_row(
         ops,
-        305.0,
-        177.0,
-        "Remboursements hors brut",
+        RIGHT_X + 15.0,
+        181.0,
+        "Gains bruts",
+        data.gross_cents,
+        false,
+    );
+    total_row(
+        ops,
+        RIGHT_X + 15.0,
+        162.0,
+        "Remboursements",
         data.reimbursements_cents,
         false,
     );
     total_row(
         ops,
-        305.0,
-        157.0,
-        "Retenues employé",
+        RIGHT_X + 15.0,
+        143.0,
+        "Retenues employé (-)",
         data.deductions_cents,
         false,
     );
     total_row(
         ops,
-        305.0,
-        137.0,
-        "Charges employeur",
+        RIGHT_X + 15.0,
+        124.0,
+        "Employeur (hors net)",
         data.employer_costs_cents,
         false,
     );
-    fill_rect(ops, 290.0, 87.0, PAGE_WIDTH - MARGIN - 290.0, 42.0, NAVY);
+    fill_rect(ops, RIGHT_X, BOTTOM, RIGHT_WIDTH, 31.0, FOREST);
     text(
         ops,
-        305.0,
-        103.0,
-        10.0,
+        RIGHT_X + 15.0,
+        93.0,
+        8.5,
         "F2",
         [1.0, 1.0, 1.0],
         "NET À PAYER",
@@ -948,53 +1085,12 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
     text_right(
         ops,
         PAGE_WIDTH - MARGIN - 14.0,
-        101.0,
-        15.0,
+        92.0,
+        12.5,
         "F2",
         [1.0, 1.0, 1.0],
         &format_money(data.net_cents),
     );
-
-    text(ops, MARGIN, 193.0, 7.0, "F2", MUTED, "VERSEMENT");
-    text(
-        ops,
-        MARGIN,
-        176.0,
-        9.0,
-        "F2",
-        INK,
-        &format!("Date : {}", format_date(&data.payment_date)),
-    );
-    text(
-        ops,
-        MARGIN,
-        159.0,
-        8.0,
-        "F1",
-        MUTED,
-        "Compte du collaborateur",
-    );
-    text(
-        ops,
-        MARGIN,
-        145.0,
-        8.5,
-        "F2",
-        INK,
-        &truncate(&fallback(&data.employee_iban), 36),
-    );
-    if !data.notes.trim().is_empty() {
-        text(ops, MARGIN, 118.0, 7.0, "F2", MUTED, "REMARQUE");
-        text(
-            ops,
-            MARGIN,
-            103.0,
-            7.5,
-            "F1",
-            INK,
-            &truncate(data.notes.trim(), 55),
-        );
-    }
 }
 
 fn render_footer(
@@ -1003,7 +1099,7 @@ fn render_footer(
     page_number: usize,
     total_pages: usize,
 ) {
-    line_segment(ops, MARGIN, 63.0, PAGE_WIDTH - 2.0 * MARGIN, 0.6, LINE);
+    line_segment(ops, MARGIN, 62.0, PAGE_WIDTH - 2.0 * MARGIN, 0.6, LINE);
     let mut proof = if data.final_document {
         if data.captured_at.is_empty() {
             "Valeurs comptabilisées et figées localement".to_owned()
@@ -1023,7 +1119,16 @@ fn render_footer(
             &data.source_import_evidence_sha256[..12]
         ));
     }
-    text(ops, MARGIN, 46.0, 6.7, "F1", MUTED, &proof);
+    text(ops, MARGIN, 46.0, 6.5, "F1", MUTED, &truncate(&proof, 88));
+    text(
+        ops,
+        MARGIN,
+        34.5,
+        6.2,
+        "F1",
+        MUTED,
+        "Contrôle: les charges employeur sont informatives et exclues du net.",
+    );
     text_right(
         ops,
         PAGE_WIDTH - MARGIN,
@@ -1326,6 +1431,25 @@ fn format_date_time(value: &str) -> String {
 mod tests {
     use super::*;
 
+    fn decoded_page_text(document: &Document, page_id: ObjectId) -> String {
+        let content = Content::decode(
+            &document
+                .get_page_content(page_id)
+                .expect("read PDF page content"),
+        )
+        .expect("decode PDF page content");
+        content
+            .operations
+            .iter()
+            .filter(|operation| operation.operator == "Tj")
+            .filter_map(|operation| match operation.operands.first() {
+                Some(Object::String(bytes, _)) => Some(WINDOWS_1252.decode(bytes).0.into_owned()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     fn stage_then_tamper_logo(directory: &tempfile::TempDir) -> (String, PathBuf) {
         let store = LocalStore::initialize(directory.path().join("profile")).expect("store");
         let source = directory.path().join("source-logo.png");
@@ -1523,7 +1647,7 @@ mod tests {
             fs::create_dir_all(parent).expect("create sample PDF directory");
         }
         let logo_path = directory.path().join("logo.png");
-        image::DynamicImage::new_rgba8(96, 48)
+        image::RgbImage::from_pixel(192, 96, image::Rgb([18, 72, 50]))
             .save_with_format(&logo_path, image::ImageFormat::Png)
             .expect("write test logo");
         let data = PayslipPdfData {
@@ -1590,11 +1714,55 @@ mod tests {
         assert!(bytes.starts_with(b"%PDF-1.7"));
         assert!(bytes.len() > 2_000);
         let parsed = Document::load(&destination).expect("parse generated PDF");
+        let first_page = *parsed.get_pages().values().next().expect("first PDF page");
+        let page = parsed
+            .get_object(first_page)
+            .and_then(Object::as_dict)
+            .expect("page dictionary");
+        let media_box = page
+            .get(b"MediaBox")
+            .and_then(Object::as_array)
+            .expect("A4 media box");
+        assert_eq!(media_box[2], Object::Real(PAGE_WIDTH));
+        assert_eq!(media_box[3], Object::Real(PAGE_HEIGHT));
         assert!(parsed.objects.values().any(|object| match object {
             Object::Stream(stream) =>
                 stream.dict.get(b"Subtype").ok() == Some(&Object::Name(b"Image".to_vec())),
             _ => false,
         }));
+
+        let content = Content::decode(
+            &parsed
+                .get_page_content(first_page)
+                .expect("read first page content"),
+        )
+        .expect("decode first page operations");
+        assert!(content.operations.iter().any(|operation| {
+            operation.operator == "Do"
+                && operation.operands.first() == Some(&Object::Name(b"Logo".to_vec()))
+        }));
+        let visible_text = decoded_page_text(&parsed, first_page);
+        for expected in [
+            "Atelier Démo Sàrl",
+            "GAINS ET RÉMUNÉRATION",
+            "REMBOURSEMENTS DE FRAIS",
+            "RETENUES EMPLOYÉ",
+            "COTISATIONS EMPLOYEUR - HORS NET",
+            "CUMUL DU BULLETIN",
+            "Totaux de la période - non annuels",
+            "NET À PAYER",
+            "CONTRÔLE DU NET",
+            "charges employeur sont informatives et exclues du net",
+        ] {
+            assert!(
+                visible_text.contains(expected),
+                "missing visible payslip label: {expected}"
+            );
+        }
+        assert!(
+            !visible_text.to_ascii_lowercase().contains("swissdec"),
+            "the PDF must not claim a Swissdec certification or transmission"
+        );
     }
 
     #[test]

@@ -27,7 +27,9 @@ function definition(
     rateBp,
     fixedAmountCents: null,
     annualCeilingCents,
-    basisKind: 'gross',
+    basisKind: category === 'aap' || category === 'aanp' || category === 'family_allowance'
+      ? 'ahv_salary'
+      : 'gross',
     lppComponent: null,
     lppEmployeeId: null,
     source: 'source officielle',
@@ -278,6 +280,39 @@ describe('assujettissement par date', () => {
     expect(result.blockers.join(' ')).toContain(
       'plafond fédéral 2026 de CHF 148’200',
     );
+
+    const wrongBasis = { ...aap, basisKind: 'gross' as const };
+    const wrongBasisResult = assessSwissPayrollEligibility({
+      employee: { ...employee, contractualWeeklyMinutes: 479 },
+      settings,
+      period: '2026-08',
+      grossCents: 500_000,
+      definitions: [...federal, wrongBasis],
+      selectedIds: new Set([...federal.map((item) => item.id), wrongBasis.id]),
+    });
+    expect(wrongBasisResult.blockers.join(' ')).toContain('assiette salaire AVS');
+  });
+
+  it('refuse une CAF fixe, plafonnée ou calculée hors salaire AVS', () => {
+    const validCaf = definition('CAF_EMPLOYER', 'family_allowance', 'employer', 200);
+    for (const invalidCaf of [
+      { ...validCaf, calculationKind: 'fixed' as const, rateBp: null, fixedAmountCents: 2_000 },
+      { ...validCaf, basisKind: 'gross' as const },
+      { ...validCaf, annualCeilingCents: 10_000_000 },
+    ]) {
+      const result = assessSwissPayrollEligibility({
+        employee: { ...employee, contractualWeeklyMinutes: 479 },
+        settings: {
+          ...settings,
+          payroll: { ...settings.payroll, familyAllowanceFund: 'CAF cantonale', payrollCanton: 'VD' },
+        },
+        period: '2026-08',
+        grossCents: 500_000,
+        definitions: [...federal, aap, invalidCaf],
+        selectedIds: new Set([...federal.map((item) => item.id), aap.id, invalidCaf.id]),
+      });
+      expect(result.blockers.join(' ')).toContain('Chaque cotisation CAF');
+    }
   });
 
   it('exige une convention structurée pour une part AANP employeur', () => {

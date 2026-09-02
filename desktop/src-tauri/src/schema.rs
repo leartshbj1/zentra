@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 28;
+pub const SCHEMA_VERSION: i64 = 32;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -32,6 +32,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "bank_account_links",
     "invoice_qr_bills",
     "attachments",
+    "company_brand_assets",
     "active_timers",
     "quote_conversions",
     "sales_orders",
@@ -350,6 +351,8 @@ CREATE TABLE IF NOT EXISTS employees (
   contractual_weekly_minutes INTEGER CHECK (contractual_weekly_minutes IS NULL OR contractual_weekly_minutes BETWEEN 0 AND 10080),
   ac_opening_year INTEGER CHECK (ac_opening_year IS NULL OR ac_opening_year BETWEEN 1900 AND 9999),
   ac_opening_basis_cents INTEGER CHECK (ac_opening_basis_cents IS NULL OR ac_opening_basis_cents >= 0),
+  laa_opening_year INTEGER CHECK (laa_opening_year IS NULL OR laa_opening_year BETWEEN 1900 AND 9999),
+  laa_opening_basis_cents INTEGER CHECK (laa_opening_basis_cents IS NULL OR laa_opening_basis_cents >= 0),
   lpp_assessment_year INTEGER CHECK (lpp_assessment_year IS NULL OR lpp_assessment_year BETWEEN 1900 AND 9999),
   lpp_annual_salary_cents INTEGER CHECK (lpp_annual_salary_cents IS NULL OR lpp_annual_salary_cents >= 0),
   lpp_exception_code TEXT CHECK (lpp_exception_code IS NULL OR lpp_exception_code IN ('short_fixed_contract','other_legal')),
@@ -1511,11 +1514,13 @@ BEFORE DELETE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.p
 CREATE TRIGGER IF NOT EXISTS employees_payroll_decisions_insert_guard
 BEFORE INSERT ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
-BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
+  OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT, 'AC and LAA opening years and bases must be confirmed in pairs'); END;
 CREATE TRIGGER IF NOT EXISTS employees_payroll_decisions_update_guard
-BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents ON employees
+BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents,laa_opening_year,laa_opening_basis_cents ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
-BEGIN SELECT RAISE(ABORT, 'AC opening year and basis must be confirmed together'); END;
+  OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT, 'AC and LAA opening years and bases must be confirmed in pairs'); END;
 
 CREATE INDEX IF NOT EXISTS idx_supplier_invoices_status_due
 ON supplier_invoices(status,due_date,document_date);
@@ -4849,4 +4854,136 @@ PRAGMA user_version=27;
 /// aucune preuve ne sont inventés pour les données historiques.
 pub const MIGRATION_V28_SQL: &str = r#"
 PRAGMA user_version=28;
+"#;
+
+/// Registre local V29 des logos clients. Les anciens chemins restent lisibles,
+/// mais toute nouvelle référence enregistrée dans `settings` doit correspondre
+/// à un fichier contrôlé et décrit par son SHA-256 dans ce registre.
+pub const MIGRATION_V29_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS company_brand_assets (
+  sha256 TEXT PRIMARY KEY
+    CHECK (LENGTH(sha256)=64 AND sha256=LOWER(sha256) AND sha256 NOT GLOB '*[^0-9a-f]*'),
+  file_name TEXT NOT NULL UNIQUE
+    CHECK (
+      file_name='logo-' || sha256 || '.png'
+      OR file_name='logo-' || sha256 || '.jpg'
+      OR file_name='logo-' || sha256 || '.webp'
+    ),
+  media_type TEXT NOT NULL CHECK (media_type IN ('image/png','image/jpeg','image/webp')),
+  byte_size INTEGER NOT NULL CHECK (byte_size BETWEEN 1 AND 8388608),
+  width INTEGER NOT NULL CHECK (width BETWEEN 16 AND 4096),
+  height INTEGER NOT NULL CHECK (height BETWEEN 16 AND 4096),
+  created_at TEXT NOT NULL,
+  last_verified_at TEXT NOT NULL,
+  CHECK (
+    (media_type='image/png' AND file_name LIKE '%.png')
+    OR (media_type='image/jpeg' AND file_name LIKE '%.jpg')
+    OR (media_type='image/webp' AND file_name LIKE '%.webp')
+  )
+);
+
+DROP TRIGGER IF EXISTS settings_logo_asset_insert_guard;
+CREATE TRIGGER settings_logo_asset_insert_guard
+BEFORE INSERT ON settings
+WHEN NEW.logo_path IS NOT NULL AND TRIM(NEW.logo_path)<>'' AND NOT EXISTS (
+  SELECT 1 FROM company_brand_assets asset
+  WHERE LOWER(REPLACE(NEW.logo_path,CHAR(92),'/')) LIKE '%/' || LOWER(asset.file_name)
+)
+BEGIN SELECT RAISE(ABORT,'company logo must reference a registered local brand asset'); END;
+
+DROP TRIGGER IF EXISTS settings_logo_asset_update_guard;
+CREATE TRIGGER settings_logo_asset_update_guard
+BEFORE UPDATE OF logo_path ON settings
+WHEN NEW.logo_path IS NOT OLD.logo_path
+  AND NEW.logo_path IS NOT NULL AND TRIM(NEW.logo_path)<>''
+  AND NOT EXISTS (
+    SELECT 1 FROM company_brand_assets asset
+    WHERE LOWER(REPLACE(NEW.logo_path,CHAR(92),'/')) LIKE '%/' || LOWER(asset.file_name)
+  )
+BEGIN SELECT RAISE(ABORT,'company logo must reference a registered local brand asset'); END;
+
+PRAGMA user_version=29;
+"#;
+
+/// Intégrité V30 des encaissements clients. Une facture émise ne disparaît
+/// jamais par un simple changement de statut : une correction passe par un
+/// avoir traçable. La base refuse aussi les paiements d'avoirs, de documents
+/// annulés, antidatés ou supérieurs au solde réellement ouvert.
+pub const MIGRATION_V30_SQL: &str = r#"
+DROP TRIGGER IF EXISTS payments_invoice_issue_date_guard;
+CREATE TRIGGER payments_invoice_issue_date_guard
+BEFORE INSERT ON payments
+WHEN NOT EXISTS(
+  SELECT 1 FROM invoices invoice
+  WHERE invoice.id=NEW.invoice_id
+    AND invoice.number IS NOT NULL
+    AND invoice.type<>'avoir'
+    AND invoice.status IN('emise','en_retard','partiellement_payee','payee')
+    AND invoice.issue_date IS NOT NULL
+    AND LENGTH(NEW.date)=10
+    AND NEW.date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+    AND DATE(NEW.date) IS NOT NULL
+    AND DATE(NEW.date)=NEW.date
+    AND NEW.date>=invoice.issue_date
+    AND invoice.total_cents>0
+    AND NEW.amount_cents<=invoice.total_cents
+      - COALESCE((SELECT SUM(payment.amount_cents) FROM payments payment WHERE payment.invoice_id=invoice.id),0)
+      - COALESCE((SELECT SUM(-credit.total_cents) FROM invoices credit WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee'),0)
+)
+BEGIN SELECT RAISE(ABORT,'payment requires an issued active invoice and cannot exceed its open balance'); END;
+
+DROP TRIGGER IF EXISTS invoices_issued_no_unsafe_cancel;
+CREATE TRIGGER invoices_issued_no_unsafe_cancel
+BEFORE UPDATE OF status ON invoices
+WHEN OLD.number IS NOT NULL AND OLD.status<>'annulee' AND NEW.status='annulee'
+BEGIN SELECT RAISE(ABORT,'issued invoices cannot be cancelled; issue a traceable credit note'); END;
+
+PRAGMA user_version=30;
+"#;
+
+/// Correction réglementaire V31 du profil CAF salarié valaisan 2026. La
+/// précédente URL cantonale décrit les montants des allocations mais ne publie
+/// pas le taux salarié de 0,13 %. Seules les définitions actives ou archivées
+/// qui ont exactement la forme réglementaire connue sont corrigées. Les
+/// snapshots de fiches de salaire restent immuables.
+pub const MIGRATION_V31_SQL: &str = r#"
+UPDATE payroll_contribution_definitions
+SET source=REPLACE(
+  source,
+  'https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf',
+  'https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf'
+)
+WHERE category='family_allowance'
+  AND side='employee'
+  AND calculation_kind='rate'
+  AND rate_bp=13
+  AND effective_from='2026-01-01'
+  AND effective_to='2026-12-31'
+  AND INSTR(
+    source,
+    'https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf'
+  )>0;
+
+PRAGMA user_version=31;
+"#;
+
+/// Cumul d'ouverture LAA V32. Aucune assiette historique n'est inventée : les
+/// deux champs restent nuls sur les employés existants et doivent ensuite être
+/// confirmés ensemble, y compris lorsque la base d'ouverture vaut zéro.
+pub const MIGRATION_V32_SQL: &str = r#"
+DROP TRIGGER IF EXISTS employees_payroll_decisions_insert_guard;
+CREATE TRIGGER employees_payroll_decisions_insert_guard
+BEFORE INSERT ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+  OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT,'AC and LAA opening years and bases must be confirmed in pairs'); END;
+
+DROP TRIGGER IF EXISTS employees_payroll_decisions_update_guard;
+CREATE TRIGGER employees_payroll_decisions_update_guard
+BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents,laa_opening_year,laa_opening_basis_cents ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+  OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
+BEGIN SELECT RAISE(ABORT,'AC and LAA opening years and bases must be confirmed in pairs'); END;
+
+PRAGMA user_version=32;
 "#;

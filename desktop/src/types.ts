@@ -751,6 +751,10 @@ export type Employee = {
   acOpeningYear: number | null;
   /** Base AC déjà acquise hors Zentra au début de l'année, y compris zéro confirmé. */
   acOpeningBasisCents: number | null;
+  /** Année pour laquelle la base LAA antérieure à Zentra a été confirmée. */
+  laaOpeningYear: number | null;
+  /** Gain assuré LAA déjà acquis hors Zentra au début de l'année, zéro compris. */
+  laaOpeningBasisCents: number | null;
   salaryMode: 'hourly' | 'monthly';
   grossSalaryCents: number;
   hourlyCostCents: number;
@@ -1453,8 +1457,7 @@ export type PayrollAnalysisConflict = {
  * Trace locale de l'analyse OCR/VLM. Elle documente la provenance du
  * brouillon; elle ne remplace pas le contrôle humain de la fiche de salaire.
  */
-export type PayrollAnalysisManifest = {
-  schemaVersion: number;
+type PayrollAnalysisManifestBase = {
   modelId: string;
   modelRevision: string;
   inputSha256: string;
@@ -1465,6 +1468,19 @@ export type PayrollAnalysisManifest = {
   conflicts: PayrollAnalysisConflict[];
   analyzedAt: string;
 };
+
+export type PayrollAnalysisManifest = PayrollAnalysisManifestBase & (
+  | {
+      schemaVersion: 1;
+      corroborationMethod?: never;
+      corroborationAlgorithmVersion?: never;
+    }
+  | {
+      schemaVersion: 2;
+      corroborationMethod: 'local_visual_read' | 'local_visual_read_with_pdf_text';
+      corroborationAlgorithmVersion: 'zentra.payroll-evidence-corroboration.v1';
+    }
+);
 
 export type PayrollDocumentImport = {
   id: Identifier;

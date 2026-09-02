@@ -33,6 +33,8 @@ export type ReconciledPayrollAiDraft = ParsedPayrollAiDraft & {
 
 export type PayrollAiProvenance = {
   fields: Record<string, number[]>;
+  /** Confiance déterministe après éventuelle corroboration par la couche texte. */
+  fieldConfidenceBp?: Record<string, number>;
   lines: Array<{
     /** Index de l'occurrence dans le brouillon final lorsqu'il est connu. */
     lineIndex?: number;
@@ -40,6 +42,8 @@ export type PayrollAiProvenance = {
     kind: PayrollImportLineDraft['kind'];
     amountCents: number;
     pages: number[];
+    /** Confiance déterministe; jamais la confiance auto-déclarée du modèle. */
+    confidenceBp?: number;
   }>;
   /** Alternatives réellement observées avec des pages exploitables. */
   conflicts?: PayrollAnalysisConflict[];
@@ -94,14 +98,21 @@ export function payrollAiProvenanceForFinalDraft(
   provenance: PayrollAiProvenance,
 ): PayrollAiProvenance {
   const usedLineIndexes = new Set<number>();
+  const fields = Object.fromEntries(Object.entries(provenance.fields).filter(([field]) => (
+    provenanceValuesMatch(
+      field,
+      payrollDraftFieldValueForProvenance(finalDraft, field),
+      payrollDraftFieldValueForProvenance(aiDraft, field),
+    )
+  )));
+  const fieldConfidenceBp = Object.fromEntries(Object.keys(fields).flatMap((field) => (
+    provenance.fieldConfidenceBp?.[field] === undefined
+      ? []
+      : [[field, provenance.fieldConfidenceBp[field]]]
+  )));
   return {
-    fields: Object.fromEntries(Object.entries(provenance.fields).filter(([field]) => (
-      provenanceValuesMatch(
-        field,
-        payrollDraftFieldValueForProvenance(finalDraft, field),
-        payrollDraftFieldValueForProvenance(aiDraft, field),
-      )
-    ))),
+    fields,
+    ...(Object.keys(fieldConfidenceBp).length ? { fieldConfidenceBp } : {}),
     lines: provenance.lines.flatMap((source) => {
       const lineIndex = finalDraft.lines.findIndex((line, index) => (
         !usedLineIndexes.has(index)

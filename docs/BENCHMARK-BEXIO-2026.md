@@ -16,7 +16,7 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Zentra 1.15 source | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Zentra 1.17 source | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; PDF A4 natifs devis/factures, QR vectoriel, avoirs et relances locales ; identité, logo et montants figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
@@ -25,7 +25,7 @@ présenter une prochaine action claire et garder chaque transformation traçable
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, paiement client relié à une écriture active avec chaîne d’extournes vérifiée, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
-| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF, écritures et analyse SmolVLM locale multipage à double lecture ; date de paiement prise en compte pour sélectionner les cotisations applicables et cotisations calculées par taux arrondies au CHF 0.05 ; hash du document, provenance par occurrence et validation humaine obligatoire ; aucune récurrence salariale n’est créée implicitement | QST autonome, contrôles LPP/CAF complets, Swissdec/ELM, certificats annuels et certification externe | P0 conformité — en cours |
+| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF A4 professionnel, écritures et analyse SmolVLM générique locale multipage à double lecture ; corroboration déterministe du texte PDF, manifeste d'audit v2, hash, provenance par occurrence, détection de doublons et validation humaine ; date de paiement et arrondi CHF 0.05 ; contrôles LPP 2026 et AAP/AANP/CAF documentés avec cumul LAA local dérivé | QST autonome, LPP multiannuelle complète, IJM structurée, Swissdec/ELM, certificats annuels et certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
@@ -67,7 +67,14 @@ présenter une prochaine action claire et garder chaque transformation traçable
    rapprochement fournisseur multi-commandes avec tolérance globale et
    protection des ventilations ; date de paiement utilisée pour les cotisations
    de paie calculées par taux et arrondies au CHF 0.05.
-9. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
+9. **Renforcer les preuves locales — livré en 1.17 source** : logo d'entreprise
+   copié dans le stockage géré et référencé par hash sur les documents figés ;
+   analyse de paie auditée v2 avec corroboration PDF et rapprochement Unicode ;
+   plafond LAA proratisé selon la période d'emploi 30/360 et cumul dérivé de
+   l'ouverture annuelle et des fiches antérieures ; paiement
+   client daté, borné au solde d'une facture active et relié à une écriture
+   comptable contrôlée.
+10. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer
@@ -107,10 +114,13 @@ présenter une prochaine action claire et garder chaque transformation traçable
   message ne part seul.
 - La date de paiement sélectionne la fenêtre de validité des cotisations et les
   cotisations calculées par taux sont arrondies commercialement au CHF 0.05.
-  Zentra ne calcule pas encore la QST de manière autonome, ne réalise pas les
-  contrôles LPP et CAF complets, ne génère ni ne transmet de déclaration ELM et
-  n'est pas certifié Swissdec. Ces aides ne constituent ni une validation de
-  conformité globale, ni une certification.
+  Les gardes 2026 vérifient les paramètres AAP/AANP/CAF saisis et le cumul LAA,
+  mais ne remplacent pas une décision de l'assureur, de la caisse ou de la
+  fiduciaire. Zentra ne calcule pas encore la QST de manière autonome, ne couvre
+  pas tous les règlements LPP ni les clauses IJM, ne produit pas le certificat
+  annuel, ne génère ni ne transmet de déclaration ELM et n'est pas certifié
+  Swissdec. Ces aides ne constituent ni une validation de conformité globale,
+  ni une certification.
 - Une planification récurrente ne fonctionne que lorsque l'application Windows
   est ouverte. Elle crée des brouillons à contrôler et ne constitue ni un
   service cloud d'envoi, ni une émission ou comptabilisation automatique.

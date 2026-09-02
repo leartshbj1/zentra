@@ -110,11 +110,12 @@ describe('reprise du brouillon de configuration', () => {
   });
 
   it('conserve le logo local et le numéro de bâtiment après un redémarrage', () => {
+    const logoPath = `C:\\Profil\\Zentra\\attachments\\branding\\logo-${'a'.repeat(64)}.png`;
     const restored = settingsFromOnboardingDraft({
       ...initialOnboardingSettings,
       organization: {
         ...initialOnboardingSettings.organization,
-        logoPath: 'C:\\Profil\\Zentra\\attachments\\branding\\logo-test.png',
+        logoPath,
         address: {
           ...initialOnboardingSettings.organization.address,
           buildingNumber: '14A',
@@ -122,8 +123,24 @@ describe('reprise du brouillon de configuration', () => {
       },
     });
 
-    expect(restored.organization.logoPath).toBe('C:\\Profil\\Zentra\\attachments\\branding\\logo-test.png');
+    expect(restored.organization.logoPath).toBe(logoPath);
     expect(restored.organization.address.buildingNumber).toBe('14A');
+  });
+
+  it('écarte les chemins de logo injectés ou non gérés dans le brouillon local', () => {
+    for (const logoPath of [
+      'C:\\Windows\\System32\\secret.png',
+      `C:\\Profil\\Zentra\\attachments\\branding\\..\\logo-${'a'.repeat(64)}.png`,
+      `logo-${'a'.repeat(64)}.png`,
+      `C:\\Profil\\Zentra\\attachments\\branding\\logo-${'g'.repeat(64)}.png`,
+      `C:\\Profil\\Zentra\\attachments\\branding\\logo-${'a'.repeat(64)}.jpeg`,
+    ]) {
+      const restored = settingsFromOnboardingDraft({
+        ...initialOnboardingSettings,
+        organization: { ...initialOnboardingSettings.organization, logoPath },
+      });
+      expect(restored.organization.logoPath, logoPath).toBe('');
+    }
   });
 
   it('filtre les collections corrompues tout en conservant les métadonnées autorisées des taux', () => {

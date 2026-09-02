@@ -40,6 +40,15 @@ const manifest: PayrollAnalysisManifest = {
   analyzedAt: '2026-09-01T10:15:30Z',
 };
 
+const manifestV2: PayrollAnalysisManifest = {
+  ...manifest,
+  schemaVersion: 2,
+  corroborationMethod: 'local_visual_read_with_pdf_text',
+  corroborationAlgorithmVersion: 'zentra.payroll-evidence-corroboration.v1',
+  fieldProvenance: manifest.fieldProvenance.map((item) => ({ ...item, confidenceBp: 9_200 })),
+  lineProvenance: manifest.lineProvenance.map((item) => ({ ...item, confidenceBp: 9_200 })),
+};
+
 const draft: PayrollImportDraft = {
   employee: {
     employeeNumber: '',
@@ -99,6 +108,34 @@ describe('bridge du manifeste local de paie', () => {
     );
   });
 
+  it('conserve intégralement la méthode de corroboration du manifeste v2', () => {
+    const raw = payrollAnalysisManifestToRaw(manifestV2);
+    expect(raw).toMatchObject({
+      schema_version: 2,
+      corroboration_method: 'local_visual_read_with_pdf_text',
+      corroboration_algorithm_version: 'zentra.payroll-evidence-corroboration.v1',
+    });
+    expect(payrollAnalysisManifestFromRaw(JSON.stringify(raw))).toEqual(manifestV2);
+    expect(
+      payrollAnalysisManifestFromRaw({
+        ...raw,
+        corroboration_algorithm_version: 'version-inconnue',
+      }),
+    ).toBeUndefined();
+    expect(payrollAnalysisManifestFromRaw(raw, 'image')).toBeUndefined();
+    expect(
+      payrollAnalysisManifestFromRaw({
+        ...raw,
+        field_provenance: [
+          {
+            ...(raw.field_provenance as Array<Record<string, unknown>>)[0],
+            confidence_bp: 9_000,
+          },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
   it('renvoie undefined au lieu de fabriquer un manifeste invalide', () => {
     expect(payrollAnalysisManifestFromRaw(null)).toBeUndefined();
     expect(payrollAnalysisManifestFromRaw('{json-invalide')).toBeUndefined();
@@ -151,6 +188,14 @@ describe('bridge du manifeste local de paie', () => {
     expect(restored?.lineProvenance).toEqual(manifest.lineProvenance);
   });
 
+  it('rejette un manifeste v2 incomplet au lieu de supprimer silencieusement sa valeur de preuve', () => {
+    const raw = payrollAnalysisManifestToRaw(manifestV2);
+    const fields = raw.field_provenance as Array<Record<string, unknown>>;
+    delete fields[0].value;
+
+    expect(payrollAnalysisManifestFromRaw(raw)).toBeUndefined();
+  });
+
   it('omet le champ pour un ancien appel afin de préserver la preuve stockée', () => {
     const mutation = updatePayrollImportDraftMutation(
       'import-1',
@@ -169,10 +214,10 @@ describe('bridge du manifeste local de paie', () => {
       'smolvlm-local-double-read',
       manifest.modelRevision,
       9_000,
-      manifest,
+      manifestV2,
     );
     expect(mutation.args.input.analysis_manifest).toEqual(
-      payrollAnalysisManifestToRaw(manifest),
+      payrollAnalysisManifestToRaw(manifestV2),
     );
   });
 
