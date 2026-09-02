@@ -33,7 +33,8 @@ export default async function PaymentSuccessPage({
             et l’e-mail de facturation, les identifiants Stripe nécessaires au
             suivi de l’abonnement et l’identifiant de cette installation. Aucune
             facture, fiche de salaire ni donnée métier créée dans l’application
-            n’est transmise.
+            n’est transmise automatiquement. Si vous activez plus tard le coffre
+            Zentra, seuls les PDF de factures archivés sur option seront envoyés.
           </p>
         </div>
         {sessionId ? (

@@ -177,6 +177,36 @@ pub struct SaveProjectTaskInput {
     pub employee_id: Option<String>,
 }
 
+/// Rendez-vous local volontairement compact. Les échéances métier (factures,
+/// tâches, jalons, salaires) restent dérivées de leurs documents d'origine et
+/// ne sont jamais dupliquées dans cette table.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveAgendaEventInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub title: String,
+    pub start_date: String,
+    pub end_date: String,
+    #[serde(default)]
+    pub all_day: bool,
+    #[serde(default)]
+    pub start_time: Option<String>,
+    #[serde(default)]
+    pub end_time: Option<String>,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub employee_id: Option<String>,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -1325,6 +1355,19 @@ pub struct SaveDocumentWithItemsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateInvoiceCorrectionInput {
+    pub original_invoice_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AbandonInvoiceCorrectionInput {
+    pub workflow_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwissQrValidation {
     pub valid: bool,
     pub errors: Vec<String>,
@@ -1353,9 +1396,19 @@ pub struct LicenseTokenPayload {
     pub kid: String,
     #[serde(default)]
     pub customer_name: Option<String>,
+    #[serde(default = "default_license_access_role")]
+    pub access_role: String,
+    #[serde(default)]
+    pub account_user_id: Option<String>,
+    #[serde(default)]
+    pub account_session_id: Option<String>,
     pub plan: String,
     pub price_chf_cents: i64,
     pub issued_at: String,
     pub valid_from: String,
     pub valid_until: String,
+}
+
+fn default_license_access_role() -> String {
+    "owner".into()
 }

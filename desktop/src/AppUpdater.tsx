@@ -122,14 +122,14 @@ export function AppUpdater() {
     if (event.event === 'progress') return;
     if (event.event === 'verifying') {
       setMessage(
-        'Téléchargement terminé. Zentra vérifie la signature, puis remet l’installation à Windows. L’application va se fermer et redémarrer automatiquement.',
+        'Téléchargement terminé. Zentra vérifie la signature, puis remet l’installation au système. L’application va se fermer et redémarrer automatiquement.',
       );
       return;
     }
     setAvailable(null);
     setOutcome('installed');
     setMessage(
-      'La mise à jour a été remise à Windows. Zentra redémarre automatiquement avec la nouvelle version.',
+      'La mise à jour a été remise au système. Zentra redémarre automatiquement avec la nouvelle version.',
     );
   }
 
@@ -204,7 +204,7 @@ export function AppUpdater() {
     <SectionHeading
       eyebrow="Maintenance sécurisée"
       title="Mettre Zentra à jour sans le réinstaller"
-      description="Le canal est figé dans l’application. Zentra exige un téléchargement HTTPS et une signature valide avant de confier l’installation à Windows."
+      description="Le canal est figé dans l’application. Zentra exige un téléchargement HTTPS et une signature valide avant de confier l’installation à Windows ou macOS."
     />
 
     <div
@@ -226,7 +226,7 @@ export function AppUpdater() {
       <div><Server size={16} /><span>Version installée</span><strong>{policy?.currentVersion || '—'}</strong></div>
       <div><LockKeyhole size={16} /><span>Transport</span><strong>{policy?.transport || 'HTTPS'}</strong></div>
       <div><ShieldCheck size={16} /><span>Signature</span><strong>Ed25519 obligatoire</strong></div>
-      <div><RotateCw size={16} /><span>Installation Windows</span><strong>Fermeture et redémarrage</strong></div>
+      <div><RotateCw size={16} /><span>Installation sécurisée</span><strong>Fermeture et redémarrage</strong></div>
       {policy?.endpointHost ? <div><Server size={16} /><span>Serveur</span><strong>{policy.endpointHost}</strong></div> : null}
     </div>
 
@@ -263,7 +263,7 @@ export function AppUpdater() {
       <ShieldCheck size={24} />
       <div>
         <strong id="app-updater-confirm-title">Prêt à installer Zentra {available.version}</strong>
-        <p>Enregistrez les saisies ouvertes. La signature sera contrôlée avant que Windows ferme Zentra, installe la version puis relance l’application. Aucune désinstallation manuelle n’est nécessaire.</p>
+        <p>Enregistrez les saisies ouvertes. La signature sera contrôlée avant que le système ferme Zentra, installe la version puis relance l’application. Aucune désinstallation manuelle n’est nécessaire.</p>
         <div className="app-updater__confirmation-actions">
           <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>Annuler</Button>
           <Button type="button" onClick={() => void install()}><Download size={16} /> Installer et redémarrer</Button>
@@ -276,7 +276,7 @@ export function AppUpdater() {
       <progress max={100} value={progress.percent ?? undefined} aria-label="Progression de la mise à jour" />
       <small>{progress.phase === 'verifying'
         ? 'Ne fermez pas Zentra : la signature et l’installateur sont en cours de contrôle.'
-        : 'N’éteignez pas le PC pendant l’installation. Les données de votre entreprise restent sur cet ordinateur.'}</small>
+        : 'N’éteignez pas l’ordinateur pendant l’installation. Les données locales de votre entreprise restent sur cet appareil.'}</small>
     </div> : null}
 
     <div className="app-updater__actions">
@@ -297,6 +297,6 @@ export function AppUpdater() {
         <Download size={16} /> Préparer l’installation {available.version}
       </Button> : null}
     </div>
-    <p className="app-updater__notice">Aucune mise à jour ne s’installe seule. La requête indique la version, Windows et l’architecture ; comme toute connexion HTTPS, le serveur voit aussi l’adresse IP et les métadonnées techniques. Aucune donnée de l’entreprise n’est envoyée.</p>
+    <p className="app-updater__notice">Aucune mise à jour ne s’installe seule. La requête indique la version, le système et l’architecture ; comme toute connexion HTTPS, le serveur voit aussi l’adresse IP et les métadonnées techniques. Aucune donnée métier n’est envoyée par ce contrôle.</p>
   </section>;
 }

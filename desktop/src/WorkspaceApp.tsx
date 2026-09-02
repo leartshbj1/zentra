@@ -1,5 +1,7 @@
 import {
   Fragment,
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -24,6 +26,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Clock3,
+  CloudUpload,
   Database,
   Download,
   Eye,
@@ -66,11 +69,13 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import { desktopApi } from './bridge';
+import { desktopApi, type CloudAccountState } from './bridge';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import { AccountingScreen } from './AccountingScreen';
+import { AgendaScreen, type AgendaEventDraft } from './AgendaScreen';
 import { AppUpdater } from './AppUpdater';
+import { CloudAccountPanel } from './CloudAccountPanel';
 import { BusinessProfileFields } from './BusinessProfileEditor';
 import {
   PaymentAccountingProofs,
@@ -104,13 +109,13 @@ import {
   buildGettingStartedJourney,
   type GettingStartedAction,
 } from './gettingStarted';
-import { PayrollImportWizard } from './PayrollImportWizard';
 import {
   SETTINGS_READINESS_TARGETS,
   SetupReadinessCenter,
   buildSetupReadiness,
   confirmDeferredSetup,
 } from './SetupReadinessCenter';
+
 import { TimeBillingWizard } from './TimeBillingWizard';
 import {
   DeliveryNotePrintPreview,
@@ -144,6 +149,7 @@ import type {
   FrozenCustomer,
   FrozenIssuer,
   Invoice,
+  InvoiceCorrectionWorkflow,
   IncomeStatementReport,
   JournalReport,
   LedgerReport,
@@ -222,7 +228,13 @@ import {
   quoteRequiresSalesOrder,
 } from './orderFlow';
 
-type View = TourView | 'orders';
+const PayrollImportWizard = lazy(() =>
+  import('./PayrollImportWizard').then((module) => ({
+    default: module.PayrollImportWizard,
+  })),
+);
+
+type View = TourView | 'orders' | 'agenda';
 type ModalState =
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
@@ -242,6 +254,7 @@ type ModalState =
       item?: Quote | Invoice;
       quoteSource?: Quote;
     }
+  | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
   | { type: 'timeBilling' }
   | { type: 'employee'; item?: Employee }
@@ -274,6 +287,7 @@ const navigation: Array<{
   group?: string;
 }> = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'projects', label: 'Chantiers / projets', icon: FolderKanban },
   { id: 'clients', label: 'Clients', icon: UserRound },
   { id: 'catalog', label: 'Produits & services', icon: Package },
@@ -292,6 +306,10 @@ const viewTitles: Record<View, [string, string]> = {
   dashboard: [
     'Tableau de bord',
     'Votre activité réelle, sans données de démonstration',
+  ],
+  agenda: [
+    'Agenda',
+    'Rendez-vous et échéances réelles réunis au même endroit',
   ],
   projects: ['Chantiers', 'Budget, durée, temps et rentabilité par chantier'],
   clients: ['Clients', 'Coordonnées et historique des travaux'],
@@ -325,10 +343,16 @@ export function WorkspaceApp({
   workspace,
   setWorkspace,
   readOnly = false,
+  readOnlySource = 'license',
+  cloudAccount,
+  onCloudAccountChange,
 }: {
   workspace: Workspace;
   setWorkspace: Dispatch<SetStateAction<Workspace | null>>;
   readOnly?: boolean;
+  readOnlySource?: 'license' | 'cloud';
+  cloudAccount?: CloudAccountState | null;
+  onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
   const [modal, setModal] = useState<ModalState>(null);
@@ -356,6 +380,9 @@ export function WorkspaceApp({
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const guidedTour = useGuidedTour();
   const sidebarHidden = compactSidebarHidden(compactNavigation, menuOpen);
+  const readOnlyMutationMessage = readOnlySource === 'cloud'
+    ? 'Votre rôle « Lecture seule » bloque les modifications sur ce poste. La consultation et les exports restent disponibles.'
+    : 'La licence doit être active pour modifier les données. Lecture, sauvegarde et export restent disponibles.';
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -598,7 +625,7 @@ export function WorkspaceApp({
     if (readOnly) {
       setNotice({
         tone: 'error',
-        text: 'La licence doit être active pour modifier les données. Lecture, sauvegarde et export restent disponibles.',
+        text: readOnlyMutationMessage,
       });
       return false;
     }
@@ -624,14 +651,52 @@ export function WorkspaceApp({
     }
   }
 
-  function issueInvoice(item: Invoice) {
+  async function archiveInvoiceToCloud(item: Invoice, issuedNow = false) {
+    setBusy(true);
+    if (!issuedNow) setNotice(null);
+    try {
+      let result;
+      try {
+        result = await desktopApi.archiveInvoiceToCloud(item.id);
+      } catch (reason) {
+        const message = errorMessage(reason, 'Le coffre Zentra est indisponible.');
+        if (!message.includes('motif de correction')) throw reason;
+        const correctionReason = window.prompt(
+          'Le PDF diffère de la version déjà archivée. Indiquez précisément le motif de cette nouvelle version :',
+        );
+        if (!correctionReason) throw new Error('Archivage annulé : motif requis.');
+        result = await desktopApi.archiveInvoiceToCloud(
+          item.id,
+          correctionReason,
+        );
+      }
+      setNotice({
+        tone: 'success',
+        text: result.alreadyStored
+          ? `La version ${result.revision} est déjà intacte dans le coffre jusqu’au ${formatDate(result.retentionUntil)}.`
+          : `Version ${result.revision} archivée avec empreinte SHA-256 jusqu’au ${formatDate(result.retentionUntil)}.`,
+      });
+    } catch (reason) {
+      setNotice({
+        tone: issuedNow ? 'warning' : 'error',
+        text: `${issuedNow ? 'La facture a bien été émise localement, mais ' : ''}${errorMessage(
+          reason,
+          'le coffre Zentra n’a pas pu recevoir le PDF.',
+        )}`,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function issueInvoice(item: Invoice) {
     if (
       !window.confirm(
         'Émettre cette facture maintenant ? Le numéro, les lignes, le client, les dates et les montants seront figés. Toute correction ultérieure devra passer par un avoir et une nouvelle facture.',
       )
     )
       return;
-    void act(
+    const issued = await act(
       () =>
         desktopApi.issueDocument(
           'invoices',
@@ -642,6 +707,9 @@ export function WorkspaceApp({
       'La facture a été émise, numérotée et verrouillée.',
       false,
     );
+    if (issued && cloudAccount?.status === 'connected') {
+      await archiveInvoiceToCloud(item, true);
+    }
   }
 
   async function convertAcceptedQuote(item: Quote) {
@@ -692,7 +760,7 @@ export function WorkspaceApp({
     if (readOnly) {
       setNotice({
         tone: 'error',
-        text: 'La licence doit être active pour modifier les données. Lecture, sauvegarde et export restent disponibles.',
+        text: readOnlyMutationMessage,
       });
       return;
     }
@@ -742,6 +810,27 @@ export function WorkspaceApp({
     await act(
       () => desktopApi.archiveEntity(entity, id),
       `${label} a été supprimé.`,
+      false,
+    );
+  }
+
+  async function abandonInvoiceCorrection(
+    workflow: InvoiceCorrectionWorkflow,
+  ) {
+    const original = workspace.invoices.find(
+      (item) => item.id === workflow.originalInvoiceId,
+    );
+    const originalLabel =
+      original?.number || original?.title || 'la facture originale';
+    if (
+      !window.confirm(
+        `Abandonner la correction de « ${originalLabel} » ? L’avoir brouillon et la facture de remplacement seront supprimés. La facture originale restera intacte.`,
+      )
+    )
+      return;
+    await act(
+      () => desktopApi.abandonInvoiceCorrection(workflow.id),
+      `La correction a été abandonnée. ${originalLabel} est restée intacte.`,
       false,
     );
   }
@@ -1014,7 +1103,7 @@ export function WorkspaceApp({
           </Button>
         </div>
         <nav className="sidebar__nav">
-          {navigation.map((item, index) => {
+          {navigation.map((item) => {
             const Icon =
               item.id === 'projects' && terminology.icon === 'hard-hat'
                 ? HardHat
@@ -1047,7 +1136,7 @@ export function WorkspaceApp({
                     <em>{overdue.length}</em>
                   ) : null}
                 </button>
-                {index === 2 ? <div className="sidebar__divider" /> : null}
+                {item.id === 'clients' ? <div className="sidebar__divider" /> : null}
               </div>
             );
           })}
@@ -1108,6 +1197,16 @@ export function WorkspaceApp({
           </div>
         </header>
 
+        {readOnly && readOnlySource === 'cloud' ? (
+          <div className="notice notice--warning" role="status">
+            <span>
+              <LockKeyhole size={18} />
+              Accès « Lecture seule » : consultation et exports autorisés,
+              modifications bloquées sur ce poste.
+            </span>
+          </div>
+        ) : null}
+
         {workspace.activeTimer ? (
           <div className="timer-ribbon">
             <span className="timer-ribbon__pulse" />
@@ -1165,6 +1264,7 @@ export function WorkspaceApp({
                 terminology={terminology}
                 prerequisites={prerequisites}
                 readOnly={readOnly}
+                readOnlyReason={readOnlyMutationMessage}
               />
             ) : null}
           </div>
@@ -1211,6 +1311,33 @@ export function WorkspaceApp({
               readOnly={readOnly}
               onNavigate={setView}
               onCreate={setModal}
+            />
+          ) : null}
+          {view === 'agenda' ? (
+            <AgendaScreen
+              workspace={workspace}
+              busy={busy}
+              readOnly={readOnly}
+              onSave={(input: AgendaEventDraft) =>
+                act(
+                  () => desktopApi.saveAgendaEvent(input),
+                  input.id
+                    ? 'Le rendez-vous a été mis à jour.'
+                    : 'Le rendez-vous a été ajouté à votre agenda.',
+                  false,
+                )
+              }
+              onDelete={(item) =>
+                act(
+                  () => desktopApi.deleteAgendaEvent(item.id),
+                  'Le rendez-vous a été supprimé.',
+                  false,
+                )
+              }
+              onNavigate={(next) => {
+                setView(next);
+                setSearch('');
+              }}
             />
           ) : null}
           {view === 'projects' ? (
@@ -1408,6 +1535,13 @@ export function WorkspaceApp({
               onEdit={(item) =>
                 setModal({ type: 'document', entity: 'invoices', item })
               }
+              onCorrect={(item) =>
+                setModal({ type: 'invoiceCorrection', invoice: item })
+              }
+              onAbandonCorrection={(workflow) =>
+                void abandonInvoiceCorrection(workflow)
+              }
+              onArchiveCloud={(item) => void archiveInvoiceToCloud(item)}
               onCreate={() =>
                 setModal({ type: 'document', entity: 'invoices' })
               }
@@ -1557,6 +1691,7 @@ export function WorkspaceApp({
               setBusy={setBusy}
               onWorkspace={setWorkspace}
               onNotice={setNotice}
+              onCloudAccountChange={onCloudAccountChange}
               onOpenAccounting={() => {
                 setView('accounting');
                 setSearch('');
@@ -1613,12 +1748,14 @@ function CreateButton({
   terminology,
   prerequisites,
   readOnly,
+  readOnlyReason,
 }: {
   view: View;
   onClick: Dispatch<SetStateAction<ModalState>>;
   terminology: ReturnType<typeof projectTerminology>;
   prerequisites: WorkspacePrerequisites;
   readOnly: boolean;
+  readOnlyReason: string;
 }) {
   const map: Partial<Record<View, [string, ModalState]>> = {
     projects: [`Nouveau ${terminology.singular}`, { type: 'project' }],
@@ -1632,7 +1769,7 @@ function CreateButton({
   };
   const current = map[view];
   const blockReason = readOnly
-    ? 'La licence doit être active pour créer ou modifier des données.'
+    ? readOnlyReason
     : current
       ? creationBlockReason(
           view as Parameters<typeof creationBlockReason>[0],
@@ -2669,6 +2806,9 @@ type DocumentsProps =
       onOpenOrder: (orderId: string) => void;
       onPrint: (item: Invoice) => void;
       onArchive: (item: Invoice) => void;
+      onCorrect: (item: Invoice) => void;
+      onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
+      onArchiveCloud: (item: Invoice) => void;
       onConvert?: never;
       onStatus?: never;
     };
@@ -2684,6 +2824,9 @@ type LooseDocumentsProps = {
   onOpenOrder: (orderId: string) => void;
   onPrint: (item: Quote | Invoice) => void;
   onArchive: (item: Quote | Invoice) => void;
+  onCorrect: (item: Invoice) => void;
+  onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
+  onArchiveCloud: (item: Invoice) => void;
 };
 
 function DocumentsScreen(sourceProps: DocumentsProps) {
@@ -2963,6 +3106,32 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
               : undefined;
             const linkedOrderDraftBatch =
               item.status === 'draft' ? linkedOrderBatch : undefined;
+            const correctionWorkflow = invoice
+              ? workspace.invoiceCorrectionWorkflows.find(
+                  (workflow) =>
+                    workflow.creditNoteId === invoice.id ||
+                    workflow.replacementInvoiceId === invoice.id,
+                )
+              : undefined;
+            const correctionCredit = correctionWorkflow
+              ? workspace.invoices.find(
+                  (candidate) =>
+                    candidate.id === correctionWorkflow.creditNoteId,
+                )
+              : undefined;
+            const correctionReplacement = correctionWorkflow
+              ? workspace.invoices.find(
+                  (candidate) =>
+                    candidate.id === correctionWorkflow.replacementInvoiceId,
+                )
+              : undefined;
+            const correctionCanBeAbandoned = Boolean(
+              correctionWorkflow &&
+                correctionCredit?.status === 'draft' &&
+                !correctionCredit.number &&
+                correctionReplacement?.status === 'draft' &&
+                !correctionReplacement.number,
+            );
             return (
               <tr key={item.id}>
                 <td>
@@ -3023,6 +3192,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   {linkedOrderDraftBatch ? (
                     <small>Géré depuis la commande</small>
                   ) : null}
+                  {correctionWorkflow ? (
+                    <small>Correction liée</small>
+                  ) : null}
                 </td>
                 <td>
                   <div className="document-actions">
@@ -3081,6 +3253,35 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     {entity === 'invoices' &&
                     invoice?.type !== 'credit_note' &&
                     item.status !== 'draft' &&
+                    item.status !== 'cancelled' ? (
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        disabled={busy}
+                        onClick={() => props.onCorrect(item as Invoice)}
+                        title="Corriger sans réécrire l’original"
+                      >
+                        <Pencil size={14} /> Corriger
+                      </Button>
+                    ) : null}
+                    {entity === 'invoices' &&
+                    correctionWorkflow &&
+                    correctionCanBeAbandoned ? (
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        disabled={busy}
+                        onClick={() =>
+                          props.onAbandonCorrection(correctionWorkflow)
+                        }
+                        title="Supprimer les deux brouillons de correction sans toucher à l’original"
+                      >
+                        <X size={14} /> Abandonner la correction
+                      </Button>
+                    ) : null}
+                    {entity === 'invoices' &&
+                    invoice?.type !== 'credit_note' &&
+                    item.status !== 'draft' &&
                     item.status !== 'paid' &&
                     item.status !== 'cancelled' ? (
                       <Button
@@ -3106,7 +3307,23 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         <Printer size={15} />
                       </Button>
                     ) : null}
-                    {item.status === 'draft' && !linkedOrderDraftBatch ? (
+                    {entity === 'invoices' &&
+                    item.status !== 'draft' &&
+                    item.status !== 'cancelled' ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={busy}
+                        onClick={() => props.onArchiveCloud(item as Invoice)}
+                        title="Archiver le PDF dans le coffre Zentra"
+                        aria-label={`Archiver ${item.number || item.title} dans le coffre Zentra`}
+                      >
+                        <CloudUpload size={15} />
+                      </Button>
+                    ) : null}
+                    {item.status === 'draft' &&
+                    !linkedOrderDraftBatch &&
+                    !correctionWorkflow ? (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -3808,6 +4025,7 @@ function SettingsScreen({
   onWorkspace,
   onNotice,
   onOpenAccounting,
+  onCloudAccountChange,
 }: {
   workspace: Workspace;
   busy: boolean;
@@ -3815,6 +4033,7 @@ function SettingsScreen({
   onWorkspace: Dispatch<SetStateAction<Workspace | null>>;
   onNotice: (value: Notice | null) => void;
   onOpenAccounting: () => void;
+  onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
   const [vatDraft, setVatDraft] = useState('');
@@ -4003,6 +4222,7 @@ function SettingsScreen({
         settings={settings}
         onNavigate={navigateToSetting}
       />
+      <CloudAccountPanel onAccountChange={onCloudAccountChange} />
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Activité"
@@ -5020,7 +5240,7 @@ function SettingsScreen({
           </span>
           <div>
             <strong>Base locale</strong>
-            <p>Les données actives restent sur ce PC.</p>
+            <p>Les données actives restent sur cet ordinateur.</p>
           </div>
           <i />
         </div>
@@ -5117,6 +5337,127 @@ function SettingsScreen({
   );
 }
 
+function InvoiceCorrectionModal({
+  invoice,
+  busy,
+  close,
+  replace,
+  act,
+}: {
+  invoice: Invoice;
+  busy: boolean;
+  close: () => void;
+  replace: Dispatch<SetStateAction<ModalState>>;
+  act: (
+    action: () => Promise<Workspace>,
+    message: string,
+    close?: boolean,
+  ) => Promise<boolean>;
+}) {
+  const [localError, setLocalError] = useState('');
+  return (
+    <Modal
+      title={`Corriger ${invoice.number || 'la facture'}`}
+      description="L’original reste intact. Zentra prépare les deux documents qui tracent la correction."
+      onClose={close}
+    >
+      <form
+        onSubmit={submitForm(async (form) => {
+          const reason = String(form.get('reason') ?? '').trim();
+          if (reason.length < 5) {
+            setLocalError('Décrivez le motif en au moins 5 caractères.');
+            return;
+          }
+          setLocalError('');
+          let nextWorkspace: Workspace | null = null;
+          let replacementInvoiceId = '';
+          const created = await act(
+            async () => {
+              const result = await desktopApi.createInvoiceCorrection(
+                invoice.id,
+                reason,
+              );
+              nextWorkspace = result.workspace;
+              replacementInvoiceId = result.replacementInvoiceId;
+              return result.workspace;
+            },
+            'La correction est prête : modifiez la facture de remplacement, puis émettez d’abord l’avoir et ensuite la nouvelle facture.',
+            false,
+          );
+          if (!created || !nextWorkspace || !replacementInvoiceId) return;
+          const replacement = (nextWorkspace as Workspace).invoices.find(
+            (candidate) => candidate.id === replacementInvoiceId,
+          );
+          if (!replacement) {
+            setLocalError(
+              'Les brouillons ont été créés, mais la facture de remplacement doit être rouverte depuis la liste.',
+            );
+            return;
+          }
+          replace({
+            type: 'document',
+            entity: 'invoices',
+            item: replacement,
+          });
+        })}
+      >
+        <div className="correction-flow">
+          <div className="correction-flow__step">
+            <span>1</span>
+            <div>
+              <strong>Original conservé</strong>
+              <p>
+                {invoice.number} et son paiement ne sont ni effacés ni réécrits.
+              </p>
+            </div>
+          </div>
+          <div className="correction-flow__step">
+            <span>2</span>
+            <div>
+              <strong>Avoir intégral préparé</strong>
+              <p>Il annule les montants avec sa propre numérotation et sa propre écriture.</p>
+            </div>
+          </div>
+          <div className="correction-flow__step">
+            <span>3</span>
+            <div>
+              <strong>Nouvelle facture modifiable</strong>
+              <p>Zentra l’ouvre ensuite pour corriger les lignes, dates ou informations.</p>
+            </div>
+          </div>
+        </div>
+        <Field label="Motif durable de la correction" required wide>
+          <textarea
+            name="reason"
+            minLength={5}
+            maxLength={1_000}
+            rows={4}
+            placeholder="Ex. quantité facturée incorrecte et description à préciser"
+            required
+          />
+        </Field>
+        <div className="warning-card">
+          <ShieldCheck size={18} />
+          <div>
+            <strong>Ordre contrôlé</strong>
+            <p>
+              La facture de remplacement ne pourra être émise qu’après l’avoir
+              intégral. Pour une facture déjà payée, contrôlez ensuite la
+              compensation ou le remboursement avec votre fiduciaire.
+            </p>
+          </div>
+        </div>
+        {localError ? <p className="form-error" role="alert">{localError}</p> : null}
+        <FormActions
+          onCancel={close}
+          busy={busy}
+          submitLabel="Préparer la correction"
+        />
+      </form>
+    </Modal>
+  );
+}
+
 function WorkspaceModal({
   state,
   workspace,
@@ -5210,6 +5551,16 @@ function WorkspaceModal({
         act={act}
       />
     );
+  if (state.type === 'invoiceCorrection')
+    return (
+      <InvoiceCorrectionModal
+        invoice={state.invoice}
+        busy={busy}
+        close={close}
+        replace={replace}
+        act={act}
+      />
+    );
   if (state.type === 'time')
     return (
       <TimeForm
@@ -5296,7 +5647,16 @@ function WorkspaceModal({
     );
   if (state.type === 'payrollImport')
     return (
-      <PayrollImportWizard workspace={workspace} close={close} act={act} />
+      <Suspense
+        fallback={(
+          <div className="settings-cloud-status" role="status">
+            <LoaderCircle className="spin" size={20} />
+            <span>Ouverture de l’import de fiches de salaire…</span>
+          </div>
+        )}
+      >
+        <PayrollImportWizard workspace={workspace} close={close} act={act} />
+      </Suspense>
     );
   if (state.type === 'payslipPayment')
     return (

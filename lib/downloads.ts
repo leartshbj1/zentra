@@ -1,4 +1,4 @@
-export const ZENTRA_VERSION = '1.14.0';
+export const ZENTRA_VERSION = '1.18.0';
 export const ZENTRA_INSTALLER_NAME = `Zentra_${ZENTRA_VERSION}_x64-setup.exe`;
 export const ZENTRA_INSTALLER_PATH = `/downloads/${ZENTRA_INSTALLER_NAME}`;
 export const ZENTRA_INSTALLER_CHECKSUM_PATH = `${ZENTRA_INSTALLER_PATH}.sha256.txt`;

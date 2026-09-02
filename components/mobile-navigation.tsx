@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 const links = [
   ['#logiciel', 'Voir le logiciel'],
   ['#catalogue-achats', 'Catalogue & achats'],
-  ['#lot-118', 'Aperçu 1.18'],
+  ['#lot-118', 'Nouveautés 1.18'],
   ['#capacites', 'Capacités'],
-  ['#confidentialite', 'Données locales'],
+  ['#confidentialite', 'Local & cloud'],
+  ['/compte', 'Mon compte'],
   ['#tarif', 'Tarif'],
   ['mailto:leartshabija@gmail.com', 'Contact'],
 ] as const;

@@ -31,9 +31,9 @@ use crate::{
     error::{AppError, AppResult},
     installation::load_or_create,
     models::{
-        AppStateInfo, CompleteOnboardingResult, ConvertQuoteInput, DeleteResult, OnboardingInput,
-        OnboardingIssue, OnboardingValidation, RecordPaymentInput, SaveDocumentWithItemsInput,
-        TimerInput,
+        AbandonInvoiceCorrectionInput, AppStateInfo, CompleteOnboardingResult, ConvertQuoteInput,
+        CreateInvoiceCorrectionInput, DeleteResult, OnboardingInput, OnboardingIssue,
+        OnboardingValidation, RecordPaymentInput, SaveDocumentWithItemsInput, TimerInput,
     },
     noga::validate_activity_profile,
     payroll::{
@@ -49,9 +49,9 @@ use crate::{
         MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
         MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V28_SQL, MIGRATION_V29_SQL,
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
-        MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
-        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
-        SCHEMA_VERSION,
+        MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V35_SQL, MIGRATION_V36_SQL,
+        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
+        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -955,6 +955,16 @@ fn migrate_v34(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v35(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V35_SQL)?;
+    Ok(())
+}
+
+fn migrate_v36(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V36_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1448,7 +1458,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28 | 29 | 30 | 31 | 32 | 33 => {}
+            28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1492,6 +1502,12 @@ impl LocalStore {
         }
         if current < 34 {
             migrate_v34(&transaction)?;
+        }
+        if current < 35 {
+            migrate_v35(&transaction)?;
+        }
+        if current < 36 {
+            migrate_v36(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -1763,6 +1779,11 @@ impl LocalStore {
             "SELECT * FROM project_tasks ORDER BY project_id,sort_order,COALESCE(due_date,'9999-12-31'),created_at",
             [],
         )?;
+        let agenda_events = query_all(
+            connection,
+            "SELECT * FROM agenda_events ORDER BY start_date,start_time,title COLLATE NOCASE,created_at",
+            [],
+        )?;
         let quotes = query_all(
             connection,
             "SELECT * FROM quotes ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
@@ -1776,6 +1797,11 @@ impl LocalStore {
         let invoices = query_all(
             connection,
             "SELECT * FROM invoices ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
+            [],
+        )?;
+        let invoice_correction_workflows = query_all(
+            connection,
+            "SELECT * FROM invoice_correction_workflows ORDER BY created_at DESC,id",
             [],
         )?;
         let invoice_items = query_all(
@@ -2250,6 +2276,7 @@ impl LocalStore {
             "quotes": quotes,
             "quote_items": quote_items,
             "invoices": invoices,
+            "invoice_correction_workflows": invoice_correction_workflows,
             "invoice_items": invoice_items,
             "invoice_qr_bills": invoice_qr_bills,
             "employees": employees,
@@ -2284,6 +2311,7 @@ impl LocalStore {
             "quote_conversions":quote_conversions,
             "audit_log":audit_log,
         });
+        workspace["agenda_events"] = json!(agenda_events);
         workspace["backup_status"] = backup_status;
         workspace["reminder_deliveries"] = json!(reminder_deliveries);
         workspace["time_billing_batches"] = json!(time_billing_batches);
@@ -3037,6 +3065,25 @@ impl LocalStore {
                 "Seule une facture brouillon peut être émise.".into(),
             ));
         }
+        let correction_dependency: Option<(String, Option<String>)> = transaction
+            .query_row(
+                "SELECT workflow.credit_note_id,credit.number
+                   FROM invoice_correction_workflows workflow
+                   JOIN invoices credit ON credit.id=workflow.credit_note_id
+                  WHERE workflow.replacement_invoice_id=? LIMIT 1",
+                params![id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        if correction_dependency
+            .as_ref()
+            .is_some_and(|(_, credit_number)| credit_number.as_deref().is_none_or(str::is_empty))
+        {
+            return Err(AppError::Validation(
+                "Émettez d’abord l’avoir correctif préparé avec cette facture de remplacement."
+                    .into(),
+            ));
+        }
         let date = normalized_date(issue_date.as_deref().unwrap_or(&today()), "issue_date")?;
         ensure_accounting_date_open(&transaction, &date)?;
         let payment_terms_days: i64 = transaction.query_row(
@@ -3194,6 +3241,37 @@ impl LocalStore {
                 ));
             }
         }
+        if let Some((original, expected_subtotal, expected_vat, expected_total)) = transaction
+            .query_row(
+                "SELECT workflow.original_invoice_id,original.subtotal_cents,
+                        original.vat_cents,original.total_cents
+                   FROM invoice_correction_workflows workflow
+                   JOIN invoices original ON original.id=workflow.original_invoice_id
+                  WHERE workflow.credit_note_id=? LIMIT 1",
+                params![id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                },
+            )
+            .optional()?
+        {
+            let requested_credit = totals.2.checked_neg().ok_or_else(|| {
+                AppError::Validation("Le montant de l’avoir correctif est invalide.".into())
+            })?;
+            if requested_credit != expected_total
+                || totals.0.abs() != expected_subtotal.abs()
+                || totals.1.abs() != expected_vat.abs()
+            {
+                return Err(AppError::Validation(format!(
+                    "L’avoir correctif de {original} doit reprendre exactement le hors taxe, la TVA et le total de la facture originale ({expected_total} centimes)."
+                )));
+            }
+        }
         let number_type = if invoice_type == "avoir" {
             "credit_note"
         } else {
@@ -3256,6 +3334,420 @@ impl LocalStore {
         )?;
         transaction.commit()?;
         Ok(record)
+    }
+
+    pub fn create_invoice_correction(
+        &self,
+        input: CreateInvoiceCorrectionInput,
+    ) -> AppResult<Value> {
+        let original_id = input.original_invoice_id.trim();
+        let reason = input.reason.trim();
+        if original_id.is_empty() {
+            return Err(AppError::Validation(
+                "La facture originale est obligatoire.".into(),
+            ));
+        }
+        if !(5..=1_000).contains(&reason.len()) {
+            return Err(AppError::Validation(
+                "Expliquez la correction en 5 à 1 000 caractères.".into(),
+            ));
+        }
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let original = query_record_tx(&transaction, "invoices", original_id)?;
+        let original_number = original
+            .get("number")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Seule une facture déjà émise peut être corrigée par ce flux.".into(),
+                )
+            })?;
+        let original_type = original
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("standard");
+        if matches!(original_type, "avoir" | "credit_note") {
+            return Err(AppError::Validation(
+                "Un avoir ne peut pas devenir la facture source d’une nouvelle correction.".into(),
+            ));
+        }
+        let status = original.get("status").and_then(Value::as_str).unwrap_or("");
+        if !matches!(
+            status,
+            "emise" | "en_retard" | "partiellement_payee" | "payee"
+        ) {
+            return Err(AppError::Validation(
+                "Cette facture n’est pas dans un état corrigeable.".into(),
+            ));
+        }
+        let active_workflow: bool = transaction.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM invoice_correction_workflows workflow
+               JOIN invoices credit ON credit.id=workflow.credit_note_id
+               JOIN invoices replacement ON replacement.id=workflow.replacement_invoice_id
+               WHERE workflow.original_invoice_id=?
+                 AND (credit.number IS NULL OR replacement.number IS NULL)
+             )",
+            params![original_id],
+            |row| row.get(0),
+        )?;
+        if active_workflow {
+            return Err(AppError::Validation(
+                "Une correction de cette facture est déjà en préparation. Terminez ses deux brouillons avant d’en créer une autre."
+                    .into(),
+            ));
+        }
+        let credited: i64 = transaction.query_row(
+            "SELECT COALESCE(SUM(-total_cents),0) FROM invoices
+              WHERE type='avoir' AND original_invoice_id=?
+                AND number IS NOT NULL AND status<>'annulee'",
+            params![original_id],
+            |row| row.get(0),
+        )?;
+        if credited > 0 {
+            return Err(AppError::Validation(
+                "Cette facture possède déjà un avoir émis. Corrigez la facture de remplacement la plus récente pour préserver la chaîne."
+                    .into(),
+            ));
+        }
+        let line_count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM invoice_items WHERE invoice_id=?",
+            params![original_id],
+            |row| row.get(0),
+        )?;
+        if line_count == 0 {
+            return Err(AppError::Validation(
+                "La facture originale ne contient aucune ligne à reprendre.".into(),
+            ));
+        }
+
+        let workflow_id = Uuid::new_v4().to_string();
+        let credit_id = Uuid::new_v4().to_string();
+        let replacement_id = Uuid::new_v4().to_string();
+        let created_at = now_iso();
+        let issue_date = today();
+        let payment_terms_days: i64 = transaction.query_row(
+            "SELECT payment_terms_days FROM settings WHERE id=1",
+            [],
+            |row| row.get(0),
+        )?;
+        let replacement_due = add_days(&issue_date, payment_terms_days)?;
+        let original_title = original
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("Facture");
+        let original_notes = original.get("notes").and_then(Value::as_str).unwrap_or("");
+        let correction_note = format!(
+            "Correction de {original_number} — Motif : {reason}{}",
+            if original_notes.trim().is_empty() {
+                String::new()
+            } else {
+                format!("\n\nNotes originales : {}", original_notes.trim())
+            }
+        );
+
+        for (id, title, invoice_type, due_date, linked_original) in [
+            (
+                credit_id.as_str(),
+                format!("Avoir correctif — {original_number}"),
+                "avoir",
+                issue_date.as_str(),
+                Some(original_id),
+            ),
+            (
+                replacement_id.as_str(),
+                original_title.to_owned(),
+                original_type,
+                replacement_due.as_str(),
+                None,
+            ),
+        ] {
+            transaction.execute(
+                "INSERT INTO invoices(
+                   id,client_id,project_id,quote_id,original_invoice_id,number,title,type,status,
+                   issue_date,due_date,service_date_from,service_date_to,currency,
+                   subtotal_cents,discount_cents,vat_cents,total_cents,paid_cents,
+                   notes,terms,snapshot_json,created_at,updated_at
+                 )
+                 SELECT ?,client_id,project_id,NULL,?,NULL,?,?, 'brouillon',
+                        ?,?,service_date_from,service_date_to,currency,
+                        0,0,0,0,0,?,terms,NULL,?,?
+                   FROM invoices WHERE id=?",
+                params![
+                    id,
+                    linked_original,
+                    title,
+                    invoice_type,
+                    issue_date,
+                    due_date,
+                    correction_note,
+                    created_at,
+                    created_at,
+                    original_id
+                ],
+            )?;
+        }
+
+        let lines = {
+            let mut statement = transaction.prepare(
+                "SELECT catalog_item_id,position,description,quantity,unit,
+                        unit_price_cents,discount_bp,vat_bp
+                   FROM invoice_items WHERE invoice_id=? ORDER BY position,id",
+            )?;
+            let rows = statement.query_map(params![original_id], |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, f64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, i64>(7)?,
+                ))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for (
+            catalog_item_id,
+            position,
+            description,
+            quantity,
+            unit,
+            unit_price_cents,
+            discount_bp,
+            vat_bp,
+        ) in lines
+        {
+            for (invoice_id, price) in [
+                (credit_id.as_str(), -unit_price_cents.abs()),
+                (replacement_id.as_str(), unit_price_cents.abs()),
+            ] {
+                transaction.execute(
+                    "INSERT INTO invoice_items(
+                       id,invoice_id,catalog_item_id,position,description,quantity,unit,
+                       unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,
+                       line_total_cents,created_at,updated_at
+                     ) VALUES(?,?,?,?,?,?,?,?,?,?,0,0,0,?,?)",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        invoice_id,
+                        catalog_item_id,
+                        position,
+                        description,
+                        quantity,
+                        unit,
+                        price,
+                        discount_bp,
+                        vat_bp,
+                        created_at,
+                        created_at
+                    ],
+                )?;
+            }
+        }
+        recompute_all_invoice_lines(&transaction, &credit_id)?;
+        recompute_invoice(&transaction, &credit_id)?;
+        recompute_all_invoice_lines(&transaction, &replacement_id)?;
+        recompute_invoice(&transaction, &replacement_id)?;
+        transaction.execute(
+            "INSERT INTO invoice_correction_workflows(
+               id,original_invoice_id,credit_note_id,replacement_invoice_id,reason,created_at
+             ) VALUES(?,?,?,?,?,?)",
+            params![
+                workflow_id,
+                original_id,
+                credit_id,
+                replacement_id,
+                reason,
+                created_at
+            ],
+        )?;
+        let credit = query_record_tx(&transaction, "invoices", &credit_id)?;
+        let replacement = query_record_tx(&transaction, "invoices", &replacement_id)?;
+        append_audit(
+            &transaction,
+            "prepare_correction",
+            "invoice",
+            original_id,
+            &json!({
+                "workflow_id":workflow_id,
+                "original_number":original_number,
+                "credit_note_id":credit_id,
+                "replacement_invoice_id":replacement_id,
+                "reason":reason
+            }),
+        )?;
+        append_audit(&transaction, "create", "credit_note", &credit_id, &credit)?;
+        append_audit(
+            &transaction,
+            "create_replacement",
+            "invoice",
+            &replacement_id,
+            &replacement,
+        )?;
+        transaction.commit()?;
+        Ok(json!({
+            "workflow_id":workflow_id,
+            "credit_note_id":credit_id,
+            "replacement_invoice_id":replacement_id,
+            "reason":reason
+        }))
+    }
+
+    pub fn abandon_invoice_correction(
+        &self,
+        input: AbandonInvoiceCorrectionInput,
+    ) -> AppResult<Value> {
+        let workflow_id = input.workflow_id.trim();
+        if workflow_id.is_empty() {
+            return Err(AppError::Validation(
+                "La correction à abandonner est obligatoire.".into(),
+            ));
+        }
+
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let workflow = transaction
+            .query_row(
+                "SELECT workflow.original_invoice_id,original.number,original.title,
+                        workflow.credit_note_id,credit.status,credit.number,
+                        workflow.replacement_invoice_id,replacement.status,replacement.number,
+                        workflow.reason,workflow.created_at
+                   FROM invoice_correction_workflows workflow
+                   JOIN invoices original ON original.id=workflow.original_invoice_id
+                   JOIN invoices credit ON credit.id=workflow.credit_note_id
+                   JOIN invoices replacement ON replacement.id=workflow.replacement_invoice_id
+                  WHERE workflow.id=?",
+                params![workflow_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, String>(6)?,
+                        row.get::<_, String>(7)?,
+                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, String>(9)?,
+                        row.get::<_, String>(10)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("invoice_correction_workflows/{workflow_id}"))
+            })?;
+        let (
+            original_id,
+            original_number,
+            original_title,
+            credit_id,
+            credit_status,
+            credit_number,
+            replacement_id,
+            replacement_status,
+            replacement_number,
+            reason,
+            prepared_at,
+        ) = workflow;
+
+        if credit_status != "brouillon"
+            || replacement_status != "brouillon"
+            || credit_number.is_some()
+            || replacement_number.is_some()
+        {
+            return Err(AppError::Validation(
+                "La correction ne peut plus être abandonnée dès que l’avoir ou la facture de remplacement a été émis."
+                    .into(),
+            ));
+        }
+
+        let has_operational_links: bool = transaction.query_row(
+            "SELECT
+                EXISTS(SELECT 1 FROM payments WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM bank_reconciliations WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM stock_movements WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM time_billing_batches WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM sales_order_invoice_batches WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM quote_conversions WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM reminders WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM recurrence_occurrences WHERE invoice_id IN (?1,?2)) OR
+                EXISTS(SELECT 1 FROM invoices WHERE original_invoice_id IN (?1,?2)) OR
+                EXISTS(
+                    SELECT 1 FROM journal_entries
+                     WHERE source_id IN (?1,?2)
+                       AND source_type IN ('invoice','credit_note')
+                )",
+            params![credit_id, replacement_id],
+            |row| row.get(0),
+        )?;
+        if has_operational_links {
+            return Err(AppError::Validation(
+                "La correction contient déjà des opérations liées et ne peut pas être abandonnée automatiquement."
+                    .into(),
+            ));
+        }
+
+        let qr_bill_count = transaction.execute(
+            "DELETE FROM invoice_qr_bills WHERE invoice_id IN (?1,?2)",
+            params![credit_id, replacement_id],
+        )?;
+        let line_count = transaction.execute(
+            "DELETE FROM invoice_items WHERE invoice_id IN (?1,?2)",
+            params![credit_id, replacement_id],
+        )?;
+        if transaction.execute(
+            "DELETE FROM invoice_correction_workflows WHERE id=?",
+            params![workflow_id],
+        )? != 1
+        {
+            return Err(AppError::NotFound(format!(
+                "invoice_correction_workflows/{workflow_id}"
+            )));
+        }
+        let deleted_invoices = transaction.execute(
+            "DELETE FROM invoices
+              WHERE id IN (?1,?2) AND status='brouillon' AND number IS NULL",
+            params![credit_id, replacement_id],
+        )?;
+        if deleted_invoices != 2 {
+            return Err(AppError::Validation(
+                "La correction a changé pendant l’abandon. Aucune donnée n’a été supprimée.".into(),
+            ));
+        }
+
+        append_audit(
+            &transaction,
+            "abandon_correction",
+            "invoice_correction",
+            workflow_id,
+            &json!({
+                "original_invoice_id":original_id,
+                "original_number":original_number,
+                "original_title":original_title,
+                "credit_note_id":credit_id,
+                "replacement_invoice_id":replacement_id,
+                "reason":reason,
+                "prepared_at":prepared_at,
+                "deleted_line_count":line_count,
+                "deleted_qr_bill_count":qr_bill_count
+            }),
+        )?;
+        transaction.commit()?;
+        Ok(json!({
+            "abandoned":true,
+            "workflow_id":workflow_id,
+            "original_invoice_id":original_id,
+            "credit_note_id":credit_id,
+            "replacement_invoice_id":replacement_id
+        }))
     }
 
     pub fn update_quote_status(&self, id: &str, status: &str) -> AppResult<Value> {
@@ -5997,6 +6489,7 @@ fn is_boolean_column(name: &str) -> bool {
             | "billable"
             | "reimbursable"
             | "track_stock"
+            | "all_day"
             | "active"
             | "reversal"
             | "enabled"
@@ -8698,7 +9191,7 @@ mod v34_small_salary_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            34
+            SCHEMA_VERSION as i64
         );
         let employee_columns = connection
             .prepare("PRAGMA table_info(employees)")
@@ -9123,7 +9616,7 @@ mod v34_small_salary_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            34
+            SCHEMA_VERSION as i64
         );
         let columns = connection
             .prepare("PRAGMA table_info(employees)")

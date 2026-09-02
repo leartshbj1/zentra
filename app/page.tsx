@@ -115,12 +115,12 @@ const localPromises = [
   {
     icon: HardDrive,
     title: 'Sauvegarde maîtrisée',
-    text: 'Vous choisissez où créer votre sauvegarde et pouvez la restaurer sur un autre PC.',
+    text: 'Vous choisissez où créer votre sauvegarde et pouvez la restaurer sur un autre ordinateur.',
   },
   {
     icon: LockKeyhole,
-    title: 'Aucun espace cloud métier',
-    text: 'L’application n’envoie pas vos données d’entreprise vers un serveur Zentra.',
+    title: 'Cloud clairement limité',
+    text: 'Compte, droits d’accès et PDF que vous archivez volontairement sont les seules données métier hébergées par Zentra.',
   },
 ];
 
@@ -216,9 +216,29 @@ const capabilityRows = [
     'Produits et services réutilisables, réservations, en main/disponible et sortie unique sur BL ou facture directe.',
   ],
   [
+    'Compte & collaborateurs',
+    'Disponible',
+    'Abonnement d’entreprise, rôles propriétaire, administrateur, comptable, membre ou lecture seule, sans supplément par collaborateur.',
+  ],
+  [
+    'Archive de factures 10 ans',
+    'Disponible',
+    'Copies PDF versionnées, empreinte SHA-256, chaîne de preuves et original conservé; sans prétendre à une certification Olico.',
+  ],
+  [
+    'Correction après émission ou paiement',
+    'Disponible',
+    'L’original reste intact; Zentra prépare un avoir intégral puis une facture de remplacement avec un motif durable.',
+  ],
+  [
+    'Agenda',
+    'Disponible',
+    'Échéances, tâches, jalons, factures, devis et rendez-vous réunis dans une vue locale légère.',
+  ],
+  [
     'Application',
-    'Windows',
-    'Vraie application Windows 10/11 x64, guide relançable et mise à jour signée en quatre étapes; le site est adapté au mobile.',
+    'Windows disponible',
+    'Vraie application Windows 10/11 x64. La cible macOS universelle est intégrée; le DMG sera proposé après signature et notarisation sur Mac.',
   ],
 ] as const;
 
@@ -261,7 +281,7 @@ export default function Home() {
               href="#lot-118"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Aperçu 1.18
+              Nouveautés 1.18
             </a>
             <a
               href="#capacites"
@@ -273,7 +293,13 @@ export default function Home() {
               href="#confidentialite"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Données locales
+              Local & cloud
+            </a>
+            <a
+              href="/compte"
+              className="transition-colors hover:text-[#173d2c]"
+            >
+              Mon compte
             </a>
             <a href="#tarif" className="transition-colors hover:text-[#173d2c]">
               Tarif
@@ -313,7 +339,7 @@ export default function Home() {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Aperçu Zentra 1.18 · validation finale en cours
+            Zentra 1.18 · disponible sur Windows
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -322,9 +348,12 @@ export default function Home() {
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-[#667068]">
             Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
-            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;: Zentra
-            centralise votre gestion dans une application Windows, tandis que
-            vos données métier restent sur votre PC.
+            projets, heures, salaires, comptabilité, TVA et clôture&nbsp;:
+            Zentra centralise votre gestion dans une vraie application de
+            bureau. Windows est disponible aujourd’hui et la distribution macOS
+            est en préparation. Vos données opérationnelles restent locales. Le
+            compte d’équipe et le coffre de factures sont optionnels&nbsp;:
+            seuls ces services utilisent le serveur.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -354,7 +383,8 @@ export default function Home() {
             <ArrowRight className="size-4" />
           </a>
           <p className="mt-3 text-sm text-[#5f6962]">
-            50 CHF / mois · données locales · sauvegardes exportables
+            50 CHF / mois, prix fixe · toutes les fonctions et collaborateurs
+            inclus
           </p>
           <div className="mt-6 grid max-w-xl grid-cols-2 gap-2 text-xs font-medium text-[#4f5e55] sm:mt-7 sm:grid-cols-4">
             {[
@@ -400,12 +430,12 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#637168] lg:justify-self-end">
-              La prochaine version de Zentra vous conduira du premier client
-              jusqu’à la sauvegarde, protégera l’historique comptable clôturé
-              et calculera les décisions annuelles de petits salaires à partir
-              des fiches réellement validées sur ce PC. Elle est encore en
-              validation locale et n’est pas incluse dans le téléchargement
-              proposé aujourd’hui.
+              Zentra vous conduit du premier client jusqu’à la sauvegarde,
+              protégera l’historique comptable clôturé et calculera les
+              décisions annuelles de petits salaires à partir des fiches
+              réellement validées sur ce PC. Elle est encore en validation
+              locale et n’est pas incluse dans le téléchargement proposé
+              aujourd’hui.
             </p>
           </div>
 
@@ -545,7 +575,8 @@ export default function Home() {
               href="/telecharger"
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 font-semibold text-white transition hover:bg-[#24563f]"
             >
-              <MailCheck className="size-4" /> Télécharger Zentra {ZENTRA_VERSION}
+              <MailCheck className="size-4" /> Télécharger Zentra{' '}
+              {ZENTRA_VERSION}
             </a>
           </div>
         </div>
@@ -864,8 +895,8 @@ export default function Home() {
                 La facture suit uniquement ce qui est livrable.
               </h3>
               <p className="mt-4 text-sm leading-7 text-[#606c64]">
-                Pour les lignes à livrer, Zentra propose les quantités livrées et
-                non encore facturées. Une livraison partielle prépare une
+                Pour les lignes à livrer, Zentra propose les quantités livrées
+                et non encore facturées. Une livraison partielle prépare une
                 situation; les prestations directes restent facturables sans BL.
               </p>
               <ul className="mt-6 grid gap-3 text-sm text-[#34483b]">
@@ -884,10 +915,11 @@ export default function Home() {
           </div>
 
           <p className="mt-5 rounded-2xl border border-[#c9d9cd] bg-[#eef7f0] px-5 py-4 text-sm leading-6 text-[#315e47]">
-            Inclus dans Zentra {ZENTRA_VERSION}. La facturation progressive porte
-            actuellement sur les quantités livrées pour les articles concernés;
-            les prestations directes n’exigent pas de BL. Les acomptes libres
-            par montant ou pourcentage seront ajoutés dans un lot distinct.
+            Inclus dans Zentra {ZENTRA_VERSION}. La facturation progressive
+            porte actuellement sur les quantités livrées pour les articles
+            concernés; les prestations directes n’exigent pas de BL. Les
+            acomptes libres par montant ou pourcentage seront ajoutés dans un
+            lot distinct.
           </p>
         </div>
       </section>
@@ -1252,14 +1284,15 @@ export default function Home() {
                 Vos données vous appartiennent
               </p>
               <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                Vos données restent là où vous les travaillez.
+                Local d’abord. Partagé seulement quand vous le décidez.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-white/76 lg:justify-self-end">
               Zentra installe l’application et sa base sur votre ordinateur. La
               gestion quotidienne ne dépend pas d’un navigateur ni d’une
-              connexion permanente. Internet sert uniquement à la première
-              activation, au renouvellement de licence et aux mises à jour.
+              connexion permanente. Le serveur gère le compte, les rôles et les
+              appareils; il reçoit uniquement les PDF que vous placez dans le
+              coffre partagé de votre entreprise.
             </p>
           </div>
           <div className="mt-10 grid gap-3 sm:mt-14 sm:grid-cols-2 lg:grid-cols-4">
@@ -1369,7 +1402,7 @@ export default function Home() {
                         className={
                           status === 'Disponible'
                             ? 'status-pill status-pill--green'
-                            : status === 'Windows'
+                            : status === 'Windows disponible'
                               ? 'status-pill status-pill--slate'
                               : 'status-pill status-pill--gold'
                         }
@@ -1386,9 +1419,9 @@ export default function Home() {
             </table>
           </div>
           <p className="mt-4 text-xs leading-5 text-[#717d75]">
-            « Disponible » décrit une fonction locale du logiciel; ce n’est pas
-            une certification légale ou Swissdec. Les états et décomptes doivent
-            être contrôlés selon la situation de l’entreprise.
+            « Disponible » décrit une fonction du logiciel; ce n’est pas une
+            certification légale, Swissdec ou Olico. Les fonctions indiquées
+            figurent dans l’installateur public {ZENTRA_VERSION}.
           </p>
         </div>
       </section>
@@ -1408,10 +1441,10 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#6b746e] lg:justify-self-end">
-              Zentra conserve l’origine des informations à chaque étape. Le devis
-              avec produits devient une commande; la réservation, le BL, la
-              facture et le paiement restent reliés. Une prestation simple peut
-              conserver le flux direct. L’utilisateur confirme les étapes
+              Zentra conserve l’origine des informations à chaque étape. Le
+              devis avec produits devient une commande; la réservation, le BL,
+              la facture et le paiement restent reliés. Une prestation simple
+              peut conserver le flux direct. L’utilisateur confirme les étapes
               financières.
             </p>
           </div>
@@ -1614,8 +1647,9 @@ export default function Home() {
               Tout Zentra. 50 CHF par mois.
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#5f6962]">
-              Une licence Windows pour gérer l’activité, avec les mises à jour
-              de l’application. Les données métier restent sur votre ordinateur.
+              Un abonnement d’entreprise au prix fixe, avec toutes les
+              fonctionnalités, les mises à jour et autant de collaborateurs que
+              nécessaire, sans option payante par fonction ou par personne.
             </p>
           </div>
           <div className="mt-12 grid overflow-hidden rounded-[28px] border border-[#d9d4c9] bg-white shadow-[0_25px_70px_rgba(29,45,35,.1)] md:grid-cols-[1.1fr_.9fr]">
@@ -1627,14 +1661,19 @@ export default function Home() {
                 <span className="pb-1 text-sm text-[#5f6962]">/ mois</span>
               </div>
               <p className="mt-3 text-sm text-[#5f6962]">
-                Montant mensuel fixé côté serveur, taxes comprises lorsqu’elles
-                sont applicables, et encaissé sur la page sécurisée Stripe.
-                Renouvellement automatique chaque mois, résiliable depuis le
-                portail client pour la fin de la période en cours.
+                Montant final fixé côté serveur, taxe incluse lorsqu’elle
+                s’applique, et encaissé sur la page sécurisée Stripe. Vous ne
+                paierez jamais un supplément pour débloquer une fonctionnalité
+                ou ajouter un collaborateur. Renouvellement automatique chaque
+                mois, résiliable depuis le portail client pour la fin de la
+                période en cours.
               </p>
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {[
                   'Application Windows complète',
+                  'Version macOS dès sa publication signée',
+                  'Collaborateurs et comptable sans supplément',
+                  'Toutes les fonctions présentes et futures incluses',
                   '22 secteurs NOGA 2025',
                   'Données métier locales',
                   'Projets, chantiers & clients',
@@ -1662,13 +1701,14 @@ export default function Home() {
               <div>
                 <Laptop className="size-7 text-[#efaa3c]" />
                 <h3 className="mt-6 text-2xl font-semibold tracking-tight">
-                  L’application Zentra pour Windows.
+                  Zentra pour toute votre équipe.
                 </h3>
                 <p className="mt-4 text-sm leading-6 text-white/75">
-                  Téléchargez Zentra, souscrivez sur la page sécurisée Stripe
-                  puis validez une fois la licence signée sur votre PC. Seul le
-                  jeton de licence est vérifié en ligne&nbsp;: vos données
-                  métier ne quittent pas l’ordinateur.
+                  Téléchargez Zentra et souscrivez sur la page sécurisée Stripe.
+                  Vous pouvez aussi rattacher l’abonnement à votre compte puis
+                  autoriser les collaborateurs ou le comptable. Les données
+                  opérationnelles resteront locales; seuls le compte et les PDF
+                  archivés sur option seront hébergés.
                 </p>
               </div>
               <div className="mt-9 space-y-3">
@@ -1718,11 +1758,15 @@ export default function Home() {
             {[
               [
                 'Sur quels appareils Zentra fonctionne-t-il ?',
-                'Zentra est disponible pour Windows 10 et Windows 11 64 bits. L’application fonctionne dans sa propre fenêtre et la gestion quotidienne ne dépend pas d’un onglet de navigateur.',
+                'L’installateur public est disponible pour Windows 10 et Windows 11 64 bits. Le code macOS universel Intel et Apple Silicon est intégré, mais le DMG ne sera proposé qu’après signature et notarisation Apple sur un Mac.',
               ],
               [
                 'Où sont enregistrées mes données ?',
-                'Dans le dossier local de l’application sur votre PC. Vous pouvez créer une sauvegarde dans l’emplacement de votre choix et la restaurer ensuite.',
+                'Clients, salaires, projets, comptabilité et base de travail restent dans le dossier local de l’application. Le serveur conserve le compte, les accès et uniquement les versions PDF que vous choisissez d’archiver. La sauvegarde SQLite complète reste indispensable.',
+              ],
+              [
+                'Combien coûtent les collaborateurs et les nouvelles fonctions ?',
+                'Rien de plus. Le prix reste fixé à 50 CHF par mois pour l’entreprise : toutes les fonctionnalités présentes et futures et tous les collaborateurs sont inclus, sans module ni siège facturé en supplément.',
               ],
               [
                 'Y a-t-il des données de démonstration ?',
@@ -1735,6 +1779,10 @@ export default function Home() {
               [
                 'Puis-je créer de vrais devis et factures ?',
                 'Oui. Vous configurez les coordonnées, numéros, délais et taux de TVA. Vous pouvez ensuite créer, imprimer, convertir et suivre vos documents.',
+              ],
+              [
+                'Puis-je corriger une facture déjà payée ?',
+                'Oui, avec une trace complète : Zentra ne réécrit pas le document payé. Il prépare un avoir intégral lié à l’original, puis une nouvelle facture modifiable, chacun avec son propre numéro et le motif conservé. Tant que ces deux documents restent des brouillons, la préparation peut être abandonnée sans toucher à l’original.',
               ],
               [
                 'Comment fonctionne le catalogue ?',
@@ -1750,11 +1798,11 @@ export default function Home() {
               ],
               [
                 'Zentra envoie-t-il les relances automatiquement ?',
-                'Non. Zentra prépare localement une relance à contrôler. Vous pouvez demander l’ouverture d’un e-mail prérempli dans votre logiciel de messagerie, imprimer le courrier ou confirmer un envoi déjà réalisé. Aucun e-mail ne part seul, et Zentra ne prétend pas qu’un brouillon a été créé si Windows ne l’ouvre pas.',
+                'Non. Zentra prépare localement une relance à contrôler. Vous pouvez demander l’ouverture d’un e-mail prérempli dans votre logiciel de messagerie, imprimer le courrier ou confirmer un envoi déjà réalisé. Aucun e-mail ne part seul, et Zentra ne prétend pas qu’un brouillon a été créé si votre ordinateur ne l’ouvre pas.',
               ],
               [
                 'Que se passe-t-il lorsque l’application est fermée ?',
-                'Il n’existe pas de serveur Zentra qui surveille vos factures. Le contrôle reprend au prochain démarrage ou retour dans l’application, puis toutes les décisions restent à valider.',
+                'Les automatismes métier et les relances reprennent au prochain démarrage ou retour dans l’application. Le coffre serveur conserve les PDF déjà archivés, mais il n’émet ni ne relance une facture à votre place.',
               ],
               [
                 'Une facture payée peut-elle encore être relancée ?',
@@ -1802,7 +1850,7 @@ export default function Home() {
               Prêt à travailler avec vos vrais chiffres&nbsp;?
             </p>
             <h2 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight tracking-[-.045em] sm:text-4xl">
-              Installez Zentra sur votre PC Windows.
+              Installez Zentra sur Windows. macOS arrive après validation Apple.
             </h2>
           </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0">
@@ -1827,10 +1875,19 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <BrandWordmark className="w-20 shrink-0" />
             <span className="basis-full leading-5 min-[430px]:basis-auto">
-              Gestion d’entreprise multisectorielle suisse sur Windows
+              Gestion d’entreprise multisectorielle suisse sur ordinateur
             </span>
           </div>
           <div className="flex flex-wrap gap-5">
+            <a className="inline-flex min-h-11 items-center" href="/compte">
+              Mon compte
+            </a>
+            <a
+              className="inline-flex min-h-11 items-center"
+              href="/confidentialite"
+            >
+              Données & confidentialité
+            </a>
             <a
               className="inline-flex min-h-11 items-center"
               href="mailto:leartshabija@gmail.com"

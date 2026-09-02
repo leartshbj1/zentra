@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   ...(metadataBase ? { metadataBase } : {}),
   title: 'Zentra — Gestion d’entreprise multisectorielle en Suisse',
   description:
-    'L’application Windows locale pour piloter catalogue, devis, factures, fournisseurs, achats, import CAMT, projets, salaires et comptabilité dans tous les secteurs NOGA 2025.',
+    'Application de bureau suisse disponible sur Windows, avec version macOS en préparation de distribution : gestion locale, compte d’entreprise et archivage optionnel des factures.',
   applicationName: 'Zentra',
   ...(metadataBase ? { alternates: { canonical: '/' } } : {}),
   icons: { icon: '/favicon.svg' },
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     locale: 'fr_CH',
     title: 'Zentra — Toute votre entreprise, dans une seule application',
     description:
-      'Le logiciel Windows suisse multisectoriel pour gérer catalogue, devis, factures, fournisseurs, achats, import CAMT, projets et comptabilité avec les données sur votre PC.',
+      'Application suisse multisectorielle : Windows disponible, macOS en préparation, données opérationnelles locales et archivage optionnel des factures.',
     ...(metadataBase ? { url: '/' } : {}),
     ...(socialImage
       ? {
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Zentra',
     description:
-      'Catalogue, devis, factures QR, fournisseurs, achats, import CAMT et comptabilité dans une application Windows locale.',
+      'Gestion locale complète sur Windows, version macOS en préparation et compte d’entreprise avec archive de factures sur option.',
     ...(socialImage ? { images: [socialImage] } : {}),
   },
 };

@@ -5,7 +5,9 @@
 Ce document sert de référence produit. Il ne s'agit ni de copier l'interface de
 Bexio, ni de promettre des services qui exigent une certification ou un
 partenaire bancaire. Zentra conserve son différenciateur : une véritable
-application Windows dont les données métier restent sur le PC du client.
+application locale Windows et macOS dont la base métier active reste chez le
+client. Seuls le compte, les droits et l’archivage volontaire des PDF de
+factures utilisent le service Zentra.
 
 ## Ce qui fait réellement la valeur de Bexio
 
@@ -23,13 +25,13 @@ présenter une prochaine action claire et garder chaque transformation traçable
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement multi-commandes → paiement et comptabilité ; tolérance contrôlée globalement et ventilations existantes protégées ; avoir distinct validable et imputable à une facture | OCR des achats | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, paiement client relié à une écriture active, aperçu du décompte et XML eCH-0217 v2.0.0 local ; clôture cumulative scellant toute date ≤ dernière clôture, replays strictement identiques permis, corrections postérieures référencées et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
-| Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
+| Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, agenda jour/semaine/mois, rendez-vous locaux, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
 | Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF A4 professionnel, écritures et analyse SmolVLM générique locale multipage ; manifeste d'audit v2 et validation humaine ; contrôles LPP 2026, AAP/AANP/CAF et cumul LAA dérivé ; salaires minimes 1.18 avec seuil ordinaire CHF 2'500, exception ménage jeune CHF 750, secteurs obligatoires, demande prospective, rattrapage et trace locale probante | QST autonome, LPP multiannuelle complète, IJM structurée, Swissdec/ELM, certificats annuels et certification externe | P0 conformité — en cours |
-| Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
-| Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
+| Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes, dossier de clôture avec manifeste et coffre PDF optionnel R2/D1 chaîné pendant dix ans ; ce coffre n’est pas revendiqué WORM/Olico | validation indépendante de l’archivage probant et export chiffré | P1 conformité |
+| Mobile | contacts, ventes, reçus et temps | site commercial mobile ; application de bureau Windows et macOS | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
-| Sécurité | ISO 27001, 2FA, sauvegardes cloud | SQLite locale, DPAPI licence, sauvegardes et updater signé avec parcours de reprise guidé | chiffrement de base optionnel, rôles locaux et Authenticode | P0/P1 |
+| Sécurité | ISO 27001, 2FA, sauvegardes cloud | SQLite locale, DPAPI sous Windows, Trousseau sous macOS, compte d’entreprise à rôles, révocation des sessions, sauvegardes et updater signé avec parcours de reprise guidé | chiffrement de base optionnel, audit externe, Authenticode et notarisation du DMG | P0/P1 |
 
 ## Ordre d'implémentation retenu
 
@@ -136,7 +138,7 @@ présenter une prochaine action claire et garder chaque transformation traçable
   pas le certificat annuel, ne génère ni ne transmet de déclaration ELM et
   n'est pas certifié Swissdec. Ces aides ne constituent ni une validation de
   conformité globale, ni une certification.
-- Une planification récurrente ne fonctionne que lorsque l'application Windows
+- Une planification récurrente ne fonctionne que lorsque l'application de bureau
   est ouverte. Elle crée des brouillons à contrôler et ne constitue ni un
   service cloud d'envoi, ni une émission ou comptabilisation automatique.
 - Dans le cycle achats, ni la commande, ni le brouillon de réception, ni la

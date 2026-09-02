@@ -7,6 +7,7 @@ import {
   Download,
   KeyRound,
   LoaderCircle,
+  UsersRound,
 } from 'lucide-react';
 import { useState, type SyntheticEvent } from 'react';
 
@@ -103,8 +104,8 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           </h2>
           <p className="mt-1 text-sm leading-6 text-[#5f6962]">
             {token
-              ? 'La facture payée a été vérifiée et la licence est liée à cette installation Windows.'
-              : 'Saisissez l’identifiant Windows : le serveur vérifiera alors la facture payée avant de créer la licence.'}
+              ? 'La facture payée a été vérifiée et la licence est liée à cette installation.'
+              : 'Saisissez l’identifiant affiché par Zentra : le serveur vérifiera alors la facture payée avant de créer la licence.'}
           </p>
         </div>
       </div>
@@ -202,6 +203,13 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           Gérer l’abonnement
         </button>
       </div>
+      <a
+        href={`/compte/associer?session_id=${encodeURIComponent(sessionId)}`}
+        target="_top"
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#9fb5a5] bg-[#edf3ee] px-4 text-sm font-semibold text-[#173d2c]"
+      >
+        <UsersRound className="size-4" /> Associer le compte et inviter mon équipe
+      </a>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 34;
+pub const SCHEMA_VERSION: i64 = 36;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -8,10 +8,12 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "projects",
     "project_milestones",
     "project_tasks",
+    "agenda_events",
     "quotes",
     "quote_items",
     "invoices",
     "invoice_items",
+    "invoice_correction_workflows",
     "stock_movements",
     "employees",
     "employee_small_salary_decisions",
@@ -6584,4 +6586,69 @@ CREATE INDEX IF NOT EXISTS idx_employee_small_salary_decision_year
 ON employee_small_salary_decisions(employee_id,assessment_year,revision);
 
 PRAGMA user_version=34;
+"#;
+
+/// Une facture émise reste immuable. Une correction financière prépare un
+/// avoir intégral et une facture de remplacement, tous deux liés à l’original
+/// et à un motif durable. Les deux brouillons seront numérotés séparément à
+/// leur émission et produiront leurs propres écritures comptables.
+pub const MIGRATION_V35_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS invoice_correction_workflows (
+  id TEXT PRIMARY KEY CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  original_invoice_id TEXT NOT NULL REFERENCES invoices(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  credit_note_id TEXT NOT NULL UNIQUE REFERENCES invoices(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  replacement_invoice_id TEXT NOT NULL UNIQUE REFERENCES invoices(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) BETWEEN 5 AND 1000),
+  created_at TEXT NOT NULL,
+  CHECK (original_invoice_id<>credit_note_id),
+  CHECK (original_invoice_id<>replacement_invoice_id),
+  CHECK (credit_note_id<>replacement_invoice_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_correction_original
+ON invoice_correction_workflows(original_invoice_id,created_at);
+
+CREATE TRIGGER IF NOT EXISTS invoice_correction_workflows_update_guard
+BEFORE UPDATE ON invoice_correction_workflows
+BEGIN SELECT RAISE(ABORT,'invoice correction workflow is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS invoice_correction_workflows_delete_guard
+BEFORE DELETE ON invoice_correction_workflows
+WHEN EXISTS(SELECT 1 FROM invoices invoice WHERE invoice.id IN (OLD.credit_note_id,OLD.replacement_invoice_id) AND invoice.number IS NOT NULL)
+BEGIN SELECT RAISE(ABORT,'issued invoice correction workflow is immutable'); END;
+
+PRAGMA user_version=35;
+"#;
+
+/// Les rendez-vous saisis manuellement restent locaux. L'agenda compose aussi
+/// les dates des objets métier existants sans les recopier dans cette table.
+pub const MIGRATION_V36_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS agenda_events (
+  id TEXT PRIMARY KEY CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  title TEXT NOT NULL CHECK (LENGTH(TRIM(title)) BETWEEN 1 AND 200),
+  start_date TEXT NOT NULL CHECK (LENGTH(start_date)=10 AND start_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(start_date) IS NOT NULL AND DATE(start_date)=start_date),
+  end_date TEXT NOT NULL CHECK (LENGTH(end_date)=10 AND end_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(end_date) IS NOT NULL AND DATE(end_date)=end_date AND end_date>=start_date),
+  all_day INTEGER NOT NULL DEFAULT 0 CHECK (all_day IN (0,1)),
+  start_time TEXT CHECK (start_time IS NULL OR (LENGTH(start_time)=5 AND start_time GLOB '[0-2][0-9]:[0-5][0-9]' AND TIME(start_time) IS NOT NULL AND STRFTIME('%H:%M',start_time)=start_time)),
+  end_time TEXT CHECK (end_time IS NULL OR (LENGTH(end_time)=5 AND end_time GLOB '[0-2][0-9]:[0-5][0-9]' AND TIME(end_time) IS NOT NULL AND STRFTIME('%H:%M',end_time)=end_time)),
+  kind TEXT NOT NULL DEFAULT 'appointment' CHECK (kind IN ('appointment','visit','deadline','other')),
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','cancelled')),
+  location TEXT CHECK (location IS NULL OR LENGTH(TRIM(location)) BETWEEN 1 AND 500),
+  notes TEXT CHECK (notes IS NULL OR LENGTH(TRIM(notes)) BETWEEN 1 AND 20000),
+  project_id TEXT REFERENCES projects(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  employee_id TEXT REFERENCES employees(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((all_day=1 AND start_time IS NULL AND end_time IS NULL) OR (all_day=0 AND start_time IS NOT NULL AND end_time IS NOT NULL)),
+  CHECK (all_day=1 OR end_date>start_date OR end_time>start_time)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agenda_events_range
+ON agenda_events(start_date,end_date,status);
+CREATE INDEX IF NOT EXISTS idx_agenda_events_project
+ON agenda_events(project_id,start_date) WHERE project_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_agenda_events_employee
+ON agenda_events(employee_id,start_date) WHERE employee_id IS NOT NULL;
+
+PRAGMA user_version=36;
 "#;

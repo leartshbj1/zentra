@@ -279,7 +279,7 @@ export function BankScreen({
 
   async function associate(account: BankAccountLink) {
     if (readOnly || busy) return;
-    if (!window.confirm(`Associer le compte « ${account.accountId} » (${account.currency}) à cette entreprise ?\n\nCette confirmation crée uniquement un lien dans Zentra sur ce PC. Aucun accès bancaire n’est ouvert et aucun mouvement n’est rapproché automatiquement.`)) return;
+    if (!window.confirm(`Associer le compte « ${account.accountId} » (${account.currency}) à cette entreprise ?\n\nCette confirmation crée uniquement un lien dans Zentra sur cet ordinateur. Aucun accès bancaire n’est ouvert et aucun mouvement n’est rapproché automatiquement.`)) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -383,7 +383,7 @@ export function BankScreen({
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
       <div><p className="eyebrow">ISO 20022 · traitement local</p><h2>Rapprochez vos encaissements et règlements en gardant le contrôle.</h2><p>Importez un XML CAMT fourni par votre banque. Zentra distingue les entrées clients des sorties fournisseurs, sans connexion au compte ni paiement créé avant votre confirmation.</p></div>
-      <Button disabled={busy || readOnly} onClick={() => void importStatement()} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur ce PC'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
+      <Button disabled={busy || readOnly} onClick={() => void importStatement()} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet ordinateur'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>
 
     {feedback ? <div className={`bank-feedback bank-feedback--${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
@@ -477,7 +477,7 @@ export function BankScreen({
     </section>
 
     <section className="panel bank-imports-panel">
-      <SectionHeading eyebrow="Traçabilité locale" title="Historique des imports" description="Empreinte, type CAMT, compte et nombre d’entrées restent consultables sur ce PC." />
+      <SectionHeading eyebrow="Traçabilité locale" title="Historique des imports" description="Empreinte, type CAMT, compte et nombre d’entrées restent consultables sur cet ordinateur." />
       {bank.imports.length ? <div className="bank-import-list">{bank.imports.map((item) => <article key={item.id}>
         <span><History size={17} /></span>
         <div className="bank-import-list__identity"><strong>{item.sourceName}</strong><p>{item.messageType || 'CAMT'}{item.namespaceVersion ? ` · ${item.namespaceVersion}` : ''} · {item.accountId || 'Compte non renseigné'}</p>{item.fileSha256 ? <div className="bank-import-hash" title={`SHA-256 ${item.fileSha256}`}><small>SHA-256</small><code>{shortSha256(item.fileSha256)}</code><button type="button" onClick={() => void copyImportFingerprint(item.fileSha256)} aria-label={`Copier l’empreinte SHA-256 du fichier ${item.sourceName}`}><Copy size={12} /></button></div> : null}</div>

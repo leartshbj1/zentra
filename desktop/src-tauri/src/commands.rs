@@ -8,31 +8,32 @@ use crate::{
     database::{LocalStore, OnboardingValidationScope},
     error::command_error,
     models::{
-        AccountInput, AccountingPeriodInput, AccountingSettingsInput, AppStateInfo,
-        ApplyPayrollInput, ApplySupplierCreditInput, AssociateBankAccountInput,
-        CalculateEmployeePayrollInput, CalculatePayrollInput, CancelSalesOrderInput,
-        CancelSalesOrderInvoiceDraftInput, CancelSalesOrderRemainderInput,
+        AbandonInvoiceCorrectionInput, AccountInput, AccountingPeriodInput,
+        AccountingSettingsInput, AppStateInfo, ApplyPayrollInput, ApplySupplierCreditInput,
+        AssociateBankAccountInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+        CancelSalesOrderInput, CancelSalesOrderInvoiceDraftInput, CancelSalesOrderRemainderInput,
         CancelSupplierOrderRemainderInput, CompleteOnboardingResult,
         ConfirmBankReconciliationInput, ConfirmPayrollImportInput, ConfirmSalesOrderInput,
         ConfirmSupplierBankReconciliationInput, ConfirmSupplierOrderInput,
         ContributionDefinitionInput, ConvertQuoteInput, ConvertQuoteToSalesOrderInput,
-        CreateInvoiceFromTimeEntriesInput, CreateRecurrenceScheduleInput,
-        CreateSalesOrderInvoiceInput, DeleteResult, GeneratePayslipPdfInput,
-        GenerateRecurrenceOccurrencesInput, GenerateSalesDocumentPdfInput,
+        CreateInvoiceCorrectionInput, CreateInvoiceFromTimeEntriesInput,
+        CreateRecurrenceScheduleInput, CreateSalesOrderInvoiceInput, DeleteResult,
+        GeneratePayslipPdfInput, GenerateRecurrenceOccurrencesInput, GenerateSalesDocumentPdfInput,
         InstallReminderCycleInput, IssueDeliveryNoteInput, IssueSupplierReceiptInput, LedgerInput,
         ManualJournalInput, MarkReminderInput, OnboardingInput, OnboardingValidation,
         PayPayslipInput, PeriodFilter, PostPayslipInput, PreviewSalesOrderInvoiceInput,
         ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
         ReminderActionInput, ReminderFilter, ReminderPreviewInput, ReminderSettingsInput,
         ReminderTemplateInput, ReverseDeliveryNoteInput, ReverseSupplierCreditAllocationInput,
-        ReverseSupplierReceiptInput, SaveDeliveryNoteDraftInput, SaveDocumentWithItemsInput,
-        SaveInvoiceQrBillInput, SavePayslipWithContributionsInput, SaveProjectMilestoneInput,
-        SaveProjectTaskInput, SaveSalesOrderDraftInput, SaveSupplierCreditNoteDraftInput,
-        SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput,
-        SaveSupplierReceiptDraftInput, ScanRemindersInput, StagePayrollDocumentsInput,
-        StockCorrectionInput, StockEntryInput, StockExitInput, SwissQrBillInput, SwissQrPayload,
-        SwissQrValidation, TimerInput, UpdatePayrollImportDraftInput,
-        UpdateRecurrenceScheduleInput, ValidateSupplierCreditNoteInput,
+        ReverseSupplierReceiptInput, SaveAgendaEventInput, SaveDeliveryNoteDraftInput,
+        SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SavePayslipWithContributionsInput,
+        SaveProjectMilestoneInput, SaveProjectTaskInput, SaveSalesOrderDraftInput,
+        SaveSupplierCreditNoteDraftInput, SaveSupplierInvoiceDraftInput,
+        SaveSupplierInvoiceMatchInput, SaveSupplierOrderDraftInput, SaveSupplierReceiptDraftInput,
+        ScanRemindersInput, StagePayrollDocumentsInput, StockCorrectionInput, StockEntryInput,
+        StockExitInput, SwissQrBillInput, SwissQrPayload, SwissQrValidation, TimerInput,
+        UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
+        ValidateSupplierCreditNoteInput,
     },
     swiss_qr,
     vat_reporting::{
@@ -115,13 +116,9 @@ pub fn complete_onboarding(
 ) -> Result<CompleteOnboardingResult, String> {
     let _guard = state.lock().map_err(command_error)?;
     let scope = onboarding_validation_scope(scope.as_deref())?;
-    if state
-        .app_state(&app_version(&app))
-        .map_err(command_error)?
-        .onboarding_completed
-    {
-        require_write(&state)?;
-    }
+    state
+        .require_onboarding_write_access()
+        .map_err(command_error)?;
     match scope {
         OnboardingValidationScope::Essential => {
             state.complete_onboarding_scoped(input, &app_version(&app), scope)
@@ -289,6 +286,26 @@ pub fn delete_project_task(
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.delete_project_task(&id).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_agenda_event(
+    state: State<'_, LocalStore>,
+    input: SaveAgendaEventInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_agenda_event(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn delete_agenda_event(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<DeleteResult, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.delete_agenda_event(&id).map_err(command_error)
 }
 
 #[tauri::command]
@@ -1241,6 +1258,30 @@ pub fn generate_sales_document_pdf(
     let _guard = state.lock().map_err(command_error)?;
     state
         .generate_sales_document_pdf(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn create_invoice_correction(
+    state: State<'_, LocalStore>,
+    input: CreateInvoiceCorrectionInput,
+) -> Result<Value, String> {
+    require_write(&state)?;
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .create_invoice_correction(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn abandon_invoice_correction(
+    state: State<'_, LocalStore>,
+    input: AbandonInvoiceCorrectionInput,
+) -> Result<Value, String> {
+    require_write(&state)?;
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .abandon_invoice_correction(input)
         .map_err(command_error)
 }
 

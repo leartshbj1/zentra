@@ -1,7 +1,7 @@
 [package]
 name = "helvichantier"
 version = "1.18.0"
-description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows"
+description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows et macOS"
 authors = ["Zentra"]
 edition = "2021"
 rust-version = "1.88"
@@ -50,6 +50,9 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
 
 [dev-dependencies]
 pretty_assertions = "1"

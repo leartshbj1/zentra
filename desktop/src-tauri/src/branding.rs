@@ -162,9 +162,7 @@ pub(crate) fn stage_active_company_logo_for_snapshot(
     };
     let staged = stage_company_logo_file(
         effective_source.to_str().ok_or_else(|| {
-            AppError::Validation(
-                "Le chemin du logo actif n'est pas un texte Windows valide.".into(),
-            )
+            AppError::Validation("Le chemin du logo actif n'est pas un texte local valide.".into())
         })?,
         &branding_dir,
     )?;
@@ -402,7 +400,7 @@ pub(crate) fn is_managed_logo_reference(raw_path: &str) -> bool {
 }
 
 /// Recharge une référence immuable après restauration d'une sauvegarde dans un
-/// autre profil Windows. Le repli est volontairement limité aux noms produits
+/// autre profil Windows ou macOS. Le repli est volontairement limité aux noms produits
 /// par `stage_company_logo` et le condensat du fichier est revérifié avant usage.
 pub(crate) fn load_pdf_logo_with_fallback(raw_path: &str, branding_dir: &Path) -> Option<PdfLogo> {
     let original = Path::new(raw_path.trim());

@@ -1,4 +1,5 @@
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
+import { isAccountRole, type AccountRole } from '@/lib/account-security';
 import {
   LICENSE_KEY_ID,
   LICENSE_PLAN,
@@ -22,6 +23,8 @@ import {
 
 const INSTALLATION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ACCOUNT_SESSION_ID =
+  /^dss_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type LicensePayload = {
   token_version: typeof LICENSE_TOKEN_VERSION;
@@ -30,6 +33,9 @@ type LicensePayload = {
   jti: string;
   kid: typeof LICENSE_KEY_ID;
   customer_name: string | null;
+  access_role: AccountRole;
+  account_user_id: string | null;
+  account_session_id: string | null;
   plan: string;
   price_chf_cents: number;
   issued_at: string;
@@ -61,7 +67,7 @@ async function signEncoded(encoded: string) {
 }
 
 export async function assertLicenseSignerReady() {
-  const challenge = 'elyko-license-readiness-v1';
+  const challenge = 'zentra-license-readiness-v1';
   const signature = await signEncoded(challenge);
   try {
     const publicKey = await crypto.subtle.importKey(
@@ -80,7 +86,7 @@ export async function assertLicenseSignerReady() {
     if (!verified) throw new Error('signer mismatch');
   } catch {
     throw new PublicError(
-      'La clé de signature ne correspond pas à l’application Windows.',
+      'La clé de signature ne correspond pas aux applications Zentra.',
       503,
     );
   }
@@ -97,6 +103,10 @@ export async function issueLicense(input: {
   installationId: string;
   customerName: string | null;
   periodEnd: number;
+  channel: 'account' | 'checkout' | 'refresh';
+  accessRole?: AccountRole;
+  accountUserId?: string | null;
+  accountSessionId?: string | null;
 }) {
   if (!INSTALLATION_ID.test(input.installationId))
     throw new PublicError(
@@ -110,24 +120,84 @@ export async function issueLicense(input: {
       402,
     );
   }
-  const existing = await db
-    .prepare(
-      'SELECT license_id,installation_id FROM license_activations WHERE subscription_id=? LIMIT 1',
-    )
-    .bind(input.subscriptionId)
-    .first<{ license_id: string; installation_id: string }>();
-  if (existing && existing.installation_id !== input.installationId) {
+  const accountUserId = input.accountUserId?.trim() || null;
+  const accountSessionId = input.accountSessionId?.trim() || null;
+  if (
+    (accountUserId === null) !== (accountSessionId === null) ||
+    (accountUserId !== null && accountUserId.length > 255) ||
+    (accountSessionId !== null && !ACCOUNT_SESSION_ID.test(accountSessionId)) ||
+    (input.channel === 'account' &&
+      (accountUserId === null || accountSessionId === null))
+  ) {
     throw new PublicError(
-      'Cette licence est déjà liée à une autre installation. Contactez le support pour transférer la licence.',
-      409,
+      'La liaison entre la licence, le compte et la session est invalide.',
+      400,
     );
   }
-  const licenseId = existing?.license_id ?? `lic_${crypto.randomUUID()}`;
-  await db
-    .prepare(`INSERT INTO license_activations(license_id,subscription_id,installation_id,activated_at,last_issued_at)
-      VALUES(?,?,?,?,?) ON CONFLICT(license_id) DO UPDATE SET last_issued_at=excluded.last_issued_at`)
-    .bind(licenseId, input.subscriptionId, input.installationId, now, now)
-    .run();
+  const proposedLicenseId = `lic_${crypto.randomUUID()}`;
+  let activation: { license_id: string } | null;
+  if (input.channel === 'account') {
+    activation = await db
+      .prepare(`INSERT INTO license_activations(
+          license_id,subscription_id,installation_id,activated_at,last_issued_at,revoked_at
+        ) VALUES(?,?,?,?,?,NULL)
+        ON CONFLICT(subscription_id,installation_id) DO UPDATE SET
+          last_issued_at=excluded.last_issued_at,
+          revoked_at=NULL
+        RETURNING license_id`)
+      .bind(
+        proposedLicenseId,
+        input.subscriptionId,
+        input.installationId,
+        now,
+        now,
+      )
+      .first<{ license_id: string }>();
+  } else {
+    activation = await db
+      .prepare(
+        `UPDATE license_activations SET last_issued_at=?
+          WHERE subscription_id=? AND installation_id=? AND revoked_at IS NULL
+          RETURNING license_id`,
+      )
+      .bind(now, input.subscriptionId, input.installationId)
+      .first<{ license_id: string }>();
+    if (!activation && input.channel === 'checkout') {
+      activation = await db
+        .prepare(
+          `INSERT INTO license_activations(
+             license_id,subscription_id,installation_id,activated_at,last_issued_at,revoked_at
+           )
+           SELECT ?,?,?,?,?,NULL
+            WHERE NOT EXISTS(
+              SELECT 1 FROM organizations WHERE subscription_id=?
+            )
+              AND NOT EXISTS(
+                SELECT 1 FROM license_activations WHERE subscription_id=?
+              )
+           RETURNING license_id`,
+        )
+        .bind(
+          proposedLicenseId,
+          input.subscriptionId,
+          input.installationId,
+          now,
+          now,
+          input.subscriptionId,
+          input.subscriptionId,
+        )
+        .first<{ license_id: string }>();
+    }
+  }
+  if (!activation) {
+    throw new PublicError(
+      input.channel === 'refresh'
+        ? 'Cette activation a été révoquée. Autorisez de nouveau cet appareil depuis le compte Zentra.'
+        : 'Pour autoriser un nouvel appareil, connectez-le au compte Zentra depuis l’application.',
+      403,
+    );
+  }
+  const licenseId = activation.license_id;
   const payload: LicensePayload = {
     token_version: LICENSE_TOKEN_VERSION,
     license_id: licenseId,
@@ -135,6 +205,9 @@ export async function issueLicense(input: {
     jti: crypto.randomUUID(),
     kid: LICENSE_KEY_ID,
     customer_name: input.customerName,
+    access_role: input.accessRole ?? 'owner',
+    account_user_id: accountUserId,
+    account_session_id: accountSessionId,
     plan: LICENSE_PLAN,
     price_chf_cents: LICENSE_PRICE_CHF_CENTS,
     issued_at: new Date().toISOString(),
@@ -169,16 +242,27 @@ async function refreshIdentityFromToken(token: string) {
     const payload = JSON.parse(
       new TextDecoder('utf-8', { fatal: true }).decode(fromBase64Url(parts[0])),
     ) as Partial<LicensePayload>;
+    const accessRole = payload.access_role ?? 'owner';
+    const accountUserId = payload.account_user_id ?? null;
+    const accountSessionId = payload.account_session_id ?? null;
     if (
       payload.token_version !== LICENSE_TOKEN_VERSION ||
       !/^lic_[0-9a-f-]{36}$/i.test(payload.license_id ?? '') ||
       !INSTALLATION_ID.test(payload.installation_id ?? '') ||
       !isSupportedLicensePlan(payload.plan) ||
       payload.price_chf_cents !== LICENSE_PRICE_CHF_CENTS ||
-      payload.kid !== LICENSE_KEY_ID
+      payload.kid !== LICENSE_KEY_ID ||
+      !isAccountRole(accessRole) ||
+      (accountUserId === null) !== (accountSessionId === null) ||
+      (accountUserId !== null &&
+        (accountUserId.trim().length === 0 || accountUserId.length > 255)) ||
+      (accountSessionId !== null && !ACCOUNT_SESSION_ID.test(accountSessionId))
     ) {
       throw new Error('invalid payload');
     }
+    payload.access_role = accessRole;
+    payload.account_user_id = accountUserId;
+    payload.account_session_id = accountSessionId;
     return {
       licenseId: payload.license_id!,
       installationId: payload.installation_id!,
@@ -237,6 +321,9 @@ export async function refreshLicense(token: string) {
         jti: crypto.randomUUID(),
         kid: LICENSE_KEY_ID,
         customer_name: 'Licence propriétaire Zentra',
+        access_role: 'owner',
+        account_user_id: null,
+        account_session_id: null,
         plan: LICENSE_PLAN,
         price_chf_cents: LICENSE_PRICE_CHF_CENTS,
         issued_at: new Date().toISOString(),
@@ -254,7 +341,8 @@ export async function refreshLicense(token: string) {
     .prepare(
       `SELECT activation.subscription_id
        FROM license_activations activation
-       WHERE activation.license_id=? AND activation.installation_id=? LIMIT 1`,
+       WHERE activation.license_id=? AND activation.installation_id=?
+         AND activation.revoked_at IS NULL LIMIT 1`,
     )
     .bind(licenseId, installationId)
     .first<{ subscription_id: string }>();
@@ -283,10 +371,63 @@ export async function refreshLicense(token: string) {
       Math.floor(Date.now() / 1000),
   });
   const entitlement = await paidEntitlementForSubscription(subscription.id);
+  const organization = await db
+    .prepare(
+      `SELECT organization_id FROM organizations
+        WHERE subscription_id=? LIMIT 1`,
+    )
+    .bind(subscription.id)
+    .first<{ organization_id: string }>();
+  let accessRole: AccountRole = payload.access_role;
+  let accountUserId = payload.account_user_id;
+  let accountSessionId = payload.account_session_id;
+  if (organization) {
+    if (!accountUserId || !accountSessionId) {
+      throw new PublicError(
+        'Cette ancienne licence n’est pas liée précisément au compte. Reconnectez Zentra au compte pour sécuriser cet appareil.',
+        403,
+      );
+    }
+    const accountAccess = await db
+      .prepare(
+        `SELECT member.role
+           FROM device_sessions session
+           JOIN organization_members member
+             ON member.organization_id=session.organization_id
+            AND member.user_id=session.user_id
+            AND member.revoked_at IS NULL
+          WHERE session.organization_id=? AND session.installation_id=?
+            AND session.session_id=? AND session.user_id=?
+            AND session.revoked_at IS NULL AND session.expires_at>=?
+          LIMIT 1`,
+      )
+      .bind(
+        organization.organization_id,
+        installationId,
+        accountSessionId,
+        accountUserId,
+        Math.floor(Date.now() / 1000),
+      )
+      .first<{ role: string }>();
+    if (!accountAccess || !isAccountRole(accountAccess.role)) {
+      throw new PublicError(
+        'La session du compte liée à cet appareil a expiré ou a été révoquée. Reconnectez Zentra au compte.',
+        403,
+      );
+    }
+    accessRole = accountAccess.role;
+  } else {
+    accountUserId = null;
+    accountSessionId = null;
+  }
   return issueLicense({
     subscriptionId: subscription.id,
     installationId,
     customerName: entitlement.customer_name,
     periodEnd: entitlement.entitlement_valid_until,
+    channel: 'refresh',
+    accessRole,
+    accountUserId,
+    accountSessionId,
   });
 }

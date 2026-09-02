@@ -33,9 +33,18 @@ const LICENSE_KEY_ID: &str = "hc-prod-v1";
 const CLOCK_ANCHOR_VERSION: u8 = 1;
 const LICENSE_INSTALLATION_PROOF_VERSION: u8 = 1;
 const REFRESH_ATTEMPT_VERSION: u8 = 1;
+#[cfg(windows)]
 const CLOCK_ANCHOR_FILE: &str = "license-clock.dpapi";
+#[cfg(not(windows))]
+const CLOCK_ANCHOR_FILE: &str = "license-clock.protected";
+#[cfg(windows)]
 const LICENSE_INSTALLATION_PROOF_FILE: &str = "license-installation.dpapi";
+#[cfg(not(windows))]
+const LICENSE_INSTALLATION_PROOF_FILE: &str = "license-installation.protected";
+#[cfg(windows)]
 const REFRESH_ATTEMPT_FILE: &str = "license-refresh-attempt.dpapi";
+#[cfg(not(windows))]
+const REFRESH_ATTEMPT_FILE: &str = "license-refresh-attempt.protected";
 const LICENSE_REFRESH_ENDPOINT: &str = "https://elyko.alb-leart1.chatgpt.site/api/stripe/refresh";
 const MAX_LICENSE_TOKEN_BYTES: usize = 8 * 1024;
 const MAX_REFRESH_RESPONSE_BYTES: u64 = 16 * 1024;
@@ -117,6 +126,18 @@ const EMBEDDED_PUBLIC_KEY: Option<&str> = Some(env!(
 ));
 
 impl LocalStore {
+    pub(crate) fn install_server_issued_license(&self, token: &str) -> AppResult<Value> {
+        let key=embedded_key()?.ok_or_else(||AppError::Validation("Cette installation de Zentra ne contient pas les informations de vérification de licence attendues. Réinstallez Zentra depuis le site officiel ou contactez l’assistance.".into()))?;
+        let _guard = self.lock()?;
+        let snapshot = self.prepare_license_install_snapshot(token, &key)?;
+        self.finish_online_license_installation(
+            snapshot,
+            &key,
+            Ok(LicenseRefreshOutcome::Token(token.trim().to_owned())),
+        )?;
+        self.get_license_state_with_key(&key)
+    }
+
     pub async fn install_license_token(&self, token: &str) -> AppResult<Value> {
         let key=embedded_key()?.ok_or_else(||AppError::Validation("Cette installation de Zentra ne contient pas les informations de vérification de licence attendues. Réinstallez Zentra depuis le site officiel ou contactez l’assistance.".into()))?;
         let snapshot = {
@@ -267,7 +288,7 @@ impl LocalStore {
                 audit_action,
                 "license",
                 "1",
-                &json!({"license_id":payload.license_id,"plan":LICENSE_PLAN,"price_chf_cents":LICENSE_PRICE_CHF_CENTS,"valid_until":payload.valid_until}),
+                &json!({"license_id":payload.license_id,"access_role":payload.access_role,"plan":LICENSE_PLAN,"price_chf_cents":LICENSE_PRICE_CHF_CENTS,"valid_until":payload.valid_until}),
             )?;
         }
         tx.commit()?;
@@ -338,7 +359,7 @@ impl LocalStore {
                 &row,
                 "clock_error",
                 true,
-                "L’horloge Windows paraît avoir reculé. Corrigez la date et l’heure, puis renouvelez la licence.",
+                "L’horloge de l’ordinateur paraît avoir reculé. Corrigez la date et l’heure, puis renouvelez la licence.",
                 &Value::String(anchor.max_seen_date),
             ));
         }
@@ -400,7 +421,7 @@ impl LocalStore {
         reason: &str,
         last_seen_date: &Value,
     ) -> Value {
-        json!({"enforcement_configured":true,"status":status,"read_only":read_only,"can_refresh":true,"license_id":payload.license_id,"customer_name":payload.customer_name,"plan":payload.plan,"price_chf_cents":payload.price_chf_cents,"issued_at":payload.issued_at,"valid_from":payload.valid_from,"valid_until":payload.valid_until,"verified_at":row["verified_at"],"last_seen_date":last_seen_date,"installation_id":self.installation_id,"token_version":payload.token_version,"reason":reason})
+        json!({"enforcement_configured":true,"status":status,"read_only":read_only,"can_refresh":true,"license_id":payload.license_id,"customer_name":payload.customer_name,"access_role":payload.access_role,"plan":payload.plan,"price_chf_cents":payload.price_chf_cents,"issued_at":payload.issued_at,"valid_from":payload.valid_from,"valid_until":payload.valid_until,"verified_at":row["verified_at"],"last_seen_date":last_seen_date,"installation_id":self.installation_id,"token_version":payload.token_version,"reason":reason})
     }
 
     pub async fn refresh_license(&self, automatic: bool) -> AppResult<Value> {
@@ -549,6 +570,31 @@ impl LocalStore {
         Ok(())
     }
 
+    pub(crate) fn mark_current_license_unrecognized(&self) -> AppResult<()> {
+        self.mark_current_license_access(LicenseServerAccess::Unrecognized)
+    }
+
+    pub(crate) fn mark_current_license_inactive(&self) -> AppResult<()> {
+        self.mark_current_license_access(LicenseServerAccess::Inactive)
+    }
+
+    fn mark_current_license_access(&self, access: LicenseServerAccess) -> AppResult<()> {
+        let Some(key) = embedded_key()? else {
+            return Ok(());
+        };
+        let connection = self.connect()?;
+        let token: Option<String> = connection
+            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        drop(connection);
+        if let Some(token) = token {
+            self.mark_server_access(&token, &key, access)?;
+        }
+        Ok(())
+    }
+
     fn load_initialized_clock_anchor(
         &self,
         payload: &LicenseTokenPayload,
@@ -556,7 +602,7 @@ impl LocalStore {
     ) -> AppResult<LicenseClockAnchor> {
         if clock_anchor_version == 0 {
             return Err(AppError::Validation(
-                "Cette licence provient d’une ancienne version de Zentra. Une vérification en ligne est nécessaire une seule fois pour sécuriser ce PC. Cliquez sur « Renouveler la licence »."
+                "Cette licence provient d’une ancienne version de Zentra. Une vérification en ligne est nécessaire une seule fois pour sécuriser cet ordinateur. Cliquez sur « Renouveler la licence »."
                     .into(),
             ));
         }
@@ -695,6 +741,25 @@ impl LocalStore {
         self.require_write_access_with_key(&key)
     }
 
+    pub(crate) fn require_onboarding_write_access(&self) -> AppResult<()> {
+        let Some(key) = embedded_key()? else {
+            return Ok(());
+        };
+        self.require_onboarding_write_access_with_key(&key)
+    }
+
+    fn require_onboarding_write_access_with_key(&self, key: &[u8; 32]) -> AppResult<()> {
+        let has_license = self
+            .connect()?
+            .query_row("SELECT 1 FROM license_state WHERE id=1", [], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if !has_license {
+            return Ok(());
+        }
+        self.require_write_access_with_key(key)
+    }
+
     fn require_write_access_with_key(&self, key: &[u8; 32]) -> AppResult<()> {
         let connection = self.connect()?;
         let row: (String, i64) = connection
@@ -709,12 +774,18 @@ impl LocalStore {
             })?;
         let payload = verify_token_with_key(&row.0, key)?;
         self.validate_installation_binding(&payload)?;
+        if payload.access_role == "read_only" {
+            return Err(AppError::Validation(
+                "Votre rôle Zentra est limité à la lecture : les modifications sont bloquées, même hors ligne."
+                    .into(),
+            ));
+        }
         let mut anchor = self.load_initialized_clock_anchor(&payload, row.1)?;
         let now_utc = Utc::now();
         let current_date = Local::now().date_naive();
         if clock_rolled_back(&anchor, now_utc, current_date)? {
             return Err(AppError::Validation(
-                "Horloge Windows invalide : l'application est en lecture seule.".into(),
+                "Horloge de l’ordinateur invalide : l'application est en lecture seule.".into(),
             ));
         }
         match anchor.server_access {
@@ -748,7 +819,7 @@ impl LocalStore {
     fn validate_installation_binding(&self, payload: &LicenseTokenPayload) -> AppResult<()> {
         if payload.installation_id != self.installation_id {
             return Err(AppError::Validation(
-                "Ce jeton appartient à une autre installation Windows.".into(),
+                "Ce jeton appartient à une autre installation Zentra.".into(),
             ));
         }
         Ok(())
@@ -1034,6 +1105,41 @@ fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
             "Le jeton ne correspond pas au plan Zentra à 50 CHF/mois.".into(),
         ));
     }
+    if !matches!(
+        payload.access_role.as_str(),
+        "owner" | "admin" | "accountant" | "member" | "read_only"
+    ) {
+        return Err(AppError::Validation(
+            "Le rôle signé de la licence est invalide.".into(),
+        ));
+    }
+    match (&payload.account_user_id, &payload.account_session_id) {
+        (None, None) => {}
+        (Some(user_id), Some(session_id)) => {
+            if user_id.trim().is_empty() || user_id.len() > 255 {
+                return Err(AppError::Validation(
+                    "L’identifiant du compte signé est invalide.".into(),
+                ));
+            }
+            let session_uuid = session_id
+                .strip_prefix("dss_")
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                .filter(|value| value.get_version_num() == 4)
+                .ok_or_else(|| {
+                    AppError::Validation("L’identifiant de session signé est invalide.".into())
+                })?;
+            if session_uuid.is_nil() {
+                return Err(AppError::Validation(
+                    "L’identifiant de session signé est invalide.".into(),
+                ));
+            }
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "La liaison signée entre le compte et la session est incomplète.".into(),
+            ))
+        }
+    }
     let installation_id = uuid::Uuid::parse_str(&payload.installation_id)
         .map_err(|_| AppError::Validation("installation_id doit être un UUID valide.".into()))?;
     if installation_id.get_version_num() != 4 {
@@ -1076,7 +1182,7 @@ fn evaluate(
     } else if current > payload.valid_until.as_str() {
         Ok(("expired", true))
     } else {
-        Ok(("valid", false))
+        Ok(("valid", payload.access_role == "read_only"))
     }
 }
 fn parse_date(value: &str, field: &str) -> AppResult<NaiveDate> {
@@ -1110,6 +1216,9 @@ mod tests {
             jti: uuid::Uuid::new_v4().to_string(),
             kid: LICENSE_KEY_ID.into(),
             customer_name: Some("Client local".into()),
+            access_role: "owner".into(),
+            account_user_id: None,
+            account_session_id: None,
             plan: LICENSE_PLAN.into(),
             price_chf_cents: LICENSE_PRICE_CHF_CENTS,
             issued_at: now.to_rfc3339(),
@@ -1151,6 +1260,9 @@ mod tests {
             jti: "32b29162-dcd2-43c7-afc3-84a85a0df297".into(),
             kid: LICENSE_KEY_ID.into(),
             customer_name: Some("Client".into()),
+            access_role: "owner".into(),
+            account_user_id: None,
+            account_session_id: None,
             plan: LICENSE_PLAN.into(),
             price_chf_cents: LICENSE_PRICE_CHF_CENTS,
             issued_at: "2026-01-01T00:00:00Z".into(),
@@ -1171,6 +1283,113 @@ mod tests {
         let mut tampered = token;
         tampered.push('A');
         assert!(verify_token_with_key(&tampered, &signing.verifying_key().to_bytes()).is_err());
+    }
+
+    #[test]
+    fn signed_read_only_role_blocks_rust_mutations_even_offline() {
+        let signing = SigningKey::from_bytes(&[31_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (mut payload, _) = current_token(&store, &signing, "lic-read-only");
+        payload.access_role = "read_only".into();
+        let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+        let token = format!(
+            "{encoded}.{}",
+            URL_SAFE_NO_PAD.encode(signing.sign(encoded.as_bytes()).to_bytes())
+        );
+
+        store.install_server_token_with_key(&token, &key).unwrap();
+        let state = store.get_license_state_with_key(&key).unwrap();
+        assert_eq!(state["status"], "valid");
+        assert_eq!(state["access_role"], "read_only");
+        assert_eq!(state["read_only"], true);
+        assert!(store
+            .require_write_access_with_key(&key)
+            .unwrap_err()
+            .to_string()
+            .contains("même hors ligne"));
+        assert!(store
+            .require_onboarding_write_access_with_key(&key)
+            .unwrap_err()
+            .to_string()
+            .contains("même hors ligne"));
+    }
+
+    #[test]
+    fn onboarding_write_gate_allows_bootstrap_but_enforces_an_existing_license() {
+        let signing = SigningKey::from_bytes(&[34_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+
+        store
+            .require_onboarding_write_access_with_key(&key)
+            .unwrap();
+
+        let (_payload, token) = current_token(&store, &signing, "lic-onboarding-gate");
+        store.install_server_token_with_key(&token, &key).unwrap();
+        store
+            .require_onboarding_write_access_with_key(&key)
+            .unwrap();
+
+        store
+            .mark_server_access(&token, &key, LicenseServerAccess::Inactive)
+            .unwrap();
+        assert!(store
+            .require_onboarding_write_access_with_key(&key)
+            .unwrap_err()
+            .to_string()
+            .contains("inactif"));
+
+        store
+            .mark_server_access(&token, &key, LicenseServerAccess::Unrecognized)
+            .unwrap();
+        assert!(store
+            .require_onboarding_write_access_with_key(&key)
+            .unwrap_err()
+            .to_string()
+            .contains("non reconnue"));
+    }
+
+    #[test]
+    fn signed_account_identity_must_be_complete_and_well_formed() {
+        let signing = SigningKey::from_bytes(&[33_u8; 32]);
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (mut payload, _) = current_token(&store, &signing, "lic-account-binding");
+
+        payload.account_user_id = Some("user_zentra".into());
+        assert!(validate_payload(&payload).is_err());
+
+        payload.account_session_id = Some("dss_not-a-uuid".into());
+        assert!(validate_payload(&payload).is_err());
+
+        payload.account_session_id = Some(format!("dss_{}", uuid::Uuid::new_v4()));
+        assert!(validate_payload(&payload).is_ok());
+    }
+
+    #[test]
+    fn legacy_signed_token_without_access_role_defaults_to_owner() {
+        let signing = SigningKey::from_bytes(&[32_u8; 32]);
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (payload, _) = current_token(&store, &signing, "lic-legacy-role");
+        let mut legacy = serde_json::to_value(payload).unwrap();
+        legacy.as_object_mut().unwrap().remove("access_role");
+        legacy.as_object_mut().unwrap().remove("account_user_id");
+        legacy.as_object_mut().unwrap().remove("account_session_id");
+        let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&legacy).unwrap());
+        let token = format!(
+            "{encoded}.{}",
+            URL_SAFE_NO_PAD.encode(signing.sign(encoded.as_bytes()).to_bytes())
+        );
+
+        let decoded = verify_token_with_key(&token, &signing.verifying_key().to_bytes()).unwrap();
+        assert_eq!(decoded.access_role, "owner");
+        assert_eq!(decoded.account_user_id, None);
+        assert_eq!(decoded.account_session_id, None);
+        assert!(validate_payload(&decoded).is_ok());
     }
 
     #[test]
@@ -1201,6 +1420,9 @@ mod tests {
             jti: "b7eae268-6f42-4e66-8460-a3e02eb8f98e".into(),
             kid: LICENSE_KEY_ID.into(),
             customer_name: Some("Client local".into()),
+            access_role: "owner".into(),
+            account_user_id: None,
+            account_session_id: None,
             plan: LICENSE_PLAN.into(),
             price_chf_cents: LICENSE_PRICE_CHF_CENTS,
             issued_at: "2026-01-01T00:00:00Z".into(),
@@ -1238,6 +1460,9 @@ mod tests {
             jti: "43f547b6-75d3-4aa5-8725-1f1181d1ab57".into(),
             kid: LICENSE_KEY_ID.into(),
             customer_name: Some("Client local".into()),
+            access_role: "owner".into(),
+            account_user_id: None,
+            account_session_id: None,
             plan: LICENSE_PLAN.into(),
             price_chf_cents: LICENSE_PRICE_CHF_CENTS,
             issued_at: "2026-01-01T00:00:00Z".into(),
@@ -1256,7 +1481,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             error.to_string(),
-            "Champ invalide : Ce jeton appartient à une autre installation Windows."
+            "Champ invalide : Ce jeton appartient à une autre installation Zentra."
         );
     }
 

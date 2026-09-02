@@ -429,7 +429,7 @@ export function RemindersScreen({
       <div className="info-strip reminder-trust-strip">
         <ShieldCheck size={18} />
         <span>
-          Données et historique sur ce PC. Aucun e-mail et aucune poursuite ne
+          Données et historique sur cet ordinateur. Aucun e-mail et aucune poursuite ne
           partent automatiquement.
         </span>
       </div>

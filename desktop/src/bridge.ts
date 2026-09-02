@@ -5,6 +5,7 @@ import type {
 } from '@tauri-apps/plugin-dialog';
 import type {
   Account,
+  AgendaEvent,
   AccountingConfigurationResult,
   AccountingContinuity,
   AccountingFallback,
@@ -41,6 +42,7 @@ import type {
   FrozenSalesOrderSnapshot,
   GenerateRecurrenceOccurrencesInput,
   Invoice,
+  InvoiceCorrectionWorkflow,
   IncomeStatementReport,
   JournalEntry,
   JournalLine,
@@ -173,6 +175,24 @@ export type OnboardingValidationResult = {
   valid: boolean;
   issues: OnboardingValidationIssue[];
 };
+export type CloudAccountState = {
+  status: 'disconnected' | 'pending' | 'connected' | 'expired' | 'inactive';
+  organizationId?: string;
+  organizationName?: string;
+  role?: 'owner' | 'admin' | 'accountant' | 'member' | 'read_only';
+  sessionExpiresAt?: string;
+  userCode?: string;
+  verificationUri?: string;
+  authorizationExpiresAt?: string;
+  intervalSeconds?: number;
+};
+export type InvoiceArchiveResult = {
+  archiveId: string;
+  revision: number;
+  contentSha256: string;
+  retentionUntil: string;
+  alreadyStored: boolean;
+};
 type RawWorkspace = {
   schema_version?: unknown;
   settings?: RawRecord | null;
@@ -183,6 +203,7 @@ type RawWorkspace = {
   projects?: RawRecord[];
   project_milestones?: RawRecord[];
   project_tasks?: RawRecord[];
+  agenda_events?: RawRecord[];
   quotes?: RawRecord[];
   quote_items?: RawRecord[];
   sales_orders?: RawRecord[];
@@ -196,6 +217,7 @@ type RawWorkspace = {
   sales_order_invoice_batches?: RawRecord[];
   sales_order_invoice_allocations?: RawRecord[];
   invoices?: RawRecord[];
+  invoice_correction_workflows?: RawRecord[];
   invoice_items?: RawRecord[];
   invoice_qr_bills?: RawRecord[];
   employees?: RawRecord[];
@@ -239,6 +261,35 @@ const recordValue = (value: unknown): RawRecord =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as RawRecord)
     : {};
+
+function cloudAccountStateFromRaw(raw: RawRecord): CloudAccountState {
+  const status = stringValue(raw.status);
+  if (
+    !['disconnected', 'pending', 'connected', 'expired', 'inactive'].includes(
+      status,
+    )
+  ) {
+    throw new Error('État du compte Zentra invalide.');
+  }
+  const role = stringValue(raw.role);
+  return {
+    status: status as CloudAccountState['status'],
+    organizationId: stringValue(raw.organizationId) || undefined,
+    organizationName: stringValue(raw.organizationName) || undefined,
+    role: ['owner', 'admin', 'accountant', 'member', 'read_only'].includes(role)
+      ? (role as CloudAccountState['role'])
+      : undefined,
+    sessionExpiresAt: stringValue(raw.sessionExpiresAt) || undefined,
+    userCode: stringValue(raw.userCode) || undefined,
+    verificationUri: stringValue(raw.verificationUri) || undefined,
+    authorizationExpiresAt:
+      stringValue(raw.authorizationExpiresAt) || undefined,
+    intervalSeconds:
+      raw.intervalSeconds === null || raw.intervalSeconds === undefined
+        ? undefined
+        : numberValue(raw.intervalSeconds),
+  };
+}
 
 export function employeeSmallSalaryFieldsFromRaw(
   row: RawRecord,
@@ -322,11 +373,7 @@ export function employeeSmallSalaryFieldsFromRaw(
       'ordinary, private_household ou arts_culture était attendu.',
     );
   const requested = fields.employeeRequestedContributions;
-  if (
-    typeof requested !== 'boolean' &&
-    requested !== 0 &&
-    requested !== 1
-  )
+  if (typeof requested !== 'boolean' && requested !== 0 && requested !== 1)
     return invalid(
       'small_salary_employee_requested_contributions',
       'un booléen explicite ou son entier SQLite 0/1 est obligatoire.',
@@ -564,7 +611,14 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
   const reviewStrings = (snakeName: string, camelName: string) => {
     const value = review[snakeName] ?? review[camelName];
     return Array.isArray(value)
-      ? [...new Set(value.map(stringValue).map((item) => item.trim()).filter(Boolean))]
+      ? [
+          ...new Set(
+            value
+              .map(stringValue)
+              .map((item) => item.trim())
+              .filter(Boolean),
+          ),
+        ]
       : [];
   };
   const reviewState = Object.keys(review).length
@@ -597,18 +651,29 @@ function payrollImportDraftFromRaw(value: unknown): PayrollImportDraft {
         ),
         confirmedRecurringLines: (Array.isArray(
           review.confirmed_recurring_lines ?? review.confirmedRecurringLines,
-        ) ? (review.confirmed_recurring_lines ?? review.confirmedRecurringLines) as unknown[] : [])
+        )
+          ? ((review.confirmed_recurring_lines ??
+              review.confirmedRecurringLines) as unknown[])
+          : []
+        )
           .map(recordValue)
           .flatMap((line) => {
             const label = stringValue(line.label).trim();
-            const amountCents = Math.trunc(numberValue(line.amount_cents ?? line.amountCents));
-            return label && stringValue(line.kind) === 'earning' && amountCents > 0
-              ? [{
-                  lineId: stringValue(line.line_id ?? line.lineId) || undefined,
-                  label,
-                  kind: 'earning' as const,
-                  amountCents,
-                }]
+            const amountCents = Math.trunc(
+              numberValue(line.amount_cents ?? line.amountCents),
+            );
+            return label &&
+              stringValue(line.kind) === 'earning' &&
+              amountCents > 0
+              ? [
+                  {
+                    lineId:
+                      stringValue(line.line_id ?? line.lineId) || undefined,
+                    label,
+                    kind: 'earning' as const,
+                    amountCents,
+                  },
+                ]
               : [];
           }),
       }
@@ -721,7 +786,8 @@ export function payrollAnalysisManifestFromRaw(
       : recordValue(value);
   if (!Object.keys(root).length) return undefined;
   const schemaVersion = root.schema_version ?? root.schemaVersion;
-  const corroborationMethod = root.corroboration_method ?? root.corroborationMethod;
+  const corroborationMethod =
+    root.corroboration_method ?? root.corroborationMethod;
   const corroborationAlgorithmVersion =
     root.corroboration_algorithm_version ?? root.corroborationAlgorithmVersion;
   const modelId = validManifestText(root.model_id ?? root.modelId, 200);
@@ -739,10 +805,7 @@ export function payrollAnalysisManifestFromRaw(
     12,
   );
   const passes = root.passes;
-  const analyzedAt = validManifestText(
-    root.analyzed_at ?? root.analyzedAt,
-    64,
-  );
+  const analyzedAt = validManifestText(root.analyzed_at ?? root.analyzedAt, 64);
   const timestampPattern =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
   if (
@@ -764,13 +827,11 @@ export function payrollAnalysisManifestFromRaw(
   }
   if (
     schemaVersion === 2 &&
-    (
-      !['local_visual_read', 'local_visual_read_with_pdf_text'].includes(
-        String(corroborationMethod),
-      ) ||
+    (!['local_visual_read', 'local_visual_read_with_pdf_text'].includes(
+      String(corroborationMethod),
+    ) ||
       corroborationAlgorithmVersion !==
-        'zentra.payroll-evidence-corroboration.v1'
-    )
+        'zentra.payroll-evidence-corroboration.v1')
   ) {
     return undefined;
   }
@@ -787,20 +848,21 @@ export function payrollAnalysisManifestFromRaw(
       !Number.isSafeInteger(confidenceBp) ||
       confidenceBp < 0 ||
       confidenceBp > 10_000
-    ) return false;
+    )
+      return false;
     if (schemaVersion === 1) return true;
     const visual = passes >= 2 ? 7_000 : 5_200;
     const textCorroborated = passes >= 2 ? 9_200 : 7_800;
-    return confidenceBp === visual || (
-      corroborationMethod === 'local_visual_read_with_pdf_text' &&
-      confidenceBp === textCorroborated
+    return (
+      confidenceBp === visual ||
+      (corroborationMethod === 'local_visual_read_with_pdf_text' &&
+        confidenceBp === textCorroborated)
     );
   };
   const analyzedPageSet = new Set(analyzedPages);
 
   const fieldProvenance: PayrollAnalysisManifest['fieldProvenance'] = [];
-  const rawFieldProvenance =
-    root.field_provenance ?? root.fieldProvenance;
+  const rawFieldProvenance = root.field_provenance ?? root.fieldProvenance;
   if (!Array.isArray(rawFieldProvenance) || rawFieldProvenance.length > 256)
     return undefined;
   const fieldTargets = new Set<string>();
@@ -1089,6 +1151,8 @@ function licenseStateFromRaw(row: RawRecord): LicenseState {
     priceChfCents: numberValue(row.price_chf_cents),
     licenseId: stringValue(row.license_id),
     customerName: stringValue(row.customer_name),
+    accessRole: (stringValue(row.access_role) ||
+      'owner') as LicenseState['accessRole'],
     validFrom: stringValue(row.valid_from),
     validUntil: stringValue(row.valid_until),
     verifiedAt: stringValue(row.verified_at),
@@ -1326,11 +1390,9 @@ export function recurrenceScheduleFromRaw(row: RawRecord): RecurrenceSchedule {
   const rawStatus = stringValue(row.status);
   const anchorDay = Math.trunc(numberValue(row.anchor_day));
   const paymentTermsDays = Math.trunc(numberValue(row.payment_terms_days));
-  const invalidFrequency = ![
-    'monthly',
-    'quarterly',
-    'yearly',
-  ].includes(rawFrequency);
+  const invalidFrequency = !['monthly', 'quarterly', 'yearly'].includes(
+    rawFrequency,
+  );
   const invalidStatus = ![
     'active',
     'paused',
@@ -1345,9 +1407,7 @@ export function recurrenceScheduleFromRaw(row: RawRecord): RecurrenceSchedule {
     anchorDay: anchorDay >= 1 && anchorDay <= 31 ? anchorDay : 1,
     anchorIsMonthEnd: boolValue(row.anchor_is_month_end),
     paymentTermsDays:
-      paymentTermsDays >= 0 && paymentTermsDays <= 365
-        ? paymentTermsDays
-        : 30,
+      paymentTermsDays >= 0 && paymentTermsDays <= 365 ? paymentTermsDays : 30,
     nextScheduledFor: stringValue(row.next_scheduled_for),
     endDate: nullableString(row.end_date),
     status:
@@ -1359,9 +1419,7 @@ export function recurrenceScheduleFromRaw(row: RawRecord): RecurrenceSchedule {
       (invalidFrequency || invalidStatus
         ? 'La planification locale contient une valeur non reconnue et doit être contrôlée.'
         : null),
-    sourceOrderSnapshotSha256: stringValue(
-      row.source_order_snapshot_sha256,
-    ),
+    sourceOrderSnapshotSha256: stringValue(row.source_order_snapshot_sha256),
     sourceSnapshotSha256: stringValue(row.source_snapshot_sha256),
     completedAt: nullableString(row.completed_at),
     createdAt: stringValue(row.created_at),
@@ -1380,9 +1438,7 @@ export function recurrenceOccurrenceFromRaw(
     scheduledFor: stringValue(row.scheduled_for),
     invoiceId: stringValue(row.invoice_id),
     status:
-      stringValue(row.status) === 'draft_created'
-        ? 'draft_created'
-        : 'unknown',
+      stringValue(row.status) === 'draft_created' ? 'draft_created' : 'unknown',
     message: nullableString(row.message),
     requestId: stringValue(row.request_id),
     payloadSha256: stringValue(row.payload_sha256),
@@ -2134,15 +2190,40 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     createdAt: stringValue(row.created_at),
     updatedAt: stringValue(row.updated_at),
   }));
+  const agendaEvents: AgendaEvent[] = (raw.agenda_events ?? []).map((row) => ({
+    id: stringValue(row.id),
+    title: stringValue(row.title),
+    startDate: stringValue(row.start_date),
+    endDate: stringValue(row.end_date),
+    allDay: boolValue(row.all_day),
+    startTime: nullableString(row.start_time),
+    endTime: nullableString(row.end_time),
+    kind: ['appointment', 'visit', 'deadline', 'other'].includes(
+      stringValue(row.kind),
+    )
+      ? (stringValue(row.kind) as AgendaEvent['kind'])
+      : 'other',
+    status: ['scheduled', 'completed', 'cancelled'].includes(
+      stringValue(row.status),
+    )
+      ? (stringValue(row.status) as AgendaEvent['status'])
+      : 'scheduled',
+    location: stringValue(row.location),
+    notes: stringValue(row.notes),
+    projectId: nullableString(row.project_id),
+    employeeId: nullableString(row.employee_id),
+    createdAt: stringValue(row.created_at),
+    updatedAt: stringValue(row.updated_at),
+  }));
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
     id: stringValue(row.id),
     number: stringValue(row.number),
     clientId: stringValue(row.client_id),
     projectId: stringValue(row.project_id) || null,
     title: stringValue(row.title),
-      issueDate: stringValue(row.issue_date),
-      validUntil: stringValue(row.valid_until),
-      currency: stringValue(row.currency) || 'CHF',
+    issueDate: stringValue(row.issue_date),
+    validUntil: stringValue(row.valid_until),
+    currency: stringValue(row.currency) || 'CHF',
     status: quoteStatusFromRaw(row.status),
     lines: quoteItems
       .filter((item) => stringValue(item.quote_id) === stringValue(row.id))
@@ -2307,6 +2388,16 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       qrBill,
     };
   });
+  const invoiceCorrectionWorkflows: InvoiceCorrectionWorkflow[] = (
+    raw.invoice_correction_workflows ?? []
+  ).map((row) => ({
+    id: stringValue(row.id),
+    originalInvoiceId: stringValue(row.original_invoice_id),
+    creditNoteId: stringValue(row.credit_note_id),
+    replacementInvoiceId: stringValue(row.replacement_invoice_id),
+    reason: stringValue(row.reason),
+    createdAt: stringValue(row.created_at),
+  }));
   const employees: Employee[] = (raw.employees ?? []).map((row) => ({
     id: stringValue(row.id),
     employeeNumber: stringValue(row.employee_number),
@@ -2338,8 +2429,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       row.employment_contract_kind,
     ) as Employee['employmentContractKind'],
     lppAssessmentYear:
-      row.lpp_assessment_year === null ||
-      row.lpp_assessment_year === undefined
+      row.lpp_assessment_year === null || row.lpp_assessment_year === undefined
         ? null
         : numberValue(row.lpp_assessment_year),
     lppAnnualSalaryCents:
@@ -2759,6 +2849,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     projects,
     projectMilestones,
     projectTasks,
+    agendaEvents,
     quotes,
     salesOrders,
     recurrenceSchedules,
@@ -2769,6 +2860,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     salesOrderInvoiceBatches,
     salesOrderInvoiceAllocations,
     invoices,
+    invoiceCorrectionWorkflows,
     payments,
     employees,
     timeEntries,
@@ -2819,6 +2911,7 @@ function emptyWorkspace(): Workspace {
     projects: [],
     projectMilestones: [],
     projectTasks: [],
+    agendaEvents: [],
     quotes: [],
     salesOrders: [],
     recurrenceSchedules: [],
@@ -2829,6 +2922,7 @@ function emptyWorkspace(): Workspace {
     salesOrderInvoiceBatches: [],
     salesOrderInvoiceAllocations: [],
     invoices: [],
+    invoiceCorrectionWorkflows: [],
     payments: [],
     employees: [],
     timeEntries: [],
@@ -3197,7 +3291,9 @@ function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {
       manual_fields: draft.review.manualFields ?? [],
       manual_line_keys: draft.review.manualLineKeys ?? [],
       suppressed_line_keys: draft.review.suppressedLineKeys ?? [],
-      confirmed_recurring_lines: (draft.review.confirmedRecurringLines ?? []).map((line) => ({
+      confirmed_recurring_lines: (
+        draft.review.confirmedRecurringLines ?? []
+      ).map((line) => ({
         line_id: line.lineId ?? '',
         label: line.label,
         kind: line.kind,
@@ -3842,9 +3938,7 @@ export function reminderActionResultFromRaw(
   return {
     blocked: boolValue(row.blocked),
     reason: stringValue(row.reason),
-    reminder: row.reminder
-      ? reminderFromRaw(recordValue(row.reminder))
-      : null,
+    reminder: row.reminder ? reminderFromRaw(recordValue(row.reminder)) : null,
     deliveryId: stringValue(delivery.id),
     idempotent: boolValue(row.idempotent),
   };
@@ -3973,10 +4067,7 @@ export function payrollSmallSalaryAssessmentFromRaw(
   const decisionDate = text('decision_date', 10);
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(decisionDate);
   if (!dateMatch)
-    return invalid(
-      'decision_date',
-      'une date AAAA-MM-JJ est obligatoire.',
-    );
+    return invalid('decision_date', 'une date AAAA-MM-JJ est obligatoire.');
   const decisionYear = Number(dateMatch[1]);
   const decisionMonth = Number(dateMatch[2]);
   const decisionDay = Number(dateMatch[3]);
@@ -3999,20 +4090,18 @@ export function payrollSmallSalaryAssessmentFromRaw(
     { min: 0 },
   );
   const priorGrossCents = integer('prior_gross_cents', { min: 0 });
-  const priorContributedBasisCents = integer(
-    'prior_contributed_basis_cents',
-    { min: 0 },
-  );
+  const priorContributedBasisCents = integer('prior_contributed_basis_cents', {
+    min: 0,
+  });
   const currentGrossCents = integer('current_gross_cents', { min: 0 });
   const cumulativeGrossCents = integer('cumulative_gross_cents', { min: 0 });
   const statutoryContributionBasisCents = integer(
     'statutory_contribution_basis_cents',
     { min: 0 },
   );
-  const statutoryCatchupBasisCents = integer(
-    'statutory_catchup_basis_cents',
-    { min: 0 },
-  );
+  const statutoryCatchupBasisCents = integer('statutory_catchup_basis_cents', {
+    min: 0,
+  });
   const expectedCumulative =
     openingGrossCents + priorGrossCents + currentGrossCents;
   if (
@@ -4036,8 +4125,7 @@ export function payrollSmallSalaryAssessmentFromRaw(
   const contributionsDue = boolean('contributions_due');
   if (
     !contributionsDue &&
-    (statutoryContributionBasisCents !== 0 ||
-      statutoryCatchupBasisCents !== 0)
+    (statutoryContributionBasisCents !== 0 || statutoryCatchupBasisCents !== 0)
   )
     invalid(
       'statutory_contribution_basis_cents',
@@ -4057,9 +4145,7 @@ export function payrollSmallSalaryAssessmentFromRaw(
   return {
     assessmentYear,
     sector,
-    employeeRequestedContributions: boolean(
-      'employee_requested_contributions',
-    ),
+    employeeRequestedContributions: boolean('employee_requested_contributions'),
     decisionDate,
     thresholdCents: integer('threshold_cents', { min: 0 }),
     openingGrossCents,
@@ -4152,8 +4238,7 @@ function frozenEmployeeFromRaw(row: RawRecord): FrozenEmployee {
       row.employment_contract_kind,
     ) as FrozenEmployee['employmentContractKind'],
     lppAssessmentYear:
-      row.lpp_assessment_year === null ||
-      row.lpp_assessment_year === undefined
+      row.lpp_assessment_year === null || row.lpp_assessment_year === undefined
         ? null
         : numberValue(row.lpp_assessment_year),
     lppAnnualSalaryCents:
@@ -4295,6 +4380,40 @@ export const desktopApi = {
     return licenseStateFromRaw(
       await invoke<RawRecord>('refresh_license', { automatic }),
     );
+  },
+  async getCloudAccountState(): Promise<CloudAccountState> {
+    return cloudAccountStateFromRaw(
+      await invoke<RawRecord>('get_cloud_account_state'),
+    );
+  },
+  async startCloudAccountLink(): Promise<CloudAccountState> {
+    return cloudAccountStateFromRaw(
+      await invoke<RawRecord>('start_cloud_account_link'),
+    );
+  },
+  async pollCloudAccountLink(): Promise<CloudAccountState> {
+    return cloudAccountStateFromRaw(
+      await invoke<RawRecord>('poll_cloud_account_link'),
+    );
+  },
+  openCloudAccountLink: () => invoke<string>('open_cloud_account_link'),
+  openCloudAccountPortal: () => invoke<string>('open_cloud_account_portal'),
+  disconnectCloudAccount: () => invoke<void>('disconnect_cloud_account'),
+  async archiveInvoiceToCloud(
+    invoiceId: string,
+    correctionReason?: string,
+  ): Promise<InvoiceArchiveResult> {
+    const raw = await invoke<RawRecord>('archive_invoice_to_cloud', {
+      invoiceId,
+      correctionReason: correctionReason?.trim() || null,
+    });
+    return {
+      archiveId: stringValue(raw.archiveId),
+      revision: numberValue(raw.revision),
+      contentSha256: stringValue(raw.contentSha256),
+      retentionUntil: stringValue(raw.retentionUntil),
+      alreadyStored: boolValue(raw.alreadyStored),
+    };
   },
   async getSecureUpdatePolicy(): Promise<SecureUpdaterPolicy> {
     return secureUpdaterPolicyFromRaw(
@@ -4446,6 +4565,44 @@ export const desktopApi = {
   },
   async deleteProjectTask(id: string) {
     await invoke('delete_project_task', { id });
+    return loadWorkspace();
+  },
+  async saveAgendaEvent(input: {
+    id?: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    allDay: boolean;
+    startTime: string | null;
+    endTime: string | null;
+    kind: AgendaEvent['kind'];
+    status: AgendaEvent['status'];
+    location: string;
+    notes: string;
+    projectId: string | null;
+    employeeId: string | null;
+  }) {
+    await invoke('save_agenda_event', {
+      input: {
+        id: input.id ?? null,
+        title: input.title,
+        start_date: input.startDate,
+        end_date: input.endDate,
+        all_day: input.allDay,
+        start_time: input.allDay ? null : input.startTime,
+        end_time: input.allDay ? null : input.endTime,
+        kind: input.kind,
+        status: input.status,
+        location: input.location || null,
+        notes: input.notes || null,
+        project_id: input.projectId,
+        employee_id: input.employeeId,
+      },
+    });
+    return loadWorkspace();
+  },
+  async deleteAgendaEvent(id: string) {
+    await invoke('delete_agenda_event', { id });
     return loadWorkspace();
   },
   async recordStockEntry(input: {
@@ -4887,6 +5044,26 @@ export const desktopApi = {
     return invoke<string>('open_attachment', { id });
   },
   saveDocument,
+  async createInvoiceCorrection(originalInvoiceId: string, reason: string) {
+    const raw = await invoke<RawRecord>('create_invoice_correction', {
+      input: {
+        original_invoice_id: originalInvoiceId,
+        reason,
+      },
+    });
+    return {
+      workspace: await loadWorkspace(),
+      workflowId: stringValue(raw.workflow_id),
+      creditNoteId: stringValue(raw.credit_note_id),
+      replacementInvoiceId: stringValue(raw.replacement_invoice_id),
+    };
+  },
+  async abandonInvoiceCorrection(workflowId: string) {
+    await invoke('abandon_invoice_correction', {
+      input: { workflow_id: workflowId },
+    });
+    return loadWorkspace();
+  },
   async issueDocument(
     entity: 'quotes' | 'invoices',
     id: string,
@@ -5638,23 +5815,15 @@ export const desktopApi = {
       currency: reportCurrencyFromRaw(raw.currency),
       openingDebitCents: numberValue(raw.opening_debit_cents),
       openingCreditCents: numberValue(raw.opening_credit_cents),
-      openingDebitBalanceCents: numberValue(
-        raw.opening_debit_balance_cents,
-      ),
-      openingCreditBalanceCents: numberValue(
-        raw.opening_credit_balance_cents,
-      ),
+      openingDebitBalanceCents: numberValue(raw.opening_debit_balance_cents),
+      openingCreditBalanceCents: numberValue(raw.opening_credit_balance_cents),
       openingNetDebitCents: numberValue(raw.opening_net_debit_cents),
       debitCents: numberValue(raw.debit_cents),
       creditCents: numberValue(raw.credit_cents),
       movementNetDebitCents: numberValue(raw.movement_net_debit_cents),
       netDebitCents: numberValue(raw.net_debit_cents),
-      closingDebitBalanceCents: numberValue(
-        raw.closing_debit_balance_cents,
-      ),
-      closingCreditBalanceCents: numberValue(
-        raw.closing_credit_balance_cents,
-      ),
+      closingDebitBalanceCents: numberValue(raw.closing_debit_balance_cents),
+      closingCreditBalanceCents: numberValue(raw.closing_credit_balance_cents),
       closingNetDebitCents: numberValue(raw.closing_net_debit_cents),
     };
   },
@@ -5666,12 +5835,8 @@ export const desktopApi = {
       ...accountFromRaw(row),
       openingDebitCents: numberValue(row.opening_debit_cents),
       openingCreditCents: numberValue(row.opening_credit_cents),
-      openingDebitBalanceCents: numberValue(
-        row.opening_debit_balance_cents,
-      ),
-      openingCreditBalanceCents: numberValue(
-        row.opening_credit_balance_cents,
-      ),
+      openingDebitBalanceCents: numberValue(row.opening_debit_balance_cents),
+      openingCreditBalanceCents: numberValue(row.opening_credit_balance_cents),
       openingNetDebitCents: numberValue(row.opening_net_debit_cents),
       debitCents: numberValue(row.debit_cents),
       creditCents: numberValue(row.credit_cents),
@@ -5682,20 +5847,12 @@ export const desktopApi = {
     return {
       rows,
       currency: reportCurrencyFromRaw(raw.currency),
-      openingDebitBalanceCents: numberValue(
-        raw.opening_debit_balance_cents,
-      ),
-      openingCreditBalanceCents: numberValue(
-        raw.opening_credit_balance_cents,
-      ),
+      openingDebitBalanceCents: numberValue(raw.opening_debit_balance_cents),
+      openingCreditBalanceCents: numberValue(raw.opening_credit_balance_cents),
       debitCents: numberValue(raw.debit_cents),
       creditCents: numberValue(raw.credit_cents),
-      closingDebitBalanceCents: numberValue(
-        raw.closing_debit_balance_cents,
-      ),
-      closingCreditBalanceCents: numberValue(
-        raw.closing_credit_balance_cents,
-      ),
+      closingDebitBalanceCents: numberValue(raw.closing_debit_balance_cents),
+      closingCreditBalanceCents: numberValue(raw.closing_credit_balance_cents),
       balanced: boolValue(raw.balanced),
     };
   },
@@ -6041,16 +6198,14 @@ export const desktopApi = {
       ),
     );
   },
-  async recordReminderAction(
-    input: {
-      requestId: string;
-      id: string;
-      action: ReminderDeliveryAction;
-      preparedOn?: string;
-      previewSha256: string;
-      note?: string;
-    },
-  ): Promise<ReminderActionResult> {
+  async recordReminderAction(input: {
+    requestId: string;
+    id: string;
+    action: ReminderDeliveryAction;
+    preparedOn?: string;
+    previewSha256: string;
+    note?: string;
+  }): Promise<ReminderActionResult> {
     return reminderActionResultFromRaw(
       await invoke<unknown>('record_reminder_action', {
         input: {
@@ -6236,8 +6391,7 @@ export const desktopApi = {
         payslip_id: payslipId,
         payment_date: paymentDate || null,
         reference: reference?.trim() || null,
-        regulatory_override_reason:
-          regulatoryOverrideReason?.trim() || null,
+        regulatory_override_reason: regulatoryOverrideReason?.trim() || null,
       },
     });
     return loadWorkspace();

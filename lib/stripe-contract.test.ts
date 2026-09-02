@@ -27,5 +27,39 @@ describe('Stripe SDK and webhook version contract', () => {
     expect(licenseSource).toContain(
       'await upsertSubscription(subscription, null, {',
     );
+    expect(licenseSource).toContain('access_role: input.accessRole');
+    expect(licenseSource).toContain('account_user_id: accountUserId');
+    expect(licenseSource).toContain('account_session_id: accountSessionId');
+    expect(licenseSource).toContain('AND member.revoked_at IS NULL');
+    expect(licenseSource).toContain(
+      'AND session.session_id=? AND session.user_id=?',
+    );
+    expect(licenseSource).toContain(
+      'Cette ancienne licence n’est pas liée précisément au compte.',
+    );
+    expect(licenseSource).toContain('accessRole = accountAccess.role');
+
+    const pollSource = readFileSync(
+      new URL('../app/api/account/device/poll/route.ts', import.meta.url),
+      'utf8',
+    );
+    expect(pollSource).toContain(
+      'accountUserId: authorization.approved_by_user_id',
+    );
+    expect(pollSource).toContain('accountSessionId: sessionId');
+  });
+
+  it('keeps retained invoice downloads independent from an active subscription', () => {
+    const archiveSource = readFileSync(
+      new URL(
+        '../app/api/archive/account/[archiveId]/route.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(archiveSource).toContain('getChatGPTUser');
+    expect(archiveSource).toContain('member.revoked_at IS NULL');
+    expect(archiveSource).not.toContain('requireDeviceSession');
+    expect(archiveSource).not.toContain('entitlement_valid_until');
   });
 });

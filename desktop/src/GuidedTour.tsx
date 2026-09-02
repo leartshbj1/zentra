@@ -126,7 +126,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'team',
     eyebrow: 'Équipe et paie',
     title: 'Importez, contrôlez puis confirmez',
-    text: 'La lecture documentaire fonctionne sur ce PC et prépare un brouillon. Zentra signale les incohérences ; vous confirmez la personne, la période et chaque montant avant l’enregistrement.',
+    text: 'La lecture documentaire fonctionne sur cet ordinateur et prépare un brouillon. Zentra signale les incohérences ; vous confirmez la personne, la période et chaque montant avant l’enregistrement.',
     target: '.payroll-panel',
   },
   {
@@ -142,7 +142,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     view: 'bank',
     eyebrow: 'Banque locale',
     title: 'Importez un CAMT, puis confirmez',
-    text: 'Zentra lit le relevé XML sur ce PC et propose des rapprochements. Associez explicitement le compte et confirmez chaque opération.',
+    text: 'Zentra lit le relevé XML sur cet ordinateur et propose des rapprochements. Associez explicitement le compte et confirmez chaque opération.',
     target: '.bank-hero',
   },
   {

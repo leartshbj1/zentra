@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 
 type RuntimeBindings = {
   DB?: D1Database;
+  FILES?: R2Bucket;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_WEBHOOK_ENDPOINT_ID?: string;
@@ -13,10 +14,18 @@ type RuntimeBindings = {
 
 const bindings = env as unknown as RuntimeBindings;
 
-export function runtimeValue(name: keyof Omit<RuntimeBindings, 'DB'>): string {
+export function runtimeValue(
+  name: keyof Omit<RuntimeBindings, 'DB' | 'FILES'>,
+): string {
   const bound = bindings[name];
   if (typeof bound === 'string' && bound.trim()) return bound.trim();
   return process.env[name]?.trim() ?? '';
+}
+
+export function fileArchive(): R2Bucket {
+  if (!bindings.FILES)
+    throw new Error('Le coffre de documents R2 n’est pas configuré.');
+  return bindings.FILES;
 }
 
 export function database(): D1Database {

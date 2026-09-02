@@ -1,5 +1,9 @@
+#![recursion_limit = "256"]
+
+mod account_cloud;
 mod accounting;
 mod accounting_closure;
+mod agenda;
 mod app_updater;
 mod attachments;
 mod audit;
@@ -75,6 +79,8 @@ pub fn run() {
             save_project_task,
             set_project_task_status,
             delete_project_task,
+            save_agenda_event,
+            delete_agenda_event,
             record_stock_entry,
             record_stock_exit,
             record_stock_correction,
@@ -175,6 +181,8 @@ pub fn run() {
             pay_payslip,
             generate_payslip_pdf,
             generate_sales_document_pdf,
+            create_invoice_correction,
+            abandon_invoice_correction,
             stage_payroll_documents,
             list_payroll_document_imports,
             get_payroll_document_preview,
@@ -192,6 +200,13 @@ pub fn run() {
             get_license_state,
             install_license_token,
             refresh_license,
+            account_cloud::get_cloud_account_state,
+            account_cloud::start_cloud_account_link,
+            account_cloud::poll_cloud_account_link,
+            account_cloud::open_cloud_account_link,
+            account_cloud::open_cloud_account_portal,
+            account_cloud::disconnect_cloud_account,
+            account_cloud::archive_invoice_to_cloud,
             app_updater::get_secure_update_policy,
             app_updater::check_secure_update,
             app_updater::install_secure_update,
@@ -224,17 +239,18 @@ mod tests {
         attachments::AddSupplierInvoiceAttachmentInput,
         database::{now_iso, require_setup_confirmed, LocalStore, OnboardingValidationScope},
         models::{
-            AccountInput, AccountingPeriodInput, AccountingSettingsInput, ApplyPayrollInput,
-            ApplySupplierCreditInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+            AbandonInvoiceCorrectionInput, AccountInput, AccountingPeriodInput,
+            AccountingSettingsInput, ApplyPayrollInput, ApplySupplierCreditInput,
+            CalculateEmployeePayrollInput, CalculatePayrollInput,
             CancelSupplierOrderRemainderInput, CancelSupplierOrderRemainderLineInput,
             ConfirmSupplierOrderInput, ContributionDefinitionInput, ContributionSelectionInput,
-            ConvertQuoteInput, CreateInvoiceFromTimeEntriesInput, GenerateSalesDocumentPdfInput,
-            InstallReminderCycleInput, IssueSupplierReceiptInput, LedgerInput, ManualJournalInput,
-            ManualJournalLineInput, MarkReminderInput, OnboardingInput, PayPayslipInput,
-            PayslipManualLineInput, PeriodFilter, PostPayslipInput,
-            ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput, RecordSupplierPaymentInput,
-            ReminderActionInput, ReminderPreviewInput, ReminderSettingsInput,
-            ReminderTemplateInput, ReverseSupplierCreditAllocationInput,
+            ConvertQuoteInput, CreateInvoiceCorrectionInput, CreateInvoiceFromTimeEntriesInput,
+            GenerateSalesDocumentPdfInput, InstallReminderCycleInput, IssueSupplierReceiptInput,
+            LedgerInput, ManualJournalInput, ManualJournalLineInput, MarkReminderInput,
+            OnboardingInput, PayPayslipInput, PayslipManualLineInput, PeriodFilter,
+            PostPayslipInput, ReclassifySupplierInvoiceExpenseInput, RecordPaymentInput,
+            RecordSupplierPaymentInput, ReminderActionInput, ReminderPreviewInput,
+            ReminderSettingsInput, ReminderTemplateInput, ReverseSupplierCreditAllocationInput,
             ReverseSupplierReceiptInput, SaveDocumentWithItemsInput, SaveInvoiceQrBillInput,
             SavePayslipWithContributionsInput, SaveSupplierCreditNoteDraftInput,
             SaveSupplierInvoiceDraftInput, SaveSupplierInvoiceMatchInput,
@@ -11227,6 +11243,311 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .unwrap();
             assert_eq!(special_state, (6_250, 0), "type {invoice_type}");
         }
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+    }
+
+    #[test]
+    fn paid_invoice_correction_preserves_original_and_requires_credit_first() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client correction"))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture historique",
+                        "type":"standard",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01",
+                        "notes":"Texte original"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation originale",
+                    "quantity":2,
+                    "unit":"heure",
+                    "unit_price_cents":12_500,
+                    "vat_bp":810
+                }),
+            )
+            .unwrap();
+        let issued = store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap();
+        let original_number = issued["number"].as_str().unwrap().to_owned();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE invoices SET status='payee',paid_cents=total_cents WHERE id=?",
+                rusqlite::params![invoice_id],
+            )
+            .unwrap();
+
+        let correction = store
+            .create_invoice_correction(CreateInvoiceCorrectionInput {
+                original_invoice_id: invoice_id.clone(),
+                reason: "Montant et description à rectifier".into(),
+            })
+            .unwrap();
+        let credit_id = correction["credit_note_id"].as_str().unwrap();
+        let replacement_id = correction["replacement_invoice_id"].as_str().unwrap();
+        let connection = store.connect().unwrap();
+        let original_after: (String, String, String) = connection
+            .query_row(
+                "SELECT number,title,status FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            original_after,
+            (original_number, "Facture historique".into(), "payee".into())
+        );
+        let draft_totals: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT total_cents FROM invoices WHERE id=?1),
+                   (SELECT total_cents FROM invoices WHERE id=?2)",
+                rusqlite::params![credit_id, replacement_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert!(draft_totals.0 < 0);
+        assert_eq!(draft_totals.0.checked_neg(), Some(draft_totals.1));
+        drop(connection);
+
+        let dependency_error = store
+            .issue_invoice(replacement_id, Some("2026-09-03".into()), None)
+            .unwrap_err()
+            .to_string();
+        assert!(dependency_error.contains("d’abord l’avoir correctif"));
+        store
+            .issue_invoice(credit_id, Some("2026-09-03".into()), None)
+            .unwrap();
+        store
+            .issue_invoice(replacement_id, Some("2026-09-03".into()), None)
+            .unwrap();
+        assert!(store
+            .update_record(
+                "invoices",
+                &invoice_id,
+                json!({"title":"Réécriture interdite"}),
+            )
+            .is_err());
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+    }
+
+    #[test]
+    fn draft_invoice_correction_can_be_abandoned_without_touching_original() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client abandon correction"))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture originale conservée",
+                        "type":"standard",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation à conserver",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":25_000,
+                    "vat_bp":810
+                }),
+            )
+            .unwrap();
+        let original = store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap();
+        let original_number = original["number"].as_str().unwrap().to_owned();
+        let original_total = original["total_cents"].as_i64().unwrap();
+        let correction = store
+            .create_invoice_correction(CreateInvoiceCorrectionInput {
+                original_invoice_id: invoice_id.clone(),
+                reason: "Correction préparée par erreur".into(),
+            })
+            .unwrap();
+        let workflow_id = correction["workflow_id"].as_str().unwrap().to_owned();
+        let credit_id = correction["credit_note_id"].as_str().unwrap().to_owned();
+        let replacement_id = correction["replacement_invoice_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "INSERT INTO invoice_qr_bills(
+                   invoice_id,input_json,payload,reference_type,is_qr_iban,
+                   character_count,byte_count,frozen_at,created_at,updated_at
+                 ) VALUES(?, '{}', 'SPC', 'NON', 0, 3, 3, NULL, ?, ?)",
+                rusqlite::params![replacement_id, now_iso(), now_iso()],
+            )
+            .unwrap();
+
+        let abandoned = store
+            .abandon_invoice_correction(AbandonInvoiceCorrectionInput {
+                workflow_id: workflow_id.clone(),
+            })
+            .unwrap();
+        assert_eq!(abandoned["abandoned"], true);
+
+        let connection = store.connect().unwrap();
+        let deleted_counts: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM invoice_correction_workflows WHERE id=?1),
+                   (SELECT COUNT(*) FROM invoices WHERE id IN (?2,?3)),
+                   (SELECT COUNT(*) FROM invoice_items WHERE invoice_id IN (?2,?3)),
+                   (SELECT COUNT(*) FROM invoice_qr_bills WHERE invoice_id IN (?2,?3))",
+                rusqlite::params![workflow_id, credit_id, replacement_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(deleted_counts, (0, 0, 0, 0));
+        let original_after: (String, String, String, i64, i64) = connection
+            .query_row(
+                "SELECT number,title,status,total_cents,
+                        (SELECT COUNT(*) FROM invoice_items WHERE invoice_id=invoices.id)
+                   FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            original_after,
+            (
+                original_number,
+                "Facture originale conservée".into(),
+                "emise".into(),
+                original_total,
+                1,
+            )
+        );
+        let audit_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log
+                  WHERE action='abandon_correction'
+                    AND entity_type='invoice_correction' AND entity_id=?",
+                rusqlite::params![workflow_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_count, 1);
+        drop(connection);
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+    }
+
+    #[test]
+    fn invoice_correction_cannot_be_abandoned_after_credit_note_is_issued() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client correction émise"))
+                .unwrap(),
+        );
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture à corriger",
+                        "type":"standard",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some("2026-09-02".into()), None)
+            .unwrap();
+        let correction = store
+            .create_invoice_correction(CreateInvoiceCorrectionInput {
+                original_invoice_id: invoice_id,
+                reason: "Correction dont l’avoir sera émis".into(),
+            })
+            .unwrap();
+        let workflow_id = correction["workflow_id"].as_str().unwrap().to_owned();
+        let credit_id = correction["credit_note_id"].as_str().unwrap().to_owned();
+        let replacement_id = correction["replacement_invoice_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        store
+            .issue_invoice(&credit_id, Some("2026-09-03".into()), None)
+            .unwrap();
+
+        let error = store
+            .abandon_invoice_correction(AbandonInvoiceCorrectionInput {
+                workflow_id: workflow_id.clone(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("ne peut plus être abandonnée"));
+        let remaining: (i64, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM invoice_correction_workflows WHERE id=?1),
+                   (SELECT COUNT(*) FROM invoices WHERE id IN (?2,?3)),
+                   (SELECT COUNT(*) FROM invoice_items WHERE invoice_id IN (?2,?3))",
+                rusqlite::params![workflow_id, credit_id, replacement_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(remaining, (1, 2, 2));
         assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
     }
 }

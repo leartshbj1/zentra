@@ -8,7 +8,15 @@ use uuid::{Uuid, Version};
 
 use crate::error::{AppError, AppResult};
 
+#[cfg(windows)]
 const IDENTITY_FILE: &str = "installation-identity.dpapi";
+#[cfg(not(windows))]
+const IDENTITY_FILE: &str = "installation-identity.protected";
+
+#[cfg(target_os = "macos")]
+const MACOS_KEYCHAIN_SERVICE: &str = "ch.zentra.desktop.protected-data";
+#[cfg(target_os = "macos")]
+const MACOS_KEYCHAIN_MARKER: &str = "zentra-keychain-v1:";
 
 pub fn load_or_create(data_dir: &Path) -> AppResult<String> {
     let path = data_dir.join(IDENTITY_FILE);
@@ -19,14 +27,21 @@ pub fn load_or_create(data_dir: &Path) -> AppResult<String> {
             let protected = protect_for_current_user(identity.as_bytes())?;
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(mut file) => {
-                    file.write_all(&protected)?;
-                    file.sync_all()?;
+                    if let Err(error) = file.write_all(&protected).and_then(|_| file.sync_all()) {
+                        forget_protected(&protected);
+                        let _ = fs::remove_file(&path);
+                        return Err(error.into());
+                    }
                     Ok(identity)
                 }
                 Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                    forget_protected(&protected);
                     parse_identity(&unprotect_for_current_user(&fs::read(path)?)?)
                 }
-                Err(error) => Err(error.into()),
+                Err(error) => {
+                    forget_protected(&protected);
+                    Err(error.into())
+                }
             }
         }
         Err(error) => Err(error.into()),
@@ -65,6 +80,7 @@ pub(crate) fn write_protected_atomically(path: &Path, clear: &[u8]) -> AppResult
         .ok_or_else(|| AppError::Validation("Le nom de la donnée protégée est invalide.".into()))?;
     let temporary_path = parent.join(format!(".{file_name}.{}.tmp", Uuid::new_v4()));
     let protected = protect_for_current_user(clear)?;
+    let previous_protected = fs::read(path).ok();
 
     let result = (|| -> AppResult<()> {
         let mut file = OpenOptions::new()
@@ -82,6 +98,9 @@ pub(crate) fn write_protected_atomically(path: &Path, clear: &[u8]) -> AppResult
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary_path);
+        forget_protected(&protected);
+    } else if let Some(previous) = previous_protected {
+        forget_protected(&previous);
     }
     result
 }
@@ -95,6 +114,17 @@ pub(crate) fn read_protected(path: &Path) -> AppResult<Vec<u8>> {
         ));
     }
     unprotect_for_current_user(&fs::read(path)?)
+}
+
+pub(crate) fn remove_protected(path: &Path) -> AppResult<()> {
+    let protected = match fs::read(path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    fs::remove_file(path)?;
+    forget_protected(&protected);
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -179,20 +209,95 @@ fn unprotect_for_current_user(protected: &[u8]) -> AppResult<Vec<u8>> {
     Ok(clear)
 }
 
-#[cfg(not(windows))]
-fn protect_for_current_user(clear: &[u8]) -> AppResult<Vec<u8>> {
-    Ok(clear.to_vec())
+#[cfg(target_os = "macos")]
+fn keychain_entry(account: &str) -> AppResult<keyring::Entry> {
+    keyring::Entry::new(MACOS_KEYCHAIN_SERVICE, account).map_err(|error| {
+        AppError::Validation(format!(
+            "Le Trousseau macOS n’a pas pu préparer le stockage sécurisé ({error})."
+        ))
+    })
 }
 
-#[cfg(not(windows))]
-fn unprotect_for_current_user(protected: &[u8]) -> AppResult<Vec<u8>> {
-    Ok(protected.to_vec())
+#[cfg(target_os = "macos")]
+fn marker_account(protected: &[u8]) -> AppResult<&str> {
+    let marker = std::str::from_utf8(protected).map_err(|_| {
+        AppError::Validation("La référence protégée du Trousseau macOS est illisible.".into())
+    })?;
+    let account = marker.strip_prefix(MACOS_KEYCHAIN_MARKER).ok_or_else(|| {
+        AppError::Validation("La référence protégée du Trousseau macOS est invalide.".into())
+    })?;
+    let identifier = Uuid::parse_str(account).map_err(|_| {
+        AppError::Validation("La référence protégée du Trousseau macOS est invalide.".into())
+    })?;
+    if identifier.get_version() != Some(Version::Random) {
+        return Err(AppError::Validation(
+            "La référence protégée du Trousseau macOS doit être aléatoire.".into(),
+        ));
+    }
+    Ok(account)
 }
+
+#[cfg(target_os = "macos")]
+fn protect_for_current_user(clear: &[u8]) -> AppResult<Vec<u8>> {
+    let account = Uuid::new_v4().to_string();
+    keychain_entry(&account)?
+        .set_secret(clear)
+        .map_err(|error| {
+            AppError::Validation(format!(
+                "Le Trousseau macOS a refusé l’enregistrement sécurisé ({error})."
+            ))
+        })?;
+    Ok(format!("{MACOS_KEYCHAIN_MARKER}{account}").into_bytes())
+}
+
+#[cfg(target_os = "macos")]
+fn unprotect_for_current_user(protected: &[u8]) -> AppResult<Vec<u8>> {
+    let account = marker_account(protected)?;
+    keychain_entry(account)?.get_secret().map_err(|error| {
+        AppError::Validation(format!(
+            "Le secret de cette installation est absent ou inaccessible dans le Trousseau macOS ({error})."
+        ))
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn forget_protected(protected: &[u8]) {
+    let Ok(account) = marker_account(protected) else {
+        return;
+    };
+    let Ok(entry) = keychain_entry(account) else {
+        return;
+    };
+    let _ = entry.delete_credential();
+}
+
+#[cfg(windows)]
+fn forget_protected(_protected: &[u8]) {}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn protect_for_current_user(_clear: &[u8]) -> AppResult<Vec<u8>> {
+    Err(AppError::Validation(
+        "Cette plateforme ne fournit pas encore de coffre système pris en charge par Zentra."
+            .into(),
+    ))
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn unprotect_for_current_user(_protected: &[u8]) -> AppResult<Vec<u8>> {
+    Err(AppError::Validation(
+        "Cette plateforme ne fournit pas encore de coffre système pris en charge par Zentra."
+            .into(),
+    ))
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn forget_protected(_protected: &[u8]) {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn installation_identity_is_stable_and_not_plaintext() {
         let temporary = tempfile::tempdir().unwrap();
@@ -204,10 +309,10 @@ mod tests {
             Some(Version::Random)
         );
         let stored = fs::read(temporary.path().join(IDENTITY_FILE)).unwrap();
-        #[cfg(windows)]
         assert_ne!(stored, first.as_bytes());
     }
 
+    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn protected_file_updates_replace_the_previous_value() {
         let temporary = tempfile::tempdir().unwrap();
@@ -220,5 +325,7 @@ mod tests {
             1,
             "aucun fichier temporaire ne doit subsister"
         );
+        remove_protected(&path).unwrap();
+        assert!(!path.exists());
     }
 }

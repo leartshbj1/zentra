@@ -272,6 +272,27 @@ export type ProjectTask = {
   updatedAt: string;
 };
 
+export type AgendaEventKind = 'appointment' | 'visit' | 'deadline' | 'other';
+export type AgendaEventStatus = 'scheduled' | 'completed' | 'cancelled';
+
+export type AgendaEvent = {
+  id: Identifier;
+  title: string;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  kind: AgendaEventKind;
+  status: AgendaEventStatus;
+  location: string;
+  notes: string;
+  projectId: Identifier | null;
+  employeeId: Identifier | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CatalogItem = {
   id: Identifier;
   kind: 'product' | 'service';
@@ -456,6 +477,15 @@ export type Invoice = {
   qrBill?: StoredSwissQrBill | null;
 };
 
+export type InvoiceCorrectionWorkflow = {
+  id: Identifier;
+  originalInvoiceId: Identifier;
+  creditNoteId: Identifier;
+  replacementInvoiceId: Identifier;
+  reason: string;
+  createdAt: string;
+};
+
 export type SalesOrderStatus = 'draft' | 'confirmed' | 'closed' | 'cancelled';
 export type SalesOrderFulfillmentMode =
   | 'stocked_delivery'
@@ -590,10 +620,7 @@ export type CreateRecurrenceScheduleInput = {
 export type UpdateRecurrenceScheduleInput = {
   requestId: string;
   scheduleId: string;
-  status: Extract<
-    RecurrenceScheduleStatus,
-    'active' | 'paused' | 'completed'
-  >;
+  status: Extract<RecurrenceScheduleStatus, 'active' | 'paused' | 'completed'>;
   endDate: string | null;
 };
 
@@ -758,11 +785,7 @@ export type Employee = {
   /** true = renonciation confirmée, false = franchise conservée, null = à confirmer. */
   avsAllowanceWaived: boolean | null;
   smallSalaryAssessmentYear: number | null;
-  smallSalarySector:
-    | 'ordinary'
-    | 'private_household'
-    | 'arts_culture'
-    | null;
+  smallSalarySector: 'ordinary' | 'private_household' | 'arts_culture' | null;
   smallSalaryEmployeeRequestedContributions: boolean | null;
   smallSalaryDecisionDate: string;
   /** Brut déjà versé hors Zentra durant l'année d'évaluation, zéro compris. */
@@ -1495,18 +1518,21 @@ type PayrollAnalysisManifestBase = {
   analyzedAt: string;
 };
 
-export type PayrollAnalysisManifest = PayrollAnalysisManifestBase & (
-  | {
-      schemaVersion: 1;
-      corroborationMethod?: never;
-      corroborationAlgorithmVersion?: never;
-    }
-  | {
-      schemaVersion: 2;
-      corroborationMethod: 'local_visual_read' | 'local_visual_read_with_pdf_text';
-      corroborationAlgorithmVersion: 'zentra.payroll-evidence-corroboration.v1';
-    }
-);
+export type PayrollAnalysisManifest = PayrollAnalysisManifestBase &
+  (
+    | {
+        schemaVersion: 1;
+        corroborationMethod?: never;
+        corroborationAlgorithmVersion?: never;
+      }
+    | {
+        schemaVersion: 2;
+        corroborationMethod:
+          | 'local_visual_read'
+          | 'local_visual_read_with_pdf_text';
+        corroborationAlgorithmVersion: 'zentra.payroll-evidence-corroboration.v1';
+      }
+  );
 
 export type PayrollDocumentImport = {
   id: Identifier;
@@ -1568,6 +1594,7 @@ export type LicenseState = {
   priceChfCents: number;
   licenseId: string;
   customerName: string;
+  accessRole: 'owner' | 'admin' | 'accountant' | 'member' | 'read_only';
   validFrom: string;
   validUntil: string;
   verifiedAt: string;
@@ -1589,6 +1616,7 @@ export type Workspace = {
   projects: Project[];
   projectMilestones: ProjectMilestone[];
   projectTasks: ProjectTask[];
+  agendaEvents: AgendaEvent[];
   quotes: Quote[];
   salesOrders: SalesOrder[];
   recurrenceSchedules: RecurrenceSchedule[];
@@ -1599,6 +1627,7 @@ export type Workspace = {
   salesOrderInvoiceBatches: SalesOrderInvoiceBatch[];
   salesOrderInvoiceAllocations: SalesOrderInvoiceAllocation[];
   invoices: Invoice[];
+  invoiceCorrectionWorkflows: InvoiceCorrectionWorkflow[];
   payments: Payment[];
   employees: Employee[];
   timeEntries: TimeEntry[];

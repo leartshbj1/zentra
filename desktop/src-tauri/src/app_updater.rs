@@ -94,11 +94,10 @@ pub fn initialize<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     // incomplete. This prevents a renderer or a runtime environment variable
     // from substituting an attacker-controlled key or endpoint.
     if let Some(public_key) = configuration.public_key.clone() {
-        app.handle().plugin(
-            tauri_plugin_updater::Builder::new()
-                .pubkey(public_key)
-                .build(),
-        )?;
+        let builder = tauri_plugin_updater::Builder::new().pubkey(public_key);
+        #[cfg(target_os = "macos")]
+        let builder = builder.target("macos-universal");
+        app.handle().plugin(builder.build())?;
     }
 
     app.manage(SecureUpdaterState {
@@ -161,7 +160,7 @@ pub async fn check_secure_update(
         .lock()
         .map_err(|_| "L’état local des mises à jour est indisponible.".to_owned())? = None;
 
-    let updater = app
+    let updater_builder = app
         .updater_builder()
         .pubkey(public_key)
         .endpoints(vec![endpoint])
@@ -171,7 +170,10 @@ pub async fn check_secure_update(
             client
                 .https_only(true)
                 .redirect(Policy::limited(MAX_REDIRECTS))
-        })
+        });
+    #[cfg(target_os = "macos")]
+    let updater_builder = updater_builder.target("macos-universal");
+    let updater = updater_builder
         .build()
         .map_err(|error| format!("Initialisation du contrôle de mise à jour refusée : {error}"))?;
 
@@ -251,8 +253,8 @@ pub async fn install_secure_update(
             format!("Mise à jour refusée : l’installateur signé n’a pas pu être lancé ({error}).")
         })?;
 
-        // On Windows the updater normally closes the application while launching
-        // the NSIS installer. This event is still useful on other desktop targets.
+        // L'updater ferme normalement l'application avant de remplacer le
+        // bundle signé sur Windows comme sur macOS.
         let _ = on_event.send(SecureUpdateEvent::Installed);
         Ok(())
     }

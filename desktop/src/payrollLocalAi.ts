@@ -3,6 +3,7 @@ import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel
 type WorkerPayload = Record<string, unknown>;
 const PAYROLL_ANALYSIS_TIMEOUT_MS = 15 * 60 * 1_000;
 export const PAYROLL_MODEL_LOAD_TIMEOUT_MS = 15 * 60 * 1_000;
+export const PAYROLL_ENGINE_CHECK_TIMEOUT_MS = 15 * 1_000;
 
 export type PayrollAiProgress = {
   label: string;
@@ -23,7 +24,10 @@ export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
 
 class PayrollLocalAi {
   private worker: Worker | null = null;
-  private checkWaiters: Array<(mode: PayrollAiMode) => void> = [];
+  private checkWaiters: Array<{
+    resolve: (mode: PayrollAiMode) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }> = [];
   private loadWaiters: Array<{
     resolve: () => void;
     reject: (reason: Error) => void;
@@ -60,7 +64,10 @@ class PayrollLocalAi {
     const type = typeof message.type === 'string' ? message.type : '';
     if (type === 'check') {
       const mode = message.mode === 'webgpu' || message.mode === 'wasm' ? message.mode : 'unavailable';
-      this.checkWaiters.splice(0).forEach((resolve) => resolve(mode));
+      this.checkWaiters.splice(0).forEach(({ resolve, timeout }) => {
+        clearTimeout(timeout);
+        resolve(mode);
+      });
       return;
     }
     if (type === 'progress') {
@@ -128,7 +135,10 @@ class PayrollLocalAi {
       pending.reject(error);
     }
     this.analyses.clear();
-    this.checkWaiters.splice(0).forEach((resolve) => resolve('unavailable'));
+    this.checkWaiters.splice(0).forEach(({ resolve, timeout }) => {
+      clearTimeout(timeout);
+      resolve('unavailable');
+    });
   }
 
   onProgress(listener: (progress: PayrollAiProgress) => void) {
@@ -145,8 +155,22 @@ class PayrollLocalAi {
 
   check(): Promise<PayrollAiMode> {
     return new Promise((resolve) => {
-      this.checkWaiters.push(resolve);
-      this.ensureWorker().postMessage({ type: 'check' });
+      const timeout = setTimeout(() => {
+        const worker = this.worker;
+        this.worker = null;
+        worker?.terminate();
+        this.rejectAll(new Error('La vérification du moteur IA local a expiré.'));
+      }, PAYROLL_ENGINE_CHECK_TIMEOUT_MS);
+      const waiter = { resolve, timeout };
+      this.checkWaiters.push(waiter);
+      try {
+        this.ensureWorker().postMessage({ type: 'check' });
+      } catch {
+        const worker = this.worker;
+        this.worker = null;
+        worker?.terminate();
+        this.rejectAll(new Error('Le moteur IA local n’a pas pu démarrer.'));
+      }
     });
   }
 

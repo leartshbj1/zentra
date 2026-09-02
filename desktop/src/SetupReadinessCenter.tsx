@@ -92,7 +92,7 @@ function hasText(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
 
-function normalizedWindowsPath(value: string | null | undefined) {
+function normalizedStoragePath(value: string | null | undefined) {
   return value?.trim().replaceAll('/', '\\').replace(/\\+$/, '').toLocaleLowerCase('fr-CH') ?? '';
 }
 
@@ -271,8 +271,8 @@ export function buildSetupReadiness(
   if (!hasText(backup.folder)) backupMissing.push('dossier de sauvegarde');
   if (!backup.recoveryConfirmed) backupMissing.push('stratégie de récupération confirmée');
   if (!workspace.backupStatus.lastSuccessAt) backupMissing.push('première sauvegarde réussie');
-  const backupFolder = normalizedWindowsPath(backup.folder);
-  const lastBackupPath = normalizedWindowsPath(workspace.backupStatus.lastPath);
+  const backupFolder = normalizedStoragePath(backup.folder);
+  const lastBackupPath = normalizedStoragePath(workspace.backupStatus.lastPath);
   if (
     workspace.backupStatus.lastSuccessAt &&
     (!lastBackupPath || !backupFolder || !lastBackupPath.startsWith(`${backupFolder}\\`))

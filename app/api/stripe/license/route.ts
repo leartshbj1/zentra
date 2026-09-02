@@ -63,6 +63,7 @@ export async function POST(request: Request) {
       installationId,
       customerName,
       periodEnd: entitlement.entitlement_valid_until,
+      channel: 'checkout',
     });
     return Response.json(license, { headers: noStoreHeaders() });
   } catch (error) {

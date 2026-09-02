@@ -61,7 +61,7 @@ async function detectRuntimeDevice() {
 async function ensureRuntimeDevice() {
   runtimeDevice ??= await detectRuntimeDevice();
   if (!runtimeDevice) {
-    throw new Error('Ni WebGPU ni WebAssembly ne sont disponibles dans cette installation Windows.');
+    throw new Error('Ni WebGPU ni WebAssembly ne sont disponibles sur cet ordinateur.');
   }
   return runtimeDevice;
 }

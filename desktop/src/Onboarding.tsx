@@ -255,7 +255,7 @@ export function Onboarding({
         const serverIssues = preflight.issues.map((issue) => ({ ...issue, step: Number(issue.step) }));
         setBackendIssues(serverIssues);
         setValidatedSteps([1, 2, 3, 4, 5]);
-        setError('Zentra a trouvé une information à corriger. Votre brouillon est conservé sur ce PC.');
+        setError('Zentra a trouvé une information à corriger. Votre brouillon est conservé sur cet ordinateur.');
         if (serverIssues[0]) focusIssue(serverIssues[0]);
         return;
       }
@@ -303,7 +303,7 @@ export function Onboarding({
         <div className="onboarding__brand">
           <div className="onboarding__wordmark">
             <BrandWordmark />
-            <small>Application Windows</small>
+            <small>Application Windows + macOS</small>
           </div>
         </div>
         <div className="onboarding__promise">
@@ -327,7 +327,7 @@ export function Onboarding({
           {draftStatus === 'failed' ? <AlertCircle size={15} /> : draftStatus === 'saved' ? <Check size={15} /> : <Save size={15} />}
           <p>
             <strong>{draftStatus === 'failed' ? 'Brouillon non enregistré' : 'Brouillon local'}</strong>
-            <span>{draftStatus === 'failed' ? 'Vérifiez les droits de stockage Windows' : draftStatus === 'saved' ? 'Toutes les modifications sont enregistrées' : 'Enregistrement sur ce PC…'}</span>
+            <span>{draftStatus === 'failed' ? 'Vérifiez les droits de stockage du système' : draftStatus === 'saved' ? 'Toutes les modifications sont enregistrées' : 'Enregistrement sur cet ordinateur…'}</span>
           </p>
         </div>
       </aside>
@@ -416,9 +416,9 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
         </button>
       </div>
       <div className="local-facts">
-        <div><DatabaseIcon /><strong>Base locale sur ce PC</strong><span>Aucun hébergement de vos données métier</span></div>
+        <div><DatabaseIcon /><strong>Base locale sur cet ordinateur</strong><span>Fonctionne même sans connexion</span></div>
         <div><FileArchive /><strong>Sauvegardes portables</strong><span>Vous gardez la maîtrise des fichiers</span></div>
-        <div><ShieldCheck /><strong>Droits Windows</strong><span>Accès selon les droits de votre session</span></div>
+        <div><ShieldCheck /><strong>Coffre du système</strong><span>DPAPI sous Windows · Trousseau sous macOS</span></div>
       </div>
     </div>
   );
@@ -620,8 +620,8 @@ function BackupStep({ settings, setSettings, privacyConfirmed, setPrivacyConfirm
   }
   return (
     <div>
-      <StepHeader eyebrow="Étape 5 sur 5" title="Sauvegarde et confidentialité" text="La base active reste sur ce PC. Une sauvegarde externe protège votre entreprise d’une panne ou d’un vol." />
-      <div className="privacy-banner"><DatabaseIcon size={24} /><div><strong>Données métier locales</strong><p>Clients, chantiers ou projets, montants, heures, pièces jointes et salaires ne sont pas envoyés au service d’abonnement.</p></div></div>
+      <StepHeader eyebrow="Étape 5 sur 5" title="Sauvegarde et confidentialité" text="La base active reste sur cet ordinateur. Une sauvegarde externe protège votre entreprise d’une panne ou d’un vol." />
+      <div className="privacy-banner"><DatabaseIcon size={24} /><div><strong>Données métier locales</strong><p>Clients, chantiers ou projets, temps, pièces jointes et salaires restent dans la base locale. Si vous reliez un compte, les PDF des factures émises sont aussi conservés dans le coffre Zentra pendant dix ans.</p></div></div>
       <div className="form-grid setup-form"><Field label="Dossier pour les sauvegardes manuelles" hint="Une sauvegarde ne sera créée que lorsque vous utiliserez le bouton Sauvegarder." required wide error={issues['backup.folder']}><div className="path-picker"><input aria-invalid={Boolean(issues['backup.folder'])} readOnly value={backup.folder} /><Button data-field="backup.folder" type="button" variant="secondary" disabled={choosing} onClick={() => void chooseFolder()}>{choosing ? <LoaderCircle className="spin" size={16} /> : <FolderOpen size={16} />} {choosing ? 'Ouverture…' : 'Choisir'}</Button></div></Field></div>
       <div className="confirmation-checks"><label className={issues['backup.privacyConfirmed'] ? 'has-error' : ''}><input data-field="backup.privacyConfirmed" aria-invalid={Boolean(issues['backup.privacyConfirmed'])} type="checkbox" checked={privacyConfirmed} onChange={(e) => setPrivacyConfirmed(e.target.checked)} /><span>J’ai compris que mes données métier restent locales et que je suis responsable de leur sauvegarde.{issues['backup.privacyConfirmed'] ? <small>{issues['backup.privacyConfirmed']}</small> : null}</span></label><label className={issues['backup.recoveryConfirmed'] ? 'has-error' : ''}><input data-field="backup.recoveryConfirmed" aria-invalid={Boolean(issues['backup.recoveryConfirmed'])} type="checkbox" checked={backup.recoveryConfirmed} onChange={(e) => patch({ recoveryConfirmed: e.target.checked })} /><span>Je conserverai au moins une sauvegarde récente dans un emplacement distinct et sûr.{issues['backup.recoveryConfirmed'] ? <small>{issues['backup.recoveryConfirmed']}</small> : null}</span></label></div>
     </div>

@@ -33,16 +33,16 @@ import {
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: `Zentra pour Windows — Télécharger la version ${ZENTRA_VERSION}`,
+  title: `Télécharger Zentra — Windows disponible, macOS en préparation`,
   description:
-    'Installez Zentra sur Windows 10 ou 11 pour gérer devis, factures QR, relances supervisées, projets, salaires et comptabilité avec vos données sur votre PC.',
+    'Téléchargez le véritable installateur .exe Zentra pour Windows x64. La version macOS universelle est intégrée et sera proposée après signature et notarisation Apple.',
   openGraph: {
-    title: 'Zentra pour Windows',
-    description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ZENTRA_VERSION} disponible.`,
+    title: 'Télécharger Zentra',
+    description: `Windows ${ZENTRA_VERSION} disponible; version macOS en préparation de distribution.`,
   },
   twitter: {
-    title: 'Zentra pour Windows',
-    description: `Toute votre gestion d’entreprise dans une application Windows. Version ${ZENTRA_VERSION} disponible.`,
+    title: 'Télécharger Zentra',
+    description: `Windows ${ZENTRA_VERSION} disponible; version macOS en préparation de distribution.`,
   },
 };
 
@@ -127,7 +127,7 @@ export default function DownloadPage() {
         <div data-reveal="left">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
             <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-            Zentra pour Windows · version {ZENTRA_VERSION}
+            Windows disponible · version {ZENTRA_VERSION}
           </div>
           <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
             Toute votre entreprise,
@@ -137,8 +137,10 @@ export default function DownloadPage() {
           <p className="mt-6 max-w-xl text-lg leading-8 text-[#667169]">
             Catalogue, devis, commandes, BL, factures QR uniques ou récurrentes
             supervisées, fournisseurs, import CAMT, projets, heures, salaires et
-            comptabilité&nbsp;: installez Zentra sur votre PC et travaillez avec
-            vos propres données, dans une interface pensée pour votre activité.
+            comptabilité&nbsp;: installez Zentra sur votre ordinateur et
+            travaillez avec vos propres données dans une interface pensée pour
+            votre activité. La version macOS est en préparation de signature et
+            de notarisation; aucun faux téléchargement n’est proposé.
           </p>
 
           <div className="mt-8">
@@ -158,6 +160,7 @@ export default function DownloadPage() {
             <span>64 bits</span>
             <span>{ZENTRA_INSTALLER_SIZE_MIB} Mio</span>
             <span>50 CHF / mois</span>
+            <span>Fonctions et collaborateurs inclus</span>
           </div>
           <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
             Le téléchargement ne déclenche aucun paiement. Une licence active
@@ -174,7 +177,8 @@ export default function DownloadPage() {
           <div className="installer-window overflow-hidden rounded-[26px] border border-[#cfd6d0] bg-white shadow-[0_38px_100px_rgba(20,52,36,.2)]">
             <div className="flex h-11 items-center justify-between border-b border-[#dfe4df] bg-[#fbfcfb] px-4">
               <div className="flex items-center gap-2 text-[11px] font-semibold text-[#354a3e]">
-                <BrandMark className="size-5" /> Installation de Zentra
+                <BrandMark className="size-5" /> Installateur Windows
+                actuellement disponible
               </div>
               <div className="flex h-full items-center text-[13px] text-[#647169]">
                 <span className="grid h-full w-9 place-items-center">—</span>
@@ -217,8 +221,8 @@ export default function DownloadPage() {
                   Zentra sur cet ordinateur
                 </h2>
                 <p className="mt-3 text-xs leading-5 text-[#758078]">
-                  L’assistant installe Zentra et crée les éléments nécessaires au
-                  lancement depuis le menu Démarrer.
+                  L’assistant installe Zentra et crée les éléments nécessaires
+                  au lancement depuis le menu Démarrer.
                 </p>
                 <div className="mt-7 space-y-4 text-[11px]">
                   {[
@@ -252,8 +256,8 @@ export default function DownloadPage() {
             </div>
           </div>
           <div className="installer-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#cad6cc] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#355141] shadow-lg sm:left-auto sm:right-6">
-            <ShieldCheck className="size-3.5 text-[#3b7752]" /> Données
-            conservées sur votre PC
+            <ShieldCheck className="size-3.5 text-[#3b7752]" /> Local d’abord ·
+            coffre PDF sur demande
           </div>
         </div>
       </section>
@@ -272,7 +276,7 @@ export default function DownloadPage() {
               id="application-windows-title"
               className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"
             >
-              Une vraie application Windows, pas un site emballé.
+              Une vraie application de bureau, pas un site emballé.
             </h2>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -285,12 +289,12 @@ export default function DownloadPage() {
               [
                 Database,
                 'Données métier locales',
-                'La base SQLite et les justificatifs restent dans le dossier Zentra de ce PC; ils ne sont pas hébergés sur un compte Zentra.',
+                'La base SQLite, les clients, la paie et la comptabilité restent sur l’ordinateur. Seuls les PDF que vous archivez volontairement sont copiés dans le coffre serveur.',
               ],
               [
                 WifiOff,
                 'Connexion limitée',
-                'L’activation, les mises à jour et l’installation éventuelle de WebView2 peuvent utiliser Internet; la gestion quotidienne reste locale.',
+                'Activation, compte, coffre et mises à jour utilisent Internet; la gestion quotidienne reste locale et disponible hors ligne.',
               ],
             ].map(([Icon, title, text]) => (
               <article
@@ -306,6 +310,24 @@ export default function DownloadPage() {
                 </p>
               </article>
             ))}
+          </div>
+          <div className="mt-6 grid gap-4 rounded-[24px] border border-[#cbd8ce] bg-[#edf4ee] p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-7">
+            <Laptop className="size-7 text-[#397150]" aria-hidden="true" />
+            <div>
+              <h3 className="font-semibold text-[#254333]">
+                Architecture macOS intégrée
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-[#607068]">
+                Zentra cible Intel et Apple Silicon. Le paquet `.dmg` signé et
+                notarié apparaîtra ici uniquement après validation sur un Mac.
+              </p>
+            </div>
+            <a
+              href="mailto:leartshabija@gmail.com?subject=Prévenez-moi%20pour%20Zentra%20macOS"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#9fb5a5] bg-white px-5 text-sm font-semibold text-[#315f47]"
+            >
+              Être prévenu
+            </a>
           </div>
         </div>
       </section>
@@ -433,10 +455,11 @@ export default function DownloadPage() {
               L’application complète pour 50 CHF par mois.
             </h2>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
-              Le paiement est traité par Stripe. La licence signée est liée à
-              l’identifiant d’installation affiché par Zentra, tandis que vos
-              données métier restent sur votre PC. La première activation et les
-              renouvellements vérifient uniquement le jeton par HTTPS.
+              Le paiement est traité par Stripe. L’abonnement peut être rattaché
+              à votre compte d’entreprise&nbsp;: vous autorisez ensuite
+              appareils, collaborateurs et comptables par un code court. Les
+              secrets de session seront protégés localement et le serveur n’en
+              conservera que l’empreinte.
             </p>
             <div className="mt-7 grid gap-3 text-sm text-white/72 sm:grid-cols-2">
               {[
@@ -444,6 +467,8 @@ export default function DownloadPage() {
                 'Nouvelles versions incluses',
                 'Paiement sécurisé par Stripe',
                 'Résiliation depuis le portail client',
+                'Collaborateurs sans supplément',
+                'Toutes les fonctionnalités incluses',
               ].map((item) => (
                 <div key={item} className="flex items-center gap-2">
                   <Check className="size-4 text-[#77cf92]" /> {item}
@@ -457,10 +482,10 @@ export default function DownloadPage() {
               <span className="pb-1 text-sm text-white/76">/ mois</span>
             </div>
             <p className="mt-3 text-xs leading-5 text-white/74">
-              Installez d’abord Zentra afin de récupérer l’identifiant demandé
-              pendant l’activation. Abonnement renouvelé mensuellement, taxes
-              comprises lorsqu’elles sont applicables, résiliable pour la fin de
-              la période en cours.
+              Prix final fixe de 50 CHF par mois, taxe incluse lorsqu’elle
+              s’applique. Aucune fonctionnalité et aucun collaborateur ne seront
+              facturés en supplément. Abonnement renouvelé mensuellement et
+              résiliable pour la fin de la période en cours.
             </p>
             <div className="mt-7">
               <PurchaseButton compact />
@@ -581,10 +606,9 @@ export default function DownloadPage() {
                 </div>
                 <p>
                   <strong>Protection de licence :</strong> activation en ligne,
-                  jeton signé et liaison locale protégée par Windows DPAPI.
-                  Cette version n’utilise pas encore d’attestation matérielle
-                  TPM/CNG et ne peut pas garantir une protection absolue contre
-                  un administrateur du PC qui modifierait le logiciel.
+                  jeton signé et liaison locale protégée par Windows DPAPI ou le
+                  Trousseau macOS. Aucune protection logicielle ne peut garantir
+                  une résistance absolue face à l’administrateur de la machine.
                 </p>
               </div>
             </details>
@@ -610,9 +634,11 @@ export default function DownloadPage() {
               Une donnée locale doit être sauvegardée.
             </h2>
             <p className="mt-5 text-sm leading-6 text-white/72">
-              Si le PC est perdu ou son disque devient illisible sans sauvegarde
-              externe, Zentra ne peut pas récupérer vos données depuis un
-              serveur, puisqu’elles n’y ont jamais été envoyées.
+              Si l’ordinateur est perdu ou son disque devient illisible sans
+              sauvegarde complète externe, Zentra ne peut pas reconstruire les
+              clients, la paie ou la comptabilité. Le coffre optionnel protège
+              uniquement les PDF de factures que vous archivez explicitement,
+              jamais toute la base SQLite.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -663,6 +689,15 @@ export default function DownloadPage() {
             <span>pour les entreprises suisses</span>
           </div>
           <div className="flex flex-wrap gap-5">
+            <a className="inline-flex min-h-11 items-center" href="/compte">
+              Mon compte
+            </a>
+            <a
+              className="inline-flex min-h-11 items-center"
+              href="/confidentialite"
+            >
+              Données & confidentialité
+            </a>
             <a
               className="inline-flex min-h-11 items-center"
               href="mailto:leartshabija@gmail.com"

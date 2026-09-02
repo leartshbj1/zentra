@@ -29,6 +29,41 @@
       "when": 1788297174900,
       "tag": "0003_thin_the_santerians",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788347667090,
+      "tag": "0004_zippy_harry_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788347759301,
+      "tag": "0005_dashing_union_jack",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788350850760,
+      "tag": "0006_account_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788351516527,
+      "tag": "0007_device_activation_revocation",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788351691786,
+      "tag": "0008_unlimited_collaborators",
+      "breakpoints": true
     }
   ]
 }

@@ -30,7 +30,7 @@ export function DownloadButton({
       >
         <Download className="size-4.5 shrink-0" />
         <span className="min-w-0 leading-5">
-          Télécharger Zentra{compact ? '' : ' pour Windows'}
+          Télécharger Zentra pour Windows
         </span>
       </a>
 

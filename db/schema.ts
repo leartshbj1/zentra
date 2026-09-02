@@ -66,13 +66,14 @@ export const licenseActivations = sqliteTable(
     installationId: text('installation_id').notNull(),
     activatedAt: integer('activated_at').notNull(),
     lastIssuedAt: integer('last_issued_at').notNull(),
+    revokedAt: integer('revoked_at'),
   },
   (table) => [
     uniqueIndex('license_activations_subscription_installation_idx').on(
       table.subscriptionId,
       table.installationId,
     ),
-    uniqueIndex('license_activations_one_device_idx').on(table.subscriptionId),
+    index('license_activations_subscription_idx').on(table.subscriptionId),
   ],
 );
 
@@ -112,4 +113,176 @@ export const checkoutRateLimits = sqliteTable(
     expiresAt: integer('expires_at').notNull(),
   },
   (table) => [index('checkout_rate_limits_expiry_idx').on(table.expiresAt)],
+);
+
+export const organizations = sqliteTable(
+  'organizations',
+  {
+    organizationId: text('organization_id').primaryKey(),
+    name: text('name').notNull(),
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => subscriptions.subscriptionId, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('organizations_subscription_idx').on(table.subscriptionId),
+    index('organizations_creator_idx').on(table.createdByUserId),
+  ],
+);
+
+export const organizationMembers = sqliteTable(
+  'organization_members',
+  {
+    membershipId: text('membership_id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.organizationId, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+    userId: text('user_id').notNull(),
+    email: text('email').notNull(),
+    displayName: text('display_name'),
+    role: text('role').notNull(),
+    joinedAt: integer('joined_at').notNull(),
+    revokedAt: integer('revoked_at'),
+  },
+  (table) => [
+    uniqueIndex('organization_members_user_idx').on(
+      table.organizationId,
+      table.userId,
+    ),
+    index('organization_members_email_idx').on(table.email),
+    index('organization_members_active_idx').on(
+      table.organizationId,
+      table.revokedAt,
+    ),
+  ],
+);
+
+export const organizationInvitations = sqliteTable(
+  'organization_invitations',
+  {
+    invitationId: text('invitation_id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.organizationId, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+    tokenHash: text('token_hash').notNull(),
+    invitedEmail: text('invited_email'),
+    role: text('role').notNull(),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    acceptedByUserId: text('accepted_by_user_id'),
+    acceptedAt: integer('accepted_at'),
+    revokedAt: integer('revoked_at'),
+  },
+  (table) => [
+    uniqueIndex('organization_invitations_token_idx').on(table.tokenHash),
+    index('organization_invitations_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+export const deviceAuthorizations = sqliteTable(
+  'device_authorizations',
+  {
+    deviceCodeHash: text('device_code_hash').primaryKey(),
+    userCode: text('user_code').notNull(),
+    installationId: text('installation_id').notNull(),
+    status: text('status').notNull(),
+    organizationId: text('organization_id').references(
+      () => organizations.organizationId,
+      { onDelete: 'cascade', onUpdate: 'cascade' },
+    ),
+    approvedByUserId: text('approved_by_user_id'),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    approvedAt: integer('approved_at'),
+    consumedAt: integer('consumed_at'),
+  },
+  (table) => [
+    uniqueIndex('device_authorizations_user_code_idx').on(table.userCode),
+    index('device_authorizations_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+export const deviceSessions = sqliteTable(
+  'device_sessions',
+  {
+    sessionId: text('session_id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.organizationId, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+    userId: text('user_id').notNull(),
+    installationId: text('installation_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    lastSeenAt: integer('last_seen_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    revokedAt: integer('revoked_at'),
+  },
+  (table) => [
+    uniqueIndex('device_sessions_token_idx').on(table.tokenHash),
+    index('device_sessions_organization_idx').on(
+      table.organizationId,
+      table.revokedAt,
+    ),
+    index('device_sessions_user_idx').on(table.userId, table.revokedAt),
+  ],
+);
+
+export const invoiceArchives = sqliteTable(
+  'invoice_archives',
+  {
+    archiveId: text('archive_id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.organizationId, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    sourceInvoiceId: text('source_invoice_id').notNull(),
+    revision: integer('revision').notNull(),
+    invoiceNumber: text('invoice_number').notNull(),
+    issueDate: text('issue_date').notNull(),
+    paidAt: text('paid_at'),
+    correctionKind: text('correction_kind').notNull(),
+    correctionReason: text('correction_reason'),
+    supersedesArchiveId: text('supersedes_archive_id'),
+    objectKey: text('object_key').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    mediaType: text('media_type').notNull(),
+    previousChainSha256: text('previous_chain_sha256'),
+    chainSha256: text('chain_sha256').notNull(),
+    retentionUntil: text('retention_until').notNull(),
+    storedBySessionId: text('stored_by_session_id').notNull(),
+    storedAt: integer('stored_at').notNull(),
+    storageStatus: text('storage_status').notNull(),
+  },
+  (table) => [
+    uniqueIndex('invoice_archives_revision_idx').on(
+      table.organizationId,
+      table.sourceInvoiceId,
+      table.revision,
+    ),
+    uniqueIndex('invoice_archives_object_idx').on(table.objectKey),
+    index('invoice_archives_number_idx').on(
+      table.organizationId,
+      table.invoiceNumber,
+    ),
+    index('invoice_archives_retention_idx').on(table.retentionUntil),
+  ],
 );

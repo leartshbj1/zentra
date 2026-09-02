@@ -10,11 +10,11 @@
     "prebuild": "node scripts/check-brand-assets.mjs",
     "build": "vinext build",
     "check:brand-assets": "node scripts/check-brand-assets.mjs",
-    "test:stripe": "vitest run --config vitest.config.ts lib/stripe-event.test.ts lib/stripe-sql.test.ts lib/stripe-webhook.test.ts lib/stripe-webhook-proof.test.ts lib/stripe-checkout.test.ts lib/stripe-account.test.ts lib/stripe-migrations.test.ts lib/license-constants.test.ts lib/request-body.test.ts lib/stripe-contract.test.ts lib/stripe-readiness.test.ts",
+    "test:stripe": "vitest run --config vitest.config.ts lib/stripe-event.test.ts lib/stripe-sql.test.ts lib/stripe-webhook.test.ts lib/stripe-webhook-proof.test.ts lib/stripe-checkout.test.ts lib/stripe-account.test.ts lib/stripe-migrations.test.ts lib/license-constants.test.ts lib/request-body.test.ts lib/stripe-contract.test.ts lib/stripe-readiness.test.ts lib/account-security.test.ts lib/invoice-archive.test.ts",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "audit:prod": "pnpm audit --prod --ignore GHSA-w3rx-r6r6-pgpr --ignore GHSA-5p2g-fcmc-qvqq",
     "db:generate": "drizzle-kit generate",
-    "lint": "oxlint app lib components/purchase-button.tsx components/license-delivery.tsx components/scroll-experience.tsx components/vat-closing-demo.tsx components/recurrence-demo.tsx components/reminder-demo.tsx components/mobile-navigation.tsx components/ui/button.tsx",
+    "lint": "oxlint app lib components/purchase-button.tsx components/license-delivery.tsx components/scroll-experience.tsx components/vat-closing-demo.tsx components/recurrence-demo.tsx components/reminder-demo.tsx components/mobile-navigation.tsx components/device-approval.tsx components/subscription-claim.tsx components/team-invite.tsx components/team-access-list.tsx components/invitation-accept.tsx components/ui/button.tsx",
     "format": "oxfmt"
   },
   "dependencies": {
