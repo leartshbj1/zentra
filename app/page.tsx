@@ -87,7 +87,7 @@ const features = [
   {
     icon: Users,
     title: 'Équipe & salaires',
-    text: 'Importez d’anciennes fiches, contrôlez les champs proposés localement et générez des PDF détaillés avec vos taux validés.',
+    text: 'Importez d’anciennes fiches, contrôlez les champs proposés localement, suivez les décisions annuelles et générez des PDF détaillés avec vos taux validés.',
   },
   {
     icon: BookOpenCheck,
@@ -97,7 +97,7 @@ const features = [
   {
     icon: ShieldCheck,
     title: 'Clôture & fiduciaire',
-    text: 'Pré-clôture, empreinte des données, verrouillage explicite et dossier ZIP DRAFT ou FINAL.',
+    text: 'Pré-clôture, protection cumulative de l’historique, empreinte des données et dossier ZIP DRAFT ou FINAL.',
   },
 ];
 
@@ -258,10 +258,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-114"
+              href="#lot-118"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.14
+              Aperçu 1.18
             </a>
             <a
               href="#capacites"
@@ -309,11 +309,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-114"
+            href="#lot-118"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Zentra 1.14 · identité, paie locale et gestion renforcées
+            Aperçu Zentra 1.18 · validation finale en cours
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -378,6 +378,87 @@ export default function Home() {
           </div>
         </div>
         <HeroDashboard />
+      </section>
+
+      <section
+        id="lot-118"
+        className="scroll-mt-24 border-y border-[#d4ddd6] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
+        data-reveal
+        aria-labelledby="lot-118-title"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
+                Aperçu de Zentra 1.18
+              </p>
+              <h2
+                id="lot-118-title"
+                className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
+              >
+                Vos données réelles guident chaque étape.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-8 text-[#637168] lg:justify-self-end">
+              La prochaine version de Zentra vous conduira du premier client
+              jusqu’à la sauvegarde, protégera l’historique comptable clôturé
+              et calculera les décisions annuelles de petits salaires à partir
+              des fiches réellement validées sur ce PC. Elle est encore en
+              validation locale et n’est pas incluse dans le téléchargement
+              proposé aujourd’hui.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                icon: Check,
+                eyebrow: 'Démarrage réel',
+                title: 'Une checklist qui avance avec votre travail.',
+                text: 'Client actif, projet, devis accepté, facture liée, paiement comptabilisé et sauvegarde : aucune donnée de démonstration ne valide une étape.',
+              },
+              {
+                icon: BookOpenCheck,
+                eyebrow: 'Clôture cumulative',
+                title: 'Tout l’historique antérieur est protégé.',
+                text: 'Une clôture scelle chaque date antérieure ou égale à sa borne, même entre deux périodes. Une correction passe par une écriture ultérieure traçable.',
+              },
+              {
+                icon: Users,
+                eyebrow: 'Paie suisse',
+                title: 'Les petits salaires sont suivis sur l’année.',
+                text: 'Seuil ordinaire de CHF 2’500, exception ménage jeune de CHF 750, secteurs obligatoires, demande prospective et rattrapage sont explicitement contrôlés.',
+              },
+              {
+                icon: ShieldCheck,
+                eyebrow: 'Preuves locales',
+                title: 'Chaque décision importante laisse une trace.',
+                text: 'Cumul, assiette, motif, date et référence de preuve sont figés avec la fiche, sans envoyer les salaires vers un serveur Zentra.',
+              },
+            ].map(({ icon: Icon, eyebrow, title, text }) => (
+              <article
+                key={title}
+                className="interactive-card rounded-[24px] border border-[#d2ddd4] bg-white/85 p-6 shadow-[0_18px_45px_rgba(41,78,55,.06)]"
+              >
+                <Icon className="size-6 text-[#397150]" aria-hidden="true" />
+                <p className="mt-5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#52745f]">
+                  {eyebrow}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-.025em] text-[#254333]">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-[#637168]">{text}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-[22px] border border-[#d9d1c3] bg-[#fffaf1] p-5 text-sm leading-6 text-[#6f6455]">
+            Les règles de paie reposent sur les informations, décisions de
+            caisse et paramètres que vous confirmez. Zentra prépare et contrôle
+            le dossier local ; il ne remplace ni votre fiduciaire, ni une
+            certification Swissdec.
+          </div>
+        </div>
       </section>
 
       <section
