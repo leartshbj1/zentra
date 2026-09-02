@@ -14,7 +14,7 @@ const buildScriptUrl = new URL(
   import.meta.url,
 );
 
-describe('macOS private preview release contract', () => {
+describe('macOS ad-hoc early-access build contract', () => {
   it('builds a universal ad-hoc app and DMG without updater secrets', () => {
     const config = JSON.parse(readFileSync(previewConfigUrl, 'utf8')) as {
       identifier: string;
@@ -32,7 +32,7 @@ describe('macOS private preview release contract', () => {
     expect(config.bundle.macOS.signingIdentity).toBe('-');
   });
 
-  it('runs on GitHub macOS and keeps the preview out of releases', () => {
+  it('runs on GitHub macOS and keeps automatic GitHub release publishing disabled', () => {
     const workflow = readFileSync(workflowUrl, 'utf8');
     const script = readFileSync(buildScriptUrl, 'utf8');
 

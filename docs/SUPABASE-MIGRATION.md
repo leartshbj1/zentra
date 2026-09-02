@@ -2,9 +2,11 @@
 
 ## État et objectif
 
-Supabase Auth est actif en parallèle sur le site, avec confirmation e-mail et sessions en cookies serveur ; SIWC reste un accès transitoire distinct. Aucun rapprochement n'est fait à partir de l'e-mail seul. Les données de compte et d'archives continuent d'utiliser D1/R2 jusqu'au basculement contrôlé vers Postgres/Storage. Aucune clé, aucun compte fictif et aucune donnée de démonstration ne sont contenus dans ces fichiers.
+Supabase Auth est relié au site, avec confirmation e-mail et sessions en cookies serveur ; SIWC reste un accès transitoire distinct. Aucun rapprochement n'est fait à partir de l'e-mail seul. Les données de compte et d'archives continuent d'utiliser D1/R2 jusqu'au basculement contrôlé vers Postgres/Storage. Aucune clé, aucun compte fictif et aucune donnée de démonstration ne sont contenus dans ces fichiers.
 
-Le projet Supabase actuellement relié à l'environnement de test est hébergé en `us-east-2` (Ohio) sur l'offre gratuite. Il convient pour cette intégration technique, mais son emplacement n'est pas présenté comme suisse ou européen. Avant d'y conserver des archives réelles de clients, Zentra doit faire valider la région, les exigences contractuelles et, si nécessaire, migrer vers un projet dans la région retenue.
+Le 3 septembre 2026, le projet cible `Zentra Zurich` a été créé dans la région Supabase `eu-central-2` (Zurich). Les trois migrations versionnées ont été appliquées : 15 tables Zentra avec RLS, deux tables de rapprochement, neuf fonctions privées, le déclencheur de profil Auth et le bucket privé PDF limité à 12 Mio. L'inventaire de l'ancien projet Ohio était vide : 0 utilisateur, 0 organisation, 0 archive et 0 objet Storage. Aucun compte client ni document n'a donc eu à être transféré. L'ancien projet est conservé temporairement comme possibilité de retour arrière.
+
+L'environnement Sites pointe vers le projet Zurich pour Supabase Auth à partir de la prochaine version déployée. Cette bascule ne déplace pas encore D1/R2 : les métadonnées de compte et les PDF facultatifs restent sur la couche actuelle jusqu'au remplacement des routes serveur décrit dans la matrice de basculement.
 
 Le contrat HTTP de l'application de bureau reste stable (`/api/account/*`, `/api/archive/*`, `/api/stripe/*`). Le serveur pourra ainsi changer de stockage sans obliger les clients à manipuler directement une clé Supabase privilégiée.
 
@@ -21,9 +23,9 @@ Le contrat HTTP de l'application de bureau reste stable (`/api/account/*`, `/api
 
 ## Déploiement sans interruption
 
-1. Créer un projet Supabase dans une région européenne adaptée et appliquer les migrations avec `supabase db push`.
-2. Exécuter `supabase test db`, puis le contrôle statique `node scripts/check-supabase-contract.mjs`.
-3. Configurer Supabase Auth: SMTP de production, confirmation e-mail, PKCE, durée de session et URL de redirection exactes. En production, éviter les jokers; ajouter séparément le domaine Sites actuel et le futur domaine Zentra pendant la transition.
+1. Projet Zurich et migrations SQL : terminé le 3 septembre 2026.
+2. Contrôles de structure, déclencheur Auth et bucket : terminés. Les 44 tests pgTAP RLS passent sur la cible distante puis annulent leurs données de test dans la même transaction; le contrat statique local passe également.
+3. Supabase Auth : URL du site et redirections PKCE exactes configurées, confirmation e-mail active, jeton d'accès de 3 600 s, rotation du refresh token active avec réutilisation de 10 s. L'API Zentra impose en plus un mot de passe de 12 caractères avant l'appel à Supabase. Un SMTP de production reste à fournir avant une ouverture commerciale.
 4. Créer les comptes propriétaires. Importer ensuite abonnements, entreprises et métadonnées dans une transaction. Les anciens identifiants SIWC doivent être placés dans `migration.legacy_identity_links`; ils ne deviennent une identité Supabase qu'après connexion Supabase vérifiée et rapprochement explicite.
 5. Copier chaque objet R2 vers Storage en conservant `object_key`. Vérifier la taille et le SHA-256 avant d'insérer la ligne `invoice_archives` correspondante. Renseigner la fin d'exercice qui a servi au calcul de conservation et vérifier `retention_until = fiscal_year_end + 10 ans`; ne pas déduire la fin d'exercice de la seule date de facture. Bloquer pour reprise manuelle toute archive historique dont cette information ne peut pas être établie. Ne basculer aucune entreprise dont un objet manque ou dont l'empreinte diffère.
 6. Faire tourner les lectures de contrôle en parallèle, puis activer les doubles écritures serveur. Comparer les comptes, abonnements, membres, sessions et chaînes d'archives.

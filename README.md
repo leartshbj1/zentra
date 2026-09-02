@@ -69,20 +69,19 @@ pnpm --dir desktop build:macos
 Le script refuse de produire un lot public sans identité Developer ID,
 identifiants de notarisation Apple et clé privée de signature des mises à jour.
 
-Pour tester Zentra sur un Mac avant d’obtenir le certificat Apple, le workflow
-GitHub Actions **Zentra macOS preview** produit aussi un `.app.zip` et un `.dmg`
-universels signés ad hoc, téléchargeables dans les artefacts privés du run. Ce
-lot ne contient aucun secret, n’alimente pas les mises à jour et n’est jamais
-publié comme release. Gatekeeper peut encore demander une autorisation manuelle
-dans Réglages système > Confidentialité et sécurité :
+Le workflow GitHub Actions **Zentra macOS preview** produit un `.app.zip` et un
+`.dmg` universels signés ad hoc. Le DMG validé est aussi publié sur la page de
+téléchargement Zentra en accès anticipé. Il ne contient aucun secret et
+n’alimente pas encore le canal de mise à jour. Gatekeeper peut demander une
+autorisation manuelle dans Réglages système > Confidentialité et sécurité :
 
 ```bash
 pnpm --dir desktop build:macos:preview
 ```
 
-La signature ad hoc sert uniquement à la recette sur les Mac du propriétaire.
-Une distribution publique fiable exige toujours un Developer ID et la
-notarisation Apple.
+La signature ad hoc permet une installation immédiate, mais n’atteste pas
+l’identité de l’éditeur auprès d’Apple. Une distribution sans étape Gatekeeper
+exige un Developer ID et la notarisation Apple.
 
 Une release publiable avec mise à jour intégrée doit toujours passer par le
 wrapper de signature Tauri/Ed25519 :
@@ -95,10 +94,10 @@ La release embarque la clé publique versionnée dans `desktop/src-tauri/license
 
 ## Livraison et limites de certification
 
-La version `1.19.1` ajoute l’agenda local, l’import contrôlé d’un e-mail fournisseur exporté en `.eml` ou en texte et les fondations du compte d’entreprise multi-utilisateur. L’analyse utilise des règles déterministes locales, sans IA et sans connexion directe à la boîte mail. Elle crée seulement un brouillon : l’utilisateur confirme le fournisseur, l’échéance, la catégorie, le règlement et la comptabilisation. Le build macOS universel produit par GitHub Actions est un aperçu privé signé ad hoc, sans certificat Apple, sans notarisation et sans canal de mise à jour. Il peut donc être bloqué au premier lancement par Gatekeeper. La future diffusion publique nécessitera un certificat Developer ID Application et la notarisation Apple.
+La version `1.19.1` ajoute l’agenda local, l’import contrôlé d’un e-mail fournisseur exporté en `.eml` ou en texte et les fondations du compte d’entreprise multi-utilisateur. L’analyse utilise des règles déterministes locales, sans IA et sans connexion directe à la boîte mail. Elle crée seulement un brouillon : l’utilisateur confirme le fournisseur, l’échéance, la catégorie, le règlement et la comptabilisation. Le build macOS universel produit par GitHub Actions est publié en accès anticipé avec une signature ad hoc, sans certificat Apple, sans notarisation et sans canal de mise à jour. Gatekeeper peut donc demander une autorisation manuelle au premier lancement. Un certificat Developer ID Application et la notarisation Apple supprimeront cette étape supplémentaire.
 
 La version `1.18.0` avait ajouté une checklist de démarrage fondée uniquement sur les objets réellement enregistrés, une clôture comptable et TVA cumulative et un traitement local documenté des salaires de minime importance. Toute date antérieure ou égale à la fin de la dernière clôture définitive est scellée, y compris dans un intervalle qui n'aurait pas été clôturé séparément ; seul un rejeu strictement identique reste permis, tandis qu'une correction doit être postérieure et référencer l'original. Pour la paie, Zentra dérive le cumul annuel local, la base éventuellement à rattraper et conserve la décision, sa date, sa preuve et la trace de calcul ; il distingue le seuil ordinaire de CHF 2'500, l'exception de CHF 750 dans un ménage privé jusqu'à la fin de l'année des 25 ans et les secteurs toujours cotisants. L'exception LAA n'est proposée que si les conditions sont documentées pour tous les salariés concernés de l'année.
 
-Le modèle SmolVLM reste générique, local et soumis à une validation humaine ; il n'est pas présenté comme un moteur suisse certifié. Zentra ne calcule pas encore la QST de manière autonome, ne couvre pas tous les règlements LPP ni toutes les clauses IJM, ne génère ni certificat annuel ni déclaration ELM et ne revendique aucune certification Swissdec, AFC ou Olico. La version publique n’est remplacée qu’après recette de l’installateur et publication explicite. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté. La licence augmente fortement le coût d’un partage ou d’une modification non autorisée, mais aucun logiciel exécuté sur un ordinateur contrôlé par l’utilisateur ne peut être garanti absolument incrackable.
+Le modèle SmolVLM reste générique, local et soumis à une validation humaine ; il n'est pas présenté comme un moteur suisse certifié. Zentra ne calcule pas encore la QST de manière autonome, ne couvre pas tous les règlements LPP ni toutes les clauses IJM, ne génère ni certificat annuel ni déclaration ELM et ne revendique aucune certification Swissdec, AFC ou Olico. La version publique n’est remplacée qu’après recette de l’installateur et publication explicite. Avant une diffusion commerciale générale, signer aussi l’exécutable et l’installateur avec un certificat Authenticode horodaté.
 
 La liaison de licence repose sur un identifiant d’installation aléatoire protégé par Windows DPAPI ou le Trousseau macOS. Elle bloque le partage ordinaire du jeton et détecte les modifications usuelles, mais ce n’est pas une attestation matérielle : un administrateur local très avancé peut encore tenter de cloner cet identifiant ou de modifier le programme. Le durcissement commercial suivant consiste à utiliser une clé de périphérique non exportable TPM/CNG ou Secure Enclave, un défi signé côté serveur et une signature de distribution horodatée.

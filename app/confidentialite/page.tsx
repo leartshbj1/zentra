@@ -28,7 +28,7 @@ const sections = [
   {
     icon: Cloud,
     title: 'Prestataires techniques',
-    text: 'Supabase fournit l’authentification; le projet actuel est en Ohio et une migration contrôlée vers Zurich est en préparation. Stripe traite l’abonnement et sa facturation. Sites exécute le site; D1/R2 hébergent actuellement les métadonnées de compte et les PDF archivés sur demande.',
+    text: 'Supabase fournit l’authentification depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site; D1/R2 restent temporairement utilisés par certaines routes de compte et pour les PDF archivés sur demande.',
   },
 ];
 

@@ -50,4 +50,4 @@ cp "$desktop_root/MACOS_PREVIEW.md" "$artifact_root/LISEZ-MOI-macOS.md"
 )
 
 echo "Aperçu macOS ad hoc prêt dans $artifact_root"
-echo "Ce lot est destiné aux tests privés. Une diffusion publique exige Developer ID et notarisation Apple."
+echo "Ce lot ad hoc peut être diffusé en accès anticipé. Gatekeeper peut demander une validation manuelle tant que Developer ID et notarisation Apple ne sont pas configurés."

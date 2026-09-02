@@ -195,7 +195,7 @@ export default function Home() {
               </a>
             </div>
             <p className="mt-4 text-sm leading-6 text-[#667169]">
-              Démonstration web sans compte · Windows disponible · données
+              Démonstration web sans compte · Windows et macOS en accès anticipé · données
               métier principalement locales
             </p>
           </div>
@@ -206,7 +206,7 @@ export default function Home() {
             <div className="grid gap-px overflow-hidden rounded-2xl border border-[#d9d6cc] bg-[#d9d6cc] sm:grid-cols-2 lg:grid-cols-4">
               {[
                 ['Version', `Zentra ${ZENTRA_VERSION}`],
-                ['Plateforme', 'Windows 10/11 x64'],
+                ['Plateformes', 'Windows · macOS anticipé'],
                 ['Facturation', 'QR-factures suisses'],
                 ['Équipe', 'Accès sans prix par siège'],
               ].map(([label, value]) => (

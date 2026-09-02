@@ -21,7 +21,10 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
-import { DownloadButton } from '@/components/download-button';
+import {
+  DownloadButton,
+  MacDownloadButton,
+} from '@/components/download-button';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import {
@@ -29,22 +32,26 @@ import {
   ZENTRA_INSTALLER_NAME,
   ZENTRA_INSTALLER_SHA256,
   ZENTRA_INSTALLER_SIZE_MIB,
+  ZENTRA_MAC_DMG_CHECKSUM_PATH,
+  ZENTRA_MAC_DMG_NAME,
+  ZENTRA_MAC_DMG_SHA256,
+  ZENTRA_MAC_DMG_SIZE_MIB,
   ZENTRA_VERSION,
 } from '@/lib/downloads';
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: `Télécharger Zentra ${ZENTRA_VERSION} — Windows disponible`,
-  description: `Téléchargez Zentra ${ZENTRA_VERSION} pour Windows x64. Un aperçu macOS universel est compilé en privé sans certificat Apple; la distribution publique attend la signature et la notarisation.`,
+  title: `Télécharger Zentra ${ZENTRA_VERSION} — Windows et macOS`,
+  description: `Téléchargez Zentra ${ZENTRA_VERSION} pour Windows x64 ou macOS universel Intel et Apple Silicon. La version macOS est proposée en accès anticipé avant notarisation Apple.`,
   alternates: { canonical: '/download' },
   openGraph: {
     title: 'Télécharger Zentra',
-    description: `Windows ${ZENTRA_VERSION} disponible; aperçu macOS universel réservé aux tests privés.`,
+    description: `Zentra ${ZENTRA_VERSION} est disponible pour Windows x64 et macOS universel.`,
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
   twitter: {
     title: 'Télécharger Zentra',
-    description: `Windows ${ZENTRA_VERSION} disponible; aperçu macOS universel réservé aux tests privés.`,
+    description: `Zentra ${ZENTRA_VERSION} est disponible pour Windows x64 et macOS universel.`,
     images: ['/og.png'],
   },
 };
@@ -118,7 +125,7 @@ export default function DownloadPage() {
           <div data-reveal="left">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
               <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-              Windows disponible · version {ZENTRA_VERSION}
+              Windows et macOS · version {ZENTRA_VERSION}
             </div>
             <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
               Toute votre entreprise,
@@ -132,13 +139,13 @@ export default function DownloadPage() {
               récurrentes supervisées, fournisseurs, import CAMT, projets,
               heures, salaires et comptabilité&nbsp;: installez Zentra sur votre
               ordinateur et travaillez avec vos propres données dans une
-              interface pensée pour votre activité. Un aperçu macOS universel
-              est construit en privé pour les tests; il n’est pas présenté comme
-              un téléchargement public signé ou notarié.
+              interface pensée pour votre activité. Les versions Windows et
+              macOS universelle Intel/Apple Silicon sont disponibles ci-dessous.
             </p>
 
-            <div className="mt-8">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-start">
               <DownloadButton />
+              <MacDownloadButton />
             </div>
             <a
               href="/features"
@@ -149,10 +156,10 @@ export default function DownloadPage() {
 
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#5d6b63]">
               <span className="inline-flex items-center gap-1.5">
-                <Laptop className="size-3.5" /> Windows 10/11
+                <Laptop className="size-3.5" /> Windows 10/11 · macOS 12+
               </span>
-              <span>64 bits</span>
-              <span>{ZENTRA_INSTALLER_SIZE_MIB} Mio</span>
+              <span>Intel et Apple Silicon</span>
+              <span>{ZENTRA_INSTALLER_SIZE_MIB} Mio / {ZENTRA_MAC_DMG_SIZE_MIB} Mio</span>
               <span>50 CHF / mois</span>
               <span>Fonctions et collaborateurs inclus</span>
             </div>
@@ -309,23 +316,33 @@ export default function DownloadPage() {
               <Laptop className="size-7 text-[#397150]" aria-hidden="true" />
               <div>
                 <h3 className="font-semibold text-[#254333]">
-                  Aperçu macOS universel privé
+                  Zentra pour macOS — accès anticipé
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-[#607068]">
                   GitHub Actions compile un `.app` et un `.dmg` universels Intel
-                  et Apple Silicon avec une signature ad hoc, sans certificat
-                  Apple. Cet artefact sert uniquement aux tests privés :
-                  Gatekeeper peut demander « Ouvrir quand même » dans Réglages
-                  système &gt; Confidentialité et sécurité. La diffusion
-                  publique attendra un Developer ID et la notarisation Apple.
+                  et Apple Silicon avec une signature ad hoc. Vous pouvez le
+                  télécharger maintenant. Au premier lancement, Gatekeeper peut
+                  demander « Ouvrir quand même » dans Réglages système &gt;
+                  Confidentialité et sécurité. La signature Developer ID et la
+                  notarisation Apple viendront simplifier cette étape.
+                </p>
+                <p className="mt-2 break-all text-xs leading-5 text-[#718079]">
+                  {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio · SHA-256 {ZENTRA_MAC_DMG_SHA256}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-[#718079]">
+                  Les nouvelles versions macOS sont, pour le moment,
+                  téléchargées manuellement depuis cette page.
                 </p>
               </div>
-              <a
-                href="mailto:leartshabija@gmail.com?subject=Prévenez-moi%20pour%20Zentra%20macOS"
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#9fb5a5] bg-white px-5 text-center text-sm font-semibold text-[#315f47] sm:w-auto"
-              >
-                Être prévenu du lancement public
-              </a>
+              <div className="grid gap-2">
+                <MacDownloadButton compact />
+                <a
+                  href={ZENTRA_MAC_DMG_CHECKSUM_PATH}
+                  className="text-center text-xs font-semibold text-[#315f47] underline underline-offset-4"
+                >
+                  Vérifier l’empreinte
+                </a>
+              </div>
             </div>
           </div>
         </section>

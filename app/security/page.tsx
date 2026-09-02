@@ -237,11 +237,11 @@ export default function SecurityPage() {
                 {[
                   [
                     'Supabase',
-                    'Authentification du compte. Le projet actuel est en Ohio; une migration contrôlée vers la région Supabase de Zurich est en préparation.',
+                    'Authentification du compte sur un projet Supabase créé dans la région Zurich (eu-central-2). Le schéma Postgres et le coffre privé Zentra y sont préparés.',
                   ],
                   [
                     'D1 / R2',
-                    'Métadonnées de compte et PDF archivés sur demande pendant la migration serveur. La base métier locale n’y est pas synchronisée.',
+                    'Couche encore utilisée par certaines routes de compte et d’archivage pendant leur remplacement progressif. La base métier locale n’y est pas synchronisée.',
                   ],
                   [
                     'Stripe',
@@ -263,10 +263,11 @@ export default function SecurityPage() {
               </div>
             </div>
             <div className="mt-5 rounded-[1.4rem] border border-[#d9d4c9] bg-[#f0eee8] p-5 text-sm leading-6 text-[#626c65]">
-              Le basculement de la couche compte/archives vers Supabase est en
-              cours. L’authentification est reliée; le passage complet à Zurich
-              sera effectué après copie et contrôle des comptes, des règles et
-              du coffre, sans interrompre le projet actuel avant validation.
+              L’authentification Supabase est reliée à Zurich. Le schéma, les
+              règles d’accès et le coffre cible y sont prêts. Les API de compte
+              et d’archives utilisent encore temporairement leur couche actuelle
+              jusqu’à leur remplacement complet; les données métier principales
+              restent locales dans l’application.
             </div>
           </div>
         </section>
@@ -287,8 +288,8 @@ export default function SecurityPage() {
                 Les mises à jour intégrées vérifient une signature de paquet.
                 L’installateur Windows public n’est pas encore signé avec un
                 certificat Authenticode et peut afficher « éditeur inconnu ». Le
-                build macOS est un aperçu privé signé ad hoc, sans notarisation
-                Apple ni canal de mise à jour public.
+                build macOS est disponible en accès anticipé avec une signature
+                ad hoc, sans notarisation Apple ni canal de mise à jour public.
               </p>
               <a
                 href="/download"
@@ -305,8 +306,8 @@ export default function SecurityPage() {
               </h2>
               <ul className="mt-5 grid gap-3 text-sm leading-6 text-white/72">
                 <li>Distribution Windows avec mise à jour signée; certificat Authenticode à venir.</li>
-                <li>Aperçu macOS privé; signature Developer ID et notarisation à venir.</li>
-                <li>Migration Supabase vers Zurich préparée séparément du projet actif.</li>
+                <li>macOS disponible en accès anticipé; signature Developer ID et notarisation à venir.</li>
+                <li>Authentification Supabase reliée à la région Zurich; API compte/archives en transition.</li>
                 <li>La validation Swissdec, AFC ou Olico reste un processus distinct.</li>
               </ul>
             </article>

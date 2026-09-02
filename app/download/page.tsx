@@ -4,12 +4,12 @@ import { ZENTRA_VERSION } from '@/lib/downloads';
 
 export const metadata: Metadata = {
   title: `Télécharger Zentra ${ZENTRA_VERSION}`,
-  description: `Téléchargez Zentra ${ZENTRA_VERSION} pour Windows x64 et consultez le statut réel de l’aperçu macOS universel.`,
+  description: `Téléchargez Zentra ${ZENTRA_VERSION} pour Windows x64 ou macOS universel Intel et Apple Silicon.`,
   alternates: { canonical: '/download' },
   openGraph: {
     title: `Télécharger Zentra ${ZENTRA_VERSION}`,
     description:
-      'Application Windows disponible et aperçu macOS privé en attente de signature Developer ID et de notarisation.',
+      'Applications Windows et macOS disponibles. La version macOS est proposée en accès anticipé avant notarisation Apple.',
     url: '/download',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
