@@ -33,4 +33,18 @@ describe('fenêtre desktop responsive', () => {
     expect(source).toContain('aria-label="Fermer la navigation"');
     expect(source).toContain('title="Fermer la navigation"');
   });
+
+  it('garde la checklist de démarrage lisible et calme dans une fenêtre étroite', () => {
+    const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+
+    expect(css).toMatch(
+      /@media \(max-width: 860px\)[\s\S]*?\.getting-started__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 620px\)[\s\S]*?\.getting-started__next \.button\s*\{[\s\S]*?width:\s*100%;/,
+    );
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.panel\.getting-started,[\s\S]*?animation:\s*none !important;/,
+    );
+  });
 });

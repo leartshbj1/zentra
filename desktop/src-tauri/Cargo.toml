@@ -1,6 +1,6 @@
 [package]
 name = "helvichantier"
-version = "1.17.0"
+version = "1.18.0"
 description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows"
 authors = ["Zentra"]
 edition = "2021"
@@ -33,7 +33,7 @@ qrcode = { version = "0.14", default-features = false }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream", "system-proxy"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
-rusqlite = { version = "0.32", features = ["backup", "bundled"] }
+rusqlite = { version = "0.32", features = ["backup", "bundled", "functions"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

@@ -3,6 +3,7 @@ import {
   assessSwissFederalProfile,
   assessSwissLppEligibility,
   assessSwissPayrollEligibility,
+  assessSwissSmallSalaryEligibility,
 } from './payrollEligibility';
 import type {
   AppSettings,
@@ -546,6 +547,256 @@ describe('miroir LPP 2026', () => {
     expect(result.warnings.join(' ')).not.toContain('2’500');
     expect(result.facts.map((fact) => fact.label)).not.toContain(
       'Salaire annualisé',
+    );
+  });
+});
+
+describe('salaires de minime importance', () => {
+  const employee = {
+    id: 'minor-salary-employee',
+    name: 'Petit salaire',
+    birthDate: '1990-06-15',
+    smallSalaryAssessmentYear: 2026,
+    smallSalarySector: 'ordinary',
+    smallSalaryEmployeeRequestedContributions: false,
+    smallSalaryDecisionDate: '2026-01-05',
+    smallSalaryOpeningGrossCents: 0,
+    smallSalaryOpeningContributedBasisCents: 0,
+    smallSalaryEvidenceReference: 'Décision signée 2026',
+  } as Employee;
+
+  it('applique la dispense ordinaire jusqu’à CHF 2’500 sans demande', () => {
+    const result = assessSwissSmallSalaryEligibility({
+      employee,
+      assessmentYear: 2026,
+      currentGrossCents: 50_000,
+      recordedGrossBeforePeriodCents: 199_999,
+      contributionDate: '2026-06-30',
+      avsDefinitionsSelected: false,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(result.contributionsDue).toBe(false);
+    expect(result.cumulativeGrossCents).toBe(249_999);
+    expect(result.blockers).toEqual([]);
+  });
+
+  it('annonce le rattrapage sur le total au franchissement du seuil', () => {
+    const result = assessSwissSmallSalaryEligibility({
+      employee,
+      assessmentYear: 2026,
+      currentGrossCents: 50_001,
+      recordedGrossBeforePeriodCents: 200_000,
+      contributionDate: '2026-06-30',
+      avsDefinitionsSelected: false,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(result.contributionsDue).toBe(true);
+    expect(result.blockers.join(' ')).toContain('profil fédéral complet');
+    expect(result.warnings.join(' ')).toContain('salaire annuel total');
+  });
+
+  it('conserve l’exception ménage pendant toute l’année des 25 ans', () => {
+    const stillYouth = assessSwissSmallSalaryEligibility({
+      employee: {
+        ...employee,
+        birthDate: '2001-01-01',
+        smallSalarySector: 'private_household',
+      },
+      assessmentYear: 2026,
+      currentGrossCents: 75_000,
+      recordedGrossBeforePeriodCents: 0,
+      contributionDate: '2026-06-30',
+      avsDefinitionsSelected: false,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(stillYouth.contributionsDue).toBe(false);
+    expect(stillYouth.thresholdCents).toBe(75_000);
+
+    const afterYouthYear = assessSwissSmallSalaryEligibility({
+      employee: {
+        ...employee,
+        birthDate: '2000-12-31',
+        smallSalarySector: 'private_household',
+      },
+      assessmentYear: 2026,
+      currentGrossCents: 1,
+      recordedGrossBeforePeriodCents: 0,
+      contributionDate: '2026-06-30',
+      avsDefinitionsSelected: true,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(afterYouthYear.contributionsDue).toBe(true);
+  });
+
+  it('impose les cotisations dès le premier franc dans les arts et la culture', () => {
+    const result = assessSwissSmallSalaryEligibility({
+      employee: { ...employee, smallSalarySector: 'arts_culture' },
+      assessmentYear: 2026,
+      currentGrossCents: 1,
+      recordedGrossBeforePeriodCents: 0,
+      contributionDate: '2026-06-30',
+      avsDefinitionsSelected: true,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(result.contributionsDue).toBe(true);
+    expect(result.decision).toContain('premier franc');
+  });
+
+  it('explique la portée prospective d’une demande tardive', () => {
+    const requestedEmployee = {
+        ...employee,
+        smallSalaryEmployeeRequestedContributions: true,
+        smallSalaryDecisionDate: '2026-06-30',
+      } as Employee;
+    const beforeDecision = assessSwissSmallSalaryEligibility({
+      employee: requestedEmployee,
+      assessmentYear: 2026,
+      currentGrossCents: 10_000,
+      recordedGrossBeforePeriodCents: 50_000,
+      contributionDate: '2026-05-31',
+      avsDefinitionsSelected: false,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(beforeDecision.contributionsDue).toBe(false);
+
+    const result = assessSwissSmallSalaryEligibility({
+      employee: requestedEmployee,
+      assessmentYear: 2026,
+      currentGrossCents: 10_000,
+      recordedGrossBeforePeriodCents: 50_000,
+      contributionDate: '2026-07-31',
+      avsDefinitionsSelected: true,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: false,
+    });
+    expect(result.warnings.join(' ')).toContain('prospectivement');
+    expect(result.warnings.join(' ')).toContain('dépassement ultérieur');
+  });
+
+  it('refuse de cumuler la dispense et la franchise après l’âge de référence', () => {
+    const result = assessSwissSmallSalaryEligibility({
+      employee,
+      assessmentYear: 2026,
+      currentGrossCents: 10_000,
+      recordedGrossBeforePeriodCents: 0,
+      contributionDate: '2026-06-30',
+      avsDefinitionsSelected: false,
+      statutoryAvsLiable: true,
+      retiredAllowanceKept: true,
+    });
+    expect(result.blockers.join(' ')).toContain('ne peut pas être cumulée');
+  });
+
+  it('ne bloque pas la décision absente avant le début de l’obligation AVS', () => {
+    const underage = {
+      ...employee,
+      birthDate: '2010-01-01',
+      smallSalaryAssessmentYear: null,
+      smallSalarySector: null,
+      smallSalaryEmployeeRequestedContributions: null,
+      smallSalaryDecisionDate: '',
+      smallSalaryOpeningGrossCents: null,
+      smallSalaryOpeningContributedBasisCents: null,
+      smallSalaryEvidenceReference: '',
+      employmentStart: '2026-01-01',
+      contractualWeeklyMinutes: 200,
+    } as Employee;
+    const result = assessSwissPayrollEligibility({
+      employee: underage,
+      settings: {
+        payroll: {
+          avsFund: 'Caisse',
+          accidentInsurer: 'Assureur',
+          pensionFund: '',
+          dailyAllowanceInsurer: '',
+          familyAllowanceFund: '',
+        },
+      } as AppSettings,
+      period: '2026-01',
+      grossCents: 20_000,
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.blockers.join(' ')).not.toContain(
+      'Configurez la décision annuelle « salaire de minime importance »',
+    );
+  });
+
+  it('autorise l’absence d’AAP quand l’exception LAA est structurée', () => {
+    const result = assessSwissPayrollEligibility({
+      employee: {
+        ...employee,
+        employmentStart: '2026-01-01',
+        contractualWeeklyMinutes: 200,
+      } as Employee,
+      settings: {
+        payroll: {
+          avsFund: 'Caisse',
+          accidentInsurer: 'Assureur',
+          pensionFund: '',
+          dailyAllowanceInsurer: '',
+          familyAllowanceFund: '',
+          laaSmallSalaryException: {
+            enabled: true,
+            assessmentYear: 2026,
+            evidenceReference: 'Contrôle annuel signé LAA-2026',
+            confirmedAllEmployeesOnlyMinorSalaries: true,
+          },
+        },
+      } as AppSettings,
+      period: '2026-02',
+      grossCents: 20_000,
+      definitions: [],
+      selectedIds: new Set(),
+    });
+    expect(result.blockers.join(' ')).not.toContain(
+      'prime accidents professionnels AAP doit être configurée',
+    );
+    expect(result.warnings.join(' ')).toContain(
+      'tous les salariés concernés pendant l’année',
+    );
+    const laaFact = result.facts.find(
+      (fact) => fact.label === 'Exception LAA entreprise',
+    );
+    expect(laaFact?.value).toContain(
+      'contrôle global au moment de valider',
+    );
+    expect(laaFact?.value.toLowerCase()).not.toContain('prête');
+
+    const withRealCoverage = assessSwissPayrollEligibility({
+      employee: {
+        ...employee,
+        employmentStart: '2026-01-01',
+        contractualWeeklyMinutes: 200,
+      } as Employee,
+      settings: {
+        payroll: {
+          avsFund: 'Caisse',
+          accidentInsurer: 'Assureur',
+          pensionFund: '',
+          dailyAllowanceInsurer: '',
+          familyAllowanceFund: '',
+          laaSmallSalaryException: {
+            enabled: true,
+            assessmentYear: 2026,
+            evidenceReference: 'Contrôle annuel signé LAA-2026',
+            confirmedAllEmployeesOnlyMinorSalaries: true,
+          },
+        },
+      } as AppSettings,
+      period: '2026-02',
+      grossCents: 20_000,
+      definitions: [aap],
+      selectedIds: new Set([aap.id]),
+    });
+    expect(withRealCoverage.blockers.join(' ')).not.toContain(
+      'AAP est sélectionnée alors que l’exception',
     );
   });
 });

@@ -506,6 +506,13 @@ mod tests {
                     "ac_opening_basis_cents":0,
                     "laa_opening_year":2026,
                     "laa_opening_basis_cents":0,
+                    "small_salary_assessment_year":2026,
+                    "small_salary_decision_date":"2026-01-01",
+                    "small_salary_sector":"ordinary",
+                    "small_salary_employee_requested_contributions":false,
+                    "small_salary_opening_gross_cents":0,
+                    "small_salary_opening_contributed_basis_cents":0,
+                    "small_salary_evidence_reference":"Décision annuelle test 2026",
                     "lpp_assessment_year":2026,
                     "lpp_annual_salary_cents":0
                 }),
@@ -1043,7 +1050,15 @@ mod tests {
             .unwrap();
         let employee_id = value_id(
             &store
-                .create_record("employees", json!({"name":"Employé garde-fou"}))
+                .create_record(
+                    "employees",
+                    json!({
+                        "name":"Employé garde-fou",
+                        // Né en 2009 : aucune trace AVS de petit salaire n'est
+                        // requise pour la période 2026 de ce test comptable.
+                        "birth_date":"2009-01-01"
+                    }),
+                )
                 .unwrap(),
         );
         let mut connection = store.connect().unwrap();
@@ -1609,7 +1624,12 @@ mod tests {
         let connection = rusqlite::Connection::open(&database_path).unwrap();
         connection.execute_batch(SCHEMA_SQL).unwrap();
         connection.execute_batch(
-            "INSERT INTO employees(id,name,created_at,updated_at) VALUES('employee-v12','Employé v12','2026-01-01','2026-01-01');
+            "DROP TRIGGER IF EXISTS payslips_small_salary_posted_trace_insert_guard;
+             DROP TRIGGER IF EXISTS payslips_small_salary_posted_trace_update_guard;
+             DROP TRIGGER IF EXISTS payslips_later_posted_insert_guard;
+             DROP TRIGGER IF EXISTS payslips_later_posted_update_guard;
+             DROP TRIGGER IF EXISTS payslips_later_posted_delete_guard;
+             INSERT INTO employees(id,name,created_at,updated_at) VALUES('employee-v12','Employé v12','2026-01-01','2026-01-01');
              INSERT INTO journal_entries(id,number,entry_date,description,source_type,source_id,source_event,status,created_at)
                VALUES('journal-payment-a','J-2026-000001','2026-09-02','Paiement salaire','payslip','payslip-a','payment','posted','2026-09-02');
              INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,payment_journal_entry_id,created_at,updated_at)
@@ -3593,6 +3613,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             }],
         };
 
+        // Cette facture est validée avant la clôture afin de vérifier ensuite
+        // qu'un paiement rétroactif est refusé sans rendre le document source
+        // artificiellement impossible à valider sous la borne cumulative.
+        let september_id = "2575f352-bfce-4c63-8745-995a4e0bd15a";
+        store
+            .save_supplier_invoice_draft(make_input(september_id, "2026-09-10", "SEP-1"))
+            .unwrap();
+        store.validate_supplier_invoice(september_id).unwrap();
+
         let october_id = "64bb3e84-fd2f-4d8b-843d-50ee8fd67791";
         store
             .save_supplier_invoice_draft(make_input(october_id, "2026-10-10", "OCT-1"))
@@ -3620,11 +3649,6 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(october_state, ("draft".into(), 0));
         drop(connection);
 
-        let september_id = "2575f352-bfce-4c63-8745-995a4e0bd15a";
-        store
-            .save_supplier_invoice_draft(make_input(september_id, "2026-09-10", "SEP-1"))
-            .unwrap();
-        store.validate_supplier_invoice(september_id).unwrap();
         assert!(store
             .record_supplier_payment(RecordSupplierPaymentInput {
                 request_id: "6264e3cc-5b95-4bd1-b50a-9552361a158f".into(),
@@ -7464,7 +7488,20 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             &store
                 .create_record(
                     "employees",
-                    json!({"name":"Employé cotisations","birth_date":"1990-05-01","employment_start_date":"2026-01-01","ac_opening_year":2026,"ac_opening_basis_cents":14_700_000}),
+                    json!({
+                        "name":"Employé cotisations",
+                        "birth_date":"1990-05-01",
+                        "employment_start_date":"2026-01-01",
+                        "ac_opening_year":2026,
+                        "ac_opening_basis_cents":14_700_000,
+                        "small_salary_assessment_year":2026,
+                        "small_salary_decision_date":"2026-01-01",
+                        "small_salary_sector":"ordinary",
+                        "small_salary_employee_requested_contributions":false,
+                        "small_salary_opening_gross_cents":0,
+                        "small_salary_opening_contributed_basis_cents":0,
+                        "small_salary_evidence_reference":"Décision annuelle test 2026"
+                    }),
                 )
                 .unwrap(),
         );
@@ -7561,7 +7598,14 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         "employment_start_date":"2026-04-15",
                         "employment_end_date":"2026-12-29",
                         "ac_opening_year":2026,
-                        "ac_opening_basis_cents":10_000_000
+                        "ac_opening_basis_cents":10_000_000,
+                        "small_salary_assessment_year":2026,
+                        "small_salary_decision_date":"2026-01-01",
+                        "small_salary_sector":"ordinary",
+                        "small_salary_employee_requested_contributions":false,
+                        "small_salary_opening_gross_cents":0,
+                        "small_salary_opening_contributed_basis_cents":0,
+                        "small_salary_evidence_reference":"Décision annuelle test 2026"
                     }),
                 )
                 .unwrap(),
@@ -7669,7 +7713,14 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         "birth_date":"1950-01-01",
                         "employment_start_date":"2020-01-01",
                         "reference_age_date":"2015-01-01",
-                        "avs_allowance_waived":false
+                        "avs_allowance_waived":false,
+                        "small_salary_assessment_year":2026,
+                        "small_salary_decision_date":"2026-01-01",
+                        "small_salary_sector":"ordinary",
+                        "small_salary_employee_requested_contributions":false,
+                        "small_salary_opening_gross_cents":0,
+                        "small_salary_opening_contributed_basis_cents":0,
+                        "small_salary_evidence_reference":"Décision annuelle test 2026"
                     }),
                 )
                 .unwrap(),
@@ -7777,7 +7828,14 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         "birth_date":"1990-01-01",
                         "employment_start_date":"2026-01-01",
                         "ac_opening_year":2026,
-                        "ac_opening_basis_cents":1_000_000
+                        "ac_opening_basis_cents":1_000_000,
+                        "small_salary_assessment_year":2026,
+                        "small_salary_decision_date":"2026-01-01",
+                        "small_salary_sector":"ordinary",
+                        "small_salary_employee_requested_contributions":false,
+                        "small_salary_opening_gross_cents":0,
+                        "small_salary_opening_contributed_basis_cents":0,
+                        "small_salary_evidence_reference":"Décision annuelle test 2026"
                     }),
                 )
                 .unwrap(),
@@ -9428,7 +9486,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .save_supplier_order_draft(order_input(
                 direct_order_id,
                 direct_line_id,
-                "2026-09-01",
+                "2026-11-01",
                 "direct",
             ))
             .unwrap();
@@ -9445,8 +9503,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 id: Some(invoice_id.into()),
                 supplier_id: supplier_id.clone(),
                 project_id: None,
-                date: "2026-09-02".into(),
-                due_date: "2026-09-30".into(),
+                date: "2026-11-02".into(),
+                due_date: "2026-11-30".into(),
                 reference: Some("TAMPER-1".into()),
                 note: None,
                 items: vec![SupplierInvoiceLineInput {
@@ -9466,7 +9524,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let connection = store.connect().unwrap();
         assert!(connection.execute(
             "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,direct_order_id,direct_line_id,1_000,499,0,499,"2026-09-02T00:00:00Z"],
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,direct_order_id,direct_line_id,1_000,499,0,499,"2026-11-02T00:00:00Z"],
         ).is_err(), "un montant rapproché falsifié doit échouer");
         drop(connection);
         store
@@ -9502,7 +9560,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let fake_tx = fake_connection.transaction().unwrap();
         let fake_journal = crate::accounting::post_entry(
             &fake_tx,
-            "2026-09-04",
+            "2026-11-04",
             "Écriture de reclassement falsifiée",
             "supplier_expense_reclassification",
             &fake_reclassification_id,
@@ -9533,7 +9591,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         .unwrap();
         fake_tx.execute(
             "INSERT INTO supplier_expense_reclassifications(id,request_id,supplier_invoice_id,effective_date,reason,journal_entry_id,created_at) VALUES(?,?,?,?,?,?,?)",
-            rusqlite::params![fake_reclassification_id,uuid::Uuid::new_v4().to_string(),invoice_id,"2026-09-04","faux reclassement",fake_journal["id"].as_str().unwrap(),"2026-09-04T00:00:00Z"],
+            rusqlite::params![fake_reclassification_id,uuid::Uuid::new_v4().to_string(),invoice_id,"2026-11-04","faux reclassement",fake_journal["id"].as_str().unwrap(),"2026-11-04T00:00:00Z"],
         ).unwrap();
         assert!(fake_tx.execute(
             "INSERT INTO supplier_expense_reclassification_lines(id,reclassification_id,supplier_invoice_item_id,old_expense_account_id,new_expense_account_id,amount_cents,created_at) VALUES(?,?,?,?,?,?,?)",
@@ -9573,7 +9631,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .save_supplier_order_draft(order_input(
                 reverse_order_id,
                 reverse_line_id,
-                "2026-09-01",
+                "2026-11-01",
                 "stocked_receipt",
             ))
             .unwrap();
@@ -9588,7 +9646,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 receipt: SupplierReceiptDraftInput {
                     id: Some("a1e06df4-6616-44f9-b116-ecf286592f8e".into()),
                     supplier_order_id: reverse_order_id.into(),
-                    receipt_date: "2026-09-05".into(),
+                    receipt_date: "2026-11-05".into(),
                     reference: None,
                     notes: None,
                 },
@@ -9608,17 +9666,17 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 supplier_receipt_id: reverse_receipt_id.clone(),
             })
             .unwrap();
-        let september_period = value_id(
+        let november_period = value_id(
             &store
                 .upsert_accounting_period(AccountingPeriodInput {
                     id: None,
-                    name: "Septembre achats".into(),
-                    date_from: "2026-09-01".into(),
-                    date_to: "2026-09-30".into(),
+                    name: "Novembre achats".into(),
+                    date_from: "2026-11-01".into(),
+                    date_to: "2026-11-30".into(),
                 })
                 .unwrap(),
         );
-        store.close_accounting_period(&september_period).unwrap();
+        store.close_accounting_period(&november_period).unwrap();
         assert!(store
             .reverse_supplier_receipt(ReverseSupplierReceiptInput {
                 request_id: uuid::Uuid::new_v4().to_string(),

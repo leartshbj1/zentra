@@ -1,6 +1,6 @@
 # Benchmark fonctionnel Bexio → Zentra
 
-État de la recherche : 1er septembre 2026. Sources Bexio officielles uniquement.
+État de la recherche : 2 septembre 2026. Sources Bexio officielles uniquement. La colonne Zentra décrit la future source 1.18.0, sans publication annoncée.
 
 Ce document sert de référence produit. Il ne s'agit ni de copier l'interface de
 Bexio, ni de promettre des services qui exigent une certification ou un
@@ -16,16 +16,16 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Zentra 1.17 source | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Future Zentra 1.18.0 source | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; PDF A4 natifs devis/factures, QR vectoriel, avoirs et relances locales ; identité, logo et montants figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
 | Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement multi-commandes → paiement et comptabilité ; tolérance contrôlée globalement et ventilations existantes protégées ; avoir distinct validable et imputable à une facture | OCR des achats | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
-| Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, contrôle des sources, paiement client relié à une écriture active avec chaîne d’extournes vérifiée, aperçu du décompte et XML eCH-0217 v2.0.0 local ; pré-clôture vérifiable et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
+| Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, paiement client relié à une écriture active, aperçu du décompte et XML eCH-0217 v2.0.0 local ; clôture cumulative scellant toute date ≤ dernière clôture, replays strictement identiques permis, corrections postérieures référencées et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
 | Catalogue/stock | produits/services, seuils, commandes, réservations, réceptions | catalogue, registre immuable, réservation de vente, sortie sur BL et entrée uniquement à l'émission d'une réception fournisseur ; l'extourne de réception crée le mouvement inverse | emplacements et inventaires guidés | P1 |
-| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF A4 professionnel, écritures et analyse SmolVLM générique locale multipage à double lecture ; corroboration déterministe du texte PDF, manifeste d'audit v2, hash, provenance par occurrence, détection de doublons et validation humaine ; date de paiement et arrondi CHF 0.05 ; contrôles LPP 2026 et AAP/AANP/CAF documentés avec cumul LAA local dérivé | QST autonome, LPP multiannuelle complète, IJM structurée, Swissdec/ELM, certificats annuels et certification externe | P0 conformité — en cours |
+| Paie | paie complète, barèmes source, assurances, Swissdec/ELM, certificats | moteur local versionné, PDF A4 professionnel, écritures et analyse SmolVLM générique locale multipage ; manifeste d'audit v2 et validation humaine ; contrôles LPP 2026, AAP/AANP/CAF et cumul LAA dérivé ; salaires minimes 1.18 avec seuil ordinaire CHF 2'500, exception ménage jeune CHF 750, secteurs obligatoires, demande prospective, rattrapage et trace locale probante | QST autonome, LPP multiannuelle complète, IJM structurée, Swissdec/ELM, certificats annuels et certification externe | P0 conformité — en cours |
 | Documents | archive Olico, intégrité, recherche et droits | pièces hashées, documents émis figés, sauvegardes et dossier de clôture avec manifeste et empreintes SHA-256 | politique de conservation guidée, rôles et export chiffré | P1 conformité |
 | Mobile | contacts, ventes, reçus et temps | site commercial mobile; application Windows | compagnon terrain ciblé avec synchronisation volontaire | P1 |
 | Intégrations | API OAuth, Marketplace et Zapier | aucune API métier publique | contrat local versionné après stabilisation du modèle | P2 |
@@ -74,8 +74,15 @@ présenter une prochaine action claire et garder chaque transformation traçable
    l'ouverture annuelle et des fiches antérieures ; paiement
    client daté, borné au solde d'une facture active et relié à une écriture
    comptable contrôlée.
-10. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
-   fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
+10. **Guider et sceller sans données fictives — prévu dans la source 1.18.0** :
+    checklist de première utilisation calculée depuis six preuves métier réelles ;
+    clôture comptable et TVA cumulative, avec rejeu idempotent strict et
+    corrections postérieures référencées ; régime suisse des salaires de minime
+    importance dérivé des cumuls locaux, avec décision, preuve et trace annuelle,
+    rattrapage lors du franchissement du seuil et exception LAA conditionnée à
+    tous les salariés concernés de l'année.
+11. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
+    fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer
 
@@ -114,13 +121,21 @@ présenter une prochaine action claire et garder chaque transformation traçable
   message ne part seul.
 - La date de paiement sélectionne la fenêtre de validité des cotisations et les
   cotisations calculées par taux sont arrondies commercialement au CHF 0.05.
-  Les gardes 2026 vérifient les paramètres AAP/AANP/CAF saisis et le cumul LAA,
-  mais ne remplacent pas une décision de l'assureur, de la caisse ou de la
-  fiduciaire. Zentra ne calcule pas encore la QST de manière autonome, ne couvre
-  pas tous les règlements LPP ni les clauses IJM, ne produit pas le certificat
-  annuel, ne génère ni ne transmet de déclaration ELM et n'est pas certifié
-  Swissdec. Ces aides ne constituent ni une validation de conformité globale,
-  ni une certification.
+  Les gardes 2026 vérifient les paramètres AAP/AANP/CAF, le cumul LAA et le
+  régime documenté des salaires minimes. Le seuil ordinaire est CHF 2'500 ;
+  dans un ménage privé, l'exception de CHF 750 ne vaut que jusqu'à la fin de
+  l'année des 25 ans, tandis que les autres emplois de ménage et les activités
+  artistiques/culturelles visées sont cotisants. La demande de cotiser est
+  prospective et un franchissement de seuil entraîne un rattrapage dérivé des
+  bases locales. Hors secteurs obligatoirement cotisants, l'exception LAA n'est
+  retenue que si tous les salariés concernés pendant l'année remplissent les
+  conditions et si la preuve annuelle est conservée. Ces contrôles ne remplacent
+  pas une décision de l'assureur, de la caisse ou de la fiduciaire. Zentra ne
+  calcule pas encore la QST de manière
+  autonome, ne couvre pas tous les règlements LPP ni les clauses IJM, ne produit
+  pas le certificat annuel, ne génère ni ne transmet de déclaration ELM et
+  n'est pas certifié Swissdec. Ces aides ne constituent ni une validation de
+  conformité globale, ni une certification.
 - Une planification récurrente ne fonctionne que lorsque l'application Windows
   est ouverte. Elle crée des brouillons à contrôler et ne constitue ni un
   service cloud d'envoi, ni une émission ou comptabilisation automatique.
@@ -135,6 +150,10 @@ présenter une prochaine action claire et garder chaque transformation traçable
 - Le statut FINAL indique qu'une période locale a été verrouillée après une
   revue portant sur la même empreinte. Il ne signifie pas que la fiduciaire,
   l'AFC ou une autre autorité a validé les comptes.
+- La protection 1.18 est cumulative : une clôture plus récente scelle aussi les
+  dates antérieures non couvertes par une clôture distincte. Le rejeu autorisé
+  doit être strictement identique ; toute mutation historique est refusée et
+  toute correction réelle doit être postérieure à la borne et liée à l'original.
 
 ## Sources officielles
 
@@ -150,6 +169,7 @@ présenter une prochaine action claire et garder chaque transformation traçable
 - [Gestion de projet](https://www.bexio.com/fr-CH/logiciel-de-gestion-projet)
 - [Gestion des stocks](https://www.bexio.com/fr-CH/gestion-des-stocks-pme)
 - [Comptabilité salariale](https://www.bexio.com/fr-CH/comptabilite-salaire)
+- [AVS/AI — mémento 2.04, cotisations sur les salaires minimes](https://www.ahv-iv.ch/Portals/0/Documents/Merkblaetter/Gruppe_2/2.04_f.pdf)
 - [Bexio Go](https://www.bexio.com/fr-CH/bexiogo?wizard=true)
 - [Documentation API](https://docs.bexio.com/)
 - [AFC — Taux de la TVA suisse](https://www.estv.admin.ch/fr/taux-de-la-tva-suisse)

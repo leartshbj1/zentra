@@ -113,6 +113,23 @@ impl LocalStore {
                 "Une période clôturée est irréversible.".into(),
             ));
         }
+        if let Some(closed_through) = closed_accounting_through(&tx)? {
+            let requested_from = chrono::NaiveDate::parse_from_str(&input.date_from, "%Y-%m-%d")
+                .map_err(|_| {
+                    AppError::Validation("date_from doit être au format AAAA-MM-JJ.".into())
+                })?;
+            let closed_through_date =
+                chrono::NaiveDate::parse_from_str(&closed_through, "%Y-%m-%d").map_err(|_| {
+                    AppError::Validation(
+                        "La frontière de clôture enregistrée dans la base est invalide.".into(),
+                    )
+                })?;
+            if requested_from <= closed_through_date {
+                return Err(AppError::Validation(format!(
+                "La comptabilité est clôturée cumulativement jusqu'au {closed_through}. Une nouvelle période doit commencer après cette date."
+                )));
+            }
+        }
         let overlap:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM accounting_periods WHERE id<>? AND NOT(date_to<? OR date_from>?))",params![id,input.date_from,input.date_to],|r|r.get(0))?;
         if overlap {
             return Err(AppError::Validation(
@@ -143,9 +160,6 @@ impl LocalStore {
         if period["status"] == "closed" {
             return Ok(period);
         }
-        let date_from = period["date_from"].as_str().ok_or_else(|| {
-            AppError::Validation("La période n'a pas de date de début valide.".into())
-        })?;
         let date_to = period["date_to"].as_str().ok_or_else(|| {
             AppError::Validation("La période n'a pas de date de fin valide.".into())
         })?;
@@ -162,16 +176,16 @@ impl LocalStore {
             )));
         }
         let incomplete_sources =
-            financial_sources_without_effective_posting_in_range(&tx, date_from, date_to)?;
+            financial_sources_without_effective_posting_in_range(&tx, "0001-01-01", date_to)?;
         if incomplete_sources != 0 {
             return Err(AppError::Validation(format!(
-                "La clôture est bloquée : {incomplete_sources} opération(s) financière(s) de cette période n'ont pas une écriture comptable active et traçable. Activez ou corrigez la comptabilité, puis relancez le contrôle."
+                "La clôture cumulative est bloquée : {incomplete_sources} opération(s) financière(s) antérieure(s) ou comprise(s) dans cette période n'ont pas une écriture comptable active et traçable. Activez ou corrigez la comptabilité, puis relancez le contrôle."
             )));
         }
-        let unbalanced:i64=tx.query_row("SELECT COUNT(*) FROM (SELECT je.id FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id WHERE je.entry_date BETWEEN ? AND ? GROUP BY je.id HAVING SUM(jl.debit_cents)<>SUM(jl.credit_cents))",params![period["date_from"].as_str(),period["date_to"].as_str()],|r|r.get(0))?;
+        let unbalanced:i64=tx.query_row("SELECT COUNT(*) FROM (SELECT je.id FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id WHERE je.entry_date BETWEEN '0001-01-01' AND ? GROUP BY je.id HAVING SUM(jl.debit_cents)<>SUM(jl.credit_cents))",params![date_to],|r|r.get(0))?;
         if unbalanced != 0 {
             return Err(AppError::Validation(
-                "La période contient des écritures déséquilibrées.".into(),
+                "L'historique cumulatif à clôturer contient des écritures déséquilibrées.".into(),
             ));
         }
         // The balance sheet produced for the closing date is cumulative. Refuse the close if any
@@ -181,6 +195,7 @@ impl LocalStore {
             &tx,
             &[("0001-01-01", date_to)],
         )?;
+        crate::vat_reporting::ensure_vat_sources_classified_through(&tx, date_to)?;
         let now = now_iso();
         tx.execute(
             "UPDATE accounting_periods SET status='closed',closed_at=?,updated_at=? WHERE id=?",
@@ -3336,22 +3351,43 @@ fn currency(value: &str) -> AppResult<String> {
     Ok(v)
 }
 pub(crate) fn validate_date(value: &str, field: &str) -> AppResult<()> {
-    chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
+    let parsed = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
         .map_err(|_| AppError::Validation(format!("{field} doit être au format AAAA-MM-JJ.")))?;
+    if parsed.format("%Y-%m-%d").to_string() != value {
+        return Err(AppError::Validation(format!(
+            "{field} doit être une date canonique au format AAAA-MM-JJ."
+        )));
+    }
     Ok(())
+}
+
+pub(crate) fn closed_accounting_through(connection: &Connection) -> AppResult<Option<String>> {
+    connection
+        .query_row(
+            "SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(Into::into)
 }
 
 pub(crate) fn ensure_accounting_date_open(connection: &Connection, date: &str) -> AppResult<()> {
     validate_date(date, "entry_date")?;
-    let closed: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM accounting_periods WHERE status='closed' AND ? BETWEEN date_from AND date_to)",
-        params![date],
-        |row| row.get(0),
-    )?;
-    if closed {
-        return Err(AppError::Validation(
-            "La période comptable correspondant à cette date est clôturée.".into(),
-        ));
+    if let Some(closed_through) = closed_accounting_through(connection)? {
+        let requested_date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| {
+            AppError::Validation("entry_date doit être au format AAAA-MM-JJ.".into())
+        })?;
+        let closed_through_date = chrono::NaiveDate::parse_from_str(&closed_through, "%Y-%m-%d")
+            .map_err(|_| {
+                AppError::Validation(
+                    "La frontière de clôture enregistrée dans la base est invalide.".into(),
+                )
+            })?;
+        if requested_date <= closed_through_date {
+            return Err(AppError::Validation(format!(
+                "La comptabilité est clôturée cumulativement jusqu'au {closed_through}. Enregistrez la correction dans une période ouverte ultérieure et référencez l'opération d'origine."
+            )));
+        }
     }
     Ok(())
 }
@@ -4360,5 +4396,461 @@ mod historical_payment_guard_tests {
             1,
             "la donnée historique bloquée reste consultable"
         );
+    }
+}
+
+#[cfg(test)]
+mod cumulative_close_tests {
+    use super::*;
+
+    fn initialized_store() -> (tempfile::TempDir, LocalStore) {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO settings(id,onboarding_completed,company_name,currency,created_at,updated_at)
+                 VALUES(1,1,'Zentra clôture','CHF','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+        store.install_swiss_accounting_starter().unwrap();
+        (temporary, store)
+    }
+
+    fn create_2026_period(store: &LocalStore) -> Value {
+        store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: Some("period-2026".into()),
+                name: "Exercice 2026".into(),
+                date_from: "2026-01-01".into(),
+                date_to: "2026-12-31".into(),
+            })
+            .unwrap()
+    }
+
+    fn entry_lines(debit_account: &str, credit_account: &str, amount: i64) -> Vec<EntryLine> {
+        vec![
+            EntryLine {
+                account_id: debit_account.into(),
+                debit_cents: amount,
+                credit_cents: 0,
+                currency: "CHF".into(),
+                memo: Some("Débit test".into()),
+                project_id: None,
+                client_id: None,
+                employee_id: None,
+            },
+            EntryLine {
+                account_id: credit_account.into(),
+                debit_cents: 0,
+                credit_cents: amount,
+                currency: "CHF".into(),
+                memo: Some("Crédit test".into()),
+                project_id: None,
+                client_id: None,
+                employee_id: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn cumulative_close_blocks_gap_backdating_without_consuming_state_and_allows_exact_replay() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO settings(id,onboarding_completed,company_name,currency,created_at,updated_at)
+                 VALUES(1,1,'Zentra clôture','CHF','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+        store.install_swiss_accounting_starter().unwrap();
+
+        let connection = store.connect().unwrap();
+        let debit_account: String = connection
+            .query_row("SELECT id FROM accounts WHERE code='1020'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let credit_account: String = connection
+            .query_row("SELECT id FROM accounts WHERE code='3200'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        drop(connection);
+
+        let period = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: Some("period-2026".into()),
+                name: "Exercice 2026".into(),
+                date_from: "2026-01-01".into(),
+                date_to: "2026-12-31".into(),
+            })
+            .unwrap();
+        let original = {
+            let mut connection = store.connect().unwrap();
+            let transaction = connection.transaction().unwrap();
+            let result = post_entry(
+                &transaction,
+                "2026-06-30",
+                "Écriture rejouable",
+                "manual",
+                "stable-operation",
+                "posted",
+                entry_lines(&debit_account, &credit_account, 10_000),
+            )
+            .unwrap();
+            transaction.commit().unwrap();
+            result
+        };
+        store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap();
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            closed_accounting_through(&connection).unwrap().as_deref(),
+            Some("2026-12-31")
+        );
+        let before: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM journal_entries),
+                   (SELECT COUNT(*) FROM journal_lines),
+                   (SELECT COUNT(*) FROM accounting_sequences),
+                   (SELECT COUNT(*) FROM audit_log)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        drop(connection);
+
+        let replay = {
+            let mut connection = store.connect().unwrap();
+            let transaction = connection.transaction().unwrap();
+            let result = post_entry(
+                &transaction,
+                "2026-06-30",
+                "Écriture rejouable",
+                "manual",
+                "stable-operation",
+                "posted",
+                entry_lines(&debit_account, &credit_account, 10_000),
+            )
+            .unwrap();
+            transaction.commit().unwrap();
+            result
+        };
+        assert_eq!(replay["id"], original["id"]);
+
+        let mut connection = store.connect().unwrap();
+        let transaction = connection.transaction().unwrap();
+        let conflict = post_entry(
+            &transaction,
+            "2026-06-30",
+            "Écriture rejouable",
+            "manual",
+            "stable-operation",
+            "posted",
+            entry_lines(&debit_account, &credit_account, 10_001),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(conflict.contains("fausse idempotence"));
+        drop(transaction);
+        drop(connection);
+
+        let manual_error = store
+            .post_manual_journal_entry(ManualJournalInput {
+                entry_date: "2025-06-30".into(),
+                description: "Antidatage dans un intervalle sans période".into(),
+                currency: "CHF".into(),
+                lines: vec![
+                    crate::models::ManualJournalLineInput {
+                        account_id: debit_account.clone(),
+                        debit_cents: 100,
+                        credit_cents: 0,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                    crate::models::ManualJournalLineInput {
+                        account_id: credit_account.clone(),
+                        debit_cents: 0,
+                        credit_cents: 100,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                ],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(
+            manual_error.contains("cumulativement jusqu'au 2026-12-31"),
+            "erreur manuelle inattendue: {manual_error}"
+        );
+
+        let mut connection = store.connect().unwrap();
+        let transaction = connection.transaction().unwrap();
+        let automatic_error = post_entry(
+            &transaction,
+            "2025-12-31",
+            "Automatique antidatée",
+            "test_automatic",
+            "new-operation",
+            "post",
+            entry_lines(&debit_account, &credit_account, 200),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            automatic_error.contains("cumulativement jusqu'au 2026-12-31"),
+            "erreur automatique inattendue: {automatic_error}"
+        );
+        drop(transaction);
+        drop(connection);
+
+        let period_error = store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: Some("period-gap-2025".into()),
+                name: "Intervalle antérieur".into(),
+                date_from: "2025-01-01".into(),
+                date_to: "2025-12-31".into(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(
+            period_error.contains("cumulativement jusqu'au 2026-12-31"),
+            "erreur de période inattendue: {period_error}"
+        );
+
+        let connection = store.connect().unwrap();
+        let after: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM journal_entries),
+                   (SELECT COUNT(*) FROM journal_lines),
+                   (SELECT COUNT(*) FROM accounting_sequences),
+                   (SELECT COUNT(*) FROM audit_log)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            after, before,
+            "les rejets et replays ne consomment aucun état"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM accounting_sequences WHERE year=2025",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        drop(connection);
+
+        store
+            .upsert_accounting_period(AccountingPeriodInput {
+                id: Some("period-2027".into()),
+                name: "Exercice 2027".into(),
+                date_from: "2027-01-01".into(),
+                date_to: "2027-12-31".into(),
+            })
+            .unwrap();
+        let reversal = store
+            .reverse_journal_entry(
+                original["id"].as_str().unwrap(),
+                "2027-01-02",
+                Some("Correction de stable-operation".into()),
+            )
+            .unwrap();
+        assert_eq!(reversal["entry"]["reversal_of"], original["id"]);
+    }
+
+    #[test]
+    fn cumulative_close_rejects_unposted_source_before_period_start() {
+        let (_temporary, store) = initialized_store();
+        let period = create_2026_period(&store);
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO expenses(
+                    id,date,due_date,supplier,category,currency,net_cents,vat_cents,total_cents,
+                    payment_status,paid_at,created_at,updated_at
+                 ) VALUES(
+                    'prior-unposted-expense','2025-06-01',NULL,'Fournisseur historique','Matériel',
+                    'CHF',1000,0,1000,'paid',NULL,'2025-06-01T00:00:00Z','2025-06-01T00:00:00Z'
+                 )",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("clôture cumulative") && error.contains("antérieure"),
+            "erreur cumulative inattendue: {error}"
+        );
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM accounting_periods WHERE id='period-2026'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "open"
+        );
+    }
+
+    #[test]
+    fn cumulative_close_rejects_unbalanced_entry_before_period_start() {
+        let (_temporary, store) = initialized_store();
+        let period = create_2026_period(&store);
+        let connection = store.connect().unwrap();
+        let account_id: String = connection
+            .query_row("SELECT id FROM accounts WHERE code='1020'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO journal_entries(
+                    id,number,entry_date,description,source_type,source_id,source_event,status,created_at
+                 ) VALUES(
+                    'prior-unbalanced-entry','OD-2025-000001','2025-06-01','Écriture historique déséquilibrée',
+                    'manual','prior-unbalanced-source','posted','posted','2025-06-01T00:00:00Z'
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO journal_lines(
+                    id,journal_entry_id,account_id,debit_cents,credit_cents,currency,memo,created_at
+                 ) VALUES(
+                    'prior-unbalanced-line','prior-unbalanced-entry',?,1000,0,'CHF','Débit isolé',
+                    '2025-06-01T00:00:00Z'
+                 )",
+                params![account_id],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = store
+            .close_accounting_period(period["id"].as_str().unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("historique cumulatif") && error.contains("déséquilibrées"),
+            "erreur de déséquilibre cumulative inattendue: {error}"
+        );
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM accounting_periods WHERE id='period-2026'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "open"
+        );
+    }
+
+    #[test]
+    fn expense_payment_guard_uses_expense_date_when_paid_at_is_null() {
+        let (_temporary, store) = initialized_store();
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO expenses(
+                    id,date,due_date,supplier,category,currency,net_cents,vat_cents,total_cents,
+                    payment_status,paid_at,created_at,updated_at
+                 ) VALUES(
+                    'closed-pending-expense','2026-06-01','2026-06-30','Fournisseur','Matériel',
+                    'CHF',1000,0,1000,'pending',NULL,'2026-06-01T00:00:00Z','2026-06-01T00:00:00Z'
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO expenses(
+                    id,date,due_date,supplier,category,currency,net_cents,vat_cents,total_cents,
+                    payment_status,paid_at,created_at,updated_at
+                 ) VALUES(
+                    'closed-blank-paid-at-expense','2026-07-01','2026-07-31','Fournisseur','Matériel',
+                    'CHF',2000,0,2000,'pending',NULL,'2026-07-01T00:00:00Z','2026-07-01T00:00:00Z'
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO accounting_periods(
+                    id,name,date_from,date_to,status,closed_at,created_at,updated_at
+                 ) VALUES(
+                    'closed-2026','Exercice 2026','2026-01-01','2026-12-31','closed',
+                    '2027-01-15T00:00:00Z','2026-01-01T00:00:00Z','2027-01-15T00:00:00Z'
+                 )",
+                [],
+            )
+            .unwrap();
+
+        let error = connection
+            .execute(
+                "UPDATE expenses SET payment_status='paid' WHERE id='closed-pending-expense'",
+                [],
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("expense payment history through the closed date is immutable"),
+            "garde de paiement inattendue: {error}"
+        );
+        let state: (String, Option<String>) = connection
+            .query_row(
+                "SELECT payment_status,paid_at FROM expenses WHERE id='closed-pending-expense'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state, ("pending".into(), None));
+
+        let blank_error = connection
+            .execute(
+                "UPDATE expenses SET payment_status='paid',paid_at=''
+                 WHERE id='closed-blank-paid-at-expense'",
+                [],
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(
+            blank_error.contains("expense payment history through the closed date is immutable"),
+            "garde avec date de paiement vide inattendue: {blank_error}"
+        );
+        let blank_state: (String, Option<String>) = connection
+            .query_row(
+                "SELECT payment_status,paid_at FROM expenses WHERE id='closed-blank-paid-at-expense'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(blank_state, ("pending".into(), None));
     }
 }

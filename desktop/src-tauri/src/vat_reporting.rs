@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
-    accounting::validate_received_vat_accounting_configuration,
+    accounting::{closed_accounting_through, validate_received_vat_accounting_configuration},
     audit::append_audit,
     database::{now_iso, LocalStore},
     error::{AppError, AppResult},
@@ -475,6 +475,8 @@ impl LocalStore {
             )));
         }
 
+        ensure_vat_date_open(&transaction, &normalized.effective_from, "Le profil TVA")?;
+
         if normalized.form_of_reporting == "received" {
             validate_received_vat_accounting_configuration(
                 &transaction,
@@ -505,6 +507,7 @@ impl LocalStore {
                     .ok_or_else(|| AppError::Validation("Date de profil TVA hors plage.".into()))?
                     .format("%Y-%m-%d")
                     .to_string();
+                ensure_vat_profile_future_close_is_safe(&transaction, &previous_to)?;
                 transaction.execute(
                     "UPDATE vat_profiles SET effective_to=?,updated_at=? WHERE id=? AND effective_to IS NULL",
                     params![previous_to, now_iso(), previous_id],
@@ -593,11 +596,13 @@ impl LocalStore {
                 transaction.commit()?;
                 return Ok(existing);
             }
+            ensure_vat_source_open(&transaction, &source_type, &source_id)?;
             transaction.execute(
                 "UPDATE vat_source_classifications SET treatment=?,note=?,updated_at=? WHERE id=?",
                 params![treatment, note, now_iso(), existing.id],
             )?;
         } else {
+            ensure_vat_source_open(&transaction, &source_type, &source_id)?;
             let id = Uuid::new_v4().to_string();
             let now = now_iso();
             transaction.execute(
@@ -946,6 +951,154 @@ fn vat_source_exists(
         .map_err(Into::into)
 }
 
+fn vat_source_fiscal_date(
+    connection: &Connection,
+    source_type: &str,
+    source_id: &str,
+) -> AppResult<Option<String>> {
+    connection
+        .query_row(
+            "SELECT fiscal_date FROM vat_source_fiscal_dates WHERE source_type=? AND source_id=?",
+            params![source_type, source_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(Into::into)
+}
+
+fn ensure_vat_date_open(connection: &Connection, date: &str, subject: &str) -> AppResult<()> {
+    let date_value = parse_date(date, "date TVA")?;
+    if let Some(closed_through) = closed_accounting_through(connection)? {
+        let closed_through_date = parse_date(&closed_through, "frontière de clôture")?;
+        if date_value <= closed_through_date {
+            return Err(AppError::Validation(format!(
+                "La clôture comptable est cumulative jusqu'au {closed_through}. {subject} doit être daté après cette frontière; enregistrez toute correction dans une période ouverte ultérieure avec la référence de l'opération d'origine."
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn ensure_vat_profile_future_close_is_safe(
+    connection: &Connection,
+    previous_to: &str,
+) -> AppResult<()> {
+    let previous_to_date = parse_date(previous_to, "fin du profil TVA précédent")?;
+    if let Some(closed_through) = closed_accounting_through(connection)? {
+        let closed_through_date = parse_date(&closed_through, "frontière de clôture")?;
+        if previous_to_date < closed_through_date {
+            return Err(AppError::Validation(format!(
+                "Le profil TVA précédent couvre une période clôturée cumulativement jusqu'au {closed_through}; sa nouvelle date de fin ne peut pas précéder cette frontière."
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn ensure_vat_source_open(
+    connection: &Connection,
+    source_type: &str,
+    source_id: &str,
+) -> AppResult<()> {
+    if let Some(fiscal_date) = vat_source_fiscal_date(connection, source_type, source_id)? {
+        ensure_vat_date_open(
+            connection,
+            &fiscal_date,
+            "La classification de cette source TVA",
+        )?;
+    }
+    Ok(())
+}
+
+/// Refuse une clôture qui figerait des sources nécessaires à un décompte TVA
+/// sans décision fiscale exploitable ou avec une anomalie qui empêche encore
+/// leur déclaration. Les profils déterminent les sources pertinentes et leur
+/// date d'occurrence (facturation ou encaissement).
+pub(crate) fn ensure_vat_sources_classified_through(
+    connection: &Connection,
+    date_to: &str,
+) -> AppResult<()> {
+    let date_to = normalize_date(date_to, "date_to de clôture")?;
+    let profiles = {
+        let mut statement = connection.prepare(
+            "SELECT id,effective_from,effective_to,reporting_method,form_of_reporting,periodicity,gross_or_net,tdfn_activity_id,tdfn_rate_bp,afc_authorization_confirmed,notes,created_at,updated_at
+             FROM vat_profiles
+             WHERE effective_from<=?
+             ORDER BY effective_from,id",
+        )?;
+        let rows = statement.query_map(params![date_to], map_profile)?;
+        rows.collect::<Result<Vec<_>, _>>()?
+    };
+
+    let mut unresolved = BTreeSet::new();
+    let mut reporting_issues = Vec::new();
+    for profile in profiles {
+        let range_to = profile
+            .effective_to
+            .as_deref()
+            .map(|profile_to| profile_to.min(date_to.as_str()))
+            .unwrap_or(date_to.as_str());
+        if profile.effective_from.as_str() > range_to {
+            continue;
+        }
+
+        let mut profile_issues = Vec::new();
+        for source in load_raw_vat_sources(
+            connection,
+            &profile,
+            &profile.effective_from,
+            range_to,
+            &mut profile_issues,
+        )? {
+            let classification_is_valid = source.classification_id.is_some()
+                && source.treatment.as_deref().is_some_and(|treatment| {
+                    validate_source_type_and_treatment(&source.source_type, treatment).is_ok()
+                });
+            if !classification_is_valid {
+                unresolved.insert((source.source_type, source.source_id));
+            }
+        }
+        reporting_issues.extend(profile_issues);
+    }
+
+    sort_and_deduplicate_issues(&mut reporting_issues);
+    if unresolved.is_empty() && reporting_issues.is_empty() {
+        return Ok(());
+    }
+
+    let examples = unresolved
+        .iter()
+        .take(5)
+        .map(|(source_type, source_id)| format!("{source_type}/{source_id}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let reporting_details = reporting_issues
+        .iter()
+        .take(5)
+        .map(|issue| issue.message.as_str())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let classification_message = if unresolved.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " {} source(s) TVA cumulative(s) n'ont pas de classification fiscale valide. Classifiez-les dans TVA. Sources : {examples}.",
+            unresolved.len()
+        )
+    };
+    let reporting_message = if reporting_issues.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " {} anomalie(s) rendent encore le décompte non rapportable. Corrigez-les avant de fermer la période : {reporting_details}",
+            reporting_issues.len()
+        )
+    };
+    Err(AppError::Validation(format!(
+        "La clôture est bloquée : le dossier TVA cumulatif jusqu'au {date_to} n'est pas exportable.{classification_message}{reporting_message}"
+    )))
+}
+
 fn required_text(value: &str, field: &str, max_length: usize) -> AppResult<String> {
     let value = value.trim();
     let length = value.chars().count();
@@ -1005,6 +1158,12 @@ impl LocalStore {
                 normalized.request_id
             )));
         }
+
+        ensure_vat_date_open(
+            &transaction,
+            &normalized.adjustment_date,
+            "L'ajustement TVA",
+        )?;
 
         if load_adjustment_by_id(&transaction, &normalized.id)?.is_some() {
             return Err(AppError::Validation(format!(
@@ -1094,6 +1253,13 @@ impl LocalStore {
                 normalized.request_id
             )));
         }
+
+        if normalized.adjustment_date < original.adjustment_date {
+            return Err(AppError::Validation(
+                "L'extourne TVA ne peut pas précéder l'ajustement d'origine.".into(),
+            ));
+        }
+        ensure_vat_date_open(&transaction, &normalized.adjustment_date, "L'extourne TVA")?;
 
         if load_adjustment_by_id(&transaction, &normalized.id)?.is_some() {
             return Err(AppError::Validation(format!(
@@ -3282,11 +3448,27 @@ mod tests {
         vat_cents: i64,
         rate_bp: i64,
     ) {
+        insert_issued_invoice_in_currency(
+            store, invoice_id, item_id, issue_date, net_cents, vat_cents, rate_bp, "CHF",
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn insert_issued_invoice_in_currency(
+        store: &LocalStore,
+        invoice_id: &str,
+        item_id: &str,
+        issue_date: &str,
+        net_cents: i64,
+        vat_cents: i64,
+        rate_bp: i64,
+        currency: &str,
+    ) {
         let connection = store.connect().expect("connection");
         connection
             .execute(
-                "INSERT INTO invoices(id,number,title,type,status,issue_date,due_date,currency,subtotal_cents,vat_cents,total_cents,created_at,updated_at) VALUES(?,NULL,'Test','standard','brouillon',?,?,'CHF',?,?,?,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
-                params![invoice_id,issue_date,issue_date,net_cents,vat_cents,net_cents+vat_cents],
+                "INSERT INTO invoices(id,number,title,type,status,issue_date,due_date,currency,subtotal_cents,vat_cents,total_cents,created_at,updated_at) VALUES(?,NULL,'Test','standard','brouillon',?,?,?,?,?,?,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                params![invoice_id,issue_date,issue_date,currency,net_cents,vat_cents,net_cents+vat_cents],
             )
             .expect("draft invoice");
         connection
@@ -3763,5 +3945,387 @@ mod tests {
         assert!(!preview.exportable);
         assert_eq!(preview.unclassified_sources.len(), 1);
         assert_eq!(preview.unclassified_sources[0].source_id, "item-5");
+    }
+
+    #[test]
+    fn cumulative_close_preflight_requires_a_valid_classification() {
+        let (_temporary, store) = initialized_store("Zentra pré-clôture TVA");
+        store
+            .create_vat_profile(effective_profile("agreed"))
+            .expect("profile");
+        insert_issued_invoice(
+            &store,
+            "invoice-preclose",
+            "item-preclose",
+            "2026-02-01",
+            10_000,
+            810,
+            810,
+        );
+        store
+            .install_swiss_accounting_starter()
+            .expect("accounting and historical invoice posting");
+        let period = store
+            .upsert_accounting_period(crate::models::AccountingPeriodInput {
+                id: Some("period-preclose-vat".into()),
+                name: "Exercice 2026".into(),
+                date_from: "2026-01-01".into(),
+                date_to: "2026-12-31".into(),
+            })
+            .expect("period");
+        let period_id = period["id"].as_str().expect("period id");
+
+        let missing_error = store
+            .close_accounting_period(period_id)
+            .unwrap_err()
+            .to_string();
+        assert!(missing_error.contains("1 source(s) TVA cumulative(s)"));
+        assert!(missing_error.contains("invoice_item/item-preclose"));
+        let connection = store.connect().expect("connection");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM accounting_periods WHERE id=?",
+                    params![period_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "open"
+        );
+
+        connection
+            .pragma_update(None, "ignore_check_constraints", true)
+            .expect("allow corruption fixture");
+        connection
+            .execute(
+                "INSERT INTO vat_source_classifications(id,source_type,source_id,treatment,note,created_at,updated_at)
+                 VALUES('invalid-preclose','invoice_item','item-preclose','invalid-treatment',NULL,?1,?1)",
+                params![now_iso()],
+            )
+            .expect("invalid legacy classification fixture");
+        drop(connection);
+        let invalid_error = store
+            .close_accounting_period(period_id)
+            .unwrap_err()
+            .to_string();
+        assert!(invalid_error.contains("invoice_item/item-preclose"));
+        let connection = store.connect().expect("connection");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM accounting_periods WHERE id=?",
+                    params![period_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "open"
+        );
+        connection
+            .execute(
+                "DELETE FROM vat_source_classifications WHERE id='invalid-preclose'",
+                [],
+            )
+            .expect("remove corruption fixture");
+        connection
+            .pragma_update(None, "ignore_check_constraints", false)
+            .expect("restore checks");
+        drop(connection);
+
+        classify_sale(&store, "item-preclose");
+        let closed = store
+            .close_accounting_period(period_id)
+            .expect("close after valid classification");
+        assert_eq!(closed["status"], "closed");
+    }
+
+    #[test]
+    fn cumulative_close_preflight_rejects_a_non_reportable_foreign_currency_source() {
+        let (_temporary, store) = initialized_store("Zentra pré-clôture devise");
+        store
+            .create_vat_profile(effective_profile("agreed"))
+            .expect("profile");
+        insert_issued_invoice_in_currency(
+            &store,
+            "invoice-eur-preclose",
+            "item-eur-preclose",
+            "2026-02-01",
+            10_000,
+            810,
+            810,
+            "EUR",
+        );
+        classify_sale(&store, "item-eur-preclose");
+
+        let connection = store.connect().expect("connection");
+        let error = ensure_vat_sources_classified_through(&connection, "2026-12-31")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("n'est pas exportable"));
+        assert!(error.contains("1 anomalie(s)"));
+        assert!(error.contains("est en EUR"));
+        assert!(error.contains("Corrigez-les avant de fermer"));
+    }
+
+    #[test]
+    fn cumulative_close_freezes_vat_facts_but_keeps_exact_replays_idempotent() {
+        let (_temporary, store) = initialized_store("Zentra TVA clôturée");
+        let profile_input = effective_profile("agreed");
+        let profile = store
+            .create_vat_profile(profile_input.clone())
+            .expect("historical profile");
+        insert_issued_invoice(
+            &store,
+            "invoice-closed",
+            "item-closed",
+            "2026-02-01",
+            10_000,
+            810,
+            810,
+        );
+        let classification_input = VatSourceClassificationInput {
+            source_type: "invoice_item".into(),
+            source_id: "item-closed".into(),
+            treatment: "taxable".into(),
+            note: Some("Décision initiale".into()),
+        };
+        let classification = store
+            .set_vat_source_classification(classification_input.clone())
+            .expect("historical classification");
+        let adjustment_input = VatAdjustmentInput {
+            request_id: "55555555-5555-4555-8555-555555555555".into(),
+            adjustment_date: "2026-03-20".into(),
+            category: "input_materials".into(),
+            amount_cents: 125,
+            tax_rate_bp: None,
+            description: "Ajustement historique".into(),
+            evidence_reference: Some("TVA-2026-1".into()),
+            created_by: "responsable TVA".into(),
+        };
+        let adjustment = store
+            .create_vat_adjustment(adjustment_input.clone())
+            .expect("historical adjustment");
+
+        let chronology_error = store
+            .reverse_vat_adjustment(ReverseVatAdjustmentInput {
+                request_id: "66666666-6666-4666-8666-666666666666".into(),
+                original_adjustment_id: adjustment.id.clone(),
+                adjustment_date: "2026-03-19".into(),
+                description: "Extourne trop ancienne".into(),
+                evidence_reference: Some("TVA-2026-2".into()),
+                created_by: "responsable TVA".into(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(chronology_error.contains("ne peut pas précéder"));
+
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at)
+                 VALUES('period-vat-2026','Exercice 2026','2026-01-01','2026-12-31','open',?1,?1)",
+                params![now_iso()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE accounting_periods SET status='closed',closed_at=?1,updated_at=?1
+                 WHERE id='period-vat-2026'",
+                params![now_iso()],
+            )
+            .unwrap();
+        drop(connection);
+
+        assert_eq!(
+            store
+                .create_vat_profile(profile_input.clone())
+                .expect("exact profile replay")
+                .id,
+            profile.id
+        );
+        assert_eq!(
+            store
+                .set_vat_source_classification(classification_input.clone())
+                .expect("exact classification replay")
+                .id,
+            classification.id
+        );
+        assert_eq!(
+            store
+                .create_vat_adjustment(adjustment_input.clone())
+                .expect("exact adjustment replay")
+                .sequence,
+            adjustment.sequence
+        );
+
+        let mut changed_classification = classification_input;
+        changed_classification.treatment = "exempt".into();
+        let classification_error = store
+            .set_vat_source_classification(changed_classification)
+            .unwrap_err()
+            .to_string();
+        assert!(classification_error.contains("cumulative jusqu'au 2026-12-31"));
+
+        let old_adjustment_error = store
+            .create_vat_adjustment(VatAdjustmentInput {
+                request_id: "77777777-7777-4777-8777-777777777777".into(),
+                adjustment_date: "2025-12-31".into(),
+                category: "input_materials".into(),
+                amount_cents: 10,
+                tax_rate_bp: None,
+                description: "Ajustement antidaté hors période explicite".into(),
+                evidence_reference: Some("TVA-OLD".into()),
+                created_by: "responsable TVA".into(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(old_adjustment_error.contains("cumulative jusqu'au 2026-12-31"));
+
+        let mut old_profile = effective_profile("received");
+        old_profile.id = Some("retroactive-profile".into());
+        old_profile.effective_from = "2025-01-01".into();
+        old_profile.effective_to = Some("2025-12-31".into());
+        let profile_error = store
+            .create_vat_profile(old_profile)
+            .unwrap_err()
+            .to_string();
+        assert!(profile_error.contains("cumulative jusqu'au 2026-12-31"));
+
+        let mut future_profile = effective_profile("agreed");
+        future_profile.id = Some("future-profile".into());
+        future_profile.effective_from = "2027-01-01".into();
+        future_profile.close_previous_open_profile = true;
+        let connection = store.connect().unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE vat_profiles SET effective_to='2026-12-31',notes='mutation historique interdite' WHERE id=?",
+                params![profile.id],
+            )
+            .is_err());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT effective_to FROM vat_profiles WHERE id=?",
+                    params![profile.id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .unwrap(),
+            None
+        );
+        drop(connection);
+        let future_profile = store
+            .create_vat_profile(future_profile)
+            .expect("future profile after close");
+        assert_eq!(future_profile.effective_from, "2027-01-01");
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT effective_to FROM vat_profiles WHERE id=?",
+                    params![profile.id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .unwrap()
+                .as_deref(),
+            Some("2026-12-31")
+        );
+        drop(connection);
+
+        let old_reversal_error = store
+            .reverse_vat_adjustment(ReverseVatAdjustmentInput {
+                request_id: "88888888-8888-4888-8888-888888888888".into(),
+                original_adjustment_id: adjustment.id.clone(),
+                adjustment_date: "2026-12-31".into(),
+                description: "Extourne dans la clôture".into(),
+                evidence_reference: Some("TVA-2026-3".into()),
+                created_by: "responsable TVA".into(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(old_reversal_error.contains("cumulative jusqu'au 2026-12-31"));
+
+        let reversal_input = ReverseVatAdjustmentInput {
+            request_id: "99999999-9999-4999-8999-999999999999".into(),
+            original_adjustment_id: adjustment.id,
+            adjustment_date: "2027-01-02".into(),
+            description: "Correction future référencée".into(),
+            evidence_reference: Some("TVA-2027-1".into()),
+            created_by: "responsable TVA".into(),
+        };
+        let reversal = store
+            .reverse_vat_adjustment(reversal_input.clone())
+            .expect("future reversal");
+        assert_eq!(
+            reversal.reverses_adjustment_id.as_deref(),
+            Some("55555555-5555-4555-8555-555555555555")
+        );
+
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at)
+                 VALUES('period-vat-2027','Exercice 2027','2027-01-01','2027-12-31','open',?1,?1)",
+                params![now_iso()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE accounting_periods SET status='closed',closed_at=?1,updated_at=?1
+                 WHERE id='period-vat-2027'",
+                params![now_iso()],
+            )
+            .unwrap();
+        drop(connection);
+
+        assert_eq!(
+            store
+                .reverse_vat_adjustment(reversal_input)
+                .expect("exact reversal replay after later close")
+                .sequence,
+            reversal.sequence
+        );
+
+        let connection = store.connect().unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE vat_profiles SET updated_at='2099-01-01T00:00:00Z' WHERE id=?",
+                params![profile.id],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE vat_source_classifications SET updated_at='2099-01-01T00:00:00Z' WHERE id=?",
+                params![classification.id],
+            )
+            .is_err());
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM vat_adjustments", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_log WHERE entity_type='vat_adjustment'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2,
+            "les rejets et replays TVA ne doivent ajouter aucun audit"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM vat_profiles WHERE id='future-profile'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1,
+            "la nouvelle version TVA future doit être conservée"
+        );
     }
 }

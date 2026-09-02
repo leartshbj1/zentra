@@ -97,7 +97,13 @@ import {
 import { PurchaseOrdersScreen } from './PurchaseOrdersScreen';
 import { BankScreen } from './BankScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
+import { parseSmallSalaryEmployeeForm } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
+import { GettingStartedChecklist } from './GettingStartedChecklist';
+import {
+  buildGettingStartedJourney,
+  type GettingStartedAction,
+} from './gettingStarted';
 import { PayrollImportWizard } from './PayrollImportWizard';
 import {
   SETTINGS_READINESS_TARGETS,
@@ -1202,6 +1208,7 @@ export function WorkspaceApp({
           {view === 'dashboard' ? (
             <Dashboard
               workspace={workspace}
+              readOnly={readOnly}
               onNavigate={setView}
               onCreate={setModal}
             />
@@ -1645,10 +1652,12 @@ function CreateButton({
 
 function Dashboard({
   workspace,
+  readOnly,
   onNavigate,
   onCreate,
 }: {
   workspace: Workspace;
+  readOnly: boolean;
   onNavigate: (view: View) => void;
   onCreate: Dispatch<SetStateAction<ModalState>>;
 }) {
@@ -1674,6 +1683,7 @@ function Dashboard({
   const projectBlock = creationBlockReason('projects', prerequisites);
   const quoteBlock = creationBlockReason('quotes', prerequisites);
   const expenseBlock = creationBlockReason('expenses', prerequisites);
+  const gettingStarted = buildGettingStartedJourney(workspace);
   const issued = workspace.invoices.filter(
     (invoice) => invoice.status !== 'draft' && invoice.status !== 'cancelled',
   );
@@ -1698,10 +1708,58 @@ function Dashboard({
     workspace.quotes.length ||
     workspace.invoices.length ||
     workspace.timeEntries.length;
+
+  function runGettingStartedAction(action: GettingStartedAction) {
+    if (readOnly) {
+      onNavigate(action.view);
+      return;
+    }
+    if (action.kind === 'create_client') {
+      onCreate({ type: 'client' });
+      return;
+    }
+    if (action.kind === 'create_project') {
+      onCreate({ type: 'project' });
+      return;
+    }
+    if (action.kind === 'create_quote') {
+      onCreate({ type: 'document', entity: 'quotes' });
+      return;
+    }
+    if (action.kind === 'review_invoice' && action.entityId) {
+      const invoice = workspace.invoices.find((item) => item.id === action.entityId);
+      if (invoice) {
+        onCreate({ type: 'document', entity: 'invoices', item: invoice });
+        return;
+      }
+    }
+    if (action.kind === 'record_payment' && action.entityId) {
+      const invoice = workspace.invoices.find((item) => item.id === action.entityId);
+      if (invoice) {
+        onCreate({ type: 'payment', invoice });
+        return;
+      }
+    }
+    onNavigate(action.view);
+  }
+
   if (!hasActivity)
-    return <FirstUseDashboard onCreate={onCreate} terminology={terminology} />;
+    return (
+      <GettingStartedChecklist
+        workspace={workspace}
+        readOnly={readOnly}
+        onAction={runGettingStartedAction}
+      />
+    );
   return (
     <div className="dashboard-grid">
+      {!gettingStarted.complete ? (
+        <GettingStartedChecklist
+          workspace={workspace}
+          readOnly={readOnly}
+          onAction={runGettingStartedAction}
+        />
+      ) : null}
       <div className="metric-grid">
         <MetricCard
           label="Facturé TTC"
@@ -1883,65 +1941,6 @@ function Dashboard({
           </button>
         </div>
       </section>
-    </div>
-  );
-}
-
-function FirstUseDashboard({
-  onCreate,
-  terminology,
-}: {
-  onCreate: Dispatch<SetStateAction<ModalState>>;
-  terminology: ReturnType<typeof projectTerminology>;
-}) {
-  return (
-    <div className="first-dashboard">
-      <div className="first-dashboard__hero">
-        <span>
-          <Building2 size={30} />
-        </span>
-        <div>
-          <p className="eyebrow">Espace prêt</p>
-          <h2>Commencez avec vos vraies données.</h2>
-          <p>
-            Votre configuration est enregistrée. Aucune activité fictive n’a été
-            ajoutée.
-          </p>
-          <Button size="large" onClick={() => onCreate({ type: 'client' })}>
-            <Plus size={17} /> Ajouter mon premier client
-          </Button>
-        </div>
-      </div>
-      <div className="first-dashboard__steps">
-        <article>
-          <em>1</em>
-          <div>
-            <strong>Ajoutez un client</strong>
-            <p>Identité et coordonnées de facturation.</p>
-          </div>
-        </article>
-        <article>
-          <em>2</em>
-          <div>
-            <strong>Créez son {terminology.singular}</strong>
-            <p>Budget, calendrier et temps prévu.</p>
-          </div>
-        </article>
-        <article>
-          <em>3</em>
-          <div>
-            <strong>Établissez le devis</strong>
-            <p>Lignes, TVA explicite et validité.</p>
-          </div>
-        </article>
-        <article>
-          <em>4</em>
-          <div>
-            <strong>Suivez le réel</strong>
-            <p>Heures, dépenses, factures et encaissements.</p>
-          </div>
-        </article>
-      </div>
     </div>
   );
 }
@@ -3823,6 +3822,10 @@ function SettingsScreen({
   const [lppPlanEnabled, setLppPlanEnabled] = useState(
     Boolean(storedLppPlan),
   );
+  const storedLaaSmallSalaryException =
+    settings.payroll.laaSmallSalaryException;
+  const [laaSmallSalaryExceptionEnabled, setLaaSmallSalaryExceptionEnabled] =
+    useState(Boolean(storedLaaSmallSalaryException?.enabled));
   const org = settings.organization;
   const billing = settings.billing;
   const accountingReadiness = buildSetupReadiness(workspace, settings).steps.find(
@@ -4651,6 +4654,33 @@ function SettingsScreen({
                 'La fin de prise en charge AANP doit être une date valide postérieure ou égale au début.',
               );
             }
+            const laaSmallSalaryAssessmentYearText = String(
+              form.get('laaSmallSalaryAssessmentYear') ?? '',
+            ).trim();
+            const laaSmallSalaryException = {
+              enabled: laaSmallSalaryExceptionEnabled,
+              assessmentYear: laaSmallSalaryAssessmentYearText
+                ? numberFromInput(form.get('laaSmallSalaryAssessmentYear'))
+                : null,
+              evidenceReference: String(
+                form.get('laaSmallSalaryEvidenceReference') ?? '',
+              ).trim(),
+              confirmedAllEmployeesOnlyMinorSalaries:
+                form.get('laaSmallSalaryAllEmployeesConfirmed') === 'on',
+            };
+            if (
+              laaSmallSalaryException.enabled &&
+              (!/^\d{4}$/.test(laaSmallSalaryAssessmentYearText) ||
+                !Number.isInteger(laaSmallSalaryException.assessmentYear) ||
+                (laaSmallSalaryException.assessmentYear ?? 0) < 2000 ||
+                (laaSmallSalaryException.assessmentYear ?? 0) > 9999 ||
+                !laaSmallSalaryException.evidenceReference ||
+                laaSmallSalaryException.evidenceReference.length > 500 ||
+                !laaSmallSalaryException.confirmedAllEmployeesOnlyMinorSalaries)
+            )
+              throw new Error(
+                'L’exception LAA exige une année, une preuve et la confirmation explicite que tous les salariés concernés pendant l’année restent dans le régime des petits salaires.',
+              );
             const lppPlanEvidence = lppPlanEnabled
               ? {
                   contractNumber: String(
@@ -4707,6 +4737,7 @@ function SettingsScreen({
                 payrollCanton: String(form.get('payrollCanton')),
                 aanpEmployerCoverage,
                 lppPlanEvidence,
+                laaSmallSalaryException,
               },
             };
             setSettings(next);
@@ -4787,6 +4818,80 @@ function SettingsScreen({
                 defaultValue={settings.payroll.aanpEmployerCoverage?.effectiveTo ?? ''}
               />
             </Field>
+            <label className="check-card field--wide">
+              <input
+                name="laaSmallSalaryExceptionEnabled"
+                type="checkbox"
+                checked={laaSmallSalaryExceptionEnabled}
+                onChange={(event) =>
+                  setLaaSmallSalaryExceptionEnabled(event.target.checked)
+                }
+              />
+              <span>
+                <strong>Demander l’exception LAA annuelle des petits salaires</strong>
+                <small>
+                  Non cochée par défaut. Le moteur vérifie tous les salariés
+                  concernés pendant l’année et bloque l’exception dès qu’un
+                  dossier, un secteur ou un cumul ne la permet pas.
+                </small>
+              </span>
+            </label>
+            {laaSmallSalaryExceptionEnabled ? (
+              <section className="settings-evidence-section field--wide">
+                <div className="form-grid">
+                  <Field label="Année de l’exception LAA" required>
+                    <input
+                      name="laaSmallSalaryAssessmentYear"
+                      type="number"
+                      min="2000"
+                      max="9999"
+                      step="1"
+                      defaultValue={
+                        storedLaaSmallSalaryException?.assessmentYear ?? ''
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field
+                    label="Référence de la preuve LAA"
+                    hint="Ex. contrôle annuel signé, décision de l’assureur ou dossier de la fiduciaire."
+                    required
+                  >
+                    <input
+                      name="laaSmallSalaryEvidenceReference"
+                      maxLength={500}
+                      defaultValue={
+                        storedLaaSmallSalaryException?.evidenceReference ?? ''
+                      }
+                      required
+                    />
+                  </Field>
+                  <label className="check-card field--wide">
+                    <input
+                      name="laaSmallSalaryAllEmployeesConfirmed"
+                      type="checkbox"
+                      defaultChecked={
+                        storedLaaSmallSalaryException
+                          ?.confirmedAllEmployeesOnlyMinorSalaries ?? false
+                      }
+                      required
+                    />
+                    <span>
+                      <strong>
+                        Tous les salariés concernés pendant l’année ont été
+                        contrôlés
+                      </strong>
+                      <small>
+                        Je confirme avoir vérifié aussi les personnes sorties
+                        de l’entreprise pendant l’année. Cette déclaration ne
+                        remplace pas le contrôle automatique et peut être
+                        refusée par le moteur.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              </section>
+            ) : null}
             <Field label="Caisse de pension">
               <input
                 name="pensionFund"
@@ -5709,6 +5814,9 @@ function EmployeeForm({
   const [lppExceptionCode, setLppExceptionCode] = useState<
     '' | 'short_fixed_contract' | 'other_legal'
   >(item?.lppExceptionCode ?? '');
+  const [smallSalarySector, setSmallSalarySector] = useState<
+    '' | NonNullable<Employee['smallSalarySector']>
+  >(item?.smallSalarySector ?? '');
   return (
     <Modal
       title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
@@ -5741,6 +5849,25 @@ function EmployeeForm({
           const lppExceptionEvidenceReference = String(
             form.get('lppExceptionEvidenceReference') ?? '',
           ).trim();
+          const smallSalaryFields = parseSmallSalaryEmployeeForm({
+            assessmentYear: String(
+              form.get('smallSalaryAssessmentYear') ?? '',
+            ),
+            sector: String(form.get('smallSalarySector') ?? ''),
+            employeeRequestedContributions: String(
+              form.get('smallSalaryEmployeeRequestedContributions') ?? '',
+            ),
+            decisionDate: String(form.get('smallSalaryDecisionDate') ?? ''),
+            openingGross: String(
+              form.get('smallSalaryOpeningGross') ?? '',
+            ),
+            openingContributedBasis: String(
+              form.get('smallSalaryOpeningContributedBasis') ?? '',
+            ),
+            evidenceReference: String(
+              form.get('smallSalaryEvidenceReference') ?? '',
+            ),
+          });
           if (Boolean(lppAssessmentYear) !== Boolean(lppAnnualSalary))
             throw new Error(
               'L’année et le salaire annuel LPP doivent être confirmés ensemble, zéro compris.',
@@ -5791,6 +5918,7 @@ function EmployeeForm({
             avsAllowanceWaived: allowanceChoice
               ? allowanceChoice === 'yes'
               : null,
+            ...smallSalaryFields,
             employmentRate: numberFromInput(form.get('employmentRate')),
             contractualWeeklyMinutes: contractualHours
               ? Math.round(
@@ -6117,6 +6245,163 @@ function EmployeeForm({
               <option value="yes">Renonciation confirmée</option>
             </select>
           </Field>
+          <section className="employee-small-salary-section field--wide">
+            <header>
+              <ShieldCheck size={18} />
+              <div>
+                <strong>Décision annuelle · salaires de minime importance</strong>
+                <p>
+                  Documentez les faits réels une fois par année. Zentra
+                  recalcule ensuite le cumul depuis la base locale; cette
+                  section n’est pas une attestation de conformité.
+                </p>
+              </div>
+            </header>
+            <div className="form-grid">
+              <Field
+                label="Année d’évaluation"
+                hint="Complétez toute la section pour l’année contrôlée, ou laissez-la entièrement vide."
+              >
+                <input
+                  name="smallSalaryAssessmentYear"
+                  type="number"
+                  min="2000"
+                  max="9999"
+                  step="1"
+                  defaultValue={item?.smallSalaryAssessmentYear ?? ''}
+                />
+              </Field>
+              <Field
+                label="Secteur déterminant"
+                hint="Le ménage privé et les arts/culture suivent des règles renforcées."
+              >
+                <select
+                  name="smallSalarySector"
+                  value={smallSalarySector}
+                  onChange={(event) =>
+                    setSmallSalarySector(
+                      event.target.value as
+                        | ''
+                        | NonNullable<Employee['smallSalarySector']>,
+                    )
+                  }
+                >
+                  <option value="">À confirmer</option>
+                  <option value="ordinary">Secteur ordinaire</option>
+                  <option value="private_household">Ménage privé</option>
+                  <option value="arts_culture">Arts et culture</option>
+                </select>
+              </Field>
+              <Field
+                label="Demande du salarié"
+                hint="Confirmez oui ou non. Une demande peut passer de non à oui pour l’avenir avec une nouvelle date; elle ne peut pas être retirée après coup."
+              >
+                <select
+                  name="smallSalaryEmployeeRequestedContributions"
+                  defaultValue={
+                    item?.smallSalaryEmployeeRequestedContributions == null
+                      ? ''
+                      : item.smallSalaryEmployeeRequestedContributions
+                        ? 'yes'
+                        : 'no'
+                  }
+                >
+                  <option value="">À confirmer</option>
+                  <option
+                    value="no"
+                    disabled={
+                      item?.smallSalaryEmployeeRequestedContributions === true
+                    }
+                  >
+                    Non, aucune demande
+                  </option>
+                  <option value="yes">Oui, demande confirmée</option>
+                </select>
+              </Field>
+              <Field
+                label="Date de la décision/demande"
+                hint="Date réelle de la décision annuelle ou, si le salarié demande ensuite les cotisations, date prospective de cette demande."
+              >
+                <input
+                  name="smallSalaryDecisionDate"
+                  type="date"
+                  defaultValue={item?.smallSalaryDecisionDate ?? ''}
+                />
+              </Field>
+              <Field
+                label="Brut versé avant Zentra (CHF)"
+                hint="Brut déjà payé durant cette année hors Zentra; saisissez 0 si aucun."
+              >
+                <input
+                  name="smallSalaryOpeningGross"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue={
+                    item?.smallSalaryOpeningGrossCents == null
+                      ? ''
+                      : item.smallSalaryOpeningGrossCents / 100
+                  }
+                />
+              </Field>
+              <Field
+                label="Base déjà cotisée avant Zentra (CHF)"
+                hint="Part du brut d’ouverture déjà soumise; saisissez 0 si aucune."
+              >
+                <input
+                  name="smallSalaryOpeningContributedBasis"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue={
+                    item?.smallSalaryOpeningContributedBasisCents == null
+                      ? ''
+                      : item.smallSalaryOpeningContributedBasisCents / 100
+                  }
+                />
+              </Field>
+              <Field
+                label="Référence de la preuve"
+                hint="Ex. déclaration du salarié datée, décompte précédent ou contrôle écrit de la caisse."
+                wide
+              >
+                <input
+                  name="smallSalaryEvidenceReference"
+                  maxLength={500}
+                  defaultValue={item?.smallSalaryEvidenceReference ?? ''}
+                />
+              </Field>
+            </div>
+            <div className="employee-small-salary-section__rules">
+              <p>
+                <strong>Secteur ordinaire.</strong> Jusqu’à CHF 2’500 par an,
+                aucune cotisation sans demande; au dépassement, le rattrapage
+                porte sur le salaire annuel total.
+              </p>
+              <p>
+                <strong>Ménage privé et arts/culture.</strong> Cotisations dès
+                le premier franc, sauf en ménage privé jusqu’au 31 décembre
+                suivant le 25e anniversaire et jusqu’à CHF 750, sans demande du
+                salarié.
+              </p>
+              <p>
+                <strong>Décision et franchise.</strong> Une demande tardive ne
+                s’applique que prospectivement à compter de sa date et ne
+                rattrape pas les salaires déjà payés sous le seuil. Un
+                dépassement ultérieur rend toutefois le salaire annuel total
+                cotisable. Les cotisations versées ne sont pas remboursables et
+                la dispense ne se cumule pas avec la franchise AVS après l’âge
+                de référence.
+              </p>
+              <p>
+                <strong>Après une fiche payée.</strong> L’année, le secteur et
+                les ouvertures restent figés. Seul le passage de « non » à
+                « oui » est admis, avec une date postérieure aux versements
+                antérieurs; le retour de « oui » à « non » est refusé par le
+                moteur.
+              </p>
+            </div>
+          </section>
           <Field label="Type de rémunération" required>
             <select
               value={salaryMode}

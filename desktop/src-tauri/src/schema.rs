@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 32;
+pub const SCHEMA_VERSION: i64 = 34;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -14,6 +14,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "invoice_items",
     "stock_movements",
     "employees",
+    "employee_small_salary_decisions",
     "time_entries",
     "time_billing_batches",
     "time_billing_entries",
@@ -74,6 +75,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "reminder_deliveries",
     "payroll_contribution_definitions",
     "payslip_contributions",
+    "payslip_small_salary_assessments",
     "payroll_document_imports",
     "employee_payroll_templates",
     "vat_profiles",
@@ -353,6 +355,13 @@ CREATE TABLE IF NOT EXISTS employees (
   ac_opening_basis_cents INTEGER CHECK (ac_opening_basis_cents IS NULL OR ac_opening_basis_cents >= 0),
   laa_opening_year INTEGER CHECK (laa_opening_year IS NULL OR laa_opening_year BETWEEN 1900 AND 9999),
   laa_opening_basis_cents INTEGER CHECK (laa_opening_basis_cents IS NULL OR laa_opening_basis_cents >= 0),
+  small_salary_assessment_year INTEGER CHECK (small_salary_assessment_year IS NULL OR small_salary_assessment_year BETWEEN 1900 AND 9999),
+  small_salary_decision_date TEXT CHECK (small_salary_decision_date IS NULL OR (LENGTH(small_salary_decision_date)=10 AND small_salary_decision_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(small_salary_decision_date) IS NOT NULL AND DATE(small_salary_decision_date)=small_salary_decision_date)),
+  small_salary_sector TEXT CHECK (small_salary_sector IS NULL OR small_salary_sector IN ('ordinary','private_household','arts_culture')),
+  small_salary_employee_requested_contributions INTEGER CHECK (small_salary_employee_requested_contributions IS NULL OR small_salary_employee_requested_contributions IN (0, 1)),
+  small_salary_opening_gross_cents INTEGER CHECK (small_salary_opening_gross_cents IS NULL OR small_salary_opening_gross_cents >= 0),
+  small_salary_opening_contributed_basis_cents INTEGER CHECK (small_salary_opening_contributed_basis_cents IS NULL OR small_salary_opening_contributed_basis_cents >= 0),
+  small_salary_evidence_reference TEXT CHECK (small_salary_evidence_reference IS NULL OR LENGTH(TRIM(small_salary_evidence_reference)) BETWEEN 1 AND 500),
   lpp_assessment_year INTEGER CHECK (lpp_assessment_year IS NULL OR lpp_assessment_year BETWEEN 1900 AND 9999),
   lpp_annual_salary_cents INTEGER CHECK (lpp_annual_salary_cents IS NULL OR lpp_annual_salary_cents >= 0),
   lpp_exception_code TEXT CHECK (lpp_exception_code IS NULL OR lpp_exception_code IN ('short_fixed_contract','other_legal')),
@@ -364,6 +373,24 @@ CREATE TABLE IF NOT EXISTS employees (
   notes TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS employee_small_salary_decisions (
+  employee_id TEXT NOT NULL REFERENCES employees(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  assessment_year INTEGER NOT NULL CHECK (assessment_year BETWEEN 1900 AND 9999),
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  revision_kind TEXT NOT NULL CHECK (revision_kind IN ('initial','prevalidation_correction','prospective_request')),
+  decision_date TEXT NOT NULL CHECK (LENGTH(decision_date)=10 AND decision_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(decision_date) IS NOT NULL AND DATE(decision_date)=decision_date),
+  sector TEXT NOT NULL CHECK (sector IN ('ordinary','private_household','arts_culture')),
+  employee_requested_contributions INTEGER NOT NULL CHECK (employee_requested_contributions IN (0,1)),
+  opening_gross_cents INTEGER NOT NULL CHECK (opening_gross_cents >= 0),
+  opening_contributed_basis_cents INTEGER NOT NULL CHECK (opening_contributed_basis_cents >= 0),
+  evidence_reference TEXT NOT NULL CHECK (LENGTH(TRIM(evidence_reference)) BETWEEN 1 AND 500),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(employee_id,assessment_year,revision),
+  CHECK ((revision=1 AND revision_kind='initial') OR (revision>1 AND revision_kind<>'initial')),
+  CHECK (SUBSTR(decision_date,1,4)=PRINTF('%04d',assessment_year)),
+  CHECK (opening_contributed_basis_cents<=opening_gross_cents)
 );
 
 CREATE TABLE IF NOT EXISTS project_milestones (
@@ -1009,6 +1036,37 @@ CREATE TABLE IF NOT EXISTS payslip_contributions (
   UNIQUE(payslip_id, definition_id)
 );
 
+CREATE TABLE IF NOT EXISTS payslip_small_salary_assessments (
+  payslip_id TEXT PRIMARY KEY REFERENCES payslips(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  employee_id TEXT NOT NULL REFERENCES employees(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  assessment_year INTEGER NOT NULL CHECK (assessment_year BETWEEN 1900 AND 9999),
+  decision_revision INTEGER NOT NULL CHECK (decision_revision >= 1),
+  decision_date TEXT NOT NULL CHECK (LENGTH(decision_date)=10 AND decision_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(decision_date) IS NOT NULL AND DATE(decision_date)=decision_date),
+  sector TEXT NOT NULL CHECK (sector IN ('ordinary','private_household','arts_culture')),
+  employee_requested_contributions INTEGER NOT NULL CHECK (employee_requested_contributions IN (0,1)),
+  threshold_cents INTEGER NOT NULL CHECK (threshold_cents >= 0),
+  opening_gross_cents INTEGER NOT NULL CHECK (opening_gross_cents >= 0),
+  opening_contributed_basis_cents INTEGER NOT NULL CHECK (opening_contributed_basis_cents >= 0),
+  prior_gross_cents INTEGER NOT NULL CHECK (prior_gross_cents >= 0),
+  prior_contributed_basis_cents INTEGER NOT NULL CHECK (prior_contributed_basis_cents >= 0),
+  current_gross_cents INTEGER NOT NULL CHECK (current_gross_cents >= 0),
+  cumulative_gross_cents INTEGER NOT NULL CHECK (cumulative_gross_cents >= 0),
+  contributions_due INTEGER NOT NULL CHECK (contributions_due IN (0,1)),
+  statutory_contribution_basis_cents INTEGER NOT NULL CHECK (statutory_contribution_basis_cents >= 0),
+  statutory_catchup_basis_cents INTEGER NOT NULL CHECK (statutory_catchup_basis_cents >= 0),
+  reason_code TEXT NOT NULL CHECK (reason_code IN (
+    'ordinary_minor_salary_exempt','ordinary_threshold_exceeded',
+    'employee_requested_contributions','private_household_youth_minor_salary_exempt',
+    'private_household_mandatory','arts_culture_mandatory'
+  )),
+  evidence_reference TEXT NOT NULL CHECK (LENGTH(TRIM(evidence_reference)) BETWEEN 1 AND 500),
+  assessment_json TEXT NOT NULL CHECK (json_valid(assessment_json)=1 AND LENGTH(assessment_json) BETWEEN 2 AND 100000),
+  assessment_sha256 TEXT NOT NULL CHECK (LENGTH(assessment_sha256)=64 AND assessment_sha256 NOT GLOB '*[^0-9a-f]*'),
+  source_reference TEXT NOT NULL CHECK (LENGTH(TRIM(source_reference)) BETWEEN 1 AND 1000),
+  created_at TEXT NOT NULL,
+  CHECK (SUBSTR(decision_date,1,4)=PRINTF('%04d',assessment_year))
+);
+
 CREATE TABLE IF NOT EXISTS payroll_document_imports (
   id TEXT PRIMARY KEY,
   source_name TEXT NOT NULL,
@@ -1511,16 +1569,456 @@ CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_update
 BEFORE UPDATE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS payslip_items_posted_no_delete
 BEFORE DELETE ON payslip_items WHEN EXISTS(SELECT 1 FROM payslips WHERE id=OLD.payslip_id AND status IN ('comptabilise','paye')) BEGIN SELECT RAISE(ABORT, 'posted payslip lines are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS payslips_later_posted_insert_guard
+BEFORE INSERT ON payslips
+WHEN NEW.status IN ('valide','comptabilise','paye') AND EXISTS(
+  SELECT 1 FROM payslips later
+  WHERE later.id<>NEW.id AND later.employee_id=NEW.employee_id
+    AND SUBSTR(later.period,1,4)=SUBSTR(NEW.period,1,4)
+    AND later.period>NEW.period AND later.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier validated payroll'); END;
+CREATE TRIGGER IF NOT EXISTS payslips_later_posted_update_guard
+BEFORE UPDATE ON payslips
+WHEN EXISTS(
+  SELECT 1 FROM payslips later
+  WHERE later.id<>OLD.id AND later.status IN ('valide','comptabilise','paye') AND (
+    (OLD.status IN ('valide','comptabilise','paye') AND later.employee_id=OLD.employee_id
+      AND SUBSTR(later.period,1,4)=SUBSTR(OLD.period,1,4) AND later.period>OLD.period)
+    OR
+    (NEW.status IN ('valide','comptabilise','paye') AND later.employee_id=NEW.employee_id
+      AND SUBSTR(later.period,1,4)=SUBSTR(NEW.period,1,4) AND later.period>NEW.period)
+  )
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier validated payroll'); END;
+CREATE TRIGGER IF NOT EXISTS payslips_later_posted_delete_guard
+BEFORE DELETE ON payslips
+WHEN OLD.status IN ('valide','comptabilise','paye') AND EXISTS(
+  SELECT 1 FROM payslips later
+  WHERE later.id<>OLD.id AND later.employee_id=OLD.employee_id
+    AND SUBSTR(later.period,1,4)=SUBSTR(OLD.period,1,4)
+    AND later.period>OLD.period AND later.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier validated payroll'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_items_later_posted_insert_guard
+BEFORE INSERT ON payslip_items
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=NEW.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier validated payroll lines'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_items_later_posted_update_guard
+BEFORE UPDATE ON payslip_items
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier validated payroll lines'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_items_later_posted_delete_guard
+BEFORE DELETE ON payslip_items
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier validated payroll lines'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_contributions_later_posted_insert_guard
+BEFORE INSERT ON payslip_contributions
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=NEW.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier payroll contributions'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_contributions_later_posted_update_guard
+BEFORE UPDATE ON payslip_contributions
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier payroll contributions'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_contributions_later_posted_delete_guard
+BEFORE DELETE ON payslip_contributions
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'a later posted payslip seals earlier payroll contributions'); END;
 CREATE TRIGGER IF NOT EXISTS employees_payroll_decisions_insert_guard
 BEFORE INSERT ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
   OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
-BEGIN SELECT RAISE(ABORT, 'AC and LAA opening years and bases must be confirmed in pairs'); END;
+  OR ((NEW.small_salary_assessment_year IS NOT NULL)
+    + (NEW.small_salary_sector IS NOT NULL)
+    + (NEW.small_salary_employee_requested_contributions IS NOT NULL)
+    + (NEW.small_salary_opening_gross_cents IS NOT NULL)
+    + (NEW.small_salary_opening_contributed_basis_cents IS NOT NULL)
+    + (NEW.small_salary_evidence_reference IS NOT NULL)
+    + (NEW.small_salary_decision_date IS NOT NULL)) NOT IN (0,7)
+  OR (NEW.small_salary_decision_date IS NOT NULL
+    AND SUBSTR(NEW.small_salary_decision_date,1,4)<>PRINTF('%04d',NEW.small_salary_assessment_year))
+BEGIN SELECT RAISE(ABORT, 'payroll annual decisions must be confirmed as complete groups'); END;
 CREATE TRIGGER IF NOT EXISTS employees_payroll_decisions_update_guard
-BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents,laa_opening_year,laa_opening_basis_cents ON employees
+BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents,laa_opening_year,laa_opening_basis_cents,
+  small_salary_assessment_year,small_salary_decision_date,small_salary_sector,small_salary_employee_requested_contributions,
+  small_salary_opening_gross_cents,small_salary_opening_contributed_basis_cents,
+  small_salary_evidence_reference ON employees
 WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
   OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
-BEGIN SELECT RAISE(ABORT, 'AC and LAA opening years and bases must be confirmed in pairs'); END;
+  OR ((NEW.small_salary_assessment_year IS NOT NULL)
+    + (NEW.small_salary_sector IS NOT NULL)
+    + (NEW.small_salary_employee_requested_contributions IS NOT NULL)
+    + (NEW.small_salary_opening_gross_cents IS NOT NULL)
+    + (NEW.small_salary_opening_contributed_basis_cents IS NOT NULL)
+    + (NEW.small_salary_evidence_reference IS NOT NULL)
+    + (NEW.small_salary_decision_date IS NOT NULL)) NOT IN (0,7)
+  OR (NEW.small_salary_decision_date IS NOT NULL
+    AND SUBSTR(NEW.small_salary_decision_date,1,4)<>PRINTF('%04d',NEW.small_salary_assessment_year))
+BEGIN SELECT RAISE(ABORT, 'payroll annual decisions must be confirmed as complete groups'); END;
+CREATE TRIGGER IF NOT EXISTS employees_small_salary_decision_immutable
+BEFORE UPDATE OF small_salary_assessment_year,small_salary_sector,
+  small_salary_employee_requested_contributions,small_salary_opening_gross_cents,
+  small_salary_opening_contributed_basis_cents,small_salary_evidence_reference,
+  small_salary_decision_date ON employees
+WHEN NEW.small_salary_assessment_year IS NULL
+  AND OLD.small_salary_assessment_year IS NOT NULL
+  AND EXISTS(SELECT 1 FROM employee_small_salary_decisions d WHERE d.employee_id=OLD.id)
+BEGIN SELECT RAISE(ABORT, 'small salary annual decision history cannot be cleared'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_sequence_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision<>COALESCE((
+  SELECT MAX(d.revision)+1 FROM employee_small_salary_decisions d
+  WHERE d.employee_id=NEW.employee_id AND d.assessment_year=NEW.assessment_year
+),1)
+BEGIN SELECT RAISE(ABORT, 'small salary decision revision must be append-only and contiguous'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_unpaid_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request' AND EXISTS(
+  SELECT 1 FROM payslips p
+  WHERE p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.status IN ('valide','comptabilise','paye')
+    AND (p.payment_date IS NULL OR TRIM(p.payment_date)='')
+)
+BEGIN SELECT RAISE(ABORT, 'record or recalculate every validated payroll payment date before a prospective contribution request'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_transition_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request'
+  AND NOT EXISTS(
+    SELECT 1 FROM payslips p
+    WHERE p.employee_id=NEW.employee_id
+      AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+      AND p.status IN ('valide','comptabilise','paye')
+  )
+BEGIN SELECT RAISE(ABORT, 'prospective contribution request requires an already validated annual history'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_prevalidation_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prevalidation_correction' AND EXISTS(
+  SELECT 1 FROM payslips p
+  WHERE p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT, 'structural small salary decision is sealed by a validated payslip'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_prospective_transition_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request' AND NOT EXISTS(
+  SELECT 1 FROM employee_small_salary_decisions previous
+  WHERE previous.employee_id=NEW.employee_id
+    AND previous.assessment_year=NEW.assessment_year
+    AND previous.revision=NEW.revision-1
+    AND previous.sector=NEW.sector
+    AND previous.opening_gross_cents=NEW.opening_gross_cents
+    AND previous.opening_contributed_basis_cents=NEW.opening_contributed_basis_cents
+    AND previous.employee_requested_contributions=0
+    AND NEW.employee_requested_contributions=1
+    AND NEW.decision_date>previous.decision_date
+    AND NEW.evidence_reference<>previous.evidence_reference
+)
+BEGIN SELECT RAISE(ABORT, 'only a documented prospective no-to-yes contribution request may revise an annual small salary decision'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_payment_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request' AND NEW.decision_date<=COALESCE((
+  SELECT MAX(p.payment_date) FROM payslips p
+  WHERE p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.status IN ('valide','comptabilise','paye')
+    AND p.payment_date IS NOT NULL AND TRIM(p.payment_date)<>''
+),'0000-00-00')
+BEGIN SELECT RAISE(ABORT, 'prospective contribution request must be later than every recorded payroll payment'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_no_update
+BEFORE UPDATE ON employee_small_salary_decisions
+BEGIN SELECT RAISE(ABORT, 'small salary decision history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS employee_small_salary_decisions_no_delete
+BEFORE DELETE ON employee_small_salary_decisions
+BEGIN SELECT RAISE(ABORT, 'small salary decision history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS employees_small_salary_decision_insert_history
+AFTER INSERT ON employees
+WHEN NEW.small_salary_assessment_year IS NOT NULL
+BEGIN
+  INSERT INTO employee_small_salary_decisions(
+    employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+    employee_requested_contributions,opening_gross_cents,
+    opening_contributed_basis_cents,evidence_reference,created_at
+  ) VALUES(
+    NEW.id,NEW.small_salary_assessment_year,1,'initial',NEW.small_salary_decision_date,
+    NEW.small_salary_sector,NEW.small_salary_employee_requested_contributions,
+    NEW.small_salary_opening_gross_cents,NEW.small_salary_opening_contributed_basis_cents,
+    NEW.small_salary_evidence_reference,NEW.created_at
+  );
+END;
+CREATE TRIGGER IF NOT EXISTS employees_small_salary_decision_update_history
+AFTER UPDATE OF small_salary_assessment_year,small_salary_sector,
+  small_salary_employee_requested_contributions,small_salary_opening_gross_cents,
+  small_salary_opening_contributed_basis_cents,small_salary_evidence_reference,
+  small_salary_decision_date ON employees
+WHEN NEW.small_salary_assessment_year IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM employee_small_salary_decisions d
+  WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year
+    AND d.revision=(SELECT MAX(latest.revision) FROM employee_small_salary_decisions latest
+                    WHERE latest.employee_id=NEW.id AND latest.assessment_year=NEW.small_salary_assessment_year)
+    AND d.decision_date=NEW.small_salary_decision_date
+    AND d.sector=NEW.small_salary_sector
+    AND d.employee_requested_contributions=NEW.small_salary_employee_requested_contributions
+    AND d.opening_gross_cents=NEW.small_salary_opening_gross_cents
+    AND d.opening_contributed_basis_cents=NEW.small_salary_opening_contributed_basis_cents
+    AND d.evidence_reference=NEW.small_salary_evidence_reference
+)
+BEGIN
+  INSERT INTO employee_small_salary_decisions(
+    employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+    employee_requested_contributions,opening_gross_cents,
+    opening_contributed_basis_cents,evidence_reference,created_at
+  ) VALUES(
+    NEW.id,NEW.small_salary_assessment_year,
+    COALESCE((SELECT MAX(d.revision)+1 FROM employee_small_salary_decisions d
+              WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year),1),
+    CASE
+      WHEN NOT EXISTS(SELECT 1 FROM employee_small_salary_decisions d
+                      WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year)
+        THEN 'initial'
+      WHEN EXISTS(SELECT 1 FROM payslips p WHERE p.employee_id=NEW.id
+                    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.small_salary_assessment_year)
+                    AND p.status IN ('valide','comptabilise','paye'))
+        THEN 'prospective_request'
+      ELSE 'prevalidation_correction'
+    END,
+    NEW.small_salary_decision_date,NEW.small_salary_sector,
+    NEW.small_salary_employee_requested_contributions,NEW.small_salary_opening_gross_cents,
+    NEW.small_salary_opening_contributed_basis_cents,NEW.small_salary_evidence_reference,
+    NEW.updated_at
+  );
+END;
+CREATE TRIGGER IF NOT EXISTS payslip_small_salary_assessments_insert_guard
+BEFORE INSERT ON payslip_small_salary_assessments
+WHEN NOT EXISTS(
+  SELECT 1 FROM payslips p JOIN employee_small_salary_decisions d
+    ON d.employee_id=p.employee_id AND d.assessment_year=NEW.assessment_year
+      AND d.revision=NEW.decision_revision
+  WHERE p.id=NEW.payslip_id AND p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.gross_cents=NEW.current_gross_cents
+    AND d.decision_date=NEW.decision_date
+    AND d.sector=NEW.sector
+    AND d.employee_requested_contributions=NEW.employee_requested_contributions
+    AND d.opening_gross_cents=NEW.opening_gross_cents
+    AND d.opening_contributed_basis_cents=NEW.opening_contributed_basis_cents
+    AND d.evidence_reference=NEW.evidence_reference
+)
+BEGIN SELECT RAISE(ABORT, 'small salary assessment does not match the annual employee decision'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_small_salary_assessments_integrity_insert_guard
+BEFORE INSERT ON payslip_small_salary_assessments
+WHEN NEW.assessment_sha256<>zentra_sha256(NEW.assessment_json)
+  OR CASE WHEN json_valid(NEW.assessment_json)=1
+    AND json_type(NEW.assessment_json,'$')='object'
+    AND json_type(NEW.assessment_json,'$.assessment_year')='integer'
+    AND json_extract(NEW.assessment_json,'$.assessment_year')=NEW.assessment_year
+    AND json_type(NEW.assessment_json,'$.decision_revision')='integer'
+    AND json_extract(NEW.assessment_json,'$.decision_revision')=NEW.decision_revision
+    AND json_type(NEW.assessment_json,'$.decision_date')='text'
+    AND json_extract(NEW.assessment_json,'$.decision_date')=NEW.decision_date
+    AND json_type(NEW.assessment_json,'$.sector')='text'
+    AND json_extract(NEW.assessment_json,'$.sector')=NEW.sector
+    AND json_type(NEW.assessment_json,'$.employee_requested_contributions') IN ('true','false')
+    AND json_extract(NEW.assessment_json,'$.employee_requested_contributions')=NEW.employee_requested_contributions
+    AND json_type(NEW.assessment_json,'$.threshold_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.threshold_cents')=NEW.threshold_cents
+    AND json_type(NEW.assessment_json,'$.opening_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.opening_gross_cents')=NEW.opening_gross_cents
+    AND json_type(NEW.assessment_json,'$.opening_contributed_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.opening_contributed_basis_cents')=NEW.opening_contributed_basis_cents
+    AND json_type(NEW.assessment_json,'$.prior_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.prior_gross_cents')=NEW.prior_gross_cents
+    AND json_type(NEW.assessment_json,'$.prior_contributed_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.prior_contributed_basis_cents')=NEW.prior_contributed_basis_cents
+    AND json_type(NEW.assessment_json,'$.current_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.current_gross_cents')=NEW.current_gross_cents
+    AND json_type(NEW.assessment_json,'$.cumulative_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.cumulative_gross_cents')=NEW.cumulative_gross_cents
+    AND json_type(NEW.assessment_json,'$.contributions_due') IN ('true','false')
+    AND json_extract(NEW.assessment_json,'$.contributions_due')=NEW.contributions_due
+    AND json_type(NEW.assessment_json,'$.statutory_contribution_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.statutory_contribution_basis_cents')=NEW.statutory_contribution_basis_cents
+    AND json_type(NEW.assessment_json,'$.statutory_catchup_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.statutory_catchup_basis_cents')=NEW.statutory_catchup_basis_cents
+    AND json_type(NEW.assessment_json,'$.reason_code')='text'
+    AND json_extract(NEW.assessment_json,'$.reason_code')=NEW.reason_code
+    AND json_type(NEW.assessment_json,'$.evidence_reference')='text'
+    AND json_extract(NEW.assessment_json,'$.evidence_reference')=NEW.evidence_reference
+  THEN 0 ELSE 1 END=1
+  OR NEW.cumulative_gross_cents<>(NEW.opening_gross_cents+NEW.prior_gross_cents+NEW.current_gross_cents)
+  OR NEW.statutory_catchup_basis_cents>NEW.statutory_contribution_basis_cents
+BEGIN SELECT RAISE(ABORT, 'small salary assessment trace hash or payload is inconsistent'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_small_salary_assessments_policy_insert_guard
+BEFORE INSERT ON payslip_small_salary_assessments
+WHEN NEW.prior_contributed_basis_cents>(
+       NEW.opening_gross_cents+NEW.prior_gross_cents-NEW.opening_contributed_basis_cents
+     )
+  OR NEW.statutory_catchup_basis_cents<>CASE
+       WHEN NEW.statutory_contribution_basis_cents>NEW.current_gross_cents
+       THEN NEW.statutory_contribution_basis_cents-NEW.current_gross_cents ELSE 0 END
+  OR NOT (
+    (NEW.sector='ordinary' AND NEW.cumulative_gross_cents>250000
+      AND NEW.threshold_cents=250000 AND NEW.contributions_due=1
+      AND NEW.reason_code='ordinary_threshold_exceeded'
+      AND NEW.statutory_contribution_basis_cents=(
+        NEW.current_gross_cents+NEW.opening_gross_cents+NEW.prior_gross_cents
+        -NEW.opening_contributed_basis_cents-NEW.prior_contributed_basis_cents
+      ))
+    OR
+    (NEW.sector='ordinary' AND NEW.cumulative_gross_cents<=250000
+      AND NEW.employee_requested_contributions=1
+      AND NEW.decision_date<=COALESCE((
+        SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+        FROM payslips p WHERE p.id=NEW.payslip_id
+      ),'0000-00-00')
+      AND NEW.threshold_cents=250000 AND NEW.contributions_due=1
+      AND NEW.reason_code='employee_requested_contributions'
+      AND NEW.statutory_contribution_basis_cents=NEW.current_gross_cents)
+    OR
+    (NEW.sector='ordinary' AND NEW.cumulative_gross_cents<=250000
+      AND NOT (NEW.employee_requested_contributions=1
+        AND NEW.decision_date<=COALESCE((
+          SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+          FROM payslips p WHERE p.id=NEW.payslip_id
+        ),'0000-00-00'))
+      AND NEW.threshold_cents=250000 AND NEW.contributions_due=0
+      AND NEW.reason_code='ordinary_minor_salary_exempt'
+      AND NEW.statutory_contribution_basis_cents=0)
+    OR
+    (NEW.sector='private_household' AND EXISTS(
+      SELECT 1 FROM employees e WHERE e.id=NEW.employee_id
+        AND LENGTH(e.birth_date)=10 AND DATE(e.birth_date)=e.birth_date
+        AND (
+          ((NEW.assessment_year>CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+25
+              OR NEW.cumulative_gross_cents>75000)
+            AND NEW.threshold_cents=0 AND NEW.contributions_due=1
+            AND NEW.reason_code='private_household_mandatory'
+            AND NEW.statutory_contribution_basis_cents=(
+              NEW.current_gross_cents+NEW.opening_gross_cents+NEW.prior_gross_cents
+              -NEW.opening_contributed_basis_cents-NEW.prior_contributed_basis_cents
+            ))
+          OR
+          (NEW.assessment_year<=CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+25
+            AND NEW.cumulative_gross_cents<=75000
+            AND NEW.employee_requested_contributions=1
+            AND NEW.decision_date<=COALESCE((
+              SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+              FROM payslips p WHERE p.id=NEW.payslip_id
+            ),'0000-00-00')
+            AND NEW.threshold_cents=75000 AND NEW.contributions_due=1
+            AND NEW.reason_code='employee_requested_contributions'
+            AND NEW.statutory_contribution_basis_cents=NEW.current_gross_cents)
+          OR
+          (NEW.assessment_year<=CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+25
+            AND NEW.cumulative_gross_cents<=75000
+            AND NOT (NEW.employee_requested_contributions=1
+              AND NEW.decision_date<=COALESCE((
+                SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+                FROM payslips p WHERE p.id=NEW.payslip_id
+              ),'0000-00-00'))
+            AND NEW.threshold_cents=75000 AND NEW.contributions_due=0
+            AND NEW.reason_code='private_household_youth_minor_salary_exempt'
+            AND NEW.statutory_contribution_basis_cents=0)
+        )
+    ))
+    OR
+    (NEW.sector='arts_culture' AND NEW.threshold_cents=0
+      AND NEW.contributions_due=1 AND NEW.reason_code='arts_culture_mandatory'
+      AND NEW.statutory_contribution_basis_cents=(
+        NEW.current_gross_cents+NEW.opening_gross_cents+NEW.prior_gross_cents
+        -NEW.opening_contributed_basis_cents-NEW.prior_contributed_basis_cents
+      ))
+  )
+BEGIN SELECT RAISE(ABORT, 'small salary assessment trace violates statutory sector policy'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_small_salary_assessments_no_update
+BEFORE UPDATE ON payslip_small_salary_assessments
+BEGIN SELECT RAISE(ABORT, 'small salary assessment trace is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS payslip_small_salary_assessments_validated_no_delete
+BEFORE DELETE ON payslip_small_salary_assessments
+WHEN EXISTS(SELECT 1 FROM payslips p WHERE p.id=OLD.payslip_id AND p.status IN ('valide','comptabilise','paye'))
+  OR EXISTS(
+    SELECT 1 FROM payslips current JOIN payslips later
+      ON later.employee_id=current.employee_id
+     AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+     AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+    WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+  )
+BEGIN SELECT RAISE(ABORT, 'posted small salary assessment trace is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS payslips_small_salary_posted_trace_insert_guard
+BEFORE INSERT ON payslips
+WHEN NEW.status IN ('valide','comptabilise','paye')
+  AND NOT EXISTS(
+    SELECT 1 FROM employees e
+    WHERE e.id=NEW.employee_id
+      AND e.birth_date IS NOT NULL
+      AND LENGTH(e.birth_date)=10 AND DATE(e.birth_date)=e.birth_date
+      AND CAST(SUBSTR(NEW.period,1,4) AS INTEGER)<CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+18
+  )
+BEGIN SELECT RAISE(ABORT, 'posted payslip requiring a small salary assessment must be validated through the controlled workflow'); END;
+CREATE TRIGGER IF NOT EXISTS payslips_small_salary_posted_trace_update_guard
+BEFORE UPDATE OF status,gross_cents,employee_id,period ON payslips
+WHEN NEW.status IN ('valide','comptabilise','paye')
+  AND NOT (
+    OLD.status='comptabilise' AND NEW.status='paye'
+    AND NEW.payment_date IS NOT NULL AND TRIM(NEW.payment_date)<>''
+    AND NEW.payment_journal_entry_id IS NOT NULL AND TRIM(NEW.payment_journal_entry_id)<>''
+  )
+  AND NOT EXISTS(
+    SELECT 1 FROM employees e
+    WHERE e.id=NEW.employee_id
+      AND e.birth_date IS NOT NULL
+      AND LENGTH(e.birth_date)=10 AND DATE(e.birth_date)=e.birth_date
+      AND CAST(SUBSTR(NEW.period,1,4) AS INTEGER)<CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+18
+  )
+  AND NOT EXISTS(
+    SELECT 1 FROM payslip_small_salary_assessments t
+    JOIN employee_small_salary_decisions d
+      ON d.employee_id=t.employee_id AND d.assessment_year=t.assessment_year
+     AND d.revision=t.decision_revision
+    WHERE t.payslip_id=NEW.id AND t.employee_id=NEW.employee_id
+      AND t.assessment_year=CAST(SUBSTR(NEW.period,1,4) AS INTEGER)
+      AND t.current_gross_cents=NEW.gross_cents
+      AND t.cumulative_gross_cents=(t.opening_gross_cents+t.prior_gross_cents+t.current_gross_cents)
+      AND t.assessment_sha256=zentra_sha256(t.assessment_json)
+  )
+BEGIN SELECT RAISE(ABORT, 'posted payslip requires a valid small salary assessment trace'); END;
 
 CREATE INDEX IF NOT EXISTS idx_supplier_invoices_status_due
 ON supplier_invoices(status,due_date,document_date);
@@ -4986,4 +5484,1104 @@ WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
 BEGIN SELECT RAISE(ABORT,'AC and LAA opening years and bases must be confirmed in pairs'); END;
 
 PRAGMA user_version=32;
+"#;
+
+/// Frontière cumulative de clôture V33. Dès qu'une période est clôturée, sa
+/// date de fin la plus tardive scelle tout l'historique antérieur, y compris
+/// les éventuels intervalles qui ne sont couverts par aucune période. Les
+/// gardes Rust restent l'autorité fonctionnelle; ces déclencheurs constituent
+/// une seconde ligne de défense pour tout accès SQLite hors application.
+pub const MIGRATION_V33_SQL: &str = r#"
+CREATE VIEW IF NOT EXISTS vat_source_fiscal_dates AS
+SELECT source_type,source_id,MIN(fiscal_date) AS fiscal_date
+FROM (
+  SELECT 'invoice_item' AS source_type,item.id AS source_id,invoice.issue_date AS fiscal_date
+  FROM invoice_items item
+  JOIN invoices invoice ON invoice.id=item.invoice_id
+  UNION ALL
+  SELECT 'invoice_item',item.id,payment.date
+  FROM invoice_items item
+  JOIN payments payment ON payment.invoice_id=item.invoice_id
+  UNION ALL
+  SELECT 'supplier_invoice_item',item.id,invoice.document_date
+  FROM supplier_invoice_items item
+  JOIN supplier_invoices invoice ON invoice.id=item.supplier_invoice_id
+  UNION ALL
+  SELECT 'supplier_invoice_item',item.id,payment.date
+  FROM supplier_invoice_items item
+  JOIN supplier_payments payment ON payment.supplier_invoice_id=item.supplier_invoice_id
+  UNION ALL
+  SELECT 'expense',expense.id,expense.date
+  FROM expenses expense
+  UNION ALL
+  SELECT 'expense',expense.id,expense.paid_at
+  FROM expenses expense
+  WHERE expense.paid_at IS NOT NULL AND TRIM(expense.paid_at)<>''
+)
+WHERE fiscal_date IS NOT NULL AND TRIM(fiscal_date)<>''
+GROUP BY source_type,source_id;
+
+DROP TRIGGER IF EXISTS accounting_periods_canonical_dates_insert_guard;
+CREATE TRIGGER accounting_periods_canonical_dates_insert_guard
+BEFORE INSERT ON accounting_periods
+WHEN LENGTH(NEW.date_from)<>10
+  OR NEW.date_from NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date_from) IS NULL OR DATE(NEW.date_from)<>NEW.date_from
+  OR LENGTH(NEW.date_to)<>10
+  OR NEW.date_to NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date_to) IS NULL OR DATE(NEW.date_to)<>NEW.date_to
+BEGIN SELECT RAISE(ABORT,'accounting period dates must be canonical YYYY-MM-DD dates'); END;
+
+DROP TRIGGER IF EXISTS accounting_periods_canonical_dates_update_guard;
+CREATE TRIGGER accounting_periods_canonical_dates_update_guard
+BEFORE UPDATE ON accounting_periods
+WHEN LENGTH(NEW.date_from)<>10
+  OR NEW.date_from NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date_from) IS NULL OR DATE(NEW.date_from)<>NEW.date_from
+  OR LENGTH(NEW.date_to)<>10
+  OR NEW.date_to NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date_to) IS NULL OR DATE(NEW.date_to)<>NEW.date_to
+BEGIN SELECT RAISE(ABORT,'accounting period dates must be canonical YYYY-MM-DD dates'); END;
+
+DROP TRIGGER IF EXISTS journal_entries_closed_through_insert_guard;
+CREATE TRIGGER journal_entries_closed_through_insert_guard
+BEFORE INSERT ON journal_entries
+WHEN NEW.entry_date<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'journal entry is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS journal_entries_canonical_date_insert_guard;
+CREATE TRIGGER journal_entries_canonical_date_insert_guard
+BEFORE INSERT ON journal_entries
+WHEN LENGTH(NEW.entry_date)<>10
+  OR NEW.entry_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.entry_date) IS NULL OR DATE(NEW.entry_date)<>NEW.entry_date
+BEGIN SELECT RAISE(ABORT,'journal entry date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS journal_entries_reversal_chronology_guard;
+CREATE TRIGGER journal_entries_reversal_chronology_guard
+BEFORE INSERT ON journal_entries
+WHEN NEW.reversal_of IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM journal_entries original
+  WHERE original.id=NEW.reversal_of AND original.entry_date<=NEW.entry_date
+)
+BEGIN SELECT RAISE(ABORT,'journal reversal cannot precede its original entry'); END;
+
+DROP TRIGGER IF EXISTS journal_lines_closed_through_insert_guard;
+CREATE TRIGGER journal_lines_closed_through_insert_guard
+BEFORE INSERT ON journal_lines
+WHEN EXISTS(
+  SELECT 1 FROM journal_entries entry
+  WHERE entry.id=NEW.journal_entry_id
+    AND entry.entry_date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+)
+BEGIN SELECT RAISE(ABORT,'journal lines through the closed date are immutable'); END;
+
+DROP TRIGGER IF EXISTS accounting_periods_closed_no_update;
+CREATE TRIGGER accounting_periods_closed_no_update
+BEFORE UPDATE ON accounting_periods
+WHEN OLD.status='closed'
+BEGIN SELECT RAISE(ABORT,'closed accounting periods are immutable'); END;
+
+DROP TRIGGER IF EXISTS accounting_periods_closed_no_delete;
+CREATE TRIGGER accounting_periods_closed_no_delete
+BEFORE DELETE ON accounting_periods
+WHEN OLD.status='closed'
+BEGIN SELECT RAISE(ABORT,'closed accounting periods are immutable'); END;
+
+DROP TRIGGER IF EXISTS accounting_periods_closed_through_insert_guard;
+CREATE TRIGGER accounting_periods_closed_through_insert_guard
+BEFORE INSERT ON accounting_periods
+WHEN NEW.date_from<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'accounting period starts on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS accounting_periods_closed_through_update_guard;
+CREATE TRIGGER accounting_periods_closed_through_update_guard
+BEFORE UPDATE ON accounting_periods
+WHEN OLD.status<>'closed'
+  AND NEW.date_from<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+BEGIN SELECT RAISE(ABORT,'accounting period starts on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS invoices_closed_through_insert_guard;
+CREATE TRIGGER invoices_closed_through_insert_guard
+BEFORE INSERT ON invoices
+WHEN NEW.number IS NOT NULL AND TRIM(NEW.number)<>''
+  AND NEW.issue_date<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+BEGIN SELECT RAISE(ABORT,'issued invoice is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS invoices_canonical_issue_date_insert_guard;
+CREATE TRIGGER invoices_canonical_issue_date_insert_guard
+BEFORE INSERT ON invoices
+WHEN NEW.number IS NOT NULL AND TRIM(NEW.number)<>'' AND (
+  NEW.issue_date IS NULL
+  OR LENGTH(NEW.issue_date)<>10
+  OR NEW.issue_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.issue_date) IS NULL OR DATE(NEW.issue_date)<>NEW.issue_date
+)
+BEGIN SELECT RAISE(ABORT,'issued invoice date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS invoices_closed_through_issue_guard;
+CREATE TRIGGER invoices_closed_through_issue_guard
+BEFORE UPDATE OF number ON invoices
+WHEN (OLD.number IS NULL OR TRIM(OLD.number)='')
+  AND NEW.number IS NOT NULL AND TRIM(NEW.number)<>''
+  AND NEW.issue_date<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+BEGIN SELECT RAISE(ABORT,'issued invoice is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS invoices_canonical_issue_date_update_guard;
+CREATE TRIGGER invoices_canonical_issue_date_update_guard
+BEFORE UPDATE OF number,issue_date ON invoices
+WHEN NEW.number IS NOT NULL AND TRIM(NEW.number)<>'' AND (
+  NEW.issue_date IS NULL
+  OR LENGTH(NEW.issue_date)<>10
+  OR NEW.issue_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.issue_date) IS NULL OR DATE(NEW.issue_date)<>NEW.issue_date
+)
+BEGIN SELECT RAISE(ABORT,'issued invoice date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS payments_closed_through_insert_guard;
+CREATE TRIGGER payments_closed_through_insert_guard
+BEFORE INSERT ON payments
+WHEN NEW.date<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'customer payment is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS payments_canonical_date_insert_guard;
+CREATE TRIGGER payments_canonical_date_insert_guard
+BEFORE INSERT ON payments
+WHEN LENGTH(NEW.date)<>10
+  OR NEW.date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date) IS NULL OR DATE(NEW.date)<>NEW.date
+BEGIN SELECT RAISE(ABORT,'customer payment date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS supplier_invoices_closed_through_insert_guard;
+CREATE TRIGGER supplier_invoices_closed_through_insert_guard
+BEFORE INSERT ON supplier_invoices
+WHEN NEW.status='validated'
+  AND NEW.document_date<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+BEGIN SELECT RAISE(ABORT,'validated supplier invoice is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS supplier_invoices_closed_through_validation_guard;
+CREATE TRIGGER supplier_invoices_closed_through_validation_guard
+BEFORE UPDATE OF status ON supplier_invoices
+WHEN OLD.status='draft' AND NEW.status='validated'
+  AND NEW.document_date<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+BEGIN SELECT RAISE(ABORT,'validated supplier invoice is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS supplier_invoices_canonical_date_insert_guard;
+CREATE TRIGGER supplier_invoices_canonical_date_insert_guard
+BEFORE INSERT ON supplier_invoices
+WHEN NEW.status='validated' AND (
+  LENGTH(NEW.document_date)<>10
+  OR NEW.document_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.document_date) IS NULL OR DATE(NEW.document_date)<>NEW.document_date
+)
+BEGIN SELECT RAISE(ABORT,'supplier invoice date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS supplier_invoices_canonical_date_update_guard;
+CREATE TRIGGER supplier_invoices_canonical_date_update_guard
+BEFORE UPDATE OF status,document_date ON supplier_invoices
+WHEN NEW.status='validated' AND (
+  LENGTH(NEW.document_date)<>10
+  OR NEW.document_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.document_date) IS NULL OR DATE(NEW.document_date)<>NEW.document_date
+)
+BEGIN SELECT RAISE(ABORT,'supplier invoice date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS supplier_payments_closed_through_insert_guard;
+CREATE TRIGGER supplier_payments_closed_through_insert_guard
+BEFORE INSERT ON supplier_payments
+WHEN NEW.date<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'supplier payment is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS supplier_payments_canonical_date_insert_guard;
+CREATE TRIGGER supplier_payments_canonical_date_insert_guard
+BEFORE INSERT ON supplier_payments
+WHEN LENGTH(NEW.date)<>10
+  OR NEW.date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date) IS NULL OR DATE(NEW.date)<>NEW.date
+BEGIN SELECT RAISE(ABORT,'supplier payment date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS expenses_closed_through_insert_guard;
+CREATE TRIGGER expenses_closed_through_insert_guard
+BEFORE INSERT ON expenses
+WHEN NEW.date<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+  OR (
+    NEW.paid_at IS NOT NULL AND TRIM(NEW.paid_at)<>''
+    AND NEW.paid_at<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'expense is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS expenses_canonical_dates_insert_guard;
+CREATE TRIGGER expenses_canonical_dates_insert_guard
+BEFORE INSERT ON expenses
+WHEN LENGTH(NEW.date)<>10
+  OR NEW.date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date) IS NULL OR DATE(NEW.date)<>NEW.date
+  OR (
+    NEW.paid_at IS NOT NULL AND TRIM(NEW.paid_at)<>'' AND (
+      LENGTH(NEW.paid_at)<>10
+      OR NEW.paid_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+      OR DATE(NEW.paid_at) IS NULL OR DATE(NEW.paid_at)<>NEW.paid_at
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'expense dates must be canonical YYYY-MM-DD dates'); END;
+
+DROP TRIGGER IF EXISTS expenses_canonical_dates_update_guard;
+CREATE TRIGGER expenses_canonical_dates_update_guard
+BEFORE UPDATE OF date,paid_at ON expenses
+WHEN LENGTH(NEW.date)<>10
+  OR NEW.date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.date) IS NULL OR DATE(NEW.date)<>NEW.date
+  OR (
+    NEW.paid_at IS NOT NULL AND TRIM(NEW.paid_at)<>'' AND (
+      LENGTH(NEW.paid_at)<>10
+      OR NEW.paid_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+      OR DATE(NEW.paid_at) IS NULL OR DATE(NEW.paid_at)<>NEW.paid_at
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'expense dates must be canonical YYYY-MM-DD dates'); END;
+
+DROP TRIGGER IF EXISTS expenses_closed_through_fiscal_update_guard;
+CREATE TRIGGER expenses_closed_through_fiscal_update_guard
+BEFORE UPDATE ON expenses
+WHEN (
+    NEW.date IS NOT OLD.date
+    OR NEW.supplier IS NOT OLD.supplier
+    OR NEW.category IS NOT OLD.category
+    OR NEW.reference IS NOT OLD.reference
+    OR NEW.currency IS NOT OLD.currency
+    OR NEW.net_cents IS NOT OLD.net_cents
+    OR NEW.vat_cents IS NOT OLD.vat_cents
+    OR NEW.total_cents IS NOT OLD.total_cents
+  )
+  AND (
+    OLD.date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+    OR NEW.date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'expense fiscal history through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS expenses_closed_through_payment_update_guard;
+CREATE TRIGGER expenses_closed_through_payment_update_guard
+BEFORE UPDATE OF payment_status,paid_at ON expenses
+WHEN (NEW.payment_status IS NOT OLD.payment_status OR NEW.paid_at IS NOT OLD.paid_at)
+  AND (
+    (OLD.payment_status='paid'
+      AND COALESCE(NULLIF(TRIM(OLD.paid_at),''),OLD.date)<=COALESCE(
+          (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+          '0000-00-00'
+        ))
+    OR
+    (NEW.payment_status='paid'
+      AND COALESCE(NULLIF(TRIM(NEW.paid_at),''),NEW.date)<=COALESCE(
+          (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+          '0000-00-00'
+        ))
+  )
+BEGIN SELECT RAISE(ABORT,'expense payment history through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS expenses_closed_through_delete_guard;
+CREATE TRIGGER expenses_closed_through_delete_guard
+BEFORE DELETE ON expenses
+WHEN OLD.date<=COALESCE(
+    (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+    '0000-00-00'
+  )
+  OR (
+    OLD.paid_at IS NOT NULL AND TRIM(OLD.paid_at)<>''
+    AND OLD.paid_at<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'expense fiscal history through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS vat_adjustments_closed_through_insert_guard;
+CREATE TRIGGER vat_adjustments_closed_through_insert_guard
+BEFORE INSERT ON vat_adjustments
+WHEN NEW.adjustment_date<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'VAT adjustment is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS vat_adjustments_canonical_date_insert_guard;
+CREATE TRIGGER vat_adjustments_canonical_date_insert_guard
+BEFORE INSERT ON vat_adjustments
+WHEN LENGTH(NEW.adjustment_date)<>10
+  OR NEW.adjustment_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.adjustment_date) IS NULL OR DATE(NEW.adjustment_date)<>NEW.adjustment_date
+BEGIN SELECT RAISE(ABORT,'VAT adjustment date must be a canonical YYYY-MM-DD date'); END;
+
+DROP TRIGGER IF EXISTS vat_adjustments_reversal_chronology_guard;
+CREATE TRIGGER vat_adjustments_reversal_chronology_guard
+BEFORE INSERT ON vat_adjustments
+WHEN NEW.reverses_adjustment_id IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM vat_adjustments original
+  WHERE original.id=NEW.reverses_adjustment_id
+    AND original.adjustment_date<=NEW.adjustment_date
+)
+BEGIN SELECT RAISE(ABORT,'VAT adjustment reversal cannot precede its original adjustment'); END;
+
+DROP TRIGGER IF EXISTS vat_profiles_closed_through_insert_guard;
+CREATE TRIGGER vat_profiles_closed_through_insert_guard
+BEFORE INSERT ON vat_profiles
+WHEN NEW.effective_from<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'VAT profile starts on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS vat_profiles_canonical_dates_insert_guard;
+CREATE TRIGGER vat_profiles_canonical_dates_insert_guard
+BEFORE INSERT ON vat_profiles
+WHEN LENGTH(NEW.effective_from)<>10
+  OR NEW.effective_from NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.effective_from) IS NULL OR DATE(NEW.effective_from)<>NEW.effective_from
+  OR (
+    NEW.effective_to IS NOT NULL AND (
+      LENGTH(NEW.effective_to)<>10
+      OR NEW.effective_to NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+      OR DATE(NEW.effective_to) IS NULL OR DATE(NEW.effective_to)<>NEW.effective_to
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'VAT profile dates must be canonical YYYY-MM-DD dates'); END;
+
+DROP TRIGGER IF EXISTS vat_profiles_canonical_dates_update_guard;
+CREATE TRIGGER vat_profiles_canonical_dates_update_guard
+BEFORE UPDATE OF effective_from,effective_to ON vat_profiles
+WHEN LENGTH(NEW.effective_from)<>10
+  OR NEW.effective_from NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+  OR DATE(NEW.effective_from) IS NULL OR DATE(NEW.effective_from)<>NEW.effective_from
+  OR (
+    NEW.effective_to IS NOT NULL AND (
+      LENGTH(NEW.effective_to)<>10
+      OR NEW.effective_to NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+      OR DATE(NEW.effective_to) IS NULL OR DATE(NEW.effective_to)<>NEW.effective_to
+    )
+  )
+BEGIN SELECT RAISE(ABORT,'VAT profile dates must be canonical YYYY-MM-DD dates'); END;
+
+DROP TRIGGER IF EXISTS vat_profiles_closed_through_update_guard;
+CREATE TRIGGER vat_profiles_closed_through_update_guard
+BEFORE UPDATE ON vat_profiles
+WHEN (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed') IS NOT NULL
+  AND (
+    OLD.effective_from<=
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed')
+    OR NEW.effective_from<=
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed')
+  )
+  AND NOT (
+    OLD.id IS NEW.id
+    AND OLD.effective_from IS NEW.effective_from
+    AND OLD.effective_to IS NULL
+    AND NEW.effective_to IS NOT NULL
+    AND NEW.effective_to>=
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed')
+    AND OLD.reporting_method IS NEW.reporting_method
+    AND OLD.form_of_reporting IS NEW.form_of_reporting
+    AND OLD.periodicity IS NEW.periodicity
+    AND OLD.gross_or_net IS NEW.gross_or_net
+    AND OLD.tdfn_activity_id IS NEW.tdfn_activity_id
+    AND OLD.tdfn_rate_bp IS NEW.tdfn_rate_bp
+    AND OLD.afc_authorization_confirmed IS NEW.afc_authorization_confirmed
+    AND OLD.notes IS NEW.notes
+    AND OLD.created_at IS NEW.created_at
+  )
+BEGIN SELECT RAISE(ABORT,'VAT profile history through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS vat_profiles_closed_through_delete_guard;
+CREATE TRIGGER vat_profiles_closed_through_delete_guard
+BEFORE DELETE ON vat_profiles
+WHEN OLD.effective_from<=COALESCE(
+  (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+  '0000-00-00'
+)
+BEGIN SELECT RAISE(ABORT,'VAT profile history through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS vat_source_classifications_closed_through_insert_guard;
+CREATE TRIGGER vat_source_classifications_closed_through_insert_guard
+BEFORE INSERT ON vat_source_classifications
+WHEN EXISTS(
+  SELECT 1 FROM vat_source_fiscal_dates source
+  WHERE source.source_type=NEW.source_type AND source.source_id=NEW.source_id
+    AND source.fiscal_date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+)
+BEGIN SELECT RAISE(ABORT,'VAT source classification is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS vat_source_classifications_closed_through_update_guard;
+CREATE TRIGGER vat_source_classifications_closed_through_update_guard
+BEFORE UPDATE ON vat_source_classifications
+WHEN (
+    NEW.id IS NOT OLD.id
+    OR NEW.source_type IS NOT OLD.source_type
+    OR NEW.source_id IS NOT OLD.source_id
+    OR NEW.treatment IS NOT OLD.treatment
+    OR NEW.note IS NOT OLD.note
+    OR NEW.created_at IS NOT OLD.created_at
+    OR NEW.updated_at IS NOT OLD.updated_at
+  )
+  AND EXISTS(
+    SELECT 1 FROM vat_source_fiscal_dates source
+    WHERE (
+        (source.source_type=OLD.source_type AND source.source_id=OLD.source_id)
+        OR (source.source_type=NEW.source_type AND source.source_id=NEW.source_id)
+      )
+      AND source.fiscal_date<=COALESCE(
+        (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+        '0000-00-00'
+      )
+  )
+BEGIN SELECT RAISE(ABORT,'VAT source classification through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS vat_source_classifications_closed_through_delete_guard;
+CREATE TRIGGER vat_source_classifications_closed_through_delete_guard
+BEFORE DELETE ON vat_source_classifications
+WHEN EXISTS(
+  SELECT 1 FROM vat_source_fiscal_dates source
+  WHERE source.source_type=OLD.source_type AND source.source_id=OLD.source_id
+    AND source.fiscal_date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+)
+BEGIN SELECT RAISE(ABORT,'VAT source classification through the closed date is immutable'); END;
+
+PRAGMA user_version=33;
+"#;
+
+/// Décision annuelle et trace de calcul des salaires de minime importance.
+/// La migration n'invente aucune décision pour les données existantes : les
+/// sept champs restent nuls jusqu'à leur confirmation explicite par le client.
+pub const MIGRATION_V34_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS employee_small_salary_decisions (
+  employee_id TEXT NOT NULL REFERENCES employees(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  assessment_year INTEGER NOT NULL CHECK (assessment_year BETWEEN 1900 AND 9999),
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  revision_kind TEXT NOT NULL CHECK (revision_kind IN ('initial','prevalidation_correction','prospective_request')),
+  decision_date TEXT NOT NULL CHECK (LENGTH(decision_date)=10 AND decision_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(decision_date) IS NOT NULL AND DATE(decision_date)=decision_date),
+  sector TEXT NOT NULL CHECK (sector IN ('ordinary','private_household','arts_culture')),
+  employee_requested_contributions INTEGER NOT NULL CHECK (employee_requested_contributions IN (0,1)),
+  opening_gross_cents INTEGER NOT NULL CHECK (opening_gross_cents >= 0),
+  opening_contributed_basis_cents INTEGER NOT NULL CHECK (opening_contributed_basis_cents >= 0),
+  evidence_reference TEXT NOT NULL CHECK (LENGTH(TRIM(evidence_reference)) BETWEEN 1 AND 500),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(employee_id,assessment_year,revision),
+  CHECK ((revision=1 AND revision_kind='initial') OR (revision>1 AND revision_kind<>'initial')),
+  CHECK (SUBSTR(decision_date,1,4)=PRINTF('%04d',assessment_year)),
+  CHECK (opening_contributed_basis_cents<=opening_gross_cents)
+);
+
+CREATE TABLE IF NOT EXISTS payslip_small_salary_assessments (
+  payslip_id TEXT PRIMARY KEY REFERENCES payslips(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  employee_id TEXT NOT NULL REFERENCES employees(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  assessment_year INTEGER NOT NULL CHECK (assessment_year BETWEEN 1900 AND 9999),
+  decision_revision INTEGER NOT NULL CHECK (decision_revision >= 1),
+  decision_date TEXT NOT NULL CHECK (LENGTH(decision_date)=10 AND decision_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(decision_date) IS NOT NULL AND DATE(decision_date)=decision_date),
+  sector TEXT NOT NULL CHECK (sector IN ('ordinary','private_household','arts_culture')),
+  employee_requested_contributions INTEGER NOT NULL CHECK (employee_requested_contributions IN (0,1)),
+  threshold_cents INTEGER NOT NULL CHECK (threshold_cents >= 0),
+  opening_gross_cents INTEGER NOT NULL CHECK (opening_gross_cents >= 0),
+  opening_contributed_basis_cents INTEGER NOT NULL CHECK (opening_contributed_basis_cents >= 0),
+  prior_gross_cents INTEGER NOT NULL CHECK (prior_gross_cents >= 0),
+  prior_contributed_basis_cents INTEGER NOT NULL CHECK (prior_contributed_basis_cents >= 0),
+  current_gross_cents INTEGER NOT NULL CHECK (current_gross_cents >= 0),
+  cumulative_gross_cents INTEGER NOT NULL CHECK (cumulative_gross_cents >= 0),
+  contributions_due INTEGER NOT NULL CHECK (contributions_due IN (0,1)),
+  statutory_contribution_basis_cents INTEGER NOT NULL CHECK (statutory_contribution_basis_cents >= 0),
+  statutory_catchup_basis_cents INTEGER NOT NULL CHECK (statutory_catchup_basis_cents >= 0),
+  reason_code TEXT NOT NULL CHECK (reason_code IN (
+    'ordinary_minor_salary_exempt','ordinary_threshold_exceeded',
+    'employee_requested_contributions','private_household_youth_minor_salary_exempt',
+    'private_household_mandatory','arts_culture_mandatory'
+  )),
+  evidence_reference TEXT NOT NULL CHECK (LENGTH(TRIM(evidence_reference)) BETWEEN 1 AND 500),
+  assessment_json TEXT NOT NULL CHECK (json_valid(assessment_json)=1 AND LENGTH(assessment_json) BETWEEN 2 AND 100000),
+  assessment_sha256 TEXT NOT NULL CHECK (LENGTH(assessment_sha256)=64 AND assessment_sha256 NOT GLOB '*[^0-9a-f]*'),
+  source_reference TEXT NOT NULL CHECK (LENGTH(TRIM(source_reference)) BETWEEN 1 AND 1000),
+  created_at TEXT NOT NULL,
+  CHECK (SUBSTR(decision_date,1,4)=PRINTF('%04d',assessment_year))
+);
+
+INSERT INTO employee_small_salary_decisions(
+  employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+  employee_requested_contributions,opening_gross_cents,
+  opening_contributed_basis_cents,evidence_reference,created_at
+)
+SELECT e.id,e.small_salary_assessment_year,1,'initial',e.small_salary_decision_date,
+       e.small_salary_sector,e.small_salary_employee_requested_contributions,
+       e.small_salary_opening_gross_cents,e.small_salary_opening_contributed_basis_cents,
+       e.small_salary_evidence_reference,e.updated_at
+FROM employees e
+WHERE e.small_salary_assessment_year IS NOT NULL
+  AND e.small_salary_decision_date IS NOT NULL
+  AND e.small_salary_sector IS NOT NULL
+  AND e.small_salary_employee_requested_contributions IS NOT NULL
+  AND e.small_salary_opening_gross_cents IS NOT NULL
+  AND e.small_salary_opening_contributed_basis_cents IS NOT NULL
+  AND e.small_salary_evidence_reference IS NOT NULL
+  AND NOT EXISTS(
+    SELECT 1 FROM employee_small_salary_decisions existing
+    WHERE existing.employee_id=e.id
+      AND existing.assessment_year=e.small_salary_assessment_year
+  );
+
+DROP TRIGGER IF EXISTS payslips_later_posted_insert_guard;
+CREATE TRIGGER payslips_later_posted_insert_guard
+BEFORE INSERT ON payslips
+WHEN NEW.status IN ('valide','comptabilise','paye') AND EXISTS(
+  SELECT 1 FROM payslips later
+  WHERE later.id<>NEW.id AND later.employee_id=NEW.employee_id
+    AND SUBSTR(later.period,1,4)=SUBSTR(NEW.period,1,4)
+    AND later.period>NEW.period AND later.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier validated payroll'); END;
+
+DROP TRIGGER IF EXISTS payslips_later_posted_update_guard;
+CREATE TRIGGER payslips_later_posted_update_guard
+BEFORE UPDATE ON payslips
+WHEN EXISTS(
+  SELECT 1 FROM payslips later
+  WHERE later.id<>OLD.id AND later.status IN ('valide','comptabilise','paye') AND (
+    (OLD.status IN ('valide','comptabilise','paye') AND later.employee_id=OLD.employee_id
+      AND SUBSTR(later.period,1,4)=SUBSTR(OLD.period,1,4) AND later.period>OLD.period)
+    OR
+    (NEW.status IN ('valide','comptabilise','paye') AND later.employee_id=NEW.employee_id
+      AND SUBSTR(later.period,1,4)=SUBSTR(NEW.period,1,4) AND later.period>NEW.period)
+  )
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier validated payroll'); END;
+
+DROP TRIGGER IF EXISTS payslips_later_posted_delete_guard;
+CREATE TRIGGER payslips_later_posted_delete_guard
+BEFORE DELETE ON payslips
+WHEN OLD.status IN ('valide','comptabilise','paye') AND EXISTS(
+  SELECT 1 FROM payslips later
+  WHERE later.id<>OLD.id AND later.employee_id=OLD.employee_id
+    AND SUBSTR(later.period,1,4)=SUBSTR(OLD.period,1,4)
+    AND later.period>OLD.period AND later.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier validated payroll'); END;
+
+DROP TRIGGER IF EXISTS payslip_items_later_posted_insert_guard;
+CREATE TRIGGER payslip_items_later_posted_insert_guard
+BEFORE INSERT ON payslip_items
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=NEW.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier validated payroll lines'); END;
+
+DROP TRIGGER IF EXISTS payslip_items_later_posted_update_guard;
+CREATE TRIGGER payslip_items_later_posted_update_guard
+BEFORE UPDATE ON payslip_items
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier validated payroll lines'); END;
+
+DROP TRIGGER IF EXISTS payslip_items_later_posted_delete_guard;
+CREATE TRIGGER payslip_items_later_posted_delete_guard
+BEFORE DELETE ON payslip_items
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier validated payroll lines'); END;
+
+DROP TRIGGER IF EXISTS payslip_contributions_later_posted_insert_guard;
+CREATE TRIGGER payslip_contributions_later_posted_insert_guard
+BEFORE INSERT ON payslip_contributions
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=NEW.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier payroll contributions'); END;
+
+DROP TRIGGER IF EXISTS payslip_contributions_later_posted_update_guard;
+CREATE TRIGGER payslip_contributions_later_posted_update_guard
+BEFORE UPDATE ON payslip_contributions
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier payroll contributions'); END;
+
+DROP TRIGGER IF EXISTS payslip_contributions_later_posted_delete_guard;
+CREATE TRIGGER payslip_contributions_later_posted_delete_guard
+BEFORE DELETE ON payslip_contributions
+WHEN EXISTS(
+  SELECT 1 FROM payslips current JOIN payslips later
+    ON later.employee_id=current.employee_id
+   AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+   AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+  WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'a later posted payslip seals earlier payroll contributions'); END;
+
+DROP TRIGGER IF EXISTS employees_payroll_decisions_insert_guard;
+CREATE TRIGGER employees_payroll_decisions_insert_guard
+BEFORE INSERT ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+  OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
+  OR ((NEW.small_salary_assessment_year IS NOT NULL)
+    + (NEW.small_salary_sector IS NOT NULL)
+    + (NEW.small_salary_employee_requested_contributions IS NOT NULL)
+    + (NEW.small_salary_opening_gross_cents IS NOT NULL)
+    + (NEW.small_salary_opening_contributed_basis_cents IS NOT NULL)
+    + (NEW.small_salary_evidence_reference IS NOT NULL)
+    + (NEW.small_salary_decision_date IS NOT NULL)) NOT IN (0,7)
+  OR (NEW.small_salary_decision_date IS NOT NULL
+    AND SUBSTR(NEW.small_salary_decision_date,1,4)<>PRINTF('%04d',NEW.small_salary_assessment_year))
+BEGIN SELECT RAISE(ABORT,'payroll annual decisions must be confirmed as complete groups'); END;
+
+DROP TRIGGER IF EXISTS employees_payroll_decisions_update_guard;
+CREATE TRIGGER employees_payroll_decisions_update_guard
+BEFORE UPDATE OF ac_opening_year,ac_opening_basis_cents,laa_opening_year,laa_opening_basis_cents,
+  small_salary_assessment_year,small_salary_decision_date,small_salary_sector,small_salary_employee_requested_contributions,
+  small_salary_opening_gross_cents,small_salary_opening_contributed_basis_cents,
+  small_salary_evidence_reference ON employees
+WHEN (NEW.ac_opening_year IS NULL) <> (NEW.ac_opening_basis_cents IS NULL)
+  OR (NEW.laa_opening_year IS NULL) <> (NEW.laa_opening_basis_cents IS NULL)
+  OR ((NEW.small_salary_assessment_year IS NOT NULL)
+    + (NEW.small_salary_sector IS NOT NULL)
+    + (NEW.small_salary_employee_requested_contributions IS NOT NULL)
+    + (NEW.small_salary_opening_gross_cents IS NOT NULL)
+    + (NEW.small_salary_opening_contributed_basis_cents IS NOT NULL)
+    + (NEW.small_salary_evidence_reference IS NOT NULL)
+    + (NEW.small_salary_decision_date IS NOT NULL)) NOT IN (0,7)
+  OR (NEW.small_salary_decision_date IS NOT NULL
+    AND SUBSTR(NEW.small_salary_decision_date,1,4)<>PRINTF('%04d',NEW.small_salary_assessment_year))
+BEGIN SELECT RAISE(ABORT,'payroll annual decisions must be confirmed as complete groups'); END;
+
+DROP TRIGGER IF EXISTS employees_small_salary_decision_immutable;
+CREATE TRIGGER employees_small_salary_decision_immutable
+BEFORE UPDATE OF small_salary_assessment_year,small_salary_sector,
+  small_salary_employee_requested_contributions,small_salary_opening_gross_cents,
+  small_salary_opening_contributed_basis_cents,small_salary_evidence_reference,
+  small_salary_decision_date ON employees
+WHEN NEW.small_salary_assessment_year IS NULL
+  AND OLD.small_salary_assessment_year IS NOT NULL
+  AND EXISTS(SELECT 1 FROM employee_small_salary_decisions d WHERE d.employee_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'small salary annual decision history cannot be cleared'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_sequence_guard;
+CREATE TRIGGER employee_small_salary_decisions_sequence_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision<>COALESCE((
+  SELECT MAX(d.revision)+1 FROM employee_small_salary_decisions d
+  WHERE d.employee_id=NEW.employee_id AND d.assessment_year=NEW.assessment_year
+),1)
+BEGIN SELECT RAISE(ABORT,'small salary decision revision must be append-only and contiguous'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_unpaid_guard;
+CREATE TRIGGER employee_small_salary_decisions_unpaid_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request' AND EXISTS(
+  SELECT 1 FROM payslips p
+  WHERE p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.status IN ('valide','comptabilise','paye')
+    AND (p.payment_date IS NULL OR TRIM(p.payment_date)='')
+)
+BEGIN SELECT RAISE(ABORT,'record or recalculate every validated payroll payment date before a prospective contribution request'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_transition_guard;
+CREATE TRIGGER employee_small_salary_decisions_transition_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request'
+  AND NOT EXISTS(
+    SELECT 1 FROM payslips p
+    WHERE p.employee_id=NEW.employee_id
+      AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+      AND p.status IN ('valide','comptabilise','paye')
+  )
+BEGIN SELECT RAISE(ABORT,'prospective contribution request requires an already validated annual history'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_prevalidation_guard;
+CREATE TRIGGER employee_small_salary_decisions_prevalidation_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prevalidation_correction' AND EXISTS(
+  SELECT 1 FROM payslips p
+  WHERE p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.status IN ('valide','comptabilise','paye')
+)
+BEGIN SELECT RAISE(ABORT,'structural small salary decision is sealed by a validated payslip'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_prospective_transition_guard;
+CREATE TRIGGER employee_small_salary_decisions_prospective_transition_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request' AND NOT EXISTS(
+    SELECT 1 FROM employee_small_salary_decisions previous
+    WHERE previous.employee_id=NEW.employee_id
+      AND previous.assessment_year=NEW.assessment_year
+      AND previous.revision=NEW.revision-1
+      AND previous.sector=NEW.sector
+      AND previous.opening_gross_cents=NEW.opening_gross_cents
+      AND previous.opening_contributed_basis_cents=NEW.opening_contributed_basis_cents
+      AND previous.employee_requested_contributions=0
+      AND NEW.employee_requested_contributions=1
+      AND NEW.decision_date>previous.decision_date
+      AND NEW.evidence_reference<>previous.evidence_reference
+  )
+BEGIN SELECT RAISE(ABORT,'only a documented prospective no-to-yes contribution request may revise an annual small salary decision'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_payment_guard;
+CREATE TRIGGER employee_small_salary_decisions_payment_guard
+BEFORE INSERT ON employee_small_salary_decisions
+WHEN NEW.revision_kind='prospective_request' AND NEW.decision_date<=COALESCE((
+  SELECT MAX(p.payment_date) FROM payslips p
+  WHERE p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.status IN ('valide','comptabilise','paye')
+    AND p.payment_date IS NOT NULL AND TRIM(p.payment_date)<>''
+),'0000-00-00')
+BEGIN SELECT RAISE(ABORT,'prospective contribution request must be later than every recorded payroll payment'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_no_update;
+CREATE TRIGGER employee_small_salary_decisions_no_update
+BEFORE UPDATE ON employee_small_salary_decisions
+BEGIN SELECT RAISE(ABORT,'small salary decision history is append-only'); END;
+
+DROP TRIGGER IF EXISTS employee_small_salary_decisions_no_delete;
+CREATE TRIGGER employee_small_salary_decisions_no_delete
+BEFORE DELETE ON employee_small_salary_decisions
+BEGIN SELECT RAISE(ABORT,'small salary decision history is append-only'); END;
+
+DROP TRIGGER IF EXISTS employees_small_salary_decision_insert_history;
+CREATE TRIGGER employees_small_salary_decision_insert_history
+AFTER INSERT ON employees
+WHEN NEW.small_salary_assessment_year IS NOT NULL
+BEGIN
+  INSERT INTO employee_small_salary_decisions(
+    employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+    employee_requested_contributions,opening_gross_cents,
+    opening_contributed_basis_cents,evidence_reference,created_at
+  ) VALUES(
+    NEW.id,NEW.small_salary_assessment_year,1,'initial',NEW.small_salary_decision_date,
+    NEW.small_salary_sector,NEW.small_salary_employee_requested_contributions,
+    NEW.small_salary_opening_gross_cents,NEW.small_salary_opening_contributed_basis_cents,
+    NEW.small_salary_evidence_reference,NEW.created_at
+  );
+END;
+
+DROP TRIGGER IF EXISTS employees_small_salary_decision_update_history;
+CREATE TRIGGER employees_small_salary_decision_update_history
+AFTER UPDATE OF small_salary_assessment_year,small_salary_sector,
+  small_salary_employee_requested_contributions,small_salary_opening_gross_cents,
+  small_salary_opening_contributed_basis_cents,small_salary_evidence_reference,
+  small_salary_decision_date ON employees
+WHEN NEW.small_salary_assessment_year IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM employee_small_salary_decisions d
+  WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year
+    AND d.revision=(SELECT MAX(latest.revision) FROM employee_small_salary_decisions latest
+                    WHERE latest.employee_id=NEW.id AND latest.assessment_year=NEW.small_salary_assessment_year)
+    AND d.decision_date=NEW.small_salary_decision_date
+    AND d.sector=NEW.small_salary_sector
+    AND d.employee_requested_contributions=NEW.small_salary_employee_requested_contributions
+    AND d.opening_gross_cents=NEW.small_salary_opening_gross_cents
+    AND d.opening_contributed_basis_cents=NEW.small_salary_opening_contributed_basis_cents
+    AND d.evidence_reference=NEW.small_salary_evidence_reference
+)
+BEGIN
+  INSERT INTO employee_small_salary_decisions(
+    employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+    employee_requested_contributions,opening_gross_cents,
+    opening_contributed_basis_cents,evidence_reference,created_at
+  ) VALUES(
+    NEW.id,NEW.small_salary_assessment_year,
+    COALESCE((SELECT MAX(d.revision)+1 FROM employee_small_salary_decisions d
+              WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year),1),
+    CASE
+      WHEN NOT EXISTS(SELECT 1 FROM employee_small_salary_decisions d
+                      WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year)
+        THEN 'initial'
+      WHEN EXISTS(SELECT 1 FROM payslips p WHERE p.employee_id=NEW.id
+                    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.small_salary_assessment_year)
+                    AND p.status IN ('valide','comptabilise','paye'))
+        THEN 'prospective_request'
+      ELSE 'prevalidation_correction'
+    END,
+    NEW.small_salary_decision_date,NEW.small_salary_sector,
+    NEW.small_salary_employee_requested_contributions,NEW.small_salary_opening_gross_cents,
+    NEW.small_salary_opening_contributed_basis_cents,NEW.small_salary_evidence_reference,
+    NEW.updated_at
+  );
+END;
+
+DROP TRIGGER IF EXISTS payslip_small_salary_assessments_insert_guard;
+CREATE TRIGGER payslip_small_salary_assessments_insert_guard
+BEFORE INSERT ON payslip_small_salary_assessments
+WHEN NOT EXISTS(
+  SELECT 1 FROM payslips p JOIN employee_small_salary_decisions d
+    ON d.employee_id=p.employee_id AND d.assessment_year=NEW.assessment_year
+      AND d.revision=NEW.decision_revision
+  WHERE p.id=NEW.payslip_id AND p.employee_id=NEW.employee_id
+    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.assessment_year)
+    AND p.gross_cents=NEW.current_gross_cents
+    AND d.decision_date=NEW.decision_date
+    AND d.sector=NEW.sector
+    AND d.employee_requested_contributions=NEW.employee_requested_contributions
+    AND d.opening_gross_cents=NEW.opening_gross_cents
+    AND d.opening_contributed_basis_cents=NEW.opening_contributed_basis_cents
+    AND d.evidence_reference=NEW.evidence_reference
+)
+BEGIN SELECT RAISE(ABORT,'small salary assessment does not match the annual employee decision'); END;
+
+DROP TRIGGER IF EXISTS payslip_small_salary_assessments_integrity_insert_guard;
+CREATE TRIGGER payslip_small_salary_assessments_integrity_insert_guard
+BEFORE INSERT ON payslip_small_salary_assessments
+WHEN NEW.assessment_sha256<>zentra_sha256(NEW.assessment_json)
+  OR CASE WHEN json_valid(NEW.assessment_json)=1
+    AND json_type(NEW.assessment_json,'$')='object'
+    AND json_type(NEW.assessment_json,'$.assessment_year')='integer'
+    AND json_extract(NEW.assessment_json,'$.assessment_year')=NEW.assessment_year
+    AND json_type(NEW.assessment_json,'$.decision_revision')='integer'
+    AND json_extract(NEW.assessment_json,'$.decision_revision')=NEW.decision_revision
+    AND json_type(NEW.assessment_json,'$.decision_date')='text'
+    AND json_extract(NEW.assessment_json,'$.decision_date')=NEW.decision_date
+    AND json_type(NEW.assessment_json,'$.sector')='text'
+    AND json_extract(NEW.assessment_json,'$.sector')=NEW.sector
+    AND json_type(NEW.assessment_json,'$.employee_requested_contributions') IN ('true','false')
+    AND json_extract(NEW.assessment_json,'$.employee_requested_contributions')=NEW.employee_requested_contributions
+    AND json_type(NEW.assessment_json,'$.threshold_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.threshold_cents')=NEW.threshold_cents
+    AND json_type(NEW.assessment_json,'$.opening_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.opening_gross_cents')=NEW.opening_gross_cents
+    AND json_type(NEW.assessment_json,'$.opening_contributed_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.opening_contributed_basis_cents')=NEW.opening_contributed_basis_cents
+    AND json_type(NEW.assessment_json,'$.prior_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.prior_gross_cents')=NEW.prior_gross_cents
+    AND json_type(NEW.assessment_json,'$.prior_contributed_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.prior_contributed_basis_cents')=NEW.prior_contributed_basis_cents
+    AND json_type(NEW.assessment_json,'$.current_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.current_gross_cents')=NEW.current_gross_cents
+    AND json_type(NEW.assessment_json,'$.cumulative_gross_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.cumulative_gross_cents')=NEW.cumulative_gross_cents
+    AND json_type(NEW.assessment_json,'$.contributions_due') IN ('true','false')
+    AND json_extract(NEW.assessment_json,'$.contributions_due')=NEW.contributions_due
+    AND json_type(NEW.assessment_json,'$.statutory_contribution_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.statutory_contribution_basis_cents')=NEW.statutory_contribution_basis_cents
+    AND json_type(NEW.assessment_json,'$.statutory_catchup_basis_cents')='integer'
+    AND json_extract(NEW.assessment_json,'$.statutory_catchup_basis_cents')=NEW.statutory_catchup_basis_cents
+    AND json_type(NEW.assessment_json,'$.reason_code')='text'
+    AND json_extract(NEW.assessment_json,'$.reason_code')=NEW.reason_code
+    AND json_type(NEW.assessment_json,'$.evidence_reference')='text'
+    AND json_extract(NEW.assessment_json,'$.evidence_reference')=NEW.evidence_reference
+  THEN 0 ELSE 1 END=1
+  OR NEW.cumulative_gross_cents<>(NEW.opening_gross_cents+NEW.prior_gross_cents+NEW.current_gross_cents)
+  OR NEW.statutory_catchup_basis_cents>NEW.statutory_contribution_basis_cents
+BEGIN SELECT RAISE(ABORT,'small salary assessment trace hash or payload is inconsistent'); END;
+
+DROP TRIGGER IF EXISTS payslip_small_salary_assessments_policy_insert_guard;
+CREATE TRIGGER payslip_small_salary_assessments_policy_insert_guard
+BEFORE INSERT ON payslip_small_salary_assessments
+WHEN NEW.prior_contributed_basis_cents>(
+       NEW.opening_gross_cents+NEW.prior_gross_cents-NEW.opening_contributed_basis_cents
+     )
+  OR NEW.statutory_catchup_basis_cents<>CASE
+       WHEN NEW.statutory_contribution_basis_cents>NEW.current_gross_cents
+       THEN NEW.statutory_contribution_basis_cents-NEW.current_gross_cents ELSE 0 END
+  OR NOT (
+    (NEW.sector='ordinary' AND NEW.cumulative_gross_cents>250000
+      AND NEW.threshold_cents=250000 AND NEW.contributions_due=1
+      AND NEW.reason_code='ordinary_threshold_exceeded'
+      AND NEW.statutory_contribution_basis_cents=(
+        NEW.current_gross_cents+NEW.opening_gross_cents+NEW.prior_gross_cents
+        -NEW.opening_contributed_basis_cents-NEW.prior_contributed_basis_cents
+      ))
+    OR
+    (NEW.sector='ordinary' AND NEW.cumulative_gross_cents<=250000
+      AND NEW.employee_requested_contributions=1
+      AND NEW.decision_date<=COALESCE((
+        SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+        FROM payslips p WHERE p.id=NEW.payslip_id
+      ),'0000-00-00')
+      AND NEW.threshold_cents=250000 AND NEW.contributions_due=1
+      AND NEW.reason_code='employee_requested_contributions'
+      AND NEW.statutory_contribution_basis_cents=NEW.current_gross_cents)
+    OR
+    (NEW.sector='ordinary' AND NEW.cumulative_gross_cents<=250000
+      AND NOT (NEW.employee_requested_contributions=1
+        AND NEW.decision_date<=COALESCE((
+          SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+          FROM payslips p WHERE p.id=NEW.payslip_id
+        ),'0000-00-00'))
+      AND NEW.threshold_cents=250000 AND NEW.contributions_due=0
+      AND NEW.reason_code='ordinary_minor_salary_exempt'
+      AND NEW.statutory_contribution_basis_cents=0)
+    OR
+    (NEW.sector='private_household' AND EXISTS(
+      SELECT 1 FROM employees e WHERE e.id=NEW.employee_id
+        AND LENGTH(e.birth_date)=10 AND DATE(e.birth_date)=e.birth_date
+        AND (
+          ((NEW.assessment_year>CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+25
+              OR NEW.cumulative_gross_cents>75000)
+            AND NEW.threshold_cents=0 AND NEW.contributions_due=1
+            AND NEW.reason_code='private_household_mandatory'
+            AND NEW.statutory_contribution_basis_cents=(
+              NEW.current_gross_cents+NEW.opening_gross_cents+NEW.prior_gross_cents
+              -NEW.opening_contributed_basis_cents-NEW.prior_contributed_basis_cents
+            ))
+          OR
+          (NEW.assessment_year<=CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+25
+            AND NEW.cumulative_gross_cents<=75000
+            AND NEW.employee_requested_contributions=1
+            AND NEW.decision_date<=COALESCE((
+              SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+              FROM payslips p WHERE p.id=NEW.payslip_id
+            ),'0000-00-00')
+            AND NEW.threshold_cents=75000 AND NEW.contributions_due=1
+            AND NEW.reason_code='employee_requested_contributions'
+            AND NEW.statutory_contribution_basis_cents=NEW.current_gross_cents)
+          OR
+          (NEW.assessment_year<=CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+25
+            AND NEW.cumulative_gross_cents<=75000
+            AND NOT (NEW.employee_requested_contributions=1
+              AND NEW.decision_date<=COALESCE((
+                SELECT COALESCE(NULLIF(TRIM(p.payment_date),''),p.period||'-01')
+                FROM payslips p WHERE p.id=NEW.payslip_id
+              ),'0000-00-00'))
+            AND NEW.threshold_cents=75000 AND NEW.contributions_due=0
+            AND NEW.reason_code='private_household_youth_minor_salary_exempt'
+            AND NEW.statutory_contribution_basis_cents=0)
+        )
+    ))
+    OR
+    (NEW.sector='arts_culture' AND NEW.threshold_cents=0
+      AND NEW.contributions_due=1 AND NEW.reason_code='arts_culture_mandatory'
+      AND NEW.statutory_contribution_basis_cents=(
+        NEW.current_gross_cents+NEW.opening_gross_cents+NEW.prior_gross_cents
+        -NEW.opening_contributed_basis_cents-NEW.prior_contributed_basis_cents
+      ))
+  )
+BEGIN SELECT RAISE(ABORT,'small salary assessment trace violates statutory sector policy'); END;
+
+DROP TRIGGER IF EXISTS payslip_small_salary_assessments_no_update;
+CREATE TRIGGER payslip_small_salary_assessments_no_update
+BEFORE UPDATE ON payslip_small_salary_assessments
+BEGIN SELECT RAISE(ABORT,'small salary assessment trace is immutable'); END;
+
+DROP TRIGGER IF EXISTS payslip_small_salary_assessments_validated_no_delete;
+CREATE TRIGGER payslip_small_salary_assessments_validated_no_delete
+BEFORE DELETE ON payslip_small_salary_assessments
+WHEN EXISTS(SELECT 1 FROM payslips p WHERE p.id=OLD.payslip_id AND p.status IN ('valide','comptabilise','paye'))
+  OR EXISTS(
+    SELECT 1 FROM payslips current JOIN payslips later
+      ON later.employee_id=current.employee_id
+     AND SUBSTR(later.period,1,4)=SUBSTR(current.period,1,4)
+     AND later.period>current.period AND later.status IN ('valide','comptabilise','paye')
+    WHERE current.id=OLD.payslip_id AND current.status IN ('valide','comptabilise','paye')
+  )
+BEGIN SELECT RAISE(ABORT,'posted small salary assessment trace is immutable'); END;
+
+DROP TRIGGER IF EXISTS payslips_small_salary_posted_trace_insert_guard;
+CREATE TRIGGER payslips_small_salary_posted_trace_insert_guard
+BEFORE INSERT ON payslips
+WHEN NEW.status IN ('valide','comptabilise','paye')
+  AND NOT EXISTS(
+    SELECT 1 FROM employees e
+    WHERE e.id=NEW.employee_id
+      AND e.birth_date IS NOT NULL
+      AND LENGTH(e.birth_date)=10 AND DATE(e.birth_date)=e.birth_date
+      AND CAST(SUBSTR(NEW.period,1,4) AS INTEGER)<CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+18
+  )
+BEGIN SELECT RAISE(ABORT,'validated or posted payslip requiring a small salary assessment must use the controlled workflow'); END;
+
+DROP TRIGGER IF EXISTS payslips_small_salary_posted_trace_update_guard;
+CREATE TRIGGER payslips_small_salary_posted_trace_update_guard
+BEFORE UPDATE OF status,gross_cents,employee_id,period ON payslips
+WHEN NEW.status IN ('valide','comptabilise','paye')
+  AND NOT (
+    OLD.status='comptabilise' AND NEW.status='paye'
+    AND NEW.payment_date IS NOT NULL AND TRIM(NEW.payment_date)<>''
+    AND NEW.payment_journal_entry_id IS NOT NULL AND TRIM(NEW.payment_journal_entry_id)<>''
+  )
+  AND NOT EXISTS(
+    SELECT 1 FROM employees e
+    WHERE e.id=NEW.employee_id
+      AND e.birth_date IS NOT NULL
+      AND LENGTH(e.birth_date)=10 AND DATE(e.birth_date)=e.birth_date
+      AND CAST(SUBSTR(NEW.period,1,4) AS INTEGER)<CAST(SUBSTR(e.birth_date,1,4) AS INTEGER)+18
+  )
+  AND NOT EXISTS(
+    SELECT 1 FROM payslip_small_salary_assessments t
+    JOIN employee_small_salary_decisions d
+      ON d.employee_id=t.employee_id AND d.assessment_year=t.assessment_year
+     AND d.revision=t.decision_revision
+    WHERE t.payslip_id=NEW.id AND t.employee_id=NEW.employee_id
+      AND t.assessment_year=CAST(SUBSTR(NEW.period,1,4) AS INTEGER)
+      AND t.current_gross_cents=NEW.gross_cents
+      AND t.cumulative_gross_cents=(t.opening_gross_cents+t.prior_gross_cents+t.current_gross_cents)
+      AND t.assessment_sha256=zentra_sha256(t.assessment_json)
+  )
+BEGIN SELECT RAISE(ABORT,'validated or posted payslip requires a valid small salary assessment trace'); END;
+
+CREATE INDEX IF NOT EXISTS idx_payslip_small_salary_employee_year
+ON payslip_small_salary_assessments(employee_id,assessment_year,payslip_id);
+CREATE INDEX IF NOT EXISTS idx_employee_small_salary_decision_year
+ON employee_small_salary_decisions(employee_id,assessment_year,revision);
+
+PRAGMA user_version=34;
 "#;

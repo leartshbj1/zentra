@@ -118,7 +118,7 @@ const EMBEDDED_PUBLIC_KEY: Option<&str> = Some(env!(
 
 impl LocalStore {
     pub async fn install_license_token(&self, token: &str) -> AppResult<Value> {
-        let key=embedded_key()?.ok_or_else(||AppError::Validation("Cette compilation ne contient aucune clé publique de licence. Définissez HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL au build de production.".into()))?;
+        let key=embedded_key()?.ok_or_else(||AppError::Validation("Cette installation de Zentra ne contient pas les informations de vérification de licence attendues. Réinstallez Zentra depuis le site officiel ou contactez l’assistance.".into()))?;
         let snapshot = {
             let _guard = self.lock()?;
             self.prepare_license_install_snapshot(token, &key)?

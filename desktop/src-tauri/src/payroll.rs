@@ -27,6 +27,10 @@ const CH_2026_SOURCE: &str = "https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm
 const VALAIS_2026_EMPLOYEE_CAF_RATE_BP: i64 = 13;
 const SETTINGS_RATE_ID_PREFIX: &str = "settings-rate-";
 const SETTINGS_RATE_SOURCE: &str = "Questionnaire local Zentra (saisie client)";
+const SMALL_SALARY_SOURCE: &str =
+    "https://www.ahv-iv.ch/Portals/0/Documents/Merkblaetter/Gruppe_2/2.04_f.pdf";
+const SWISS_SMALL_SALARY_THRESHOLD_CENTS: i64 = 250_000;
+const SWISS_PRIVATE_HOUSEHOLD_YOUTH_THRESHOLD_CENTS: i64 = 75_000;
 
 #[derive(Debug)]
 struct Definition {
@@ -62,11 +66,29 @@ struct EmployeePayrollContext {
     ac_opening_basis_cents: Option<i64>,
     laa_opening_year: Option<i64>,
     laa_opening_basis_cents: Option<i64>,
+    small_salary_assessment_year: Option<i64>,
+    small_salary_decision_date: Option<String>,
+    small_salary_sector: Option<String>,
+    small_salary_employee_requested_contributions: Option<bool>,
+    small_salary_opening_gross_cents: Option<i64>,
+    small_salary_opening_contributed_basis_cents: Option<i64>,
+    small_salary_evidence_reference: Option<String>,
     employment_contract_kind: Option<String>,
     lpp_assessment_year: Option<i64>,
     lpp_annual_salary_cents: Option<i64>,
     lpp_exception_code: Option<String>,
     lpp_exception_evidence_reference: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct SmallSalaryDecision {
+    revision: i64,
+    decision_date: String,
+    sector: String,
+    employee_requested_contributions: bool,
+    opening_gross_cents: i64,
+    opening_contributed_basis_cents: i64,
+    evidence_reference: String,
 }
 
 #[derive(Debug, Clone)]
@@ -591,6 +613,30 @@ impl LocalStore {
                 "Une fiche comptabilisée ou payée est immuable.".into(),
             ));
         }
+        if let Some(previous) = previous.as_ref().filter(|row| row["status"] == "valide") {
+            let previous_employee_id = previous["employee_id"].as_str().ok_or_else(|| {
+                AppError::Validation(
+                    "Le collaborateur de la fiche historique est illisible.".into(),
+                )
+            })?;
+            let previous_period = previous["period"].as_str().ok_or_else(|| {
+                AppError::Validation("La période de la fiche historique est illisible.".into())
+            })?;
+            ensure_no_later_posted_payslip(
+                &tx,
+                &payslip_id,
+                previous_employee_id,
+                previous_period,
+            )?;
+        }
+        if input.status == "valide" {
+            ensure_no_later_posted_payslip(
+                &tx,
+                &payslip_id,
+                input.employee_id.trim(),
+                &input.period,
+            )?;
+        }
         let employee_exists: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM employees WHERE id=?)",
             params![input.employee_id.trim()],
@@ -612,10 +658,19 @@ impl LocalStore {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty());
-        if previous.is_some() {
-            tx.execute("UPDATE payslips SET employee_id=?,period=?,status=?,payment_date=?,notes=?,updated_at=? WHERE id=?",params![input.employee_id.trim(),input.period,input.status,payment_date,notes,now,payslip_id])?;
+        // La trace annuelle dépend du brut et des cotisations reconstruits dans
+        // cette même transaction. Une fiche destinée à être validée reste donc
+        // provisoirement brouillon jusqu'à ce que lignes, calcul, trace et
+        // contrôles suisses soient tous persistés avec succès.
+        let persistence_status = if input.status == "valide" {
+            "brouillon"
         } else {
-            tx.execute("INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,notes,created_at,updated_at) VALUES(?,?,?,?,0,0,0,0,?,?,?,?)",params![payslip_id,input.employee_id.trim(),input.period,input.status,payment_date,notes,now,now])?;
+            input.status.as_str()
+        };
+        if previous.is_some() {
+            tx.execute("UPDATE payslips SET employee_id=?,period=?,status=?,payment_date=?,notes=?,updated_at=? WHERE id=?",params![input.employee_id.trim(),input.period,persistence_status,payment_date,notes,now,payslip_id])?;
+        } else {
+            tx.execute("INSERT INTO payslips(id,employee_id,period,status,gross_cents,deductions_cents,net_cents,employer_costs_cents,payment_date,notes,created_at,updated_at) VALUES(?,?,?,?,0,0,0,0,?,?,?,?)",params![payslip_id,input.employee_id.trim(),input.period,persistence_status,payment_date,notes,now,now])?;
         }
 
         tx.execute(
@@ -646,11 +701,21 @@ impl LocalStore {
                 &input.period,
                 &contribution_result["calculation"],
             )?;
+            tx.execute(
+                "UPDATE payslips SET status='valide',updated_at=? WHERE id=?",
+                params![now_iso(), payslip_id],
+            )?;
         }
+        let persisted_payslip = tx.query_row(
+            "SELECT * FROM payslips WHERE id=?",
+            params![payslip_id],
+            crate::database::row_to_json_public,
+        )?;
         let result = json!({
-            "payslip": contribution_result["payslip"].clone(),
+            "payslip": persisted_payslip,
             "manual_lines": query_all(&tx,"SELECT pi.* FROM payslip_items pi LEFT JOIN payslip_contributions pc ON pc.payslip_item_id=pi.id WHERE pi.payslip_id=? AND pc.id IS NULL ORDER BY pi.position,pi.rowid",params![payslip_id])?,
             "calculation": contribution_result["calculation"].clone(),
+            "small_salary_trace": contribution_result["small_salary_trace"].clone(),
             "contributions": contribution_result["contributions"].clone()
         });
         append_audit(
@@ -723,6 +788,8 @@ impl LocalStore {
             gross_cents,
             &persisted_items,
         )?;
+        let small_salary_assessment =
+            verify_small_salary_assessment_trace(&tx, &input.payslip_id, &replayed_calculation)?;
         validate_validated_swiss_payslip(&tx, &employee_id, &period, &replayed_calculation)?;
         let journal = post_payslip_if_enabled(&tx, &input.payslip_id, &date)?.ok_or_else(|| {
             AppError::Validation(
@@ -752,7 +819,7 @@ impl LocalStore {
             params![input.payslip_id],
         )?;
         let source_import_evidence = sealed_source_import_evidence(&current)?;
-        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"contribution_date":replayed_calculation["contribution_date"],"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"contribution_calculation":replayed_calculation,"source_import_evidence":source_import_evidence});
+        let snapshot = json!({"schema":"helvichantier.payslip_snapshot.v1","captured_at":now_iso(),"contribution_date":replayed_calculation["contribution_date"],"issuer":issuer,"employee":employee,"payslip":current,"items":items,"contributions":contributions,"contribution_calculation":replayed_calculation,"small_salary_assessment":small_salary_assessment,"source_import_evidence":source_import_evidence});
         tx.execute(
             "UPDATE payslips SET status='comptabilise',snapshot_json=?,updated_at=? WHERE id=?",
             params![
@@ -788,6 +855,7 @@ impl LocalStore {
             stored_journal_id,
             period,
             snapshot_json,
+            employee_id,
         ): (
             String,
             Option<String>,
@@ -795,9 +863,10 @@ impl LocalStore {
             Option<String>,
             String,
             Option<String>,
+            String,
         ) = tx
             .query_row(
-                "SELECT status,payment_date,payment_reference,payment_journal_entry_id,period,snapshot_json FROM payslips WHERE id=?",
+                "SELECT status,payment_date,payment_reference,payment_journal_entry_id,period,snapshot_json,employee_id FROM payslips WHERE id=?",
                 params![input.payslip_id],
                 |row| {
                     Ok((
@@ -807,6 +876,7 @@ impl LocalStore {
                         row.get(3)?,
                         row.get(4)?,
                         row.get(5)?,
+                        row.get(6)?,
                     ))
                 },
             )
@@ -913,6 +983,14 @@ impl LocalStore {
                     )))
                 }
             };
+            validate_small_salary_request_at_payment(
+                &tx,
+                snapshot_json.as_deref(),
+                &input.payslip_id,
+                &employee_id,
+                &period,
+                &payment_date,
+            )?;
             let payment_reference = stored_reference.clone().or(requested_reference);
             let journal = match stored_journal_id.as_deref() {
                 Some(journal_id) => {
@@ -1042,6 +1120,14 @@ impl LocalStore {
             &payment_date,
         )
         .map_err(|error| AppError::Validation(error.to_string()))?;
+        validate_small_salary_request_at_payment(
+            &tx,
+            snapshot_json.as_deref(),
+            &input.payslip_id,
+            &employee_id,
+            &period,
+            &payment_date,
+        )?;
         let journal = post_payslip_payment_if_enabled(
             &tx,
             &input.payslip_id,
@@ -1235,6 +1321,128 @@ fn assess_frozen_payment_date(
     Ok(frozen_contribution_date)
 }
 
+/// Une demande de cotisations peut être enregistrée après la validation d'une
+/// fiche uniquement pour les versements futurs. La date réelle du paiement est
+/// donc contrôlée une seconde fois au moment du décaissement: un calcul figé
+/// comme exempt ne peut pas être payé après l'entrée en vigueur de la demande.
+fn validate_small_salary_request_at_payment(
+    connection: &Connection,
+    snapshot_json: Option<&str>,
+    live_payslip_id: &str,
+    employee_id: &str,
+    live_period: &str,
+    payment_date: &str,
+) -> AppResult<()> {
+    validate_date(payment_date, "payment_date")?;
+    let snapshot = parse_frozen_payslip_snapshot(snapshot_json, live_payslip_id, live_period)
+        .map_err(|error| AppError::Validation(error.to_string()))?;
+    let frozen = snapshot
+        .pointer("/contribution_calculation/small_salary_assessment")
+        .filter(|value| !value.is_null());
+    let Some(frozen) = frozen else {
+        let avs_already_frozen = snapshot["contributions"]
+            .as_array()
+            .expect("validated contribution array")
+            .iter()
+            .any(|contribution| contribution["category"].as_str() == Some("avs_ai_apg"));
+        if avs_already_frozen {
+            return Ok(());
+        }
+        let employee = load_employee_payroll_context(connection, employee_id)?;
+        let avs_due = avs_is_due_for_period(live_period, employee.birth_date.as_deref())
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+        if !avs_due {
+            return Ok(());
+        }
+
+        let assessment_year = live_period
+            .get(..4)
+            .and_then(|year| year.parse::<i64>().ok())
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "L'année de la fiche historique est illisible; le paiement est refusé.".into(),
+                )
+            })?;
+        let history_available: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_small_salary_decisions')",
+            [],
+            |row| row.get(0),
+        )?;
+        let historical_decision_exists = if history_available {
+            connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM employee_small_salary_decisions
+                 WHERE employee_id=? AND assessment_year=?)",
+                params![employee_id, assessment_year],
+                |row| row.get::<_, bool>(0),
+            )?
+        } else {
+            false
+        };
+        let facade_decision_exists = employee.small_salary_assessment_year == Some(assessment_year);
+        if !historical_decision_exists && !facade_decision_exists {
+            return Ok(());
+        }
+        let live_decision = if historical_decision_exists {
+            load_small_salary_decision(connection, &employee, assessment_year, payment_date)?
+        } else {
+            required_small_salary_decision(&employee, assessment_year)?
+        };
+        if live_decision.employee_requested_contributions
+            && live_decision.decision_date.as_str() <= payment_date
+        {
+            return Err(AppError::Validation(format!(
+                "La fiche historique ne contient aucune évaluation annuelle V34 ni cotisation AVS/AI/APG figée, alors que la demande de cotisations du salarié est effective depuis le {}. Décomptabilisez ou extournez la fiche, recalculez les cotisations avec la date réelle du paiement puis faites-la revalider avant paiement.",
+                live_decision.decision_date
+            )));
+        }
+        return Ok(());
+    };
+    let assessment_year = frozen["assessment_year"].as_i64().ok_or_else(|| {
+        AppError::Validation(
+            "L'année de la preuve figée du régime de petit salaire est illisible; le paiement est refusé."
+                .into(),
+        )
+    })?;
+    if live_period
+        .get(..4)
+        .and_then(|year| year.parse::<i64>().ok())
+        != Some(assessment_year)
+    {
+        return Err(AppError::Validation(
+            "La preuve figée du régime de petit salaire ne correspond pas à l'année de la fiche; le paiement est refusé."
+                .into(),
+        ));
+    }
+    let frozen_contributions_due = frozen["contributions_due"].as_bool().ok_or_else(|| {
+        AppError::Validation(
+            "La conclusion de la preuve figée du régime de petit salaire est illisible; le paiement est refusé."
+                .into(),
+        )
+    })?;
+    if frozen_contributions_due {
+        return Ok(());
+    }
+    if frozen["employee_requested_contributions"].as_bool() != Some(false) {
+        return Err(AppError::Validation(
+            "La preuve figée indique une exemption incompatible avec la demande du salarié; le paiement est refusé."
+                .into(),
+        ));
+    }
+
+    let employee = load_employee_payroll_context(connection, employee_id)?;
+    let live_decision =
+        load_small_salary_decision(connection, &employee, assessment_year, payment_date)?;
+    if live_decision.employee_requested_contributions
+        && live_decision.decision_date.as_str() <= payment_date
+    {
+        return Err(AppError::Validation(format!(
+            "La demande de cotisations du salarié prend effet le {} avant le paiement réel du {}. La fiche a pourtant été figée comme exemptée. Extournez ou décomptabilisez la fiche, renseignez la date réelle, recalculez les cotisations puis faites-la revalider avant paiement.",
+            live_decision.decision_date, payment_date
+        )));
+    }
+    Ok(())
+}
+
 /// Une fiche comptabilisée ne peut plus changer de calcul. Une date de paiement
 /// différente reste donc acceptable uniquement dans le même millésime et dans
 /// chacune des fenêtres d'effet déjà figées. Sortir d'une seule fenêtre exige
@@ -1368,6 +1576,667 @@ fn validate_atomic_payslip_input(input: &SavePayslipWithContributionsInput) -> A
     Ok(())
 }
 
+fn ensure_no_later_posted_payslip(
+    connection: &Connection,
+    current_payslip_id: &str,
+    employee_id: &str,
+    period: &str,
+) -> AppResult<()> {
+    let later_period: Option<String> = connection
+        .query_row(
+            "SELECT period FROM payslips
+             WHERE id<>? AND employee_id=?
+               AND SUBSTR(period,1,4)=SUBSTR(?,1,4) AND period>?
+               AND status IN('valide','comptabilise','paye')
+             ORDER BY period,id LIMIT 1",
+            params![current_payslip_id, employee_id, period, period],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(later_period) = later_period {
+        return Err(AppError::Validation(format!(
+            "La fiche {period} ne peut pas être modifiée ou validée car la période ultérieure {later_period} du même salarié est déjà validée, comptabilisée ou payée et participe aux cumuls annuels. Corrigez les fiches dans l'ordre chronologique; dévalidez la période ultérieure ou effectuez une extourne contrôlée si elle est déjà comptabilisée ou payée."
+        )));
+    }
+    Ok(())
+}
+
+fn checked_salary_add(left: i64, right: i64, label: &str) -> AppResult<i64> {
+    left.checked_add(right).ok_or_else(|| {
+        AppError::Validation(format!(
+            "Le cumul {label} dépasse la capacité de calcul locale."
+        ))
+    })
+}
+
+fn required_small_salary_decision(
+    employee: &EmployeePayrollContext,
+    assessment_year: i64,
+) -> AppResult<SmallSalaryDecision> {
+    let present = [
+        employee.small_salary_assessment_year.is_some(),
+        employee.small_salary_decision_date.is_some(),
+        employee.small_salary_sector.is_some(),
+        employee
+            .small_salary_employee_requested_contributions
+            .is_some(),
+        employee.small_salary_opening_gross_cents.is_some(),
+        employee
+            .small_salary_opening_contributed_basis_cents
+            .is_some(),
+        employee.small_salary_evidence_reference.is_some(),
+    ]
+    .into_iter()
+    .filter(|value| *value)
+    .count();
+    if present != 7 {
+        return Err(AppError::Validation(format!(
+            "Confirmez ensemble les sept champs du régime des salaires de minime importance pour {assessment_year}, même si les montants valent zéro et que le salarié n'a pas demandé les cotisations."
+        )));
+    }
+    let confirmed_year = employee
+        .small_salary_assessment_year
+        .expect("complete small salary decision");
+    if confirmed_year != assessment_year {
+        return Err(AppError::Validation(format!(
+            "La décision de salaire de minime importance est confirmée pour {confirmed_year}, pas pour {assessment_year}. Confirmez l'année {assessment_year} avant le calcul."
+        )));
+    }
+    let decision_date = employee
+        .small_salary_decision_date
+        .as_deref()
+        .expect("complete small salary decision");
+    validate_date(decision_date, "small_salary_decision_date")?;
+    if !decision_date.starts_with(&format!("{assessment_year:04}-")) {
+        return Err(AppError::Validation(
+            "La date de décision du salaire de minime importance doit appartenir à l'année d'évaluation."
+                .into(),
+        ));
+    }
+    let sector = employee
+        .small_salary_sector
+        .as_deref()
+        .expect("complete small salary decision");
+    if !matches!(sector, "ordinary" | "private_household" | "arts_culture") {
+        return Err(AppError::Validation(
+            "Le secteur de salaire de minime importance est invalide.".into(),
+        ));
+    }
+    let opening_gross = employee
+        .small_salary_opening_gross_cents
+        .expect("complete small salary decision");
+    let opening_contributed = employee
+        .small_salary_opening_contributed_basis_cents
+        .expect("complete small salary decision");
+    if opening_gross < 0 || opening_contributed < 0 || opening_contributed > opening_gross {
+        return Err(AppError::Validation(
+            "Les ouvertures annuelles du salaire de minime importance sont incohérentes: la base déjà cotisée doit être positive ou nulle et ne pas dépasser le brut d'ouverture."
+                .into(),
+        ));
+    }
+    let evidence = employee
+        .small_salary_evidence_reference
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 500)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "La référence de preuve de la décision annuelle est obligatoire et limitée à 500 caractères."
+                    .into(),
+            )
+        })?;
+    Ok(SmallSalaryDecision {
+        revision: 1,
+        decision_date: decision_date.to_owned(),
+        sector: sector.to_owned(),
+        employee_requested_contributions: employee
+            .small_salary_employee_requested_contributions
+            .expect("complete small salary decision"),
+        opening_gross_cents: opening_gross,
+        opening_contributed_basis_cents: opening_contributed,
+        evidence_reference: evidence.to_owned(),
+    })
+}
+
+fn load_small_salary_decision(
+    connection: &Connection,
+    employee: &EmployeePayrollContext,
+    assessment_year: i64,
+    contribution_date: &str,
+) -> AppResult<SmallSalaryDecision> {
+    let history_available: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_small_salary_decisions')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !history_available {
+        return required_small_salary_decision(employee, assessment_year);
+    }
+
+    let mut statement = connection.prepare(
+        "SELECT revision,revision_kind,decision_date,sector,
+                employee_requested_contributions,opening_gross_cents,
+                opening_contributed_basis_cents,evidence_reference
+         FROM employee_small_salary_decisions
+         WHERE employee_id=? AND assessment_year=?
+         ORDER BY revision",
+    )?;
+    let rows = statement.query_map(params![employee.id, assessment_year], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, bool>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, i64>(6)?,
+            row.get::<_, String>(7)?,
+        ))
+    })?;
+    let mut selected: Option<SmallSalaryDecision> = None;
+    for row in rows {
+        let (
+            revision,
+            revision_kind,
+            decision_date,
+            sector,
+            requested,
+            opening_gross,
+            opening_contributed,
+            evidence,
+        ) = row?;
+        validate_date(&decision_date, "small_salary_decision_date")?;
+        if !decision_date.starts_with(&format!("{assessment_year:04}-"))
+            || !matches!(
+                sector.as_str(),
+                "ordinary" | "private_household" | "arts_culture"
+            )
+            || opening_gross < 0
+            || opening_contributed < 0
+            || opening_contributed > opening_gross
+            || evidence.trim().is_empty()
+            || evidence.chars().count() > 500
+        {
+            return Err(AppError::Validation(format!(
+                "L'historique annuel des petits salaires de {} pour {assessment_year} est incohérent.",
+                employee.id
+            )));
+        }
+        let candidate = SmallSalaryDecision {
+            revision,
+            decision_date: decision_date.clone(),
+            sector,
+            employee_requested_contributions: requested,
+            opening_gross_cents: opening_gross,
+            opening_contributed_basis_cents: opening_contributed,
+            evidence_reference: evidence,
+        };
+        if revision_kind != "prospective_request" || decision_date.as_str() <= contribution_date {
+            selected = Some(candidate);
+        }
+    }
+    selected.ok_or_else(|| {
+        AppError::Validation(format!(
+            "Confirmez la décision annuelle du régime des salaires de minime importance pour {assessment_year}."
+        ))
+    })
+}
+
+fn prior_small_salary_totals(
+    connection: &Connection,
+    employee: &EmployeePayrollContext,
+    assessment_year: i64,
+    period: &str,
+) -> AppResult<(i64, i64)> {
+    let year_start = format!("{assessment_year:04}-01");
+    let mut statement = connection.prepare(
+        "SELECT id,period,gross_cents FROM payslips
+         WHERE employee_id=? AND period>=? AND period<?
+           AND status IN('valide','comptabilise','paye')
+         ORDER BY period,id",
+    )?;
+    let rows = statement.query_map(params![employee.id, year_start, period], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
+    })?;
+    let mut prior_gross = 0_i64;
+    let mut prior_contributed = 0_i64;
+    for row in rows {
+        let (payslip_id, prior_period, gross) = row?;
+        if gross < 0 {
+            return Err(AppError::Validation(format!(
+                "Le brut figé de la fiche {prior_period} est négatif; le cumul annuel est refusé."
+            )));
+        }
+        prior_gross = checked_salary_add(prior_gross, gross, "brut annuel")?;
+        let frozen_trace: Option<(i64, i64, i64, String)> = connection
+            .query_row(
+                "SELECT statutory_contribution_basis_cents,current_gross_cents,assessment_year,employee_id
+                 FROM payslip_small_salary_assessments WHERE payslip_id=?",
+                params![payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()?;
+        let recognized_basis = if let Some((basis, traced_gross, year, employee_id)) = frozen_trace
+        {
+            if basis < 0
+                || traced_gross != gross
+                || year != assessment_year
+                || employee_id != employee.id
+            {
+                return Err(AppError::Validation(format!(
+                    "La trace annuelle figée de la fiche {prior_period} est incohérente; le calcul est refusé."
+                )));
+            }
+            basis
+        } else {
+            // Compatibilité V33: une fiche historique n'avait pas encore de
+            // trace dédiée. Six parts AVS/AI/APG cohérentes prouvent que son
+            // salaire avait été traité comme contributif; aucune ligne fédérale
+            // prouve une période exemptée. Toute forme intermédiaire est rejetée.
+            let (avs_count, minimum_basis, maximum_basis, ac_count): (
+                i64,
+                Option<i64>,
+                Option<i64>,
+                i64,
+            ) = connection.query_row(
+                "SELECT
+                   SUM(CASE WHEN category='avs_ai_apg' THEN 1 ELSE 0 END),
+                   MIN(CASE WHEN category='avs_ai_apg' THEN basis_cents END),
+                   MAX(CASE WHEN category='avs_ai_apg' THEN basis_cents END),
+                   SUM(CASE WHEN category='ac' THEN 1 ELSE 0 END)
+                 FROM payslip_contributions WHERE payslip_id=?",
+                params![payslip_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )?;
+            match (avs_count, minimum_basis, maximum_basis, ac_count) {
+                (0, None, None, 0) => 0,
+                (6, Some(minimum), Some(maximum), _) if minimum == maximum && minimum >= 0 => {
+                    // Le brut complet est considéré comme déjà traité afin de
+                    // ne jamais redemander une franchise AVS de retraité.
+                    gross.max(maximum)
+                }
+                _ => {
+                    return Err(AppError::Validation(format!(
+                        "La fiche historique {prior_period} ne permet pas de reconstruire une base AVS unique; corrigez-la avant de poursuivre l'année."
+                    )))
+                }
+            }
+        };
+        prior_contributed = checked_salary_add(
+            prior_contributed,
+            recognized_basis,
+            "des bases annuelles déjà cotisées",
+        )?;
+    }
+    Ok((prior_gross, prior_contributed))
+}
+
+#[cfg(test)]
+fn build_small_salary_assessment(
+    employee: &EmployeePayrollContext,
+    assessment_year: i64,
+    period: &str,
+    contribution_date: &str,
+    current_gross: i64,
+    prior_gross: i64,
+    prior_contributed: i64,
+) -> AppResult<Value> {
+    let decision = required_small_salary_decision(employee, assessment_year)?;
+    build_small_salary_assessment_from_decision(
+        employee,
+        assessment_year,
+        period,
+        contribution_date,
+        current_gross,
+        prior_gross,
+        prior_contributed,
+        &decision,
+    )
+}
+
+fn build_small_salary_assessment_from_decision(
+    employee: &EmployeePayrollContext,
+    assessment_year: i64,
+    period: &str,
+    contribution_date: &str,
+    current_gross: i64,
+    prior_gross: i64,
+    prior_contributed: i64,
+    decision: &SmallSalaryDecision,
+) -> AppResult<Value> {
+    let sector = decision.sector.as_str();
+    let decision_date = decision.decision_date.as_str();
+    let requested = decision.employee_requested_contributions;
+    let opening_gross = decision.opening_gross_cents;
+    let opening_contributed = decision.opening_contributed_basis_cents;
+    let evidence = decision.evidence_reference.as_str();
+    let gross_before_current = checked_salary_add(opening_gross, prior_gross, "brut annuel")?;
+    let cumulative_gross = checked_salary_add(gross_before_current, current_gross, "brut annuel")?;
+    let contributed_before_current = checked_salary_add(
+        opening_contributed,
+        prior_contributed,
+        "des bases annuelles déjà cotisées",
+    )?;
+    if contributed_before_current > gross_before_current {
+        return Err(AppError::Validation(
+            "La base annuelle déjà cotisée dépasse le brut annuel antérieur réellement enregistré."
+                .into(),
+        ));
+    }
+
+    let request_effective = requested && contribution_date >= decision_date;
+    let mandatory_basis = || {
+        cumulative_gross
+            .checked_sub(contributed_before_current)
+            .ok_or_else(|| {
+                AppError::Validation("Le rattrapage annuel du salaire est incohérent.".into())
+            })
+    };
+    let (threshold, contributions_due, reason_code, contribution_basis) = match sector {
+        "ordinary" if cumulative_gross > SWISS_SMALL_SALARY_THRESHOLD_CENTS => (
+            SWISS_SMALL_SALARY_THRESHOLD_CENTS,
+            true,
+            "ordinary_threshold_exceeded",
+            mandatory_basis()?,
+        ),
+        "ordinary" if request_effective => (
+            SWISS_SMALL_SALARY_THRESHOLD_CENTS,
+            true,
+            "employee_requested_contributions",
+            current_gross,
+        ),
+        "ordinary" => (
+            SWISS_SMALL_SALARY_THRESHOLD_CENTS,
+            false,
+            "ordinary_minor_salary_exempt",
+            0,
+        ),
+        "private_household" => {
+            let birth_year = employee
+                .birth_date
+                .as_deref()
+                .and_then(|value| value.get(..4))
+                .and_then(|value| value.parse::<i64>().ok())
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "La date de naissance est obligatoire pour contrôler l'exception ménage privé jusqu'à l'année du 25e anniversaire."
+                            .into(),
+                    )
+                })?;
+            let eligible_through_25 = assessment_year <= birth_year.saturating_add(25);
+            if !eligible_through_25
+                || cumulative_gross > SWISS_PRIVATE_HOUSEHOLD_YOUTH_THRESHOLD_CENTS
+            {
+                (0, true, "private_household_mandatory", mandatory_basis()?)
+            } else if request_effective {
+                (
+                    SWISS_PRIVATE_HOUSEHOLD_YOUTH_THRESHOLD_CENTS,
+                    true,
+                    "employee_requested_contributions",
+                    current_gross,
+                )
+            } else {
+                (
+                    SWISS_PRIVATE_HOUSEHOLD_YOUTH_THRESHOLD_CENTS,
+                    false,
+                    "private_household_youth_minor_salary_exempt",
+                    0,
+                )
+            }
+        }
+        "arts_culture" => (0, true, "arts_culture_mandatory", mandatory_basis()?),
+        _ => unreachable!(),
+    };
+
+    if !contributions_due {
+        let reference_status = ac_reference_age_status_for_period(
+            period,
+            employee.birth_date.as_deref(),
+            employee.reference_age_date.as_deref(),
+        )
+        .map_err(|error| AppError::Validation(error.to_string()))?;
+        match reference_status {
+            crate::swiss_payroll_rules::AcReferenceAgeStatus::ConfirmedExempt
+                if employee.avs_allowance_waived != Some(true) =>
+            {
+                return Err(AppError::Validation(
+                    "L'exemption de petit salaire ne peut pas être cumulée avec la franchise AVS après l'âge de référence. Abandonnez explicitement la franchise ou demandez les cotisations dès le premier franc."
+                        .into(),
+                ));
+            }
+            crate::swiss_payroll_rules::AcReferenceAgeStatus::NeedsReview => {
+                return Err(AppError::Validation(
+                    "Confirmez le statut d'âge de référence avant d'appliquer l'exemption de petit salaire."
+                        .into(),
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    let catchup_basis = contribution_basis.saturating_sub(current_gross).max(0);
+    Ok(json!({
+        "assessment_year": assessment_year,
+        "decision_revision": decision.revision,
+        "decision_date": decision_date,
+        "sector": sector,
+        "employee_requested_contributions": requested,
+        "threshold_cents": threshold,
+        "opening_gross_cents": opening_gross,
+        "opening_contributed_basis_cents": opening_contributed,
+        "prior_gross_cents": prior_gross,
+        "prior_contributed_basis_cents": prior_contributed,
+        "current_gross_cents": current_gross,
+        "cumulative_gross_cents": cumulative_gross,
+        "contributions_due": contributions_due,
+        "statutory_contribution_basis_cents": contribution_basis,
+        "statutory_catchup_basis_cents": catchup_basis,
+        "reason_code": reason_code,
+        "evidence_reference": evidence,
+    }))
+}
+
+fn derive_small_salary_assessment(
+    connection: &Connection,
+    employee: &EmployeePayrollContext,
+    period: &str,
+    contribution_date: &str,
+    current_gross: i64,
+) -> AppResult<Value> {
+    let assessment_year = period
+        .get(..4)
+        .and_then(|value| value.parse::<i64>().ok())
+        .ok_or_else(|| AppError::Validation("La période annuelle de paie est invalide.".into()))?;
+    let decision =
+        load_small_salary_decision(connection, employee, assessment_year, contribution_date)?;
+    let (prior_gross, prior_contributed) =
+        prior_small_salary_totals(connection, employee, assessment_year, period)?;
+    build_small_salary_assessment_from_decision(
+        employee,
+        assessment_year,
+        period,
+        contribution_date,
+        current_gross,
+        prior_gross,
+        prior_contributed,
+        &decision,
+    )
+}
+
+fn validate_statutory_basis_hint(
+    code: &str,
+    basis_kind: &str,
+    provided: Option<i64>,
+    current_gross: i64,
+    derived_basis: i64,
+) -> AppResult<()> {
+    if basis_kind != "gross"
+        && provided.is_some_and(|value| value != current_gross && value != derived_basis)
+    {
+        return Err(AppError::Validation(format!(
+            "La base de {code} est calculée localement par Zentra: transmettez le brut courant ou l'assiette dérivée, jamais un cumul libre."
+        )));
+    }
+    Ok(())
+}
+
+fn persist_small_salary_assessment(
+    tx: &Transaction<'_>,
+    payslip_id: &str,
+    employee_id: &str,
+    calculation: &Value,
+) -> AppResult<Option<Value>> {
+    let Some(assessment) = calculation
+        .get("small_salary_assessment")
+        .filter(|value| !value.is_null())
+    else {
+        tx.execute(
+            "DELETE FROM payslip_small_salary_assessments WHERE payslip_id=?",
+            params![payslip_id],
+        )?;
+        return Ok(None);
+    };
+    if !assessment.is_object() {
+        return Err(AppError::Validation(
+            "La trace du régime de petit salaire est illisible.".into(),
+        ));
+    }
+    let serialized = serde_json::to_string(assessment)?;
+    let assessment_sha256 = format!("{:x}", Sha256::digest(serialized.as_bytes()));
+    let existing_hash: Option<String> = tx
+        .query_row(
+            "SELECT assessment_sha256 FROM payslip_small_salary_assessments WHERE payslip_id=?",
+            params![payslip_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if existing_hash.as_deref() != Some(assessment_sha256.as_str()) {
+        tx.execute(
+            "DELETE FROM payslip_small_salary_assessments WHERE payslip_id=?",
+            params![payslip_id],
+        )?;
+        tx.execute(
+            "INSERT INTO payslip_small_salary_assessments(
+               payslip_id,employee_id,assessment_year,decision_revision,decision_date,sector,
+               employee_requested_contributions,threshold_cents,opening_gross_cents,
+               opening_contributed_basis_cents,prior_gross_cents,
+               prior_contributed_basis_cents,current_gross_cents,cumulative_gross_cents,
+               contributions_due,statutory_contribution_basis_cents,
+               statutory_catchup_basis_cents,reason_code,evidence_reference,
+               assessment_json,assessment_sha256,source_reference,created_at
+             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            params![
+                payslip_id,
+                employee_id,
+                assessment["assessment_year"].as_i64(),
+                assessment["decision_revision"].as_i64(),
+                assessment["decision_date"].as_str(),
+                assessment["sector"].as_str(),
+                assessment["employee_requested_contributions"].as_bool(),
+                assessment["threshold_cents"].as_i64(),
+                assessment["opening_gross_cents"].as_i64(),
+                assessment["opening_contributed_basis_cents"].as_i64(),
+                assessment["prior_gross_cents"].as_i64(),
+                assessment["prior_contributed_basis_cents"].as_i64(),
+                assessment["current_gross_cents"].as_i64(),
+                assessment["cumulative_gross_cents"].as_i64(),
+                assessment["contributions_due"].as_bool(),
+                assessment["statutory_contribution_basis_cents"].as_i64(),
+                assessment["statutory_catchup_basis_cents"].as_i64(),
+                assessment["reason_code"].as_str(),
+                assessment["evidence_reference"].as_str(),
+                serialized,
+                assessment_sha256,
+                SMALL_SALARY_SOURCE,
+                now_iso(),
+            ],
+        )?;
+    }
+    Ok(Some(tx.query_row(
+        "SELECT * FROM payslip_small_salary_assessments WHERE payslip_id=?",
+        params![payslip_id],
+        crate::database::row_to_json_public,
+    )?))
+}
+
+fn verify_small_salary_assessment_trace(
+    connection: &Connection,
+    payslip_id: &str,
+    calculation: &Value,
+) -> AppResult<Option<Value>> {
+    let trace = connection
+        .query_row(
+            "SELECT * FROM payslip_small_salary_assessments WHERE payslip_id=?",
+            params![payslip_id],
+            crate::database::row_to_json_public,
+        )
+        .optional()?;
+    let calculated = calculation
+        .get("small_salary_assessment")
+        .filter(|value| !value.is_null());
+    match (trace, calculated) {
+        (None, None) => Ok(None),
+        (None, Some(_)) => Err(AppError::Validation(
+            "La trace annuelle du régime de petit salaire est absente; revalidez la fiche avant comptabilisation."
+                .into(),
+        )),
+        (Some(_), None) => Err(AppError::Validation(
+            "Une trace annuelle de petit salaire existe alors que le recalcul ne la justifie plus."
+                .into(),
+        )),
+        (Some(trace), Some(calculated)) => {
+            let serialized = trace["assessment_json"].as_str().ok_or_else(|| {
+                AppError::Validation("La trace annuelle figée est illisible.".into())
+            })?;
+            let expected_hash = format!("{:x}", Sha256::digest(serialized.as_bytes()));
+            if trace["assessment_sha256"].as_str() != Some(expected_hash.as_str()) {
+                return Err(AppError::Validation(
+                    "L'empreinte de la trace annuelle figée ne correspond plus à son contenu."
+                        .into(),
+                ));
+            }
+            let frozen: Value = serde_json::from_str(serialized).map_err(|_| {
+                AppError::Validation("Le contenu de la trace annuelle figée est invalide.".into())
+            })?;
+            // Le registre annuel choisit la révision qui était applicable à la
+            // date de contribution. Le replay peut donc exiger l'identité de la
+            // décision complète, y compris après une demande prospective.
+            for field in [
+                "assessment_year",
+                "decision_revision",
+                "decision_date",
+                "sector",
+                "employee_requested_contributions",
+                "threshold_cents",
+                "opening_gross_cents",
+                "opening_contributed_basis_cents",
+                "prior_gross_cents",
+                "prior_contributed_basis_cents",
+                "current_gross_cents",
+                "cumulative_gross_cents",
+                "contributions_due",
+                "statutory_contribution_basis_cents",
+                "statutory_catchup_basis_cents",
+                "reason_code",
+                "evidence_reference",
+            ] {
+                if frozen.get(field).unwrap_or(&Value::Null)
+                    != calculated.get(field).unwrap_or(&Value::Null)
+                {
+                    return Err(AppError::Validation(format!(
+                        "La trace annuelle figée ne correspond plus au recalcul ({field}); revalidez la fiche."
+                    )));
+                }
+            }
+            Ok(Some(trace))
+        }
+    }
+}
+
 fn apply_contributions_tx(
     tx: &Transaction<'_>,
     payslip_id: &str,
@@ -1415,6 +2284,8 @@ fn apply_contributions_tx(
         items,
         Some(&employee),
     )?;
+    let small_salary_trace =
+        persist_small_salary_assessment(tx, payslip_id, &employee_id, &calculation)?;
     if status == "valide" {
         validate_validated_swiss_payslip(tx, &employee_id, &period, &calculation)?;
     }
@@ -1484,9 +2355,12 @@ fn apply_contributions_tx(
         )?;
     }
     recompute_payslip(tx, payslip_id)?;
-    Ok(
-        json!({"payslip":tx.query_row("SELECT * FROM payslips WHERE id=?",params![payslip_id],crate::database::row_to_json_public)?,"calculation":calculation,"contributions":query_all(tx,"SELECT * FROM payslip_contributions WHERE payslip_id=? ORDER BY rowid",params![payslip_id])?}),
-    )
+    Ok(json!({
+        "payslip":tx.query_row("SELECT * FROM payslips WHERE id=?",params![payslip_id],crate::database::row_to_json_public)?,
+        "calculation":calculation,
+        "small_salary_trace":small_salary_trace,
+        "contributions":query_all(tx,"SELECT * FROM payslip_contributions WHERE payslip_id=? ORDER BY rowid",params![payslip_id])?
+    }))
 }
 
 fn calculate(
@@ -1515,6 +2389,35 @@ fn calculate(
     }
     let contribution_date = normalized_payment_date.unwrap_or(&work_period_date);
     validate_shared_statutory_bases(connection, gross, selections)?;
+    let small_salary_assessment = if let Some(employee) = employee_context {
+        let has_any_decision_field = employee.small_salary_assessment_year.is_some()
+            || employee.small_salary_decision_date.is_some()
+            || employee.small_salary_sector.is_some()
+            || employee
+                .small_salary_employee_requested_contributions
+                .is_some()
+            || employee.small_salary_opening_gross_cents.is_some()
+            || employee
+                .small_salary_opening_contributed_basis_cents
+                .is_some()
+            || employee.small_salary_evidence_reference.is_some();
+        if has_any_decision_field
+            && avs_is_due_for_period(period, employee.birth_date.as_deref())
+                .map_err(|error| AppError::Validation(error.to_string()))?
+        {
+            Some(derive_small_salary_assessment(
+                connection,
+                employee,
+                period,
+                contribution_date,
+                gross,
+            )?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let mut seen = HashSet::new();
     let mut items = Vec::new();
     let mut employee = 0_i64;
@@ -1600,6 +2503,35 @@ fn calculate(
         } else {
             None
         };
+        if matches!(def.category.as_str(), "avs_ai_apg" | "ac") {
+            let assessment = small_salary_assessment.as_ref().ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La cotisation {} exige la décision annuelle du régime des salaires de minime importance.",
+                    def.code
+                ))
+            })?;
+            if assessment["contributions_due"].as_bool() != Some(true) {
+                return Err(AppError::Validation(format!(
+                    "La cotisation {} ne doit pas être prélevée: l'évaluation annuelle conclut à un salaire exempté.",
+                    def.code
+                )));
+            }
+            let expected_basis = assessment["statutory_contribution_basis_cents"]
+                .as_i64()
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "L'assiette annuelle dérivée des cotisations est illisible.".into(),
+                    )
+                })?;
+            validate_statutory_basis_hint(
+                &def.code,
+                &def.basis_kind,
+                selection.basis_cents,
+                gross,
+                expected_basis,
+            )?;
+            basis = expected_basis;
+        }
         let mut avs_allowance_applied = None;
         let mut avs_allowance_waived = None;
         if def.category == "avs_ai_apg" {
@@ -1809,9 +2741,19 @@ fn calculate(
         };
         items.push(json!({"definition_id":def.id,"code":def.code,"label":def.label,"category":def.category,"side":def.side,"calculation_kind":def.calculation_kind,"basis_kind":def.basis_kind,"original_basis_cents":original_basis,"basis_cents":basis,"year_to_date_basis_cents":effective_ytd_basis,"rate_bp":def.rate_bp,"fixed_amount_cents":def.fixed_amount_cents,"annual_ceiling_cents":effective_ceiling,"statutory_annual_ceiling_cents":statutory_annual_ceiling,"ac_proration_days_30_360":ac_proration_days,"ac_employment_from":ac_employment_from,"ac_employment_to":ac_employment_to,"laa_proration_days_30_360":laa_proration_days,"laa_employment_from":laa_employment_from,"laa_employment_to":laa_employment_to,"avs_allowance_applied_cents":avs_allowance_applied,"avs_allowance_waived":avs_allowance_waived,"amount_cents":amount,"lpp_component":def.lpp_component,"lpp_employee_id":def.lpp_employee_id,"source":def.source,"effective_from":def.effective_from,"effective_to":def.effective_to,"liability_account_id":def.liability_account_id,"expense_account_id":def.expense_account_id}));
     }
-    Ok(
-        json!({"period":period,"work_period_date":work_period_date,"payment_date":normalized_payment_date,"contribution_date":contribution_date,"rounding_increment_cents":5,"gross_cents":gross,"employee_deductions_cents":employee,"employer_costs_cents":employer,"net_cents":gross.saturating_sub(employee),"items":items}),
-    )
+    Ok(json!({
+        "period":period,
+        "work_period_date":work_period_date,
+        "payment_date":normalized_payment_date,
+        "contribution_date":contribution_date,
+        "rounding_increment_cents":5,
+        "gross_cents":gross,
+        "employee_deductions_cents":employee,
+        "employer_costs_cents":employer,
+        "net_cents":gross.saturating_sub(employee),
+        "small_salary_assessment":small_salary_assessment,
+        "items":items
+    }))
 }
 
 /// Rejoue le calcul qui a produit les lignes de cotisation avant de
@@ -2291,7 +3233,11 @@ fn validate_lpp_payslip_2026(
     Ok(())
 }
 
-fn validate_laa_category_cardinality(items: &[Value], weekly_minutes: i64) -> AppResult<()> {
+fn validate_laa_category_cardinality(
+    items: &[Value],
+    weekly_minutes: i64,
+    allow_complete_absence: bool,
+) -> AppResult<()> {
     let count = |category: &str| {
         items
             .iter()
@@ -2299,12 +3245,15 @@ fn validate_laa_category_cardinality(items: &[Value], weekly_minutes: i64) -> Ap
             .count()
     };
     let aap_count = count("aap");
+    let aanp_count = count("aanp");
+    if allow_complete_absence && aap_count == 0 && aanp_count == 0 {
+        return Ok(());
+    }
     if aap_count != 1 {
         return Err(AppError::Validation(format!(
             "Une fiche validée doit contenir exactement une définition AAP; {aap_count} ligne(s) ont été trouvée(s)."
         )));
     }
-    let aanp_count = count("aanp");
     if weekly_minutes >= 480 && aanp_count != 1 {
         return Err(AppError::Validation(format!(
             "Le contrat atteint 8 heures par semaine: la fiche validée doit contenir exactement une définition AANP; {aanp_count} ligne(s) ont été trouvée(s)."
@@ -2316,6 +3265,131 @@ fn validate_laa_category_cardinality(items: &[Value], weekly_minutes: i64) -> Ap
         )));
     }
     Ok(())
+}
+
+fn laa_small_salary_exception_allows_absence(
+    connection: &Connection,
+    settings: &Value,
+    assessment_year: i64,
+) -> AppResult<bool> {
+    let Some(raw) = settings.pointer("/payroll/laaSmallSalaryException") else {
+        return Ok(false);
+    };
+    let config = raw.as_object().ok_or_else(|| {
+        AppError::Validation("payroll.laaSmallSalaryException doit être un objet structuré.".into())
+    })?;
+    let enabled = config
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "laaSmallSalaryException.enabled doit être confirmé par oui ou non.".into(),
+            )
+        })?;
+    if !enabled {
+        return Ok(false);
+    }
+    if config.get("assessmentYear").and_then(Value::as_i64) != Some(assessment_year) {
+        return Err(AppError::Validation(format!(
+            "L'exception LAA des petits salaires doit être confirmée pour {assessment_year}."
+        )));
+    }
+    let evidence = config
+        .get("evidenceReference")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 500)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "L'exception LAA exige une référence de preuve non vide, limitée à 500 caractères."
+                    .into(),
+            )
+        })?;
+    let _ = evidence;
+    if config
+        .get("confirmedAllEmployeesOnlyMinorSalaries")
+        .and_then(Value::as_bool)
+        != Some(true)
+    {
+        return Err(AppError::Validation(
+            "Confirmez explicitement que tous les collaborateurs concernés ne perçoivent que des salaires annuels de minime importance."
+                .into(),
+        ));
+    }
+
+    let year_start = format!("{assessment_year:04}-01-01");
+    let year_end = format!("{assessment_year:04}-12-31");
+    let period_start = format!("{assessment_year:04}-01");
+    let period_end = format!("{assessment_year:04}-12");
+    let mut statement = connection.prepare(
+        "SELECT e.id FROM employees e
+         WHERE (e.employment_start_date IS NOT NULL AND TRIM(e.employment_start_date)<>''
+                AND e.employment_start_date<=?
+                AND (e.employment_end_date IS NULL OR TRIM(e.employment_end_date)='' OR e.employment_end_date>=?))
+            OR EXISTS(
+              SELECT 1 FROM employee_small_salary_decisions d
+              WHERE d.employee_id=e.id AND d.assessment_year=?
+            )
+            OR e.ac_opening_year=? OR e.laa_opening_year=?
+            OR EXISTS(
+              SELECT 1 FROM payslips p WHERE p.employee_id=e.id
+                AND p.period BETWEEN ? AND ?
+                AND p.status IN('valide','comptabilise','paye')
+            )
+         ORDER BY e.id",
+    )?;
+    let employee_ids = statement
+        .query_map(
+            params![
+                year_end,
+                year_start,
+                assessment_year,
+                assessment_year,
+                assessment_year,
+                period_start,
+                period_end
+            ],
+            |row| row.get::<_, String>(0),
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
+    if employee_ids.is_empty() {
+        return Err(AppError::Validation(
+            "L'exception LAA ne peut pas être appliquée sans collaborateur annuel identifié."
+                .into(),
+        ));
+    }
+    for employee_id in employee_ids {
+        let employee = load_employee_payroll_context(connection, &employee_id)?;
+        let decision =
+            load_small_salary_decision(connection, &employee, assessment_year, &year_end).map_err(
+                |error| {
+                    AppError::Validation(format!(
+                        "Exception LAA impossible pour le collaborateur {employee_id}: {error}"
+                    ))
+                },
+            )?;
+        if decision.sector != "ordinary" {
+            return Err(AppError::Validation(format!(
+                "Exception LAA impossible: le collaborateur {employee_id} relève du secteur {}, où les salaires doivent être déclarés.",
+                decision.sector
+            )));
+        }
+        let local_gross: i64 = connection.query_row(
+            "SELECT COALESCE(SUM(gross_cents),0) FROM payslips
+             WHERE employee_id=? AND period BETWEEN ? AND ?
+               AND status IN('valide','comptabilise','paye')",
+            params![employee_id, period_start, period_end],
+            |row| row.get(0),
+        )?;
+        let cumulative =
+            checked_salary_add(decision.opening_gross_cents, local_gross, "LAA annuel")?;
+        if cumulative > SWISS_SMALL_SALARY_THRESHOLD_CENTS {
+            return Err(AppError::Validation(format!(
+                "Exception LAA impossible: le collaborateur {employee_id} atteint {cumulative} centimes de salaire annuel, au-delà de 250000 centimes."
+            )));
+        }
+    }
+    Ok(true)
 }
 
 /// Garde serveur du statut `valide`. L'interface ne constitue jamais une
@@ -2364,7 +3438,17 @@ fn validate_validated_swiss_payslip(
                 .into(),
         )
     })?;
-    validate_laa_category_cardinality(items, weekly_minutes)?;
+    let aap_present = has_category("aap");
+    let laa_absence_allowed = if aap_present {
+        false
+    } else {
+        let assessment_year = period
+            .get(..4)
+            .and_then(|value| value.parse::<i64>().ok())
+            .ok_or_else(|| AppError::Validation("La période LAA est invalide.".into()))?;
+        laa_small_salary_exception_allows_absence(connection, &settings, assessment_year)?
+    };
+    validate_laa_category_cardinality(items, weekly_minutes, laa_absence_allowed)?;
     validate_family_allowance_items(items, &settings)?;
     if has_category("source_tax") {
         return Err(AppError::Validation(
@@ -2372,13 +3456,15 @@ fn validate_validated_swiss_payslip(
                 .into(),
         ));
     }
-    if payroll_setting_text(&settings, "/payroll/accidentInsurer").is_empty() {
+    if aap_present && payroll_setting_text(&settings, "/payroll/accidentInsurer").is_empty() {
         return Err(AppError::Validation(
             "L’assureur accidents doit être renseigné avant de valider AAP/AANP.".into(),
         ));
     }
-    validate_official_laa_group(items, "aap")?;
-    if weekly_minutes >= 480 {
+    if aap_present {
+        validate_official_laa_group(items, "aap")?;
+    }
+    if aap_present && weekly_minutes >= 480 {
         validate_official_laa_group(items, "aanp")?;
     }
     for (category, setting, message) in [
@@ -2419,6 +3505,31 @@ fn validate_validated_swiss_payslip(
         if has_category("avs_ai_apg") || has_category("ac") {
             return Err(AppError::Validation(
                 "AVS/AI/APG et AC ne doivent pas être appliquées avant le 1er janvier suivant le 17e anniversaire."
+                    .into(),
+            ));
+        }
+        return Ok(());
+    }
+    let small_salary_assessment = calculation
+        .get("small_salary_assessment")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "L'évaluation annuelle des salaires de minime importance est absente.".into(),
+            )
+        })?;
+    let contributions_due = small_salary_assessment
+        .get("contributions_due")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "La conclusion de l'évaluation annuelle des petits salaires est illisible.".into(),
+            )
+        })?;
+    if !contributions_due {
+        if has_category("avs_ai_apg") || has_category("ac") {
+            return Err(AppError::Validation(
+                "La fiche est exemptée par l'évaluation annuelle: aucune ligne AVS/AI/APG/AC ne peut être prélevée."
                     .into(),
             ));
         }
@@ -2679,6 +3790,10 @@ fn load_employee_payroll_context(
                     reference_age_date,avs_allowance_waived,contractual_weekly_minutes,
                     ac_opening_year,ac_opening_basis_cents,
                     laa_opening_year,laa_opening_basis_cents,employment_contract_kind,
+                    small_salary_assessment_year,small_salary_decision_date,small_salary_sector,
+                    small_salary_employee_requested_contributions,
+                    small_salary_opening_gross_cents,small_salary_opening_contributed_basis_cents,
+                    small_salary_evidence_reference,
                     lpp_assessment_year,lpp_annual_salary_cents,lpp_exception_code,
                     lpp_exception_evidence_reference
              FROM employees WHERE id=?",
@@ -2697,10 +3812,17 @@ fn load_employee_payroll_context(
                     laa_opening_year: row.get(9)?,
                     laa_opening_basis_cents: row.get(10)?,
                     employment_contract_kind: row.get(11)?,
-                    lpp_assessment_year: row.get(12)?,
-                    lpp_annual_salary_cents: row.get(13)?,
-                    lpp_exception_code: row.get(14)?,
-                    lpp_exception_evidence_reference: row.get(15)?,
+                    small_salary_assessment_year: row.get(12)?,
+                    small_salary_decision_date: row.get(13)?,
+                    small_salary_sector: row.get(14)?,
+                    small_salary_employee_requested_contributions: row.get(15)?,
+                    small_salary_opening_gross_cents: row.get(16)?,
+                    small_salary_opening_contributed_basis_cents: row.get(17)?,
+                    small_salary_evidence_reference: row.get(18)?,
+                    lpp_assessment_year: row.get(19)?,
+                    lpp_annual_salary_cents: row.get(20)?,
+                    lpp_exception_code: row.get(21)?,
+                    lpp_exception_evidence_reference: row.get(22)?,
                 })
             },
         )
@@ -3471,6 +4593,677 @@ fn round_rate_to_five_cents(basis: i64, rate: i64) -> i64 {
         (numerator + RATE_DENOMINATOR_TIMES_FIVE_CENTS / 2) / RATE_DENOMINATOR_TIMES_FIVE_CENTS;
     (five_cent_units * 5) as i64
 }
+
+#[cfg(test)]
+mod small_salary_policy_tests {
+    use super::*;
+
+    fn employee(sector: &str, requested: bool) -> EmployeePayrollContext {
+        EmployeePayrollContext {
+            id: "small-salary-employee".into(),
+            birth_date: Some("1990-01-01".into()),
+            employment_start: Some("2026-01-01".into()),
+            employment_end: None,
+            reference_age_date: None,
+            avs_allowance_waived: None,
+            contractual_weekly_minutes: Some(420),
+            ac_opening_year: Some(2026),
+            ac_opening_basis_cents: Some(0),
+            laa_opening_year: Some(2026),
+            laa_opening_basis_cents: Some(0),
+            small_salary_assessment_year: Some(2026),
+            small_salary_decision_date: Some("2026-01-01".into()),
+            small_salary_sector: Some(sector.into()),
+            small_salary_employee_requested_contributions: Some(requested),
+            small_salary_opening_gross_cents: Some(0),
+            small_salary_opening_contributed_basis_cents: Some(0),
+            small_salary_evidence_reference: Some("Décision annuelle test".into()),
+            employment_contract_kind: None,
+            lpp_assessment_year: Some(2026),
+            lpp_annual_salary_cents: Some(0),
+            lpp_exception_code: None,
+            lpp_exception_evidence_reference: None,
+        }
+    }
+
+    #[test]
+    fn ordinary_exact_threshold_is_exempt_and_crossing_catches_up_full_history() {
+        let employee = employee("ordinary", false);
+        let exact =
+            build_small_salary_assessment(&employee, 2026, "2026-06", "2026-06-01", 250_000, 0, 0)
+                .unwrap();
+        assert_eq!(exact["contributions_due"], false);
+        assert_eq!(exact["statutory_contribution_basis_cents"], 0);
+        assert_eq!(exact["statutory_catchup_basis_cents"], 0);
+
+        let crossing = build_small_salary_assessment(
+            &employee,
+            2026,
+            "2026-03",
+            "2026-03-01",
+            60_000,
+            200_000,
+            0,
+        )
+        .unwrap();
+        assert_eq!(crossing["cumulative_gross_cents"], 260_000);
+        assert_eq!(crossing["contributions_due"], true);
+        assert_eq!(crossing["statutory_contribution_basis_cents"], 260_000);
+        assert_eq!(crossing["statutory_catchup_basis_cents"], 200_000);
+        assert_eq!(crossing["reason_code"], "ordinary_threshold_exceeded");
+
+        let following = build_small_salary_assessment(
+            &employee,
+            2026,
+            "2026-04",
+            "2026-04-01",
+            50_000,
+            260_000,
+            260_000,
+        )
+        .unwrap();
+        assert_eq!(following["statutory_contribution_basis_cents"], 50_000);
+        assert_eq!(following["statutory_catchup_basis_cents"], 0);
+    }
+
+    #[test]
+    fn employee_request_is_prospective_but_threshold_crossing_remains_mandatory() {
+        let mut employee = employee("ordinary", true);
+        employee.small_salary_decision_date = Some("2026-07-01".into());
+        employee.small_salary_opening_gross_cents = Some(100_000);
+
+        let before =
+            build_small_salary_assessment(&employee, 2026, "2026-06", "2026-06-30", 50_000, 0, 0)
+                .unwrap();
+        assert_eq!(before["contributions_due"], false);
+
+        let after =
+            build_small_salary_assessment(&employee, 2026, "2026-07", "2026-07-01", 50_000, 0, 0)
+                .unwrap();
+        assert_eq!(after["contributions_due"], true);
+        assert_eq!(after["statutory_contribution_basis_cents"], 50_000);
+        assert_eq!(after["statutory_catchup_basis_cents"], 0);
+        assert_eq!(after["reason_code"], "employee_requested_contributions");
+
+        let crossing_before_request =
+            build_small_salary_assessment(&employee, 2026, "2026-06", "2026-06-30", 160_000, 0, 0)
+                .unwrap();
+        assert_eq!(crossing_before_request["contributions_due"], true);
+        assert_eq!(
+            crossing_before_request["statutory_contribution_basis_cents"],
+            260_000
+        );
+        assert_eq!(
+            crossing_before_request["statutory_catchup_basis_cents"],
+            100_000
+        );
+    }
+
+    #[test]
+    fn household_exception_runs_through_the_year_of_the_25th_birthday() {
+        let mut household = employee("private_household", false);
+        household.birth_date = Some("2001-03-15".into());
+        let exact = build_small_salary_assessment(
+            &household,
+            2026,
+            "2026-12",
+            "2026-12-31",
+            5_000,
+            70_000,
+            0,
+        )
+        .unwrap();
+        assert_eq!(exact["contributions_due"], false);
+        assert_eq!(exact["threshold_cents"], 75_000);
+
+        let exceeded = build_small_salary_assessment(
+            &household,
+            2026,
+            "2026-12",
+            "2026-12-31",
+            5_001,
+            70_000,
+            0,
+        )
+        .unwrap();
+        assert_eq!(exceeded["contributions_due"], true);
+        assert_eq!(exceeded["threshold_cents"], 0);
+        assert_eq!(exceeded["statutory_contribution_basis_cents"], 75_001);
+        assert_eq!(exceeded["statutory_catchup_basis_cents"], 70_000);
+
+        household.birth_date = Some("2000-12-31".into());
+        let older =
+            build_small_salary_assessment(&household, 2026, "2026-01", "2026-01-01", 10_000, 0, 0)
+                .unwrap();
+        assert_eq!(older["contributions_due"], true);
+        assert_eq!(older["threshold_cents"], 0);
+        assert_eq!(older["reason_code"], "private_household_mandatory");
+    }
+
+    #[test]
+    fn arts_sector_is_mandatory_and_never_uses_request_to_erase_catchup() {
+        let mut arts = employee("arts_culture", true);
+        arts.small_salary_opening_gross_cents = Some(100_000);
+        let assessment =
+            build_small_salary_assessment(&arts, 2026, "2026-02", "2026-02-01", 50_000, 0, 0)
+                .unwrap();
+        assert_eq!(assessment["threshold_cents"], 0);
+        assert_eq!(assessment["reason_code"], "arts_culture_mandatory");
+        assert_eq!(assessment["statutory_contribution_basis_cents"], 150_000);
+        assert_eq!(assessment["statutory_catchup_basis_cents"], 100_000);
+    }
+
+    #[test]
+    fn retired_allowance_cannot_be_combined_with_minor_salary_exemption() {
+        let mut retired = employee("ordinary", false);
+        retired.birth_date = Some("1950-01-01".into());
+        retired.reference_age_date = Some("2015-01-01".into());
+        retired.avs_allowance_waived = Some(false);
+        let error =
+            build_small_salary_assessment(&retired, 2026, "2026-01", "2026-01-31", 10_000, 0, 0)
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("ne peut pas être cumulée"), "{error}");
+
+        // Le contrôle utilise la vraie période, pas artificiellement décembre.
+        let mut reaches_reference_age_later = employee("ordinary", false);
+        reaches_reference_age_later.birth_date = Some("1961-11-01".into());
+        reaches_reference_age_later.reference_age_date = Some("2026-11-01".into());
+        assert!(build_small_salary_assessment(
+            &reaches_reference_age_later,
+            2026,
+            "2026-01",
+            "2026-01-31",
+            10_000,
+            0,
+            0,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn client_cannot_inject_a_free_statutory_basis() {
+        assert!(
+            validate_statutory_basis_hint("AVS", "ahv_salary", Some(60_000), 60_000, 260_000)
+                .is_ok()
+        );
+        assert!(
+            validate_statutory_basis_hint("AVS", "ahv_salary", Some(260_000), 60_000, 260_000)
+                .is_ok()
+        );
+        let error =
+            validate_statutory_basis_hint("AVS", "ahv_salary", Some(999_999), 60_000, 260_000)
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("jamais un cumul libre"), "{error}");
+    }
+
+    fn laa_exception_connection() -> Connection {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE employees(
+                   id TEXT PRIMARY KEY,birth_date TEXT,employment_start_date TEXT,
+                   employment_end_date TEXT,reference_age_date TEXT,avs_allowance_waived INTEGER,
+                   contractual_weekly_minutes INTEGER,ac_opening_year INTEGER,
+                   ac_opening_basis_cents INTEGER,laa_opening_year INTEGER,
+                   laa_opening_basis_cents INTEGER,employment_contract_kind TEXT,
+                   small_salary_assessment_year INTEGER,small_salary_decision_date TEXT,
+                   small_salary_sector TEXT,small_salary_employee_requested_contributions INTEGER,
+                   small_salary_opening_gross_cents INTEGER,
+                   small_salary_opening_contributed_basis_cents INTEGER,
+                   small_salary_evidence_reference TEXT,lpp_assessment_year INTEGER,
+                   lpp_annual_salary_cents INTEGER,lpp_exception_code TEXT,
+                   lpp_exception_evidence_reference TEXT,status TEXT NOT NULL
+                 );
+                  CREATE TABLE payslips(
+                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,
+                   status TEXT NOT NULL,gross_cents INTEGER NOT NULL,payment_date TEXT
+                  );
+                  CREATE TABLE employee_small_salary_decisions(
+                    employee_id TEXT NOT NULL,assessment_year INTEGER NOT NULL,
+                    revision INTEGER NOT NULL,revision_kind TEXT NOT NULL,
+                    decision_date TEXT NOT NULL,sector TEXT NOT NULL,
+                    employee_requested_contributions INTEGER NOT NULL,
+                    opening_gross_cents INTEGER NOT NULL,
+                    opening_contributed_basis_cents INTEGER NOT NULL,
+                    evidence_reference TEXT NOT NULL,created_at TEXT NOT NULL,
+                    PRIMARY KEY(employee_id,assessment_year,revision)
+                  );",
+            )
+            .unwrap();
+        connection
+    }
+
+    fn insert_laa_employee(
+        connection: &Connection,
+        id: &str,
+        sector: &str,
+        status: &str,
+        start: &str,
+        end: Option<&str>,
+        opening_gross: i64,
+    ) {
+        connection
+            .execute(
+                "INSERT INTO employees(
+                   id,birth_date,employment_start_date,employment_end_date,
+                   contractual_weekly_minutes,small_salary_assessment_year,
+                   small_salary_decision_date,small_salary_sector,
+                   small_salary_employee_requested_contributions,
+                   small_salary_opening_gross_cents,
+                   small_salary_opening_contributed_basis_cents,
+                   small_salary_evidence_reference,status
+                 ) VALUES(?,?,?,?,420,2026,'2026-01-01',?,0,?,0,'Dossier annuel',?)",
+                params![id, "1990-01-01", start, end, sector, opening_gross, status],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO employee_small_salary_decisions(
+                   employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+                   employee_requested_contributions,opening_gross_cents,
+                   opening_contributed_basis_cents,evidence_reference,created_at
+                 ) VALUES(?,2026,1,'initial','2026-01-01',?,0,?,0,
+                          'Dossier annuel','2026-01-01T00:00:00Z')",
+                params![id, sector, opening_gross],
+            )
+            .unwrap();
+    }
+
+    fn laa_settings() -> Value {
+        json!({"payroll":{"laaSmallSalaryException":{
+            "enabled":true,
+            "assessmentYear":2026,
+            "evidenceReference":"Déclaration LAA annuelle",
+            "confirmedAllEmployeesOnlyMinorSalaries":true
+        }}})
+    }
+
+    #[test]
+    fn laa_exception_includes_departed_and_payslip_only_employees() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "departed",
+            "ordinary",
+            "inactif",
+            "2025-01-01",
+            Some("2026-02-28"),
+            100_000,
+        );
+        assert!(
+            laa_small_salary_exception_allows_absence(&connection, &laa_settings(), 2026).unwrap()
+        );
+
+        insert_laa_employee(
+            &connection,
+            "payslip-only",
+            "arts_culture",
+            "inactif",
+            "2025-01-01",
+            Some("2025-12-31"),
+            0,
+        );
+        connection
+            .execute(
+                "INSERT INTO payslips(id,employee_id,period,status,gross_cents)
+                 VALUES('arts-slip','payslip-only','2026-03','paye',1000)",
+                [],
+            )
+            .unwrap();
+        let error = laa_small_salary_exception_allows_absence(&connection, &laa_settings(), 2026)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("arts_culture"), "{error}");
+    }
+
+    #[test]
+    fn laa_exception_rejects_any_real_annual_total_above_2500() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "over-limit",
+            "ordinary",
+            "inactif",
+            "2026-01-01",
+            Some("2026-01-31"),
+            200_000,
+        );
+        connection
+            .execute(
+                "INSERT INTO payslips(id,employee_id,period,status,gross_cents)
+                 VALUES('over-slip','over-limit','2026-01','comptabilise',50001)",
+                [],
+            )
+            .unwrap();
+        let error = laa_small_salary_exception_allows_absence(&connection, &laa_settings(), 2026)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("250001"), "{error}");
+    }
+
+    #[test]
+    fn laa_exception_ignores_active_employee_whose_contract_and_evidence_start_in_2027() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "eligible-2026",
+            "ordinary",
+            "inactif",
+            "2026-01-01",
+            Some("2026-12-31"),
+            0,
+        );
+        connection
+            .execute(
+                "INSERT INTO employees(
+                   id,birth_date,employment_start_date,contractual_weekly_minutes,
+                   small_salary_assessment_year,small_salary_decision_date,
+                   small_salary_sector,small_salary_employee_requested_contributions,
+                   small_salary_opening_gross_cents,
+                   small_salary_opening_contributed_basis_cents,
+                   small_salary_evidence_reference,status
+                 ) VALUES('future-active','1990-01-01','2027-01-01',420,
+                          2027,'2027-01-01','arts_culture',0,0,0,
+                          'Dossier futur','actif')",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO employee_small_salary_decisions(
+                   employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+                   employee_requested_contributions,opening_gross_cents,
+                   opening_contributed_basis_cents,evidence_reference,created_at
+                 ) VALUES('future-active',2027,1,'initial','2027-01-01','arts_culture',
+                          0,0,0,'Dossier futur','2027-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+
+        assert!(
+            laa_small_salary_exception_allows_absence(&connection, &laa_settings(), 2026).unwrap()
+        );
+    }
+
+    #[test]
+    fn payment_after_a_prospective_request_rejects_the_frozen_exemption() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "requester",
+            "ordinary",
+            "actif",
+            "2026-01-01",
+            None,
+            0,
+        );
+        connection
+            .execute(
+                "INSERT INTO employee_small_salary_decisions(
+                   employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+                   employee_requested_contributions,opening_gross_cents,
+                   opening_contributed_basis_cents,evidence_reference,created_at
+                 ) VALUES('requester',2026,2,'prospective_request','2026-07-01',
+                          'ordinary',1,0,0,'Demande signée juillet',
+                          '2026-07-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        let snapshot = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "payslip":{"id":"frozen-june","period":"2026-06"},
+            "contributions":[],
+            "contribution_calculation":{"small_salary_assessment":{
+                "assessment_year":2026,
+                "decision_revision":1,
+                "employee_requested_contributions":false,
+                "contributions_due":false
+            }}
+        })
+        .to_string();
+
+        validate_small_salary_request_at_payment(
+            &connection,
+            Some(&snapshot),
+            "frozen-june",
+            "requester",
+            "2026-06",
+            "2026-06-30",
+        )
+        .unwrap();
+        let error = validate_small_salary_request_at_payment(
+            &connection,
+            Some(&snapshot),
+            "frozen-june",
+            "requester",
+            "2026-06",
+            "2026-07-02",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("Extournez ou décomptabilisez"), "{error}");
+    }
+
+    #[test]
+    fn legacy_payment_without_v34_trace_rejects_an_effective_adult_request() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "legacy-requester",
+            "ordinary",
+            "actif",
+            "2026-01-01",
+            None,
+            0,
+        );
+        connection
+            .execute(
+                "INSERT INTO employee_small_salary_decisions(
+                   employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+                   employee_requested_contributions,opening_gross_cents,
+                   opening_contributed_basis_cents,evidence_reference,created_at
+                 ) VALUES('legacy-requester',2026,2,'prospective_request','2026-07-01',
+                          'ordinary',1,0,0,'Demande signée juillet',
+                          '2026-07-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        let legacy_snapshot = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "payslip":{"id":"legacy-june","period":"2026-06"},
+            "contributions":[],
+            "contribution_calculation":{}
+        })
+        .to_string();
+
+        validate_small_salary_request_at_payment(
+            &connection,
+            Some(&legacy_snapshot),
+            "legacy-june",
+            "legacy-requester",
+            "2026-06",
+            "2026-06-30",
+        )
+        .expect("a later request must not apply before its effective date");
+        let error = validate_small_salary_request_at_payment(
+            &connection,
+            Some(&legacy_snapshot),
+            "legacy-june",
+            "legacy-requester",
+            "2026-06",
+            "2026-07-02",
+        )
+        .expect_err("an effective request must not bypass a missing legacy assessment")
+        .to_string();
+        assert!(error.contains("évaluation annuelle V34"), "{error}");
+        assert!(error.contains("recalculez les cotisations"), "{error}");
+    }
+
+    #[test]
+    fn legacy_payment_without_v34_trace_allows_frozen_avs_or_an_age_exemption() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "legacy-covered",
+            "ordinary",
+            "actif",
+            "2026-01-01",
+            None,
+            0,
+        );
+        connection
+            .execute(
+                "INSERT INTO employee_small_salary_decisions(
+                   employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+                   employee_requested_contributions,opening_gross_cents,
+                   opening_contributed_basis_cents,evidence_reference,created_at
+                 ) VALUES('legacy-covered',2026,2,'prospective_request','2026-07-01',
+                          'ordinary',1,0,0,'Demande signée juillet',
+                          '2026-07-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        let with_avs = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "payslip":{"id":"legacy-covered-june","period":"2026-06"},
+            "contributions":[{"category":"avs_ai_apg"}],
+            "contribution_calculation":{}
+        })
+        .to_string();
+        validate_small_salary_request_at_payment(
+            &connection,
+            Some(&with_avs),
+            "legacy-covered-june",
+            "legacy-covered",
+            "2026-06",
+            "2026-07-02",
+        )
+        .expect("an already frozen AVS contribution remains payable");
+
+        connection
+            .execute(
+                "UPDATE employees SET birth_date='2009-05-01' WHERE id='legacy-covered'",
+                [],
+            )
+            .unwrap();
+        let underage = json!({
+            "schema":"helvichantier.payslip_snapshot.v1",
+            "payslip":{"id":"legacy-young-june","period":"2026-06"},
+            "contributions":[],
+            "contribution_calculation":{}
+        })
+        .to_string();
+        validate_small_salary_request_at_payment(
+            &connection,
+            Some(&underage),
+            "legacy-young-june",
+            "legacy-covered",
+            "2026-06",
+            "2026-07-02",
+        )
+        .expect("a worker below the AVS contribution age needs no AVS line");
+    }
+
+    #[test]
+    fn annual_history_replays_2026_after_the_employee_facade_moves_to_2027() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "rollover",
+            "ordinary",
+            "actif",
+            "2026-01-01",
+            None,
+            12_000,
+        );
+        connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_assessment_year=2027,
+                   small_salary_decision_date='2027-01-02',
+                   small_salary_sector='private_household',
+                   small_salary_employee_requested_contributions=0,
+                   small_salary_opening_gross_cents=34,
+                   small_salary_opening_contributed_basis_cents=0,
+                   small_salary_evidence_reference='Décision 2027'
+                 WHERE id='rollover'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO employee_small_salary_decisions(
+                   employee_id,assessment_year,revision,revision_kind,decision_date,sector,
+                   employee_requested_contributions,opening_gross_cents,
+                   opening_contributed_basis_cents,evidence_reference,created_at
+                 ) VALUES('rollover',2027,1,'initial','2027-01-02','private_household',
+                          0,34,0,'Décision 2027','2027-01-02T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        let employee = load_employee_payroll_context(&connection, "rollover").unwrap();
+        let decision_2026 =
+            load_small_salary_decision(&connection, &employee, 2026, "2026-12-31").unwrap();
+        let decision_2027 =
+            load_small_salary_decision(&connection, &employee, 2027, "2027-12-31").unwrap();
+        assert_eq!(decision_2026.sector, "ordinary");
+        assert_eq!(decision_2026.opening_gross_cents, 12_000);
+        assert_eq!(decision_2027.sector, "private_household");
+        assert_eq!(decision_2027.opening_gross_cents, 34);
+    }
+
+    #[test]
+    fn every_later_cumulative_period_blocks_changes_to_an_earlier_valid_payslip() {
+        let connection = laa_exception_connection();
+        insert_laa_employee(
+            &connection,
+            "chronological-chain",
+            "ordinary",
+            "actif",
+            "2026-01-01",
+            None,
+            0,
+        );
+        connection
+            .execute_batch(
+                "INSERT INTO payslips(id,employee_id,period,status,gross_cents)
+                 VALUES('june','chronological-chain','2026-06','valide',100000);
+                 INSERT INTO payslips(id,employee_id,period,status,gross_cents)
+                 VALUES('july','chronological-chain','2026-07','valide',100000);",
+            )
+            .unwrap();
+
+        for status in ["valide", "comptabilise", "paye"] {
+            connection
+                .execute(
+                    "UPDATE payslips SET status=? WHERE id='july'",
+                    params![status],
+                )
+                .unwrap();
+            let error = ensure_no_later_posted_payslip(
+                &connection,
+                "june",
+                "chronological-chain",
+                "2026-06",
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(error.contains("période ultérieure 2026-07"), "{error}");
+            assert!(error.contains("validée, comptabilisée ou payée"), "{error}");
+        }
+
+        connection
+            .execute(
+                "UPDATE payslips SET status='a_controler' WHERE id='july'",
+                [],
+            )
+            .unwrap();
+        ensure_no_later_posted_payslip(&connection, "june", "chronological-chain", "2026-06")
+            .expect("a later draft-like period does not yet participate in annual totals");
+    }
+}
 fn recompute_payslip(tx: &rusqlite::Transaction<'_>, id: &str) -> AppResult<()> {
     let (gross, deductions, employer_costs, reimbursements): (i64, i64, i64, i64) = tx
         .query_row(
@@ -3593,6 +5386,41 @@ mod contribution_date_and_rounding_tests {
     }
 
     #[test]
+    fn incomplete_employee_can_calculate_a_draft_without_statutory_contributions() {
+        let connection = definition_connection();
+        let employee = EmployeePayrollContext {
+            id: "incomplete-draft".into(),
+            birth_date: None,
+            employment_start: None,
+            employment_end: None,
+            reference_age_date: None,
+            avs_allowance_waived: None,
+            contractual_weekly_minutes: None,
+            ac_opening_year: None,
+            ac_opening_basis_cents: None,
+            laa_opening_year: None,
+            laa_opening_basis_cents: None,
+            small_salary_assessment_year: None,
+            small_salary_decision_date: None,
+            small_salary_sector: None,
+            small_salary_employee_requested_contributions: None,
+            small_salary_opening_gross_cents: None,
+            small_salary_opening_contributed_basis_cents: None,
+            small_salary_evidence_reference: None,
+            employment_contract_kind: None,
+            lpp_assessment_year: None,
+            lpp_annual_salary_cents: None,
+            lpp_exception_code: None,
+            lpp_exception_evidence_reference: None,
+        };
+
+        let calculation = calculate(&connection, "2026-06", None, 100_000, &[], Some(&employee))
+            .expect("a draft without selected contributions must remain savable");
+        assert!(calculation["small_salary_assessment"].is_null());
+        assert_eq!(calculation["items"], json!([]));
+    }
+
+    #[test]
     fn deferred_payment_does_not_move_avs_liability_into_the_payment_period() {
         let connection = definition_connection();
         let employee = EmployeePayrollContext {
@@ -3607,6 +5435,13 @@ mod contribution_date_and_rounding_tests {
             ac_opening_basis_cents: None,
             laa_opening_year: None,
             laa_opening_basis_cents: None,
+            small_salary_assessment_year: None,
+            small_salary_decision_date: None,
+            small_salary_sector: None,
+            small_salary_employee_requested_contributions: None,
+            small_salary_opening_gross_cents: None,
+            small_salary_opening_contributed_basis_cents: None,
+            small_salary_evidence_reference: None,
             employment_contract_kind: None,
             lpp_assessment_year: None,
             lpp_annual_salary_cents: None,
@@ -3740,7 +5575,8 @@ mod laa_policy_tests {
         connection
             .execute_batch(
                 "CREATE TABLE payslips(
-                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL
+                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL,
+                   gross_cents INTEGER NOT NULL DEFAULT 0
                  );
                  CREATE TABLE payslip_contributions(
                    id TEXT PRIMARY KEY,payslip_id TEXT NOT NULL,category TEXT NOT NULL,basis_cents INTEGER NOT NULL
@@ -3778,6 +5614,13 @@ mod laa_policy_tests {
             ac_opening_basis_cents: None,
             laa_opening_year: Some(2026),
             laa_opening_basis_cents: Some(0),
+            small_salary_assessment_year: Some(2026),
+            small_salary_decision_date: Some("2026-01-01".into()),
+            small_salary_sector: Some("ordinary".into()),
+            small_salary_employee_requested_contributions: Some(false),
+            small_salary_opening_gross_cents: Some(0),
+            small_salary_opening_contributed_basis_cents: Some(0),
+            small_salary_evidence_reference: Some("Décision test".into()),
             employment_contract_kind: None,
             lpp_assessment_year: None,
             lpp_annual_salary_cents: None,
@@ -3854,24 +5697,29 @@ mod laa_policy_tests {
     fn validated_payslip_requires_exactly_one_aap_and_one_required_aanp() {
         let aap = json!({"category":"aap"});
         let aanp = json!({"category":"aanp"});
-        assert!(validate_laa_category_cardinality(&[aap.clone()], 479).is_ok());
-        assert!(validate_laa_category_cardinality(&[aap.clone(), aanp.clone()], 480).is_ok());
+        assert!(validate_laa_category_cardinality(&[aap.clone()], 479, false).is_ok());
+        assert!(
+            validate_laa_category_cardinality(&[aap.clone(), aanp.clone()], 480, false).is_ok()
+        );
 
-        let duplicate_aap = validate_laa_category_cardinality(&[aap.clone(), aap.clone()], 479)
-            .expect_err("two AAP definitions must be refused")
-            .to_string();
+        let duplicate_aap =
+            validate_laa_category_cardinality(&[aap.clone(), aap.clone()], 479, false)
+                .expect_err("two AAP definitions must be refused")
+                .to_string();
         assert!(duplicate_aap.contains("exactement une définition AAP"));
 
         let duplicate_aanp =
-            validate_laa_category_cardinality(&[aap.clone(), aanp.clone(), aanp], 480)
+            validate_laa_category_cardinality(&[aap.clone(), aanp.clone(), aanp], 480, false)
                 .expect_err("two AANP definitions must be refused")
                 .to_string();
         assert!(duplicate_aanp.contains("exactement une définition AANP"));
 
-        assert!(validate_laa_category_cardinality(&[aap.clone()], 480).is_err());
+        assert!(validate_laa_category_cardinality(&[aap.clone()], 480, false).is_err());
         assert!(
-            validate_laa_category_cardinality(&[aap, json!({"category":"aanp"})], 479).is_err()
+            validate_laa_category_cardinality(&[aap, json!({"category":"aanp"})], 479, false)
+                .is_err()
         );
+        assert!(validate_laa_category_cardinality(&[], 480, true).is_ok());
     }
 
     #[test]
@@ -3996,6 +5844,13 @@ mod laa_policy_tests {
             ac_opening_basis_cents: None,
             laa_opening_year: Some(2026),
             laa_opening_basis_cents: Some(100_000),
+            small_salary_assessment_year: Some(2026),
+            small_salary_decision_date: Some("2026-01-01".into()),
+            small_salary_sector: Some("ordinary".into()),
+            small_salary_employee_requested_contributions: Some(false),
+            small_salary_opening_gross_cents: Some(0),
+            small_salary_opening_contributed_basis_cents: Some(0),
+            small_salary_evidence_reference: Some("Décision test".into()),
             employment_contract_kind: None,
             lpp_assessment_year: None,
             lpp_annual_salary_cents: None,
@@ -4198,7 +6053,8 @@ mod laa_policy_tests {
                 "CREATE TABLE settings(id INTEGER PRIMARY KEY,extra_settings_json TEXT NOT NULL);\
                  INSERT INTO settings(id,extra_settings_json) VALUES(1,'{\"payroll\":{\"payrollCanton\":\"VS\"}}');\
                  CREATE TABLE payslips(
-                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL
+                   id TEXT PRIMARY KEY,employee_id TEXT NOT NULL,period TEXT NOT NULL,status TEXT NOT NULL,
+                   gross_cents INTEGER NOT NULL DEFAULT 0
                  );\
                  CREATE TABLE payslip_contributions(
                    id TEXT PRIMARY KEY,payslip_id TEXT NOT NULL,category TEXT NOT NULL,basis_cents INTEGER NOT NULL
@@ -4282,6 +6138,13 @@ mod laa_policy_tests {
             ac_opening_basis_cents: None,
             laa_opening_year: Some(2026),
             laa_opening_basis_cents: Some(0),
+            small_salary_assessment_year: Some(2026),
+            small_salary_decision_date: Some("2026-01-01".into()),
+            small_salary_sector: Some("ordinary".into()),
+            small_salary_employee_requested_contributions: Some(false),
+            small_salary_opening_gross_cents: Some(0),
+            small_salary_opening_contributed_basis_cents: Some(0),
+            small_salary_evidence_reference: Some("Décision test".into()),
             employment_contract_kind: None,
             lpp_assessment_year: None,
             lpp_annual_salary_cents: None,

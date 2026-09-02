@@ -76,8 +76,21 @@ export type PayrollSettings = {
   aanpEmployerCoverage?: PayrollInsuranceCoverageEvidence;
   /** Attestation du règlement réel; son absence bloque uniquement les lignes LPP. */
   lppPlanEvidence?: PayrollLppPlanEvidence;
+  /**
+   * Exception LAA annuelle, documentée par l'entreprise. Le moteur local
+   * vérifie encore que tous les salariés concernés pendant l'année restent dans le régime des
+   * salaires de minime importance avant de l'appliquer.
+   */
+  laaSmallSalaryException?: PayrollLaaSmallSalaryException;
   employeeRates: PayrollRate[];
   employerRates: PayrollRate[];
+};
+
+export type PayrollLaaSmallSalaryException = {
+  enabled: boolean;
+  assessmentYear: number | null;
+  evidenceReference: string;
+  confirmedAllEmployeesOnlyMinorSalaries: boolean;
 };
 
 export type PayrollInsuranceCoverageEvidence = {
@@ -744,6 +757,19 @@ export type Employee = {
   referenceAgeDate: string;
   /** true = renonciation confirmée, false = franchise conservée, null = à confirmer. */
   avsAllowanceWaived: boolean | null;
+  smallSalaryAssessmentYear: number | null;
+  smallSalarySector:
+    | 'ordinary'
+    | 'private_household'
+    | 'arts_culture'
+    | null;
+  smallSalaryEmployeeRequestedContributions: boolean | null;
+  smallSalaryDecisionDate: string;
+  /** Brut déjà versé hors Zentra durant l'année d'évaluation, zéro compris. */
+  smallSalaryOpeningGrossCents: number | null;
+  /** Assiette déjà soumise hors Zentra durant l'année, zéro compris. */
+  smallSalaryOpeningContributedBasisCents: number | null;
+  smallSalaryEvidenceReference: string;
   employmentRate: number;
   /** Horaire contractuel explicite; utilisé pour la décision AANP de 8 h/semaine. */
   contractualWeeklyMinutes: number | null;
@@ -2281,6 +2307,25 @@ export type PayrollCalculation = {
   employeeDeductionsCents: number;
   employerCostsCents: number;
   items: CalculatedPayrollContribution[];
+  smallSalaryAssessment: PayrollSmallSalaryCalculationAssessment | null;
+};
+export type PayrollSmallSalaryCalculationAssessment = {
+  assessmentYear: number;
+  sector: NonNullable<Employee['smallSalarySector']>;
+  employeeRequestedContributions: boolean;
+  decisionDate: string;
+  thresholdCents: number;
+  openingGrossCents: number;
+  openingContributedBasisCents: number;
+  priorGrossCents: number;
+  priorContributedBasisCents: number;
+  currentGrossCents: number;
+  cumulativeGrossCents: number;
+  contributionsDue: boolean;
+  statutoryContributionBasisCents: number;
+  statutoryCatchupBasisCents: number;
+  reasonCode: string;
+  evidenceReference: string;
 };
 export type PayrollRegulatoryProfile = {
   id: string;

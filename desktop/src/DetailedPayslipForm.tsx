@@ -6,6 +6,11 @@ import {
   payrollCalculationFingerprint,
 } from './payrollCalculationFingerprint';
 import { assessSwissPayrollEligibility } from './payrollEligibility';
+import {
+  smallSalaryReasonLabel,
+  smallSalarySectorLabel,
+  recordedSmallSalaryGrossBeforePeriod,
+} from './smallSalaryAssessment';
 import type {
   Account,
   PayrollCalculation,
@@ -89,6 +94,14 @@ export function DetailedPayslipForm({
     notes: item?.notes ?? '',
     createdAt: item?.createdAt ?? '',
   });
+  const recordedGrossBeforePeriodCents = useMemo(() => {
+    return recordedSmallSalaryGrossBeforePeriod({
+      payslips: workspace.payslips,
+      employeeId,
+      period,
+      excludedPayslipId: item?.id,
+    });
+  }, [employeeId, item?.id, period, workspace.payslips]);
 
   useEffect(() => {
     let active = true;
@@ -242,6 +255,7 @@ export function DetailedPayslipForm({
         period,
         contributionDate: paymentDate || (period ? `${period}-01` : ''),
         grossCents: totals.earnings,
+        recordedGrossBeforePeriodCents,
         definitions,
         selectedIds: new Set(Object.keys(selections)),
       }),
@@ -252,6 +266,7 @@ export function DetailedPayslipForm({
       period,
       selections,
       totals.earnings,
+      recordedGrossBeforePeriodCents,
       workspace.employees,
       workspace.settings,
     ],
@@ -954,6 +969,15 @@ export function DetailedPayslipForm({
               Calculer les cotisations
             </Button>
           </header>
+          <div className="info-strip payroll-selection__automatic-cumulative">
+            <ShieldCheck size={16} />
+            <span>
+              Le cumul des petits salaires, la décision AVS/AI/APG et tout
+              rattrapage sont recalculés depuis les ouvertures du collaborateur
+              et les fiches locales antérieures. Aucun cumul ne doit être saisi
+              manuellement dans cette fiche.
+            </span>
+          </div>
           {definitions.length ? (
             <div className="contribution-selection-list">
               {definitions.map((definition) => {
@@ -1094,6 +1118,110 @@ export function DetailedPayslipForm({
                 </small>
               </div>
             </header>
+            {calculation.smallSalaryAssessment ? (
+              <div className="payroll-small-salary-result">
+                <div className="payroll-small-salary-result__heading">
+                  <ShieldCheck size={17} />
+                  <div>
+                    <strong>Décision annuelle calculée localement</strong>
+                    <small>
+                      {smallSalarySectorLabel(
+                        calculation.smallSalaryAssessment.sector,
+                      )}{' '}
+                      · {calculation.smallSalaryAssessment.assessmentYear} ·{' '}
+                      {smallSalaryReasonLabel(
+                        calculation.smallSalaryAssessment.reasonCode,
+                      )}
+                    </small>
+                  </div>
+                </div>
+                <div className="payroll-small-salary-result__facts">
+                  <div>
+                    <span>Cumul brut annuel</span>
+                    <strong>
+                      {formatMoney(
+                        calculation.smallSalaryAssessment
+                          .cumulativeGrossCents,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Avant cette fiche</span>
+                    <strong>
+                      {formatMoney(
+                        calculation.smallSalaryAssessment.openingGrossCents +
+                          calculation.smallSalaryAssessment.priorGrossCents,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Base déjà cotisée</span>
+                    <strong>
+                      {formatMoney(
+                        calculation.smallSalaryAssessment
+                          .openingContributedBasisCents +
+                          calculation.smallSalaryAssessment
+                            .priorContributedBasisCents,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Seuil appliqué</span>
+                    <strong>
+                      {formatMoney(
+                        calculation.smallSalaryAssessment.thresholdCents,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Cotisations dues</span>
+                    <strong>
+                      {calculation.smallSalaryAssessment.contributionsDue
+                        ? 'Oui'
+                        : 'Non'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Date de décision</span>
+                    <strong>
+                      {calculation.smallSalaryAssessment.decisionDate}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Assiette totale cotisée</span>
+                    <strong>
+                      {formatMoney(
+                        calculation.smallSalaryAssessment
+                          .statutoryContributionBasisCents,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Dont rattrapage historique</span>
+                    <strong>
+                      {calculation.smallSalaryAssessment
+                        .statutoryCatchupBasisCents > 0
+                        ? formatMoney(
+                            calculation.smallSalaryAssessment
+                              .statutoryCatchupBasisCents,
+                          )
+                        : 'Aucun'}
+                    </strong>
+                  </div>
+                </div>
+                {calculation.smallSalaryAssessment
+                  .statutoryCatchupBasisCents > 0 ? (
+                  <div className="payroll-small-salary-result__catchup">
+                    Le seuil est franchi: cette base de rattrapage couvre le
+                    brut antérieur encore non cotisé. Elle vient du cumul
+                    vérifié par le moteur, sans saisie manuelle sur la fiche.
+                  </div>
+                ) : null}
+                <small className="payroll-small-salary-result__evidence">
+                  Preuve: {calculation.smallSalaryAssessment.evidenceReference}
+                </small>
+              </div>
+            ) : null}
             <div className="payroll-calculation-lines">
               {calculation.items.map((result) => (
                 <div key={`${result.id}-${result.side}`}>

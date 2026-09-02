@@ -60,6 +60,7 @@ import type {
   PayrollContributionDefinition,
   PayrollContributionSelection,
   PayrollRegulatoryProfile,
+  PayrollSmallSalaryCalculationAssessment,
   PeriodFilter,
   PostPayslipResult,
   Project,
@@ -238,6 +239,164 @@ const recordValue = (value: unknown): RawRecord =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as RawRecord)
     : {};
+
+export function employeeSmallSalaryFieldsFromRaw(
+  row: RawRecord,
+): Pick<
+  Employee,
+  | 'smallSalaryAssessmentYear'
+  | 'smallSalarySector'
+  | 'smallSalaryEmployeeRequestedContributions'
+  | 'smallSalaryDecisionDate'
+  | 'smallSalaryOpeningGrossCents'
+  | 'smallSalaryOpeningContributedBasisCents'
+  | 'smallSalaryEvidenceReference'
+> {
+  const invalid = (field: string, detail: string): never => {
+    throw new Error(
+      `Contrat collaborateur des petits salaires invalide (${field}) : ${detail}`,
+    );
+  };
+  const fields = {
+    assessmentYear: row.small_salary_assessment_year,
+    sector: row.small_salary_sector,
+    employeeRequestedContributions:
+      row.small_salary_employee_requested_contributions,
+    decisionDate: row.small_salary_decision_date,
+    openingGrossCents: row.small_salary_opening_gross_cents,
+    openingContributedBasisCents:
+      row.small_salary_opening_contributed_basis_cents,
+    evidenceReference: row.small_salary_evidence_reference,
+  };
+  const isAbsent = (value: unknown) =>
+    value === null ||
+    value === undefined ||
+    (typeof value === 'string' && value.trim() === '');
+  const presentCount = Object.values(fields).filter(
+    (value) => !isAbsent(value),
+  ).length;
+  if (presentCount === 0) {
+    return {
+      smallSalaryAssessmentYear: null,
+      smallSalarySector: null,
+      smallSalaryEmployeeRequestedContributions: null,
+      smallSalaryDecisionDate: '',
+      smallSalaryOpeningGrossCents: null,
+      smallSalaryOpeningContributedBasisCents: null,
+      smallSalaryEvidenceReference: '',
+    };
+  }
+  if (presentCount !== Object.keys(fields).length)
+    return invalid(
+      'small_salary_*',
+      'les sept champs doivent être présents ensemble ou tous absents.',
+    );
+
+  const integer = (
+    field: string,
+    value: unknown,
+    options: { min: number; max?: number },
+  ) => {
+    if (!Number.isSafeInteger(value))
+      return invalid(field, 'un entier sûr est obligatoire.');
+    const parsed = value as number;
+    if (parsed < options.min)
+      invalid(field, `la valeur doit être au moins ${options.min}.`);
+    if (options.max !== undefined && parsed > options.max)
+      invalid(field, `la valeur doit être au plus ${options.max}.`);
+    return parsed;
+  };
+  const assessmentYear = integer(
+    'small_salary_assessment_year',
+    fields.assessmentYear,
+    { min: 1900, max: 9999 },
+  );
+  const sector = fields.sector;
+  if (
+    sector !== 'ordinary' &&
+    sector !== 'private_household' &&
+    sector !== 'arts_culture'
+  )
+    return invalid(
+      'small_salary_sector',
+      'ordinary, private_household ou arts_culture était attendu.',
+    );
+  const requested = fields.employeeRequestedContributions;
+  if (
+    typeof requested !== 'boolean' &&
+    requested !== 0 &&
+    requested !== 1
+  )
+    return invalid(
+      'small_salary_employee_requested_contributions',
+      'un booléen explicite ou son entier SQLite 0/1 est obligatoire.',
+    );
+  if (typeof fields.decisionDate !== 'string')
+    return invalid(
+      'small_salary_decision_date',
+      'une date texte AAAA-MM-JJ est obligatoire.',
+    );
+  const decisionDate = fields.decisionDate.trim();
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(decisionDate);
+  if (!dateMatch)
+    return invalid(
+      'small_salary_decision_date',
+      'une date réelle AAAA-MM-JJ est obligatoire.',
+    );
+  const decisionYear = Number(dateMatch[1]);
+  const decisionMonth = Number(dateMatch[2]);
+  const decisionDay = Number(dateMatch[3]);
+  const parsedDate = new Date(
+    Date.UTC(decisionYear, decisionMonth - 1, decisionDay),
+  );
+  if (
+    parsedDate.getUTCFullYear() !== decisionYear ||
+    parsedDate.getUTCMonth() !== decisionMonth - 1 ||
+    parsedDate.getUTCDate() !== decisionDay ||
+    decisionYear !== assessmentYear
+  )
+    invalid(
+      'small_salary_decision_date',
+      'la date doit être réelle et appartenir à l’année d’évaluation.',
+    );
+  const openingGrossCents = integer(
+    'small_salary_opening_gross_cents',
+    fields.openingGrossCents,
+    { min: 0 },
+  );
+  const openingContributedBasisCents = integer(
+    'small_salary_opening_contributed_basis_cents',
+    fields.openingContributedBasisCents,
+    { min: 0 },
+  );
+  if (openingContributedBasisCents > openingGrossCents)
+    invalid(
+      'small_salary_opening_contributed_basis_cents',
+      'la base déjà cotisée dépasse le brut d’ouverture.',
+    );
+  if (typeof fields.evidenceReference !== 'string')
+    return invalid(
+      'small_salary_evidence_reference',
+      'un texte non vide est obligatoire.',
+    );
+  const evidenceReference = fields.evidenceReference.trim();
+  if (!evidenceReference || evidenceReference.length > 500)
+    return invalid(
+      'small_salary_evidence_reference',
+      'un texte de 1 à 500 caractères est obligatoire.',
+    );
+
+  return {
+    smallSalaryAssessmentYear: assessmentYear,
+    smallSalarySector: sector,
+    smallSalaryEmployeeRequestedContributions:
+      requested === true || requested === 1,
+    smallSalaryDecisionDate: decisionDate,
+    smallSalaryOpeningGrossCents: openingGrossCents,
+    smallSalaryOpeningContributedBasisCents: openingContributedBasisCents,
+    smallSalaryEvidenceReference: evidenceReference,
+  };
+}
 
 export function backupStatusFromRaw(value: unknown): BackupStatus {
   const row = recordValue(value);
@@ -2200,6 +2359,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       row.avs_allowance_waived === undefined
         ? null
         : boolValue(row.avs_allowance_waived),
+    ...employeeSmallSalaryFieldsFromRaw(row),
     employmentRate: numberValue(row.employment_rate),
     contractualWeeklyMinutes:
       row.contractual_weekly_minutes === null ||
@@ -2921,7 +3081,7 @@ const statusToBackend: Record<string, string> = {
 };
 const snakeKey = (key: string): string =>
   key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-function toBackendData(data: Record<string, unknown>): RawRecord {
+export function toBackendData(data: Record<string, unknown>): RawRecord {
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => [
       snakeKey(key),
@@ -3756,6 +3916,163 @@ export function payrollContributionDefinitionToRaw(
     active: input.active,
     liability_account_id: input.liabilityAccountId || null,
     expense_account_id: input.expenseAccountId || null,
+  };
+}
+
+export function payrollSmallSalaryAssessmentFromRaw(
+  value: unknown,
+): PayrollSmallSalaryCalculationAssessment | null {
+  if (value === null) return null;
+  const invalid = (field: string, detail: string): never => {
+    throw new Error(
+      `Contrat de calcul des petits salaires invalide (${field}) : ${detail}`,
+    );
+  };
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return invalid(
+      'small_salary_assessment',
+      'un objet complet ou null était attendu.',
+    );
+  const row = value as RawRecord;
+  const integer = (field: string, options?: { min?: number; max?: number }) => {
+    const raw = row[field];
+    if (!Number.isSafeInteger(raw))
+      return invalid(field, 'un entier sûr est obligatoire.');
+    const parsed = raw as number;
+    if (options?.min !== undefined && parsed < options.min)
+      invalid(field, `la valeur doit être au moins ${options.min}.`);
+    if (options?.max !== undefined && parsed > options.max)
+      invalid(field, `la valeur doit être au plus ${options.max}.`);
+    return parsed;
+  };
+  const text = (field: string, maxLength?: number) => {
+    const raw = row[field];
+    if (typeof raw !== 'string' || raw.trim() === '')
+      return invalid(field, 'un texte non vide est obligatoire.');
+    if (maxLength !== undefined && raw.trim().length > maxLength)
+      invalid(field, `le texte est limité à ${maxLength} caractères.`);
+    return raw.trim();
+  };
+  const boolean = (field: string) => {
+    const raw = row[field];
+    if (typeof raw !== 'boolean')
+      return invalid(field, 'un booléen explicite est obligatoire.');
+    return raw;
+  };
+  const assessmentYear = integer('assessment_year', { min: 1900, max: 9999 });
+  const sector = text('sector');
+  if (
+    sector !== 'ordinary' &&
+    sector !== 'private_household' &&
+    sector !== 'arts_culture'
+  )
+    return invalid(
+      'sector',
+      'ordinary, private_household ou arts_culture était attendu.',
+    );
+  const decisionDate = text('decision_date', 10);
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(decisionDate);
+  if (!dateMatch)
+    return invalid(
+      'decision_date',
+      'une date AAAA-MM-JJ est obligatoire.',
+    );
+  const decisionYear = Number(dateMatch[1]);
+  const decisionMonth = Number(dateMatch[2]);
+  const decisionDay = Number(dateMatch[3]);
+  const parsedDate = new Date(
+    Date.UTC(decisionYear, decisionMonth - 1, decisionDay),
+  );
+  if (
+    parsedDate.getUTCFullYear() !== decisionYear ||
+    parsedDate.getUTCMonth() !== decisionMonth - 1 ||
+    parsedDate.getUTCDate() !== decisionDay ||
+    decisionYear !== assessmentYear
+  )
+    invalid(
+      'decision_date',
+      'la date doit être réelle et appartenir à l’année d’évaluation.',
+    );
+  const openingGrossCents = integer('opening_gross_cents', { min: 0 });
+  const openingContributedBasisCents = integer(
+    'opening_contributed_basis_cents',
+    { min: 0 },
+  );
+  const priorGrossCents = integer('prior_gross_cents', { min: 0 });
+  const priorContributedBasisCents = integer(
+    'prior_contributed_basis_cents',
+    { min: 0 },
+  );
+  const currentGrossCents = integer('current_gross_cents', { min: 0 });
+  const cumulativeGrossCents = integer('cumulative_gross_cents', { min: 0 });
+  const statutoryContributionBasisCents = integer(
+    'statutory_contribution_basis_cents',
+    { min: 0 },
+  );
+  const statutoryCatchupBasisCents = integer(
+    'statutory_catchup_basis_cents',
+    { min: 0 },
+  );
+  const expectedCumulative =
+    openingGrossCents + priorGrossCents + currentGrossCents;
+  if (
+    !Number.isSafeInteger(expectedCumulative) ||
+    cumulativeGrossCents !== expectedCumulative
+  )
+    invalid(
+      'cumulative_gross_cents',
+      'le cumul ne correspond pas à ouverture + antérieur + période courante.',
+    );
+  if (openingContributedBasisCents > openingGrossCents)
+    invalid(
+      'opening_contributed_basis_cents',
+      'la base cotisée dépasse le brut d’ouverture.',
+    );
+  if (statutoryCatchupBasisCents > statutoryContributionBasisCents)
+    invalid(
+      'statutory_catchup_basis_cents',
+      'le rattrapage dépasse l’assiette totale cotisée.',
+    );
+  const contributionsDue = boolean('contributions_due');
+  if (
+    !contributionsDue &&
+    (statutoryContributionBasisCents !== 0 ||
+      statutoryCatchupBasisCents !== 0)
+  )
+    invalid(
+      'statutory_contribution_basis_cents',
+      'une décision sans cotisation doit avoir deux assiettes à zéro.',
+    );
+  const reasonCode = text('reason_code');
+  const supportedReasons = new Set([
+    'ordinary_minor_salary_exempt',
+    'ordinary_threshold_exceeded',
+    'employee_requested_contributions',
+    'private_household_youth_minor_salary_exempt',
+    'private_household_mandatory',
+    'arts_culture_mandatory',
+  ]);
+  if (!supportedReasons.has(reasonCode))
+    invalid('reason_code', `motif moteur inconnu « ${reasonCode} ».`);
+  return {
+    assessmentYear,
+    sector,
+    employeeRequestedContributions: boolean(
+      'employee_requested_contributions',
+    ),
+    decisionDate,
+    thresholdCents: integer('threshold_cents', { min: 0 }),
+    openingGrossCents,
+    openingContributedBasisCents,
+    priorGrossCents,
+    priorContributedBasisCents,
+    currentGrossCents,
+    cumulativeGrossCents,
+    contributionsDue,
+    statutoryContributionBasisCents,
+    statutoryCatchupBasisCents,
+    reasonCode,
+    evidenceReference: text('evidence_reference', 500),
   };
 }
 
@@ -5866,6 +6183,9 @@ export const desktopApi = {
       employeeDeductionsCents: numberValue(raw.employee_deductions_cents),
       employerCostsCents: numberValue(raw.employer_costs_cents),
       items,
+      smallSalaryAssessment: payrollSmallSalaryAssessmentFromRaw(
+        raw.small_salary_assessment,
+      ),
     };
   },
   async applyPayrollContributions(

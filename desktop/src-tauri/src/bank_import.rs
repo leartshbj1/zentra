@@ -1623,7 +1623,9 @@ mod tests {
         let connection = store.connect().unwrap();
         connection
             .execute(
-                "UPDATE invoices SET number='TEST-ZERO',status='emise' WHERE id=?",
+                "UPDATE invoices
+                 SET number='TEST-ZERO',issue_date='2026-08-31',due_date='2026-09-30',status='emise'
+                 WHERE id=?",
                 params![zero_total],
             )
             .unwrap();

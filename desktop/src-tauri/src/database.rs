@@ -9,13 +9,15 @@ use std::{
 #[cfg(test)]
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Days, Local, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Days, Local, NaiveDate, Utc};
 use rusqlite::{
+    functions::FunctionFlags,
     params, params_from_iter,
     types::{Value as SqlValue, ValueRef},
     Connection, OptionalExtension, Row, Transaction, TransactionBehavior,
 };
 use serde_json::{json, Map, Number, Value};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
@@ -47,8 +49,9 @@ use crate::{
         MIGRATION_V22_SQL, MIGRATION_V23_SQL, MIGRATION_V24_SQL, MIGRATION_V25_SQL,
         MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V28_SQL, MIGRATION_V29_SQL,
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
-        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
-        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL,
+        MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL,
+        SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -894,6 +897,64 @@ fn migrate_v32(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v33(transaction: &Transaction<'_>) -> AppResult<()> {
+    let invalid_period_dates: i64 = transaction.query_row(
+        "SELECT COUNT(*) FROM accounting_periods
+         WHERE LENGTH(date_from)<>10
+            OR date_from NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+            OR DATE(date_from) IS NULL OR DATE(date_from)<>date_from
+            OR LENGTH(date_to)<>10
+            OR date_to NOT GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+            OR DATE(date_to) IS NULL OR DATE(date_to)<>date_to",
+        [],
+        |row| row.get(0),
+    )?;
+    if invalid_period_dates != 0 {
+        return Err(AppError::Validation(format!(
+            "Migration V33 bloquée : {invalid_period_dates} période(s) comptable(s) utilisent une date non canonique. Corrigez-les au format AAAA-MM-JJ avant d'établir la frontière cumulative de clôture."
+        )));
+    }
+    transaction.execute_batch(MIGRATION_V33_SQL)?;
+    Ok(())
+}
+
+fn migrate_v34(transaction: &Transaction<'_>) -> AppResult<()> {
+    for (column, definition) in [
+        (
+            "small_salary_assessment_year",
+            "small_salary_assessment_year INTEGER CHECK (small_salary_assessment_year IS NULL OR small_salary_assessment_year BETWEEN 1900 AND 9999)",
+        ),
+        (
+            "small_salary_decision_date",
+            "small_salary_decision_date TEXT CHECK (small_salary_decision_date IS NULL OR (LENGTH(small_salary_decision_date)=10 AND small_salary_decision_date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND DATE(small_salary_decision_date) IS NOT NULL AND DATE(small_salary_decision_date)=small_salary_decision_date))",
+        ),
+        (
+            "small_salary_sector",
+            "small_salary_sector TEXT CHECK (small_salary_sector IS NULL OR small_salary_sector IN ('ordinary','private_household','arts_culture'))",
+        ),
+        (
+            "small_salary_employee_requested_contributions",
+            "small_salary_employee_requested_contributions INTEGER CHECK (small_salary_employee_requested_contributions IS NULL OR small_salary_employee_requested_contributions IN (0,1))",
+        ),
+        (
+            "small_salary_opening_gross_cents",
+            "small_salary_opening_gross_cents INTEGER CHECK (small_salary_opening_gross_cents IS NULL OR small_salary_opening_gross_cents >= 0)",
+        ),
+        (
+            "small_salary_opening_contributed_basis_cents",
+            "small_salary_opening_contributed_basis_cents INTEGER CHECK (small_salary_opening_contributed_basis_cents IS NULL OR small_salary_opening_contributed_basis_cents >= 0)",
+        ),
+        (
+            "small_salary_evidence_reference",
+            "small_salary_evidence_reference TEXT CHECK (small_salary_evidence_reference IS NULL OR LENGTH(TRIM(small_salary_evidence_reference)) BETWEEN 1 AND 500)",
+        ),
+    ] {
+        add_column_if_missing(transaction, "employees", column, definition)?;
+    }
+    transaction.execute_batch(MIGRATION_V34_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1241,6 +1302,17 @@ impl LocalStore {
 
     pub fn connect(&self) -> AppResult<Connection> {
         let connection = Connection::open(&self.database_path)?;
+        connection.create_scalar_function(
+            "zentra_sha256",
+            1,
+            FunctionFlags::SQLITE_UTF8
+                | FunctionFlags::SQLITE_DETERMINISTIC
+                | FunctionFlags::SQLITE_INNOCUOUS,
+            |context| {
+                let value = context.get::<String>(0)?;
+                Ok(format!("{:x}", Sha256::digest(value.as_bytes())))
+            },
+        )?;
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
@@ -1376,7 +1448,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28 | 29 | 30 | 31 => {}
+            28 | 29 | 30 | 31 | 32 | 33 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1414,6 +1486,12 @@ impl LocalStore {
         }
         if current < 32 {
             migrate_v32(&transaction)?;
+        }
+        if current < 33 {
+            migrate_v33(&transaction)?;
+        }
+        if current < 34 {
+            migrate_v34(&transaction)?;
         }
         transaction.commit()?;
         Ok(())
@@ -2308,6 +2386,16 @@ impl LocalStore {
                 ));
             }
         }
+        if entity == "expenses" {
+            let expense_date = object
+                .get("date")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::Validation("date est obligatoire.".into()))?;
+            ensure_accounting_date_open(&transaction, expense_date)?;
+            if let Some(paid_at) = object.get("paid_at").and_then(Value::as_str) {
+                ensure_accounting_date_open(&transaction, paid_at)?;
+            }
+        }
         transaction.execute(&sql, params_from_iter(values))?;
         recompute_after_change(&transaction, entity, &object, None)?;
         if entity == "expenses"
@@ -2504,6 +2592,78 @@ impl LocalStore {
         if object.is_empty() {
             return Err(AppError::Validation("Aucun champ à modifier.".into()));
         }
+        if entity == "expenses" {
+            let fiscal_source_changed = [
+                "date",
+                "supplier",
+                "category",
+                "reference",
+                "currency",
+                "net_cents",
+                "vat_cents",
+                "total_cents",
+            ]
+            .iter()
+            .any(|field| object.contains_key(*field));
+            if fiscal_source_changed {
+                let previous_date =
+                    previous
+                        .get("date")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| {
+                            AppError::Validation(
+                                "La date historique de la dépense est invalide.".into(),
+                            )
+                        })?;
+                let next_date = object
+                    .get("date")
+                    .and_then(Value::as_str)
+                    .unwrap_or(previous_date);
+                ensure_accounting_date_open(&transaction, previous_date)?;
+                ensure_accounting_date_open(&transaction, next_date)?;
+            }
+            if object.contains_key("payment_status") || object.contains_key("paid_at") {
+                let previous_status = previous
+                    .get("payment_status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("paid");
+                if previous_status == "paid" {
+                    let previous_effective_date = previous
+                        .get("paid_at")
+                        .and_then(Value::as_str)
+                        .or_else(|| previous.get("date").and_then(Value::as_str))
+                        .ok_or_else(|| {
+                            AppError::Validation(
+                                "La date historique de paiement de la dépense est invalide.".into(),
+                            )
+                        })?;
+                    ensure_accounting_date_open(&transaction, previous_effective_date)?;
+                }
+                let next_status = object
+                    .get("payment_status")
+                    .and_then(Value::as_str)
+                    .unwrap_or(previous_status);
+                if next_status == "paid" {
+                    let next_effective_date = match object.get("paid_at") {
+                        Some(Value::String(value)) => Some(value.as_str()),
+                        Some(Value::Null) => None,
+                        _ => previous.get("paid_at").and_then(Value::as_str),
+                    }
+                    .or_else(|| {
+                        object
+                            .get("date")
+                            .and_then(Value::as_str)
+                            .or_else(|| previous.get("date").and_then(Value::as_str))
+                    })
+                    .ok_or_else(|| {
+                        AppError::Validation(
+                            "La date de paiement de la dépense est invalide.".into(),
+                        )
+                    })?;
+                    ensure_accounting_date_open(&transaction, next_effective_date)?;
+                }
+            }
+        }
         let mut assignments = Vec::new();
         let mut values = Vec::new();
         for field in spec.fields {
@@ -2559,6 +2719,18 @@ impl LocalStore {
             ensure_client_sales_empty_before_delete(&transaction, id)?;
         } else if entity == "catalog_items" {
             ensure_catalog_sales_empty_before_delete(&transaction, id)?;
+        }
+        if entity == "expenses" {
+            let expense_date = previous
+                .get("date")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::Validation("La date historique de la dépense est invalide.".into())
+                })?;
+            ensure_accounting_date_open(&transaction, expense_date)?;
+            if let Some(paid_at) = previous.get("paid_at").and_then(Value::as_str) {
+                ensure_accounting_date_open(&transaction, paid_at)?;
+            }
         }
         ensure_record_mutable(&transaction, entity, &previous)?;
         let deleted = transaction.execute(
@@ -3693,6 +3865,13 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "ac_opening_basis_cents",
                 "laa_opening_year",
                 "laa_opening_basis_cents",
+                "small_salary_assessment_year",
+                "small_salary_decision_date",
+                "small_salary_sector",
+                "small_salary_employee_requested_contributions",
+                "small_salary_opening_gross_cents",
+                "small_salary_opening_contributed_basis_cents",
+                "small_salary_evidence_reference",
                 "lpp_assessment_year",
                 "lpp_annual_salary_cents",
                 "lpp_exception_code",
@@ -4076,6 +4255,9 @@ fn normalize_record(
                 ("employment_contract_kind", 20),
                 ("lpp_exception_code", 40),
                 ("lpp_exception_evidence_reference", 500),
+                ("small_salary_sector", 30),
+                ("small_salary_evidence_reference", 500),
+                ("small_salary_decision_date", 10),
             ] {
                 match object.get(field).cloned() {
                     Some(Value::String(value)) => {
@@ -4257,6 +4439,118 @@ fn normalize_record(
                 return Err(AppError::Validation(
                     "laa_opening_basis_cents doit être un montant entier positif ou nul.".into(),
                 ));
+            }
+
+            let small_salary_fields = [
+                "small_salary_assessment_year",
+                "small_salary_decision_date",
+                "small_salary_sector",
+                "small_salary_employee_requested_contributions",
+                "small_salary_opening_gross_cents",
+                "small_salary_opening_contributed_basis_cents",
+                "small_salary_evidence_reference",
+            ];
+            let confirmed_small_salary_fields = small_salary_fields
+                .iter()
+                .filter(|field| object.get(**field).is_some_and(|value| !value.is_null()))
+                .count();
+            if !matches!(confirmed_small_salary_fields, 0 | 7) {
+                return Err(AppError::Validation(
+                    "Les sept champs de décision annuelle des salaires de minime importance doivent être confirmés ensemble, même si les montants valent zéro et la demande salarié vaut non."
+                        .into(),
+                ));
+            }
+            if confirmed_small_salary_fields == 7 {
+                if !object
+                    .get("small_salary_assessment_year")
+                    .and_then(Value::as_i64)
+                    .is_some_and(|year| (1900..=9999).contains(&year))
+                {
+                    return Err(AppError::Validation(
+                        "small_salary_assessment_year doit être une année comprise entre 1900 et 9999."
+                            .into(),
+                    ));
+                }
+                if !object
+                    .get("small_salary_sector")
+                    .and_then(Value::as_str)
+                    .is_some_and(|sector| {
+                        matches!(sector, "ordinary" | "private_household" | "arts_culture")
+                    })
+                {
+                    return Err(AppError::Validation(
+                        "small_salary_sector doit être ordinary, private_household ou arts_culture."
+                            .into(),
+                    ));
+                }
+                if object
+                    .get("small_salary_employee_requested_contributions")
+                    .is_some_and(|value| {
+                        value.as_bool().is_none()
+                            && !value.as_i64().is_some_and(|flag| matches!(flag, 0 | 1))
+                    })
+                {
+                    return Err(AppError::Validation(
+                        "small_salary_employee_requested_contributions doit être oui ou non."
+                            .into(),
+                    ));
+                }
+                for field in [
+                    "small_salary_opening_gross_cents",
+                    "small_salary_opening_contributed_basis_cents",
+                ] {
+                    if !object
+                        .get(field)
+                        .and_then(Value::as_i64)
+                        .is_some_and(|amount| amount >= 0)
+                    {
+                        return Err(AppError::Validation(format!(
+                            "{field} doit être un montant entier positif ou nul."
+                        )));
+                    }
+                }
+                let opening_gross = object["small_salary_opening_gross_cents"]
+                    .as_i64()
+                    .expect("validated opening gross");
+                let opening_contributed = object["small_salary_opening_contributed_basis_cents"]
+                    .as_i64()
+                    .expect("validated opening contributed basis");
+                if opening_contributed > opening_gross {
+                    return Err(AppError::Validation(
+                        "La base d'ouverture déjà cotisée ne peut pas dépasser le salaire brut d'ouverture."
+                            .into(),
+                    ));
+                }
+                if !object
+                    .get("small_salary_evidence_reference")
+                    .and_then(Value::as_str)
+                    .is_some_and(|reference| {
+                        !reference.is_empty() && reference.chars().count() <= 500
+                    })
+                {
+                    return Err(AppError::Validation(
+                        "small_salary_evidence_reference est obligatoire et limitée à 500 caractères."
+                        .into(),
+                    ));
+                }
+                let assessment_year = object["small_salary_assessment_year"]
+                    .as_i64()
+                    .expect("validated small salary assessment year");
+                let decision_date = object
+                    .get("small_salary_decision_date")
+                    .and_then(Value::as_str)
+                    .and_then(|value| NaiveDate::parse_from_str(value, "%Y-%m-%d").ok())
+                    .ok_or_else(|| {
+                        AppError::Validation(
+                            "small_salary_decision_date doit être une date valide au format AAAA-MM-JJ."
+                                .into(),
+                        )
+                    })?;
+                if i64::from(decision_date.year()) != assessment_year {
+                    return Err(AppError::Validation(
+                        "small_salary_decision_date doit appartenir à l'année d'évaluation.".into(),
+                    ));
+                }
             }
         }
         "payslips"
@@ -5142,6 +5436,7 @@ pub(crate) fn record_payment_in_transaction(
                 .into(),
         ));
     }
+    ensure_accounting_date_open(transaction, &date)?;
     let (total_cents, paid_cents, credited_cents, invoice_type, invoice_status, number, issue_date): (
         i64,
         i64,
@@ -7742,5 +8037,1351 @@ mod v32_laa_opening_migration_tests {
             let mut object = invalid.as_object().unwrap().clone();
             assert!(normalize_record("employees", &mut object, true).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod v33_cumulative_close_migration_tests {
+    use super::*;
+
+    const NOW: &str = "2026-12-31T12:00:00Z";
+
+    fn insert_journal(
+        connection: &Connection,
+        id: &str,
+        number: &str,
+        date: &str,
+        source_type: &str,
+        source_id: &str,
+        source_event: &str,
+    ) {
+        connection
+            .execute(
+                "INSERT INTO journal_entries(
+                   id,number,entry_date,description,source_type,source_id,source_event,status,created_at
+                 ) VALUES(?,?,?,'Preuve test',?,?,?,'posted',?)",
+                params![id, number, date, source_type, source_id, source_event, NOW],
+            )
+            .unwrap();
+    }
+
+    fn insert_invoice_draft(connection: &Connection, id: &str, item_id: &str, date: &str) {
+        connection
+            .execute(
+                "INSERT INTO invoices(
+                   id,title,type,status,issue_date,due_date,currency,subtotal_cents,vat_cents,total_cents,created_at,updated_at
+                 ) VALUES(?,'Facture test','standard','brouillon',?,?,'CHF',10000,810,10810,?,?)",
+                params![id, date, date, NOW, NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO invoice_items(
+                   id,invoice_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,
+                   line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at
+                 ) VALUES(?,?,0,'Prestation',1.0,'forfait',10000,0,810,10000,810,10810,?,?)",
+                params![item_id, id, NOW, NOW],
+            )
+            .unwrap();
+    }
+
+    fn insert_supplier_invoice_draft(
+        connection: &Connection,
+        id: &str,
+        item_id: &str,
+        reference: &str,
+    ) {
+        connection
+            .execute(
+                "INSERT INTO supplier_invoices(
+                   id,supplier_id,document_date,due_date,supplier_name,reference,reference_normalized,
+                   currency,status,net_cents,vat_cents,total_cents,paid_cents,created_at,updated_at
+                 ) VALUES(?,'supplier-1','2026-02-10','2026-03-10','Fournisseur test',?,?,
+                          'CHF','draft',10000,810,10810,0,?,?)",
+                params![id, reference, reference, NOW, NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO supplier_invoice_items(
+                   id,supplier_invoice_id,position,description,quantity_milli,unit,unit_price_cents,
+                   discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,category,
+                   posted_expense_account_id,created_at,updated_at
+                 ) VALUES(?,?,0,'Achat',1000,'unité',10000,0,810,10000,810,10810,'matériel',
+                          'account-expense',?,?)",
+                params![item_id, id, NOW, NOW],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn v33_dispatch_and_sqlite_guards_cover_every_closed_source_family() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+
+        // La migration doit être rejouable depuis une vraie base V32 et ne doit
+        // créer aucune donnée métier.
+        {
+            let connection = store.connect().unwrap();
+            connection.pragma_update(None, "user_version", 32).unwrap();
+        }
+        store.migrate().unwrap();
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE
+                       (type='view' AND name='vat_source_fiscal_dates') OR
+                       (type='trigger' AND name IN(
+                         'journal_entries_closed_through_insert_guard',
+                         'journal_lines_closed_through_insert_guard',
+                         'accounting_periods_closed_no_update',
+                         'accounting_periods_closed_no_delete',
+                         'payments_closed_through_insert_guard',
+                         'supplier_payments_closed_through_insert_guard',
+                         'expenses_closed_through_insert_guard',
+                         'invoices_closed_through_issue_guard',
+                         'supplier_invoices_closed_through_validation_guard',
+                         'vat_adjustments_closed_through_insert_guard',
+                         'vat_profiles_closed_through_update_guard',
+                         'vat_source_classifications_closed_through_update_guard'
+                       ))",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            13
+        );
+
+        connection
+            .execute(
+                "INSERT INTO accounts(id,code,name,account_type,normal_balance,report_section,active,created_at,updated_at)
+                 VALUES('account-1','1020','Banque','asset','debit','current_assets',1,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO accounts(id,code,name,account_type,normal_balance,report_section,active,created_at,updated_at)
+                 VALUES('account-expense','6000','Charges','expense','debit','other_operating_expense',1,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO suppliers(id,name,currency,payment_terms_days,created_at,updated_at)
+                 VALUES('supplier-1','Fournisseur test','CHF',30,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at)
+                 VALUES('period-2026','Exercice 2026','2026-01-01','2026-12-31','open',?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+
+        insert_invoice_draft(
+            &connection,
+            "invoice-existing",
+            "item-existing",
+            "2026-02-01",
+        );
+        connection
+            .execute(
+                "UPDATE invoices SET number='F-2026-0001',status='emise' WHERE id='invoice-existing'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at)
+                 VALUES('payment-existing','invoice-existing','2026-03-01',1000,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+
+        insert_journal(
+            &connection,
+            "journal-supplier-existing",
+            "J-2026-000001",
+            "2026-02-10",
+            "supplier_invoice",
+            "supplier-invoice-existing",
+            "validate",
+        );
+        insert_journal(
+            &connection,
+            "journal-supplier-future-validation",
+            "J-2026-000002",
+            "2026-02-10",
+            "supplier_invoice",
+            "supplier-invoice-after-close",
+            "validate",
+        );
+        insert_journal(
+            &connection,
+            "journal-supplier-payment-existing",
+            "J-2026-000003",
+            "2026-03-15",
+            "supplier_payment",
+            "supplier-payment-existing",
+            "invoice:supplier-invoice-existing",
+        );
+        insert_journal(
+            &connection,
+            "journal-supplier-payment-after-close",
+            "J-2026-000004",
+            "2026-03-20",
+            "supplier_payment",
+            "supplier-payment-after-close",
+            "invoice:supplier-invoice-existing",
+        );
+        insert_supplier_invoice_draft(
+            &connection,
+            "supplier-invoice-existing",
+            "supplier-item-existing",
+            "REF-EXISTING",
+        );
+        connection
+            .execute(
+                "UPDATE supplier_invoices
+                 SET status='validated',validated_at=?1,validation_journal_entry_id='journal-supplier-existing',
+                     snapshot_json='{}',updated_at=?1
+                 WHERE id='supplier-invoice-existing'",
+                params![NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO supplier_payments(
+                   id,supplier_invoice_id,request_id,date,amount_cents,journal_entry_id,created_at
+                 ) VALUES(
+                   'supplier-payment-existing','supplier-invoice-existing',
+                   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','2026-03-15',1000,
+                   'journal-supplier-payment-existing',?1
+                 )",
+                params![NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO expenses(
+                   id,date,due_date,supplier,category,currency,net_cents,vat_cents,total_cents,
+                   payment_status,paid_at,created_at,updated_at
+                 ) VALUES(
+                   'expense-existing','2026-04-01','2026-04-30','Fournisseur test','matériel','CHF',
+                   10000,810,10810,'paid','2026-04-01',?1,?1
+                 )",
+                params![NOW],
+            )
+            .unwrap();
+
+        connection
+            .execute(
+                "UPDATE accounting_periods SET status='closed',closed_at=?1,updated_at=?1
+                 WHERE id='period-2026'",
+                params![NOW],
+            )
+            .unwrap();
+
+        let counts_before: (i64, i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM invoices),
+                   (SELECT COUNT(*) FROM payments),
+                   (SELECT COUNT(*) FROM supplier_invoices),
+                   (SELECT COUNT(*) FROM supplier_payments),
+                   (SELECT COUNT(*) FROM expenses),
+                   (SELECT COUNT(*) FROM journal_lines)",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+
+        // Famille ventes et encaissements : nouvelle émission/paiement
+        // antidatés bloqués, paiements historiques immuables, facture émise
+        // financièrement immuable et non supprimable.
+        insert_invoice_draft(
+            &connection,
+            "invoice-after-close",
+            "item-after-close",
+            "2026-05-01",
+        );
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET number='F-2026-0002',status='emise' WHERE id='invoice-after-close'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at)
+                 VALUES('payment-after-close','invoice-existing','2026-05-01',100,?1,?1)",
+                params![NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE payments SET amount_cents=1 WHERE id='payment-existing'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM payments WHERE id='payment-existing'", [])
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET title='Altération' WHERE id='invoice-existing'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM invoices WHERE id='invoice-existing'", [])
+            .is_err());
+
+        // Famille fournisseurs : validation/paiement antidatés bloqués et
+        // documents déjà validés/paiements déjà inscrits immuables.
+        insert_supplier_invoice_draft(
+            &connection,
+            "supplier-invoice-after-close",
+            "supplier-item-after-close",
+            "REF-AFTER-CLOSE",
+        );
+        assert!(connection
+            .execute(
+                "UPDATE supplier_invoices
+                 SET status='validated',validated_at=?1,
+                     validation_journal_entry_id='journal-supplier-future-validation',
+                     snapshot_json='{}',updated_at=?1
+                 WHERE id='supplier-invoice-after-close'",
+                params![NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO supplier_payments(
+                   id,supplier_invoice_id,request_id,date,amount_cents,journal_entry_id,created_at
+                 ) VALUES(
+                   'supplier-payment-after-close','supplier-invoice-existing',
+                   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','2026-03-20',100,
+                   'journal-supplier-payment-after-close',?1
+                 )",
+                params![NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE supplier_payments SET amount_cents=1 WHERE id='supplier-payment-existing'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM supplier_payments WHERE id='supplier-payment-existing'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE supplier_invoices SET note='Altération' WHERE id='supplier-invoice-existing'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM supplier_invoices WHERE id='supplier-invoice-existing'",
+                [],
+            )
+            .is_err());
+
+        // Famille dépenses et journal : aucune apparition, mutation,
+        // suppression ou ligne supplémentaire dans l'historique scellé.
+        assert!(connection
+            .execute(
+                "INSERT INTO expenses(
+                   id,date,due_date,currency,net_cents,vat_cents,total_cents,payment_status,created_at,updated_at
+                 ) VALUES('expense-after-close','2025-12-31','2026-01-31','CHF',100,8,108,'pending',?1,?1)",
+                params![NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE expenses SET vat_cents=1,total_cents=10001 WHERE id='expense-existing'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM expenses WHERE id='expense-existing'", [])
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO journal_lines(
+                   id,journal_entry_id,account_id,debit_cents,credit_cents,currency,created_at
+                 ) VALUES('late-line','journal-supplier-existing','account-1',1,0,'CHF',?1)",
+                params![NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at)
+                 VALUES('non-canonical','Invalide','2027-1-01','2027-12-31','open',?1,?1)",
+                params![NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE accounting_periods SET status='open' WHERE id='period-2026'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM accounting_periods WHERE id='period-2026'", [])
+            .is_err());
+
+        let counts_after: (i64, i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM invoices),
+                   (SELECT COUNT(*) FROM payments),
+                   (SELECT COUNT(*) FROM supplier_invoices),
+                   (SELECT COUNT(*) FROM supplier_payments),
+                   (SELECT COUNT(*) FROM expenses),
+                   (SELECT COUNT(*) FROM journal_lines)",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            counts_after,
+            (
+                counts_before.0 + 1,
+                counts_before.1,
+                counts_before.2 + 1,
+                counts_before.3,
+                counts_before.4,
+                counts_before.5,
+            ),
+            "seuls les deux brouillons de préparation restent autorisés"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn v33_refuses_to_derive_a_boundary_from_noncanonical_legacy_periods() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        {
+            let connection = store.connect().unwrap();
+            connection
+                .execute_batch(
+                    "DROP TRIGGER accounting_periods_canonical_dates_insert_guard;
+                     INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at)
+                     VALUES('legacy-invalid','Invalide','2026-1-01','2026-12-31','closed',
+                            '2026-12-31T00:00:00Z','2026-12-31T00:00:00Z');
+                     PRAGMA user_version=32;",
+                )
+                .unwrap();
+        }
+        let error = store.migrate().unwrap_err().to_string();
+        assert!(error.contains("Migration V33 bloquée"));
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            32,
+            "la migration invalide doit être entièrement annulée"
+        );
+    }
+}
+
+#[cfg(test)]
+mod v34_small_salary_migration_tests {
+    use super::*;
+
+    const NOW: &str = "2026-09-02T12:00:00Z";
+
+    fn v33_fixture_store(root: &Path, incompatible_history_table: bool) -> LocalStore {
+        let data_dir = root.join("profile");
+        let attachments_dir = data_dir.join("attachments");
+        let backups_dir = data_dir.join("backups");
+        let exports_dir = data_dir.join("exports");
+        fs::create_dir_all(&attachments_dir).unwrap();
+        fs::create_dir_all(&backups_dir).unwrap();
+        fs::create_dir_all(&exports_dir).unwrap();
+        let store = LocalStore {
+            database_path: data_dir.join("helvichantier.sqlite3"),
+            data_dir,
+            attachments_dir,
+            backups_dir,
+            exports_dir,
+            installation_id: "v33-fixture".into(),
+            operation_lock: Arc::new(Mutex::new(())),
+        };
+        let connection = Connection::open(&store.database_path).unwrap();
+        connection
+            .execute_batch(
+                "PRAGMA foreign_keys=ON;
+                 CREATE TABLE employees(
+                   id TEXT PRIMARY KEY,
+                   birth_date TEXT,
+                   ac_opening_year INTEGER,
+                   ac_opening_basis_cents INTEGER,
+                   laa_opening_year INTEGER,
+                   laa_opening_basis_cents INTEGER,
+                   name TEXT NOT NULL,
+                   status TEXT NOT NULL,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL
+                 );
+                 CREATE TABLE payslips(
+                   id TEXT PRIMARY KEY,
+                   employee_id TEXT NOT NULL REFERENCES employees(id),
+                   period TEXT NOT NULL,
+                   status TEXT NOT NULL,
+                   gross_cents INTEGER NOT NULL DEFAULT 0,
+                   payment_date TEXT,
+                   payment_journal_entry_id TEXT
+                 );
+                 CREATE TABLE payslip_items(
+                   id TEXT PRIMARY KEY,
+                   payslip_id TEXT NOT NULL REFERENCES payslips(id)
+                 );
+                 CREATE TABLE payslip_contributions(
+                   id TEXT PRIMARY KEY,
+                   payslip_id TEXT NOT NULL REFERENCES payslips(id)
+                 );
+                 INSERT INTO employees(
+                   id,name,status,created_at,updated_at
+                 ) VALUES(
+                   'legacy-v33','Collaborateur V33','actif',
+                   '2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'
+                 );
+                 PRAGMA user_version=33;",
+            )
+            .unwrap();
+        if incompatible_history_table {
+            connection
+                .execute_batch(
+                    "CREATE TABLE employee_small_salary_decisions(blocker TEXT NOT NULL);",
+                )
+                .unwrap();
+        }
+        drop(connection);
+        store
+    }
+
+    fn insert_employee(connection: &Connection, id: &str) {
+        connection
+            .execute(
+                "INSERT INTO employees(id,name,status,created_at,updated_at)
+                 VALUES(?1,'Collaborateur test','actif',?2,?2)",
+                params![id, NOW],
+            )
+            .unwrap();
+    }
+
+    fn confirm_decision(connection: &Connection, id: &str, requested: i64) {
+        connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_assessment_year=2026,
+                   small_salary_decision_date='2026-01-01',
+                   small_salary_sector='ordinary',
+                   small_salary_employee_requested_contributions=?,
+                   small_salary_opening_gross_cents=0,
+                   small_salary_opening_contributed_basis_cents=0,
+                   small_salary_evidence_reference='Décision initiale'
+                 WHERE id=?",
+                params![requested, id],
+            )
+            .unwrap();
+    }
+
+    fn insert_payslip(connection: &Connection, id: &str, employee_id: &str, status: &str) {
+        connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,deductions_cents,net_cents,
+                   employer_costs_cents,created_at,updated_at
+                 ) VALUES(?,?, '2026-06',?,100000,0,100000,0,?4,?4)",
+                params![id, employee_id, status, NOW],
+            )
+            .unwrap();
+    }
+
+    fn insert_trace(connection: &Connection, payslip_id: &str, employee_id: &str) {
+        let assessment = json!({
+            "assessment_year": 2026,
+            "decision_revision": 1,
+            "decision_date": "2026-01-01",
+            "sector": "ordinary",
+            "employee_requested_contributions": false,
+            "threshold_cents": 250_000,
+            "opening_gross_cents": 0,
+            "opening_contributed_basis_cents": 0,
+            "prior_gross_cents": 0,
+            "prior_contributed_basis_cents": 0,
+            "current_gross_cents": 100_000,
+            "cumulative_gross_cents": 100_000,
+            "contributions_due": false,
+            "statutory_contribution_basis_cents": 0,
+            "statutory_catchup_basis_cents": 0,
+            "reason_code": "ordinary_minor_salary_exempt",
+            "evidence_reference": "Décision initiale",
+        });
+        let serialized = serde_json::to_string(&assessment).unwrap();
+        let assessment_sha256 = format!("{:x}", Sha256::digest(serialized.as_bytes()));
+        connection
+            .execute(
+                "INSERT INTO payslip_small_salary_assessments(
+                   payslip_id,employee_id,assessment_year,decision_revision,decision_date,sector,
+                   employee_requested_contributions,threshold_cents,opening_gross_cents,
+                   opening_contributed_basis_cents,prior_gross_cents,
+                   prior_contributed_basis_cents,current_gross_cents,cumulative_gross_cents,
+                   contributions_due,statutory_contribution_basis_cents,
+                   statutory_catchup_basis_cents,reason_code,evidence_reference,
+                   assessment_json,assessment_sha256,source_reference,created_at
+                 ) VALUES(
+                   ?,?,2026,1,'2026-01-01','ordinary',0,250000,0,0,0,0,100000,100000,
+                   0,0,0,'ordinary_minor_salary_exempt','Décision initiale',?,?,
+                   'https://www.ahv-iv.ch/2.04',?
+                  )",
+                params![payslip_id, employee_id, serialized, assessment_sha256, NOW],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn v34_migrates_a_v33_layout_without_inventing_an_annual_decision() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = v33_fixture_store(temporary.path(), false);
+
+        store.migrate().unwrap();
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            34
+        );
+        let employee_columns = connection
+            .prepare("PRAGMA table_info(employees)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        for column in [
+            "small_salary_assessment_year",
+            "small_salary_decision_date",
+            "small_salary_sector",
+            "small_salary_employee_requested_contributions",
+            "small_salary_opening_gross_cents",
+            "small_salary_opening_contributed_basis_cents",
+            "small_salary_evidence_reference",
+        ] {
+            assert!(employee_columns.iter().any(|value| value == column));
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM employee_small_salary_decisions",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0,
+            "V34 must never invent the client's annual decision"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('payslip_small_salary_assessments')
+                     WHERE name='decision_revision'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn v34_failure_rolls_back_columns_tables_triggers_and_schema_version() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = v33_fixture_store(temporary.path(), true);
+
+        let error = store.migrate().unwrap_err().to_string();
+        assert!(
+            error.contains("employee_id") || error.contains("column"),
+            "{error}"
+        );
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            33
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('employees')
+                     WHERE name LIKE 'small_salary_%'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0,
+            "ALTER TABLE operations must roll back with the failed migration"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master
+                     WHERE type='table' AND name='payslip_small_salary_assessments'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master
+                     WHERE type='trigger' AND name='employees_small_salary_decision_update_history'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('employee_small_salary_decisions')
+                     WHERE name='blocker'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1,
+            "the original V33 blocker table must survive intact"
+        );
+    }
+
+    #[test]
+    fn v34_allows_only_the_immutable_legacy_posted_to_paid_transition_without_trace() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = v33_fixture_store(temporary.path(), false);
+        {
+            let connection = Connection::open(&store.database_path).unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO employees(
+                       id,birth_date,name,status,created_at,updated_at
+                     ) VALUES
+                       ('legacy-good','1990-01-01','Legacy good','actif',
+                        '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+                       ('legacy-bad','1990-01-01','Legacy bad','actif',
+                        '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+                       ('legacy-valid','1990-01-01','Legacy valid','actif',
+                        '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z');
+                     INSERT INTO payslips(
+                       id,employee_id,period,status,gross_cents
+                     ) VALUES
+                       ('legacy-good-slip','legacy-good','2026-06','comptabilise',100000),
+                       ('legacy-bad-slip','legacy-bad','2026-06','comptabilise',100000),
+                       ('legacy-valid-slip','legacy-valid','2026-06','valide',100000);",
+                )
+                .unwrap();
+        }
+
+        store.migrate().unwrap();
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "UPDATE payslips SET status='paye',payment_date='2026-06-30',
+                   payment_journal_entry_id='legacy-payment-journal'
+                 WHERE id='legacy-good-slip'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM payslips WHERE id='legacy-good-slip'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "paye"
+        );
+        assert!(connection
+            .execute(
+                "UPDATE payslips SET status='paye',payment_date='2026-06-30'
+                 WHERE id='legacy-bad-slip'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE payslips SET status='comptabilise',payment_date='2026-06-30',
+                   payment_journal_entry_id='not-a-payment-transition'
+                 WHERE id='legacy-valid-slip'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,payment_date,
+                   payment_journal_entry_id
+                 ) VALUES('direct-paid','legacy-good','2026-07','paye',100000,
+                          '2026-07-31','direct-journal')",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn v34_allows_a_structural_correction_before_first_payslip_validation() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+        insert_employee(&connection, "prevalidation-correction");
+        confirm_decision(&connection, "prevalidation-correction", 0);
+
+        connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_decision_date='2026-02-01',
+                   small_salary_sector='private_household',
+                   small_salary_opening_gross_cents=1000,
+                   small_salary_evidence_reference='Correction avant validation'
+                 WHERE id='prevalidation-correction'",
+                [],
+            )
+            .unwrap();
+
+        let revisions = connection
+            .prepare(
+                "SELECT revision,revision_kind,sector,opening_gross_cents
+                 FROM employee_small_salary_decisions
+                 WHERE employee_id='prevalidation-correction' ORDER BY revision",
+            )
+            .unwrap()
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            revisions,
+            vec![
+                (1, "initial".into(), "ordinary".into(), 0),
+                (
+                    2,
+                    "prevalidation_correction".into(),
+                    "private_household".into(),
+                    1000,
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn v34_sql_guards_reject_direct_status_and_forged_assessment_traces() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+        let digest: String = connection
+            .query_row("SELECT zentra_sha256('abc')", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            digest,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+
+        insert_employee(&connection, "no-decision");
+        connection
+            .execute(
+                "UPDATE employees SET birth_date='1990-01-01' WHERE id='no-decision'",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,deductions_cents,net_cents,
+                   employer_costs_cents,created_at,updated_at
+                 ) VALUES('no-decision-valid','no-decision','2026-06','valide',
+                          100000,0,100000,0,?1,?1)",
+                params![NOW],
+            )
+            .is_err());
+        insert_employee(&connection, "missing-birth-date");
+        assert!(connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,deductions_cents,net_cents,
+                   employer_costs_cents,created_at,updated_at
+                 ) VALUES('missing-birth-valid','missing-birth-date','2026-06','valide',
+                          100000,0,100000,0,?1,?1)",
+                params![NOW],
+            )
+            .is_err());
+
+        insert_employee(&connection, "sql-guard");
+        connection
+            .execute(
+                "UPDATE employees SET birth_date='1990-01-01' WHERE id='sql-guard'",
+                [],
+            )
+            .unwrap();
+        confirm_decision(&connection, "sql-guard", 0);
+        assert!(connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,deductions_cents,net_cents,
+                   employer_costs_cents,created_at,updated_at
+                 ) VALUES('direct-valid','sql-guard','2026-06','valide',100000,0,
+                          100000,0,?1,?1)",
+                params![NOW],
+            )
+            .is_err());
+
+        insert_payslip(&connection, "guarded-slip", "sql-guard", "brouillon");
+        assert!(connection
+            .execute(
+                "UPDATE payslips SET status='valide' WHERE id='guarded-slip'",
+                [],
+            )
+            .is_err());
+        connection
+            .pragma_update(None, "trusted_schema", "OFF")
+            .unwrap();
+        insert_trace(&connection, "guarded-slip", "sql-guard");
+        connection
+            .execute(
+                "UPDATE payslips SET status='valide' WHERE id='guarded-slip'",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "DELETE FROM payslip_small_salary_assessments
+                 WHERE payslip_id='guarded-slip'",
+                [],
+            )
+            .is_err());
+
+        connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,deductions_cents,net_cents,
+                   employer_costs_cents,created_at,updated_at
+                 ) VALUES
+                   ('forged-hash','sql-guard','2026-07','brouillon',100000,0,100000,0,?1,?1),
+                   ('forged-json','sql-guard','2026-08','brouillon',100000,0,100000,0,?1,?1),
+                   ('forged-cumulative','sql-guard','2026-09','brouillon',100000,0,100000,0,?1,?1),
+                   ('forged-policy','sql-guard','2026-10','brouillon',100000,0,100000,0,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "INSERT INTO payslip_small_salary_assessments
+                 SELECT 'forged-hash',employee_id,assessment_year,decision_revision,
+                        decision_date,sector,employee_requested_contributions,
+                        threshold_cents,opening_gross_cents,
+                        opening_contributed_basis_cents,prior_gross_cents,
+                        prior_contributed_basis_cents,current_gross_cents,
+                        cumulative_gross_cents,contributions_due,
+                        statutory_contribution_basis_cents,
+                        statutory_catchup_basis_cents,reason_code,evidence_reference,
+                        assessment_json,?1,source_reference,created_at
+                 FROM payslip_small_salary_assessments WHERE payslip_id='guarded-slip'",
+                params!["a".repeat(64)],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO payslip_small_salary_assessments
+                 SELECT 'forged-json',employee_id,assessment_year,decision_revision,
+                        decision_date,sector,employee_requested_contributions,
+                        threshold_cents+1,opening_gross_cents,
+                        opening_contributed_basis_cents,prior_gross_cents,
+                        prior_contributed_basis_cents,current_gross_cents,
+                        cumulative_gross_cents,contributions_due,
+                        statutory_contribution_basis_cents,
+                        statutory_catchup_basis_cents,reason_code,evidence_reference,
+                        assessment_json,assessment_sha256,source_reference,created_at
+                 FROM payslip_small_salary_assessments WHERE payslip_id='guarded-slip'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO payslip_small_salary_assessments
+                 SELECT 'forged-cumulative',employee_id,assessment_year,decision_revision,
+                        decision_date,sector,employee_requested_contributions,
+                        threshold_cents,opening_gross_cents,
+                        opening_contributed_basis_cents,prior_gross_cents,
+                        prior_contributed_basis_cents,current_gross_cents,
+                        cumulative_gross_cents+1,contributions_due,
+                        statutory_contribution_basis_cents,
+                        statutory_catchup_basis_cents,reason_code,evidence_reference,
+                        json_set(assessment_json,'$.cumulative_gross_cents',cumulative_gross_cents+1),
+                        zentra_sha256(json_set(assessment_json,'$.cumulative_gross_cents',cumulative_gross_cents+1)),
+                        source_reference,created_at
+                 FROM payslip_small_salary_assessments WHERE payslip_id='guarded-slip'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO payslip_small_salary_assessments
+                 SELECT 'forged-policy',employee_id,assessment_year,decision_revision,
+                        decision_date,sector,employee_requested_contributions,
+                        0,opening_gross_cents,opening_contributed_basis_cents,
+                        prior_gross_cents,prior_contributed_basis_cents,current_gross_cents,
+                        cumulative_gross_cents,contributions_due,
+                        statutory_contribution_basis_cents,
+                        statutory_catchup_basis_cents,reason_code,evidence_reference,
+                        json_set(assessment_json,'$.threshold_cents',0),
+                        zentra_sha256(json_set(assessment_json,'$.threshold_cents',0)),
+                        source_reference,created_at
+                 FROM payslip_small_salary_assessments WHERE payslip_id='guarded-slip'",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn v34_is_idempotent_and_enforces_atomic_decisions_and_trace_lifecycle() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        {
+            let connection = store.connect().unwrap();
+            connection.pragma_update(None, "user_version", 33).unwrap();
+        }
+        store.migrate().unwrap();
+        // Rejouer V34 sur un schéma déjà enrichi doit rester sans effet métier.
+        {
+            let connection = store.connect().unwrap();
+            connection.pragma_update(None, "user_version", 33).unwrap();
+        }
+        store.migrate().unwrap();
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            34
+        );
+        let columns = connection
+            .prepare("PRAGMA table_info(employees)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        for column in [
+            "small_salary_assessment_year",
+            "small_salary_decision_date",
+            "small_salary_sector",
+            "small_salary_employee_requested_contributions",
+            "small_salary_opening_gross_cents",
+            "small_salary_opening_contributed_basis_cents",
+            "small_salary_evidence_reference",
+        ] {
+            assert!(columns.iter().any(|value| value == column), "{column}");
+        }
+
+        insert_employee(&connection, "atomic");
+        assert!(connection
+            .execute(
+                "UPDATE employees SET small_salary_assessment_year=2026 WHERE id='atomic'",
+                [],
+            )
+            .is_err());
+
+        // Avant toute première validation, une nouvelle révision structurelle
+        // remplace proprement la décision affichée sans sceller une erreur de
+        // saisie du questionnaire.
+        insert_employee(&connection, "correctable");
+        confirm_decision(&connection, "correctable", 0);
+        connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_decision_date='2026-02-01',
+                   small_salary_sector='private_household',
+                   small_salary_opening_gross_cents=1000,
+                   small_salary_evidence_reference='Correction avant validation'
+                 WHERE id='correctable'",
+                [],
+            )
+            .unwrap();
+        let corrected: (i64, String, String, i64) = connection
+            .query_row(
+                "SELECT revision,revision_kind,sector,opening_gross_cents
+                 FROM employee_small_salary_decisions
+                 WHERE employee_id='correctable' ORDER BY revision DESC LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            corrected,
+            (
+                2,
+                "prevalidation_correction".into(),
+                "private_household".into(),
+                1000
+            )
+        );
+        assert!(connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_assessment_year=2026,
+                   small_salary_decision_date='2025-12-31',
+                   small_salary_sector='ordinary',
+                   small_salary_employee_requested_contributions=0,
+                   small_salary_opening_gross_cents=0,
+                   small_salary_opening_contributed_basis_cents=0,
+                   small_salary_evidence_reference='Mauvaise année'
+                 WHERE id='atomic'",
+                [],
+            )
+            .is_err());
+
+        // Une fiche V33 legacy sans trace autorise exactement la première
+        // confirmation complète, puis scelle sa structure annuelle.
+        insert_employee(&connection, "legacy");
+        connection
+            .execute(
+                "UPDATE employees SET birth_date='2010-01-01' WHERE id='legacy'",
+                [],
+            )
+            .unwrap();
+        insert_payslip(&connection, "legacy-slip", "legacy", "valide");
+        confirm_decision(&connection, "legacy", 0);
+        assert!(connection
+            .execute(
+                "UPDATE employees SET small_salary_sector='arts_culture'
+                 WHERE id='legacy'",
+                [],
+            )
+            .is_err());
+
+        insert_employee(&connection, "traced");
+        confirm_decision(&connection, "traced", 0);
+        insert_payslip(&connection, "trace-slip", "traced", "brouillon");
+        insert_trace(&connection, "trace-slip", "traced");
+        connection
+            .execute(
+                "UPDATE payslips SET status='valide' WHERE id='trace-slip'",
+                [],
+            )
+            .unwrap();
+
+        // Une année suivante reçoit sa propre décision initiale; la décision
+        // 2026 et sa trace restent adressables pour les replays historiques.
+        insert_employee(&connection, "rollover");
+        confirm_decision(&connection, "rollover", 0);
+        insert_payslip(&connection, "rollover-slip", "rollover", "brouillon");
+        insert_trace(&connection, "rollover-slip", "rollover");
+        connection
+            .execute(
+                "UPDATE payslips SET status='valide' WHERE id='rollover-slip'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_assessment_year=2027,
+                   small_salary_decision_date='2027-01-02',
+                   small_salary_sector='ordinary',
+                   small_salary_employee_requested_contributions=0,
+                   small_salary_opening_gross_cents=0,
+                   small_salary_opening_contributed_basis_cents=0,
+                   small_salary_evidence_reference='Décision annuelle 2027'
+                 WHERE id='rollover'",
+                [],
+            )
+            .unwrap();
+        let rollover_rows: Vec<(i64, i64, String)> = connection
+            .prepare(
+                "SELECT assessment_year,revision,revision_kind
+                 FROM employee_small_salary_decisions
+                 WHERE employee_id='rollover' ORDER BY assessment_year,revision",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            rollover_rows,
+            vec![(2026, 1, "initial".into()), (2027, 1, "initial".into())]
+        );
+
+        // Une fiche validée reste corrigeable via le workflow contrôlé: retour
+        // en brouillon, puis remplacement de la trace, jamais mise à jour.
+        assert!(connection
+            .execute(
+                "UPDATE payslip_small_salary_assessments SET prior_gross_cents=1
+                 WHERE payslip_id='trace-slip'",
+                [],
+            )
+            .is_err());
+        connection
+            .execute(
+                "UPDATE payslips SET status='brouillon' WHERE id='trace-slip'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "DELETE FROM payslip_small_salary_assessments WHERE payslip_id='trace-slip'",
+                [],
+            )
+            .unwrap();
+        insert_trace(&connection, "trace-slip", "traced");
+        connection
+            .execute(
+                "UPDATE payslips SET status='valide' WHERE id='trace-slip'",
+                [],
+            )
+            .unwrap();
+
+        // La demande prospective est la seule transition admise après une
+        // validation: nouvelle preuve et date strictement postérieure à juin.
+        connection
+            .execute(
+                "UPDATE payslips SET payment_date='2026-06-30' WHERE id='trace-slip'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE employees SET
+                   small_salary_employee_requested_contributions=1,
+                   small_salary_decision_date='2026-07-01',
+                   small_salary_evidence_reference='Demande signée juillet'
+                 WHERE id='traced'",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE employees SET small_salary_employee_requested_contributions=0
+                 WHERE id='traced'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE employees SET small_salary_opening_gross_cents=1
+                 WHERE id='traced'",
+                [],
+            )
+            .is_err());
+
+        // Une période postérieure déjà comptabilisée scelle la fiche valide
+        // dont elle dépend pour ses cumuls annuels.
+        insert_employee(&connection, "chain");
+        connection
+            .execute(
+                "UPDATE employees SET birth_date='2010-01-01' WHERE id='chain'",
+                [],
+            )
+            .unwrap();
+        confirm_decision(&connection, "chain", 0);
+        insert_payslip(&connection, "chain-june", "chain", "valide");
+        insert_trace(&connection, "chain-june", "chain");
+        connection
+            .execute(
+                "INSERT INTO payslips(
+                   id,employee_id,period,status,gross_cents,deductions_cents,net_cents,
+                   employer_costs_cents,created_at,updated_at
+                 ) VALUES('chain-july','chain','2026-07','valide',100000,0,
+                          100000,0,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE payslips SET gross_cents=100001 WHERE id='chain-june'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "DELETE FROM payslip_small_salary_assessments
+                 WHERE payslip_id='chain-june'",
+                [],
+            )
+            .is_err());
+
+        connection
+            .execute(
+                "UPDATE payslips SET status='comptabilise' WHERE id='trace-slip'",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "DELETE FROM payslip_small_salary_assessments WHERE payslip_id='trace-slip'",
+                [],
+            )
+            .is_err());
     }
 }

@@ -1414,6 +1414,170 @@ mod tests {
     }
 
     #[test]
+    fn blocked_retroactive_writes_leave_final_hash_reports_and_database_unchanged() {
+        let (_temporary, store, period_id) = seeded_store("CHF");
+        let review = store.prepare_fiduciary_pre_closing(test_filter()).unwrap();
+        let review_id = review["review_id"].as_str().unwrap();
+        store
+            .finalize_accounting_period_with_review(&period_id, review_id)
+            .unwrap();
+        let exported = store
+            .export_fiduciary_closing_zip(review_id, "1.17.0-test")
+            .unwrap();
+        assert_eq!(exported["package_status"], "FINAL");
+        let archive_path = PathBuf::from(exported["path"].as_str().unwrap());
+        let archive_sha256_before = sha256_file(&archive_path).unwrap();
+
+        let connection = store.connect().unwrap();
+        let period = period_by_id(&connection, &period_id).unwrap();
+        let snapshot_before = store
+            .build_closing_snapshot(&connection, &period, "2026-01-01", "2026-12-31")
+            .unwrap();
+        assert_eq!(snapshot_before.source_sha256, exported["source_sha256"]);
+        let bank_id: String = connection
+            .query_row("SELECT id FROM accounts WHERE code='1020'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let revenue_id: String = connection
+            .query_row("SELECT id FROM accounts WHERE code='3200'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let state_before: (i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM journal_entries),
+                   (SELECT COUNT(*) FROM journal_lines),
+                   (SELECT COUNT(*) FROM accounting_sequences),
+                   (SELECT COUNT(*) FROM vat_adjustments),
+                   (SELECT COUNT(*) FROM audit_log)",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        let export_evidence_before: (String, String, String) = connection
+            .query_row(
+                "SELECT source_sha256,manifest_sha256,file_name
+                 FROM closing_package_exports WHERE closing_review_id=?",
+                params![review_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        drop(connection);
+
+        let journal_error = store
+            .post_manual_journal_entry(crate::models::ManualJournalInput {
+                entry_date: "2025-06-30".into(),
+                description: "Tentative rétroactive hors exercice explicite".into(),
+                currency: "CHF".into(),
+                lines: vec![
+                    crate::models::ManualJournalLineInput {
+                        account_id: bank_id,
+                        debit_cents: 100,
+                        credit_cents: 0,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                    crate::models::ManualJournalLineInput {
+                        account_id: revenue_id,
+                        debit_cents: 0,
+                        credit_cents: 100,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                ],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(
+            journal_error.contains("cumulativement jusqu'au 2026-12-31"),
+            "erreur de journal inattendue: {journal_error}"
+        );
+
+        let vat_error = store
+            .create_vat_adjustment(crate::vat_reporting::VatAdjustmentInput {
+                request_id: "12121212-1212-4212-8212-121212121212".into(),
+                adjustment_date: "2026-12-31".into(),
+                category: "input_materials".into(),
+                amount_cents: 25,
+                tax_rate_bp: None,
+                description: "Tentative TVA après FINAL".into(),
+                evidence_reference: Some("FINAL-2026".into()),
+                created_by: "test".into(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(
+            vat_error.contains("cumulative jusqu'au 2026-12-31"),
+            "erreur de TVA inattendue: {vat_error}"
+        );
+
+        let connection = store.connect().unwrap();
+        let period = period_by_id(&connection, &period_id).unwrap();
+        let snapshot_after = store
+            .build_closing_snapshot(&connection, &period, "2026-01-01", "2026-12-31")
+            .unwrap();
+        assert_eq!(snapshot_after.source_sha256, snapshot_before.source_sha256);
+        assert_eq!(snapshot_after.journal, snapshot_before.journal);
+        assert_eq!(snapshot_after.ledger, snapshot_before.ledger);
+        assert_eq!(snapshot_after.trial_balance, snapshot_before.trial_balance);
+        assert_eq!(snapshot_after.balance_sheet, snapshot_before.balance_sheet);
+        assert_eq!(
+            snapshot_after.income_statement,
+            snapshot_before.income_statement
+        );
+        assert_eq!(snapshot_after.piece_index, snapshot_before.piece_index);
+        let state_after: (i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM journal_entries),
+                   (SELECT COUNT(*) FROM journal_lines),
+                   (SELECT COUNT(*) FROM accounting_sequences),
+                   (SELECT COUNT(*) FROM vat_adjustments),
+                   (SELECT COUNT(*) FROM audit_log)",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_after, state_before,
+            "les rejets doivent être atomiques"
+        );
+        let export_evidence_after: (String, String, String) = connection
+            .query_row(
+                "SELECT source_sha256,manifest_sha256,file_name
+                 FROM closing_package_exports WHERE closing_review_id=?",
+                params![review_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(export_evidence_after, export_evidence_before);
+        drop(connection);
+        assert_eq!(sha256_file(&archive_path).unwrap(), archive_sha256_before);
+    }
+
+    #[test]
     fn open_period_exports_only_as_draft_and_consumes_review() {
         let (_temporary, store, _period_id) = seeded_store("CHF");
         let review = store.prepare_fiduciary_pre_closing(test_filter()).unwrap();

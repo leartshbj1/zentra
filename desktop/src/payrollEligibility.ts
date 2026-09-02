@@ -8,6 +8,7 @@ import {
   SWISS_FEDERAL_SOCIAL_INSURANCE_2026_SOURCE,
   VALAIS_EMPLOYEE_CAF_RATE_BP_2026,
 } from './swissPayrollInsuranceReadiness';
+import { smallSalarySectorLabel } from './smallSalaryAssessment';
 
 export type PayrollEligibilityAssessment = {
   blockers: string[];
@@ -40,6 +41,16 @@ export type SwissLppUiAssessment = {
   statusTone: 'ok' | 'warning' | 'neutral';
   annualSalaryCents: number | null;
   coordinatedAnnualSalaryCents: number | null;
+};
+
+export type SwissSmallSalaryUiAssessment = {
+  blockers: string[];
+  warnings: string[];
+  configured: boolean;
+  thresholdCents: number | null;
+  cumulativeGrossCents: number | null;
+  contributionsDue: boolean | null;
+  decision: string;
 };
 
 const FEDERAL_PROFILE = {
@@ -98,6 +109,184 @@ function formatChf(cents: number): string {
     style: 'currency',
     currency: 'CHF',
   });
+}
+
+/**
+ * Précontrôle explicatif du régime des salaires de minime importance. Il ne
+ * remplace jamais la décision transactionnelle du moteur Rust, qui recalcule
+ * les cumuls des fiches réellement enregistrées.
+ */
+export function assessSwissSmallSalaryEligibility(input: {
+  employee: Employee;
+  assessmentYear: number | null;
+  currentGrossCents: number;
+  recordedGrossBeforePeriodCents: number;
+  contributionDate: string;
+  avsDefinitionsSelected: boolean;
+  statutoryAvsLiable: boolean | null;
+  retiredAllowanceKept: boolean;
+}): SwissSmallSalaryUiAssessment {
+  const { employee } = input;
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const values = [
+    employee.smallSalaryAssessmentYear,
+    employee.smallSalarySector,
+    employee.smallSalaryEmployeeRequestedContributions,
+    employee.smallSalaryDecisionDate?.trim(),
+    employee.smallSalaryOpeningGrossCents,
+    employee.smallSalaryOpeningContributedBasisCents,
+    employee.smallSalaryEvidenceReference?.trim(),
+  ];
+  const hasAnyValue = values.some(
+    (value) => value !== null && value !== undefined && value !== '',
+  );
+  const configured = Boolean(
+    employee.smallSalaryAssessmentYear != null &&
+      employee.smallSalarySector != null &&
+      employee.smallSalaryEmployeeRequestedContributions != null &&
+      employee.smallSalaryDecisionDate?.trim() &&
+      employee.smallSalaryOpeningGrossCents != null &&
+      employee.smallSalaryOpeningContributedBasisCents != null &&
+      employee.smallSalaryEvidenceReference?.trim(),
+  );
+
+  if (!configured) {
+    blockers.push(
+      hasAnyValue
+        ? 'La décision annuelle « salaire de minime importance » est partielle. Complétez ensemble année, secteur, choix et date de décision, deux ouvertures et référence de preuve sur la fiche collaborateur.'
+        : 'Configurez la décision annuelle « salaire de minime importance » sur la fiche collaborateur, avec des ouvertures explicites même lorsqu’elles valent zéro.',
+    );
+    return {
+      blockers,
+      warnings,
+      configured: false,
+      thresholdCents: null,
+      cumulativeGrossCents: null,
+      contributionsDue: null,
+      decision: 'Décision annuelle à confirmer',
+    };
+  }
+
+  const year = employee.smallSalaryAssessmentYear!;
+  const sector = employee.smallSalarySector!;
+  const requested = employee.smallSalaryEmployeeRequestedContributions!;
+  const openingGrossCents = employee.smallSalaryOpeningGrossCents!;
+  const openingContributedBasisCents =
+    employee.smallSalaryOpeningContributedBasisCents!;
+  if (!Number.isInteger(year) || year < 2000 || year > 9999)
+    blockers.push('L’année d’évaluation des petits salaires est invalide.');
+  if (input.assessmentYear !== null && year !== input.assessmentYear)
+    blockers.push(
+      `La décision des petits salaires concerne ${year}; confirmez-la pour ${input.assessmentYear} avant de valider cette période.`,
+    );
+  if (
+    !isRealIsoDate(employee.smallSalaryDecisionDate) ||
+    employee.smallSalaryDecisionDate.slice(0, 4) !== String(year)
+  )
+    blockers.push(
+      'La date de décision/demande doit être une date réelle dans l’année d’évaluation des petits salaires.',
+    );
+  if (
+    !Number.isInteger(openingGrossCents) ||
+    openingGrossCents < 0 ||
+    !Number.isInteger(openingContributedBasisCents) ||
+    openingContributedBasisCents < 0
+  )
+    blockers.push('Les ouvertures des petits salaires doivent être des montants positifs ou zéro.');
+  if (openingContributedBasisCents > openingGrossCents)
+    blockers.push(
+      'La base d’ouverture déjà cotisée dépasse le brut d’ouverture de la même année.',
+    );
+
+  const recordedGrossBeforePeriodCents = Math.max(
+    0,
+    Math.trunc(input.recordedGrossBeforePeriodCents),
+  );
+  const cumulativeGrossCents =
+    openingGrossCents +
+    recordedGrossBeforePeriodCents +
+    Math.max(0, Math.trunc(input.currentGrossCents));
+  const birthYear = isRealIsoDate(employee.birthDate)
+    ? Number(employee.birthDate.slice(0, 4))
+    : null;
+  const householdYouthYear =
+    sector === 'private_household' &&
+    birthYear !== null &&
+    year <= birthYear + 25;
+  const thresholdCents =
+    sector === 'arts_culture' ||
+    (sector === 'private_household' && !householdYouthYear)
+      ? 0
+      : householdYouthYear
+        ? 75_000
+        : 250_000;
+  const requestEffective =
+    requested &&
+    isRealIsoDate(input.contributionDate) &&
+    input.contributionDate >= employee.smallSalaryDecisionDate;
+  let contributionsDue = false;
+  let decision = '';
+
+  if (requested)
+    warnings.push(
+      'La demande s’applique prospectivement à compter de sa date et ne rétroagit pas sur les salaires déjà payés sous le seuil. Un dépassement ultérieur rend toutefois le salaire annuel total cotisable; les cotisations déjà versées ne sont pas remboursables.',
+    );
+
+  if (sector === 'arts_culture') {
+    contributionsDue = true;
+    decision = 'Cotisations dès le premier franc · arts et culture';
+  } else if (sector === 'private_household' && !householdYouthYear) {
+    contributionsDue = true;
+    decision = 'Cotisations dès le premier franc · ménage privé';
+  } else if (cumulativeGrossCents > thresholdCents) {
+    contributionsDue = true;
+    decision = `Seuil annuel de ${formatChf(thresholdCents)} dépassé`;
+    if (
+      openingGrossCents + recordedGrossBeforePeriodCents <=
+      thresholdCents
+    )
+      warnings.push(
+        `Le seuil est franchi ce mois: le moteur local doit rattraper les cotisations sur le salaire annuel total, pas seulement sur cette fiche.`,
+      );
+  } else if (requestEffective) {
+    contributionsDue = true;
+    decision = `Cotisations demandées dès le ${employee.smallSalaryDecisionDate}`;
+  } else {
+    decision = requested
+      ? `Demande enregistrée, effective dès le ${employee.smallSalaryDecisionDate}`
+      : householdYouthYear
+        ? `Dispense ménage privé jusqu’au 31 décembre suivant le 25e anniversaire, sous ${formatChf(thresholdCents)}`
+        : `Dispense ordinaire sous ${formatChf(thresholdCents)}`;
+  }
+
+  if (
+    input.statutoryAvsLiable !== false &&
+    contributionsDue !== input.avsDefinitionsSelected
+  )
+    blockers.push(
+      contributionsDue
+        ? 'La décision annuelle exige AVS/AI/APG: sélectionnez le profil fédéral complet; le moteur déterminera l’assiette et le rattrapage.'
+        : 'La décision annuelle indique une dispense de cotisations AVS/AI/APG pour cette période; retirez ces définitions ou corrigez la preuve annuelle.',
+    );
+  if (!contributionsDue && input.retiredAllowanceKept)
+    blockers.push(
+      'La dispense pour salaire de minime importance ne peut pas être cumulée avec la franchise AVS après l’âge de référence. Confirmez le régime réellement retenu.',
+    );
+  if (openingContributedBasisCents > 0 && !requested)
+    warnings.push(
+      `Une base d’ouverture de ${formatChf(openingContributedBasisCents)} est déjà cotisée. Ces cotisations ne sont pas remboursables; contrôlez la décision conservée dans la preuve.`,
+    );
+
+  return {
+    blockers: [...new Set(blockers)],
+    warnings: [...new Set(warnings)],
+    configured: true,
+    thresholdCents,
+    cumulativeGrossCents,
+    contributionsDue,
+    decision: `${smallSalarySectorLabel(sector)} · ${decision} · ${employee.smallSalaryDecisionDate}`,
+  };
 }
 
 /**
@@ -514,6 +703,8 @@ export function assessSwissPayrollEligibility(input: {
   settings: AppSettings;
   period: string;
   grossCents: number;
+  /** Brut des fiches Zentra antérieures à la période; uniquement informatif côté UI. */
+  recordedGrossBeforePeriodCents?: number;
   contributionDate?: string;
   definitions: PayrollContributionDefinition[];
   selectedIds: Set<string>;
@@ -582,6 +773,24 @@ export function assessSwissPayrollEligibility(input: {
       resolvedReferenceOverride.reached &&
       resolvedReferenceOverride.effectiveDate.slice(0, 7) < period;
   }
+  const smallSalary = assessSwissSmallSalaryEligibility({
+    employee,
+    assessmentYear: periodValid ? year : null,
+    currentGrossCents: input.grossCents,
+    recordedGrossBeforePeriodCents:
+      input.recordedGrossBeforePeriodCents ?? 0,
+    contributionDate:
+      input.contributionDate && isRealIsoDate(input.contributionDate)
+        ? input.contributionDate
+        : periodValid
+          ? `${period}-01`
+          : '',
+    avsDefinitionsSelected: has('avs_ai_apg'),
+    statutoryAvsLiable: avsLiable,
+    retiredAllowanceKept:
+      referenceAgeReached === true && employee.avsAllowanceWaived === false,
+  });
+  const avsContributionsMayBeDue = smallSalary.contributionsDue !== false;
 
   if (!periodValid)
     blockers.push(
@@ -609,7 +818,11 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       'AVS/AI/APG et AC ne doivent pas être sélectionnées avant le 1er janvier suivant le 17e anniversaire.',
     );
-  if (avsLiable && !federalProfile.avsAiApgComplete)
+  if (
+    avsLiable &&
+    avsContributionsMayBeDue &&
+    !federalProfile.avsAiApgComplete
+  )
     blockers.push(
       ...federalProfile.issues.filter(
         (issue) =>
@@ -622,7 +835,12 @@ export function assessSwissPayrollEligibility(input: {
     blockers.push(
       'Dès 64 ans, renseignez une date/validation explicite de l’âge de référence confirmée par la caisse ou la fiduciaire; Zentra ne la déduit pas du sexe.',
     );
-  if (avsLiable && referenceAgeReached !== true && !federalProfile.acComplete)
+  if (
+    avsLiable &&
+    avsContributionsMayBeDue &&
+    referenceAgeReached !== true &&
+    !federalProfile.acComplete
+  )
     blockers.push(
       ...federalProfile.issues.filter((issue) => issue.startsWith('AC')),
     );
@@ -646,14 +864,64 @@ export function assessSwissPayrollEligibility(input: {
     warnings.push(
       'Renonciation à la franchise AVS enregistrée: conservez la confirmation de la caisse ou de la fiduciaire.',
     );
+  const smallSalaryReviewRequired =
+    avsLiable !== false ||
+    has('avs_ai_apg') ||
+    has('ac') ||
+    settings.payroll.laaSmallSalaryException?.enabled === true;
+  if (smallSalaryReviewRequired) {
+    blockers.push(...smallSalary.blockers);
+    warnings.push(...smallSalary.warnings);
+  }
+  if (smallSalary.contributionsDue === false && has('ac'))
+    blockers.push(
+      'La décision annuelle indique une dispense AVS/AI/APG/AC pour cette période; retirez aussi les définitions AC ou corrigez la preuve annuelle.',
+    );
   if (
     (has('avs_ai_apg') && !federalProfile.avsAiApgComplete) ||
     (has('ac') && !federalProfile.acComplete)
   )
     blockers.push(...federalProfile.issues);
-  if (!has('aap'))
+  const laaMinorSalaryException = settings.payroll.laaSmallSalaryException;
+  const laaMinorSalaryExceptionSubmissionConfigured = Boolean(
+    laaMinorSalaryException?.enabled &&
+      periodValid &&
+      laaMinorSalaryException.assessmentYear === year &&
+      laaMinorSalaryException.evidenceReference.trim() &&
+      laaMinorSalaryException.confirmedAllEmployeesOnlyMinorSalaries,
+  );
+  if (laaMinorSalaryException?.enabled) {
+    if (
+      !Number.isInteger(laaMinorSalaryException.assessmentYear) ||
+      laaMinorSalaryException.assessmentYear !== year ||
+      !laaMinorSalaryException.evidenceReference.trim() ||
+      !laaMinorSalaryException.confirmedAllEmployeesOnlyMinorSalaries
+    )
+      blockers.push(
+        `L’exception LAA des petits salaires doit être confirmée pour ${periodValid ? year : 'l’année de la période'}, avec une preuve et l’attestation portant sur tous les salariés concernés pendant l’année.`,
+      );
+    if (employee.smallSalarySector !== 'ordinary')
+      blockers.push(
+        'L’exception LAA des petits salaires ne s’applique pas au ménage privé ni aux arts et à la culture.',
+      );
+    if (
+      smallSalary.cumulativeGrossCents !== null &&
+      smallSalary.cumulativeGrossCents > 250_000
+    )
+      blockers.push(
+        'Le cumul connu de ce salarié dépasse CHF 2’500: l’exception LAA de l’entreprise ne peut pas être appliquée.',
+      );
+    warnings.push(
+      'Le contrôle global de tous les salariés concernés pendant l’année est effectué par le moteur au moment de valider. L’attestation locale autorise la soumission, mais ne prouve jamais à elle seule que l’exception LAA est valable.',
+    );
+  }
+  if (!has('aap') && !laaMinorSalaryExceptionSubmissionConfigured)
     blockers.push(
-      'La prime accidents professionnels AAP doit être configurée pour tout salarié.',
+      'La prime accidents professionnels AAP doit être configurée, sauf exception annuelle des petits salaires vérifiée pour toute l’entreprise.',
+    );
+  if (has('aap') && laaMinorSalaryExceptionSubmissionConfigured)
+    warnings.push(
+      'Une couverture AAP réelle reste sélectionnée malgré l’exception LAA candidate; le moteur conserve la police choisie et contrôle la situation annuelle.',
     );
   const invalidLaaCategories = (['aap', 'aanp'] as const).filter((category) =>
     selectedDefinitions
@@ -809,6 +1077,44 @@ export function assessSwissPayrollEligibility(input: {
           referenceAgeReached === true && employee.avsAllowanceWaived === null
             ? 'warning'
             : 'neutral',
+      },
+      {
+        label: 'Décision petits salaires',
+        value: smallSalary.decision,
+        tone: smallSalary.configured
+          ? smallSalary.blockers.length
+            ? 'warning'
+            : 'ok'
+          : 'warning',
+      },
+      {
+        label: 'Cumul brut annuel connu',
+        value:
+          smallSalary.cumulativeGrossCents === null
+            ? 'Décision annuelle manquante'
+            : formatChf(smallSalary.cumulativeGrossCents),
+        tone:
+          smallSalary.cumulativeGrossCents === null ? 'warning' : 'neutral',
+      },
+      {
+        label: 'Base d’ouverture déjà cotisée',
+        value:
+          employee.smallSalaryOpeningContributedBasisCents == null
+            ? 'À confirmer'
+            : formatChf(employee.smallSalaryOpeningContributedBasisCents),
+        tone:
+          employee.smallSalaryOpeningContributedBasisCents == null
+            ? 'warning'
+            : 'neutral',
+      },
+      {
+        label: 'Exception LAA entreprise',
+        value: laaMinorSalaryException?.enabled
+          ? laaMinorSalaryExceptionSubmissionConfigured
+            ? `Attestation ${laaMinorSalaryException.assessmentYear} saisie · contrôle global au moment de valider`
+            : 'Configuration incomplète'
+          : 'Non activée',
+        tone: laaMinorSalaryException?.enabled ? 'warning' : 'neutral',
       },
       {
         label: 'Horaire contractuel',

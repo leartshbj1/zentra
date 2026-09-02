@@ -1,10 +1,12 @@
 # Matrice de conformité suisse — Zentra
 
-Cette matrice sert de base de recette. Elle ne remplace ni une certification Swissdec, ni la validation d’une fiduciaire, ni le contrôle du PDF QR par le portail SIX.
+Cette matrice sert de base de recette pour la future source Zentra 1.18.0, encore non publiée. Elle ne remplace ni une certification Swissdec, ni la validation d’une fiduciaire, ni le contrôle du PDF QR par le portail SIX.
 
 ## Profil d’activité multisectoriel
 
 Le premier lancement demande une section et une division de la NOGA 2025 ainsi qu’une description précise de l’activité. Le catalogue embarqué couvre les 22 sections A à V et leurs 87 divisions. Le choix est validé puis conservé dans la base locale et dans les sauvegardes ; il adapte le vocabulaire du module « Chantiers / projets » sans retirer ce module.
+
+La checklist de prise en main 1.18 est un indicateur d'usage, pas une preuve de conformité. Elle n'emploie ni données de démonstration ni cases de validation manuelle : son avancement est recalculé à partir d'un client actif, d'un projet lié à ce client, d'un devis numéroté et accepté, d'une facture numérotée et émise depuis ce devis, d'un paiement positif rattaché à une écriture active cohérente, puis d'une sauvegarde réellement créée avec son chemin et sa date. Supprimer ou invalider une preuve rend l'étape de nouveau incomplète.
 
 Source : [OFS / KUBB — NOGA 2025](https://www.kubb-tool.bfs.admin.ch/fr/noga/2025).
 
@@ -67,19 +69,37 @@ validité ; les taux de caisse, d’assureur et les barèmes cantonaux ne peuve
   reconduite si aucun changement n’est annoncé. L’année où l’âge de référence
   est atteint, seule la part correspondant au salaire versé dès le mois suivant
   peut bénéficier de la franchise.
-- Si le salaire d’un emploi ne dépasse pas CHF 2'500 sur l’année civile, les
-  cotisations ne sont en principe prélevées qu’à la demande de l’assuré. Le test
-  doit porter sur le cumul réel par emploi, année et employeur, pas sur une
-  extrapolation mensuelle.
-- Exceptions au salaire minime : les emplois dans un ménage sont cotisants quel
-  que soit le revenu, sauf jusqu’au 31 décembre de l’année des 25 ans lorsque le
-  salaire ne dépasse pas CHF 750 par année et par employeur ; les emplois dans
-  les domaines artistiques et médiatiques énumérés par le mémento 2.01 sont
-  toujours cotisants.
+- Dans le secteur ordinaire, si le salaire d’un emploi ne dépasse pas
+  CHF 2'500 sur l’année civile, les cotisations AVS/AI/APG/AC ne sont en principe
+  prélevées qu’à la demande de l’assuré. Le test porte sur le cumul réel par
+  emploi, année et employeur, pas sur une extrapolation mensuelle. Dès que le
+  seuil est dépassé, les cotisations sont dues sur la totalité du salaire annuel,
+  et non uniquement sur la fraction supérieure à CHF 2'500.
+- Dans un ménage privé, l'assujettissement est obligatoire quel que soit le
+  revenu, sauf pour une personne couverte jusqu'au 31 décembre de l'année de ses
+  25 ans lorsque le salaire ne dépasse pas CHF 750 par année et par employeur.
+  Le dépassement de CHF 750 rend la totalité du salaire concerné cotisant. Les
+  emplois dans les domaines artistiques et culturels visés sont toujours
+  cotisants.
+- Une demande de cotiser formulée sous le seuil s'applique prospectivement à
+  partir de la décision documentée : elle ne rend pas rétroactivement cotisants
+  les salaires déjà versés. Une cotisation déjà prélevée sur demande ne peut pas
+  être retirée rétroactivement. Cette demande volontaire ne se confond pas avec
+  le rattrapage obligatoire de l'ensemble du salaire lorsque le seuil est
+  effectivement franchi.
+- Le régime du salaire minime ne se cumule pas avec la franchise AVS accordée
+  après l'âge de référence. Le moteur doit refuser cette combinaison au lieu de
+  choisir silencieusement l'assiette la plus favorable.
+- Le contrôle Zentra 1.18 conserve l'année, le secteur, la date de décision, la
+  référence de preuve, le brut d'ouverture et la base d'ouverture déjà cotisée.
+  Il dérive ensuite le cumul et le rattrapage depuis les fiches locales
+  antérieures validées, comptabilisées ou payées et enregistre une trace locale
+  du calcul. Les valeurs cumulatives libres reçues de l'interface ne font pas
+  autorité.
 - La déclaration de salaire AVS définitive doit parvenir à la caisse au plus tard
   le 30 janvier suivant la fin de l’année de cotisation.
 
-Sources : [AVS/AI — tableau synoptique, état au 1er janvier 2026](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf), [AVS/AI — mémento 2.01, état au 1er janvier 2026](https://www.ahv-iv.ch/p/2.01.f).
+Sources : [AVS/AI — tableau synoptique, état au 1er janvier 2026](https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf), [AVS/AI — mémento 2.01, état au 1er janvier 2026](https://www.ahv-iv.ch/p/2.01.f), [AVS/AI — mémento 2.04, cotisations sur les salaires minimes](https://www.ahv-iv.ch/Portals/0/Documents/Merkblaetter/Gruppe_2/2.04_f.pdf).
 
 ### LPP
 
@@ -132,6 +152,14 @@ Source : [OFAS — montants AVS/AI/APG/PC/LPP valables dès le 1er janvier 2026
   source du tarif. L’exception salarié du Valais est liée au tableau synoptique
   2026 qui publie réellement le taux de 0,13 %, et non au tableau distinct qui ne
   publie que les montants des prestations.
+- Hors ménages privés et activités artistiques/culturelles obligatoirement
+  cotisantes, l'exception LAA liée à une entreprise n'employant que des personnes
+  dont le salaire annuel remplit les conditions du salaire minime reste
+  désactivée par défaut. Zentra ne l'accepte qu'avec une confirmation et une
+  preuve pour l'année concernée et après contrôle de tous les salariés ayant été
+  concernés pendant cette année, y compris les personnes parties ou inactives.
+  Un seul cas incompatible rétablit l'exigence ordinaire de couverture AAP. Ce
+  contrôle ne constitue ni une décision de l'assureur ni une certification.
 - Une configuration IJM ne peut pas être déclarée complète avec le seul nom de
   l’assureur et une prime. Tant que le régime LAMal/LCA, le numéro de police, le
   taux de couverture, le délai d’attente, la durée des prestations et la
@@ -285,6 +313,8 @@ Contrôles logiciels attendus :
 - journal chronologique, grand livre, balance des comptes ;
 - bilan et compte de résultat selon un plan comptable paramétrable ;
 - clôture de période et périodes verrouillées ;
+- protection cumulative de toute date antérieure ou égale à la fin de la
+  dernière clôture définitive, y compris les intervalles non clôturés séparément ;
 - pièces et écritures validées non supprimables ; extourne traçable ;
 - export complet pour la fiduciaire et conservation locale ;
 - dossier de clôture comprenant l’inventaire, les états, l’annexe légale, les
@@ -297,10 +327,18 @@ Contrôles logiciels attendus :
 Zentra fournit une partie double, un journal et un grand livre, des états, des
 écritures immuables corrigées par extourne, le verrouillage de période, une
 chaîne d’audit, des pièces jointes, des sauvegardes et un dossier de clôture.
+Dans la source 1.18, la date de fin maximale des clôtures définitives forme une
+borne cumulative : toute insertion, modification ou suppression historique du
+journal, de ses sources ou des profils TVA est refusée, même lorsqu'un intervalle
+antérieur n'avait pas sa propre clôture. Seul le rejeu strictement identique
+d'une opération déjà enregistrée reste permis pour l'idempotence ; un rejeu
+divergent est refusé, tandis qu'une correction réelle doit être datée après la
+borne et référencer l'original. Un refus ne doit modifier ni les séquences, ni
+l'audit, ni les rapports, empreintes ou dossiers `FINAL` existants.
 Ces fonctions assistent un processus orienté CO/Olico, mais ne prouvent pas à
 elles seules sa conformité juridique.
 
-La version actuelle n’établit pas l’annexe légale, n’impose pas automatiquement
+La future source 1.18.0 n’établit pas l’annexe légale, n’impose pas automatiquement
 les durées de conservation, ne fournit pas un support WORM ni un horodatage
 externe infalsifiable, et ne valide pas les inventaires, amortissements,
 régularisations, évaluations, décisions d’approbation ou exigences propres à
