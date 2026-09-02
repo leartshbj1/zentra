@@ -7942,7 +7942,13 @@ mod v29_logo_migration_tests {
         let managed_path = issuer["logo_path"].as_str().unwrap();
         assert_ne!(managed_path, legacy_path);
         assert!(crate::branding::is_managed_logo_reference(managed_path));
-        assert!(Path::new(managed_path).starts_with(store.attachments_dir.join("branding")));
+        let canonical_managed = fs::canonicalize(managed_path).unwrap();
+        let canonical_branding = fs::canonicalize(store.attachments_dir.join("branding")).unwrap();
+        assert_eq!(
+            canonical_managed.parent(),
+            Some(canonical_branding.as_path()),
+            "la copie migrée doit rester directement dans le dossier branding canonique"
+        );
 
         let connection = store.connect().unwrap();
         assert_eq!(

@@ -86,6 +86,25 @@ html {
   transform: translateY(0);
 }
 
+.site-eyebrow {
+  color: #a56b22;
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.site-section-title {
+  max-width: 19ch;
+  color: #173d2c;
+  font-size: clamp(2rem, 5vw, 3.65rem);
+  font-weight: 650;
+  letter-spacing: -0.052em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
 .site-mobile-nav nav a {
   display: flex;
   min-height: 44px;
@@ -141,7 +160,7 @@ html {
   will-change: transform;
 }
 
-.motion-ready [data-reveal] {
+.motion-ready [data-reveal].reveal-pending {
   opacity: 0;
   transform: translateY(14px);
   transition:
@@ -149,15 +168,16 @@ html {
     transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.motion-ready [data-reveal='left'] {
+.motion-ready [data-reveal='left'].reveal-pending {
   transform: translateX(-16px);
 }
 
-.motion-ready [data-reveal='right'] {
+.motion-ready [data-reveal='right'].reveal-pending {
   transform: translateX(16px);
 }
 
-.motion-ready [data-reveal].is-visible {
+.motion-ready [data-reveal].is-visible,
+.motion-ready [data-reveal]:not(.reveal-pending) {
   opacity: 1;
   transform: translate(0);
 }
@@ -243,6 +263,18 @@ summary::-webkit-details-marker {
     height: 1px;
     background: rgb(239 177 87 / 55%);
     content: '';
+  }
+
+  .workflow-node:not(:last-child)::after {
+    position: absolute;
+    z-index: 3;
+    top: 2.1rem;
+    right: -0.78rem;
+    width: 0.78rem;
+    height: 1px;
+    background: linear-gradient(90deg, #c6a269, #d9c8aa);
+    content: '';
+    pointer-events: none;
   }
 }
 
@@ -548,14 +580,14 @@ body {
     #f6f4ef;
 }
 
-main > header.sticky {
+.site-header {
   transition:
     border-color 220ms ease,
     background-color 220ms ease,
     box-shadow 220ms ease;
 }
 
-.site-scrolled main > header.sticky {
+.site-scrolled .site-header {
   border-color: rgb(39 77 56 / 14%);
   background-color: rgb(246 244 239 / 96%);
   box-shadow: 0 12px 35px rgb(21 54 37 / 8%);
@@ -607,7 +639,12 @@ main > header.sticky {
   position: absolute;
   inset: 0 0 auto;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgb(231 155 47 / 62%), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(231 155 47 / 62%),
+    transparent
+  );
   opacity: 0;
   transform: scaleX(0.35);
   transition:
@@ -624,6 +661,22 @@ main > header.sticky {
 
 .site-mobile-nav {
   z-index: 60;
+}
+
+.site-mobile-nav__backdrop {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    visibility 0s linear 180ms,
+    opacity 180ms ease;
+}
+
+.site-mobile-nav[data-open='true'] .site-mobile-nav__backdrop {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 
 .site-mobile-nav > nav {
@@ -659,6 +712,31 @@ main > header.sticky {
 
 .site-mobile-nav nav a:active {
   transform: scale(0.985);
+}
+
+.automation-glow {
+  position: absolute;
+  width: min(38rem, 85vw);
+  aspect-ratio: 1;
+  top: -23rem;
+  right: -10rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(239 177 87 / 18%), transparent 68%);
+  pointer-events: none;
+}
+
+.automation-step {
+  position: relative;
+}
+
+.automation-step:not(:last-child)::after {
+  position: absolute;
+  top: 1.65rem;
+  bottom: -0.1rem;
+  left: 0.84375rem;
+  width: 1px;
+  background: linear-gradient(rgb(239 177 87 / 45%), rgb(255 255 255 / 10%));
+  content: '';
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -700,7 +778,8 @@ main > header.sticky {
     transition-duration: 0.01ms !important;
   }
 
-  .motion-ready [data-reveal] {
+  .motion-ready [data-reveal],
+  .motion-ready [data-reveal].reveal-pending {
     opacity: 1;
     transform: none;
   }

@@ -219,7 +219,7 @@ export default async function AccountPage() {
               entreprise.
             </p>
             <a
-              href="/telecharger"
+              href="/download"
               className="mt-6 inline-flex min-h-11 items-center rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white"
             >
               Voir l’offre Zentra

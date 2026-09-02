@@ -3542,7 +3542,9 @@ function vatRateLineFromRaw(value: unknown) {
   };
 }
 
-function supplierEmailInspectionFromRaw(row: RawRecord): SupplierEmailInspection {
+function supplierEmailInspectionFromRaw(
+  row: RawRecord,
+): SupplierEmailInspection {
   const confidence = stringValue(row.confidence);
   const optionalInteger = (value: unknown) =>
     typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
@@ -4979,7 +4981,7 @@ export const desktopApi = {
     return loadWorkspace();
   },
   async saveSupplierInvoiceDraft(input: {
-    id?: string;
+    id: string;
     supplierId: string;
     projectId?: string | null;
     date: string;
@@ -4999,9 +5001,15 @@ export const desktopApi = {
       projectId?: string | null;
     }>;
   }) {
+    const id = input.id.trim();
+    if (!id) {
+      throw new Error(
+        'L’identifiant technique du brouillon fournisseur est requis pour garantir une reprise sans doublon.',
+      );
+    }
     await invoke('save_supplier_invoice_draft', {
       input: {
-        id: input.id || null,
+        id,
         supplier_id: input.supplierId,
         project_id: input.projectId || null,
         date: input.date,

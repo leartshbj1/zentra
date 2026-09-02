@@ -41,10 +41,26 @@ export function isValidPkceChallenge(value: string) {
 
 export function isValidSupabaseAuthCode(value: string) {
   return (
-    value.length >= 16 &&
-    value.length <= 1024 &&
-    !/[^\x21-\x7e]/.test(value)
+    value.length >= 16 && value.length <= 1024 && !/[^\x21-\x7e]/.test(value)
   );
+}
+
+export function legacySupabaseConfirmationPath(parameters: {
+  confirmation?: string | string[];
+  code?: string | string[];
+  error?: string | string[];
+}) {
+  if (parameters.confirmation !== '1') return null;
+  const query = new URLSearchParams();
+  const codes = Array.isArray(parameters.code)
+    ? parameters.code
+    : parameters.code
+      ? [parameters.code]
+      : [];
+  if (codes.length === 1) query.set('code', codes[0]);
+  if (parameters.error !== undefined) query.set('error', 'supabase');
+  if (!query.size) query.set('code', '');
+  return `/api/auth/confirmation?${query.toString()}`;
 }
 
 function randomBase64Url(length: number) {

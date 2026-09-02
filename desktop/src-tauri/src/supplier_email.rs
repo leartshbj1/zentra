@@ -614,20 +614,29 @@ fn extract_reference(text: &str) -> Option<String> {
         Regex::new(r"(?im)(?:n(?:°|o|r\.?|uméro)?\s*(?:de\s+)?facture|facture\s*(?:n(?:°|o|r\.?)?)?|invoice\s*(?:no\.?|number|#)?|rechnungs(?:nummer|nr\.?)?)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._/\-]{2,60})")
             .expect("invoice reference regex")
     });
-    pattern
-        .captures(text)
-        .and_then(|capture| capture.get(1))
-        .map(|value| value.as_str().trim_matches(['.', ',', ';']).to_owned())
+    text.lines().find_map(|line| {
+        pattern
+            .captures(line)
+            .and_then(|capture| capture.get(1))
+            .map(|value| value.as_str().trim_matches(['.', ',', ';']).to_owned())
+    })
 }
 
 fn extract_labeled_date(text: &str, labels: &[&str]) -> Option<String> {
-    for line in text.lines() {
-        let lower = line.to_lowercase();
-        if !labels.iter().any(|label| lower.contains(label)) {
-            continue;
-        }
-        if let Some(date) = first_date(line) {
-            return Some(date);
+    for label in labels {
+        for line in text.lines() {
+            let lower = line.to_lowercase();
+            let Some(position) = lower.find(label) else {
+                continue;
+            };
+            // L'offset vient de la version mise en minuscules. Certaines
+            // conversions Unicode changent la longueur UTF-8 (par exemple
+            // `K` devient `k`), il ne doit donc jamais servir à trancher la
+            // chaîne originale.
+            let tail = &lower[position + label.len()..];
+            if let Some(date) = first_date(tail) {
+                return Some(date);
+            }
         }
     }
     None
@@ -668,7 +677,7 @@ fn extract_labeled_amount(text: &str, labels: &[&str]) -> Option<i64> {
             let Some(position) = lower.find(label) else {
                 continue;
             };
-            let tail = &line[position + label.len()..];
+            let tail = &lower[position + label.len()..];
             if let Some(capture) = pattern.captures(tail) {
                 if let Some(cents) = parse_money(capture.get(1)?.as_str()) {
                     if cents > 0 {
@@ -884,6 +893,57 @@ mod tests {
         assert_eq!(
             invoice_count, 0,
             "l'analyse MIME doit rester en lecture seule"
+        );
+    }
+
+    #[test]
+    fn does_not_take_the_next_body_line_as_an_invoice_reference() {
+        let (temporary, store) = initialized_store();
+        let path = write_email(
+            temporary.path(),
+            "From: Papeterie SA <factures@papeterie.example>\r\nSubject: Votre facture\r\nMessage-ID: <mail-without-reference@example>\r\n\r\nBonjour,\r\nVeuillez trouver votre document en pièce jointe.\r\n",
+        );
+
+        let result = store.inspect_supplier_email_file(&path).unwrap();
+
+        assert!(result["reference"].is_null());
+        assert_eq!(result["confidence"], "low");
+        assert!(result["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue == "Complétez la référence de la facture."));
+    }
+
+    #[test]
+    fn extracts_each_labeled_date_from_minified_html() {
+        let (temporary, store) = initialized_store();
+        let html = "<html><body><p>Date de facture: 02.09.2026</p><p>Date d'échéance: 02.10.2026</p><p>Total TTC CHF 108.10</p></body></html>";
+        let body = STANDARD.encode(html.as_bytes());
+        let message = format!(
+            "From: Papeterie SA <factures@papeterie.example>\r\nSubject: Facture INV-2026-0100\r\nMessage-ID: <mail-minified@example>\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
+        );
+        let path = write_email(temporary.path(), &message);
+
+        let result = store.inspect_supplier_email_file(&path).unwrap();
+
+        assert_eq!(result["document_date"], "2026-09-02");
+        assert_eq!(result["due_date"], "2026-10-02");
+    }
+
+    #[test]
+    fn labeled_extractors_handle_unicode_case_expansion_without_panicking() {
+        let prefix = "KKKKKKKKK";
+        let date_text = format!("{prefix} DATE DE FACTURE: 02.09.2026");
+        let amount_text = format!("{prefix} TOTAL TTC CHF 108.10");
+
+        assert_eq!(
+            extract_labeled_date(&date_text, &["date de facture"]),
+            Some("2026-09-02".to_owned())
+        );
+        assert_eq!(
+            extract_labeled_amount(&amount_text, &["total ttc"]),
+            Some(10_810)
         );
     }
 

@@ -16,6 +16,7 @@ import { MIN_AUTH_PASSWORD_LENGTH } from './supabase-auth-policy';
 import {
   createSupabasePkceFlow,
   isValidSupabaseAuthCode,
+  legacySupabaseConfirmationPath,
   pkceS256Challenge,
 } from './supabase-auth-pkce';
 
@@ -54,19 +55,20 @@ describe('Supabase Auth REST', () => {
   });
 
   it('connecte par mot de passe sans envoyer la clé dans le corps', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      jsonResponse({
-        access_token: 'access',
-        refresh_token: 'refresh',
-        expires_in: 3600,
-        expires_at: 2_000_000_000,
-        user: {
-          id: 'user-1',
-          email: 'TEST@EXAMPLE.CH',
-          email_confirmed_at: '2026-01-01T00:00:00Z',
-          user_metadata: { full_name: 'Marie Dupont' },
-        },
-      }),
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse({
+          access_token: 'access',
+          refresh_token: 'refresh',
+          expires_in: 3600,
+          expires_at: 2_000_000_000,
+          user: {
+            id: 'user-1',
+            email: 'TEST@EXAMPLE.CH',
+            email_confirmed_at: '2026-01-01T00:00:00Z',
+            user_metadata: { full_name: 'Marie Dupont' },
+          },
+        }),
     );
     const session = await createSupabaseAuthClient(
       configuration,
@@ -100,13 +102,14 @@ describe('Supabase Auth REST', () => {
   });
 
   it('fait tourner le refresh token via GoTrue', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      jsonResponse({
-        access_token: 'access-2',
-        refresh_token: 'refresh-2',
-        expires_in: 3600,
-        user: { id: 'user-1', email: 'test@example.ch' },
-      }),
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse({
+          access_token: 'access-2',
+          refresh_token: 'refresh-2',
+          expires_in: 3600,
+          user: { id: 'user-1', email: 'test@example.ch' },
+        }),
     );
     const session = await createSupabaseAuthClient(
       configuration,
@@ -126,21 +129,17 @@ describe('Supabase Auth REST', () => {
   });
 
   it('gère une inscription qui attend la confirmation e-mail', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      jsonResponse({ id: 'user-2', email: 'new@example.ch' }),
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse({ id: 'user-2', email: 'new@example.ch' }),
     );
     const result = await createSupabaseAuthClient(
       configuration,
       fetcher as typeof fetch,
-    ).signUp(
-      'new@example.ch',
-      'mot-de-passe',
-      'Nouvelle personne',
-      {
-        emailRedirectTo: 'https://zentra.ch/api/auth/confirmation',
-        codeChallenge: 'a'.repeat(43),
-      },
-    );
+    ).signUp('new@example.ch', 'mot-de-passe', 'Nouvelle personne', {
+      emailRedirectTo: 'https://zentra.ch/api/auth/confirmation',
+      codeChallenge: 'a'.repeat(43),
+    });
     expect(result.session).toBeNull();
     expect(result.user.email).toBe('new@example.ch');
     const call = fetcher.mock.calls[0];
@@ -165,17 +164,17 @@ describe('Supabase Auth REST', () => {
   });
 
   it('échange le code et le vérificateur sur le grant PKCE', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      jsonResponse({
-        access_token: 'access-pkce',
-        refresh_token: 'refresh-pkce',
-        expires_in: 3600,
-        user: { id: 'user-pkce', email: 'pkce@example.ch' },
-      }),
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse({
+          access_token: 'access-pkce',
+          refresh_token: 'refresh-pkce',
+          expires_in: 3600,
+          user: { id: 'user-pkce', email: 'pkce@example.ch' },
+        }),
     );
     const code = 'supabase.opaque-code~2026_abcdef';
-    const verifier =
-      'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+    const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
     const session = await createSupabaseAuthClient(
       configuration,
       fetcher as typeof fetch,
@@ -215,11 +214,12 @@ describe('Supabase Auth REST', () => {
   });
 
   it('retourne une erreur typée sans exposer de secret', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      jsonResponse(
-        { code: 'invalid_credentials', message: 'Invalid login credentials' },
-        400,
-      ),
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse(
+          { code: 'invalid_credentials', message: 'Invalid login credentials' },
+          400,
+        ),
     );
     const action = createSupabaseAuthClient(
       configuration,
@@ -258,9 +258,7 @@ describe('politique de cookies', () => {
 describe('PKCE S256', () => {
   it('reproduit le vecteur RFC 7636', async () => {
     await expect(
-      pkceS256Challenge(
-        'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
-      ),
+      pkceS256Challenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),
     ).resolves.toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
   });
 
@@ -280,6 +278,27 @@ describe('PKCE S256', () => {
     expect(isValidSupabaseAuthCode('trop-court')).toBe(false);
     expect(isValidSupabaseAuthCode(`opaque-code-valide\n`)).toBe(false);
     expect(isValidSupabaseAuthCode('a'.repeat(1025))).toBe(false);
+  });
+
+  it('transfère l’ancienne URL de confirmation vers le callback interne exact', () => {
+    expect(
+      legacySupabaseConfirmationPath({
+        confirmation: '1',
+        code: 'opaque.code~non_uuid_1234',
+      }),
+    ).toBe('/api/auth/confirmation?code=opaque.code%7Enon_uuid_1234');
+    expect(
+      legacySupabaseConfirmationPath({ confirmation: '1', error: 'refused' }),
+    ).toBe('/api/auth/confirmation?error=supabase');
+    expect(
+      legacySupabaseConfirmationPath({
+        confirmation: '1',
+        code: ['first-code-is-long', 'second-code-is-long'],
+      }),
+    ).toBe('/api/auth/confirmation?code=');
+    expect(
+      legacySupabaseConfirmationPath({ code: 'ignored-code-is-long' }),
+    ).toBe(null);
   });
 });
 

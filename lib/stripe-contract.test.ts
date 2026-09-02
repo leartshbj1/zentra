@@ -89,4 +89,16 @@ describe('Stripe SDK and webhook version contract', () => {
     expect(portalSource).toContain('getZentraUser({ refreshSession: true })');
     expect(portalSource).toContain('assertCheckoutAccount(session, user)');
   });
+
+  it('does not query the Stripe portal for anonymous status checks', () => {
+    const statusSource = readFileSync(
+      new URL('../app/api/stripe/status/route.ts', import.meta.url),
+      'utf8',
+    );
+    expect(statusSource).toContain(
+      'accessAllowed ? await stripeCheckoutReadiness() : null',
+    );
+    expect(statusSource).toContain('portalLoginUrl: readiness?.portalLoginUrl');
+    expect(statusSource).not.toContain('stripePortalLoginUrl');
+  });
 });

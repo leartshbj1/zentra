@@ -1,6 +1,6 @@
 # Matrice de conformité suisse — Zentra
 
-Cette matrice sert de base de recette pour la source Zentra 1.19.0. Elle ne remplace ni une certification Swissdec, ni la validation d’une fiduciaire, ni le contrôle du PDF QR par le portail SIX.
+Cette matrice sert de base de recette pour la source Zentra 1.19.1. Elle ne remplace ni une certification Swissdec, ni la validation d’une fiduciaire, ni le contrôle du PDF QR par le portail SIX.
 
 ## Profil d’activité multisectoriel
 
@@ -338,7 +338,7 @@ l'audit, ni les rapports, empreintes ou dossiers `FINAL` existants.
 Ces fonctions assistent un processus orienté CO/Olico, mais ne prouvent pas à
 elles seules sa conformité juridique.
 
-La source 1.19.0 n’établit pas l’annexe légale. Le coffre serveur calcule une
+La source 1.19.1 n’établit pas l’annexe légale. Le coffre serveur calcule une
 date minimale de conservation mais ne fournit pas un support WORM ni un horodatage
 externe infalsifiable, et ne valide pas les inventaires, amortissements,
 régularisations, évaluations, décisions d’approbation ou exigences propres à

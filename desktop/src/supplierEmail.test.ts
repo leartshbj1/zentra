@@ -34,6 +34,7 @@ const inspection: SupplierEmailInspection = {
 };
 
 const draft: SupplierEmailImportDraft = {
+  id: '7ba86f19-c15d-4cb2-8151-30bd2f39f640',
   supplierId: 'supplier-1',
   projectId: '',
   reference: 'INV-42',
@@ -61,6 +62,7 @@ describe('import déterministe de facture reçue par e-mail', () => {
   it('construit un brouillon auditable sans le valider ni le payer', () => {
     expect(supplierEmailDraftIssues(draft, inspection, workspace)).toEqual([]);
     expect(supplierEmailImportPayload(draft, inspection)).toMatchObject({
+      id: '7ba86f19-c15d-4cb2-8151-30bd2f39f640',
       supplierId: 'supplier-1',
       reference: 'INV-42',
       items: [
@@ -77,6 +79,34 @@ describe('import déterministe de facture reçue par e-mail', () => {
     );
   });
 
+  it('conserve le même identifiant de brouillon lors de chaque reprise', () => {
+    const firstAttempt = supplierEmailImportPayload(draft, inspection);
+    const retryAfterRefreshFailure = supplierEmailImportPayload(
+      draft,
+      inspection,
+    );
+
+    expect(firstAttempt.id).toBe(draft.id);
+    expect(retryAfterRefreshFailure.id).toBe(firstAttempt.id);
+  });
+
+  it('ne bloque pas le brouillon repris comme un doublon de lui-même', () => {
+    const refreshedWorkspace = {
+      ...workspace,
+      supplierInvoices: [
+        {
+          id: draft.id,
+          supplierId: draft.supplierId,
+          reference: draft.reference,
+        },
+      ],
+    } as Workspace;
+
+    expect(
+      supplierEmailDraftIssues(draft, inspection, refreshedWorkspace),
+    ).toEqual([]);
+  });
+
   it('bloque doublons, devises étrangères et champs non contrôlés', () => {
     const duplicateWorkspace = {
       ...workspace,
@@ -89,19 +119,29 @@ describe('import déterministe de facture reçue par e-mail', () => {
       { ...inspection, currency: 'EUR', duplicateInvoiceId: 'invoice-1' },
       duplicateWorkspace,
     );
-    expect(duplicateIssues).toEqual(expect.arrayContaining([
-      'Cette référence existe déjà pour ce fournisseur.',
-      'Seules les factures fournisseurs en CHF sont importables actuellement.',
-    ]));
+    expect(duplicateIssues).toEqual(
+      expect.arrayContaining([
+        'Cette référence existe déjà pour ce fournisseur.',
+        'Seules les factures fournisseurs en CHF sont importables actuellement.',
+      ]),
+    );
     const issues = supplierEmailDraftIssues(
-      { ...draft, supplierId: '', dueDate: '2026-08-01', reference: '', totalCents: 0 },
+      {
+        ...draft,
+        supplierId: '',
+        dueDate: '2026-08-01',
+        reference: '',
+        totalCents: 0,
+      },
       inspection,
       workspace,
     );
-    expect(issues).toEqual(expect.arrayContaining([
-      'Choisissez un fournisseur actif.',
-      'Indiquez la référence fournisseur.',
-      'Indiquez un montant total positif.',
-    ]));
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        'Choisissez un fournisseur actif.',
+        'Indiquez la référence fournisseur.',
+        'Indiquez un montant total positif.',
+      ]),
+    );
   });
 });

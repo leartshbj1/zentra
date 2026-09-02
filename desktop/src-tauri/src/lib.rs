@@ -230,7 +230,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fs};
 
     use pretty_assertions::assert_eq;
     use rusqlite::{OptionalExtension, TransactionBehavior};
@@ -2866,7 +2866,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(quote["number"], "D-2026-0007");
         let quote_snapshot: serde_json::Value =
             serde_json::from_str(quote["snapshot_json"].as_str().unwrap()).unwrap();
-        assert_eq!(quote_snapshot["issuer"]["logo_path"], initial_logo);
+        assert_eq!(
+            fs::canonicalize(
+                quote_snapshot["issuer"]["logo_path"]
+                    .as_str()
+                    .expect("quote logo path"),
+            )
+            .unwrap(),
+            fs::canonicalize(&initial_logo).unwrap()
+        );
         assert_eq!(quote_snapshot["document"]["number"], "D-2026-0007");
         let invoice_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"title":"Facture originale","service_date_from":"2026-02-01","service_date_to":"2026-02-28"})).unwrap());
         store.create_record("invoice_items",json!({"invoice_id":invoice_id,"description":"Travaux","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
@@ -2881,7 +2889,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let snapshot = invoice["snapshot_json"].as_str().unwrap().to_owned();
         let parsed_snapshot: serde_json::Value = serde_json::from_str(&snapshot).unwrap();
         assert_eq!(parsed_snapshot["issuer"]["building_number"], "17B");
-        assert_eq!(parsed_snapshot["issuer"]["logo_path"], initial_logo);
+        assert_eq!(
+            fs::canonicalize(
+                parsed_snapshot["issuer"]["logo_path"]
+                    .as_str()
+                    .expect("invoice logo path"),
+            )
+            .unwrap(),
+            fs::canonicalize(&initial_logo).unwrap()
+        );
         assert_eq!(parsed_snapshot["issuer"]["noga_section"], "F");
         assert_eq!(parsed_snapshot["issuer"]["noga_division"], "43");
         let modified_logo_source = temporary.path().join("logo-modifie.webp");
@@ -2911,7 +2927,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(unchanged, snapshot);
         let frozen_snapshot: serde_json::Value = serde_json::from_str(&unchanged).unwrap();
         assert_eq!(frozen_snapshot["issuer"]["building_number"], "17B");
-        assert_eq!(frozen_snapshot["issuer"]["logo_path"], initial_logo);
+        assert_eq!(
+            fs::canonicalize(
+                frozen_snapshot["issuer"]["logo_path"]
+                    .as_str()
+                    .expect("frozen invoice logo path"),
+            )
+            .unwrap(),
+            fs::canonicalize(&initial_logo).unwrap()
+        );
         let credit_id=value_id(&store.create_record("invoices",json!({"client_id":client_id,"original_invoice_id":invoice_id,"title":"Correction","type":"credit_note","service_date_from":"2026-02-01","service_date_to":"2026-02-28"})).unwrap());
         store.create_record("invoice_items",json!({"invoice_id":credit_id,"description":"Correction","quantity":1,"unit":"forfait","unit_price_cents":2500,"vat_bp":0})).unwrap();
         let credit = store
@@ -2921,7 +2945,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(credit["total_cents"], -2500);
         let credit_snapshot: serde_json::Value =
             serde_json::from_str(credit["snapshot_json"].as_str().unwrap()).unwrap();
-        assert_eq!(credit_snapshot["issuer"]["logo_path"], modified_logo);
+        assert_eq!(
+            fs::canonicalize(
+                credit_snapshot["issuer"]["logo_path"]
+                    .as_str()
+                    .expect("credit note logo path"),
+            )
+            .unwrap(),
+            fs::canonicalize(&modified_logo).unwrap()
+        );
         assert_eq!(credit_snapshot["document"]["number"], "NC-2026-0030");
         let original_status: String = store
             .connect()

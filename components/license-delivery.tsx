@@ -184,7 +184,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
       )}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <a
-          href="/telecharger"
+          href="/download"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#e7a33a] px-4 text-sm font-semibold text-[#173d2c]"
         >
           <Download className="size-4" /> Télécharger Zentra
@@ -208,7 +208,8 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
         target="_top"
         className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#9fb5a5] bg-[#edf3ee] px-4 text-sm font-semibold text-[#173d2c]"
       >
-        <UsersRound className="size-4" /> Associer le compte et inviter mon équipe
+        <UsersRound className="size-4" /> Associer le compte et inviter mon
+        équipe
       </a>
     </div>
   );

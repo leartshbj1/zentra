@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ScrollExperience } from '@/components/scroll-experience';
+import { publicSiteUrl } from '@/lib/site-url';
 import './globals.css';
 
 const geistSans = Geist({
@@ -15,42 +16,34 @@ const geistMono = Geist_Mono({
 
 // PUBLIC_SITE_URL est l'origine canonique commune au site, à Stripe et aux
 // liens de licence. NEXT_PUBLIC_SITE_URL reste lu pour les anciens déploiements.
-const configuredSiteUrl =
-  process.env.PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
-const metadataBase = configuredSiteUrl ? new URL(configuredSiteUrl) : undefined;
-const socialImage = metadataBase
-  ? new URL('/og.png', metadataBase).toString()
-  : undefined;
+const metadataBase = new URL(publicSiteUrl());
+const socialImage = new URL('/og.png', metadataBase).toString();
 
 export const metadata: Metadata = {
-  ...(metadataBase ? { metadataBase } : {}),
-  title: 'Zentra — Gestion d’entreprise multisectorielle en Suisse',
+  metadataBase,
+  title: {
+    default: 'Zentra — ERP suisse pour PME',
+    template: '%s | Zentra',
+  },
   description:
-    'Zentra 1.19 est disponible sur Windows. Un aperçu macOS universel Intel et Apple Silicon est compilé en privé pour les tests, avant la future distribution signée et notariée.',
+    'Facturation suisse, comptabilité, achats, salaires, projets et banque réunis dans un logiciel de gestion local-first pour PME.',
   applicationName: 'Zentra',
-  ...(metadataBase ? { alternates: { canonical: '/' } } : {}),
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',
     locale: 'fr_CH',
-    title: 'Zentra — Toute votre entreprise, dans une seule application',
+    siteName: 'Zentra',
+    title: 'Zentra — Toute votre PME. Un seul logiciel.',
     description:
-      'Zentra 1.19 : application suisse multisectorielle disponible sur Windows, avec données opérationnelles locales et aperçu macOS universel réservé aux tests privés.',
-    ...(metadataBase ? { url: '/' } : {}),
-    ...(socialImage
-      ? {
-          images: [
-            { url: socialImage, width: 1200, height: 630, alt: 'Zentra' },
-          ],
-        }
-      : {}),
+      'Un ERP conçu pour les PME suisses : ventes, achats, comptabilité, salaires, projets et banque, avec une approche local-first.',
+    images: [{ url: socialImage, width: 1200, height: 630, alt: 'Zentra' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Zentra',
+    title: 'Zentra — ERP suisse pour PME',
     description:
-      'Gestion locale complète sur Windows. Aperçu macOS universel privé en attendant la signature Developer ID et la notarisation Apple.',
-    ...(socialImage ? { images: [socialImage] } : {}),
+      'Facturation, comptabilité, salaires, achats et projets dans un logiciel local-first.',
+    images: [socialImage],
   },
 };
 
@@ -58,14 +51,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: "document.documentElement.classList.add('motion-ready')",
-          }}
-        />
-      </head>
+    <html lang="fr-CH" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

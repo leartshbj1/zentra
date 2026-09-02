@@ -1,6 +1,6 @@
 # Benchmark fonctionnel Bexio → Zentra
 
-État de la recherche : 2 septembre 2026. Sources Bexio officielles uniquement. La colonne Zentra décrit la source 1.19.0.
+État de la recherche : 2 septembre 2026. Sources Bexio officielles uniquement. La colonne Zentra décrit la source 1.19.1.
 
 Ce document sert de référence produit. Il ne s'agit ni de copier l'interface de
 Bexio, ni de promettre des services qui exigent une certification ou un
@@ -18,7 +18,7 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Zentra 1.19.0 source | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Zentra 1.19.1 source | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; PDF A4 natifs devis/factures, QR vectoriel, avoirs et relances locales ; identité, logo et montants figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |

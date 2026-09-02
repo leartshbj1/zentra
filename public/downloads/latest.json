@@ -1,11 +1,11 @@
 {
-  "version": "1.19.0",
-  "notes": "Zentra 1.19 : authentification Supabase, interface plus fluide, aperçu macOS universel, import local déterministe des factures fournisseurs, agenda et relances renforcés.",
-  "pub_date": "2026-09-02T20:59:01.5245592+00:00",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmVoVHAxNG1mM3BiQmNWWWs3TW8xejZpdmZjQ0kwWVA1cEZsWWlVNXpGV1Z3cXc5STVWR2RQMldpQzFZQ1JQMEJCOGtXdC9Eb3puYVZkMFRDWWtBUEFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MzgyNzEyCWZpbGU6WmVudHJhXzEuMTkuMF94NjQtc2V0dXAuZXhlCklPcHpCZkJJcnBkdm93UFF3R093NldCQ0I1eTdaSVhpcVFKZ1lpSzZTU3hrb1p3NUlVbDh1U3BOWFJlN0FLMnBwbUNKd0lwRGxsMEFnUnErMG1MVURnPT0K",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.19.0_x64-setup.exe"
-    }
-  }
+    "version":  "1.19.1",
+    "notes":  "Version stable Zentra.",
+    "pub_date":  "2026-09-02T22:34:25.4003338+00:00",
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlM5OHBMTUVnZjlqcCsyNEdaT3ZuVVVZQWRLN1BpWkFUWTR3TWMwUVp4YlhVR0o5UHRteTBMNndVeUlpRjRwSldzRE5CU0ZBQnJ4TDBUejYrZTNTNXd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4Mzg4NDI4CWZpbGU6WmVudHJhXzEuMTkuMV94NjQtc2V0dXAuZXhlCmhFUmRhemp5QzArVUpKWXluNjYrWGNqSVBRN1h4cGxnMkMwT3BHaU9qTVZaenlEZERQT2FnSW56NElvRVozUkxIbmpSQkJOYzVGUllmVnAzZ0lEYUNBPT0K",
+                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.19.1_x64-setup.exe"
+                                         }
+                  }
 }

@@ -78,7 +78,9 @@ function DashboardView() {
             <p className="mt-2 text-lg font-semibold tracking-[-.03em] text-[#263b2e]">
               {value}
             </p>
-            <p className="mt-1 text-[11px] leading-4 text-[#8b5a1c]">{detail}</p>
+            <p className="mt-1 text-[11px] leading-4 text-[#8b5a1c]">
+              {detail}
+            </p>
           </div>
         ))}
       </div>
@@ -301,8 +303,12 @@ function PayrollView() {
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/8 text-[#7dd196]">
                 <Icon className="size-3.5" />
               </span>
-              <span className="min-w-0 flex-1 text-[11px] text-white/85">{label as string}</span>
-              <span className="text-[11px] text-white/74">{detail as string}</span>
+              <span className="min-w-0 flex-1 text-[11px] text-white/85">
+                {label as string}
+              </span>
+              <span className="text-[11px] text-white/74">
+                {detail as string}
+              </span>
             </div>
           ))}
         </div>
@@ -337,8 +343,12 @@ function PayrollView() {
         </div>
         <div className="mt-6 rounded-xl bg-[#edf4ee] p-4">
           <div className="flex justify-between gap-4">
-            <span className="text-xs font-semibold text-[#365143]">Net détecté</span>
-            <span className="text-base font-semibold text-[#2f6547]">5 452.70 CHF</span>
+            <span className="text-xs font-semibold text-[#365143]">
+              Net détecté
+            </span>
+            <span className="text-base font-semibold text-[#2f6547]">
+              5 452.70 CHF
+            </span>
           </div>
           <div className="mt-3 flex items-start gap-2 border-t border-[#d8e5da] pt-3 text-[11px] leading-5 text-[#4b6458]">
             <Check className="mt-0.5 size-3.5 shrink-0 text-[#3d7a54]" />
@@ -524,7 +534,7 @@ export function ProductShowcase() {
                 Stockage local
               </span>
               <span className="mt-1.5 block leading-4">
-                Aucun envoi de données métier
+                Base métier locale par défaut
               </span>
             </div>
           </aside>

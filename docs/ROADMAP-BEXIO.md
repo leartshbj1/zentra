@@ -1,6 +1,6 @@
 # Feuille de route fonctionnelle Zentra
 
-État de la comparaison : 2 septembre 2026. Version source documentée : Zentra 1.19.0.
+État de la comparaison : 2 septembre 2026. Version source documentée : Zentra 1.19.1.
 
 Cette feuille de route compare Zentra aux fonctions officiellement documentées par Bexio. Elle ne vise pas à copier son interface ni son architecture cloud : Zentra reste une application locale Windows et macOS. La base métier active reste chez le client ; le compte, les droits d’accès et l’archivage volontaire des PDF de factures utilisent un service Zentra limité.
 
@@ -140,4 +140,4 @@ Cette portée volontairement bornée évite de présenter une lecture bancaire c
 4. Étendre les pièces liées aux écritures et préparer un échange fiduciaire chiffré, sans transformer cet échange en synchronisation implicite.
 5. Ajouter import/export de contacts, catégories, rôles locaux et accès fiduciaire contrôlé.
 
-Swissdec/ELM reste un programme distinct et non livré : Zentra ne génère ni ne transmet de déclaration ELM et doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant qu'une certification n'est pas obtenue. Le calcul QST autonome, le moteur LPP multiannuel complet, le certificat annuel et la modélisation complète des contrats IJM restent également non livrés. Les gardes salaires minimes, LAA et CAF 2026 contrôlent la configuration et les preuves saisies mais ne remplacent pas une décision d'assureur, de caisse ou de fiduciaire. Le XML eCH-0217 est un export local pour import manuel et ne constitue ni une transmission ni une certification AFC. Le dossier DRAFT/FINAL et ses empreintes SHA-256 soutiennent le contrôle et la conservation, sans constituer une certification Olico. Aucune fonction de la source 1.19.0 ne vaut validation de conformité ou certification.
+Swissdec/ELM reste un programme distinct et non livré : Zentra ne génère ni ne transmet de déclaration ELM et doit continuer à se présenter comme une aide locale à la préparation et au contrôle de la paie tant qu'une certification n'est pas obtenue. Le calcul QST autonome, le moteur LPP multiannuel complet, le certificat annuel et la modélisation complète des contrats IJM restent également non livrés. Les gardes salaires minimes, LAA et CAF 2026 contrôlent la configuration et les preuves saisies mais ne remplacent pas une décision d'assureur, de caisse ou de fiduciaire. Le XML eCH-0217 est un export local pour import manuel et ne constitue ni une transmission ni une certification AFC. Le dossier DRAFT/FINAL et ses empreintes SHA-256 soutiennent le contrôle et la conservation, sans constituer une certification Olico. Aucune fonction de la source 1.19.1 ne vaut validation de conformité ou certification.

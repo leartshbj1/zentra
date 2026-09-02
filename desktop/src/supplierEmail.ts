@@ -26,6 +26,8 @@ export type SupplierEmailInspection = {
 };
 
 export type SupplierEmailImportDraft = {
+  /** Stable across retries so a successful save followed by a refresh failure cannot duplicate the draft. */
+  id: string;
   supplierId: string;
   projectId: string;
   reference: string;
@@ -39,7 +41,10 @@ export type SupplierEmailImportDraft = {
   description: string;
 };
 
-export function netAmountForGross(totalCents: number, vatBp: number): number | null {
+export function netAmountForGross(
+  totalCents: number,
+  vatBp: number,
+): number | null {
   if (
     !Number.isSafeInteger(totalCents) ||
     totalCents <= 0 ||
@@ -50,7 +55,9 @@ export function netAmountForGross(totalCents: number, vatBp: number): number | n
     return null;
   const estimate = Math.round((totalCents * 10_000) / (10_000 + vatBp));
   for (let distance = 0; distance <= 100; distance += 1) {
-    for (const candidate of distance ? [estimate - distance, estimate + distance] : [estimate]) {
+    for (const candidate of distance
+      ? [estimate - distance, estimate + distance]
+      : [estimate]) {
       if (
         candidate > 0 &&
         candidate + Math.round((candidate * vatBp) / 10_000) === totalCents
@@ -70,7 +77,9 @@ export function supplierEmailDraftIssues(
   const canonicalDate = (value: string) => {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
     if (!match) return false;
-    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    const date = new Date(
+      Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+    );
     return (
       date.getUTCFullYear() === Number(match[1]) &&
       date.getUTCMonth() + 1 === Number(match[2]) &&
@@ -78,12 +87,20 @@ export function supplierEmailDraftIssues(
     );
   };
   if (!inspection.invoiceSignal)
-    issues.push('Confirmez d’abord que ce message contient réellement une facture.');
+    issues.push(
+      'Confirmez d’abord que ce message contient réellement une facture.',
+    );
   if (supplierEmailDuplicateId(draft, workspace))
     issues.push('Cette référence existe déjà pour ce fournisseur.');
   if (draft.currency !== 'CHF')
-    issues.push('Seules les factures fournisseurs en CHF sont importables actuellement.');
-  if (!workspace.suppliers.some((supplier) => supplier.id === draft.supplierId && !supplier.archivedAt))
+    issues.push(
+      'Seules les factures fournisseurs en CHF sont importables actuellement.',
+    );
+  if (
+    !workspace.suppliers.some(
+      (supplier) => supplier.id === draft.supplierId && !supplier.archivedAt,
+    )
+  )
     issues.push('Choisissez un fournisseur actif.');
   if (!canonicalDate(draft.documentDate))
     issues.push('Indiquez la date de facture.');
@@ -91,18 +108,22 @@ export function supplierEmailDraftIssues(
     issues.push("Indiquez la date d'échéance.");
   if (draft.documentDate && draft.dueDate && draft.dueDate < draft.documentDate)
     issues.push("L'échéance ne peut pas précéder la date de facture.");
-  if (!draft.reference.trim()) issues.push('Indiquez la référence fournisseur.');
-  if (!draft.category.trim()) issues.push('Choisissez une catégorie comptable.');
+  if (!draft.reference.trim())
+    issues.push('Indiquez la référence fournisseur.');
+  if (!draft.category.trim())
+    issues.push('Choisissez une catégorie comptable.');
   if (!draft.description.trim()) issues.push('Indiquez un libellé comptable.');
   if (!Number.isSafeInteger(draft.totalCents) || draft.totalCents <= 0)
     issues.push('Indiquez un montant total positif.');
   if (netAmountForGross(draft.totalCents, draft.vatBp) === null)
-    issues.push('Le total ne peut pas être ventilé exactement avec ce taux de TVA.');
+    issues.push(
+      'Le total ne peut pas être ventilé exactement avec ce taux de TVA.',
+    );
   return [...new Set(issues)];
 }
 
 export function supplierEmailDuplicateId(
-  draft: Pick<SupplierEmailImportDraft, 'supplierId' | 'reference'>,
+  draft: Pick<SupplierEmailImportDraft, 'id' | 'supplierId' | 'reference'>,
   workspace: Workspace,
 ): string | null {
   const normalized = draft.reference
@@ -113,6 +134,7 @@ export function supplierEmailDuplicateId(
   return (
     workspace.supplierInvoices.find(
       (invoice) =>
+        invoice.id !== draft.id &&
         invoice.supplierId === draft.supplierId &&
         invoice.reference
           .normalize('NFKC')
@@ -129,6 +151,7 @@ export function supplierEmailImportPayload(
   const netCents = netAmountForGross(draft.totalCents, draft.vatBp);
   if (netCents === null) throw new Error('Ventilation TVA invalide.');
   return {
+    id: draft.id,
     supplierId: draft.supplierId,
     projectId: draft.projectId || null,
     date: draft.documentDate,
@@ -145,7 +168,8 @@ export function supplierEmailImportPayload(
       .join('\n'),
     items: [
       {
-        description: draft.description.trim() || `Facture ${draft.reference.trim()}`,
+        description:
+          draft.description.trim() || `Facture ${draft.reference.trim()}`,
         quantityMilli: 1_000,
         unit: 'forfait',
         unitPriceCents: netCents,

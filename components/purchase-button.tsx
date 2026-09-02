@@ -73,7 +73,7 @@ export function PurchaseButton({
 
   async function checkout() {
     if (loginRequired) {
-      window.location.assign('/connexion?retour=%2F%23tarif');
+      window.location.assign('/connexion?retour=%2Fpricing');
       return;
     }
     setBusy(true);
@@ -109,10 +109,10 @@ export function PurchaseButton({
       : loginRequired
         ? 'Se connecter pour s’abonner'
         : unavailable
-        ? 'Paiement temporairement indisponible'
-        : compact
-          ? 'S’abonner avec Stripe'
-          : 'Acheter la licence · 50 CHF/mois';
+          ? 'Paiement temporairement indisponible'
+          : compact
+            ? 'S’abonner avec Stripe'
+            : 'Acheter la licence · 50 CHF/mois';
 
   return (
     <div className="w-full">

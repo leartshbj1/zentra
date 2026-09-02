@@ -48,3 +48,7 @@ next-env.d.ts
 /desktop/src-tauri/target/
 /desktop/src-tauri/target-*/
 /desktop/.tauri/
+/desktop/src-tauri/tauri.updater.generated-*.conf.json
+
+# local workspace inventory
+/structure.txt

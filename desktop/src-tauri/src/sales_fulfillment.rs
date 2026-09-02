@@ -1966,8 +1966,13 @@ macro_rules! sales_fulfillment_tests {
             "helvichantier.sales_order_snapshot.v1"
         );
         assert_eq!(
-            order_snapshot["issuer"]["logo_path"],
-            order_logo
+            fs::canonicalize(
+                order_snapshot["issuer"]["logo_path"]
+                    .as_str()
+                    .expect("order logo path"),
+            )
+            .unwrap(),
+            fs::canonicalize(&order_logo).unwrap()
         );
         assert_eq!(order_snapshot["issuer"]["legal_form"], "Sàrl");
         assert_eq!(order_snapshot["order"]["status"], "confirmed");
@@ -2017,8 +2022,13 @@ macro_rules! sales_fulfillment_tests {
             "helvichantier.delivery_note_snapshot.v1"
         );
         assert_eq!(
-            delivery_snapshot["issuer"]["logo_path"],
-            delivery_logo
+            fs::canonicalize(
+                delivery_snapshot["issuer"]["logo_path"]
+                    .as_str()
+                    .expect("delivery logo path"),
+            )
+            .unwrap(),
+            fs::canonicalize(&delivery_logo).unwrap()
         );
         assert_eq!(
             delivery_snapshot["customer"]["name"],

@@ -7,15 +7,18 @@ export const metadata: Metadata = {
   title: 'Créer une facture suisse — démonstration Zentra',
   description:
     'Saisissez vos propres informations, calculez la TVA et imprimez une facture avec aperçu QR sans envoyer vos données.',
+  alternates: { canonical: '/demo-facture' },
   openGraph: {
     title: 'Créer une facture suisse — démonstration Zentra',
     description:
       'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
   twitter: {
     title: 'Créer une facture suisse — démonstration Zentra',
     description:
       'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
+    images: ['/og.png'],
   },
 };
 
