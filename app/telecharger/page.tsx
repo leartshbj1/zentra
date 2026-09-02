@@ -222,8 +222,8 @@ export default function DownloadPage() {
                     Zentra sur cet ordinateur
                   </h2>
                   <p className="mt-3 text-xs leading-5 text-[#758078]">
-                    L’assistant installe Zentra et crée les éléments nécessaires
-                    au lancement depuis le menu Démarrer.
+                    L’assistant installe Zentra et l’ajoute aux applications de
+                    votre ordinateur.
                   </p>
                   <div className="mt-7 space-y-4 text-[11px]">
                     {[
@@ -266,7 +266,7 @@ export default function DownloadPage() {
         <section
           className="border-y border-[#ded9ce] bg-[#fffdf9] px-5 py-12 sm:py-16 lg:px-8"
           data-reveal
-          aria-labelledby="application-windows-title"
+          aria-labelledby="application-desktop-title"
         >
           <div className="mx-auto max-w-7xl">
             <div className="max-w-3xl">
@@ -274,7 +274,7 @@ export default function DownloadPage() {
                 Ce que vous installez
               </p>
               <h2
-                id="application-windows-title"
+                id="application-desktop-title"
                 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"
               >
                 Une vraie application de bureau, pas un site emballé.
@@ -284,8 +284,8 @@ export default function DownloadPage() {
               {[
                 [
                   Laptop,
-                  'Installateur .exe',
-                  'Un installateur Windows x64 ajoute Zentra aux applications et au menu Démarrer, avec sa propre fenêtre de bureau.',
+                  'Installateurs de bureau',
+                  'Choisissez le programme Windows x64 (.exe) ou le disque macOS universel (.dmg), puis utilisez Zentra dans sa propre fenêtre.',
                 ],
                 [
                   Database,
@@ -419,7 +419,7 @@ export default function DownloadPage() {
                 [
                   '02',
                   'Ouvrez l’application',
-                  'Lancez l’installation, puis ouvrez Zentra depuis le menu Démarrer.',
+                  'Lancez l’installation, puis ouvrez Zentra depuis Applications sur macOS ou le menu Démarrer sur Windows.',
                   Sparkles,
                 ],
                 [
