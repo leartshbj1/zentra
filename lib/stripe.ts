@@ -16,6 +16,7 @@ import {
 } from '@/lib/stripe-sql';
 import { constructVerifiedStripeEvent } from '@/lib/stripe-webhook';
 import { UPSERT_STRIPE_WEBHOOK_PROOF_SQL } from '@/lib/stripe-webhook-proof';
+import { stripeAutomaticTaxRequired } from '@/lib/stripe-test-access';
 import {
   paidThroughFromInvoice,
   stripeReferenceId,
@@ -122,8 +123,13 @@ async function stripeOperation<T>(name: string, action: () => Promise<T>) {
   }
 }
 
-export async function createCheckoutSession(origin: string, claimHash: string) {
-  const { priceId } = stripeConfiguration();
+export async function createCheckoutSession(
+  origin: string,
+  claimHash: string,
+  account: { userId: string; email: string },
+) {
+  const configuration = stripeConfiguration();
+  const { priceId } = configuration;
   if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
     throw new PublicError('Le prix Stripe Zentra n’est pas configuré.', 503);
   const session = await stripeOperation('checkout.sessions.create', () =>
@@ -133,6 +139,9 @@ export async function createCheckoutSession(origin: string, claimHash: string) {
         claimHash,
         priceId,
         plan: LICENSE_PLAN,
+        accountUserId: account.userId,
+        accountEmail: account.email,
+        automaticTax: stripeAutomaticTaxRequired(configuration),
       }),
       { idempotencyKey: `hc_checkout_${claimHash}` },
     ),
@@ -238,6 +247,9 @@ export async function assertConfiguredStripeAccount() {
     expectedWebhookUrl: `${siteUrl.replace(/\/$/, '')}/api/stripe/webhook`,
     expectedApiVersion: STRIPE_API_VERSION,
     requiredWebhookEvents: REQUIRED_STRIPE_WEBHOOK_EVENTS,
+    allowPendingTaxInTestMode:
+      expectedLivemode === false &&
+      stripeConfiguration().testMode === 'owner_only',
   });
   if (readinessProblem) {
     throw new PublicError(
@@ -317,10 +329,9 @@ function elykoSubscriptionItem(subscription: StripeSubscription) {
     return null;
   }
   const item = subscription.items.data[0];
-  const { priceId } = stripeConfiguration();
-  const expectedLivemode = stripeSecretKeyLivemode(
-    stripeConfiguration().secretKey,
-  );
+  const configuration = stripeConfiguration();
+  const { priceId } = configuration;
+  const expectedLivemode = stripeSecretKeyLivemode(configuration.secretKey);
   if (
     !item ||
     subscription.items.data.length !== 1 ||
@@ -336,7 +347,10 @@ function elykoSubscriptionItem(subscription: StripeSubscription) {
   ) {
     return null;
   }
-  if (!subscription.automatic_tax.enabled) {
+  if (
+    !subscription.automatic_tax.enabled &&
+    stripeAutomaticTaxRequired(configuration)
+  ) {
     return null;
   }
   return item.current_period_end ? item : null;
@@ -358,6 +372,7 @@ export function validatePaidZentraInvoice(
     priceId: item.price.id,
     unitAmount: LICENSE_PRICE_CHF_CENTS,
     livemode: subscription.livemode,
+    automaticTaxRequired: stripeAutomaticTaxRequired(stripeConfiguration()),
   });
   if (!paidThrough) {
     throw new PublicError(
@@ -457,6 +472,33 @@ export async function assertActivationClaim(
     throw new PublicError(
       'Cette demande d’activation a expiré. Contactez le support Zentra.',
       401,
+    );
+  }
+}
+
+export function assertCheckoutAccount(
+  session: StripeCheckoutSession,
+  account: { userId: string; emailConfirmed: boolean } | null,
+) {
+  if (!account) {
+    throw new PublicError(
+      'Connectez-vous au compte Zentra utilisé pour ce paiement.',
+      401,
+    );
+  }
+  if (!account.emailConfirmed) {
+    throw new PublicError(
+      'Confirmez votre adresse e-mail avant d’activer Zentra.',
+      403,
+    );
+  }
+  if (
+    !session.metadata?.account_user_id ||
+    session.metadata.account_user_id !== account.userId
+  ) {
+    throw new PublicError(
+      'Ce paiement appartient à un autre compte Zentra.',
+      403,
     );
   }
 }

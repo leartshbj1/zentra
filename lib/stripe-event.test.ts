@@ -132,6 +132,15 @@ describe('Paid invoice entitlement', () => {
     ).toBe(1_802_678_400);
   });
 
+  it('accepte la facture sans Stripe Tax uniquement quand le test propriétaire l’autorise', () => {
+    expect(
+      paidThroughFromInvoice(
+        paidInvoice({ automatic_tax: { enabled: false, status: null } }),
+        { ...expectedInvoice, automaticTaxRequired: false },
+      ),
+    ).toBe(1_802_678_400);
+  });
+
   it('normalizes Dahlia decimal amounts before granting entitlement', () => {
     expect(
       paidThroughFromInvoice(

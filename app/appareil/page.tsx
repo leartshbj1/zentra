@@ -1,4 +1,4 @@
-import { requireChatGPTUser } from '@/app/chatgpt-auth';
+import { requireZentraUser } from '@/app/zentra-auth';
 import { DeviceApproval } from '@/components/device-approval';
 import { membershipsForUser } from '@/lib/account';
 
@@ -13,7 +13,7 @@ export default async function DevicePage({
   const returnTo = code
     ? `/appareil?code=${encodeURIComponent(code)}`
     : '/appareil';
-  const user = await requireChatGPTUser(returnTo);
+  const user = await requireZentraUser(returnTo);
   const memberships = await membershipsForUser(user.userId);
 
   return (

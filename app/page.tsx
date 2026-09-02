@@ -237,8 +237,8 @@ const capabilityRows = [
   ],
   [
     'Application',
-    'Windows disponible',
-    'Vraie application Windows 10/11 x64. La cible macOS universelle est intégrée; le DMG sera proposé après signature et notarisation sur Mac.',
+    'Windows · aperçu macOS privé',
+    'Application Windows 10/11 x64 disponible. Une version macOS universelle est compilée en privé par GitHub Actions, sans certificat Apple; elle n’est pas encore distribuée au public.',
   ],
 ] as const;
 
@@ -278,10 +278,10 @@ export default function Home() {
               Catalogue & achats
             </a>
             <a
-              href="#lot-118"
+              href="#lot-119"
               className="transition-colors hover:text-[#173d2c]"
             >
-              Nouveautés 1.18
+              Nouveautés 1.19
             </a>
             <a
               href="#capacites"
@@ -335,11 +335,11 @@ export default function Home() {
       >
         <div className="relative z-10">
           <a
-            href="#lot-118"
+            href="#lot-119"
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9d5ca] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f] transition hover:border-[#b9c7bd] hover:bg-white"
           >
             <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-            Zentra 1.18 · disponible sur Windows
+            Zentra {ZENTRA_VERSION} · disponible sur Windows
           </a>
           <h1 className="max-w-xl text-balance text-[2.55rem] font-semibold leading-[.98] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Toute votre entreprise.
@@ -350,10 +350,12 @@ export default function Home() {
             Catalogue, devis, factures QR, fournisseurs, achats, import CAMT,
             projets, heures, salaires, comptabilité, TVA et clôture&nbsp;:
             Zentra centralise votre gestion dans une vraie application de
-            bureau. Windows est disponible aujourd’hui et la distribution macOS
-            est en préparation. Vos données opérationnelles restent locales. Le
-            compte d’équipe et le coffre de factures sont optionnels&nbsp;:
-            seuls ces services utilisent le serveur.
+            bureau. Windows est disponible aujourd’hui. Une version macOS
+            universelle Intel et Apple Silicon est compilée en privé pour la
+            recette, mais n’est pas encore une distribution publique. Vos
+            données opérationnelles restent locales. Le compte d’équipe et le
+            coffre de factures sont optionnels&nbsp;: seuls ces services utilisent
+            le serveur.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
@@ -411,31 +413,30 @@ export default function Home() {
       </section>
 
       <section
-        id="lot-118"
+        id="lot-119"
         className="scroll-mt-24 border-y border-[#d4ddd6] bg-[#edf4ef] px-5 py-16 sm:py-24 lg:px-8"
         data-reveal
-        aria-labelledby="lot-118-title"
+        aria-labelledby="lot-119-title"
       >
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#37684b]">
-                Aperçu de Zentra 1.18
+                Nouveautés de Zentra {ZENTRA_VERSION}
               </p>
               <h2
-                id="lot-118-title"
+                id="lot-119-title"
                 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl"
               >
-                Vos données réelles guident chaque étape.
+                Plus simple à suivre, sans automatisme opaque.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-8 text-[#637168] lg:justify-self-end">
-              Zentra vous conduit du premier client jusqu’à la sauvegarde,
-              protégera l’historique comptable clôturé et calculera les
-              décisions annuelles de petits salaires à partir des fiches
-              réellement validées sur ce PC. Elle est encore en validation
-              locale et n’est pas incluse dans le téléchargement proposé
-              aujourd’hui.
+              La version 1.19 réunit les échéances dans un agenda local,
+              structure l’import local des e-mails fournisseurs exportés et
+              prépare la collaboration par rôles. Chaque proposition sensible
+              reste à confirmer par l’utilisateur et les données métier restent
+              sur l’ordinateur.
             </p>
           </div>
 
@@ -443,27 +444,27 @@ export default function Home() {
             {[
               {
                 icon: Check,
-                eyebrow: 'Démarrage réel',
-                title: 'Une checklist qui avance avec votre travail.',
-                text: 'Client actif, projet, devis accepté, facture liée, paiement comptabilisé et sauvegarde : aucune donnée de démonstration ne valide une étape.',
+                eyebrow: 'Agenda local',
+                title: 'Toutes les échéances dans une vue claire.',
+                text: 'Rendez-vous, tâches, jalons et dates de documents sont réunis sans charger de service externe au démarrage.',
               },
               {
                 icon: BookOpenCheck,
-                eyebrow: 'Clôture cumulative',
-                title: 'Tout l’historique antérieur est protégé.',
-                text: 'Une clôture scelle chaque date antérieure ou égale à sa borne, même entre deux périodes. Une correction passe par une écriture ultérieure traçable.',
+                eyebrow: 'Factures reçues',
+                title: 'Une boîte fournisseurs à contrôler.',
+                text: 'Exportez un message en .eml : Zentra le lit localement avec des règles déterministes, sans IA ni connexion à votre boîte mail, puis prépare un brouillon à confirmer.',
               },
               {
                 icon: Users,
-                eyebrow: 'Paie suisse',
-                title: 'Les petits salaires sont suivis sur l’année.',
-                text: 'Seuil ordinaire de CHF 2’500, exception ménage jeune de CHF 750, secteurs obligatoires, demande prospective et rattrapage sont explicitement contrôlés.',
+                eyebrow: 'Travail en équipe',
+                title: 'Des accès adaptés à chaque personne.',
+                text: 'Propriétaire, administrateur, comptable, membre ou lecture seule : les rôles encadrent les accès sans supplément par collaborateur.',
               },
               {
                 icon: ShieldCheck,
-                eyebrow: 'Preuves locales',
-                title: 'Chaque décision importante laisse une trace.',
-                text: 'Cumul, assiette, motif, date et référence de preuve sont figés avec la fiche, sans envoyer les salaires vers un serveur Zentra.',
+                eyebrow: 'macOS universel',
+                title: 'Un aperçu privé pour Intel et Apple Silicon.',
+                text: 'GitHub Actions construit un app et un DMG ad hoc sans certificat Apple. Ce lot sert à la recette privée et peut être bloqué par Gatekeeper.',
               },
             ].map(({ icon: Icon, eyebrow, title, text }) => (
               <article
@@ -483,10 +484,10 @@ export default function Home() {
           </div>
 
           <div className="mt-5 rounded-[22px] border border-[#d9d1c3] bg-[#fffaf1] p-5 text-sm leading-6 text-[#6f6455]">
-            Les règles de paie reposent sur les informations, décisions de
-            caisse et paramètres que vous confirmez. Zentra prépare et contrôle
-            le dossier local ; il ne remplace ni votre fiduciaire, ni une
-            certification Swissdec.
+            L’aperçu macOS 1.19 n’est ni signé avec un certificat Developer ID,
+            ni notarié par Apple. Une diffusion publique fluide attendra ces
+            deux étapes; l’artefact actuel est uniquement destiné aux tests
+            privés depuis GitHub Actions.
           </div>
         </div>
       </section>
@@ -1402,7 +1403,7 @@ export default function Home() {
                         className={
                           status === 'Disponible'
                             ? 'status-pill status-pill--green'
-                            : status === 'Windows disponible'
+                            : status === 'Windows · aperçu macOS privé'
                               ? 'status-pill status-pill--slate'
                               : 'status-pill status-pill--gold'
                         }
@@ -1671,7 +1672,7 @@ export default function Home() {
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {[
                   'Application Windows complète',
-                  'Version macOS dès sa publication signée',
+                  'Aperçu macOS réservé à la recette privée',
                   'Collaborateurs et comptable sans supplément',
                   'Toutes les fonctions présentes et futures incluses',
                   '22 secteurs NOGA 2025',
@@ -1758,7 +1759,7 @@ export default function Home() {
             {[
               [
                 'Sur quels appareils Zentra fonctionne-t-il ?',
-                'L’installateur public est disponible pour Windows 10 et Windows 11 64 bits. Le code macOS universel Intel et Apple Silicon est intégré, mais le DMG ne sera proposé qu’après signature et notarisation Apple sur un Mac.',
+                'L’installateur public est disponible pour Windows 10 et Windows 11 64 bits. Un aperçu macOS universel Intel et Apple Silicon est compilé en privé par GitHub Actions avec une signature ad hoc, sans certificat Apple. Gatekeeper peut demander « Ouvrir quand même » dans Réglages système > Confidentialité et sécurité. La version publique attendra un certificat Developer ID et la notarisation Apple.',
               ],
               [
                 'Où sont enregistrées mes données ?',
@@ -1850,7 +1851,7 @@ export default function Home() {
               Prêt à travailler avec vos vrais chiffres&nbsp;?
             </p>
             <h2 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight tracking-[-.045em] sm:text-4xl">
-              Installez Zentra sur Windows. macOS arrive après validation Apple.
+              Installez Zentra sur Windows. La version macOS publique suivra après validation Apple.
             </h2>
           </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0">

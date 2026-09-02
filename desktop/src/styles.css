@@ -15175,3 +15175,276 @@ select[aria-invalid='true']:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Zentra motion system — léger, cohérent et désactivable par le système. */
+::selection {
+  background: rgba(231, 155, 47, 0.28);
+  color: var(--green-950);
+}
+
+* {
+  scrollbar-color: rgba(52, 102, 77, 0.34) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(52, 102, 77, 0.3);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(52, 102, 77, 0.46);
+  background-clip: padding-box;
+}
+
+.desktop-app {
+  background:
+    radial-gradient(circle at 76% -8%, rgba(69, 129, 91, 0.11), transparent 34rem),
+    radial-gradient(circle at 38% 108%, rgba(231, 155, 47, 0.07), transparent 32rem),
+    var(--surface-app);
+}
+
+.topbar {
+  box-shadow:
+    0 1px rgba(255, 255, 255, 0.82),
+    0 10px 30px rgba(18, 47, 31, 0.035);
+}
+
+.topbar::after {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 8%, rgba(231, 155, 47, 0.32), transparent 92%);
+  content: '';
+  pointer-events: none;
+}
+
+.sidebar__nav button svg {
+  flex: 0 0 auto;
+  transition:
+    color var(--motion-fast),
+    transform var(--motion-base) var(--ease-premium),
+    filter var(--motion-fast);
+}
+
+.sidebar__nav button:hover svg {
+  transform: translateX(1px) scale(1.06);
+}
+
+.sidebar__nav button.is-active svg {
+  filter: drop-shadow(0 4px 8px rgba(231, 155, 47, 0.24));
+}
+
+.sidebar__nav button em {
+  animation: zentra-badge-arrive 300ms var(--ease-premium) both;
+}
+
+.button {
+  position: relative;
+  isolation: isolate;
+}
+
+.button--primary {
+  overflow: hidden;
+}
+
+.button--primary::after {
+  position: absolute;
+  z-index: 1;
+  inset: -70% auto -70% -38%;
+  width: 28%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transform: skewX(-18deg) translateX(-220%);
+  transition: transform 480ms var(--ease-premium);
+  content: '';
+  pointer-events: none;
+}
+
+.button--primary:hover:not(:disabled)::after {
+  transform: skewX(-18deg) translateX(570%);
+}
+
+.panel,
+.table-panel,
+.agenda-summary article,
+.agenda-row {
+  transition:
+    transform var(--motion-base) var(--ease-premium),
+    border-color var(--motion-fast),
+    background-color var(--motion-fast),
+    box-shadow var(--motion-base);
+}
+
+.panel:hover {
+  border-color: rgba(52, 102, 77, 0.16);
+  box-shadow: var(--shadow-sm);
+}
+
+.page-content > :first-child {
+  transform-origin: 50% 0;
+}
+
+.agenda-summary article:hover {
+  transform: translateY(-2px);
+  border-color: rgba(52, 102, 77, 0.2);
+  box-shadow: var(--shadow-sm);
+}
+
+.agenda-summary strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda-display-switch button {
+  transition:
+    color var(--motion-fast),
+    background-color var(--motion-fast),
+    transform var(--motion-fast) var(--ease-premium),
+    box-shadow var(--motion-fast);
+}
+
+.agenda-display-switch button:active {
+  transform: scale(0.96);
+}
+
+.agenda-day {
+  position: relative;
+  overflow: hidden;
+  transition:
+    color var(--motion-fast),
+    background-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    transform var(--motion-fast) var(--ease-premium);
+}
+
+.agenda-day:hover {
+  z-index: 2;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(27, 62, 42, 0.08);
+}
+
+.agenda-day.is-today::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 4px rgba(231, 155, 47, 0.13);
+  content: '';
+}
+
+.agenda-row:hover {
+  transform: translateX(2px);
+  background: rgba(238, 244, 239, 0.72);
+}
+
+.agenda-row__actions {
+  opacity: 0.72;
+  transition: opacity var(--motion-fast);
+}
+
+.agenda-row:hover .agenda-row__actions,
+.agenda-row:focus-within .agenda-row__actions {
+  opacity: 1;
+}
+
+.modal__body {
+  scrollbar-gutter: stable;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .splash-logo {
+    animation: zentra-logo-breathe 2.2s ease-in-out infinite;
+  }
+
+  .page-content > * {
+    animation: zentra-content-settle 390ms var(--ease-premium) both;
+  }
+
+  .page-content > :nth-child(2) {
+    animation-delay: 45ms;
+  }
+
+  .page-content > :nth-child(3) {
+    animation-delay: 80ms;
+  }
+
+  .page-content > :nth-child(4) {
+    animation-delay: 110ms;
+  }
+
+  .agenda-summary article:nth-child(2) {
+    animation-delay: 55ms;
+  }
+
+  .agenda-summary article:nth-child(3) {
+    animation-delay: 110ms;
+  }
+
+  .agenda-day.is-today::after {
+    animation: zentra-today-pulse 2.4s ease-out infinite;
+  }
+
+  @keyframes zentra-content-settle {
+    from {
+      opacity: 0;
+      transform: translateY(7px) scale(0.997);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes zentra-logo-breathe {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-3px) scale(1.018);
+    }
+  }
+
+  @keyframes zentra-badge-arrive {
+    from {
+      opacity: 0;
+      transform: scale(0.72);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes zentra-today-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(231, 155, 47, 0.32);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 7px rgba(231, 155, 47, 0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar__nav button:hover svg,
+  .agenda-summary article:hover,
+  .agenda-day:hover,
+  .agenda-row:hover {
+    transform: none !important;
+  }
+
+  .agenda-row__actions {
+    opacity: 1;
+  }
+}

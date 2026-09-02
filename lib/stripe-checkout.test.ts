@@ -7,6 +7,8 @@ describe('Zentra hosted Checkout contract', () => {
     claimHash: 'claim_hash',
     priceId: 'price_monthly',
     plan: 'zentra-monthly-50-chf',
+    accountUserId: 'user_123',
+    accountEmail: 'proprietaire@zentra.ch',
   });
 
   it('uses the single stable monthly Price without client-side price data', () => {
@@ -34,10 +36,14 @@ describe('Zentra hosted Checkout contract', () => {
     expect(params.metadata).toEqual({
       plan: 'zentra-monthly-50-chf',
       activation_claim_hash: 'claim_hash',
+      account_user_id: 'user_123',
     });
     expect(params.subscription_data?.metadata).toEqual({
       plan: 'zentra-monthly-50-chf',
+      account_user_id: 'user_123',
     });
+    expect(params.customer_email).toBe('proprietaire@zentra.ch');
+    expect(params.metadata?.account_user_id).toBe('user_123');
   });
 
   it('keeps both redirect URLs on the trusted origin', () => {

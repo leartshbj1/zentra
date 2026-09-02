@@ -33,16 +33,15 @@ import {
 import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
-  title: `Télécharger Zentra — Windows disponible, macOS en préparation`,
-  description:
-    'Téléchargez le véritable installateur .exe Zentra pour Windows x64. La version macOS universelle est intégrée et sera proposée après signature et notarisation Apple.',
+  title: `Télécharger Zentra ${ZENTRA_VERSION} — Windows disponible`,
+  description: `Téléchargez Zentra ${ZENTRA_VERSION} pour Windows x64. Un aperçu macOS universel est compilé en privé sans certificat Apple; la distribution publique attend la signature et la notarisation.`,
   openGraph: {
     title: 'Télécharger Zentra',
-    description: `Windows ${ZENTRA_VERSION} disponible; version macOS en préparation de distribution.`,
+    description: `Windows ${ZENTRA_VERSION} disponible; aperçu macOS universel réservé aux tests privés.`,
   },
   twitter: {
     title: 'Télécharger Zentra',
-    description: `Windows ${ZENTRA_VERSION} disponible; version macOS en préparation de distribution.`,
+    description: `Windows ${ZENTRA_VERSION} disponible; aperçu macOS universel réservé aux tests privés.`,
   },
 };
 
@@ -139,8 +138,9 @@ export default function DownloadPage() {
             supervisées, fournisseurs, import CAMT, projets, heures, salaires et
             comptabilité&nbsp;: installez Zentra sur votre ordinateur et
             travaillez avec vos propres données dans une interface pensée pour
-            votre activité. La version macOS est en préparation de signature et
-            de notarisation; aucun faux téléchargement n’est proposé.
+            votre activité. Un aperçu macOS universel est construit en privé
+            pour les tests; il n’est pas présenté comme un téléchargement
+            public signé ou notarié.
           </p>
 
           <div className="mt-8">
@@ -169,7 +169,7 @@ export default function DownloadPage() {
         </div>
 
         <div
-          className="installer-stage relative"
+          className="installer-stage relative mx-auto w-full max-w-2xl lg:max-w-none"
           data-reveal="right"
           aria-hidden="true"
         >
@@ -186,8 +186,8 @@ export default function DownloadPage() {
                 <span className="grid h-full w-9 place-items-center">×</span>
               </div>
             </div>
-            <div className="grid min-h-[440px] sm:grid-cols-[.82fr_1.18fr]">
-              <div className="relative overflow-hidden bg-[#173d2c] p-6 text-white sm:p-8">
+            <div className="grid sm:min-h-[440px] sm:grid-cols-[.82fr_1.18fr]">
+              <div className="relative hidden overflow-hidden bg-[#173d2c] p-6 text-white sm:block sm:p-8">
                 <div className="absolute -right-16 -top-16 size-52 rounded-full border border-white/8" />
                 <div className="absolute -right-6 -top-6 size-36 rounded-full border border-white/8" />
                 <BrandMark className="size-12 shadow-lg" />
@@ -213,7 +213,7 @@ export default function DownloadPage() {
                   ))}
                 </div>
               </div>
-              <div className="flex flex-col p-6 sm:p-8">
+              <div className="flex min-h-[390px] flex-col p-6 sm:min-h-0 sm:p-8">
                 <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#76531f]">
                   Prêt à installer
                 </p>
@@ -311,22 +311,26 @@ export default function DownloadPage() {
               </article>
             ))}
           </div>
-          <div className="mt-6 grid gap-4 rounded-[24px] border border-[#cbd8ce] bg-[#edf4ee] p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-7">
+          <div className="mt-6 grid min-w-0 gap-4 rounded-[24px] border border-[#cbd8ce] bg-[#edf4ee] p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-7">
             <Laptop className="size-7 text-[#397150]" aria-hidden="true" />
             <div>
               <h3 className="font-semibold text-[#254333]">
-                Architecture macOS intégrée
+                Aperçu macOS universel privé
               </h3>
               <p className="mt-2 text-sm leading-6 text-[#607068]">
-                Zentra cible Intel et Apple Silicon. Le paquet `.dmg` signé et
-                notarié apparaîtra ici uniquement après validation sur un Mac.
+                GitHub Actions compile un `.app` et un `.dmg` universels Intel
+                et Apple Silicon avec une signature ad hoc, sans certificat
+                Apple. Cet artefact sert uniquement aux tests privés :
+                Gatekeeper peut demander « Ouvrir quand même » dans Réglages
+                système &gt; Confidentialité et sécurité. La diffusion publique
+                attendra un Developer ID et la notarisation Apple.
               </p>
             </div>
             <a
               href="mailto:leartshabija@gmail.com?subject=Prévenez-moi%20pour%20Zentra%20macOS"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#9fb5a5] bg-white px-5 text-sm font-semibold text-[#315f47]"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#9fb5a5] bg-white px-5 text-center text-sm font-semibold text-[#315f47] sm:w-auto"
             >
-              Être prévenu
+              Être prévenu du lancement public
             </a>
           </div>
         </div>

@@ -1,0 +1,30 @@
+.reminder-channel-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.reminder-channel-summary > span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 9px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-subtle);
+}
+
+.reminder-channel-summary > span svg {
+  grid-row: 1 / 3;
+  color: var(--green-700);
+}
+
+.reminder-channel-summary small,
+.reminder-channel-summary p { color: var(--muted); }
+.reminder-channel-summary p { grid-column: 1 / -1; margin: 0; line-height: 1.45; }
+
+@media (max-width: 700px) {
+  .reminder-channel-summary { grid-template-columns: 1fr; }
+}

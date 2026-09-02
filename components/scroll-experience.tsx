@@ -7,11 +7,19 @@ export function ScrollExperience() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const reduceMotion = window.matchMedia(
+    const reducedMotionQuery = window.matchMedia(
       '(prefers-reduced-motion: reduce)',
-    ).matches;
+    );
+    const finePointerQuery = window.matchMedia(
+      '(hover: hover) and (pointer: fine)',
+    );
+    const reduceMotion = reducedMotionQuery.matches;
     const observed = new Set<Element>();
+    const depthTargets = new Set<HTMLElement>();
     let frame = 0;
+    let pointerFrame = 0;
+    let pointerX = 0;
+    let pointerY = 0;
 
     const reveal = (element: Element) => element.classList.add('is-visible');
     const observer = reduceMotion
@@ -34,6 +42,11 @@ export function ScrollExperience() {
         if (reduceMotion) reveal(element);
         else observer?.observe(element);
       }
+      for (const element of scope.querySelectorAll<HTMLElement>(
+        '[data-pointer-depth]',
+      )) {
+        depthTargets.add(element);
+      }
     };
 
     const updateProgress = () => {
@@ -44,11 +57,77 @@ export function ScrollExperience() {
         maximum > 0 ? Math.min(1, Math.max(0, window.scrollY / maximum)) : 0;
       if (progressRef.current)
         progressRef.current.style.transform = `scaleX(${progress})`;
+      root.classList.toggle('site-scrolled', window.scrollY > 14);
     };
 
     const requestProgressUpdate = () => {
       if (frame) return;
       frame = window.requestAnimationFrame(updateProgress);
+    };
+
+    const updatePointerDepth = () => {
+      pointerFrame = 0;
+      for (const target of depthTargets) {
+        if (!target.isConnected) {
+          depthTargets.delete(target);
+          continue;
+        }
+        const bounds = target.getBoundingClientRect();
+        const inside =
+          pointerX >= bounds.left &&
+          pointerX <= bounds.right &&
+          pointerY >= bounds.top &&
+          pointerY <= bounds.bottom;
+        const x = inside
+          ? Math.max(
+              -1,
+              Math.min(1, ((pointerX - bounds.left) / bounds.width) * 2 - 1),
+            )
+          : 0;
+        const y = inside
+          ? Math.max(
+              -1,
+              Math.min(1, ((pointerY - bounds.top) / bounds.height) * 2 - 1),
+            )
+          : 0;
+        target.style.setProperty('--pointer-x', x.toFixed(3));
+        target.style.setProperty('--pointer-y', y.toFixed(3));
+        target.style.setProperty(
+          '--pointer-rotate-x',
+          `${(-y * 1.7).toFixed(3)}deg`,
+        );
+        target.style.setProperty(
+          '--pointer-rotate-y',
+          `${(x * 2.15).toFixed(3)}deg`,
+        );
+        target.style.setProperty(
+          '--pointer-light-x',
+          `${(50 + x * 24).toFixed(2)}%`,
+        );
+        target.style.setProperty(
+          '--pointer-light-y',
+          `${(42 + y * 18).toFixed(2)}%`,
+        );
+      }
+    };
+
+    const requestPointerUpdate = (event: PointerEvent) => {
+      if (reduceMotion || !finePointerQuery.matches) return;
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      if (pointerFrame) return;
+      pointerFrame = window.requestAnimationFrame(updatePointerDepth);
+    };
+
+    const resetPointerDepth = () => {
+      for (const target of depthTargets) {
+        target.style.setProperty('--pointer-x', '0');
+        target.style.setProperty('--pointer-y', '0');
+        target.style.setProperty('--pointer-rotate-x', '0deg');
+        target.style.setProperty('--pointer-rotate-y', '0deg');
+        target.style.setProperty('--pointer-light-x', '50%');
+        target.style.setProperty('--pointer-light-y', '42%');
+      }
     };
 
     root.classList.add('motion-ready');
@@ -64,6 +143,9 @@ export function ScrollExperience() {
             if (reduceMotion) reveal(node);
             else observer?.observe(node);
           }
+          if (node.matches('[data-pointer-depth]')) {
+            depthTargets.add(node as HTMLElement);
+          }
           register(node);
         }
       }
@@ -72,14 +154,23 @@ export function ScrollExperience() {
     mutationObserver.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('scroll', requestProgressUpdate, { passive: true });
     window.addEventListener('resize', requestProgressUpdate, { passive: true });
+    window.addEventListener('pointermove', requestPointerUpdate, {
+      passive: true,
+    });
+    window.addEventListener('blur', resetPointerDepth);
 
     return () => {
       root.classList.remove('motion-ready');
+      root.classList.remove('site-scrolled');
       mutationObserver.disconnect();
       observer?.disconnect();
       window.removeEventListener('scroll', requestProgressUpdate);
       window.removeEventListener('resize', requestProgressUpdate);
+      window.removeEventListener('pointermove', requestPointerUpdate);
+      window.removeEventListener('blur', resetPointerDepth);
       if (frame) window.cancelAnimationFrame(frame);
+      if (pointerFrame) window.cancelAnimationFrame(pointerFrame);
+      resetPointerDepth();
     };
   }, []);
 

@@ -140,6 +140,7 @@ import type {
   VatSubmissionType,
   Workspace,
 } from './types';
+import type { SupplierEmailInspection } from './supplierEmail';
 import type { OnboardingValidationScope } from './onboardingValidation';
 import {
   bankAccountAssociationPayload,
@@ -3541,6 +3542,44 @@ function vatRateLineFromRaw(value: unknown) {
   };
 }
 
+function supplierEmailInspectionFromRaw(row: RawRecord): SupplierEmailInspection {
+  const confidence = stringValue(row.confidence);
+  const optionalInteger = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
+  return {
+    fileName: stringValue(row.file_name),
+    fileSizeBytes: numberValue(row.file_size_bytes),
+    sha256: stringValue(row.sha256),
+    messageId: stringValue(row.message_id),
+    subject: stringValue(row.subject),
+    senderName: stringValue(row.sender_name),
+    senderEmail: stringValue(row.sender_email),
+    attachmentNames: Array.isArray(row.attachment_names)
+      ? row.attachment_names.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [],
+    invoiceSignal: boolValue(row.invoice_signal),
+    confidence: ['low', 'medium', 'high'].includes(confidence)
+      ? (confidence as SupplierEmailInspection['confidence'])
+      : 'low',
+    matchedSupplierId: nullableString(row.matched_supplier_id),
+    duplicateInvoiceId: nullableString(row.duplicate_invoice_id),
+    reference: stringValue(row.reference),
+    documentDate: stringValue(row.document_date),
+    dueDate: stringValue(row.due_date),
+    currency: stringValue(row.currency),
+    netCents: optionalInteger(row.net_cents),
+    vatCents: optionalInteger(row.vat_cents),
+    totalCents: optionalInteger(row.total_cents),
+    issues: Array.isArray(row.issues)
+      ? row.issues.filter((value): value is string => typeof value === 'string')
+      : [],
+    networkAccess: false,
+    aiUsed: false,
+  };
+}
+
 function vatPreviewFromRaw(value: unknown): VatReturnPreview {
   const row = recordValue(value);
   const turnover = recordValue(row.turnover_computation);
@@ -3851,6 +3890,7 @@ export function reminderFromRaw(row: RawRecord): Reminder {
         : numberValue(row.live_balance_cents),
     snapshotStale: boolValue(row.snapshot_stale),
     clientEmail: stringValue(row.client_email),
+    clientPhone: stringValue(row.client_phone),
     clientAddressLine1: stringValue(row.client_address_line1),
     clientAddressLine2: stringValue(row.client_address_line2),
     clientPostalCode: stringValue(row.client_postal_code),
@@ -3906,10 +3946,12 @@ export function reminderPreviewFromRaw(value: unknown): ReminderPreview {
     snapshotStale: boolValue(row.snapshot_stale),
     templateReviewRequired: boolValue(row.template_review_required),
     recipientEmail: stringValue(row.recipient_email),
+    recipientPhone: stringValue(row.recipient_phone),
     client: reminderPartyFromRaw(row.client),
     sender: reminderSenderFromRaw(row.sender),
     subject: stringValue(row.subject),
     body: stringValue(row.body),
+    smsBody: stringValue(row.sms_body),
     previewSha256: stringValue(row.preview_sha256),
   };
 }
@@ -5011,6 +5053,26 @@ export const desktopApi = {
   async deleteSupplierInvoiceDraft(id: string) {
     await invoke('delete_supplier_invoice_draft', { id });
     return loadWorkspace();
+  },
+  async chooseSupplierEmailFile(): Promise<string | null> {
+    return chooseFile({
+      title: 'Choisir un e-mail contenant une facture fournisseur',
+      multiple: false,
+      filters: [
+        {
+          name: 'Messages e-mail exportés',
+          extensions: ['eml', 'txt'],
+        },
+      ],
+    });
+  },
+  async inspectSupplierEmailFile(
+    sourcePath: string,
+  ): Promise<SupplierEmailInspection> {
+    const raw = await invoke<RawRecord>('inspect_supplier_email_file', {
+      sourcePath,
+    });
+    return supplierEmailInspectionFromRaw(raw);
   },
   async chooseSupplierInvoiceAttachment(): Promise<string | null> {
     return chooseFile({

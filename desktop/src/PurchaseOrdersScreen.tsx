@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { SupplierEmailIntake } from './SupplierEmailIntake';
 import { formatCatalogQuantity } from './catalog';
 import {
   supplierInvoiceOrderMatchAmountMismatch,
@@ -889,38 +890,46 @@ export function PurchaseOrdersScreen({
           aria-labelledby={`purchase-tab-${section}`}
         >
           {section === 'inbox' ? (
-            <PurchaseInbox
-              workspace={workspace}
-              orders={actionableOrders.filter((order) =>
-                includesQuery(query, [
-                  order.number,
-                  order.title,
-                  supplierName(workspace, order.supplierId),
-                ]),
-              )}
-              invoices={documentActions.filter((invoice) =>
-                includesQuery(query, [invoice.reference, invoice.supplierName]),
-              )}
-              credits={draftCredits.filter((credit) =>
-                includesQuery(query, [
-                  credit.number,
-                  credit.reference,
-                  credit.supplierName,
-                ]),
-              )}
-              busy={busy || readOnly}
-              accountingReady={accountingReady}
-              onNext={openNextAction}
-              onOpenInvoice={onOpenSupplierInvoice}
-              onValidateInvoice={onValidateSupplierInvoice}
-              onMatchInvoice={(invoice, order) =>
-                setModal({ type: 'match', invoice, order })
-              }
-              onValidateCredit={(credit) =>
-                setModal({ type: 'validate_credit', credit })
-              }
-              onCreateOrder={() => setModal({ type: 'order' })}
-            />
+            <>
+              <SupplierEmailIntake
+                workspace={workspace}
+                busy={busy}
+                readOnly={readOnly}
+                runAction={runAction}
+              />
+              <PurchaseInbox
+                workspace={workspace}
+                orders={actionableOrders.filter((order) =>
+                  includesQuery(query, [
+                    order.number,
+                    order.title,
+                    supplierName(workspace, order.supplierId),
+                  ]),
+                )}
+                invoices={documentActions.filter((invoice) =>
+                  includesQuery(query, [invoice.reference, invoice.supplierName]),
+                )}
+                credits={draftCredits.filter((credit) =>
+                  includesQuery(query, [
+                    credit.number,
+                    credit.reference,
+                    credit.supplierName,
+                  ]),
+                )}
+                busy={busy || readOnly}
+                accountingReady={accountingReady}
+                onNext={openNextAction}
+                onOpenInvoice={onOpenSupplierInvoice}
+                onValidateInvoice={onValidateSupplierInvoice}
+                onMatchInvoice={(invoice, order) =>
+                  setModal({ type: 'match', invoice, order })
+                }
+                onValidateCredit={(credit) =>
+                  setModal({ type: 'validate_credit', credit })
+                }
+                onCreateOrder={() => setModal({ type: 'order' })}
+              />
+            </>
           ) : null}
 
           {section === 'orders' ? (

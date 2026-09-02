@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils';
 type CheckoutStatus = {
   ready?: boolean;
   error?: string;
+  testMode?: boolean;
+  authenticated?: boolean;
+  accessRestricted?: boolean;
   portalLoginUrl?: string;
 };
 
@@ -35,6 +38,8 @@ export function PurchaseButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [portalLoginUrl, setPortalLoginUrl] = useState('');
+  const [accessRestricted, setAccessRestricted] = useState(false);
+  const [loginRequired, setLoginRequired] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,6 +54,8 @@ export function PurchaseButton({
       .then(({ response, body }) => {
         if (!active) return;
         setReady(response.ok && body.ready === true);
+        setAccessRestricted(body.accessRestricted === true);
+        setLoginRequired(body.authenticated === false);
         setPortalLoginUrl(trustedPortalLoginUrl(body.portalLoginUrl));
         if (!response.ok)
           setError('Le paiement est momentanément indisponible.');
@@ -65,6 +72,10 @@ export function PurchaseButton({
   }, []);
 
   async function checkout() {
+    if (loginRequired) {
+      window.location.assign('/connexion?retour=%2F%23tarif');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -95,7 +106,9 @@ export function PurchaseButton({
     ? 'Ouverture de Stripe…'
     : ready === null
       ? 'Vérification de Stripe…'
-      : unavailable
+      : loginRequired
+        ? 'Se connecter pour s’abonner'
+        : unavailable
         ? 'Paiement temporairement indisponible'
         : compact
           ? 'S’abonner avec Stripe'
@@ -106,7 +119,7 @@ export function PurchaseButton({
       <button
         type="button"
         onClick={() => void checkout()}
-        disabled={busy || ready !== true}
+        disabled={busy || ready === null || (ready !== true && !loginRequired)}
         className={cn(
           'flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#efaa3c] px-5 py-3 text-center text-sm font-semibold leading-5 text-[#173d2c] transition-colors hover:bg-[#f4b857] disabled:cursor-not-allowed disabled:opacity-65',
           className,
@@ -114,17 +127,19 @@ export function PurchaseButton({
       >
         {busy || ready === null ? (
           <LoaderCircle className="size-4 animate-spin" />
-        ) : ready ? (
+        ) : ready || loginRequired ? (
           <CreditCard className="size-4" />
         ) : (
           <ShieldCheck className="size-4" />
         )}
         {label}
       </button>
-      {(error || unavailable) && (
+      {(error || (unavailable && !loginRequired)) && (
         <output className="mt-2 block text-center text-xs leading-5 text-current opacity-70">
           {error ||
-            'Réessayez dans quelques instants ou contactez-nous pour activer votre licence.'}
+            (accessRestricted
+              ? 'Le paiement de test est réservé au compte propriétaire. Les visiteurs ne peuvent pas créer d’abonnement gratuit.'
+              : 'Réessayez dans quelques instants ou contactez-nous pour activer votre licence.')}
         </output>
       )}
       {portalLoginUrl && (

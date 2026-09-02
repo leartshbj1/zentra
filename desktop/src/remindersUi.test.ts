@@ -4,6 +4,7 @@ import {
   compareReminderBalanceSnapshot,
   reminderHistoryActionLabel,
   reminderPreviewSessionKey,
+  reminderSmsDraftUri,
   reminderStatusLabel,
   reminderUrgency,
   reminderUrgencyLabel,
@@ -158,6 +159,29 @@ describe('solde figé et solde actuel', () => {
       liveBalanceCents: null,
       deltaCents: null,
     });
+  });
+});
+
+describe('brouillon SMS local', () => {
+  it('nettoie le numéro et encode exactement le contenu revérifié', () => {
+    const previous = reminderSmsDraftUri({
+      recipientPhone: '+41 79 000 00 00',
+      smsBody: 'Ancien solde: CHF 200.00',
+    });
+    const refreshed = reminderSmsDraftUri({
+      recipientPhone: '+41 (79) 123 45 67',
+      smsBody: 'Solde revérifié: CHF 125.00',
+    });
+
+    expect(refreshed).toBe(
+      'sms:+41791234567?body=Solde%20rev%C3%A9rifi%C3%A9%3A%20CHF%20125.00',
+    );
+    expect(refreshed).not.toBe(previous);
+  });
+
+  it('refuse un destinataire ou un message vide', () => {
+    expect(reminderSmsDraftUri({ recipientPhone: '', smsBody: 'Rappel' })).toBeNull();
+    expect(reminderSmsDraftUri({ recipientPhone: '+41 79', smsBody: '   ' })).toBeNull();
   });
 });
 

@@ -1,0 +1,73 @@
+name: Zentra macOS preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/macos-preview.yml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  push:
+    branches: [master, main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/macos-preview.yml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-universal-preview:
+    name: Universal app and DMG (ad hoc)
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 11.19.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Rust targets
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test desktop interface
+        run: pnpm --dir desktop test:ui
+
+      - name: Test Rust core
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --all-targets
+
+      - name: Build universal macOS preview
+        run: pnpm --dir desktop build:macos:preview
+
+      - name: Publish private test artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Zentra-macOS-universal-preview-${{ github.sha }}
+          path: desktop/artifacts/macos-preview/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

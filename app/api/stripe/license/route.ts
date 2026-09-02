@@ -1,9 +1,11 @@
 import { cookies } from 'next/headers';
+import { getZentraUser } from '@/app/zentra-auth';
 import { issueLicense } from '@/lib/license-token';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   activationCookieName,
   assertActivationClaim,
+  assertCheckoutAccount,
   jsonError,
   noStoreHeaders,
   paidEntitlementForSubscription,
@@ -23,6 +25,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     requireSameOrigin(request);
+    const user = await getZentraUser({ refreshSession: true });
     const body = await readJsonObjectWithinLimit(request, 16_384);
     const sessionId =
       typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
@@ -37,6 +40,7 @@ export async function POST(request: Request) {
       );
     const session = await retrieveCheckoutSession(sessionId);
     await assertActivationClaim(session, claim);
+    assertCheckoutAccount(session, user);
     const subscription = await retrieveSubscription(
       referenceId(session.subscription),
     );

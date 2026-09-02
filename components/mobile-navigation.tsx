@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 const links = [
   ['#logiciel', 'Voir le logiciel'],
   ['#catalogue-achats', 'Catalogue & achats'],
-  ['#lot-118', 'Nouveautés 1.18'],
+  ['#lot-119', 'Nouveautés 1.19'],
   ['#capacites', 'Capacités'],
   ['#confidentialite', 'Local & cloud'],
   ['/compte', 'Mon compte'],
@@ -17,12 +17,22 @@ const links = [
 export function MobileNavigation() {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
 
+    document.documentElement.classList.add('mobile-menu-open');
+    const focusFrame = window.requestAnimationFrame(() => {
+      navRef.current?.querySelector<HTMLAnchorElement>('a')?.focus();
+    });
+
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
     };
     const closeOutside = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
@@ -31,6 +41,8 @@ export function MobileNavigation() {
     document.addEventListener('keydown', closeOnEscape);
     document.addEventListener('pointerdown', closeOutside);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.documentElement.classList.remove('mobile-menu-open');
       document.removeEventListener('keydown', closeOnEscape);
       document.removeEventListener('pointerdown', closeOutside);
     };
@@ -43,6 +55,7 @@ export function MobileNavigation() {
       data-open={open}
     >
       <button
+        ref={buttonRef}
         type="button"
         className="grid size-11 place-items-center rounded-full border border-[#d4d2ca] bg-white/75 text-[#294536] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#315f47] focus-visible:ring-offset-2"
         aria-label={open ? 'Fermer le menu' : 'Ouvrir le menu'}
@@ -55,19 +68,28 @@ export function MobileNavigation() {
           className={`size-5 transition-transform duration-200 ${open ? 'rotate-45' : ''}`}
         />
       </button>
-      {open ? (
-        <nav
-          id="zentra-mobile-navigation"
-          className="fixed inset-x-4 top-[4.75rem] z-50 grid min-w-0 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
-          aria-label="Navigation mobile"
-        >
-          {links.map(([href, label]) => (
-            <a key={href} href={href} onClick={() => setOpen(false)}>
-              {label}
-            </a>
-          ))}
-        </nav>
-      ) : null}
+      <nav
+        ref={navRef}
+        id="zentra-mobile-navigation"
+        className="fixed inset-x-4 top-[4.75rem] z-50 grid min-w-0 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)]"
+        aria-label="Navigation mobile"
+        aria-hidden={!open}
+        inert={!open}
+      >
+        {links.map(([href, label]) => (
+          <a
+            key={href}
+            href={href}
+            tabIndex={open ? undefined : -1}
+            onClick={() => {
+              setOpen(false);
+              buttonRef.current?.focus();
+            }}
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
     </div>
   );
 }

@@ -147,6 +147,17 @@ export function reminderPreviewSessionKey(
   return `${reminderId}:${previewSha256}`;
 }
 
+export function reminderSmsDraftUri(preview: {
+  recipientPhone: string;
+  smsBody: string;
+}): string | null {
+  const recipient = preview.recipientPhone
+    .replace(/[^\d+]/g, '')
+    .replace(/(?!^)\+/g, '');
+  if (!recipient || !preview.smsBody.trim()) return null;
+  return `sms:${recipient}?body=${encodeURIComponent(preview.smsBody)}`;
+}
+
 export type ReminderCycleLevelDraft = Pick<
   ReminderTemplate,
   'level' | 'name' | 'subject' | 'body' | 'daysAfterDue'

@@ -1,8 +1,5 @@
-import {
-  chatGPTSignInPath,
-  chatGPTSignOutPath,
-  getChatGPTUser,
-} from '@/app/chatgpt-auth';
+import { getZentraUser, zentraSignInPath } from '@/app/zentra-auth';
+import { ZentraSignOut } from '@/components/zentra-sign-out';
 import { membershipsForUser } from '@/lib/account';
 import { database } from '@/lib/runtime';
 import {
@@ -10,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  LogOut,
   Search,
   ShieldCheck,
 } from 'lucide-react';
@@ -65,7 +61,7 @@ export default async function AccountArchivesPage({
     page: requestedPage,
     query,
   });
-  const user = await getChatGPTUser();
+  const user = await getZentraUser();
   if (!user) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
@@ -79,7 +75,7 @@ export default async function AccountArchivesPage({
             entreprise.
           </p>
           <a
-            href={chatGPTSignInPath(returnTo)}
+            href={zentraSignInPath(returnTo)}
             className="mt-7 inline-flex min-h-12 items-center rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
           >
             Se connecter en sécurité
@@ -165,12 +161,7 @@ export default async function AccountArchivesPage({
               empreinte.
             </p>
           </div>
-          <a
-            href={chatGPTSignOutPath(returnTo)}
-            className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full border border-[#c8c4ba] bg-white px-5 text-sm font-semibold"
-          >
-            <LogOut className="size-4" /> Déconnexion
-          </a>
+          <ZentraSignOut provider={user.provider} returnTo={returnTo} />
         </header>
 
         {memberships.length > 1 ? (

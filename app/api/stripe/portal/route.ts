@@ -1,8 +1,10 @@
 import { cookies } from 'next/headers';
+import { getZentraUser } from '@/app/zentra-auth';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   activationCookieName,
   assertActivationClaim,
+  assertCheckoutAccount,
   createPortalSession,
   jsonError,
   LICENSE_PLAN,
@@ -18,6 +20,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const origin = requireSameOrigin(request);
+    const user = await getZentraUser({ refreshSession: true });
     const body = await readJsonObjectWithinLimit(request, 4_096);
     const sessionId =
       typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
@@ -26,6 +29,7 @@ export async function POST(request: Request) {
     if (!claim) throw new PublicError('Session client introuvable.', 401);
     const session = await retrieveCheckoutSession(sessionId);
     await assertActivationClaim(session, claim);
+    assertCheckoutAccount(session, user);
     if (
       session.mode !== 'subscription' ||
       session.status !== 'complete' ||

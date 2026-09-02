@@ -622,7 +622,7 @@ impl LocalStore {
         };
         let sql = format!(
             r#"SELECT r.*,i.due_date,i.title AS invoice_title,i.status AS invoice_status,
-                      COALESCE(NULLIF(TRIM(c.company),''),c.name,'') AS client_name,c.email AS client_email,
+                      COALESCE(NULLIF(TRIM(c.company),''),c.name,'') AS client_name,c.email AS client_email,c.phone AS client_phone,
                       c.address_line1 AS client_address_line1,c.address_line2 AS client_address_line2,
                       c.postal_code AS client_postal_code,c.city AS client_city,c.country AS client_country,
                       i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0) AS live_balance_cents,
@@ -948,7 +948,7 @@ fn build_preview(connection: &Connection, id: &str, prepared_on: &str) -> AppRes
         connection,
         r#"SELECT r.*,i.due_date,i.status AS invoice_status,i.client_id,
                   i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0) AS live_balance_cents,
-                  COALESCE(NULLIF(TRIM(c.company),''),c.name,'') AS live_client_name,c.email AS live_client_email,
+                  COALESCE(NULLIF(TRIM(c.company),''),c.name,'') AS live_client_name,c.email AS live_client_email,c.phone AS live_client_phone,
                   c.address_line1 AS live_address_line1,c.address_line2 AS live_address_line2,
                   c.postal_code AS live_postal_code,c.city AS live_city,c.canton AS live_canton,c.country AS live_country,
                   rs.sender_name AS live_sender_name,s.company_name AS live_sender_company,s.legal_form AS live_sender_legal_form,
@@ -1035,6 +1035,15 @@ fn build_preview(connection: &Connection, id: &str, prepared_on: &str) -> AppRes
         "uid_number":current_string(row.get("live_sender_uid_number")),
         "logo_path":current_string(row.get("live_sender_logo_path"))
     });
+    let sms_body = format!(
+        "Bonjour {}, rappel pour la facture {} : solde {}, échue le {}. Merci de régler avant le {} ou de nous contacter. {}",
+        client_name,
+        row["invoice_number"].as_str().unwrap_or_default(),
+        format_money(current_balance, row["currency"].as_str().unwrap_or("CHF")),
+        row["due_date"].as_str().unwrap_or_default(),
+        payment_deadline_date,
+        sender_name
+    );
     let payload = json!({
         "schema":"elyko.reminder_preview.v1","reminder_id":id,"invoice_id":row["invoice_id"],
         "invoice_number":row["invoice_number"],"level":row["level"],"due_date":row["due_date"],
@@ -1043,8 +1052,8 @@ fn build_preview(connection: &Connection, id: &str, prepared_on: &str) -> AppRes
         "currency":row["currency"],"snapshot_balance_cents":row["balance_cents"],
         "current_balance_cents":current_balance,"snapshot_stale":row["balance_cents"].as_i64()!=Some(current_balance),
         "template_review_required":snapshot["template_recovered_during_v24_migration"].as_bool().unwrap_or(false),
-        "recipient_email":row["live_client_email"],"client":client,"sender":sender,
-        "subject":render_template(template_subject,&context),"body":render_template(template_body,&context)
+        "recipient_email":row["live_client_email"],"recipient_phone":row["live_client_phone"],"client":client,"sender":sender,
+        "subject":render_template(template_subject,&context),"body":render_template(template_body,&context),"sms_body":sms_body
     });
     let canonical = serde_json::to_string(&payload)?;
     let mut result = payload;

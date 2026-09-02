@@ -32,9 +32,21 @@ pnpm exec tauri build \
   --bundles app,dmg
 
 bundle_root="src-tauri/target/universal-apple-darwin/release/bundle"
-app_archive="$(find "$bundle_root/macos" -maxdepth 1 -type f -name 'Zentra.app.tar.gz' -print -quit)"
+app_archive=""
+for candidate in "$bundle_root/macos/"*.app.tar.gz; do
+  if [[ -f "$candidate" ]]; then
+    app_archive="$candidate"
+    break
+  fi
+done
 app_signature="${app_archive}.sig"
-dmg="$(find "$bundle_root/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+dmg=""
+for candidate in "$bundle_root/dmg/"*.dmg; do
+  if [[ -f "$candidate" ]]; then
+    dmg="$candidate"
+    break
+  fi
+done
 
 if [[ -z "$app_archive" || ! -s "$app_archive" || ! -s "$app_signature" || -z "$dmg" || ! -s "$dmg" ]]; then
   echo "Build incomplet : .dmg, .app.tar.gz ou signature Tauri manquante." >&2

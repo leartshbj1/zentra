@@ -23,7 +23,9 @@ describe('Zentra account security primitives', () => {
     expect(sessionTokens.size).toBe(32);
     expect([...deviceCodes].every(isDeviceCode)).toBe(true);
     expect([...sessionTokens].every(isDeviceSessionToken)).toBe(true);
-    expect(newUserCode()).toMatch(/^[0-9A-HJ-KM-NP-TV-Z]{4}-[0-9A-HJ-KM-NP-TV-Z]{4}$/);
+    expect(newUserCode()).toMatch(
+      /^[0-9A-HJ-KM-NP-TV-Z]{4}-[0-9A-HJ-KM-NP-TV-Z]{4}$/,
+    );
     expect(normalizeUserCode('o1il abcd')).toBe('0111-ABCD');
   });
 
@@ -53,6 +55,11 @@ describe('Zentra account security primitives', () => {
     expect(isInstallationId('not-a-device')).toBe(false);
     expect(retentionUntil('2026-09-02')).toBe('2036-12-31');
     expect(retentionUntil('2026-09-02', '2027-03-31')).toBe('2037-03-31');
+    expect(retentionUntil('2024-01-01', '2024-02-29')).toBe('2034-02-28');
+    expect(retentionUntil('2026-08-31', '2028-02-29')).toBe('2038-02-28');
+    expect(() => retentionUntil('2026-08-31', '2028-03-01')).toThrow(
+      'trop éloignée',
+    );
     expect(() => retentionUntil('2026-02-30')).toThrow('date de facture');
   });
 

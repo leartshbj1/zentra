@@ -140,6 +140,7 @@ export async function assertStripeCheckoutReady() {
       configuration.priceId,
       configuration.signingKey,
       configuration.siteUrl,
+      configuration.testMode,
     ].join('\u0000'),
   );
   const now = Math.floor(Date.now() / 1000);

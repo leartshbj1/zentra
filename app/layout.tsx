@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   ...(metadataBase ? { metadataBase } : {}),
   title: 'Zentra — Gestion d’entreprise multisectorielle en Suisse',
   description:
-    'Application de bureau suisse disponible sur Windows, avec version macOS en préparation de distribution : gestion locale, compte d’entreprise et archivage optionnel des factures.',
+    'Zentra 1.19 est disponible sur Windows. Un aperçu macOS universel Intel et Apple Silicon est compilé en privé pour les tests, avant la future distribution signée et notariée.',
   applicationName: 'Zentra',
   ...(metadataBase ? { alternates: { canonical: '/' } } : {}),
   icons: { icon: '/favicon.svg' },
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     locale: 'fr_CH',
     title: 'Zentra — Toute votre entreprise, dans une seule application',
     description:
-      'Application suisse multisectorielle : Windows disponible, macOS en préparation, données opérationnelles locales et archivage optionnel des factures.',
+      'Zentra 1.19 : application suisse multisectorielle disponible sur Windows, avec données opérationnelles locales et aperçu macOS universel réservé aux tests privés.',
     ...(metadataBase ? { url: '/' } : {}),
     ...(socialImage
       ? {
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Zentra',
     description:
-      'Gestion locale complète sur Windows, version macOS en préparation et compte d’entreprise avec archive de factures sur option.',
+      'Gestion locale complète sur Windows. Aperçu macOS universel privé en attendant la signature Developer ID et la notarisation Apple.',
     ...(socialImage ? { images: [socialImage] } : {}),
   },
 };

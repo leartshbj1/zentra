@@ -1,4 +1,4 @@
-import { requireChatGPTUser } from '@/app/chatgpt-auth';
+import { requireZentraUser } from '@/app/zentra-auth';
 import { InvitationAccept } from '@/components/invitation-accept';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export default async function InvitationPage({
   const returnTo = token
     ? `/invitation?token=${encodeURIComponent(token)}`
     : '/invitation';
-  const user = await requireChatGPTUser(returnTo);
+  const user = await requireZentraUser(returnTo);
 
   return (
     <main className="min-h-screen bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">

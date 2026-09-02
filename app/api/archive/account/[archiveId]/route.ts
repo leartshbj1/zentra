@@ -1,4 +1,4 @@
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getZentraUser } from '@/app/zentra-auth';
 import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { safeInvoiceFilename } from '@/lib/invoice-archive';
@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ archiveId: string }> },
 ) {
   try {
-    const user = await getChatGPTUser();
+    const user = await getZentraUser({ refreshSession: true });
     if (!user) {
       throw new AccountPublicError(
         'Connectez-vous pour ouvrir cette archive.',

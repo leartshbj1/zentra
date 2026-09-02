@@ -154,7 +154,19 @@ export function requireAccountSameOrigin(request: Request): void {
 export function isCanonicalDate(value: string): boolean {
   if (!CANONICAL_DATE.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+  return (
+    !Number.isNaN(parsed.valueOf()) &&
+    parsed.toISOString().slice(0, 10) === value
+  );
+}
+
+function addUtcCalendarMonthsClamped(value: Date, months: number): Date {
+  const absoluteMonth =
+    value.getUTCFullYear() * 12 + value.getUTCMonth() + months;
+  const year = Math.floor(absoluteMonth / 12);
+  const month = absoluteMonth - year * 12;
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(value.getUTCDate(), lastDay)));
 }
 
 export function retentionUntil(
@@ -173,15 +185,13 @@ export function retentionUntil(
   }
   const issue = new Date(`${issueDate}T00:00:00.000Z`);
   const fiscal = new Date(`${end}T00:00:00.000Z`);
-  const maximumEnd = new Date(issue);
-  maximumEnd.setUTCMonth(maximumEnd.getUTCMonth() + 18);
+  const maximumEnd = addUtcCalendarMonthsClamped(issue, 18);
   if (fiscal > maximumEnd) {
     throw new AccountPublicError(
       'La fin de l’exercice est trop éloignée de la date de facture.',
     );
   }
-  const retained = new Date(fiscal);
-  retained.setUTCFullYear(retained.getUTCFullYear() + 10);
+  const retained = addUtcCalendarMonthsClamped(fiscal, 120);
   return retained.toISOString().slice(0, 10);
 }
 
@@ -191,9 +201,7 @@ export async function sha256Hex(value: Uint8Array | string): Promise<string> {
       ? new TextEncoder().encode(value)
       : Uint8Array.from(value);
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  return [...digest]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export async function invoiceChainHash(input: {

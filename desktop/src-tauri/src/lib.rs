@@ -28,6 +28,7 @@ mod sales_fulfillment;
 mod sales_pdf;
 mod schema;
 mod stock;
+mod supplier_email;
 mod supplier_invoices;
 mod supplier_procurement;
 mod swiss_payroll_rules;
@@ -88,6 +89,7 @@ pub fn run() {
             validate_supplier_invoice,
             record_supplier_payment,
             delete_supplier_invoice_draft,
+            inspect_supplier_email_file,
             save_supplier_order_draft,
             confirm_supplier_order,
             cancel_supplier_order_remainder,
@@ -7218,6 +7220,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                         "name":"Client réel",
                         "company":"Client SA",
                         "email":"finance@example.invalid",
+                        "phone":"+41791234567",
                         "address_line1":"Rue du Test 1",
                         "postal_code":"1000",
                         "city":"Lausanne"
@@ -7268,6 +7271,11 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             })
             .unwrap();
         assert_eq!(initial_preview["current_balance_cents"], 10000);
+        assert_eq!(initial_preview["recipient_phone"], "+41791234567");
+        assert!(initial_preview["sms_body"]
+            .as_str()
+            .unwrap()
+            .contains("facture"));
         let yesterday_text = today
             .checked_sub_days(chrono::Days::new(1))
             .unwrap()

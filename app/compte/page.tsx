@@ -1,14 +1,11 @@
-import {
-  chatGPTSignInPath,
-  chatGPTSignOutPath,
-  getChatGPTUser,
-} from '@/app/chatgpt-auth';
+import { getZentraUser, zentraSignInPath } from '@/app/zentra-auth';
 import { TeamInvite } from '@/components/team-invite';
 import { TeamAccessList } from '@/components/team-access-list';
+import { ZentraSignOut } from '@/components/zentra-sign-out';
 import { membershipsForUser } from '@/lib/account';
 import { roleCanManageMembers, type AccountRole } from '@/lib/account-security';
 import { database } from '@/lib/runtime';
-import { Archive, Laptop, LogOut, ShieldCheck, UsersRound } from 'lucide-react';
+import { Archive, Laptop, ShieldCheck, UsersRound } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,7 +159,7 @@ async function organizationAccess(organizationId: string) {
 }
 
 export default async function AccountPage() {
-  const user = await getChatGPTUser();
+  const user = await getZentraUser();
   if (!user) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
@@ -176,7 +173,7 @@ export default async function AccountPage() {
             appareils autorisés et le coffre de factures.
           </p>
           <a
-            href={chatGPTSignInPath('/compte')}
+            href={zentraSignInPath('/compte')}
             className="mt-7 inline-flex min-h-12 items-center rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
           >
             Se connecter en sécurité
@@ -210,12 +207,7 @@ export default async function AccountPage() {
               {user.displayName} · {user.email}
             </p>
           </div>
-          <a
-            href={chatGPTSignOutPath('/compte')}
-            className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full border border-[#c8c4ba] bg-white px-5 text-sm font-semibold"
-          >
-            <LogOut className="size-4" /> Déconnexion
-          </a>
+          <ZentraSignOut provider={user.provider} returnTo="/compte" />
         </header>
 
         {organizations.length === 0 ? (

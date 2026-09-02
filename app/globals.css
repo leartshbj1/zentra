@@ -535,6 +535,161 @@ summary::-webkit-details-marker {
   }
 }
 
+/* Finition d'interface : mouvement sobre, lisible et accéléré par le GPU. */
+::selection {
+  background: rgb(231 155 47 / 30%);
+  color: #173d2c;
+}
+
+body {
+  background:
+    radial-gradient(circle at 8% 2%, rgb(231 155 47 / 7%), transparent 28rem),
+    radial-gradient(circle at 92% 12%, rgb(49 95 71 / 8%), transparent 32rem),
+    #f6f4ef;
+}
+
+main > header.sticky {
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.site-scrolled main > header.sticky {
+  border-color: rgb(39 77 56 / 14%);
+  background-color: rgb(246 244 239 / 96%);
+  box-shadow: 0 12px 35px rgb(21 54 37 / 8%);
+}
+
+.hero-motion-stage {
+  --pointer-x: 0;
+  --pointer-y: 0;
+  --pointer-rotate-x: 0deg;
+  --pointer-rotate-y: 0deg;
+  --pointer-light-x: 50%;
+  --pointer-light-y: 42%;
+  perspective: 1400px;
+}
+
+.hero-motion-depth {
+  position: relative;
+  transform: rotateX(var(--pointer-rotate-x)) rotateY(var(--pointer-rotate-y));
+  transform-style: preserve-3d;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.hero-motion-depth::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+  background: radial-gradient(
+    circle at var(--pointer-light-x) var(--pointer-light-y),
+    rgb(255 255 255 / 16%),
+    transparent 38%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+  content: '';
+}
+
+.hero-motion-stage:hover .hero-motion-depth::after {
+  opacity: 1;
+}
+
+.interactive-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.interactive-card::after {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(231 155 47 / 62%), transparent);
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition:
+    opacity 180ms ease,
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  content: '';
+  pointer-events: none;
+}
+
+.interactive-card:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.site-mobile-nav {
+  z-index: 60;
+}
+
+.site-mobile-nav > nav {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  transition:
+    visibility 0s linear 180ms,
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-mobile-nav[data-open='true'] > nav {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.mobile-menu-open {
+  overflow: hidden;
+}
+
+.site-mobile-nav nav a {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.site-mobile-nav nav a:active {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .motion-ready [data-reveal].is-visible .interactive-card {
+    animation: site-card-settle 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .motion-ready [data-reveal].is-visible .interactive-card:nth-child(2) {
+    animation-delay: 55ms;
+  }
+
+  .motion-ready [data-reveal].is-visible .interactive-card:nth-child(3) {
+    animation-delay: 110ms;
+  }
+
+  .motion-ready [data-reveal].is-visible .interactive-card:nth-child(4) {
+    animation-delay: 165ms;
+  }
+
+  @keyframes site-card-settle {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.992);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -548,6 +703,12 @@ summary::-webkit-details-marker {
   .motion-ready [data-reveal] {
     opacity: 1;
     transform: none;
+  }
+
+  .hero-motion-depth,
+  .interactive-card,
+  .site-mobile-nav > nav {
+    transform: none !important;
   }
 }
 

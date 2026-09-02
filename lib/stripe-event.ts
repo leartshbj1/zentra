@@ -45,6 +45,7 @@ export type ZentraInvoiceValidation = {
   priceId: string;
   unitAmount: number;
   livemode: boolean;
+  automaticTaxRequired?: boolean;
 };
 
 /**
@@ -58,13 +59,18 @@ export function paidThroughFromInvoice(
   invoice: Stripe.Invoice,
   expected: ZentraInvoiceValidation,
 ): number | null {
+  const validAutomaticTax =
+    invoice.automatic_tax?.enabled === true
+      ? invoice.automatic_tax.status === 'complete'
+      : expected.automaticTaxRequired === false &&
+        invoice.automatic_tax?.enabled === false &&
+        invoice.automatic_tax.status === null;
   if (
     invoice.status !== 'paid' ||
     invoice.livemode !== expected.livemode ||
     invoice.currency.toLowerCase() !== 'chf' ||
     invoice.total !== expected.unitAmount ||
-    invoice.automatic_tax?.enabled !== true ||
-    invoice.automatic_tax.status !== 'complete' ||
+    !validAutomaticTax ||
     invoice.parent?.type !== 'subscription_details' ||
     stripeReferenceId(
       invoice.parent.subscription_details?.subscription as StripeReference,

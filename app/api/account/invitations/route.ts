@@ -1,4 +1,4 @@
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getZentraUser } from '@/app/zentra-auth';
 import {
   accountJsonError,
   accountNoStoreHeaders,
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     requireAccountSameOrigin(request);
-    const user = await getChatGPTUser();
+    const user = await getZentraUser({ refreshSession: true });
     if (!user) throw new AccountPublicError('Connexion requise.', 401);
     const body = await readJsonObjectWithinLimit(request, 8_192);
     const organizationId =

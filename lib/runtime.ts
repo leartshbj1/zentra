@@ -10,6 +10,9 @@ type RuntimeBindings = {
   LICENSE_SIGNING_KEY_PKCS8_B64URL?: string;
   OWNER_LICENSE_BINDING_SHA256?: string;
   PUBLIC_SITE_URL?: string;
+  STRIPE_TEST_MODE?: string;
+  OWNER_ACCOUNT_USER_ID?: string;
+  ZENTRA_OWNER_EMAIL?: string;
 };
 
 const bindings = env as unknown as RuntimeBindings;
@@ -41,6 +44,9 @@ export function stripeConfiguration() {
   const priceId = runtimeValue('STRIPE_PRICE_ID');
   const signingKey = runtimeValue('LICENSE_SIGNING_KEY_PKCS8_B64URL');
   const siteUrl = runtimeValue('PUBLIC_SITE_URL');
+  const testMode = runtimeValue('STRIPE_TEST_MODE');
+  const ownerAccountUserId = runtimeValue('OWNER_ACCOUNT_USER_ID');
+  const ownerEmail = runtimeValue('ZENTRA_OWNER_EMAIL').toLowerCase();
   return {
     secretKey,
     webhookSecret,
@@ -48,5 +54,8 @@ export function stripeConfiguration() {
     priceId,
     signingKey,
     siteUrl,
+    testMode,
+    ownerAccountUserId,
+    ownerEmail,
   };
 }

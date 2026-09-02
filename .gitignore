@@ -30,6 +30,7 @@ yarn-error.log*
 
 # local environment
 .env*
+!.env.supabase.example
 
 # deployment and generated files
 .vercel
@@ -43,6 +44,7 @@ next-env.d.ts
 
 # desktop build artifacts and local application data
 /desktop/dist/
+/desktop/artifacts/
 /desktop/src-tauri/target/
 /desktop/src-tauri/target-*/
 /desktop/.tauri/

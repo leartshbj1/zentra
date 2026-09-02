@@ -57,9 +57,36 @@ describe('Stripe SDK and webhook version contract', () => {
       ),
       'utf8',
     );
-    expect(archiveSource).toContain('getChatGPTUser');
+    expect(archiveSource).toContain('getZentraUser');
     expect(archiveSource).toContain('member.revoked_at IS NULL');
     expect(archiveSource).not.toContain('requireDeviceSession');
     expect(archiveSource).not.toContain('entitlement_valid_until');
+  });
+
+  it('binds a checkout claim to the same authenticated Zentra account', () => {
+    const checkoutSource = readFileSync(
+      new URL('../app/api/stripe/checkout/route.ts', import.meta.url),
+      'utf8',
+    );
+    const claimSource = readFileSync(
+      new URL('../app/api/account/claim/route.ts', import.meta.url),
+      'utf8',
+    );
+    const licenseSource = readFileSync(
+      new URL('../app/api/stripe/license/route.ts', import.meta.url),
+      'utf8',
+    );
+    const portalSource = readFileSync(
+      new URL('../app/api/stripe/portal/route.ts', import.meta.url),
+      'utf8',
+    );
+    expect(checkoutSource).toContain(
+      'createCheckoutSession(origin, claimHash, identity)',
+    );
+    expect(claimSource).toContain('assertCheckoutAccount(session, user)');
+    expect(licenseSource).toContain('getZentraUser({ refreshSession: true })');
+    expect(licenseSource).toContain('assertCheckoutAccount(session, user)');
+    expect(portalSource).toContain('getZentraUser({ refreshSession: true })');
+    expect(portalSource).toContain('assertCheckoutAccount(session, user)');
   });
 });

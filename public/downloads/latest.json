@@ -1,11 +1,11 @@
 {
-    "version":  "1.18.0",
-    "notes":  "Zentra 1.18 : agenda local, parcours guidé, comptes entreprise et rôles illimités, coffre de factures, correction par avoir et remplacement, cible macOS préparée.",
-    "pub_date":  "2026-09-02T14:03:59.4564093+00:00",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlFVTzdLcmpjQit3MnZ5dWc2UGRBUzNSNjJWMjR2cEIrNUVnZEZWZUFHK2NwUVpmR1NsYklEQnFRN0pjWUdnNi84TEVsN1NSdW5uQ3NJQ0kzRnNJRmcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MzU3NzgzCWZpbGU6WmVudHJhXzEuMTguMF94NjQtc2V0dXAuZXhlCkxiRmVraEZqQVAyUzhCaEZHdTVJREJUdE1SMVhyU2owWUdnVlV4SUJQNUF5aEJYRkFvM2l4amlTMDVKc3BXcE1jTVdMdTA2cVlDZHV2bFNubGVLWUJnPT0K",
-                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.18.0_x64-setup.exe"
-                                         }
-                  }
+  "version": "1.19.0",
+  "notes": "Zentra 1.19 : authentification Supabase, interface plus fluide, aperçu macOS universel, import local déterministe des factures fournisseurs, agenda et relances renforcés.",
+  "pub_date": "2026-09-02T20:59:01.5245592+00:00",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmVoVHAxNG1mM3BiQmNWWWs3TW8xejZpdmZjQ0kwWVA1cEZsWWlVNXpGV1Z3cXc5STVWR2RQMldpQzFZQ1JQMEJCOGtXdC9Eb3puYVZkMFRDWWtBUEFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MzgyNzEyCWZpbGU6WmVudHJhXzEuMTkuMF94NjQtc2V0dXAuZXhlCklPcHpCZkJJcnBkdm93UFF3R093NldCQ0I1eTdaSVhpcVFKZ1lpSzZTU3hrb1p3NUlVbDh1U3BOWFJlN0FLMnBwbUNKd0lwRGxsMEFnUnErMG1MVURnPT0K",
+      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.19.0_x64-setup.exe"
+    }
+  }
 }

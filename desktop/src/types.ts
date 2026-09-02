@@ -2196,6 +2196,7 @@ export type Reminder = {
   liveBalanceCents: number | null;
   snapshotStale: boolean;
   clientEmail: string;
+  clientPhone: string;
   clientAddressLine1: string;
   clientAddressLine2: string;
   clientPostalCode: string;
@@ -2261,10 +2262,12 @@ export type ReminderPreview = {
   snapshotStale: boolean;
   templateReviewRequired: boolean;
   recipientEmail: string;
+  recipientPhone: string;
   client: ReminderParty;
   sender: ReminderSender;
   subject: string;
   body: string;
+  smsBody: string;
   previewSha256: string;
 };
 

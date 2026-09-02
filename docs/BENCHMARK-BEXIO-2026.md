@@ -1,6 +1,6 @@
 # Benchmark fonctionnel Bexio → Zentra
 
-État de la recherche : 2 septembre 2026. Sources Bexio officielles uniquement. La colonne Zentra décrit la future source 1.18.0, sans publication annoncée.
+État de la recherche : 2 septembre 2026. Sources Bexio officielles uniquement. La colonne Zentra décrit la source 1.19.0.
 
 Ce document sert de référence produit. Il ne s'agit ni de copier l'interface de
 Bexio, ni de promettre des services qui exigent une certification ou un
@@ -18,11 +18,11 @@ présenter une prochaine action claire et garder chaque transformation traçable
 
 ## Matrice de couverture
 
-| Domaine | Référence Bexio vérifiée | Future Zentra 1.18.0 source | Écart utile à combler | Priorité |
+| Domaine | Référence Bexio vérifiée | Zentra 1.19.0 source | Écart utile à combler | Priorité |
 | --- | --- | --- | --- | --- |
 | CRM | contacts, catégories, interlocuteurs, historique documentaire, import/export | clients et vue 360 | import prévisualisé, catégories, rappels et pièces liées | P1 |
 | Vente | devis → commande → livraison → facture, QR, avoirs, modèles, récurrence, relances | devis avec produits → commande, BL partiel/complet et situation/finale par quantités ; prestation simple → facture directe ou modèle récurrent supervisé ; PDF A4 natifs devis/factures, QR vectoriel, avoirs et relances locales ; identité, logo et montants figés sur les documents émis | acomptes par montant/pourcentage, modèles FR/DE/IT et envoi configuré | P0 |
-| Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement multi-commandes → paiement et comptabilité ; tolérance contrôlée globalement et ventilations existantes protégées ; avoir distinct validable et imputable à une facture | OCR des achats | P1 |
+| Achats | boîte de réception, facture/avoir fournisseur, commande et réception | commande fournisseur → réception partielle/complète → facture → rapprochement multi-commandes → paiement et comptabilité ; import local déterministe d'un e-mail `.eml`/`.txt` en brouillon contrôlé, doublons et pièces signalés ; tolérance globale et avoir distinct | connexion facultative à une boîte mail et lecture du contenu PDF joint | P1 |
 | Banque | connexion directe, ISO 20022, paiements, rapprochement débiteurs/créditeurs | CAMT.053/.054 local et confirmation humaine | pain.001 contrôlé, règles explicables puis connexions optionnelles | P1 |
 | Comptabilité | débiteurs/créditeurs automatiques, journal, grand livre, bilan, résultat, TVA | partie double, rapports, profils TVA versionnés, paiement client relié à une écriture active, aperçu du décompte et XML eCH-0217 v2.0.0 local ; clôture cumulative scellant toute date ≤ dernière clôture, replays strictement identiques permis, corrections postérieures référencées et dossier fiduciaire DRAFT/FINAL | pièces sur toutes les écritures et automatisations de révision avec la fiduciaire | P1 |
 | Projets | étapes, tâches, responsables, temps, budget, dépenses et facturation | projets/chantiers, jalons, tâches, responsables, échéances, agenda jour/semaine/mois, rendez-vous locaux, temps, coûts, rentabilité et temps → facture | tarifs multiples et dépenses remboursables facturables | P1 |
@@ -76,14 +76,18 @@ présenter une prochaine action claire et garder chaque transformation traçable
    l'ouverture annuelle et des fiches antérieures ; paiement
    client daté, borné au solde d'une facture active et relié à une écriture
    comptable contrôlée.
-10. **Guider et sceller sans données fictives — prévu dans la source 1.18.0** :
+10. **Guider et sceller sans données fictives — livré en 1.18** :
     checklist de première utilisation calculée depuis six preuves métier réelles ;
     clôture comptable et TVA cumulative, avec rejeu idempotent strict et
     corrections postérieures référencées ; régime suisse des salaires de minime
     importance dérivé des cumuls locaux, avec décision, preuve et trace annuelle,
     rattrapage lors du franchissement du seuil et exception LAA conditionnée à
     tous les salariés concernés de l'année.
-11. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
+11. **Planifier et importer sous contrôle — livré en 1.19 source** : agenda
+    jour/semaine/mois, relances locales préparées périodiquement et import
+    déterministe d'un message fournisseur exporté. Aucun message n'est envoyé et
+    aucune facture n'est validée sans action de l'utilisateur.
+12. **Collaborer sans abandonner le local** : rôles Windows locaux, paquet
     fiduciaire chiffré, puis compagnon terrain synchronisé volontairement.
 
 ## Limites à ne pas masquer

@@ -1,4 +1,4 @@
-import { requireChatGPTUser } from '@/app/chatgpt-auth';
+import { requireZentraUser } from '@/app/zentra-auth';
 import { SubscriptionClaim } from '@/components/subscription-claim';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export default async function LinkSubscriptionPage({
   const returnTo = sessionId
     ? `/compte/associer?session_id=${encodeURIComponent(sessionId)}`
     : '/compte/associer';
-  await requireChatGPTUser(returnTo);
+  await requireZentraUser(returnTo);
 
   return (
     <main className="min-h-screen bg-[#f6f4ee] px-5 py-16 text-[#173d2c]">

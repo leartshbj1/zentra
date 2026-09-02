@@ -52,6 +52,7 @@ export function stripeAccountReadinessProblem(input: {
   expectedWebhookUrl: string;
   expectedApiVersion: string;
   requiredWebhookEvents: readonly string[];
+  allowPendingTaxInTestMode?: boolean;
 }): StripeAccountReadinessProblem | null {
   const { price, taxSettings, portal } = input;
   if (
@@ -85,11 +86,11 @@ export function stripeAccountReadinessProblem(input: {
     return 'product';
   }
 
-  if (
-    taxSettings.status !== 'active' ||
-    taxSettings.livemode !== input.expectedLivemode ||
-    taxSettings.defaults.provider !== 'stripe'
-  ) {
+  const taxReady =
+    taxSettings.status === 'active' &&
+    taxSettings.livemode === input.expectedLivemode &&
+    taxSettings.defaults.provider === 'stripe';
+  if (!taxReady && !input.allowPendingTaxInTestMode) {
     return 'tax';
   }
 

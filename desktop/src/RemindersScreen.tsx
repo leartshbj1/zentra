@@ -16,6 +16,7 @@ import {
   Printer,
   RefreshCw,
   Send,
+  Smartphone,
   ShieldCheck,
   Sparkles,
   X,
@@ -25,6 +26,7 @@ import {
   compareReminderBalanceSnapshot,
   reminderHistoryActionLabel,
   reminderPreviewSessionKey,
+  reminderSmsDraftUri,
   reminderStatusLabel,
   sortRemindersByUrgency,
   validateReminderAsOfDate,
@@ -39,6 +41,7 @@ import type {
   ReminderTemplate,
 } from './types';
 import { errorMessage, formatDate, formatMoney, todayIso } from './utils';
+import './RemindersEnhancements.css';
 import {
   Button,
   EmptyState,
@@ -698,6 +701,11 @@ export function RemindersScreen({
               }
             />
           </Field>
+          <div className="reminder-channel-summary" aria-label="Canaux de relance disponibles">
+            <span><Mail size={17} /><strong>E-mail</strong><small>Adresse du client + texte du niveau choisi</small></span>
+            <span><Smartphone size={17} /><strong>SMS</strong><small>Téléphone du client + résumé du solde actuel</small></span>
+            <p>Chaque canal ouvre un brouillon dans l’application configurée sur l’ordinateur. Le solde est revérifié juste avant; confirmez ensuite l’envoi réel pour clôturer la relance.</p>
+          </div>
           <div className="reminder-legal-note">
             <AlertTriangle size={18} />
             <div>
@@ -1304,7 +1312,7 @@ function ReminderDeliveryPreview({
   const closeActionRef = useRef(onClose);
   const confirmationTriggerRef = useRef<HTMLElement | null>(null);
   const logoUrl = localAssetUrl(preview.sender.logoPath);
-  const mailto = `mailto:${preview.recipientEmail}?subject=${encodeURIComponent(preview.subject)}&body=${encodeURIComponent(preview.body)}`;
+  const smsDraftUri = reminderSmsDraftUri(preview);
   const legacyTemplateReady =
     !preview.templateReviewRequired || legacyTemplateConfirmed;
 
@@ -1352,7 +1360,17 @@ function ReminderDeliveryPreview({
     const refreshed = await onRefresh(preview);
     if (!refreshed || refreshed.previewSha256 !== preview.previewSha256) return;
     const result = await onRecord('mail_draft_created');
-    if (result && !result.blocked) window.location.href = mailto;
+    if (result && !result.blocked) {
+      window.location.href = `mailto:${refreshed.recipientEmail}?subject=${encodeURIComponent(refreshed.subject)}&body=${encodeURIComponent(refreshed.body)}`;
+    }
+  }
+
+  async function openSmsDraft() {
+    const refreshed = await onRefresh(preview);
+    if (!refreshed || refreshed.previewSha256 !== preview.previewSha256) return;
+    const refreshedSmsDraftUri = reminderSmsDraftUri(refreshed);
+    if (!refreshedSmsDraftUri) return;
+    window.location.href = refreshedSmsDraftUri;
   }
 
   async function confirmPrint() {
@@ -1413,6 +1431,17 @@ function ReminderDeliveryPreview({
               }}
             >
               <Mail size={16} /> Ouvrir l’e-mail
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={busy || !!confirmation || !smsDraftUri || !legacyTemplateReady}
+              title={smsDraftUri ? 'Ouvrir le brouillon dans votre application SMS; Zentra ne l’envoie pas.' : 'Ajoutez un téléphone au client.'}
+              onClick={(event) => {
+                confirmationTriggerRef.current = event.currentTarget;
+                void openSmsDraft();
+              }}
+            >
+              <Smartphone size={16} /> Ouvrir le SMS
             </Button>
             <Button
               variant="secondary"

@@ -1134,6 +1134,17 @@ pub fn record_reminder_action(
 }
 
 #[tauri::command]
+pub fn inspect_supplier_email_file(
+    state: State<'_, LocalStore>,
+    source_path: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .inspect_supplier_email_file(&source_path)
+        .map_err(command_error)
+}
+
+#[tauri::command]
 pub fn get_payroll_regulatory_profiles(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state

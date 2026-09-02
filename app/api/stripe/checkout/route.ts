@@ -1,12 +1,15 @@
 import { cookies } from 'next/headers';
-import { database } from '@/lib/runtime';
+import { getZentraUser } from '@/app/zentra-auth';
+import { database, stripeConfiguration } from '@/lib/runtime';
 import { assertStripeCheckoutReady } from '@/lib/stripe-readiness';
+import { stripeTestAccessAllowed } from '@/lib/stripe-test-access';
 import {
   activationCookieName,
   createCheckoutSession,
   enforceCheckoutRateLimit,
   jsonError,
   noStoreHeaders,
+  PublicError,
   randomBase64Url,
   requireSameOrigin,
   sha256,
@@ -17,11 +20,25 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const origin = requireSameOrigin(request);
+    const configuration = stripeConfiguration();
+    const identity = await getZentraUser({ refreshSession: true });
+    if (!identity) {
+      throw new PublicError(
+        'Connectez-vous à votre compte Zentra avant de choisir l’abonnement.',
+        401,
+      );
+    }
+    if (!stripeTestAccessAllowed(configuration, identity)) {
+      throw new PublicError(
+        'Le paiement Stripe est actuellement en test privé, réservé au propriétaire Zentra.',
+        403,
+      );
+    }
     await assertStripeCheckoutReady();
     await enforceCheckoutRateLimit(request);
     const claim = randomBase64Url();
     const claimHash = await sha256(claim);
-    const session = await createCheckoutSession(origin, claimHash);
+    const session = await createCheckoutSession(origin, claimHash, identity);
     const now = Math.floor(Date.now() / 1000);
     const db = database();
     await db

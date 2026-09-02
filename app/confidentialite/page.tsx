@@ -15,7 +15,7 @@ const sections = [
   {
     icon: LockKeyhole,
     title: 'Compte et accès',
-    text: 'Le service conserve l’identifiant du compte, l’e-mail, le nom affiché, l’entreprise, le rôle, les appareils autorisés et les dates techniques de session. Les jetons secrets de session, d’invitation et d’appareil sont hachés avant stockage côté serveur.',
+    text: 'Supabase Auth traite l’adresse e-mail, le nom affiché, le mot de passe et la session de connexion. Zentra ne stocke jamais le mot de passe dans D1/R2 ni dans le navigateur : les jetons de session restent dans des cookies HttpOnly. Le service de compte conserve ensuite l’entreprise, le rôle, les appareils autorisés et les dates techniques utiles.',
   },
   {
     icon: FileCheck2,
@@ -25,7 +25,7 @@ const sections = [
   {
     icon: Cloud,
     title: 'Prestataires techniques',
-    text: 'Stripe traite l’abonnement et la facturation. L’hébergement Sites fournit l’authentification et l’exécution du site; D1/R2 hébergent les métadonnées de compte et les PDF archivés.',
+    text: 'Supabase fournit l’authentification; le projet de test actuel est hébergé en Ohio et devra être remplacé par une région validée avant l’ouverture commerciale. Stripe traite l’abonnement et sa facturation. Sites exécute le site et conserve encore un accès SIWC transitoire; D1/R2 hébergent actuellement les métadonnées de compte et les PDF archivés sur demande.',
   },
 ];
 
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
             Local par défaut. Hébergé seulement quand c’est utile.
           </h1>
           <p className="mt-5 text-lg leading-8 text-[#5f6962]">
-            Cette page décrit le périmètre technique actuellement prévu pour
+            Cette page décrit le périmètre technique actuellement actif pour
             Zentra. Le coffre de factures est facultatif et ne remplace jamais
             votre sauvegarde locale complète.
           </p>

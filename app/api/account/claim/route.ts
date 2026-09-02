@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getZentraUser } from '@/app/zentra-auth';
 import {
   accountJsonError,
   accountNoStoreHeaders,
@@ -13,6 +13,7 @@ import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   activationCookieName,
   assertActivationClaim,
+  assertCheckoutAccount,
   paidEntitlementForSubscription,
   PublicError,
   referenceId,
@@ -31,7 +32,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     requireAccountSameOrigin(request);
-    const user = await getChatGPTUser();
+    const user = await getZentraUser({ refreshSession: true });
     if (!user) {
       throw new AccountPublicError(
         'Connectez-vous avant d’associer l’abonnement.',
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
 
     const session = await retrieveCheckoutSession(sessionId);
     await assertActivationClaim(session, claim);
+    assertCheckoutAccount(session, user);
     const subscription = await retrieveSubscription(
       referenceId(session.subscription),
     );

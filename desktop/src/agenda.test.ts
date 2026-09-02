@@ -175,4 +175,66 @@ describe('agenda', () => {
       '2026-09-06',
     ]);
   });
+
+  it('affiche les factures fournisseurs validées à payer mais jamais les brouillons ou factures soldées', () => {
+    const common = {
+      supplierId: 'supplier-1',
+      projectId: null,
+      documentDate: '2026-09-01',
+      dueDate: '2026-09-15',
+      supplierName: 'Papeterie SA',
+      reference: 'INV-42',
+      currency: 'CHF' as const,
+      netCents: 10_000,
+      vatCents: 810,
+      totalCents: 10_810,
+      paidCents: 0,
+      creditedCents: 0,
+      balanceCents: 10_810,
+      matchStatus: 'unmatched' as const,
+      validatedAt: '2026-09-01T10:00:00Z',
+      validationJournalEntryId: 'entry-1',
+      note: '',
+      lines: [],
+      payments: [],
+      attachments: [],
+      createdAt: '',
+      updatedAt: '',
+    };
+    const result = buildAgendaItems(
+      workspace({
+        supplierInvoices: [
+          { ...common, id: 'pending', documentStatus: 'validated', paymentStatus: 'pending' },
+          { ...common, id: 'partial', documentStatus: 'validated', paymentStatus: 'partial', paidCents: 1_000, balanceCents: 9_810 },
+          { ...common, id: 'paid', documentStatus: 'validated', paymentStatus: 'paid', paidCents: 10_810, balanceCents: 0 },
+          { ...common, id: 'draft', documentStatus: 'draft', paymentStatus: null, validatedAt: null, validationJournalEntryId: null },
+        ],
+      }),
+    );
+    expect(result.map((item) => item.sourceId).sort()).toEqual(['partial', 'pending']);
+    expect(result.every((item) => item.route === 'expenses')).toBe(true);
+  });
+
+  it('reste stable aux années bissextiles et aux événements qui traversent une année', () => {
+    expect(shiftDate('2028-02-28', 1)).toBe('2028-02-29');
+    expect(shiftDate('2028-02-29', 1)).toBe('2028-03-01');
+    expect(
+      itemOccursOn(
+        {
+          id: 'event:new-year',
+          source: 'event',
+          sourceId: 'new-year',
+          category: 'agenda',
+          date: '2026-12-31',
+          endDate: '2027-01-02',
+          time: null,
+          endTime: null,
+          title: 'Fermeture annuelle',
+          subtitle: '',
+          status: 'active',
+        },
+        '2027-01-01',
+      ),
+    ).toBe(true);
+  });
 });
