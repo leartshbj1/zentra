@@ -1,11 +1,11 @@
 {
-  "version": "1.14.0",
-  "notes": "Zentra 1.14 : paie locale contrôlée, comptabilité détaillée et TVA sur les encaissements.",
-  "pub_date": "2026-09-01T23:54:14.6568531+00:00",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmJya0xwZ0d6ZDN0bXhlWlZqUFNDNjdERmtqckxhdFd0UGVTeTdaT29kNkxBY2ErRFg0MDlRYmFTdTc2dFFrRFUwU2tSVGJKRzJmR1k3NTBYZ3BmRWdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MzA2NzkwCWZpbGU6WmVudHJhXzEuMTQuMF94NjQtc2V0dXAuZXhlClFNbzZKU3ZiZWJKbmJvRTBQSnJjeTJWd1ZDRVVNT0dPY0ZFdVl4OTdGa0FPUThyOElNNVR0ck8wWllpN1JCdUdXaGlRVDBsWU1pSzRnNXpoUWdwWkJRPT0K",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.14.0_x64-setup.exe"
-    }
-  }
+    "version":  "1.18.0",
+    "notes":  "Zentra 1.18 : agenda local, parcours guidé, comptes entreprise et rôles illimités, coffre de factures, correction par avoir et remplacement, cible macOS préparée.",
+    "pub_date":  "2026-09-02T14:03:59.4564093+00:00",
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlFVTzdLcmpjQit3MnZ5dWc2UGRBUzNSNjJWMjR2cEIrNUVnZEZWZUFHK2NwUVpmR1NsYklEQnFRN0pjWUdnNi84TEVsN1NSdW5uQ3NJQ0kzRnNJRmcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MzU3NzgzCWZpbGU6WmVudHJhXzEuMTguMF94NjQtc2V0dXAuZXhlCkxiRmVraEZqQVAyUzhCaEZHdTVJREJUdE1SMVhyU2owWUdnVlV4SUJQNUF5aEJYRkFvM2l4amlTMDVKc3BXcE1jTVdMdTA2cVlDZHV2bFNubGVLWUJnPT0K",
+                                             "url":  "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.18.0_x64-setup.exe"
+                                         }
+                  }
 }
