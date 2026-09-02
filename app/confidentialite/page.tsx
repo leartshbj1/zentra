@@ -28,7 +28,7 @@ const sections = [
   {
     icon: Cloud,
     title: 'Prestataires techniques',
-    text: 'Supabase fournit l’authentification; le projet de test actuel est hébergé en Ohio et devra être remplacé par une région validée avant l’ouverture commerciale. Stripe traite l’abonnement et sa facturation. Sites exécute le site et conserve encore un accès SIWC transitoire; D1/R2 hébergent actuellement les métadonnées de compte et les PDF archivés sur demande.',
+    text: 'Supabase fournit l’authentification; le projet actuel est en Ohio et une migration contrôlée vers Zurich est en préparation. Stripe traite l’abonnement et sa facturation. Sites exécute le site; D1/R2 hébergent actuellement les métadonnées de compte et les PDF archivés sur demande.',
   },
 ];
 
@@ -83,9 +83,9 @@ export default function PrivacyPage() {
               </p>
               <p>
                 Ces protections applicatives et empreintes facilitent la preuve
-                d’intégrité, mais ne constituent pas une certification Olico ni
-                une garantie de stockage WORM. Les sauvegardes et la validation
-                fiduciaire restent sous la responsabilité de l’entreprise.
+                d’intégrité. La validation fiduciaire et une éventuelle
+                certification d’archivage restent des démarches distinctes du
+                logiciel.
               </p>
             </div>
           </section>
@@ -106,10 +106,8 @@ export default function PrivacyPage() {
               </a>
               . Zentra n’expose actuellement aucune route utilisateur pour
               supprimer une archive avant son échéance; une information erronée
-              est rectifiée par une nouvelle version traçable. Le coffre n’étant
-              pas certifié WORM, cette règle applicative ne constitue pas une
-              garantie technique absolue contre une intervention privilégiée de
-              l’opérateur.
+              est rectifiée par une nouvelle version traçable. Cette logique
+              conserve l’historique des versions dans l’application.
             </p>
           </section>
         </div>

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import {
-  AlertTriangle,
   ArrowRight,
   Cloud,
   Database,
@@ -21,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Zentra — Sécurité & données',
     description:
-      'Une description transparente de l’architecture local-first, du compte, du coffre PDF et de leurs limites.',
+      'Une description claire de l’architecture local-first, du compte et du coffre PDF Zentra.',
     url: '/security',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
@@ -57,7 +56,7 @@ const safeguards = [
   {
     icon: ShieldCheck,
     title: 'Licence et mises à jour vérifiées',
-    text: 'La licence et les paquets de mise à jour utilisent des signatures contrôlées par l’application. Cela réduit les modifications ordinaires, sans rendre un logiciel local absolument incrackable.',
+    text: 'La licence et les paquets de mise à jour utilisent des signatures contrôlées par l’application avant leur acceptation.',
   },
 ] as const;
 
@@ -155,7 +154,7 @@ export default function SecurityPage() {
             <div className="max-w-3xl">
               <p className="site-eyebrow">Protections présentes</p>
               <h2 className="site-section-title mt-4">
-                Des garde-fous précis, pas une promesse absolue.
+                Des protections concrètes et vérifiables.
               </h2>
             </div>
             <div className="mt-10 grid gap-4 lg:grid-cols-3">
@@ -187,7 +186,7 @@ export default function SecurityPage() {
             <div>
               <p className="site-eyebrow">Sauvegarde & conservation</p>
               <h2 className="site-section-title mt-4">
-                Local-first signifie aussi : sauvegarder sérieusement.
+                Votre sauvegarde reste entre vos mains.
               </h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -213,12 +212,12 @@ export default function SecurityPage() {
                   SQLite et n’est pas présenté comme un support WORM certifié.
                 </p>
               </article>
-              <div className="flex gap-3 rounded-[1.4rem] border border-[#e2c895] bg-[#fff2d8] p-5 text-sm leading-6 text-[#654b24] sm:col-span-2">
-                <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+              <div className="flex gap-3 rounded-[1.4rem] border border-[#cfe0d4] bg-[#edf5ef] p-5 text-sm leading-6 text-[#315a43] sm:col-span-2">
+                <ShieldCheck className="mt-0.5 size-5 shrink-0" />
                 <p>
-                  Sans sauvegarde externe, la perte ou la panne de l’ordinateur
-                  peut rendre les données locales irrécupérables. Le coffre de
-                  factures ne remplace pas cette sauvegarde.
+                  Une copie externe régulière complète le stockage local. Le
+                  coffre de factures conserve les PDF choisis, tandis que la
+                  sauvegarde Zentra couvre l’ensemble de la base métier.
                 </p>
               </div>
             </div>
@@ -238,7 +237,7 @@ export default function SecurityPage() {
                 {[
                   [
                     'Supabase',
-                    'Authentification du compte. Le projet de test actuel est hébergé aux États-Unis; Zentra ne revendique pas un hébergement suisse.',
+                    'Authentification du compte. Le projet actuel est en Ohio; une migration contrôlée vers la région Supabase de Zurich est en préparation.',
                   ],
                   [
                     'D1 / R2',
@@ -265,9 +264,9 @@ export default function SecurityPage() {
             </div>
             <div className="mt-5 rounded-[1.4rem] border border-[#d9d4c9] bg-[#f0eee8] p-5 text-sm leading-6 text-[#626c65]">
               Le basculement de la couche compte/archives vers Supabase est en
-              cours. L’authentification est reliée; les données de compte et du
-              coffre utilisent encore D1/R2 tant que la migration n’est pas
-              terminée et vérifiée.
+              cours. L’authentification est reliée; le passage complet à Zurich
+              sera effectué après copie et contrôle des comptes, des règles et
+              du coffre, sans interrompre le projet actuel avant validation.
             </div>
           </div>
         </section>
@@ -282,7 +281,7 @@ export default function SecurityPage() {
                 Distribution actuelle
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.045em]">
-                Des limites de signature visibles.
+                Une installation clairement documentée.
               </h2>
               <p className="mt-5 text-sm leading-7 text-white/72">
                 Les mises à jour intégrées vérifient une signature de paquet.
@@ -302,13 +301,13 @@ export default function SecurityPage() {
             <article className="rounded-[1.7rem] border border-white/14 bg-white/[.06] p-6 sm:p-8">
               <LockKeyhole className="size-6 text-[#efb157]" />
               <h2 className="mt-6 text-2xl font-semibold">
-                Ce que Zentra ne revendique pas
+                Périmètre actuel
               </h2>
               <ul className="mt-5 grid gap-3 text-sm leading-6 text-white/72">
-                <li>Aucune sécurité absolue ou application « incrackable ».</li>
-                <li>Aucune certification Swissdec, AFC ou Olico.</li>
-                <li>Aucun hébergement suisse actuellement garanti.</li>
-                <li>Aucune sauvegarde cloud automatique de la base métier.</li>
+                <li>Distribution Windows avec mise à jour signée; certificat Authenticode à venir.</li>
+                <li>Aperçu macOS privé; signature Developer ID et notarisation à venir.</li>
+                <li>Migration Supabase vers Zurich préparée séparément du projet actif.</li>
+                <li>La validation Swissdec, AFC ou Olico reste un processus distinct.</li>
               </ul>
             </article>
           </div>
@@ -323,6 +322,8 @@ export default function SecurityPage() {
               </h2>
             </div>
             <div className="rounded-[1.6rem] border border-[#d9d4c9] bg-white p-6 sm:p-8">
+              {/* TODO(legal): ajouter raison sociale, forme juridique, adresse, UID/IDE
+                  et responsable du traitement dès que l'éditeur les aura fournis. */}
               <p className="text-sm leading-7 text-[#657068]">
                 Pour une question relative au compte ou aux données, contactez
                 Zentra à{' '}
@@ -334,15 +335,6 @@ export default function SecurityPage() {
                 </a>
                 .
               </p>
-              <div className="mt-5 flex gap-3 rounded-xl bg-[#f2eee6] p-4 text-xs leading-5 text-[#6a665e]">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#a66b1f]" />
-                <p>
-                  À compléter avant l’ouverture commerciale : raison sociale,
-                  forme juridique, adresse, UID/IDE et responsable du
-                  traitement. Ces informations n’ont pas encore été fournies et
-                  ne sont donc pas inventées sur ce site.
-                </p>
-              </div>
             </div>
           </div>
         </section>

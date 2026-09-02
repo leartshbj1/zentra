@@ -458,8 +458,9 @@ export default function DownloadPage() {
                 Le paiement est traité par Stripe. L’abonnement peut être
                 rattaché à votre compte d’entreprise&nbsp;: vous autorisez
                 ensuite appareils, collaborateurs et comptables par un code
-                court. Les secrets de session seront protégés localement et le
-                serveur n’en conservera que l’empreinte.
+                court. La liaison locale est protégée par le mécanisme sécurisé
+                du système et le serveur conserve uniquement les éléments
+                nécessaires à l’activation.
               </p>
               <div className="mt-7 grid gap-3 text-sm text-white/72 sm:grid-cols-2">
                 {[
@@ -608,9 +609,8 @@ export default function DownloadPage() {
                   <p>
                     <strong>Protection de licence :</strong> activation en
                     ligne, jeton signé et liaison locale protégée par Windows
-                    DPAPI ou le Trousseau macOS. Aucune protection logicielle ne
-                    peut garantir une résistance absolue face à l’administrateur
-                    de la machine.
+                    DPAPI ou le Trousseau macOS. Ces contrôles sont transparents
+                    pour l’utilisateur après l’activation.
                   </p>
                 </div>
               </details>
@@ -627,20 +627,18 @@ export default function DownloadPage() {
             <div>
               <HardDrive className="size-7 text-[#efb157]" />
               <p className="mt-5 text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">
-                Votre responsabilité locale
+                Sauvegarde locale
               </p>
               <h2
                 id="sauvegarde-title"
                 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"
               >
-                Une donnée locale doit être sauvegardée.
+                Gardez une copie complète, à l’endroit de votre choix.
               </h2>
               <p className="mt-5 text-sm leading-6 text-white/72">
-                Si l’ordinateur est perdu ou son disque devient illisible sans
-                sauvegarde complète externe, Zentra ne peut pas reconstruire les
-                clients, la paie ou la comptabilité. Le coffre optionnel protège
-                uniquement les PDF de factures que vous archivez explicitement,
-                jamais toute la base SQLite.
+                Zentra crée une sauvegarde complète que vous pouvez conserver sur
+                un support externe ou un emplacement maîtrisé. Le coffre optionnel
+                complète ce dispositif pour les PDF de factures choisis.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
