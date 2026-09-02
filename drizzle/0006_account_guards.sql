@@ -22,7 +22,7 @@ WHEN NOT (
   AND NEW.stored_by_session_id=OLD.stored_by_session_id
   AND NEW.stored_at=OLD.stored_at
 )
-BEGIN SELECT RAISE(ABORT,'invoice archive metadata is immutable'); END;
+BEGIN SELECT RAISE(ABORT,'invoice archive metadata is immutable'); END;--> statement-breakpoint
 
 CREATE TRIGGER invoice_archives_immutable_delete_guard
 BEFORE DELETE ON invoice_archives

@@ -18,12 +18,14 @@ describe('Stripe D1 migrations', () => {
   it('applies from an empty database and exposes every readiness column', () => {
     const db = new DatabaseSync(':memory:');
     for (const migration of migrations) {
-      db.exec(
-        readFileSync(new URL(migration, import.meta.url), 'utf8').replaceAll(
-          '--> statement-breakpoint',
-          '',
-        ),
-      );
+      const statements = readFileSync(
+        new URL(migration, import.meta.url),
+        'utf8',
+      )
+        .split('--> statement-breakpoint')
+        .map((statement) => statement.trim())
+        .filter(Boolean);
+      for (const statement of statements) db.exec(statement);
     }
 
     const columns = db
