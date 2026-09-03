@@ -262,6 +262,7 @@ pub async fn install_secure_update(
         #[cfg(not(target_os = "windows"))]
         _app.restart();
 
+        #[cfg(target_os = "windows")]
         Ok(())
     }
     .await;

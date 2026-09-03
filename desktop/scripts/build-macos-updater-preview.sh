@@ -31,8 +31,37 @@ fi
 
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 pnpm build:web
+
+generated_config="$desktop_root/src-tauri/tauri.macos.updater.generated-$$.conf.json"
+cleanup_generated_config() {
+  rm -f "$generated_config"
+}
+trap cleanup_generated_config EXIT
+node - "$generated_config" <<'NODE'
+const fs = require('fs');
+const outputPath = process.argv[2];
+const macConfig = JSON.parse(
+  fs.readFileSync('src-tauri/tauri.macos.updater-preview.conf.json', 'utf8'),
+);
+const updaterConfig = JSON.parse(
+  fs.readFileSync('src-tauri/tauri.updater.conf.json', 'utf8'),
+);
+const marker = 'INJECTED_BY_ELYKO_UPDATER_PUBLIC_KEY_AT_BUILD_TIME';
+if (updaterConfig?.plugins?.updater?.pubkey !== marker) {
+  throw new Error('Le modèle updater ne contient pas le marqueur attendu.');
+}
+updaterConfig.plugins.updater.pubkey = process.env.ELYKO_UPDATER_PUBLIC_KEY.trim();
+macConfig.plugins = {
+  ...(macConfig.plugins ?? {}),
+  updater: updaterConfig.plugins.updater,
+};
+fs.writeFileSync(outputPath, `${JSON.stringify(macConfig, null, 2)}\n`, {
+  encoding: 'utf8',
+  mode: 0o600,
+});
+NODE
 pnpm exec tauri build \
-  --config src-tauri/tauri.macos.updater-preview.conf.json \
+  --config "$generated_config" \
   --target universal-apple-darwin \
   --bundles app,dmg
 
