@@ -159,6 +159,123 @@ impl LocalStore {
         database_result
     }
 
+    /// Enregistre une pièce déjà décodée en mémoire, par exemple depuis un
+    /// message MIME choisi explicitement par l'utilisateur. Le contenu passe
+    /// par les mêmes contrôles de taille, de signature binaire, de doublon et
+    /// d'immuabilité que l'import depuis un fichier local.
+    pub(crate) fn add_supplier_invoice_attachment_bytes(
+        &self,
+        supplier_invoice_id: &str,
+        original_name: &str,
+        bytes: &[u8],
+    ) -> AppResult<Value> {
+        let invoice_id = required_uuid(supplier_invoice_id, "facture fournisseur")?;
+        validate_size(u64::try_from(bytes.len()).unwrap_or(u64::MAX))?;
+        let original_name = validated_original_name_value(original_name)?;
+        let detected = detect_supported_attachment_bytes(bytes)?;
+        let connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+
+        let id = Uuid::new_v4().to_string();
+        let stored_name = format!("{id}.{}", detected.extension);
+        let destination = self.safe_attachment_path(&stored_name)?;
+        let temporary_name = format!(".{id}.attachment-part");
+        let temporary_path = self.safe_attachment_path(&temporary_name)?;
+        let write_result = (|| -> AppResult<()> {
+            let mut file = File::create(&temporary_path)?;
+            file.write_all(bytes)?;
+            file.sync_all()?;
+            if detect_supported_attachment(&temporary_path)? != detected {
+                return Err(AppError::Validation(
+                    "Le justificatif décodé ne correspond plus à son format détecté.".into(),
+                ));
+            }
+            fs::rename(&temporary_path, &destination)?;
+            Ok(())
+        })();
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(error);
+        }
+
+        let size_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        let sha256 = format!("{:x}", Sha256::digest(bytes));
+        let database_result = (|| -> AppResult<Value> {
+            let mut connection = connection;
+            let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            let (project_id, status): (Option<String>, String) = tx
+                .query_row(
+                    "SELECT project_id,status FROM supplier_invoices WHERE id=?",
+                    params![invoice_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("supplier_invoices/{invoice_id}")))?;
+            if status != "draft" {
+                return Err(AppError::Validation(
+                    "Les justificatifs d’une facture fournisseur validée sont figés.".into(),
+                ));
+            }
+            let existing = query_all(
+                &tx,
+                "SELECT * FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=? AND sha256=? LIMIT 1",
+                params![invoice_id, sha256],
+            )?
+            .into_iter()
+            .next();
+            if let Some(existing) = existing {
+                tx.commit()?;
+                return Ok(existing);
+            }
+            let count: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=?",
+                params![invoice_id],
+                |row| row.get(0),
+            )?;
+            if count >= MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE {
+                return Err(AppError::Validation(format!(
+                    "Cette facture contient déjà la limite de {MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE} justificatifs."
+                )));
+            }
+            let now = now_iso();
+            tx.execute(
+                "INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'supplier_invoice',?,?,?,?,?,?,?,?)",
+                params![id,project_id,invoice_id,original_name,stored_name,detected.mime_type,i64::try_from(size_bytes).unwrap_or(i64::MAX),sha256,now,now],
+            )?;
+            let record = query_all(&tx, "SELECT * FROM attachments WHERE id=?", params![id])?
+                .into_iter()
+                .next()
+                .ok_or_else(|| AppError::NotFound(format!("attachments/{id}")))?;
+            append_audit(
+                &tx,
+                "attachment_add",
+                "supplier_invoice",
+                &invoice_id,
+                &json!({
+                    "attachment_id": id,
+                    "original_name": original_name,
+                    "mime_type": detected.mime_type,
+                    "size_bytes": size_bytes,
+                    "sha256": sha256,
+                    "source": "supplier_email_mime",
+                }),
+            )?;
+            tx.commit()?;
+            Ok(record)
+        })();
+
+        let destination_is_registered = database_result
+            .as_ref()
+            .ok()
+            .and_then(|record| record.get("id"))
+            .and_then(Value::as_str)
+            == Some(id.as_str());
+        if !destination_is_registered {
+            let _ = fs::remove_file(&destination);
+        }
+        database_result
+    }
+
     pub fn delete_supplier_invoice_attachment(&self, id: &str) -> AppResult<Value> {
         let id = required_uuid(id, "justificatif")?;
         let mut connection = self.connect()?;
@@ -328,7 +445,17 @@ fn validated_original_name(path: &Path) -> AppResult<String> {
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| AppError::Validation("Le nom du justificatif est invalide.".into()))?;
-    if name.is_empty() || name.chars().count() > 255 || name.chars().any(char::is_control) {
+    validated_original_name_value(name)
+}
+
+fn validated_original_name_value(name: &str) -> AppResult<String> {
+    let name = name.trim();
+    if name.is_empty()
+        || name.chars().count() > 255
+        || name.chars().any(char::is_control)
+        || name.contains(['/', '\\'])
+        || matches!(name, "." | "..")
+    {
         return Err(AppError::Validation(
             "Le nom du justificatif doit contenir au plus 255 caractères valides.".into(),
         ));
@@ -355,6 +482,10 @@ fn detect_supported_attachment(path: &Path) -> AppResult<SupportedAttachment> {
     let mut signature = [0_u8; 16];
     let count = file.read(&mut signature)?;
     let bytes = &signature[..count];
+    detect_supported_attachment_bytes(bytes)
+}
+
+fn detect_supported_attachment_bytes(bytes: &[u8]) -> AppResult<SupportedAttachment> {
     let kind = if bytes.starts_with(b"%PDF-") {
         Some(SupportedAttachment {
             mime_type: "application/pdf",
@@ -383,6 +514,12 @@ fn detect_supported_attachment(path: &Path) -> AppResult<SupportedAttachment> {
             "Format refusé. Choisissez un vrai fichier PDF, PNG, JPEG ou WebP.".into(),
         )
     })
+}
+
+pub(crate) fn supported_attachment_mime(bytes: &[u8]) -> Option<&'static str> {
+    detect_supported_attachment_bytes(bytes)
+        .ok()
+        .map(|kind| kind.mime_type)
 }
 
 fn copy_limited_and_hash(source: &Path, destination: &Path) -> AppResult<(u64, String)> {

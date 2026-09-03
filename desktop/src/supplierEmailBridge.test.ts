@@ -73,4 +73,54 @@ describe('reprise sans doublon du brouillon fournisseur importé', () => {
     ).rejects.toThrow('reprise sans doublon');
     expect(invokeMock).not.toHaveBeenCalled();
   });
+
+  it('transmet les deux empreintes avant de joindre la pièce MIME', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'add_supplier_email_attachment') return {};
+      if (command === 'get_app_state') return { onboarding_completed: 0 };
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    await desktopApi.addSupplierEmailAttachment(
+      input.id,
+      'C:\\factures\\message.eml',
+      'a'.repeat(64),
+      'b'.repeat(64),
+    );
+
+    expect(invokeMock).toHaveBeenCalledWith('add_supplier_email_attachment', {
+      input: {
+        supplier_invoice_id: input.id,
+        source_path: 'C:\\factures\\message.eml',
+        source_sha256: 'a'.repeat(64),
+        attachment_sha256: 'b'.repeat(64),
+      },
+    });
+  });
+
+  it('enregistre le brouillon et sa pièce avant un seul rafraîchissement', async () => {
+    const commands: string[] = [];
+    invokeMock.mockImplementation(async (command: string) => {
+      commands.push(command);
+      if (
+        command === 'save_supplier_email_invoice_draft' ||
+        command === 'add_supplier_email_attachment'
+      )
+        return {};
+      if (command === 'get_app_state') return { onboarding_completed: 0 };
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    await desktopApi.saveSupplierInvoiceDraftFromEmail(input, {
+      sourcePath: 'C:\\factures\\message.eml',
+      sourceSha256: 'a'.repeat(64),
+      attachmentSha256: 'b'.repeat(64),
+    });
+
+    expect(commands).toEqual([
+      'save_supplier_email_invoice_draft',
+      'add_supplier_email_attachment',
+      'get_app_state',
+    ]);
+  });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
   Check,
@@ -14,7 +14,10 @@ import {
 import {
   buildAgendaItems,
   calendarDays,
+  countUpcomingAgendaItems,
+  formatAgendaItemRange,
   itemOccursOn,
+  millisecondsUntilNextLocalDay,
   monthKeyFromDate,
   monthLabel,
   shiftDate,
@@ -22,14 +25,15 @@ import {
   weekDates,
   type AgendaCategory,
   type AgendaItem,
-  type AgendaRoute,
 } from './agenda';
 import type { AgendaEvent, Workspace } from './types';
 import { Button, EmptyState, Field, FormActions, Modal, StatusBadge } from './ui';
-import { formatDate, todayIso } from './utils';
+import { createId, formatDate, todayIso } from './utils';
 
 export type AgendaEventDraft = {
-  id?: string;
+  id: string;
+  isNew: boolean;
+  expectedUpdatedAt: string | null;
   title: string;
   startDate: string;
   endDate: string;
@@ -67,6 +71,8 @@ function eventDraft(event?: AgendaEvent, date = todayIso()): AgendaEventDraft {
   return event
     ? {
         id: event.id,
+        isNew: false,
+        expectedUpdatedAt: event.updatedAt,
         title: event.title,
         startDate: event.startDate,
         endDate: event.endDate,
@@ -81,6 +87,9 @@ function eventDraft(event?: AgendaEvent, date = todayIso()): AgendaEventDraft {
         employeeId: event.employeeId,
       }
     : {
+        id: createId(),
+        isNew: true,
+        expectedUpdatedAt: null,
         title: '',
         startDate: date,
         endDate: date,
@@ -98,15 +107,6 @@ function eventDraft(event?: AgendaEvent, date = todayIso()): AgendaEventDraft {
 
 function eventDraftFromAgendaItem(item: AgendaItem): AgendaEventDraft | null {
   return item.event ? eventDraft(item.event) : null;
-}
-
-function dateTimeLabel(item: AgendaItem, showDate: boolean) {
-  const time = !item.time
-    ? item.date === item.endDate
-      ? 'Toute la journée'
-      : 'Plusieurs jours'
-    : `${item.time}${item.endTime ? `–${item.endTime}` : ''}`;
-  return showDate ? `${formatDate(item.date)} · ${time}` : time;
 }
 
 function filteredItems(
@@ -134,9 +134,9 @@ export function AgendaScreen({
   readOnly: boolean;
   onSave: (draft: AgendaEventDraft) => Promise<boolean>;
   onDelete: (event: AgendaEvent) => Promise<boolean>;
-  onNavigate: (route: AgendaRoute) => void;
+  onNavigate: (item: AgendaItem) => void;
 }) {
-  const today = todayIso();
+  const [today, setToday] = useState(() => todayIso());
   const [month, setMonth] = useState(monthKeyFromDate(today));
   const [selectedDate, setSelectedDate] = useState(today);
   const [display, setDisplay] = useState<AgendaDisplay>('month');
@@ -164,21 +164,29 @@ export function AgendaScreen({
               item.date <= displayedWeek[6] && item.endDate >= displayedWeek[0],
           )
         : monthItems;
-  const nextWeek = new Date();
-  nextWeek.setDate(nextWeek.getDate() + 7);
-  const nextWeekIso = [
-    nextWeek.getFullYear(),
-    String(nextWeek.getMonth() + 1).padStart(2, '0'),
-    String(nextWeek.getDate()).padStart(2, '0'),
-  ].join('-');
   const todayCount = items.filter((item) => itemOccursOn(item, today)).length;
-  const nextCount = items.filter(
-    (item) =>
-      item.status === 'active' && item.date <= nextWeekIso && item.endDate >= today,
-  ).length;
+  const nextCount = countUpcomingAgendaItems(items, today, 7);
   const overdueCount = items.filter(
     (item) => item.status === 'active' && item.endDate < today,
   ).length;
+
+  useEffect(() => {
+    let timer = 0;
+    const refreshToday = () => setToday(todayIso());
+    const scheduleNextDay = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        refreshToday();
+        scheduleNextDay();
+      }, millisecondsUntilNextLocalDay(new Date()));
+    };
+    scheduleNextDay();
+    window.addEventListener('focus', refreshToday);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('focus', refreshToday);
+    };
+  }, []);
 
   function goToMonth(next: string) {
     setMonth(next);
@@ -382,8 +390,9 @@ export function AgendaScreen({
                     if (!window.confirm(`Supprimer le rendez-vous « ${item.title} » ?`)) return;
                     await onDelete(item.event);
                   }}
-                  onNavigate={() => item.route && onNavigate(item.route)}
+                  onNavigate={() => item.route && onNavigate(item)}
                   showDate={display !== 'day'}
+                  visibleDate={display === 'day' ? selectedDate : undefined}
                 />
               ))}
             </div>
@@ -487,6 +496,7 @@ function AgendaRow({
   onDelete,
   onNavigate,
   showDate,
+  visibleDate,
 }: {
   item: AgendaItem;
   busy: boolean;
@@ -496,12 +506,13 @@ function AgendaRow({
   onDelete: () => Promise<void>;
   onNavigate: () => void;
   showDate: boolean;
+  visibleDate?: string;
 }) {
   return (
     <article className={`agenda-row agenda-row--${item.category} ${item.status !== 'active' ? 'is-closed' : ''}`}>
       <div className="agenda-row__time">
         <Clock3 size={15} />
-        <span>{dateTimeLabel(item, showDate)}</span>
+        <span>{formatAgendaItemRange(item, showDate, visibleDate)}</span>
       </div>
       <div className="agenda-row__content">
         <div>
@@ -602,7 +613,7 @@ function AgendaEditor({
 
   return (
     <Modal
-      title={draft.id ? 'Modifier le rendez-vous' : 'Nouveau rendez-vous'}
+      title={draft.isNew ? 'Nouveau rendez-vous' : 'Modifier le rendez-vous'}
       description="Une seule fiche claire. Les autres échéances sont déjà reprises automatiquement par Zentra."
       onClose={onClose}
     >
@@ -697,8 +708,8 @@ function AgendaEditor({
           >
             <option value="">Aucun</option>
             {workspace.projects
-              .filter((project) => project.status !== 'closed')
-              .map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+              .filter((project) => project.status !== 'closed' || project.id === draft.projectId)
+              .map((project) => <option key={project.id} value={project.id}>{project.name}{project.status === 'closed' ? ' · fermé' : ''}</option>)}
           </select>
         </Field>
         <Field label="Responsable">
@@ -708,8 +719,8 @@ function AgendaEditor({
           >
             <option value="">Non attribué</option>
             {workspace.employees
-              .filter((employee) => employee.active)
-              .map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+              .filter((employee) => employee.active || employee.id === draft.employeeId)
+              .map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{employee.active ? '' : ' · inactif'}</option>)}
           </select>
         </Field>
         <Field label="Lieu" wide>

@@ -1,4 +1,5 @@
 import type { AgendaEvent, Workspace } from './types';
+import { formatDate } from './utils';
 
 export type AgendaCategory = 'agenda' | 'projects' | 'deadlines' | 'payroll';
 export type AgendaRoute =
@@ -344,4 +345,111 @@ export function calendarDays(monthKey: string): CalendarDay[] {
 
 export function itemOccursOn(item: AgendaItem, date: string) {
   return item.date <= date && item.endDate >= date;
+}
+
+/** Recherche ciblée utilisée par le bouton « Ouvrir » de l'agenda. */
+export function agendaNavigationQuery(item: AgendaItem, workspace: Workspace) {
+  if (item.source === 'task') {
+    return (
+      workspace.projectTasks.find((task) => task.id === item.sourceId)?.title ||
+      item.title
+    );
+  }
+  if (item.source === 'milestone') {
+    return (
+      workspace.projectMilestones.find(
+        (milestone) => milestone.id === item.sourceId,
+      )?.title || item.title
+    );
+  }
+  if (item.source === 'project') {
+    return (
+      workspace.projects.find((project) => project.id === item.sourceId)?.name ||
+      item.title
+    );
+  }
+  if (item.source === 'invoice') {
+    const invoice = workspace.invoices.find(
+      (candidate) => candidate.id === item.sourceId,
+    );
+    return invoice?.number || invoice?.title || item.title;
+  }
+  if (item.source === 'quote') {
+    const quote = workspace.quotes.find(
+      (candidate) => candidate.id === item.sourceId,
+    );
+    return quote?.number || quote?.title || item.title;
+  }
+  if (item.source === 'supplier_invoice') {
+    const invoice = workspace.supplierInvoices.find(
+      (candidate) => candidate.id === item.sourceId,
+    );
+    return invoice?.reference || invoice?.supplierName || item.title;
+  }
+  if (item.source === 'payslip') {
+    const payslip = workspace.payslips.find(
+      (candidate) => candidate.id === item.sourceId,
+    );
+    return (
+      workspace.employees.find(
+        (employee) => employee.id === payslip?.employeeId,
+      )?.name ||
+      payslip?.period ||
+      item.title
+    );
+  }
+  return item.title;
+}
+
+/** Compte demain jusqu'à J+n inclus. Aujourd'hui possède sa propre métrique. */
+export function countUpcomingAgendaItems(
+  items: AgendaItem[],
+  today: string,
+  days: number,
+) {
+  if (!Number.isInteger(days) || days <= 0) return 0;
+  const start = shiftDate(today, 1);
+  const end = shiftDate(today, days);
+  return items.filter(
+    (item) =>
+      item.status === 'active' && item.date <= end && item.endDate >= start,
+  ).length;
+}
+
+export function formatAgendaItemRange(
+  item: AgendaItem,
+  showDate: boolean,
+  visibleDate?: string,
+) {
+  if (item.date === item.endDate) {
+    const time = item.time
+      ? `${item.time}${item.endTime ? `–${item.endTime}` : ''}`
+      : 'Toute la journée';
+    return showDate ? `${formatDate(item.date)} · ${time}` : time;
+  }
+  if (!item.time) {
+    return showDate
+      ? `${formatDate(item.date)} – ${formatDate(item.endDate)} · Plusieurs jours`
+      : 'Plusieurs jours';
+  }
+  if (visibleDate) {
+    if (visibleDate === item.date) return `Dès ${item.time}`;
+    if (visibleDate === item.endDate)
+      return item.endTime ? `Jusqu’à ${item.endTime}` : 'Fin ce jour';
+    return 'Toute la journée';
+  }
+  const ending = item.endTime ? ` ${item.endTime}` : '';
+  return `${formatDate(item.date)} ${item.time} → ${formatDate(item.endDate)}${ending}`;
+}
+
+export function millisecondsUntilNextLocalDay(now: Date) {
+  const next = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+    0,
+    0,
+    1,
+  );
+  return Math.max(1_000, next.getTime() - now.getTime());
 }

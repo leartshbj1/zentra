@@ -9,6 +9,12 @@ export type SupplierEmailInspection = {
   senderName: string;
   senderEmail: string;
   attachmentNames: string[];
+  importableAttachments: Array<{
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+  }>;
   invoiceSignal: boolean;
   confidence: 'low' | 'medium' | 'high';
   matchedSupplierId: string | null;
@@ -90,7 +96,10 @@ export function supplierEmailDraftIssues(
     issues.push(
       'Confirmez d’abord que ce message contient réellement une facture.',
     );
-  if (supplierEmailDuplicateId(draft, workspace))
+  if (
+    supplierEmailDuplicateId(draft, workspace) ||
+    supplierEmailInspectionDuplicateId(draft, inspection)
+  )
     issues.push('Cette référence existe déjà pour ce fournisseur.');
   if (draft.currency !== 'CHF')
     issues.push(
@@ -126,22 +135,41 @@ export function supplierEmailDuplicateId(
   draft: Pick<SupplierEmailImportDraft, 'id' | 'supplierId' | 'reference'>,
   workspace: Workspace,
 ): string | null {
-  const normalized = draft.reference
-    .normalize('NFKC')
-    .replace(/[^\p{L}\p{N}]/gu, '')
-    .toLocaleUpperCase('fr-CH');
+  const normalized = normalizedSupplierReference(draft.reference);
   if (!draft.supplierId || !normalized) return null;
   return (
     workspace.supplierInvoices.find(
       (invoice) =>
         invoice.id !== draft.id &&
         invoice.supplierId === draft.supplierId &&
-        invoice.reference
-          .normalize('NFKC')
-          .replace(/[^\p{L}\p{N}]/gu, '')
-          .toLocaleUpperCase('fr-CH') === normalized,
+        normalizedSupplierReference(invoice.reference) === normalized,
     )?.id ?? null
   );
+}
+
+export function supplierEmailInspectionDuplicateId(
+  draft: Pick<SupplierEmailImportDraft, 'id' | 'supplierId' | 'reference'>,
+  inspection: Pick<
+    SupplierEmailInspection,
+    'duplicateInvoiceId' | 'matchedSupplierId' | 'reference'
+  >,
+): string | null {
+  if (
+    !inspection.duplicateInvoiceId ||
+    inspection.duplicateInvoiceId === draft.id ||
+    inspection.matchedSupplierId !== draft.supplierId ||
+    normalizedSupplierReference(inspection.reference) !==
+      normalizedSupplierReference(draft.reference)
+  )
+    return null;
+  return inspection.duplicateInvoiceId;
+}
+
+function normalizedSupplierReference(reference: string) {
+  return reference
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}]/gu, '')
+    .toLocaleUpperCase('fr-CH');
 }
 
 export function supplierEmailImportPayload(

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agendaNavigationQuery,
   buildAgendaItems,
   calendarDays,
+  countUpcomingAgendaItems,
+  formatAgendaItemRange,
   itemOccursOn,
+  millisecondsUntilNextLocalDay,
   shiftDate,
   shiftMonth,
   weekDates,
@@ -73,8 +77,7 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 
 describe('agenda', () => {
   it('compose les objets réels et ignore les brouillons sans échéance utile', () => {
-    const result = buildAgendaItems(
-      workspace({
+    const source = workspace({
         clients: [
           {
             id: 'client-1',
@@ -127,14 +130,15 @@ describe('agenda', () => {
             createdAt: '',
           },
         ],
-      }),
-    );
+      });
+    const result = buildAgendaItems(source);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       source: 'invoice',
       date: '2026-09-30',
       subtitle: 'Alpina SA',
     });
+    expect(agendaNavigationQuery(result[0], source)).toBe('F-42');
   });
 
   it('produit une grille complète commençant un lundi', () => {
@@ -174,6 +178,30 @@ describe('agenda', () => {
       '2026-09-05',
       '2026-09-06',
     ]);
+  });
+
+  it('cible le vrai titre d’un jalon sans conserver le préfixe de l’agenda', () => {
+    const source = workspace({
+      projectMilestones: [
+        {
+          id: 'milestone-1',
+          projectId: 'project-1',
+          title: 'Réception finale',
+          description: '',
+          dueDate: '2026-09-12',
+          status: 'done',
+          priority: 'normal',
+          sortOrder: 0,
+          employeeId: null,
+          completedAt: '2026-09-12T10:00:00Z',
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+    });
+    const item = buildAgendaItems(source)[0];
+    expect(item.title).toBe('Jalon · Réception finale');
+    expect(agendaNavigationQuery(item, source)).toBe('Réception finale');
   });
 
   it('affiche les factures fournisseurs validées à payer mais jamais les brouillons ou factures soldées', () => {
@@ -236,5 +264,64 @@ describe('agenda', () => {
         '2027-01-01',
       ),
     ).toBe(true);
+  });
+
+  it('compte exactement demain à J+7, sans recompter aujourd’hui', () => {
+    const item = (id: string, date: string) => ({
+      id,
+      source: 'event' as const,
+      sourceId: id,
+      category: 'agenda' as const,
+      date,
+      endDate: date,
+      time: null,
+      endTime: null,
+      title: id,
+      subtitle: '',
+      status: 'active' as const,
+    });
+    expect(
+      countUpcomingAgendaItems(
+        [
+          item('today', '2026-09-03'),
+          item('tomorrow', '2026-09-04'),
+          item('day-seven', '2026-09-10'),
+          item('day-eight', '2026-09-11'),
+        ],
+        '2026-09-03',
+        7,
+      ),
+    ).toBe(2);
+  });
+
+  it('décrit correctement un rendez-vous horaire qui traverse minuit', () => {
+    const overnight = {
+      id: 'event:overnight',
+      source: 'event' as const,
+      sourceId: 'overnight',
+      category: 'agenda' as const,
+      date: '2026-09-03',
+      endDate: '2026-09-04',
+      time: '23:00',
+      endTime: '01:00',
+      title: 'Intervention de nuit',
+      subtitle: '',
+      status: 'active' as const,
+    };
+    expect(formatAgendaItemRange(overnight, false, '2026-09-03')).toBe(
+      'Dès 23:00',
+    );
+    expect(formatAgendaItemRange(overnight, false, '2026-09-04')).toBe(
+      'Jusqu’à 01:00',
+    );
+    expect(formatAgendaItemRange(overnight, true)).toContain('→');
+    expect(formatAgendaItemRange(overnight, true)).toContain('01:00');
+  });
+
+  it('programme le changement de date au prochain minuit local', () => {
+    const delay = millisecondsUntilNextLocalDay(
+      new Date(2026, 8, 3, 23, 59, 30, 0),
+    );
+    expect(delay).toBe(31_000);
   });
 });

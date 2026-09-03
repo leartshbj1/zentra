@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Ban,
@@ -110,6 +110,8 @@ export function ProjectPlanningPanel({
   onSetTaskStatus,
   onDeleteTask,
   onDeleteMilestone,
+  focusItemId,
+  onFocusItemHandled,
 }: {
   workspace: Workspace;
   query: string;
@@ -123,12 +125,31 @@ export function ProjectPlanningPanel({
   ) => Promise<boolean>;
   onDeleteTask: (item: ProjectTask) => Promise<boolean>;
   onDeleteMilestone: (item: ProjectMilestone) => Promise<boolean>;
+  focusItemId: string | null;
+  onFocusItemHandled: () => void;
 }) {
   const [editor, setEditor] = useState<PlanningEditor>(null);
   const [projectId, setProjectId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [status, setStatus] = useState<ProjectTask['status'] | 'open'>('open');
   const today = todayIso();
+  useEffect(() => {
+    if (!focusItemId) return;
+    const target =
+      workspace.projectTasks.find((item) => item.id === focusItemId) ||
+      workspace.projectMilestones.find((item) => item.id === focusItemId);
+    if (target) {
+      setProjectId(target.projectId);
+      setEmployeeId('');
+      setStatus(target.status);
+    }
+    onFocusItemHandled();
+  }, [
+    focusItemId,
+    onFocusItemHandled,
+    workspace.projectMilestones,
+    workspace.projectTasks,
+  ]);
   const searchableTasks = useMemo(
     () =>
       workspace.projectTasks.filter((task) => {

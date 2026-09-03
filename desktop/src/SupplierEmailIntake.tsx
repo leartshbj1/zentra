@@ -12,6 +12,7 @@ import { desktopApi } from './bridge';
 import {
   supplierEmailDraftIssues,
   supplierEmailDuplicateId,
+  supplierEmailInspectionDuplicateId,
   supplierEmailImportPayload,
   type SupplierEmailImportDraft,
   type SupplierEmailInspection,
@@ -80,6 +81,9 @@ export function SupplierEmailIntake({
   const [inspection, setInspection] = useState<SupplierEmailInspection | null>(
     null,
   );
+  const [sourcePath, setSourcePath] = useState('');
+  const [selectedAttachmentSha256, setSelectedAttachmentSha256] =
+    useState('');
   const [draft, setDraft] = useState<SupplierEmailImportDraft | null>(null);
   const [totalText, setTotalText] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -101,7 +105,10 @@ export function SupplierEmailIntake({
     [draft, effectiveInspection, workspace],
   );
   const duplicateInvoiceId = draft
-    ? supplierEmailDuplicateId(draft, workspace)
+    ? supplierEmailDuplicateId(draft, workspace) ||
+      (inspection
+        ? supplierEmailInspectionDuplicateId(draft, inspection)
+        : null)
     : null;
 
   async function chooseMessage() {
@@ -112,6 +119,12 @@ export function SupplierEmailIntake({
       if (!path) return;
       const result = await desktopApi.inspectSupplierEmailFile(path);
       setInspection(result);
+      setSourcePath(path);
+      const preferredAttachment =
+        result.importableAttachments.length === 1
+          ? result.importableAttachments[0]
+          : undefined;
+      setSelectedAttachmentSha256(preferredAttachment?.sha256 || '');
       setDraft(initialDraft(result, workspace));
       setTotalText(
         result.totalCents ? (result.totalCents / 100).toFixed(2) : '',
@@ -129,6 +142,8 @@ export function SupplierEmailIntake({
 
   function close() {
     setInspection(null);
+    setSourcePath('');
+    setSelectedAttachmentSha256('');
     setDraft(null);
     setTotalText('');
     setConfirmed(false);
@@ -139,11 +154,23 @@ export function SupplierEmailIntake({
   async function save() {
     if (!draft || !effectiveInspection || issues.length || !confirmed) return;
     const success = await runAction(
-      () =>
-        desktopApi.saveSupplierInvoiceDraft(
+      async () => {
+        return desktopApi.saveSupplierInvoiceDraftFromEmail(
           supplierEmailImportPayload(draft, effectiveInspection),
-        ),
-      "Le message a créé un brouillon fournisseur. Ouvrez-le, joignez le PDF original puis validez-le pour l'enregistrer en comptabilité.",
+          selectedAttachmentSha256 && sourcePath
+            ? {
+                sourcePath,
+                sourceSha256: effectiveInspection.sha256,
+                attachmentSha256: selectedAttachmentSha256,
+              }
+            : null,
+        );
+      },
+      selectedAttachmentSha256
+        ? 'Le brouillon et son justificatif ont été enregistrés localement. Contrôlez-les puis validez la facture pour la comptabiliser.'
+        : effectiveInspection.importableAttachments.length
+          ? 'Le brouillon a été enregistré sans justificatif automatique. Ajoutez ou contrôlez la bonne pièce avant de valider la facture.'
+        : "Le message a créé un brouillon fournisseur. Aucune pièce lisible n'a pu être extraite; joignez le justificatif original avant validation.",
       false,
     );
     if (success) close();
@@ -245,6 +272,45 @@ export function SupplierEmailIntake({
                     : 'faible'}
               </span>
             </section>
+
+            {inspection.importableAttachments.length ? (
+              <label className="supplier-email-attachment-choice">
+                <span>
+                  <Paperclip size={16} /> Justificatif joint au brouillon
+                </span>
+                <select
+                  value={selectedAttachmentSha256}
+                  onChange={(event) =>
+                    setSelectedAttachmentSha256(event.target.value)
+                  }
+                >
+                  <option value="">Ne pas joindre automatiquement</option>
+                  {inspection.importableAttachments.map((attachment) => (
+                    <option key={attachment.sha256} value={attachment.sha256}>
+                      {attachment.name} ·{' '}
+                      {(attachment.sizeBytes / 1024).toLocaleString('fr-CH', {
+                        maximumFractionDigits: 0,
+                      })}{' '}
+                      Ko
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  {inspection.importableAttachments.length > 1
+                    ? 'Plusieurs pièces sont disponibles. Choisissez explicitement le justificatif à joindre.'
+                    : 'Zentra vérifie la vraie signature du fichier avant de le conserver. Vous pourrez l’ouvrir depuis le brouillon avant validation.'}
+                </small>
+              </label>
+            ) : (
+              <div className="supplier-email-no-attachment" role="status">
+                <AlertTriangle size={17} />
+                <span>
+                  Aucune pièce PDF ou image lisible n’a pu être extraite. Le
+                  brouillon reste possible, mais le justificatif devra être
+                  joint manuellement avant validation.
+                </span>
+              </div>
+            )}
 
             {!inspection.invoiceSignal ? (
               <label className="supplier-email-confirm-warning">
@@ -447,16 +513,16 @@ export function SupplierEmailIntake({
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
               <span>
-                J’ai contrôlé la pièce jointe, le fournisseur, les dates, le
-                montant et la TVA.
+                J’ai contrôlé le message exporté, le fournisseur, les dates, le
+                montant, la TVA et mon choix de justificatif.
               </span>
             </label>
             <div className="supplier-email-proof">
               <Paperclip size={15} />
               <span>
                 Le nom du message, son Message-ID et son empreinte SHA-256
-                seront inscrits dans la note du brouillon. Joignez ensuite le
-                PDF original.
+                seront inscrits dans la note. La pièce sélectionnée est extraite
+                localement et jointe au brouillon sans accès à votre boîte mail.
               </span>
             </div>
             <FormActions

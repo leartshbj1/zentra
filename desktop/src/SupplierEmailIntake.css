@@ -43,6 +43,13 @@
 .supplier-email-confidence.is-medium { color: #9b641a; }
 .supplier-email-confidence.is-low { color: var(--danger); }
 
+.supplier-email-attachment-choice { display: grid; gap: 7px; margin-top: 14px; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--green-700) 22%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--green-700) 5%, var(--paper)); }
+.supplier-email-attachment-choice > span { display: flex; align-items: center; gap: 7px; color: var(--green-700); font-weight: 700; }
+.supplier-email-attachment-choice select { width: 100%; }
+.supplier-email-attachment-choice small { color: var(--muted); line-height: 1.4; }
+.supplier-email-no-attachment { display: flex; align-items: flex-start; gap: 9px; margin-top: 14px; padding: 12px 14px; border-radius: 13px; color: #875914; background: color-mix(in srgb, var(--amber) 11%, transparent); }
+.supplier-email-no-attachment svg { flex: 0 0 auto; margin-top: 1px; }
+
 .supplier-email-confirm-warning,
 .supplier-email-final-check { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px; border-radius: 13px; background: color-mix(in srgb, var(--amber) 10%, transparent); }
 .supplier-email-confirm-warning span { display: flex; gap: 8px; }

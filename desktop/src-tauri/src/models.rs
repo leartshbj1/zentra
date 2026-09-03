@@ -184,6 +184,14 @@ pub struct SaveProjectTaskInput {
 pub struct SaveAgendaEventInput {
     #[serde(default)]
     pub id: Option<String>,
+    /// Une création reçoit son UUID depuis l'interface afin qu'une reprise
+    /// après un échec de rafraîchissement ne crée jamais un doublon.
+    #[serde(default)]
+    pub create_only: bool,
+    /// Version lue par l'interface avant une modification. Elle permet de
+    /// refuser un écrasement silencieux depuis une autre fenêtre.
+    #[serde(default)]
+    pub expected_updated_at: Option<String>,
     pub title: String,
     pub start_date: String,
     pub end_date: String,

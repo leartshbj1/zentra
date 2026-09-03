@@ -86,10 +86,12 @@ pub fn run() {
             record_stock_exit,
             record_stock_correction,
             save_supplier_invoice_draft,
+            save_supplier_email_invoice_draft,
             validate_supplier_invoice,
             record_supplier_payment,
             delete_supplier_invoice_draft,
             inspect_supplier_email_file,
+            add_supplier_email_attachment,
             save_supplier_order_draft,
             confirm_supplier_order,
             cancel_supplier_order_remainder,
@@ -3379,6 +3381,28 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
         assert_eq!(draft_count, 1);
+        let draft_audit_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE entity_type='supplier_invoice_draft' AND entity_id=?",
+                rusqlite::params![draft_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            draft_audit_count, 1,
+            "rejouer le même brouillon ne doit ni réécrire ni réauditer"
+        );
+
+        let mut duplicate_draft = input.clone();
+        duplicate_draft.id = Some("c62fc9aa-30e4-42d7-b034-d57590df6d26".into());
+        let duplicate_error = store
+            .save_supplier_email_invoice_draft(duplicate_draft)
+            .unwrap_err();
+        assert!(duplicate_error
+            .to_string()
+            .contains("référence existe déjà"));
 
         let source_attachment = temporary.path().join("supplier-invoice.pdf");
         std::fs::write(&source_attachment, b"%PDF-1.7\nreal payload").unwrap();

@@ -35,6 +35,7 @@ use crate::{
         UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
         ValidateSupplierCreditNoteInput,
     },
+    supplier_email::AddSupplierEmailAttachmentInput,
     swiss_qr,
     vat_reporting::{
         ExportVatReturnInput, ListVatAdjustmentsInput, ListVatReturnExportsInput,
@@ -302,10 +303,13 @@ pub fn save_agenda_event(
 pub fn delete_agenda_event(
     state: State<'_, LocalStore>,
     id: String,
+    expected_updated_at: Option<String>,
 ) -> Result<DeleteResult, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.delete_agenda_event(&id).map_err(command_error)
+    state
+        .delete_agenda_event(&id, expected_updated_at.as_deref())
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -347,6 +351,18 @@ pub fn save_supplier_invoice_draft(
     require_write(&state)?;
     state
         .save_supplier_invoice_draft(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn save_supplier_email_invoice_draft(
+    state: State<'_, LocalStore>,
+    input: SaveSupplierInvoiceDraftInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .save_supplier_email_invoice_draft(input)
         .map_err(command_error)
 }
 
@@ -1141,6 +1157,18 @@ pub fn inspect_supplier_email_file(
     let _guard = state.lock().map_err(command_error)?;
     state
         .inspect_supplier_email_file(&source_path)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn add_supplier_email_attachment(
+    state: State<'_, LocalStore>,
+    input: AddSupplierEmailAttachmentInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .add_supplier_email_attachment(input)
         .map_err(command_error)
 }
 

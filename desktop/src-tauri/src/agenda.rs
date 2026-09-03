@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     audit::append_audit,
-    database::{now_iso, query_record_tx, LocalStore},
+    database::{now_iso, query_all, query_record_tx, LocalStore},
     error::{AppError, AppResult},
     models::{DeleteResult, SaveAgendaEventInput},
 };
@@ -16,7 +16,14 @@ const EVENT_STATUSES: &[&str] = &["scheduled", "completed", "cancelled"];
 impl LocalStore {
     pub fn save_agenda_event(&self, input: SaveAgendaEventInput) -> AppResult<Value> {
         let id = optional_uuid(input.id, "id")?;
+        if input.create_only && id.is_none() {
+            return Err(AppError::Validation(
+                "Une création d'agenda doit conserver un identifiant technique stable.".into(),
+            ));
+        }
         let title = required_text(&input.title, "title", 200)?;
+        let expected_updated_at =
+            optional_text(input.expected_updated_at, "expected_updated_at", 64)?;
         let start_date = canonical_date(&input.start_date, "start_date")?;
         let end_date = canonical_date(&input.end_date, "end_date")?;
         if end_date < start_date {
@@ -62,22 +69,73 @@ impl LocalStore {
             ensure_exists(&transaction, "employees", value, "collaborateur")?;
         }
 
+        let previous = if let Some(id) = id.as_deref() {
+            query_all(
+                &transaction,
+                "SELECT * FROM agenda_events WHERE id=?",
+                params![id],
+            )?
+            .into_iter()
+            .next()
+        } else {
+            None
+        };
+        if let Some(previous) = previous.as_ref() {
+            if agenda_event_matches(
+                previous,
+                &title,
+                &start_date,
+                &end_date,
+                input.all_day,
+                start_time.as_deref(),
+                end_time.as_deref(),
+                &kind,
+                &status,
+                location.as_deref(),
+                notes.as_deref(),
+                project_id.as_deref(),
+                employee_id.as_deref(),
+            ) {
+                transaction.commit()?;
+                return Ok(previous.clone());
+            }
+            if input.create_only {
+                return Err(AppError::Validation(
+                    "Ce rendez-vous a déjà été créé avec d'autres données. Rechargez l'agenda avant de continuer."
+                        .into(),
+                ));
+            }
+            if expected_updated_at
+                .as_deref()
+                .is_some_and(|expected| previous["updated_at"].as_str() != Some(expected))
+            {
+                return Err(AppError::Validation(
+                    "Ce rendez-vous a été modifié dans une autre fenêtre. Rechargez l'agenda avant d'enregistrer vos changements."
+                        .into(),
+                ));
+            }
+        }
+
         let now = now_iso();
-        let (id, previous, created_at, action) = match id {
-            Some(id) => {
-                let previous = query_record_tx(&transaction, "agenda_events", &id)?;
+        let (id, previous, created_at, action) = match (id, previous) {
+            (Some(id), Some(previous)) => {
                 let created_at = previous["created_at"]
                     .as_str()
                     .ok_or_else(|| AppError::Validation("Événement local incomplet.".into()))?
                     .to_owned();
                 (id, previous, created_at, "update")
             }
-            None => (
+            (Some(id), None) if input.create_only => (id, Value::Null, now.clone(), "create"),
+            (Some(id), None) => {
+                return Err(AppError::NotFound(format!("agenda_events/{id}")));
+            }
+            (None, None) => (
                 Uuid::new_v4().to_string(),
                 Value::Null,
                 now.clone(),
                 "create",
             ),
+            (None, Some(_)) => unreachable!("un événement sans identifiant ne peut pas exister"),
         };
         transaction.execute(
             "INSERT INTO agenda_events
@@ -118,17 +176,82 @@ impl LocalStore {
         Ok(record)
     }
 
-    pub fn delete_agenda_event(&self, id: &str) -> AppResult<DeleteResult> {
+    pub fn delete_agenda_event(
+        &self,
+        id: &str,
+        expected_updated_at: Option<&str>,
+    ) -> AppResult<DeleteResult> {
         let id = required_uuid(id, "id")?;
+        let expected_updated_at = optional_text(
+            expected_updated_at.map(str::to_owned),
+            "expected_updated_at",
+            64,
+        )?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let previous = query_record_tx(&transaction, "agenda_events", &id)?;
+        let previous = query_all(
+            &transaction,
+            "SELECT * FROM agenda_events WHERE id=?",
+            params![id],
+        )?
+        .into_iter()
+        .next();
+        let Some(previous) = previous else {
+            transaction.commit()?;
+            return Ok(DeleteResult { deleted: false, id });
+        };
+        if expected_updated_at
+            .as_deref()
+            .is_some_and(|expected| previous["updated_at"].as_str() != Some(expected))
+        {
+            return Err(AppError::Validation(
+                "Ce rendez-vous a été modifié dans une autre fenêtre. Rechargez l'agenda avant de le supprimer."
+                    .into(),
+            ));
+        }
         let deleted =
             transaction.execute("DELETE FROM agenda_events WHERE id=?", params![id])? == 1;
         append_audit(&transaction, "delete", "agenda_event", &id, &previous)?;
         transaction.commit()?;
         Ok(DeleteResult { deleted, id })
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn agenda_event_matches(
+    previous: &Value,
+    title: &str,
+    start_date: &str,
+    end_date: &str,
+    all_day: bool,
+    start_time: Option<&str>,
+    end_time: Option<&str>,
+    kind: &str,
+    status: &str,
+    location: Option<&str>,
+    notes: Option<&str>,
+    project_id: Option<&str>,
+    employee_id: Option<&str>,
+) -> bool {
+    previous["title"].as_str() == Some(title)
+        && previous["start_date"].as_str() == Some(start_date)
+        && previous["end_date"].as_str() == Some(end_date)
+        && previous["all_day"].as_bool() == Some(all_day)
+        && optional_string_matches(&previous["start_time"], start_time)
+        && optional_string_matches(&previous["end_time"], end_time)
+        && previous["kind"].as_str() == Some(kind)
+        && previous["status"].as_str() == Some(status)
+        && optional_string_matches(&previous["location"], location)
+        && optional_string_matches(&previous["notes"], notes)
+        && optional_string_matches(&previous["project_id"], project_id)
+        && optional_string_matches(&previous["employee_id"], employee_id)
+}
+
+fn optional_string_matches(value: &Value, expected: Option<&str>) -> bool {
+    match expected {
+        Some(expected) => value.as_str() == Some(expected),
+        None => value.is_null(),
     }
 }
 
@@ -250,6 +373,8 @@ mod tests {
     fn event(id: Option<String>) -> SaveAgendaEventInput {
         SaveAgendaEventInput {
             id,
+            create_only: false,
+            expected_updated_at: None,
             title: "Visite client".into(),
             start_date: "2026-09-08".into(),
             end_date: "2026-09-08".into(),
@@ -309,10 +434,101 @@ mod tests {
             .unwrap();
         assert_eq!(audit_count, 2);
 
-        assert!(store.delete_agenda_event(&id).unwrap().deleted);
+        let updated_at = updated["updated_at"].as_str().unwrap();
+        assert!(
+            store
+                .delete_agenda_event(&id, Some(updated_at))
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !store
+                .delete_agenda_event(&id, Some(updated_at))
+                .unwrap()
+                .deleted
+        );
         assert!(store.get_workspace().unwrap()["agenda_events"]
             .as_array()
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn stable_creation_id_prevents_duplicates_and_conflicting_retries() {
+        let (_temporary, store) = initialized_store();
+        let stable_id = "d70fb973-2e6e-4f0a-acd4-c2ef3915a498";
+        let mut first = event(Some(stable_id.into()));
+        first.create_only = true;
+        let created = store.save_agenda_event(first.clone()).unwrap();
+        let repeated = store.save_agenda_event(first).unwrap();
+        assert_eq!(created["id"], stable_id);
+        assert_eq!(repeated["id"], stable_id);
+
+        let count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM agenda_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+        let audit_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE entity_type='agenda_event'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_count, 1, "une reprise identique reste sans effet");
+
+        let mut conflict = event(Some(stable_id.into()));
+        conflict.create_only = true;
+        conflict.title = "Autre rendez-vous".into();
+        assert!(store.save_agenda_event(conflict).is_err());
+        assert_eq!(
+            store.get_workspace().unwrap()["agenda_events"][0]["title"],
+            "Visite client"
+        );
+    }
+
+    #[test]
+    fn update_retry_is_idempotent_and_stale_changes_are_rejected() {
+        let (_temporary, store) = initialized_store();
+        let created = store.save_agenda_event(event(None)).unwrap();
+        let id = created["id"].as_str().unwrap().to_owned();
+        let original_updated_at = created["updated_at"].as_str().unwrap().to_owned();
+
+        let mut first_update = event(Some(id.clone()));
+        first_update.expected_updated_at = Some(original_updated_at.clone());
+        first_update.title = "Visite déplacée".into();
+        let updated = store.save_agenda_event(first_update.clone()).unwrap();
+        assert_ne!(updated["updated_at"], original_updated_at);
+
+        let repeated = store.save_agenda_event(first_update).unwrap();
+        assert_eq!(repeated, updated, "un rejeu identique reste sans effet");
+
+        assert!(matches!(
+            store.delete_agenda_event(&id, Some(&original_updated_at)),
+            Err(AppError::Validation(message)) if message.contains("autre fenêtre")
+        ));
+
+        let mut stale = event(Some(id));
+        stale.expected_updated_at = Some(original_updated_at);
+        stale.notes = Some("Modification depuis une autre fenêtre".into());
+        assert!(matches!(
+            store.save_agenda_event(stale),
+            Err(AppError::Validation(message)) if message.contains("autre fenêtre")
+        ));
+
+        let audit_count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE entity_type='agenda_event'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_count, 2, "création et mise à jour seulement");
     }
 }

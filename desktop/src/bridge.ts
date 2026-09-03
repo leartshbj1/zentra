@@ -166,6 +166,27 @@ type AppState = {
   database_path: string;
   app_version: string;
 };
+type SupplierInvoiceDraftSaveInput = {
+  id: string;
+  supplierId: string;
+  projectId?: string | null;
+  date: string;
+  dueDate: string;
+  reference?: string;
+  note?: string;
+  items: Array<{
+    id?: string;
+    description: string;
+    quantityMilli: number;
+    unit?: string;
+    unitPriceCents: number;
+    discountBp?: number;
+    vatBp: number;
+    category: string;
+    expenseAccountId?: string | null;
+    projectId?: string | null;
+  }>;
+};
 export type OnboardingValidationIssue = {
   step: number;
   field: string;
@@ -3561,6 +3582,18 @@ function supplierEmailInspectionFromRaw(
           (value): value is string => typeof value === 'string',
         )
       : [],
+    importableAttachments: Array.isArray(row.importable_attachments)
+      ? row.importable_attachments.flatMap((value) => {
+          const attachment = recordValue(value);
+          const name = stringValue(attachment.name);
+          const mimeType = stringValue(attachment.mime_type);
+          const sizeBytes = numberValue(attachment.size_bytes);
+          const sha256 = stringValue(attachment.sha256);
+          return name && mimeType && sizeBytes > 0 && /^[0-9a-f]{64}$/i.test(sha256)
+            ? [{ name, mimeType, sizeBytes, sha256 }]
+            : [];
+        })
+      : [],
     invoiceSignal: boolValue(row.invoice_signal),
     confidence: ['low', 'medium', 'high'].includes(confidence)
       ? (confidence as SupplierEmailInspection['confidence'])
@@ -4393,6 +4426,38 @@ const periodFilterToRaw = (filter: PeriodFilter): RawRecord => ({
   date_to: filter.dateTo || null,
 });
 
+function supplierInvoiceDraftInvokeArgs(input: SupplierInvoiceDraftSaveInput) {
+  const id = input.id.trim();
+  if (!id) {
+    throw new Error(
+      'L’identifiant technique du brouillon fournisseur est requis pour garantir une reprise sans doublon.',
+    );
+  }
+  return {
+    input: {
+      id,
+      supplier_id: input.supplierId,
+      project_id: input.projectId || null,
+      date: input.date,
+      due_date: input.dueDate,
+      reference: input.reference?.trim() || null,
+      note: input.note?.trim() || null,
+      items: input.items.map((item) => ({
+        id: item.id || null,
+        description: item.description,
+        quantity_milli: item.quantityMilli,
+        unit: item.unit || null,
+        unit_price_cents: item.unitPriceCents,
+        discount_bp: item.discountBp || 0,
+        vat_bp: item.vatBp,
+        category: item.category,
+        expense_account_id: item.expenseAccountId || null,
+        project_id: item.projectId || null,
+      })),
+    },
+  };
+}
+
 export const desktopApi = {
   loadWorkspace,
   async getNogaCatalog(): Promise<NogaCatalog> {
@@ -4612,7 +4677,9 @@ export const desktopApi = {
     return loadWorkspace();
   },
   async saveAgendaEvent(input: {
-    id?: string;
+    id: string;
+    isNew: boolean;
+    expectedUpdatedAt: string | null;
     title: string;
     startDate: string;
     endDate: string;
@@ -4628,7 +4695,9 @@ export const desktopApi = {
   }) {
     await invoke('save_agenda_event', {
       input: {
-        id: input.id ?? null,
+        id: input.id,
+        create_only: input.isNew,
+        expected_updated_at: input.expectedUpdatedAt,
         title: input.title,
         start_date: input.startDate,
         end_date: input.endDate,
@@ -4645,8 +4714,8 @@ export const desktopApi = {
     });
     return loadWorkspace();
   },
-  async deleteAgendaEvent(id: string) {
-    await invoke('delete_agenda_event', { id });
+  async deleteAgendaEvent(id: string, expectedUpdatedAt: string) {
+    await invoke('delete_agenda_event', { id, expectedUpdatedAt });
     return loadWorkspace();
   },
   async recordStockEntry(input: {
@@ -4980,56 +5049,33 @@ export const desktopApi = {
     });
     return loadWorkspace();
   },
-  async saveSupplierInvoiceDraft(input: {
-    id: string;
-    supplierId: string;
-    projectId?: string | null;
-    date: string;
-    dueDate: string;
-    reference?: string;
-    note?: string;
-    items: Array<{
-      id?: string;
-      description: string;
-      quantityMilli: number;
-      unit?: string;
-      unitPriceCents: number;
-      discountBp?: number;
-      vatBp: number;
-      category: string;
-      expenseAccountId?: string | null;
-      projectId?: string | null;
-    }>;
-  }) {
-    const id = input.id.trim();
-    if (!id) {
-      throw new Error(
-        'L’identifiant technique du brouillon fournisseur est requis pour garantir une reprise sans doublon.',
-      );
+  async saveSupplierInvoiceDraft(input: SupplierInvoiceDraftSaveInput) {
+    await invoke('save_supplier_invoice_draft',
+      supplierInvoiceDraftInvokeArgs(input));
+    return loadWorkspace();
+  },
+  async saveSupplierInvoiceDraftFromEmail(
+    input: SupplierInvoiceDraftSaveInput,
+    attachment: {
+      sourcePath: string;
+      sourceSha256: string;
+      attachmentSha256: string;
+    } | null,
+  ) {
+    await invoke(
+      'save_supplier_email_invoice_draft',
+      supplierInvoiceDraftInvokeArgs(input),
+    );
+    if (attachment) {
+      await invoke('add_supplier_email_attachment', {
+        input: {
+          supplier_invoice_id: input.id.trim(),
+          source_path: attachment.sourcePath,
+          source_sha256: attachment.sourceSha256,
+          attachment_sha256: attachment.attachmentSha256,
+        },
+      });
     }
-    await invoke('save_supplier_invoice_draft', {
-      input: {
-        id,
-        supplier_id: input.supplierId,
-        project_id: input.projectId || null,
-        date: input.date,
-        due_date: input.dueDate,
-        reference: input.reference?.trim() || null,
-        note: input.note?.trim() || null,
-        items: input.items.map((item) => ({
-          id: item.id || null,
-          description: item.description,
-          quantity_milli: item.quantityMilli,
-          unit: item.unit || null,
-          unit_price_cents: item.unitPriceCents,
-          discount_bp: item.discountBp || 0,
-          vat_bp: item.vatBp,
-          category: item.category,
-          expense_account_id: item.expenseAccountId || null,
-          project_id: item.projectId || null,
-        })),
-      },
-    });
     return loadWorkspace();
   },
   async validateSupplierInvoice(id: string) {
@@ -5081,6 +5127,22 @@ export const desktopApi = {
       sourcePath,
     });
     return supplierEmailInspectionFromRaw(raw);
+  },
+  async addSupplierEmailAttachment(
+    supplierInvoiceId: string,
+    sourcePath: string,
+    sourceSha256: string,
+    attachmentSha256: string,
+  ) {
+    await invoke('add_supplier_email_attachment', {
+      input: {
+        supplier_invoice_id: supplierInvoiceId,
+        source_path: sourcePath,
+        source_sha256: sourceSha256,
+        attachment_sha256: attachmentSha256,
+      },
+    });
+    return loadWorkspace();
   },
   async chooseSupplierInvoiceAttachment(): Promise<string | null> {
     return chooseFile({

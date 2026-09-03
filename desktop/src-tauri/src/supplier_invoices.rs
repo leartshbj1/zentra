@@ -76,6 +76,21 @@ impl LocalStore {
         &self,
         input: SaveSupplierInvoiceDraftInput,
     ) -> AppResult<Value> {
+        self.save_supplier_invoice_draft_with_policy(input, false)
+    }
+
+    pub fn save_supplier_email_invoice_draft(
+        &self,
+        input: SaveSupplierInvoiceDraftInput,
+    ) -> AppResult<Value> {
+        self.save_supplier_invoice_draft_with_policy(input, true)
+    }
+
+    fn save_supplier_invoice_draft_with_policy(
+        &self,
+        input: SaveSupplierInvoiceDraftInput,
+        reject_duplicate_reference: bool,
+    ) -> AppResult<Value> {
         let supplier_id = required(&input.supplier_id, "fournisseur", 100)?;
         let document_date = date(&input.date, "date de facture")?;
         let due_date = date(&input.due_date, "échéance")?;
@@ -95,6 +110,7 @@ impl LocalStore {
             ));
         }
         let reference = optional_text(input.reference.as_deref(), "référence", 200)?;
+        let reference_normalized = normalize_reference(reference.as_deref());
         let note = optional_text(input.note.as_deref(), "note", 10_000)?;
         let project_id = optional_id(input.project_id.as_deref());
         if let Some(id) = input.id.as_deref().filter(|id| !id.trim().is_empty()) {
@@ -144,6 +160,28 @@ impl LocalStore {
         } else {
             None
         };
+
+        if reject_duplicate_reference {
+            let Some(normalized) = reference_normalized.as_deref() else {
+                return Err(AppError::Validation(
+                    "Indiquez la référence de la facture reçue par e-mail.".into(),
+                ));
+            };
+            let current_id = input.id.as_deref().unwrap_or_default().trim();
+            let duplicate = tx
+                .query_row(
+                    "SELECT id FROM supplier_invoices WHERE supplier_id=? AND reference_normalized=? AND id<>? ORDER BY created_at,id LIMIT 1",
+                    params![supplier_id, normalized, current_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            if duplicate.is_some() {
+                return Err(AppError::Validation(
+                    "Cette référence existe déjà pour ce fournisseur. Ouvrez la facture existante plutôt que de créer un doublon."
+                        .into(),
+                ));
+            }
+        }
 
         let (supplier_name, supplier_archived): (String, bool) = tx
             .query_row(
@@ -207,16 +245,39 @@ impl LocalStore {
         .into_iter()
         .next()
         .unwrap_or(Value::Null);
+        if !before.is_null()
+            && supplier_invoice_draft_matches(
+                &tx,
+                &id,
+                &before,
+                &supplier_id,
+                project_id.as_deref(),
+                &document_date,
+                &due_date,
+                &supplier_name,
+                reference.as_deref(),
+                reference_normalized.as_deref(),
+                net_cents,
+                vat_cents,
+                total_cents,
+                note.as_deref(),
+                &lines,
+            )?
+        {
+            let result = supplier_invoice_bundle(&tx, &id)?;
+            tx.commit()?;
+            return Ok(result);
+        }
         let now = now_iso();
         if before.is_null() {
             tx.execute(
                 "INSERT INTO supplier_invoices(id,supplier_id,project_id,document_date,due_date,supplier_name,reference,reference_normalized,currency,status,net_cents,vat_cents,total_cents,paid_cents,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'draft',?,?,?,0,?,?,?)",
-                params![id,supplier_id,project_id,document_date,due_date,supplier_name,reference,normalize_reference(reference.as_deref()),"CHF",net_cents,vat_cents,total_cents,note,now,now],
+                params![id,supplier_id,project_id,document_date,due_date,supplier_name,reference,reference_normalized,"CHF",net_cents,vat_cents,total_cents,note,now,now],
             )?;
         } else {
             tx.execute(
                 "UPDATE supplier_invoices SET supplier_id=?,project_id=?,document_date=?,due_date=?,supplier_name=?,reference=?,reference_normalized=?,currency='CHF',net_cents=?,vat_cents=?,total_cents=?,note=?,updated_at=? WHERE id=? AND status='draft'",
-                params![supplier_id,project_id,document_date,due_date,supplier_name,reference,normalize_reference(reference.as_deref()),net_cents,vat_cents,total_cents,note,now,id],
+                params![supplier_id,project_id,document_date,due_date,supplier_name,reference,reference_normalized,net_cents,vat_cents,total_cents,note,now,id],
             )?;
             tx.execute(
                 "DELETE FROM supplier_invoice_items WHERE supplier_invoice_id=?",
@@ -731,6 +792,83 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         close_supplier_order_if_complete(tx, &order_id)?;
     }
     supplier_invoice_bundle(tx, id)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn supplier_invoice_draft_matches(
+    tx: &Transaction<'_>,
+    id: &str,
+    invoice: &Value,
+    supplier_id: &str,
+    project_id: Option<&str>,
+    document_date: &str,
+    due_date: &str,
+    supplier_name: &str,
+    reference: Option<&str>,
+    reference_normalized: Option<&str>,
+    net_cents: i64,
+    vat_cents: i64,
+    total_cents: i64,
+    note: Option<&str>,
+    expected_lines: &[PreparedLine],
+) -> AppResult<bool> {
+    if invoice["supplier_id"].as_str() != Some(supplier_id)
+        || !optional_json_string_matches(&invoice["project_id"], project_id)
+        || invoice["document_date"].as_str() != Some(document_date)
+        || invoice["due_date"].as_str() != Some(due_date)
+        || invoice["supplier_name"].as_str() != Some(supplier_name)
+        || !optional_json_string_matches(&invoice["reference"], reference)
+        || !optional_json_string_matches(&invoice["reference_normalized"], reference_normalized)
+        || invoice["currency"].as_str() != Some("CHF")
+        || invoice["status"].as_str() != Some("draft")
+        || invoice["net_cents"].as_i64() != Some(net_cents)
+        || invoice["vat_cents"].as_i64() != Some(vat_cents)
+        || invoice["total_cents"].as_i64() != Some(total_cents)
+        || !optional_json_string_matches(&invoice["note"], note)
+    {
+        return Ok(false);
+    }
+
+    let stored_lines = query_all(
+        tx,
+        "SELECT position,description,quantity_milli,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,category,expense_account_id,project_id FROM supplier_invoice_items WHERE supplier_invoice_id=? ORDER BY position,rowid",
+        params![id],
+    )?;
+    if stored_lines.len() != expected_lines.len() {
+        return Ok(false);
+    }
+    Ok(stored_lines
+        .iter()
+        .zip(expected_lines)
+        .enumerate()
+        .all(|(position, (stored, expected))| {
+            stored["position"].as_i64() == i64::try_from(position).ok()
+                && stored["description"].as_str() == Some(expected.description.as_str())
+                && stored["quantity_milli"].as_i64() == Some(expected.quantity_milli)
+                && stored["unit"].as_str() == Some(expected.unit.as_str())
+                && stored["unit_price_cents"].as_i64() == Some(expected.unit_price_cents)
+                && stored["discount_bp"].as_i64() == Some(expected.discount_bp)
+                && stored["vat_bp"].as_i64() == Some(expected.vat_bp)
+                && stored["line_net_cents"].as_i64() == Some(expected.net_cents)
+                && stored["line_vat_cents"].as_i64() == Some(expected.vat_cents)
+                && stored["line_total_cents"].as_i64() == Some(expected.total_cents)
+                && stored["category"].as_str() == Some(expected.category.as_str())
+                && optional_json_string_matches(
+                    &stored["expense_account_id"],
+                    expected.expense_account_id.as_deref(),
+                )
+                && optional_json_string_matches(
+                    &stored["project_id"],
+                    expected.project_id.as_deref(),
+                )
+        }))
+}
+
+fn optional_json_string_matches(value: &Value, expected: Option<&str>) -> bool {
+    match expected {
+        Some(expected) => value.as_str() == Some(expected),
+        None => value.is_null(),
+    }
 }
 
 fn prepare_line(

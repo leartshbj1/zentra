@@ -72,8 +72,8 @@ import {
 import { desktopApi, type CloudAccountState } from './bridge';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
-import { AccountingScreen } from './AccountingScreen';
-import { AgendaScreen, type AgendaEventDraft } from './AgendaScreen';
+import type { AgendaEventDraft } from './AgendaScreen';
+import { agendaNavigationQuery, type AgendaItem } from './agenda';
 import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
 import { CloudAccountPanel } from './CloudAccountPanel';
 import { BusinessProfileFields } from './BusinessProfileEditor';
@@ -81,7 +81,6 @@ import {
   PaymentAccountingProofs,
   type AccountingEntryFocus,
 } from './PaymentAccountingProofs';
-import { RemindersScreen } from './RemindersScreen';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import { assessPayrollPaymentDate } from './payrollPaymentDate';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
@@ -99,8 +98,6 @@ import {
   SupplierInvoiceForm,
   SupplierPaymentForm,
 } from './PurchasesScreen';
-import { PurchaseOrdersScreen } from './PurchaseOrdersScreen';
-import { BankScreen } from './BankScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { parseSmallSalaryEmployeeForm } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
@@ -233,6 +230,40 @@ const PayrollImportWizard = lazy(() =>
     default: module.PayrollImportWizard,
   })),
 );
+const AccountingScreen = lazy(() =>
+  import('./AccountingScreen').then((module) => ({
+    default: module.AccountingScreen,
+  })),
+);
+const AgendaScreen = lazy(() =>
+  import('./AgendaScreen').then((module) => ({
+    default: module.AgendaScreen,
+  })),
+);
+const RemindersScreen = lazy(() =>
+  import('./RemindersScreen').then((module) => ({
+    default: module.RemindersScreen,
+  })),
+);
+const PurchaseOrdersScreen = lazy(() =>
+  import('./PurchaseOrdersScreen').then((module) => ({
+    default: module.PurchaseOrdersScreen,
+  })),
+);
+const BankScreen = lazy(() =>
+  import('./BankScreen').then((module) => ({
+    default: module.BankScreen,
+  })),
+);
+
+function ViewLoading({ label }: { label: string }) {
+  return (
+    <div className="settings-cloud-status" role="status">
+      <LoaderCircle className="spin" size={20} />
+      <span>{label}</span>
+    </div>
+  );
+}
 
 type View = TourView | 'orders' | 'agenda';
 type ModalState =
@@ -374,6 +405,9 @@ export function WorkspaceApp({
   const [settingsFocusTarget, setSettingsFocusTarget] = useState<string | null>(
     null,
   );
+  const [agendaPlanningTarget, setAgendaPlanningTarget] = useState<
+    string | null
+  >(null);
   const reminderScanInFlight = useRef(false);
   const reminderRequestIds = useRef(new Map<string, string>());
   const recurrenceScanInFlight = useRef(false);
@@ -426,6 +460,19 @@ export function WorkspaceApp({
         `${schedule.id}:${schedule.status}:${schedule.nextScheduledFor}:${schedule.updatedAt}`,
     )
     .join('|');
+
+  function openAgendaItem(item: AgendaItem) {
+    if (!item.route) return;
+    setAccountingEntryFocus(null);
+    setAgendaPlanningTarget(
+      item.source === 'task' || item.source === 'milestone'
+        ? item.sourceId
+        : null,
+    );
+    setView(item.route);
+    setSearch(agendaNavigationQuery(item, workspace));
+    setMenuOpen(false);
+  }
 
   useEffect(() => {
     workspaceRef.current = workspace;
@@ -667,6 +714,14 @@ export function WorkspaceApp({
       return true;
     } catch (reason) {
       onError?.(reason);
+      // Une commande locale peut avoir été validée juste avant qu'un
+      // rafraîchissement échoue. Relire au mieux évite alors une interface
+      // périmée et rend le prochain essai sûr.
+      try {
+        setWorkspace(await desktopApi.loadWorkspace());
+      } catch {
+        // Le message d'origine reste le plus utile lorsque la relecture échoue aussi.
+      }
       setNotice({
         tone: 'error',
         text: errorMessage(reason, 'L’action locale a échoué.'),
@@ -1352,31 +1407,30 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'agenda' ? (
-            <AgendaScreen
-              workspace={workspace}
-              busy={busy}
-              readOnly={readOnly}
-              onSave={(input: AgendaEventDraft) =>
-                act(
-                  () => desktopApi.saveAgendaEvent(input),
-                  input.id
-                    ? 'Le rendez-vous a été mis à jour.'
-                    : 'Le rendez-vous a été ajouté à votre agenda.',
-                  false,
-                )
-              }
-              onDelete={(item) =>
-                act(
-                  () => desktopApi.deleteAgendaEvent(item.id),
-                  'Le rendez-vous a été supprimé.',
-                  false,
-                )
-              }
-              onNavigate={(next) => {
-                setView(next);
-                setSearch('');
-              }}
-            />
+            <Suspense fallback={<ViewLoading label="Ouverture de l’agenda…" />}>
+              <AgendaScreen
+                workspace={workspace}
+                busy={busy}
+                readOnly={readOnly}
+                onSave={(input: AgendaEventDraft) =>
+                  act(
+                    () => desktopApi.saveAgendaEvent(input),
+                    input.isNew
+                      ? 'Le rendez-vous a été ajouté à votre agenda.'
+                      : 'Le rendez-vous a été mis à jour.',
+                    false,
+                  )
+                }
+                onDelete={(item) =>
+                  act(
+                    () => desktopApi.deleteAgendaEvent(item.id, item.updatedAt),
+                    'Le rendez-vous a été supprimé.',
+                    false,
+                  )
+                }
+                onNavigate={openAgendaItem}
+              />
+            </Suspense>
           ) : null}
           {view === 'projects' ? (
             <ProjectsScreen
@@ -1444,6 +1498,10 @@ export function WorkspaceApp({
                   false,
                 );
               }}
+              agendaPlanningTarget={agendaPlanningTarget}
+              onAgendaPlanningTargetHandled={() =>
+                setAgendaPlanningTarget(null)
+              }
             />
           ) : null}
           {view === 'clients' ? (
@@ -1606,10 +1664,14 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'reminders' ? (
-            <RemindersScreen
-              readOnly={readOnly}
-              refreshSignal={reminderRefreshSignal}
-            />
+            <Suspense
+              fallback={<ViewLoading label="Ouverture des relances…" />}
+            >
+              <RemindersScreen
+                readOnly={readOnly}
+                refreshSignal={reminderRefreshSignal}
+              />
+            </Suspense>
           ) : null}
           {view === 'time' ? (
             <TimeScreen
@@ -1653,74 +1715,82 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'expenses' ? (
-            <PurchaseOrdersScreen
-              workspace={workspace}
-              query={search}
-              onQueryChange={setSearch}
-              busy={busy}
-              readOnly={readOnly}
-              runAction={act}
-              onCreateSupplierInvoice={() =>
-                setModal({ type: 'supplierInvoice' })
-              }
-              onOpenSupplierInvoice={(invoice) =>
-                setModal({ type: 'supplierInvoiceDetail', invoice })
-              }
-              onEditSupplierInvoice={(item) =>
-                setModal({ type: 'supplierInvoice', item })
-              }
-              onValidateSupplierInvoice={(item) =>
-                void validateSupplierInvoice(item)
-              }
-              onDeleteSupplierInvoiceDraft={(item) =>
-                void deleteSupplierInvoiceDraft(item)
-              }
-              onRecordSupplierPayment={(invoice) =>
-                setModal({ type: 'supplierPayment', invoice })
-              }
-              onOpenLegacyExpense={(expense) =>
-                setModal({ type: 'legacyExpenseDetail', expense })
-              }
-              onEditLegacyExpense={(item) =>
-                setModal({ type: 'expense', item })
-              }
-              onArchiveLegacyExpense={(item) =>
-                void archive(
-                  'expenses',
-                  item.id,
-                  item.supplier || item.reference,
-                )
-              }
-              onMarkLegacyExpensePaid={(item) => void markExpensePaid(item)}
-              onCreateSupplier={() => setModal({ type: 'supplier' })}
-              onEditSupplier={(item) => setModal({ type: 'supplier', item })}
-              onArchiveSupplier={(item) => void archiveSupplier(item)}
-              onRestoreSupplier={(item) => void restoreSupplier(item)}
-              onOpenAccounting={() => {
-                setView('accounting');
-                setSearch('');
-              }}
-            />
+            <Suspense fallback={<ViewLoading label="Ouverture des achats…" />}>
+              <PurchaseOrdersScreen
+                workspace={workspace}
+                query={search}
+                onQueryChange={setSearch}
+                busy={busy}
+                readOnly={readOnly}
+                runAction={act}
+                onCreateSupplierInvoice={() =>
+                  setModal({ type: 'supplierInvoice' })
+                }
+                onOpenSupplierInvoice={(invoice) =>
+                  setModal({ type: 'supplierInvoiceDetail', invoice })
+                }
+                onEditSupplierInvoice={(item) =>
+                  setModal({ type: 'supplierInvoice', item })
+                }
+                onValidateSupplierInvoice={(item) =>
+                  void validateSupplierInvoice(item)
+                }
+                onDeleteSupplierInvoiceDraft={(item) =>
+                  void deleteSupplierInvoiceDraft(item)
+                }
+                onRecordSupplierPayment={(invoice) =>
+                  setModal({ type: 'supplierPayment', invoice })
+                }
+                onOpenLegacyExpense={(expense) =>
+                  setModal({ type: 'legacyExpenseDetail', expense })
+                }
+                onEditLegacyExpense={(item) =>
+                  setModal({ type: 'expense', item })
+                }
+                onArchiveLegacyExpense={(item) =>
+                  void archive(
+                    'expenses',
+                    item.id,
+                    item.supplier || item.reference,
+                  )
+                }
+                onMarkLegacyExpensePaid={(item) => void markExpensePaid(item)}
+                onCreateSupplier={() => setModal({ type: 'supplier' })}
+                onEditSupplier={(item) => setModal({ type: 'supplier', item })}
+                onArchiveSupplier={(item) => void archiveSupplier(item)}
+                onRestoreSupplier={(item) => void restoreSupplier(item)}
+                onOpenAccounting={() => {
+                  setView('accounting');
+                  setSearch('');
+                }}
+              />
+            </Suspense>
           ) : null}
           {view === 'bank' ? (
-            <BankScreen
-              workspace={workspace}
-              readOnly={readOnly}
-              onWorkspaceChange={(next) => setWorkspace(next)}
-              onOpenAccounting={() => {
-                setView('accounting');
-                setSearch('');
-              }}
-            />
+            <Suspense fallback={<ViewLoading label="Ouverture de la banque…" />}>
+              <BankScreen
+                workspace={workspace}
+                readOnly={readOnly}
+                onWorkspaceChange={(next) => setWorkspace(next)}
+                onOpenAccounting={() => {
+                  setView('accounting');
+                  setSearch('');
+                }}
+              />
+            </Suspense>
           ) : null}
           {view === 'reports' ? <ReportsScreen workspace={workspace} /> : null}
           {view === 'accounting' ? (
-            <AccountingScreen
-              workspace={workspace}
-              onWorkspaceChange={setWorkspace}
-              focusEntry={accountingEntryFocus}
-              onFocusHandled={clearAccountingEntryFocus}
-            />
+            <Suspense
+              fallback={<ViewLoading label="Ouverture de la comptabilité…" />}
+            >
+              <AccountingScreen
+                workspace={workspace}
+                onWorkspaceChange={setWorkspace}
+                focusEntry={accountingEntryFocus}
+                onFocusHandled={clearAccountingEntryFocus}
+              />
+            </Suspense>
           ) : null}
           {view === 'settings' ? (
             <SettingsScreen
@@ -2158,6 +2228,8 @@ function ProjectsScreen({
   onSetTaskStatus,
   onDeleteTask,
   onDeleteMilestone,
+  agendaPlanningTarget,
+  onAgendaPlanningTargetHandled,
 }: {
   workspace: Workspace;
   query: string;
@@ -2174,8 +2246,19 @@ function ProjectsScreen({
   ) => Promise<boolean>;
   onDeleteTask: (item: ProjectTask) => Promise<boolean>;
   onDeleteMilestone: (item: ProjectMilestone) => Promise<boolean>;
+  agendaPlanningTarget: string | null;
+  onAgendaPlanningTargetHandled: () => void;
 }) {
   const [mode, setMode] = useState<'overview' | 'planning'>('overview');
+  const [planningTarget, setPlanningTarget] = useState<string | null>(
+    agendaPlanningTarget,
+  );
+  useEffect(() => {
+    if (!agendaPlanningTarget) return;
+    setPlanningTarget(agendaPlanningTarget);
+    setMode('planning');
+    onAgendaPlanningTargetHandled();
+  }, [agendaPlanningTarget, onAgendaPlanningTargetHandled]);
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
@@ -2258,6 +2341,8 @@ function ProjectsScreen({
           onSetTaskStatus={onSetTaskStatus}
           onDeleteTask={onDeleteTask}
           onDeleteMilestone={onDeleteMilestone}
+          focusItemId={planningTarget}
+          onFocusItemHandled={() => setPlanningTarget(null)}
         />
       ) : (
         <div className="project-card-grid">

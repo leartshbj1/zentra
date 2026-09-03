@@ -3,6 +3,7 @@ import {
   netAmountForGross,
   supplierEmailDraftIssues,
   supplierEmailImportPayload,
+  supplierEmailInspectionDuplicateId,
   type SupplierEmailImportDraft,
   type SupplierEmailInspection,
 } from './supplierEmail';
@@ -17,6 +18,14 @@ const inspection: SupplierEmailInspection = {
   senderName: 'Papeterie SA',
   senderEmail: 'factures@papeterie.example',
   attachmentNames: ['facture.pdf'],
+  importableAttachments: [
+    {
+      name: 'facture.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 18,
+      sha256: 'b'.repeat(64),
+    },
+  ],
   invoiceSignal: true,
   confidence: 'high',
   matchedSupplierId: 'supplier-1',
@@ -125,6 +134,19 @@ describe('import déterministe de facture reçue par e-mail', () => {
         'Seules les factures fournisseurs en CHF sont importables actuellement.',
       ]),
     );
+    expect(
+      supplierEmailInspectionDuplicateId(draft, {
+        ...inspection,
+        duplicateInvoiceId: 'invoice-déjà-présente',
+      }),
+    ).toBe('invoice-déjà-présente');
+    expect(
+      supplierEmailDraftIssues(
+        draft,
+        { ...inspection, duplicateInvoiceId: 'invoice-déjà-présente' },
+        workspace,
+      ),
+    ).toContain('Cette référence existe déjà pour ce fournisseur.');
     const issues = supplierEmailDraftIssues(
       {
         ...draft,
