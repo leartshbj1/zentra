@@ -70,10 +70,9 @@ Le script refuse de produire un lot public sans identité Developer ID,
 identifiants de notarisation Apple et clé privée de signature des mises à jour.
 
 Le workflow GitHub Actions **Zentra macOS preview** produit un `.app.zip` et un
-`.dmg` universels signés ad hoc. Le DMG validé est aussi publié sur la page de
-téléchargement Zentra en accès anticipé. Il ne contient aucun secret et
-n’alimente pas encore le canal de mise à jour. Gatekeeper peut demander une
-autorisation manuelle dans Réglages système > Confidentialité et sécurité :
+`.dmg` universels signés ad hoc pour les essais manuels. Il ne contient aucun
+secret. Gatekeeper peut demander une autorisation manuelle dans Réglages système
+> Confidentialité et sécurité :
 
 ```bash
 pnpm --dir desktop build:macos:preview
@@ -84,13 +83,18 @@ l’identité de l’éditeur auprès d’Apple. Une distribution sans étape Ga
 exige un Developer ID et la notarisation Apple.
 
 Une release publiable avec mise à jour intégrée doit toujours passer par le
-wrapper de signature Tauri/Ed25519 :
+wrapper de signature Tauri/Ed25519 sous Windows ou par le workflow GitHub
+Actions **Zentra macOS updater package** sous macOS :
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/build-local-signed-updater.ps1
 ```
 
-La release embarque la clé publique versionnée dans `desktop/src-tauri/license-public-key.b64url`; le build échoue si elle est absente ou invalide. La clé privée n’est jamais incluse dans le dépôt ni dans l’application.
+La clé publique Tauri/Minisign est versionnée séparément dans
+`desktop/src-tauri/updater-public-key.b64`. Elle ne doit jamais être remplacée
+par `license-public-key.b64url`, qui sert uniquement aux jetons de licence. Le
+build échoue si la clé updater est absente ou invalide. La clé privée n’est
+jamais incluse dans le dépôt ni dans l’application.
 
 ## Livraison et limites de certification
 

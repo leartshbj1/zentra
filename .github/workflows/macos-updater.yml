@@ -55,11 +55,17 @@ jobs:
       - name: Load the public updater key
         shell: bash
         run: |
-          public_key="$(tr -d '\r\n' < desktop/src-tauri/license-public-key.b64url)"
+          public_key="$(tr -d '\r\n' < desktop/src-tauri/updater-public-key.b64)"
           if [[ -z "$public_key" ]]; then
             echo "Public updater key is empty." >&2
             exit 1
           fi
+          PUBLIC_KEY="$public_key" node <<'NODE'
+          const document = Buffer.from(process.env.PUBLIC_KEY, 'base64').toString('utf8');
+          if (!/^untrusted comment: minisign public key:/m.test(document) || /private key/i.test(document)) {
+            throw new Error('Public updater key is not a Minisign public key document.');
+          }
+          NODE
           echo "ELYKO_UPDATER_PUBLIC_KEY=$public_key" >> "$GITHUB_ENV"
 
       - name: Test desktop interface
