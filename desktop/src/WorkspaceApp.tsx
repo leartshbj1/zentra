@@ -74,7 +74,7 @@ import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import { AccountingScreen } from './AccountingScreen';
 import { AgendaScreen, type AgendaEventDraft } from './AgendaScreen';
-import { AppUpdater } from './AppUpdater';
+import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
 import { CloudAccountPanel } from './CloudAccountPanel';
 import { BusinessProfileFields } from './BusinessProfileEditor';
 import {
@@ -371,6 +371,9 @@ export function WorkspaceApp({
   const [accountingEntryFocus, setAccountingEntryFocus] =
     useState<AccountingEntryFocus | null>(null);
   const [reminderRefreshSignal, setReminderRefreshSignal] = useState(0);
+  const [settingsFocusTarget, setSettingsFocusTarget] = useState<string | null>(
+    null,
+  );
   const reminderScanInFlight = useRef(false);
   const reminderRequestIds = useRef(new Map<string, string>());
   const recurrenceScanInFlight = useRef(false);
@@ -408,6 +411,13 @@ export function WorkspaceApp({
     () => setAccountingEntryFocus(null),
     [],
   );
+  const openUpdater = useCallback(() => {
+    setAccountingEntryFocus(null);
+    setView('settings');
+    setSearch('');
+    setMenuOpen(false);
+    setSettingsFocusTarget(APP_UPDATER_TARGET_ID);
+  }, []);
   const settings = workspace.settings!;
   const terminology = projectTerminology(settings.business.nogaSection);
   const recurrenceScheduleSignal = workspace.recurrenceSchedules
@@ -420,6 +430,23 @@ export function WorkspaceApp({
   useEffect(() => {
     workspaceRef.current = workspace;
   }, [workspace]);
+
+  useEffect(() => {
+    if (view !== 'settings' || !settingsFocusTarget) return;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const target = document.getElementById(settingsFocusTarget);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target?.focus({ preventScroll: true });
+        setSettingsFocusTarget(null);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [settingsFocusTarget, view]);
 
   useEffect(() => {
     if (!workspace.activeTimer) {
@@ -1182,6 +1209,17 @@ export function WorkspaceApp({
                 />
               </label>
             ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="small"
+              className="update-launcher"
+              aria-label="Ouvrir les mises à jour de Zentra"
+              title="Vérifier les mises à jour"
+              onClick={openUpdater}
+            >
+              <RefreshCw size={16} /> <span>Mise à jour</span>
+            </Button>
             <Button
               type="button"
               variant="ghost"

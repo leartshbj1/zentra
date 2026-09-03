@@ -30,6 +30,8 @@ import { errorMessage } from './utils';
 
 type CheckOutcome = 'idle' | 'available' | 'current' | 'installed';
 
+export const APP_UPDATER_TARGET_ID = 'app-updater';
+
 export function AppUpdater() {
   const [policy, setPolicy] = useState<SecureUpdaterPolicy | null>(null);
   const [policyLoading, setPolicyLoading] = useState(true);
@@ -141,7 +143,6 @@ export function AppUpdater() {
     setMessage('Préparation de la mise à jour…');
     try {
       await desktopApi.installSecureUpdate(receiveEvent);
-      receiveEvent({ event: 'installed' });
     } catch (reason) {
       setProgress(initialUpdaterProgress);
       setOutcome('available');
@@ -200,7 +201,11 @@ export function AppUpdater() {
   const formattedDate = available ? formatUpdateDate(available.date) : null;
   const showProgress = installing || progress.phase !== 'idle';
 
-  return <section className="panel settings-card settings-card--wide app-updater">
+  return <section
+    id={APP_UPDATER_TARGET_ID}
+    className="panel settings-card settings-card--wide app-updater settings-scroll-target"
+    tabIndex={-1}
+  >
     <SectionHeading
       eyebrow="Maintenance sécurisée"
       title="Mettre Zentra à jour sans le réinstaller"

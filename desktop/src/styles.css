@@ -1370,6 +1370,60 @@ fieldset {
   align-items: center;
   gap: 9px;
 }
+.update-launcher {
+  border: 1px solid rgba(49, 93, 71, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+}
+.update-launcher:hover {
+  border-color: rgba(49, 93, 71, 0.3);
+  background: #fff;
+}
+.standalone-updater__launcher {
+  position: fixed;
+  z-index: 85;
+  top: 18px;
+  right: 20px;
+  box-shadow: 0 10px 28px rgba(18, 54, 36, 0.12);
+}
+.standalone-updater {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.standalone-updater__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(14, 32, 23, 0.54);
+  backdrop-filter: blur(7px);
+}
+.standalone-updater__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(940px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 22px;
+  box-shadow: 0 34px 90px rgba(12, 35, 23, 0.3);
+}
+.standalone-updater__dialog .app-updater {
+  margin: 0;
+  border: 0;
+  border-radius: 22px;
+}
+.standalone-updater__close {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 16px;
+  border: 1px solid var(--line-soft);
+  background: #fff;
+}
 .global-search {
   width: min(280px, 26vw);
   height: 36px;
@@ -9313,6 +9367,21 @@ select[aria-invalid='true']:focus {
 }
 
 @media (max-width: 620px) {
+  .standalone-updater {
+    align-items: end;
+    padding: 10px;
+  }
+  .standalone-updater__launcher {
+    top: 12px;
+    right: 12px;
+  }
+  .standalone-updater__dialog {
+    max-height: calc(100vh - 20px);
+    border-radius: 18px;
+  }
+  .standalone-updater__dialog .app-updater {
+    border-radius: 18px;
+  }
   .getting-started__header {
     align-items: flex-start;
     padding: 21px 18px 17px;
@@ -10117,10 +10186,14 @@ select[aria-invalid='true']:focus {
   .payroll-import-actions .button:first-child {
     grid-row: 3;
   }
-  .tour-launcher {
+  .tour-launcher,
+  .update-launcher {
     width: 36px;
     padding-inline: 0;
     font-size: 0;
+  }
+  .update-launcher span {
+    display: none;
   }
   .payroll-quality > header {
     align-items: flex-start;

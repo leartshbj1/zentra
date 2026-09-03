@@ -15,6 +15,8 @@ const MANIFEST_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const MAX_REDIRECTS: usize = 5;
 const MAX_UPDATE_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
+const SWISS_RELEASE_HOST: &str = "xvfohjdlhlirksrvkiqu.supabase.co";
+const SWISS_RELEASE_PATH_PREFIX: &str = "/storage/v1/object/public/zentra-releases/";
 
 #[derive(Clone)]
 struct SecureUpdaterConfiguration {
@@ -163,7 +165,7 @@ pub async fn check_secure_update(
     let updater_builder = app
         .updater_builder()
         .pubkey(public_key)
-        .endpoints(vec![endpoint])
+        .endpoints(vec![endpoint.clone()])
         .map_err(|error| format!("Configuration du serveur de mise à jour refusée : {error}"))?
         .timeout(MANIFEST_TIMEOUT)
         .configure_client(|client| {
@@ -185,15 +187,7 @@ pub async fn check_secure_update(
         return Ok(None);
     };
 
-    if update.download_url.scheme() != "https"
-        || !update.download_url.username().is_empty()
-        || update.download_url.password().is_some()
-    {
-        return Err(
-            "Mise à jour refusée : l’archive annoncée doit utiliser une URL HTTPS sans identifiants."
-                .to_owned(),
-        );
-    }
+    validate_download_source(&update.download_url, &endpoint)?;
     if update.signature.trim().is_empty() {
         return Err(
             "Mise à jour refusée : le manifeste ne contient aucune signature Tauri/Ed25519."
@@ -221,6 +215,7 @@ pub async fn check_secure_update(
 
 #[tauri::command]
 pub async fn install_secure_update(
+    _app: AppHandle,
     state: State<'_, SecureUpdaterState>,
     on_event: Channel<SecureUpdateEvent>,
 ) -> Result<(), String> {
@@ -240,22 +235,33 @@ pub async fn install_secure_update(
             "Aucune mise à jour contrôlée n’est prête. Lancez d’abord une nouvelle recherche."
                 .to_owned()
         })?;
+    let manifest_endpoint = state
+        .configuration
+        .endpoint
+        .as_ref()
+        .cloned()
+        .ok_or_else(|| "Installation désactivée : endpoint absent de ce build.".to_owned())?;
 
     let installation = async {
         let _ = on_event.send(SecureUpdateEvent::Preparing);
         let public_key = state.configuration.public_key.as_deref().ok_or_else(|| {
             "Installation désactivée : clé publique absente de ce build.".to_owned()
         })?;
-        let artifact = download_update_artifact(&update, &on_event).await?;
+        let artifact = download_update_artifact(&update, &on_event, &manifest_endpoint).await?;
         let _ = on_event.send(SecureUpdateEvent::Verifying);
         verify_update_signature(&artifact, &update.signature, public_key)?;
         update.install(&artifact).map_err(|error| {
             format!("Mise à jour refusée : l’installateur signé n’a pas pu être lancé ({error}).")
         })?;
 
-        // L'updater ferme normalement l'application avant de remplacer le
-        // bundle signé sur Windows comme sur macOS.
         let _ = on_event.send(SecureUpdateEvent::Installed);
+
+        // Sous Windows, l'installateur lancé par Tauri ferme l'application.
+        // Sur macOS (et les autres plateformes), Tauri a déjà remplacé le
+        // bundle mais l'application doit explicitement se relancer.
+        #[cfg(not(target_os = "windows"))]
+        _app.restart();
+
         Ok(())
     }
     .await;
@@ -284,7 +290,9 @@ fn restore_pending_update_after_error<T>(
 async fn download_update_artifact(
     update: &Update,
     on_event: &Channel<SecureUpdateEvent>,
+    manifest_endpoint: &Url,
 ) -> Result<Vec<u8>, String> {
+    validate_download_source(&update.download_url, manifest_endpoint)?;
     let client = reqwest::Client::builder()
         .user_agent(format!("Zentra-Updater/{}", env!("CARGO_PKG_VERSION")))
         .https_only(true)
@@ -304,9 +312,7 @@ async fn download_update_artifact(
             response.status()
         ));
     }
-    if response.url().scheme() != "https" {
-        return Err("Téléchargement refusé : une redirection a quitté HTTPS.".to_owned());
-    }
+    validate_download_source(response.url(), manifest_endpoint)?;
 
     let content_length = response
         .headers()
@@ -364,6 +370,31 @@ fn validate_update_size(bytes: u64, announced: bool) -> Result<(), String> {
         "Téléchargement refusé : l’artefact{qualifier} dépasse la limite de {} Mio.",
         MAX_UPDATE_ARTIFACT_BYTES / 1024 / 1024
     ))
+}
+
+fn validate_download_source(download_url: &Url, manifest_endpoint: &Url) -> Result<(), String> {
+    if download_url.scheme() != "https"
+        || !download_url.username().is_empty()
+        || download_url.password().is_some()
+        || download_url.fragment().is_some()
+    {
+        return Err(
+            "Mise à jour refusée : l’archive doit utiliser une URL HTTPS sans identifiants ni fragment."
+                .to_owned(),
+        );
+    }
+
+    let download_host = download_url.host_str().unwrap_or_default();
+    let manifest_host = manifest_endpoint.host_str().unwrap_or_default();
+    let same_release_host = !manifest_host.is_empty() && download_host == manifest_host;
+    let swiss_release_storage = download_host == SWISS_RELEASE_HOST
+        && download_url.path().starts_with(SWISS_RELEASE_PATH_PREFIX);
+    if !same_release_host && !swiss_release_storage {
+        return Err(format!(
+            "Mise à jour refusée : l’hôte de téléchargement {download_host} n’est pas autorisé."
+        ));
+    }
+    Ok(())
 }
 
 fn verify_update_signature(
@@ -516,8 +547,8 @@ mod tests {
     use base64::Engine;
 
     use super::{
-        restore_pending_update_after_error, validate_configuration, validate_update_size,
-        MAX_UPDATE_ARTIFACT_BYTES,
+        restore_pending_update_after_error, validate_configuration, validate_download_source,
+        validate_update_size, MAX_UPDATE_ARTIFACT_BYTES,
     };
 
     fn public_key() -> String {
@@ -584,6 +615,27 @@ mod tests {
         assert!(validate_update_size(MAX_UPDATE_ARTIFACT_BYTES + 1, false)
             .unwrap_err()
             .contains("256 Mio"));
+    }
+
+    #[test]
+    fn updater_accepts_only_the_manifest_host_or_the_swiss_release_bucket() {
+        let manifest = url::Url::parse("https://updates.zentra.example/latest.json").unwrap();
+        let same_host =
+            url::Url::parse("https://updates.zentra.example/Zentra_1.20.0_x64-setup.exe").unwrap();
+        let swiss_storage = url::Url::parse(
+            "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.20.0_macos-universal.app.tar.gz",
+        )
+        .unwrap();
+        let foreign = url::Url::parse("https://downloads.attacker.test/Zentra.app.tar.gz").unwrap();
+        let wrong_bucket = url::Url::parse(
+            "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/other/Zentra.app.tar.gz",
+        )
+        .unwrap();
+
+        assert!(validate_download_source(&same_host, &manifest).is_ok());
+        assert!(validate_download_source(&swiss_storage, &manifest).is_ok());
+        assert!(validate_download_source(&foreign, &manifest).is_err());
+        assert!(validate_download_source(&wrong_bucket, &manifest).is_err());
     }
 
     #[test]

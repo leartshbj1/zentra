@@ -11,7 +11,9 @@ import {
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
+  X,
 } from 'lucide-react';
+import { AppUpdater } from './AppUpdater';
 import { BrandMark } from './BrandMark';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
@@ -136,6 +138,7 @@ export function App() {
           message={error || 'Aucune donnée locale n’a été retournée.'}
         />
         <Button onClick={() => void load()}>Réessayer</Button>
+        <StandaloneUpdaterAccess />
       </main>
     );
   }
@@ -148,6 +151,12 @@ export function App() {
   );
   const cloudRoleReadOnly =
     license?.accessRole === 'read_only' || cloudAccount?.role === 'read_only';
+  const workspaceReady = Boolean(
+    workspace.onboardingCompleted &&
+      workspace.settings &&
+      !workspace.activityProfileRequired &&
+      !activityProfileMissing,
+  );
   const content =
     !workspace.onboardingCompleted || !workspace.settings ? (
       <Onboarding
@@ -176,6 +185,7 @@ export function App() {
   return (
     <>
       {content}
+      {!workspaceReady ? <StandaloneUpdaterAccess /> : null}
       {license && licenseNeedsAttention ? (
         <LicenseActivation
           license={license}
@@ -188,6 +198,61 @@ export function App() {
             setLicense(await desktopApi.refreshLicense(false))
           }
         />
+      ) : null}
+    </>
+  );
+}
+
+function StandaloneUpdaterAccess() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [open]);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        className="standalone-updater__launcher"
+        onClick={() => setOpen(true)}
+      >
+        <RefreshCw size={16} /> Mise à jour
+      </Button>
+      {open ? (
+        <div
+          className="standalone-updater"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mise à jour de Zentra"
+        >
+          <button
+            type="button"
+            className="standalone-updater__backdrop"
+            aria-label="Fermer les mises à jour"
+            onClick={() => setOpen(false)}
+          />
+          <div className="standalone-updater__dialog">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="standalone-updater__close"
+              aria-label="Fermer"
+              title="Fermer"
+              onClick={() => setOpen(false)}
+            >
+              <X size={18} />
+            </Button>
+            <AppUpdater />
+          </div>
+        </div>
       ) : null}
     </>
   );

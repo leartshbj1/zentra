@@ -9,6 +9,10 @@ import {
   isSupportedLicensePlan,
 } from '@/lib/license-constants';
 import {
+  InvalidOwnerLicenseBindingConfiguration,
+  ownerLicenseBindingMatches,
+} from '@/lib/owner-license-binding';
+import {
   base64Url,
   fromBase64Url,
   paidEntitlementForSubscription,
@@ -280,15 +284,6 @@ async function sha256Hex(value: string) {
   return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function constantTimeTextEqual(left: string, right: string) {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
-}
-
 /**
  * Réémet un bail signé pour la même installation après contrôle Stripe en
  * temps réel. Le jeton présenté sert de secret opaque : le couple aléatoire
@@ -302,16 +297,25 @@ export async function refreshLicense(token: string) {
     await refreshIdentityFromToken(normalizedToken);
   const ownerBindingHash = runtimeValue(
     'OWNER_LICENSE_BINDING_SHA256',
-  ).toLowerCase();
+  );
   if (ownerBindingHash) {
-    if (!/^[0-9a-f]{64}$/.test(ownerBindingHash)) {
+    const providedHash = await sha256Hex(`${licenseId}:${installationId}`);
+    let ownerBindingMatches = false;
+    try {
+      ownerBindingMatches = ownerLicenseBindingMatches(
+        ownerBindingHash,
+        providedHash,
+      );
+    } catch (error) {
+      if (!(error instanceof InvalidOwnerLicenseBindingConfiguration)) {
+        throw error;
+      }
       throw new PublicError(
         'La configuration de la licence propriétaire est invalide.',
         503,
       );
     }
-    const providedHash = await sha256Hex(`${licenseId}:${installationId}`);
-    if (constantTimeTextEqual(providedHash, ownerBindingHash)) {
+    if (ownerBindingMatches) {
       const now = Math.floor(Date.now() / 1000);
       const refreshedOwnerPayload: LicensePayload = {
         ...payload,

@@ -1,6 +1,6 @@
 {
   "name": "zentra-desktop",
-  "version": "1.19.1",
+  "version": "1.20.0",
   "private": true,
   "description": "Application locale Windows et macOS de gestion d’entreprise multisectorielle Zentra",
   "type": "module",
@@ -12,6 +12,7 @@
     "build:windows": "pnpm build:web && tauri build --target x86_64-pc-windows-gnu --bundles nsis",
     "build:macos": "bash scripts/build-macos-updater.sh",
     "build:macos:preview": "bash scripts/build-macos-preview.sh",
+    "build:macos:updater-preview": "bash scripts/build-macos-updater-preview.sh",
     "build:updater": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-updater-release.ps1",
     "release:stage-updater": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1",
     "tauri": "tauri"

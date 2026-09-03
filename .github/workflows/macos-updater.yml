@@ -1,0 +1,81 @@
+name: Zentra macOS updater package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-updater-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-universal-updater:
+    name: Universal DMG and signed updater archive
+    runs-on: macos-14
+    timeout-minutes: 75
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTUP_TOOLCHAIN: stable
+      ELYKO_UPDATER_ENDPOINT: https://elyko.alb-leart1.chatgpt.site/downloads/latest.json
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Refuse missing updater secrets
+        shell: bash
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" || -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]]; then
+            echo "Required updater signing secrets are not configured." >&2
+            exit 1
+          fi
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 11.19.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Rust targets
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Load the public updater key
+        shell: bash
+        run: |
+          public_key="$(tr -d '\r\n' < desktop/src-tauri/license-public-key.b64url)"
+          if [[ -z "$public_key" ]]; then
+            echo "Public updater key is empty." >&2
+            exit 1
+          fi
+          echo "ELYKO_UPDATER_PUBLIC_KEY=$public_key" >> "$GITHUB_ENV"
+
+      - name: Test desktop interface
+        run: pnpm --dir desktop test:ui
+
+      - name: Test Rust updater
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked app_updater::tests
+
+      - name: Build universal updater package
+        run: pnpm --dir desktop build:macos:updater-preview
+
+      - name: Upload immutable build lot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Zentra-macOS-updater-${{ github.sha }}
+          path: desktop/artifacts/macos-updater-*/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
