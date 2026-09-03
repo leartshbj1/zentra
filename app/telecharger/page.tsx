@@ -163,7 +163,9 @@ export default function DownloadPage() {
                 <Laptop className="size-3.5" /> Windows 10/11 · macOS 12+
               </span>
               <span>Intel et Apple Silicon</span>
-              <span>{ZENTRA_INSTALLER_SIZE_MIB} Mio / {ZENTRA_MAC_DMG_SIZE_MIB} Mio</span>
+              <span>
+                {ZENTRA_INSTALLER_SIZE_MIB} Mio / {ZENTRA_MAC_DMG_SIZE_MIB} Mio
+              </span>
               <span>50 CHF / mois</span>
               <span>Fonctions et collaborateurs inclus</span>
             </div>
@@ -331,7 +333,8 @@ export default function DownloadPage() {
                   notarisation Apple viendront simplifier cette étape.
                 </p>
                 <p className="mt-2 break-all text-xs leading-5 text-[#718079]">
-                  {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio · SHA-256 {ZENTRA_MAC_DMG_SHA256}
+                  {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio ·
+                  SHA-256 {ZENTRA_MAC_DMG_SHA256}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-[#718079]">
                   Cette installation manuelle active aussi le canal de mise à
@@ -533,16 +536,16 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Les relances avancent sans partir seules.
+                Agenda fiable et factures reçues mieux contrôlées.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
-                  'Assistant de configuration en trois étapes avec identité et textes modifiables',
-                  'Cycle conseillé à J+7, J+21 et J+35, sans présenter ces délais comme une obligation légale',
-                  'Solde recalculé localement avant chaque aperçu, paiements partiels et avoirs déduits',
-                  'Arrêt immédiat du cycle dès qu’une facture est soldée',
-                  'Ouverture d’un e-mail prérempli, impression confirmée ou envoi manuel, sans SMTP automatique',
-                  'Historique local immuable des préparations, décisions et preuves d’action',
+                  'Création, modification et suppression d’un rendez-vous protégées contre les doubles clics et conflits',
+                  'Passage au nouveau jour détecté automatiquement et échéances des sept prochains jours corrigées',
+                  'Navigation directe de l’agenda vers la facture, le devis, la fiche de salaire, la tâche ou le jalon concernés',
+                  'Extraction locale de la pièce PDF ou image réellement jointe à un e-mail .eml choisi',
+                  'Contrôle du type de fichier, de son empreinte et des doublons avant l’import',
+                  'Création d’un brouillon fournisseur seulement : la validation comptable reste entre vos mains',
                 ].map((item) => (
                   <div
                     key={item}
@@ -658,9 +661,10 @@ export default function DownloadPage() {
                 Gardez une copie complète, à l’endroit de votre choix.
               </h2>
               <p className="mt-5 text-sm leading-6 text-white/72">
-                Zentra crée une sauvegarde complète que vous pouvez conserver sur
-                un support externe ou un emplacement maîtrisé. Le coffre optionnel
-                complète ce dispositif pour les PDF de factures choisis.
+                Zentra crée une sauvegarde complète que vous pouvez conserver
+                sur un support externe ou un emplacement maîtrisé. Le coffre
+                optionnel complète ce dispositif pour les PDF de factures
+                choisis.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

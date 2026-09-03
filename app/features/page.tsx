@@ -132,7 +132,7 @@ const capabilityRows = [
   [
     'Import d’un e-mail fournisseur',
     'Disponible sur fichier',
-    'Lecture locale déterministe d’un .eml ou .txt choisi; brouillon à compléter et valider.',
+    'Lecture locale déterministe d’un .eml choisi, extraction contrôlée d’une pièce PDF ou image, puis brouillon à valider.',
   ],
   [
     'Catalogue et stock',

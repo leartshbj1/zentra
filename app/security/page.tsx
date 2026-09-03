@@ -289,7 +289,9 @@ export default function SecurityPage() {
                 L’installateur Windows public n’est pas encore signé avec un
                 certificat Authenticode et peut afficher « éditeur inconnu ». Le
                 build macOS est disponible en accès anticipé avec une signature
-                ad hoc, sans notarisation Apple ni canal de mise à jour public.
+                ad hoc et sans notarisation Apple. Sur les deux plateformes, les
+                mises à jour intégrées vérifient la signature du paquet avant de
+                proposer son installation.
               </p>
               <a
                 href="/download"
@@ -301,14 +303,24 @@ export default function SecurityPage() {
             </article>
             <article className="rounded-[1.7rem] border border-white/14 bg-white/[.06] p-6 sm:p-8">
               <LockKeyhole className="size-6 text-[#efb157]" />
-              <h2 className="mt-6 text-2xl font-semibold">
-                Périmètre actuel
-              </h2>
+              <h2 className="mt-6 text-2xl font-semibold">Périmètre actuel</h2>
               <ul className="mt-5 grid gap-3 text-sm leading-6 text-white/72">
-                <li>Distribution Windows avec mise à jour signée; certificat Authenticode à venir.</li>
-                <li>macOS disponible en accès anticipé; signature Developer ID et notarisation à venir.</li>
-                <li>Authentification Supabase reliée à la région Zurich; API compte/archives en transition.</li>
-                <li>La validation Swissdec, AFC ou Olico reste un processus distinct.</li>
+                <li>
+                  Distribution Windows avec mise à jour signée; certificat
+                  Authenticode à venir.
+                </li>
+                <li>
+                  macOS disponible en accès anticipé; signature Developer ID et
+                  notarisation à venir.
+                </li>
+                <li>
+                  Authentification Supabase reliée à la région Zurich; API
+                  compte/archives en transition.
+                </li>
+                <li>
+                  La validation Swissdec, AFC ou Olico reste un processus
+                  distinct.
+                </li>
               </ul>
             </article>
           </div>

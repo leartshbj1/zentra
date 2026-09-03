@@ -111,8 +111,8 @@ const automationStories = [
     label: 'Facture fournisseur reçue',
     steps: [
       'Vous choisissez un e-mail exporté en .eml',
-      'Zentra extrait les informations détectables',
-      'Vous vérifiez fournisseur, dates, TVA et catégorie',
+      'Zentra extrait localement la pièce PDF ou image choisie',
+      'Vous vérifiez le document, le fournisseur, les dates et la TVA',
       'Un brouillon est créé, jamais une écriture définitive',
     ],
   },
@@ -195,8 +195,8 @@ export default function Home() {
               </a>
             </div>
             <p className="mt-4 text-sm leading-6 text-[#667169]">
-              Démonstration web sans compte · Windows et macOS en accès anticipé · données
-              métier principalement locales
+              Démonstration web sans compte · Windows · macOS en accès anticipé
+              · données métier principalement locales
             </p>
           </div>
 
