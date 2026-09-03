@@ -55,6 +55,8 @@ describe('contrat de publication des mises à jour', () => {
     expect(script).toContain('--config "$generated_config"');
     expect(script).toContain('MACOS_UPDATER_PREVIEW.md');
     expect(script).not.toContain('cp "$desktop_root/MACOS_PREVIEW.md"');
+    expect(script).toContain('Contents/Resources/icon.icns');
+    expect(script).toContain('Print :CFBundleIconFile');
   });
 
   it('documente honnêtement le canal macOS inclus dans le lot updater', () => {

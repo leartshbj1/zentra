@@ -67,6 +67,8 @@ pnpm exec tauri build \
 
 bundle_root="src-tauri/target/universal-apple-darwin/release/bundle"
 app_bundle="$bundle_root/macos/Zentra.app"
+app_icon="$app_bundle/Contents/Resources/icon.icns"
+info_plist="$app_bundle/Contents/Info.plist"
 app_archive=""
 for candidate in "$bundle_root/macos/"*.app.tar.gz; do
   if [[ -f "$candidate" ]]; then
@@ -83,8 +85,13 @@ for candidate in "$bundle_root/dmg/"*.dmg; do
   fi
 done
 
-if [[ ! -d "$app_bundle" || -z "$app_archive" || ! -s "$app_archive" || ! -s "$app_signature" || -z "$dmg" || ! -s "$dmg" ]]; then
-  echo "Build incomplet : Zentra.app, DMG, archive updater ou signature manquante." >&2
+if [[ ! -d "$app_bundle" || ! -s "$app_icon" || ! -s "$info_plist" || -z "$app_archive" || ! -s "$app_archive" || ! -s "$app_signature" || -z "$dmg" || ! -s "$dmg" ]]; then
+  echo "Build incomplet : Zentra.app, icône, Info.plist, DMG, archive updater ou signature manquante." >&2
+  exit 1
+fi
+bundle_icon="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$info_plist")"
+if [[ "$bundle_icon" != "icon.icns" ]]; then
+  echo "Build refusé : Info.plist ne référence pas l’icône Zentra attendue." >&2
   exit 1
 fi
 
