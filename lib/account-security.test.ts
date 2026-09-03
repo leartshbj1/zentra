@@ -10,6 +10,7 @@ import {
   newDeviceSessionToken,
   newUserCode,
   normalizeUserCode,
+  requireAccountSameOrigin,
   retentionUntil,
 } from './account-security';
 
@@ -84,5 +85,38 @@ describe('Zentra account security primitives', () => {
     });
     expect(first).toMatch(/^[0-9a-f]{64}$/);
     expect(changed).not.toBe(first);
+  });
+
+  it('rejects account mutations without a trustworthy browser origin', () => {
+    expect(() =>
+      requireAccountSameOrigin(new Request('https://zentra.test/api/account/claim')),
+    ).toThrow('Origine de la demande absente');
+    expect(() =>
+      requireAccountSameOrigin(
+        new Request('https://zentra.test/api/account/claim', {
+          headers: {
+            Origin: 'https://evil.example',
+            'Sec-Fetch-Site': 'cross-site',
+          },
+        }),
+      ),
+    ).toThrow('Requête intersite refusée');
+    expect(() =>
+      requireAccountSameOrigin(
+        new Request('https://zentra.test/api/account/claim', {
+          headers: {
+            Origin: 'https://zentra.test',
+            'Sec-Fetch-Site': 'same-origin',
+          },
+        }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      requireAccountSameOrigin(
+        new Request('https://zentra.test/api/account/claim', {
+          headers: { 'Sec-Fetch-Site': 'none' },
+        }),
+      ),
+    ).not.toThrow();
   });
 });

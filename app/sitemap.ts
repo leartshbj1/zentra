@@ -11,11 +11,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ['/demo-facture', 0.75, 'monthly'],
     ['/confidentialite', 0.5, 'monthly'],
   ] as const;
-  const lastModified = new Date();
 
   return pages.map(([path, priority, changeFrequency]) => ({
     url: absoluteSiteUrl(path),
-    lastModified,
     changeFrequency,
     priority,
   }));

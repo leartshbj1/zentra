@@ -4,7 +4,7 @@ param(
     # Il doit rester stable pour que les anciennes installations puissent
     # authentifier les mises à jour Zentra.
     [string] $SigningRoot = (Join-Path $env:LOCALAPPDATA 'Elyko\release-signing'),
-    [string] $Endpoint = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
+    [string] $Endpoint = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest.json'
 )
 
 Set-StrictMode -Version Latest

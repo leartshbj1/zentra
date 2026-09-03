@@ -1618,7 +1618,7 @@ impl LocalStore {
                     .into(),
             ));
         }
-        let import_state: Option<(
+        type PayrollImportDraftState = (
             String,
             String,
             String,
@@ -1626,7 +1626,8 @@ impl LocalStore {
             String,
             String,
             Option<String>,
-        )> = transaction
+        );
+        let import_state: Option<PayrollImportDraftState> = transaction
             .query_row(
                 "SELECT status,file_sha256,media_kind,page_count,draft_json,stored_path,analysis_manifest_json FROM payroll_document_imports WHERE id=?",
                 params![id],
@@ -1819,7 +1820,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let import_state: Option<(
+        type PayrollImportConfirmationState = (
             String,
             String,
             String,
@@ -1831,7 +1832,8 @@ impl LocalStore {
             String,
             Option<String>,
             Option<String>,
-        )> = transaction
+        );
+        let import_state: Option<PayrollImportConfirmationState> = transaction
             .query_row(
                 "SELECT status,draft_json,stored_path,file_sha256,media_kind,file_size,page_count,source_name,extraction_engine,engine_version,analysis_manifest_json FROM payroll_document_imports WHERE id=?",
                 params![import_id],

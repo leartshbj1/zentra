@@ -25,6 +25,7 @@ import {
   DownloadButton,
   MacDownloadButton,
 } from '@/components/download-button';
+import { MobileDownloadDock } from '@/components/mobile-download-dock';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import {
@@ -143,7 +144,10 @@ export default function DownloadPage() {
               macOS universelle Intel/Apple Silicon sont disponibles ci-dessous.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div
+              id="hero-download-actions"
+              className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-start"
+            >
               <DownloadButton />
               <MacDownloadButton />
             </div>
@@ -330,8 +334,9 @@ export default function DownloadPage() {
                   {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio · SHA-256 {ZENTRA_MAC_DMG_SHA256}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-[#718079]">
-                  Les nouvelles versions macOS sont, pour le moment,
-                  téléchargées manuellement depuis cette page.
+                  Cette installation manuelle active aussi le canal de mise à
+                  jour signé. Les versions suivantes pourront être proposées
+                  directement dans Zentra.
                 </p>
               </div>
               <div className="grid gap-2">
@@ -698,9 +703,7 @@ export default function DownloadPage() {
           </div>
         </section>
 
-        <div className="fixed inset-x-3 bottom-3 z-50 rounded-2xl border border-[#d1d8d2] bg-white/95 p-2 shadow-[0_18px_50px_rgba(20,50,34,.24)] backdrop-blur-xl md:hidden">
-          <DownloadButton compact />
-        </div>
+        <MobileDownloadDock anchorId="hero-download-actions" />
       </main>
       <div className="pb-24 md:pb-0">
         <SiteFooter />

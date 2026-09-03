@@ -13,7 +13,7 @@ param(
     [string] $BuildProvenancePath,
 
     [string] $OutputRoot,
-    [string] $DownloadBaseUrl = 'https://elyko.alb-leart1.chatgpt.site/downloads',
+    [string] $DownloadBaseUrl = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
     [string] $Notes = 'Version stable Zentra.',
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]

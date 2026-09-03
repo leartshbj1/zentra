@@ -6340,7 +6340,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 rusqlite::params![legacy_reversal_id, journal_id],
             )
             .unwrap();
-            let original_lines: Vec<(
+            type OriginalJournalLine = (
                 String,
                 i64,
                 i64,
@@ -6349,7 +6349,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 Option<String>,
                 Option<String>,
                 Option<String>,
-            )> = {
+            );
+            let original_lines: Vec<OriginalJournalLine> = {
                 let mut statement = tx
                     .prepare(
                         "SELECT account_id,debit_cents,credit_cents,currency,memo,project_id,client_id,employee_id

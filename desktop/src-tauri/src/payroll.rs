@@ -848,6 +848,15 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        type PayslipPaymentState = (
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            String,
+            Option<String>,
+            String,
+        );
         let (
             status,
             stored_payment_date,
@@ -856,15 +865,7 @@ impl LocalStore {
             period,
             snapshot_json,
             employee_id,
-        ): (
-            String,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            String,
-            Option<String>,
-            String,
-        ) = tx
+        ): PayslipPaymentState = tx
             .query_row(
                 "SELECT status,payment_date,payment_reference,payment_journal_entry_id,period,snapshot_json,employee_id FROM payslips WHERE id=?",
                 params![input.payslip_id],
@@ -1898,6 +1899,7 @@ fn build_small_salary_assessment(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_small_salary_assessment_from_decision(
     employee: &EmployeePayrollContext,
     assessment_year: i64,
@@ -5697,7 +5699,7 @@ mod laa_policy_tests {
     fn validated_payslip_requires_exactly_one_aap_and_one_required_aanp() {
         let aap = json!({"category":"aap"});
         let aanp = json!({"category":"aanp"});
-        assert!(validate_laa_category_cardinality(&[aap.clone()], 479, false).is_ok());
+        assert!(validate_laa_category_cardinality(std::slice::from_ref(&aap), 479, false).is_ok());
         assert!(
             validate_laa_category_cardinality(&[aap.clone(), aanp.clone()], 480, false).is_ok()
         );
@@ -5714,7 +5716,7 @@ mod laa_policy_tests {
                 .to_string();
         assert!(duplicate_aanp.contains("exactement une définition AANP"));
 
-        assert!(validate_laa_category_cardinality(&[aap.clone()], 480, false).is_err());
+        assert!(validate_laa_category_cardinality(std::slice::from_ref(&aap), 480, false).is_err());
         assert!(
             validate_laa_category_cardinality(&[aap, json!({"category":"aanp"})], 479, false)
                 .is_err()

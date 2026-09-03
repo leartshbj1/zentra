@@ -106,7 +106,7 @@ dmg_name="Zentra_${version}_macos-universal.dmg"
 cp "$app_archive" "$artifact_root/$archive_name"
 cp "$app_signature" "$artifact_root/$archive_name.sig"
 cp "$dmg" "$artifact_root/$dmg_name"
-cp "$desktop_root/MACOS_PREVIEW.md" "$artifact_root/LISEZ-MOI-macOS.md"
+cp "$desktop_root/MACOS_UPDATER_PREVIEW.md" "$artifact_root/LISEZ-MOI-macOS.md"
 
 (
   cd "$artifact_root"

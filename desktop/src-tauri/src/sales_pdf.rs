@@ -2403,8 +2403,7 @@ fn grouped_reference(input: &SwissQrBillInput) -> String {
     if input.reference_type == "QRR" && raw.len() > 2 {
         let mut groups = vec![raw[..2].to_owned()];
         groups.extend(
-            raw[2..]
-                .as_bytes()
+            raw.as_bytes()[2..]
                 .chunks(5)
                 .map(|chunk| String::from_utf8_lossy(chunk).into_owned()),
         );

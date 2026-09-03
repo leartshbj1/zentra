@@ -142,10 +142,13 @@ export function bearerSessionToken(request: Request): string {
 export function requireAccountSameOrigin(request: Request): void {
   const requestUrl = new URL(request.url);
   const supplied = request.headers.get('Origin');
+  const fetchSite = request.headers.get('Sec-Fetch-Site');
+  if (!supplied && fetchSite !== 'none') {
+    throw new AccountPublicError('Origine de la demande absente.', 403);
+  }
   if (supplied && supplied !== requestUrl.origin) {
     throw new AccountPublicError('Requête intersite refusée.', 403);
   }
-  const fetchSite = request.headers.get('Sec-Fetch-Site');
   if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) {
     throw new AccountPublicError('Requête intersite refusée.', 403);
   }

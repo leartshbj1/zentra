@@ -393,7 +393,7 @@ impl LocalStore {
                 invoice["due_date"].as_str().unwrap_or_default(),
                 "Échéance de facture",
             )?;
-            let latest: Option<(
+            type LatestReminderState = (
                 i64,
                 String,
                 String,
@@ -402,7 +402,8 @@ impl LocalStore {
                 Option<String>,
                 Option<String>,
                 i64,
-            )> = transaction
+            );
+            let latest: Option<LatestReminderState> = transaction
                 .query_row(
                     "SELECT r.level,r.status,r.id,r.snapshot_json,
                             (SELECT d.prepared_on FROM reminder_deliveries d WHERE d.reminder_id=r.id AND d.action='manual_sent' ORDER BY d.sequence DESC LIMIT 1),
@@ -687,7 +688,7 @@ impl LocalStore {
         }
         if note
             .as_deref()
-            .map_or(true, |value| value.chars().count() < 3)
+            .is_none_or(|value| value.chars().count() < 3)
         {
             return Err(AppError::Validation(
                 "Indiquez une raison claire (paiement promis, litige, accord téléphonique, etc.)."
@@ -789,7 +790,7 @@ impl LocalStore {
         if input.action == "mail_draft_created"
             && preview["recipient_email"]
                 .as_str()
-                .map_or(true, |email| email.trim().is_empty())
+                .is_none_or(|email| email.trim().is_empty())
         {
             return Err(AppError::Validation(
                 "Ajoutez une adresse e-mail au client avant de préparer le brouillon.".into(),
@@ -800,7 +801,7 @@ impl LocalStore {
         if delivery_action == "manual_sent"
             && note
                 .as_deref()
-                .map_or(true, |value| value.chars().count() < 3)
+                .is_none_or(|value| value.chars().count() < 3)
         {
             return Err(AppError::Validation(
                 "Indiquez le canal ou une référence avant de confirmer l’envoi réel.".into(),
@@ -1112,7 +1113,7 @@ fn format_money(cents: i64, currency: &str) -> String {
     let digits = integer.to_string();
     let mut grouped = String::new();
     for (index, character) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index) % 3 == 0 {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
             grouped.push('’');
         }
         grouped.push(character);

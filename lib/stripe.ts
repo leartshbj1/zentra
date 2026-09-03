@@ -408,9 +408,11 @@ export function requestOrigin(request: Request) {
 export function requireSameOrigin(request: Request) {
   const expected = requestOrigin(request);
   const supplied = request.headers.get('Origin');
+  const fetchSite = request.headers.get('Sec-Fetch-Site');
+  if (!supplied && fetchSite !== 'none')
+    throw new PublicError('Origine de la demande absente.', 403);
   if (supplied && supplied !== expected)
     throw new PublicError('Requête intersite refusée.', 403);
-  const fetchSite = request.headers.get('Sec-Fetch-Site');
   if (fetchSite && !['same-origin', 'none'].includes(fetchSite))
     throw new PublicError('Requête intersite refusée.', 403);
   return expected;

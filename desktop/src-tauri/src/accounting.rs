@@ -1210,7 +1210,7 @@ pub(crate) fn payment_accounting_block_reason(
                 "le paiement lié {related_id} possède un montant nul ou négatif"
             )));
         }
-        if !canonical_accounting_date(&date) {
+        if !canonical_accounting_date(date) {
             return Ok(Some(format!(
                 "le paiement lié {related_id} possède une date non canonique"
             )));
@@ -3732,7 +3732,7 @@ fn semantic_posting_mismatches_in_range(
                 })
                 && vat_lines_valid;
             if let Some(original_id) = original_invoice_id.as_deref() {
-                let original = effective_postings(connection, "invoice", &original_id, "issue")?;
+                let original = effective_postings(connection, "invoice", original_id, "issue")?;
                 let original_posting = original.first();
                 let original_deferred = original_posting.and_then(|entry| {
                     entry

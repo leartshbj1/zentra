@@ -101,4 +101,21 @@ describe('Stripe SDK and webhook version contract', () => {
     expect(statusSource).toContain('portalLoginUrl: readiness?.portalLoginUrl');
     expect(statusSource).not.toContain('stripePortalLoginUrl');
   });
+
+  it('rejects browser payment mutations when the origin is absent or cross-site', () => {
+    const stripeSource = readFileSync(
+      new URL('./stripe.ts', import.meta.url),
+      'utf8',
+    );
+    expect(stripeSource).toContain("if (!supplied && fetchSite !== 'none')");
+    expect(stripeSource).toContain(
+      "throw new PublicError('Origine de la demande absente.', 403)",
+    );
+    expect(stripeSource).toContain(
+      "if (supplied && supplied !== expected)",
+    );
+    expect(stripeSource).toContain(
+      "if (fetchSite && !['same-origin', 'none'].includes(fetchSite))",
+    );
+  });
 });

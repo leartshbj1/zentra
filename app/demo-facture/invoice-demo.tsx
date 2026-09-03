@@ -1092,6 +1092,8 @@ export function InvoiceDemo() {
                       <div className="size-[56mm] bg-white p-[5mm]">
                         <QRCodeSVG
                           value={payload}
+                          title="QR de paiement de la facture de démonstration"
+                          aria-label="QR de paiement de la facture de démonstration"
                           level="M"
                           size={174}
                           marginSize={0}

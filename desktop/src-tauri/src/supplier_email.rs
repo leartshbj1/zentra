@@ -65,7 +65,7 @@ impl LocalStore {
             )));
         }
         let bytes = fs::read(path)?;
-        if bytes.iter().any(|byte| *byte == 0) {
+        if bytes.contains(&0) {
             return Err(AppError::Validation(
                 "Le fichier sélectionné n'est pas un message e-mail texte valide.".into(),
             ));

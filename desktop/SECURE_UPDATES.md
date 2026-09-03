@@ -12,14 +12,16 @@ Références officielles :
 La clé privée ne doit jamais être ajoutée à Git, au site ou à l’application installée.
 
 - `ELYKO_UPDATER_PUBLIC_KEY` : contenu exact en base64 du fichier public produit par `tauri signer generate`. Zentra décode et contrôle le document Minisign public avant d’activer le canal; cette valeur publique est intégrée à l’exécutable.
-- `ELYKO_UPDATER_ENDPOINT` : URL HTTPS du manifeste stable, par exemple `https://elyko.alb-leart1.chatgpt.site/downloads/latest.json`. Elle est intégrée à l’exécutable et ne peut pas être changée par le frontend.
+- `ELYKO_UPDATER_ENDPOINT` : URL HTTPS du manifeste stable, actuellement `https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest.json`. Elle est intégrée à l’exécutable et ne peut pas être changée par le frontend.
 - `TAURI_SIGNING_PRIVATE_KEY` : chemin ou contenu de la clé privée, injecté uniquement dans l’environnement du poste ou du runner de publication.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` : mot de passe de cette clé, injecté uniquement comme secret de publication.
 
 La paire Tauri sert à authentifier les archives de mise à jour. Elle ne remplace pas un certificat Authenticode Windows, recommandé séparément pour l’identité de l’éditeur et SmartScreen.
 
 Les noms de variables `ELYKO_UPDATER_*`, le nom des fichiers de clé et l’URL
-`elyko.alb-leart1.chatgpt.site` sont des identifiants techniques historiques.
+`elyko.alb-leart1.chatgpt.site` reste un identifiant technique historique pour
+les API de compte. Le canal de mise à jour utilise le stockage Supabase Zurich
+afin de rester indépendant du futur nom de domaine commercial.
 Ils restent inchangés afin que les versions déjà installées continuent à
 recevoir les mises à jour Zentra. Ils ne désignent plus le nom commercial du
 produit et ne doivent pas être renommés lors d’une publication.
@@ -44,7 +46,7 @@ Depuis `desktop`, définir les quatre variables dans le processus de build, puis
 
 ```powershell
 $env:ELYKO_UPDATER_PUBLIC_KEY = Get-Content -Raw C:\chemin-prive\elyko-updater.key.pub
-$env:ELYKO_UPDATER_ENDPOINT = "https://elyko.alb-leart1.chatgpt.site/downloads/latest.json"
+$env:ELYKO_UPDATER_ENDPOINT = "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest.json"
 $env:TAURI_SIGNING_PRIVATE_KEY = "C:\chemin-prive\elyko-updater.key"
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "mot-de-passe-fourni-par-le-gestionnaire-de-secrets"
 pnpm build:updater
@@ -63,7 +65,7 @@ préparez le lot dans les 24 heures suivant ce build frais :
 ```powershell
 $historicalSigningRoot = Join-Path $env:LOCALAPPDATA 'Elyko\release-signing'
 $env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content -Raw (Join-Path $historicalSigningRoot 'elyko-updater.key.pub')).Trim()
-$env:ELYKO_UPDATER_ENDPOINT = 'https://elyko.alb-leart1.chatgpt.site/downloads/latest.json'
+$env:ELYKO_UPDATER_ENDPOINT = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest.json'
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1 `
   -Version 1.14.0 `
@@ -95,13 +97,13 @@ Publier l’installateur et le manifeste sur HTTPS. La valeur `signature` est le
 
 ```json
 {
-  "version": "1.14.0",
+  "version": "1.20.1",
   "notes": "Résumé contrôlé des changements.",
-  "pub_date": "2026-09-01T12:00:00Z",
+  "pub_date": "2026-09-03T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "CONTENU_EXACT_DU_FICHIER_SIG",
-      "url": "https://elyko.alb-leart1.chatgpt.site/downloads/Zentra_1.14.0_x64-setup.exe"
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.20.1_x64-setup.exe"
     }
   }
 }

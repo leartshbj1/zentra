@@ -1458,7 +1458,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 => {}
+            28..=35 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -7724,7 +7724,15 @@ mod v28_migration_tests {
             assert!(columns.contains("lpp_employee_id"));
         }
 
-        let preserved: (String, Option<String>, Option<i64>, Option<i64>, Option<String>, Option<String>) = connection
+        type PreservedEmployeeLpp = (
+            String,
+            Option<String>,
+            Option<i64>,
+            Option<i64>,
+            Option<String>,
+            Option<String>,
+        );
+        let preserved: PreservedEmployeeLpp = connection
             .query_row(
                 "SELECT name,employment_contract_kind,lpp_assessment_year,lpp_annual_salary_cents,lpp_exception_code,lpp_exception_evidence_reference FROM employees WHERE id='employee-v27'",
                 [],
@@ -9197,7 +9205,7 @@ mod v34_small_salary_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            SCHEMA_VERSION as i64
+            SCHEMA_VERSION
         );
         let employee_columns = connection
             .prepare("PRAGMA table_info(employees)")
@@ -9622,7 +9630,7 @@ mod v34_small_salary_migration_tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            SCHEMA_VERSION as i64
+            SCHEMA_VERSION
         );
         let columns = connection
             .prepare("PRAGMA table_info(employees)")
