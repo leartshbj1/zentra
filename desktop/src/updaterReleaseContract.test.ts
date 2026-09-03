@@ -69,4 +69,16 @@ describe('contrat de publication des mises à jour', () => {
     expect(guide).not.toContain('canal de mise à jour signé reste volontairement désactivé');
     expect(guide).not.toContain('expirent après 14 jours');
   });
+
+  it('embarque les icônes Zentra natives sur Windows et macOS', () => {
+    const config = JSON.parse(
+      readFileSync(
+        new URL('../src-tauri/tauri.conf.json', import.meta.url),
+        'utf8',
+      ),
+    ) as { bundle?: { icon?: string[] } };
+
+    expect(config.bundle?.icon).toContain('icons/icon.ico');
+    expect(config.bundle?.icon).toContain('icons/icon.icns');
+  });
 });

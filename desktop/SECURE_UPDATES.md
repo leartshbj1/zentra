@@ -97,13 +97,13 @@ Publier l’installateur et le manifeste sur HTTPS. La valeur `signature` est le
 
 ```json
 {
-  "version": "1.20.1",
+  "version": "1.20.2",
   "notes": "Résumé contrôlé des changements.",
   "pub_date": "2026-09-03T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "CONTENU_EXACT_DU_FICHIER_SIG",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.20.1_x64-setup.exe"
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.20.2_x64-setup.exe"
     }
   }
 }
