@@ -6,7 +6,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-for name in ELYKO_UPDATER_PUBLIC_KEY ELYKO_UPDATER_ENDPOINT TAURI_SIGNING_PRIVATE_KEY APPLE_SIGNING_IDENTITY; do
+for name in ELYKO_UPDATER_PUBLIC_KEY ELYKO_UPDATER_ENDPOINT TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD APPLE_SIGNING_IDENTITY; do
   if [[ -z "${!name:-}" ]]; then
     echo "Build refusé : la variable $name est obligatoire." >&2
     exit 1
@@ -56,6 +56,8 @@ fi
 codesign --verify --deep --strict --verbose=2 "$bundle_root/macos/Zentra.app"
 spctl --assess --type execute --verbose=2 "$bundle_root/macos/Zentra.app"
 xcrun stapler validate "$dmg"
+cargo run --quiet --locked --manifest-path src-tauri/Cargo.toml \
+  --example verify_updater_artifact -- "$app_archive" "$app_signature"
 
 echo "Build macOS universel validé : $dmg"
 echo "Archive de mise à jour signée : $app_archive"

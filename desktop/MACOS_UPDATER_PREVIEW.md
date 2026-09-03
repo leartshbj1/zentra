@@ -7,7 +7,7 @@ pour les mises à jour intégrées.
 
 ## Première installation
 
-1. Télécharger `Zentra_1.21.0_macos-universal.dmg` depuis la page officielle
+1. Télécharger `Zentra_1.22.0_macos-universal.dmg` depuis la page officielle
    Zentra.
 2. Comparer, si souhaité, son empreinte avec `SHA256SUMS.txt`.
 3. Ouvrir le DMG, puis glisser Zentra dans Applications.
@@ -21,7 +21,7 @@ limitée à l’application Zentra téléchargée depuis le site officiel.
 
 ## Mises à jour suivantes
 
-Zentra 1.21.0 contient le canal de mise à jour intégré. Lorsqu’une version plus
+Zentra 1.22.0 contient le canal de mise à jour intégré. Lorsqu’une version plus
 récente est publiée, l’application télécharge son archive depuis le stockage
 Zentra, vérifie sa signature Tauri/Ed25519, puis demande votre confirmation
 avant l’installation.

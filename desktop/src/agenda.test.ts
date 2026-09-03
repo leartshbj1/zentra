@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   agendaNavigationQuery,
+  agendaNavigationTarget,
   buildAgendaItems,
   calendarDays,
   countUpcomingAgendaItems,
@@ -202,6 +203,32 @@ describe('agenda', () => {
     const item = buildAgendaItems(source)[0];
     expect(item.title).toBe('Jalon · Réception finale');
     expect(agendaNavigationQuery(item, source)).toBe('Réception finale');
+  });
+
+  it('conserve l’identifiant exact même lorsque deux documents ont le même numéro', () => {
+    const duplicate = (sourceId: string) => ({
+      id: `invoice:${sourceId}:due`,
+      source: 'invoice' as const,
+      sourceId,
+      category: 'deadlines' as const,
+      date: '2026-09-30',
+      endDate: '2026-09-30',
+      time: null,
+      endTime: null,
+      title: 'Facture F-42',
+      subtitle: 'Client',
+      status: 'active' as const,
+      route: 'invoices' as const,
+    });
+
+    expect(agendaNavigationTarget(duplicate('invoice-a'))).toEqual({
+      route: 'invoices',
+      source: 'invoice',
+      sourceId: 'invoice-a',
+    });
+    expect(agendaNavigationTarget(duplicate('invoice-b'))?.sourceId).toBe(
+      'invoice-b',
+    );
   });
 
   it('affiche les factures fournisseurs validées à payer mais jamais les brouillons ou factures soldées', () => {

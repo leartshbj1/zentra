@@ -5056,26 +5056,21 @@ export const desktopApi = {
   },
   async saveSupplierInvoiceDraftFromEmail(
     input: SupplierInvoiceDraftSaveInput,
-    attachment: {
+    source: {
       sourcePath: string;
       sourceSha256: string;
       attachmentSha256: string;
-    } | null,
+    },
   ) {
-    await invoke(
-      'save_supplier_email_invoice_draft',
-      supplierInvoiceDraftInvokeArgs(input),
-    );
-    if (attachment) {
-      await invoke('add_supplier_email_attachment', {
-        input: {
-          supplier_invoice_id: input.id.trim(),
-          source_path: attachment.sourcePath,
-          source_sha256: attachment.sourceSha256,
-          attachment_sha256: attachment.attachmentSha256,
-        },
-      });
-    }
+    const { input: invoice } = supplierInvoiceDraftInvokeArgs(input);
+    await invoke('import_supplier_email_invoice_draft', {
+      input: {
+        invoice,
+        source_path: source.sourcePath,
+        source_sha256: source.sourceSha256,
+        attachment_sha256: source.attachmentSha256,
+      },
+    });
     return loadWorkspace();
   },
   async validateSupplierInvoice(id: string) {
@@ -5127,22 +5122,6 @@ export const desktopApi = {
       sourcePath,
     });
     return supplierEmailInspectionFromRaw(raw);
-  },
-  async addSupplierEmailAttachment(
-    supplierInvoiceId: string,
-    sourcePath: string,
-    sourceSha256: string,
-    attachmentSha256: string,
-  ) {
-    await invoke('add_supplier_email_attachment', {
-      input: {
-        supplier_invoice_id: supplierInvoiceId,
-        source_path: sourcePath,
-        source_sha256: sourceSha256,
-        attachment_sha256: attachmentSha256,
-      },
-    });
-    return loadWorkspace();
   },
   async chooseSupplierInvoiceAttachment(): Promise<string | null> {
     return chooseFile({
@@ -5660,9 +5639,8 @@ export const desktopApi = {
     return loadWorkspace();
   },
   async exportData(format: 'json' | 'csv') {
-    if (format !== 'json')
-      throw new Error('L’export CSV sera disponible depuis chaque liste.');
-    return { path: await invoke<string>('export_json', {}) };
+    const command = format === 'json' ? 'export_json' : 'export_csv_archive';
+    return { path: await invoke<string>(command, {}) };
   },
   chooseBackupFolder: () =>
     chooseFile({

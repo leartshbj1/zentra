@@ -73,7 +73,7 @@ import { desktopApi, type CloudAccountState } from './bridge';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import type { AgendaEventDraft } from './AgendaScreen';
-import { agendaNavigationQuery, type AgendaItem } from './agenda';
+import { agendaNavigationTarget, type AgendaItem } from './agenda';
 import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
 import { CloudAccountPanel } from './CloudAccountPanel';
 import { BusinessProfileFields } from './BusinessProfileEditor';
@@ -462,16 +462,52 @@ export function WorkspaceApp({
     .join('|');
 
   function openAgendaItem(item: AgendaItem) {
-    if (!item.route) return;
+    const target = agendaNavigationTarget(item);
+    if (!target) return;
     setAccountingEntryFocus(null);
-    setAgendaPlanningTarget(
-      item.source === 'task' || item.source === 'milestone'
-        ? item.sourceId
-        : null,
-    );
-    setView(item.route);
-    setSearch(agendaNavigationQuery(item, workspace));
+    setAgendaPlanningTarget(null);
+    setView(target.route);
+    setSearch('');
     setMenuOpen(false);
+    if (target.source === 'task' || target.source === 'milestone') {
+      setAgendaPlanningTarget(target.sourceId);
+      return;
+    }
+    if (target.source === 'project') {
+      const project = workspace.projects.find(
+        (candidate) => candidate.id === target.sourceId,
+      );
+      if (project) setModal({ type: 'project', item: project });
+      return;
+    }
+    if (target.source === 'invoice') {
+      const invoice = workspace.invoices.find(
+        (candidate) => candidate.id === target.sourceId,
+      );
+      if (invoice)
+        setModal({ type: 'document', entity: 'invoices', item: invoice });
+      return;
+    }
+    if (target.source === 'quote') {
+      const quote = workspace.quotes.find(
+        (candidate) => candidate.id === target.sourceId,
+      );
+      if (quote) setModal({ type: 'document', entity: 'quotes', item: quote });
+      return;
+    }
+    if (target.source === 'supplier_invoice') {
+      const invoice = workspace.supplierInvoices.find(
+        (candidate) => candidate.id === target.sourceId,
+      );
+      if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice });
+      return;
+    }
+    if (target.source === 'payslip') {
+      const payslip = workspace.payslips.find(
+        (candidate) => candidate.id === target.sourceId,
+      );
+      if (payslip) setModal({ type: 'payslip', item: payslip });
+    }
   }
 
   useEffect(() => {
@@ -4239,16 +4275,24 @@ function SettingsScreen({
     );
   }
 
-  async function exportJson() {
+  async function exportPortableData(format: 'json' | 'csv') {
     setBusy(true);
     onNotice(null);
     try {
-      const { path } = await desktopApi.exportData('json');
-      onNotice({ tone: 'success', text: `Export créé : ${path}` });
+      const { path } = await desktopApi.exportData(format);
+      onNotice({
+        tone: 'success',
+        text: `${format === 'json' ? 'Export JSON' : 'Archive de listes CSV'} créée : ${path}`,
+      });
     } catch (reason) {
       onNotice({
         tone: 'error',
-        text: errorMessage(reason, 'L’export n’a pas pu être créé.'),
+        text: errorMessage(
+          reason,
+          format === 'json'
+            ? 'L’export JSON n’a pas pu être créé.'
+            : 'L’archive CSV n’a pas pu être créée.',
+        ),
       });
     } finally {
       setBusy(false);
@@ -5436,16 +5480,26 @@ function SettingsScreen({
           title="Vos données vous appartiennent"
         />
         <p className="settings-copy">
-          L’export JSON contient vos données en clair. Conservez-le dans un
-          emplacement protégé.
+          Le JSON conserve la structure complète. L’archive CSV regroupe les
+          listes métier dans des fichiers lisibles par un tableur, sans copier
+          les PDF, images, jetons ou documents de paie en cours d’analyse. Ces
+          exports restent en clair&nbsp;: conservez-les dans un emplacement
+          protégé.
         </p>
         <div className="settings-actions">
           <Button
             variant="secondary"
             disabled={busy}
-            onClick={() => void exportJson()}
+            onClick={() => void exportPortableData('json')}
           >
             <FileText size={16} /> Exporter en JSON
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void exportPortableData('csv')}
+          >
+            <FileText size={16} /> Exporter les listes CSV
           </Button>
           <Button
             variant="ghost"

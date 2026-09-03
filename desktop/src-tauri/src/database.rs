@@ -50,8 +50,9 @@ use crate::{
         MIGRATION_V26_SQL, MIGRATION_V27_SQL, MIGRATION_V28_SQL, MIGRATION_V29_SQL,
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
         MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V35_SQL, MIGRATION_V36_SQL,
-        MIGRATION_V3_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL,
-        MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V37_SQL, MIGRATION_V38_SQL, MIGRATION_V39_SQL, MIGRATION_V3_SQL,
+        MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL,
+        MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -965,6 +966,66 @@ fn migrate_v36(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v37(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V37_SQL)?;
+    Ok(())
+}
+
+fn migrate_v38(transaction: &Transaction<'_>) -> AppResult<()> {
+    let mut statement = transaction.prepare("PRAGMA table_info(license_state)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+    if columns.is_empty() {
+        // Certaines bases historiques partielles (notamment des installations
+        // interrompues avant l'activation) ne possèdent encore aucune ligne ni
+        // table de licence. Elles restent légitimement sans licence après la
+        // migration, mais reçoivent le schéma V38 afin de démarrer en lecture
+        // seule au lieu de rendre toute la base inutilisable.
+        transaction.execute_batch(
+            "CREATE TABLE license_state (
+               id INTEGER PRIMARY KEY CHECK (id = 1),
+               token_sha256 TEXT NOT NULL CHECK (
+                 LENGTH(token_sha256)=64 AND token_sha256 NOT GLOB '*[^0-9a-f]*'
+               ),
+               license_id TEXT NOT NULL,
+               customer_name TEXT,
+               plan TEXT NOT NULL,
+               price_chf_cents INTEGER NOT NULL,
+               issued_at TEXT NOT NULL,
+               valid_from TEXT NOT NULL,
+               valid_until TEXT NOT NULL,
+               verified_at TEXT NOT NULL,
+               last_seen_date TEXT NOT NULL,
+               clock_anchor_version INTEGER NOT NULL DEFAULT 0
+                 CHECK (clock_anchor_version IN (0, 1))
+             );
+             PRAGMA user_version=38;",
+        )?;
+        return Ok(());
+    }
+    if columns.iter().any(|column| column == "token_sha256")
+        && !columns.iter().any(|column| column == "token")
+    {
+        transaction.pragma_update(None, "user_version", 38)?;
+        return Ok(());
+    }
+    if !columns.iter().any(|column| column == "token") {
+        return Err(AppError::Validation(
+            "La table de licence historique a une structure inconnue; la migration est arrêtée sans modifier les données."
+                .into(),
+        ));
+    }
+    transaction.execute_batch(MIGRATION_V38_SQL)?;
+    Ok(())
+}
+
+fn migrate_v39(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute_batch(MIGRATION_V39_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1341,6 +1402,17 @@ impl LocalStore {
         if current == SCHEMA_VERSION {
             return Ok(());
         }
+        let moves_plaintext_license = current != 0 && current < 38;
+        if moves_plaintext_license {
+            // Le coffre doit être durable avant que la transaction ne retire le
+            // jeton de SQLite. En cas d'arrêt entre les deux, la base v37 reste
+            // intacte et la migration peut être rejouée sans perte.
+            self.stage_legacy_license_token_migration(&connection)?;
+            connection.execute_batch(
+                "PRAGMA wal_checkpoint(TRUNCATE);
+                 PRAGMA secure_delete=ON;",
+            )?;
+        }
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         match current {
             0 => {
@@ -1458,7 +1530,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=35 => {}
+            28..=38 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1509,7 +1581,25 @@ impl LocalStore {
         if current < 36 {
             migrate_v36(&transaction)?;
         }
+        if current < 37 {
+            migrate_v37(&transaction)?;
+        }
+        if current < 38 {
+            migrate_v38(&transaction)?;
+        }
+        if current < 39 {
+            migrate_v39(&transaction)?;
+        }
         transaction.commit()?;
+        if moves_plaintext_license {
+            // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM
+            // retirent également les anciennes pages libres et le WAL.
+            connection.execute_batch(
+                "PRAGMA wal_checkpoint(TRUNCATE);
+                 VACUUM;
+                 PRAGMA wal_checkpoint(TRUNCATE);",
+            )?;
+        }
         Ok(())
     }
 
@@ -1974,6 +2064,11 @@ impl LocalStore {
             "SELECT * FROM supplier_invoice_items ORDER BY supplier_invoice_id,position,rowid",
             [],
         )?;
+        let supplier_email_invoice_imports = query_all(
+            connection,
+            "SELECT * FROM supplier_email_invoice_imports ORDER BY created_at DESC,supplier_invoice_id",
+            [],
+        )?;
         let supplier_payments = query_all(
             connection,
             "SELECT * FROM supplier_payments ORDER BY date DESC,created_at DESC",
@@ -2283,6 +2378,7 @@ impl LocalStore {
             "time_entries": time_entries,
             "expenses": expenses,
             "supplier_invoices":supplier_invoices,
+            "supplier_email_invoice_imports":supplier_email_invoice_imports,
             "supplier_invoice_items":supplier_invoice_items,
             "supplier_payments":supplier_payments,
             "payslips": payslips,
@@ -9887,6 +9983,295 @@ mod v34_small_salary_migration_tests {
         assert!(connection
             .execute(
                 "DELETE FROM payslip_small_salary_assessments WHERE payslip_id='trace-slip'",
+                [],
+            )
+            .is_err());
+    }
+}
+
+#[cfg(test)]
+mod v37_supplier_email_provenance_migration_tests {
+    use super::*;
+
+    const NOW: &str = "2026-09-03T12:00:00Z";
+
+    fn insert_supplier_invoice(connection: &Connection, invoice_id: &str) {
+        connection
+            .execute(
+                "INSERT OR IGNORE INTO suppliers(
+                   id,name,currency,payment_terms_days,created_at,updated_at
+                 ) VALUES('supplier-email-test','Fournisseur e-mail','CHF',30,?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO supplier_invoices(
+                   id,supplier_id,document_date,due_date,supplier_name,currency,status,
+                   net_cents,vat_cents,total_cents,paid_cents,created_at,updated_at
+                 ) VALUES(?1,'supplier-email-test','2026-09-01','2026-10-01',
+                          'Fournisseur e-mail','CHF','draft',0,0,0,0,?2,?2)",
+                params![invoice_id, NOW],
+            )
+            .unwrap();
+    }
+
+    fn insert_attachment(
+        connection: &Connection,
+        invoice_id: &str,
+        attachment_id: &str,
+        attachment_sha256: &str,
+    ) {
+        connection
+            .execute(
+                "INSERT INTO attachments(
+                   id,entity_type,entity_id,original_name,stored_name,mime_type,
+                   size_bytes,sha256,created_at,updated_at
+                 ) VALUES(?1,'supplier_invoice',?2,'facture.pdf',?3,
+                          'application/pdf',128,?4,?5,?5)",
+                params![
+                    attachment_id,
+                    invoice_id,
+                    format!("{attachment_id}.pdf"),
+                    attachment_sha256,
+                    NOW
+                ],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn fresh_v37_schema_exposes_and_protects_email_invoice_provenance() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master
+                     WHERE type='table' AND name='supplier_email_invoice_imports'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+
+        let source_sha256 = "a".repeat(64);
+        let attachment_sha256 = "b".repeat(64);
+        insert_supplier_invoice(&connection, "invoice-email-1");
+        insert_attachment(
+            &connection,
+            "invoice-email-1",
+            "attachment-email-1",
+            &attachment_sha256,
+        );
+        connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_message_id,source_file_name,
+                   attachment_sha256,attachment_id,created_at
+                 ) VALUES(?1,?2,'<message-1@example.test>','facture.eml',?3,
+                          'attachment-email-1',?4)",
+                params!["invoice-email-1", source_sha256, attachment_sha256, NOW],
+            )
+            .unwrap();
+
+        assert!(connection
+            .execute(
+                "UPDATE supplier_email_invoice_imports
+                 SET source_file_name='modifie.eml' WHERE supplier_invoice_id='invoice-email-1'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute("DELETE FROM attachments WHERE id='attachment-email-1'", [],)
+            .is_err());
+
+        insert_supplier_invoice(&connection, "invoice-email-2");
+        assert!(connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_message_id,source_file_name,created_at
+                 ) VALUES('invoice-email-2',?1,'<message-2@example.test>','facture-2.eml',?2)",
+                params![source_sha256, NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_message_id,source_file_name,created_at
+                 ) VALUES('invoice-email-2',?1,'<MESSAGE-1@EXAMPLE.TEST>','facture-2.eml',?2)",
+                params!["c".repeat(64), NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_file_name,attachment_sha256,
+                   attachment_id,created_at
+                 ) VALUES('invoice-email-2',?1,'facture-2.eml',?2,
+                          'attachment-email-1',?3)",
+                params!["d".repeat(64), attachment_sha256, NOW],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_file_name,created_at
+                 ) VALUES('invoice-email-2',?1,'../facture.eml',?2)",
+                params!["E".repeat(64), NOW],
+            )
+            .is_err());
+
+        connection
+            .execute(
+                "INSERT INTO settings(
+                   id,onboarding_completed,company_name,created_at,updated_at
+                 ) VALUES(1,1,'Entreprise test',?1,?1)",
+                params![NOW],
+            )
+            .unwrap();
+        drop(connection);
+        let workspace = store.get_workspace().unwrap();
+        assert_eq!(
+            workspace["supplier_email_invoice_imports"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            workspace["supplier_email_invoice_imports"][0]["source_file_name"],
+            "facture.eml"
+        );
+    }
+
+    #[test]
+    fn dispatch_migrates_v36_to_v37_without_changing_existing_invoices() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        {
+            let connection = store.connect().unwrap();
+            insert_supplier_invoice(&connection, "invoice-before-v37");
+            connection
+                .execute_batch(
+                    "DROP TABLE supplier_email_invoice_imports;
+                     PRAGMA user_version=36;",
+                )
+                .unwrap();
+        }
+
+        store.migrate().unwrap();
+        store.migrate().unwrap();
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM supplier_invoices WHERE id='invoice-before-v37'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "draft"
+        );
+        let attachment_sha256 = "e".repeat(64);
+        insert_attachment(
+            &connection,
+            "invoice-before-v37",
+            "attachment-before-v37",
+            &attachment_sha256,
+        );
+        connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_file_name,
+                   attachment_sha256,attachment_id,created_at
+                 ) VALUES('invoice-before-v37',?1,'source.eml',?2,
+                          'attachment-before-v37',?3)",
+                params!["f".repeat(64), attachment_sha256, NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "DELETE FROM supplier_invoices WHERE id='invoice-before-v37'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM supplier_email_invoice_imports",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0,
+            "la provenance d'un brouillon supprimé doit suivre sa facture"
+        );
+    }
+
+    #[test]
+    fn v37_rejects_provenance_deletion_once_the_invoice_is_no_longer_a_draft() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE supplier_invoices(id TEXT PRIMARY KEY,status TEXT NOT NULL);
+                 CREATE TABLE attachments(
+                   id TEXT PRIMARY KEY,entity_type TEXT,entity_id TEXT,sha256 TEXT
+                 );
+                 INSERT INTO supplier_invoices VALUES('invoice-sealed','draft');",
+            )
+            .unwrap();
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        migrate_v37(&transaction).unwrap();
+        transaction.commit().unwrap();
+        connection
+            .execute(
+                "INSERT INTO attachments(id,entity_type,entity_id,sha256)
+                 VALUES('attachment-sealed','supplier_invoice','invoice-sealed',?1)",
+                params!["2".repeat(64)],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO supplier_email_invoice_imports(
+                   supplier_invoice_id,source_sha256,source_file_name,
+                   attachment_sha256,attachment_id,created_at
+                 ) VALUES('invoice-sealed',?1,'source.eml',?2,
+                          'attachment-sealed',?3)",
+                params!["1".repeat(64), "2".repeat(64), NOW],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE supplier_invoices SET status='validated' WHERE id='invoice-sealed'",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "DELETE FROM supplier_email_invoice_imports
+                 WHERE supplier_invoice_id='invoice-sealed'",
                 [],
             )
             .is_err());

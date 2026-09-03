@@ -7,15 +7,18 @@ use base64::{
 use chrono::NaiveDate;
 use encoding_rs::Encoding;
 use regex::Regex;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::{
     attachments::supported_attachment_mime,
-    database::LocalStore,
+    audit::append_audit,
+    database::{now_iso, LocalStore},
     error::{AppError, AppResult},
+    models::SaveSupplierInvoiceDraftInput,
+    supplier_invoices::supplier_invoice_bundle,
 };
 
 const MAX_EMAIL_BYTES: u64 = 15 * 1024 * 1024;
@@ -38,6 +41,7 @@ struct ParsedMailbox {
     email: String,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 pub struct AddSupplierEmailAttachmentInput {
     pub supplier_invoice_id: String,
@@ -46,12 +50,29 @@ pub struct AddSupplierEmailAttachmentInput {
     pub attachment_sha256: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ImportSupplierEmailInvoiceDraftInput {
+    pub invoice: SaveSupplierInvoiceDraftInput,
+    pub source_path: String,
+    pub source_sha256: String,
+    #[serde(default)]
+    pub attachment_sha256: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct ParsedEmailAttachment {
     name: String,
     mime_type: &'static str,
     bytes: Vec<u8>,
     sha256: String,
+}
+
+#[derive(Debug)]
+struct ReviewedSupplierEmail {
+    file_name: String,
+    source_sha256: String,
+    message_id: Option<String>,
+    attachments: Vec<ParsedEmailAttachment>,
 }
 
 impl LocalStore {
@@ -255,62 +276,182 @@ impl LocalStore {
         }))
     }
 
-    /// Extrait à nouveau la pièce du message revu par l'utilisateur, vérifie
-    /// que le fichier source n'a pas changé depuis l'inspection et joint le
-    /// contenu réel au brouillon. Aucun fichier temporaire ni accès réseau.
+    /// Enregistre le brouillon, la pièce MIME contrôlée et la provenance dans
+    /// une seule transaction. Le fichier final est supprimé si la base ne peut
+    /// pas être validée, ce qui évite les brouillons ou justificatifs orphelins.
+    pub fn import_supplier_email_invoice_draft(
+        &self,
+        input: ImportSupplierEmailInvoiceDraftInput,
+    ) -> AppResult<Value> {
+        let reviewed = reviewed_supplier_email(&input.source_path, &input.source_sha256)?;
+        let invoice_id = input
+            .invoice
+            .id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "L'identifiant stable du brouillon fournisseur est obligatoire.".into(),
+                )
+            })?
+            .to_owned();
+        if invoice_id.len() > 100 {
+            return Err(AppError::Validation(
+                "L'identifiant du brouillon fournisseur est invalide.".into(),
+            ));
+        }
+
+        let requested_attachment_sha256 = input
+            .attachment_sha256
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| validated_sha256(value, "pièce jointe"))
+            .transpose()?
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Sélectionnez le justificatif original PDF ou image avant d'importer cet e-mail."
+                        .into(),
+                )
+            })?;
+        let selected_attachment = reviewed
+            .attachments
+            .iter()
+            .find(|attachment| attachment.sha256 == requested_attachment_sha256)
+            .cloned()
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "La pièce jointe contrôlée n'existe plus dans ce message.".into(),
+                )
+            })?;
+
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let mut prepared_attachment = self.prepare_supplier_invoice_attachment_bytes(
+            &selected_attachment.name,
+            &selected_attachment.bytes,
+        )?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+
+        let existing_import: Option<(String, Option<String>, Option<String>)> = tx
+            .query_row(
+                "SELECT supplier_invoice_id,attachment_sha256,attachment_id FROM supplier_email_invoice_imports WHERE source_sha256=?",
+                params![reviewed.source_sha256],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?;
+        if let Some((existing_invoice_id, existing_attachment_sha256, attachment_id)) =
+            existing_import
+        {
+            if existing_invoice_id != invoice_id
+                || existing_attachment_sha256.as_deref()
+                    != Some(requested_attachment_sha256.as_str())
+                || attachment_id.is_none()
+            {
+                return Err(AppError::Validation(
+                    "Ce message e-mail a déjà été importé. Ouvrez le brouillon existant au lieu d'en créer un autre.".into(),
+                ));
+            }
+            let before = supplier_invoice_bundle(&tx, &invoice_id)?;
+            let after =
+                self.save_supplier_invoice_draft_in_transaction(&tx, input.invoice, true)?;
+            if after != before {
+                return Err(AppError::Validation(
+                    "Ce message e-mail a déjà été importé et son brouillon a depuis été modifié. Ouvrez le brouillon existant pour continuer.".into(),
+                ));
+            }
+            tx.commit()?;
+            return Ok(json!({
+                "document": before,
+                "attachment_id": attachment_id,
+                "source_sha256": reviewed.source_sha256,
+                "idempotent": true,
+            }));
+        }
+
+        if let Some(message_id) = reviewed.message_id.as_deref() {
+            let duplicate_message: Option<String> = tx
+                .query_row(
+                    "SELECT supplier_invoice_id FROM supplier_email_invoice_imports WHERE source_message_id=? COLLATE NOCASE LIMIT 1",
+                    params![message_id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if duplicate_message.is_some() {
+                return Err(AppError::Validation(
+                    "Ce message e-mail possède un identifiant déjà importé. Ouvrez le brouillon existant pour le contrôler.".into(),
+                ));
+            }
+        }
+
+        let document = self.save_supplier_invoice_draft_in_transaction(&tx, input.invoice, true)?;
+        let inserted_attachment = self.insert_prepared_supplier_invoice_attachment(
+            &tx,
+            &invoice_id,
+            &prepared_attachment,
+            "supplier_email_atomic_import",
+        )?;
+        if inserted_attachment.created {
+            prepared_attachment.install()?;
+        }
+        let attachment_id = inserted_attachment.record["id"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| AppError::Validation("Identifiant de justificatif invalide.".into()))?;
+        let attachment_sha256 = inserted_attachment.record["sha256"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| AppError::Validation("Empreinte de justificatif invalide.".into()))?;
+        if attachment_sha256 != requested_attachment_sha256 {
+            return Err(AppError::Validation(
+                "L'empreinte du justificatif enregistré ne correspond pas à la pièce contrôlée."
+                    .into(),
+            ));
+        }
+        let now = now_iso();
+        tx.execute(
+            "INSERT INTO supplier_email_invoice_imports(supplier_invoice_id,source_sha256,source_message_id,source_file_name,attachment_sha256,attachment_id,created_at) VALUES(?,?,?,?,?,?,?)",
+            params![invoice_id,reviewed.source_sha256,reviewed.message_id,reviewed.file_name,requested_attachment_sha256,attachment_id,now],
+        )?;
+        append_audit(
+            &tx,
+            "import",
+            "supplier_email_invoice",
+            &invoice_id,
+            &json!({
+                "source_sha256": reviewed.source_sha256,
+                "source_message_id": reviewed.message_id,
+                "source_file_name": reviewed.file_name,
+                "attachment_sha256": requested_attachment_sha256,
+                "attachment_id": attachment_id,
+                "network_access": false,
+                "ai_used": false,
+            }),
+        )?;
+        tx.commit()?;
+        if inserted_attachment.created {
+            prepared_attachment.retain();
+        }
+        Ok(json!({
+            "document": document,
+            "attachment": inserted_attachment.record,
+            "source_sha256": reviewed.source_sha256,
+            "idempotent": false,
+        }))
+    }
+
+    /// Compatibilité avec les anciennes interfaces : relit toujours le message
+    /// et vérifie les deux empreintes avant d'ajouter uniquement la pièce.
+    #[cfg(test)]
     pub fn add_supplier_email_attachment(
         &self,
         input: AddSupplierEmailAttachmentInput,
     ) -> AppResult<Value> {
-        let path = Path::new(input.source_path.trim());
-        if input.source_path.trim().is_empty() || !path.is_file() {
-            return Err(AppError::Validation(
-                "Le message e-mail d'origine est introuvable; sélectionnez-le à nouveau.".into(),
-            ));
-        }
-        let extension = path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        if !matches!(extension.as_str(), "eml" | "txt") {
-            return Err(AppError::Validation(
-                "La source doit rester un message .eml ou .txt.".into(),
-            ));
-        }
-        let metadata = fs::metadata(path)?;
-        if metadata.len() == 0 || metadata.len() > MAX_EMAIL_BYTES {
-            return Err(AppError::Validation(
-                "La taille du message e-mail n'est plus valide.".into(),
-            ));
-        }
-        let bytes = fs::read(path)?;
-        if bytes.is_empty()
-            || u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_EMAIL_BYTES
-            || bytes.contains(&0)
-        {
-            return Err(AppError::Validation(
-                "Le fichier sélectionné n'est pas un message e-mail texte valide.".into(),
-            ));
-        }
-        let source_sha256 = format!("{:x}", Sha256::digest(&bytes));
-        if source_sha256 != input.source_sha256.trim().to_ascii_lowercase() {
-            return Err(AppError::Validation(
-                "Le message e-mail a changé depuis votre contrôle; analysez-le à nouveau.".into(),
-            ));
-        }
-        let attachment_sha256 = input.attachment_sha256.trim().to_ascii_lowercase();
-        if attachment_sha256.len() != 64
-            || !attachment_sha256
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
-        {
-            return Err(AppError::Validation(
-                "L'empreinte de la pièce jointe est invalide.".into(),
-            ));
-        }
-        let raw = String::from_utf8_lossy(&bytes);
-        let attachment = mime_attachments(&raw)
+        let reviewed = reviewed_supplier_email(&input.source_path, &input.source_sha256)?;
+        let attachment_sha256 = validated_sha256(&input.attachment_sha256, "pièce jointe")?;
+        let attachment = reviewed
+            .attachments
             .into_iter()
             .find(|attachment| attachment.sha256 == attachment_sha256)
             .ok_or_else(|| {
@@ -324,6 +465,89 @@ impl LocalStore {
             &attachment.bytes,
         )
     }
+}
+
+fn reviewed_supplier_email(
+    source_path: &str,
+    expected_source_sha256: &str,
+) -> AppResult<ReviewedSupplierEmail> {
+    let path = Path::new(source_path.trim());
+    if source_path.trim().is_empty() || !path.is_file() {
+        return Err(AppError::Validation(
+            "Le message e-mail d'origine est introuvable; sélectionnez-le à nouveau.".into(),
+        ));
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(extension.as_str(), "eml" | "txt") {
+        return Err(AppError::Validation(
+            "La source doit rester un message .eml ou .txt.".into(),
+        ));
+    }
+    let metadata = fs::metadata(path)?;
+    if metadata.len() == 0 || metadata.len() > MAX_EMAIL_BYTES {
+        return Err(AppError::Validation(
+            "La taille du message e-mail n'est plus valide.".into(),
+        ));
+    }
+    let bytes = fs::read(path)?;
+    if bytes.is_empty()
+        || u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_EMAIL_BYTES
+        || bytes.contains(&0)
+    {
+        return Err(AppError::Validation(
+            "Le fichier sélectionné n'est pas un message e-mail texte valide.".into(),
+        ));
+    }
+    let source_sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let expected_source_sha256 = validated_sha256(expected_source_sha256, "message e-mail")?;
+    if source_sha256 != expected_source_sha256 {
+        return Err(AppError::Validation(
+            "Le message e-mail a changé depuis votre contrôle; analysez-le à nouveau.".into(),
+        ));
+    }
+    let raw = String::from_utf8_lossy(&bytes);
+    let unfolded = unfold_headers(&raw);
+    let message_id = header_value(&unfolded, "message-id")
+        .unwrap_or_default()
+        .trim_matches(['<', '>'])
+        .trim()
+        .to_owned();
+    if message_id.len() > 512 {
+        return Err(AppError::Validation(
+            "L'identifiant technique du message e-mail est anormalement long.".into(),
+        ));
+    }
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("message.eml")
+        .trim()
+        .to_owned();
+    if file_name.is_empty() || file_name.len() > 255 || file_name.chars().any(char::is_control) {
+        return Err(AppError::Validation(
+            "Le nom du fichier e-mail source est invalide.".into(),
+        ));
+    }
+    Ok(ReviewedSupplierEmail {
+        file_name,
+        source_sha256,
+        message_id: (!message_id.is_empty()).then_some(message_id),
+        attachments: mime_attachments(&raw),
+    })
+}
+
+fn validated_sha256(value: &str, label: &str) -> AppResult<String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.len() != 64 || !normalized.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(AppError::Validation(format!(
+            "L'empreinte du {label} est invalide."
+        )));
+    }
+    Ok(normalized)
 }
 
 fn unfold_headers(raw: &str) -> String {
@@ -997,13 +1221,51 @@ mod tests {
         path.to_string_lossy().into_owned()
     }
 
+    fn email_with_pdf(message_id: &str, reference: &str) -> (String, String) {
+        let pdf = crate::attachments::test_pdf_bytes();
+        let attachment_sha256 = format!("{:x}", Sha256::digest(&pdf));
+        let payload = STANDARD.encode(pdf);
+        (
+            format!(
+                "From: Papeterie SA <factures@papeterie.example>\r\nSubject: Facture {reference}\r\nMessage-ID: <{message_id}>\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nDate de facture: 02.09.2026\r\nDate d'échéance: 02.10.2026\r\nTotal TTC CHF 108.10\r\n--x\r\nContent-Type: application/pdf; name=facture.pdf\r\nContent-Disposition: attachment; filename=facture.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n{payload}\r\n--x--\r\n"
+            ),
+            attachment_sha256,
+        )
+    }
+
+    fn invoice_input(id: &str, reference: &str) -> SaveSupplierInvoiceDraftInput {
+        SaveSupplierInvoiceDraftInput {
+            id: Some(id.into()),
+            supplier_id: "supplier-1".into(),
+            project_id: None,
+            date: "2026-09-02".into(),
+            due_date: "2026-10-02".into(),
+            reference: Some(reference.into()),
+            note: Some("Import e-mail contrôlé".into()),
+            items: vec![SupplierInvoiceLineInput {
+                id: Some("bb906107-990c-4c64-bca0-e287b62797fd".into()),
+                description: "Facture fournisseur".into(),
+                quantity_milli: 1_000,
+                unit: Some("forfait".into()),
+                unit_price_cents: 10_810,
+                discount_bp: 0,
+                vat_bp: 0,
+                category: "Fournitures".into(),
+                expense_account_id: None,
+                project_id: None,
+            }],
+        }
+    }
+
     #[test]
     fn parses_a_realistic_eml_without_network_or_ai() {
         let (temporary, store) = initialized_store();
-        let path = write_email(
-            temporary.path(),
-            "From: =?UTF-8?Q?Papeterie_L=C3=A9man_SA?= <factures@papeterie.example>\r\nSubject: =?UTF-8?Q?Votre_facture_INV-2026-0042?=\r\nMessage-ID: <mail-42@example>\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nDate de facture: 02.09.2026\r\nDate d'=C3=A9ch=C3=A9ance: 02.10.2026\r\nTotal net CHF 100.00\r\nMontant TVA CHF 8.10\r\nTotal TTC CHF 108.10\r\n--x\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"=?UTF-8?Q?facture-=C3=A9nergie-42.pdf?=\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjc=\r\n--x--\r\n",
+        let pdf_bytes = crate::attachments::test_pdf_bytes();
+        let pdf_payload = STANDARD.encode(&pdf_bytes);
+        let message = format!(
+            "From: =?UTF-8?Q?Papeterie_L=C3=A9man_SA?= <factures@papeterie.example>\r\nSubject: =?UTF-8?Q?Votre_facture_INV-2026-0042?=\r\nMessage-ID: <mail-42@example>\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nDate de facture: 02.09.2026\r\nDate d'=C3=A9ch=C3=A9ance: 02.10.2026\r\nTotal net CHF 100.00\r\nMontant TVA CHF 8.10\r\nTotal TTC CHF 108.10\r\n--x\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"=?UTF-8?Q?facture-=C3=A9nergie-42.pdf?=\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{pdf_payload}\r\n--x--\r\n"
         );
+        let path = write_email(temporary.path(), &message);
         let result = store.inspect_supplier_email_file(&path).unwrap();
         assert_eq!(result["invoice_signal"], true);
         assert_eq!(result["matched_supplier_id"], "supplier-1");
@@ -1026,7 +1288,10 @@ mod tests {
             result["importable_attachments"][0]["mime_type"],
             "application/pdf"
         );
-        assert_eq!(result["importable_attachments"][0]["size_bytes"], 8);
+        assert_eq!(
+            result["importable_attachments"][0]["size_bytes"],
+            pdf_bytes.len()
+        );
         assert_eq!(result["network_access"], false);
         assert_eq!(result["ai_used"], false);
 
@@ -1072,7 +1337,7 @@ mod tests {
         let stored = store
             .verified_attachment_path(attachment["id"].as_str().unwrap())
             .unwrap();
-        assert_eq!(fs::read(stored).unwrap(), b"%PDF-1.7");
+        assert_eq!(fs::read(stored).unwrap(), pdf_bytes);
 
         let repeated = store
             .add_supplier_email_attachment(AddSupplierEmailAttachmentInput {
@@ -1115,13 +1380,200 @@ mod tests {
     }
 
     #[test]
+    fn atomic_import_records_provenance_and_exact_retry_is_idempotent() {
+        let (temporary, store) = initialized_store();
+        let (message, attachment_sha256) =
+            email_with_pdf("atomic-42@example.test", "INV-ATOMIC-42");
+        let source_path = write_email(temporary.path(), &message);
+        let inspection = store.inspect_supplier_email_file(&source_path).unwrap();
+        let invoice_id = "cf45d803-1bef-4ca4-bfe1-30b49535d630";
+        let input = ImportSupplierEmailInvoiceDraftInput {
+            invoice: invoice_input(invoice_id, "INV-ATOMIC-42"),
+            source_path,
+            source_sha256: inspection["sha256"].as_str().unwrap().into(),
+            attachment_sha256: Some(attachment_sha256),
+        };
+
+        let first = store
+            .import_supplier_email_invoice_draft(input.clone())
+            .unwrap();
+        assert_eq!(first["idempotent"], false);
+        assert_eq!(first["document"]["invoice"]["id"], invoice_id);
+        assert!(first["attachment"]["id"].is_string());
+        let attachment_id = first["attachment"]["id"].as_str().unwrap().to_owned();
+
+        let retried = store.import_supplier_email_invoice_draft(input).unwrap();
+        assert_eq!(retried["idempotent"], true);
+        assert_eq!(retried["document"]["invoice"]["id"], invoice_id);
+
+        let connection = store.connect().unwrap();
+        let counts: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM supplier_invoices WHERE id=?1),
+                   (SELECT COUNT(*) FROM supplier_invoice_items WHERE supplier_invoice_id=?1),
+                   (SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=?1),
+                   (SELECT COUNT(*) FROM supplier_email_invoice_imports WHERE supplier_invoice_id=?1)",
+                params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 1, 1, 1));
+        drop(connection);
+
+        let protected_error = store
+            .delete_supplier_invoice_attachment(&attachment_id)
+            .unwrap_err();
+        assert!(protected_error.to_string().contains("prouve l'import"));
+        store.delete_supplier_invoice_draft(invoice_id).unwrap();
+        let connection = store.connect().unwrap();
+        let remaining: i64 = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM supplier_invoices WHERE id=?1) +
+                   (SELECT COUNT(*) FROM attachments WHERE entity_id=?1) +
+                   (SELECT COUNT(*) FROM supplier_email_invoice_imports WHERE supplier_invoice_id=?1)",
+                params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining, 0);
+        assert_eq!(fs::read_dir(&store.attachments_dir).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn atomic_import_refuses_reusing_a_source_for_changed_invoice_data() {
+        let (temporary, store) = initialized_store();
+        let (message, attachment_sha256) =
+            email_with_pdf("immutable-source@example.test", "INV-SOURCE-1");
+        let source_path = write_email(temporary.path(), &message);
+        let inspection = store.inspect_supplier_email_file(&source_path).unwrap();
+        let invoice_id = "cd163953-67fc-4781-b447-65811b753e0d";
+        let base = ImportSupplierEmailInvoiceDraftInput {
+            invoice: invoice_input(invoice_id, "INV-SOURCE-1"),
+            source_path,
+            source_sha256: inspection["sha256"].as_str().unwrap().into(),
+            attachment_sha256: Some(attachment_sha256),
+        };
+        store
+            .import_supplier_email_invoice_draft(base.clone())
+            .unwrap();
+
+        let mut changed = base.clone();
+        changed.invoice.reference = Some("INV-MODIFIED".into());
+        let error = store
+            .import_supplier_email_invoice_draft(changed)
+            .unwrap_err();
+        assert!(error.to_string().contains("déjà été importé"));
+
+        let mut different_id = base;
+        different_id.invoice.id = Some("2eddb7de-4818-4a5f-b0ff-4fda97862e19".into());
+        different_id.invoice.items[0].id = Some("83ff504a-6a91-4a89-b1fd-b436012c6634".into());
+        assert!(store
+            .import_supplier_email_invoice_draft(different_id)
+            .unwrap_err()
+            .to_string()
+            .contains("déjà été importé"));
+
+        let connection = store.connect().unwrap();
+        let reference: String = connection
+            .query_row(
+                "SELECT reference FROM supplier_invoices WHERE id=?",
+                params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(reference, "INV-SOURCE-1");
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM supplier_invoices", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn malformed_email_pdf_never_creates_a_draft_or_a_file() {
+        let (temporary, store) = initialized_store();
+        let malformed = b"%PDF-1.7\ntruncated";
+        let payload = STANDARD.encode(malformed);
+        let attachment_sha256 = format!("{:x}", Sha256::digest(malformed));
+        let message = format!(
+            "From: Papeterie SA <factures@papeterie.example>\r\nSubject: Facture INV-BROKEN\r\nMessage-ID: <broken@example.test>\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain\r\n\r\nTotal TTC CHF 10.00\r\n--x\r\nContent-Type: application/pdf; name=facture.pdf\r\nContent-Disposition: attachment; filename=facture.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n{payload}\r\n--x--\r\n"
+        );
+        let source_path = write_email(temporary.path(), &message);
+        let source_sha256 = format!("{:x}", Sha256::digest(message.as_bytes()));
+
+        let error = store
+            .import_supplier_email_invoice_draft(ImportSupplierEmailInvoiceDraftInput {
+                invoice: invoice_input("d14180b8-a7c1-46b1-93ac-71ed80dde992", "INV-BROKEN"),
+                source_path,
+                source_sha256,
+                attachment_sha256: Some(attachment_sha256),
+            })
+            .unwrap_err();
+        assert!(error.to_string().contains("n'existe plus"));
+
+        let connection = store.connect().unwrap();
+        let rows: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM supplier_invoices),
+                   (SELECT COUNT(*) FROM attachments),
+                   (SELECT COUNT(*) FROM supplier_email_invoice_imports)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, (0, 0, 0));
+        assert_eq!(
+            fs::read_dir(&store.attachments_dir).unwrap().count(),
+            0,
+            "aucun fichier temporaire ou final ne doit rester"
+        );
+    }
+
+    #[test]
+    fn atomic_import_without_evidence_is_refused_without_creating_a_draft() {
+        let (temporary, store) = initialized_store();
+        let (message, _) = email_with_pdf("without-evidence@example.test", "INV-NO-PROOF");
+        let source_path = write_email(temporary.path(), &message);
+        let inspection = store.inspect_supplier_email_file(&source_path).unwrap();
+        let invoice_id = "364d8c19-e862-4b1d-a03a-515963c777cd";
+        let error = store
+            .import_supplier_email_invoice_draft(ImportSupplierEmailInvoiceDraftInput {
+                invoice: invoice_input(invoice_id, "INV-NO-PROOF"),
+                source_path,
+                source_sha256: inspection["sha256"].as_str().unwrap().into(),
+                attachment_sha256: None,
+            })
+            .unwrap_err();
+        assert!(error.to_string().contains("Sélectionnez le justificatif"));
+        let connection = store.connect().unwrap();
+        let counts: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM supplier_invoices),
+                   (SELECT COUNT(*) FROM attachments),
+                   (SELECT COUNT(*) FROM supplier_email_invoice_imports)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (0, 0, 0));
+    }
+
+    #[test]
     fn decodes_base64_html_and_rfc2231_attachment_names() {
         let (temporary, store) = initialized_store();
         let subject = STANDARD.encode("Facture INV-2026-0099".as_bytes());
         let html = "<html><body>\n<p>Date de facture: <strong>03.09.2026</strong></p>\n<p>Date d'échéance: <strong>03.10.2026</strong></p>\n<p>Total net CHF 200.00</p>\n<p>Montant TVA CHF 16.20</p>\n<p>Total TTC CHF 216.20</p>\n</body></html>";
         let body = STANDARD.encode(html.as_bytes());
+        let pdf_payload = STANDARD.encode(crate::attachments::test_pdf_bytes());
         let message = format!(
-            "From: =?UTF-8?B?UGFwZXRlcmllIMOJbmVyZ2llIFNB?= <factures@papeterie.example>\r\nSubject: =?UTF-8?B?{subject}?=\r\nMessage-ID: <mail-99@example>\r\nContent-Type: multipart/mixed; boundary=invoice-boundary\r\n\r\n--invoice-boundary\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{body}\r\n--invoice-boundary\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename*=UTF-8''Facture%20%C3%A9nergie%200099.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjc=\r\n--invoice-boundary--\r\n"
+            "From: =?UTF-8?B?UGFwZXRlcmllIMOJbmVyZ2llIFNB?= <factures@papeterie.example>\r\nSubject: =?UTF-8?B?{subject}?=\r\nMessage-ID: <mail-99@example>\r\nContent-Type: multipart/mixed; boundary=invoice-boundary\r\n\r\n--invoice-boundary\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{body}\r\n--invoice-boundary\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename*=UTF-8''Facture%20%C3%A9nergie%200099.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n{pdf_payload}\r\n--invoice-boundary--\r\n"
         );
         let path = write_email(temporary.path(), &message);
 
@@ -1275,10 +1727,11 @@ mod tests {
     #[test]
     fn refuses_an_attachment_when_the_reviewed_email_changed() {
         let (temporary, store) = initialized_store();
-        let path = write_email(
-            temporary.path(),
-            "From: Papeterie SA <factures@papeterie.example>\r\nSubject: Facture INV-2026-0101\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: application/pdf; name=invoice.pdf\r\nContent-Disposition: attachment; filename=invoice.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjc=\r\n--x--\r\n",
+        let pdf_payload = STANDARD.encode(crate::attachments::test_pdf_bytes());
+        let message = format!(
+            "From: Papeterie SA <factures@papeterie.example>\r\nSubject: Facture INV-2026-0101\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: application/pdf; name=invoice.pdf\r\nContent-Disposition: attachment; filename=invoice.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n{pdf_payload}\r\n--x--\r\n"
         );
+        let path = write_email(temporary.path(), &message);
         let inspection = store.inspect_supplier_email_file(&path).unwrap();
         fs::write(&path, b"From: changed@example.com\n\nchanged").unwrap();
 

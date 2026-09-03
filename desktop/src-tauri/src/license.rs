@@ -13,9 +13,10 @@ use reqwest::{
     redirect::Policy,
     StatusCode,
 };
-use rusqlite::{params, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 use crate::{
     audit::append_audit,
@@ -33,10 +34,15 @@ const LICENSE_KEY_ID: &str = "hc-prod-v1";
 const CLOCK_ANCHOR_VERSION: u8 = 1;
 const LICENSE_INSTALLATION_PROOF_VERSION: u8 = 1;
 const REFRESH_ATTEMPT_VERSION: u8 = 1;
+const PROTECTED_LICENSE_TOKEN_VERSION: u8 = 1;
 #[cfg(windows)]
 const CLOCK_ANCHOR_FILE: &str = "license-clock.dpapi";
 #[cfg(not(windows))]
 const CLOCK_ANCHOR_FILE: &str = "license-clock.protected";
+#[cfg(windows)]
+const PENDING_CLOCK_ANCHOR_FILE: &str = "license-clock-pending.dpapi";
+#[cfg(not(windows))]
+const PENDING_CLOCK_ANCHOR_FILE: &str = "license-clock-pending.protected";
 #[cfg(windows)]
 const LICENSE_INSTALLATION_PROOF_FILE: &str = "license-installation.dpapi";
 #[cfg(not(windows))]
@@ -45,6 +51,10 @@ const LICENSE_INSTALLATION_PROOF_FILE: &str = "license-installation.protected";
 const REFRESH_ATTEMPT_FILE: &str = "license-refresh-attempt.dpapi";
 #[cfg(not(windows))]
 const REFRESH_ATTEMPT_FILE: &str = "license-refresh-attempt.protected";
+#[cfg(windows)]
+const LICENSE_TOKEN_FILE: &str = "license-token.dpapi";
+#[cfg(not(windows))]
+const LICENSE_TOKEN_FILE: &str = "license-token.protected";
 const LICENSE_REFRESH_ENDPOINT: &str = "https://elyko.alb-leart1.chatgpt.site/api/stripe/refresh";
 const MAX_LICENSE_TOKEN_BYTES: usize = 8 * 1024;
 const MAX_REFRESH_RESPONSE_BYTES: u64 = 16 * 1024;
@@ -73,6 +83,18 @@ struct LicenseClockAnchor {
     server_access: LicenseServerAccess,
 }
 
+/// Candidat écrit avant SQLite puis promu seulement après son commit. Son
+/// empreinte permet de récupérer sans ambiguïté une coupure survenue juste
+/// après le commit, y compris quand le nouveau jeton conserve le license_id.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PendingLicenseClockAnchor {
+    version: u8,
+    installation_id: String,
+    token_sha256: String,
+    anchor: LicenseClockAnchor,
+}
+
 // Défense en profondeur contre une remise à zéro partielle de SQLite : cette
 // preuve DPAPI n'est ni une DRM « incrackable », ni une identité serveur. Un
 // administrateur local peut toujours supprimer toutes les données Zentra ; le
@@ -95,6 +117,19 @@ struct LicenseRefreshAttempt {
     attempted_at_utc: String,
 }
 
+/// Deux générations peuvent cohabiter brièvement afin de rendre cohérent un
+/// remplacement qui touche à la fois le coffre système et SQLite. La base
+/// choisit la génération active par son empreinte; aucun jeton n'y est écrit.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProtectedLicenseTokens {
+    version: u8,
+    installation_id: String,
+    current_token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    previous_token: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct LicenseRefreshResponse {
     token: String,
@@ -107,6 +142,7 @@ struct LicenseRefreshSnapshot {
 struct LicenseInstallSnapshot {
     candidate_token: String,
     candidate_license_id: String,
+    previous_fingerprint: Option<String>,
     previous_token: Option<String>,
 }
 
@@ -145,10 +181,8 @@ impl LocalStore {
             self.prepare_license_install_snapshot(token, &key)?
         };
         let outcome = request_refreshed_license(&snapshot.candidate_token).await;
-        {
-            let _guard = self.lock()?;
-            self.finish_online_license_installation(snapshot, &key, outcome)?;
-        }
+        let _guard = self.lock()?;
+        self.finish_online_license_installation(snapshot, &key, outcome)?;
         self.get_license_state_with_key(&key)
     }
 
@@ -162,7 +196,7 @@ impl LocalStore {
         let connection = self.connect()?;
         let previous: Option<(String, i64)> = connection
             .query_row(
-                "SELECT token,clock_anchor_version FROM license_state WHERE id=1",
+                "SELECT token_sha256,clock_anchor_version FROM license_state WHERE id=1",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -176,10 +210,19 @@ impl LocalStore {
                     .into(),
             ));
         }
+        let previous_token = previous.as_ref().and_then(|(fingerprint, _)| {
+            // Une réinstallation en ligne signée doit pouvoir réparer un coffre
+            // supprimé/corrompu. Toutes les opérations hors ligne, elles,
+            // continueront d'échouer fermement tant que le jeton manque.
+            self.token_matching_fingerprint(fingerprint).ok()
+        });
         Ok(LicenseInstallSnapshot {
             candidate_token: token.trim().to_owned(),
             candidate_license_id: payload.license_id,
-            previous_token: previous.map(|(stored, _)| stored),
+            previous_fingerprint: previous
+                .as_ref()
+                .map(|(fingerprint, _)| fingerprint.clone()),
+            previous_token,
         })
     }
 
@@ -208,21 +251,24 @@ impl LocalStore {
                     .into(),
             ));
         }
-        let current_token: Option<String> = self
-            .connect()?
-            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
-                row.get(0)
-            })
+        let connection = self.connect()?;
+        let current_fingerprint: Option<String> = connection
+            .query_row(
+                "SELECT token_sha256 FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
             .optional()?;
-        if current_token != snapshot.previous_token {
+        if current_fingerprint != snapshot.previous_fingerprint {
             return Err(AppError::Validation(
                 "La licence locale a changé pendant la vérification en ligne. Relancez l’installation."
                     .into(),
             ));
         }
-        let installed = self.persist_verified_license(
+        let installed = self.persist_verified_license_with_expectation(
             &refreshed_token,
             &payload,
+            snapshot.previous_fingerprint.as_deref(),
             snapshot.previous_token.as_deref(),
             "install_online",
         )?;
@@ -256,27 +302,82 @@ impl LocalStore {
         expected_token: Option<&str>,
         audit_action: &str,
     ) -> AppResult<bool> {
+        let expected_fingerprint = expected_token.map(license_token_fingerprint);
+        self.persist_verified_license_with_expectation(
+            token,
+            payload,
+            expected_fingerprint.as_deref(),
+            expected_token,
+            audit_action,
+        )
+    }
+
+    fn persist_verified_license_with_expectation(
+        &self,
+        token: &str,
+        payload: &LicenseTokenPayload,
+        expected_fingerprint: Option<&str>,
+        previous_token: Option<&str>,
+        audit_action: &str,
+    ) -> AppResult<bool> {
         let mut connection = self.connect()?;
-        let existing: Option<String> = connection
-            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
-                row.get(0)
-            })
+        let existing_fingerprint: Option<String> = connection
+            .query_row(
+                "SELECT token_sha256 FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
             .optional()?;
-        if existing.as_deref() != expected_token {
+        if existing_fingerprint.as_deref() != expected_fingerprint {
             return Ok(false);
         }
+        if let Some(expected_token) = previous_token {
+            let existing = existing_fingerprint
+                .as_deref()
+                .map(|fingerprint| self.token_matching_fingerprint(fingerprint))
+                .transpose()?;
+            if existing.as_deref() != Some(expected_token) {
+                return Ok(false);
+            }
+        }
+        validate_protected_token(token)?;
 
         let now_utc = Utc::now();
         let current_date = Local::now().date_naive();
+        let token_sha256 = license_token_fingerprint(token);
         let anchor =
             self.prepare_anchor_from_online_verification(payload, now_utc, current_date)?;
-        self.write_clock_anchor(&anchor)?;
+        // L'ancre active reste intacte jusqu'au commit SQLite. Si le processus
+        // s'arrête après le commit, le candidat est récupéré par son empreinte.
+        self.write_pending_clock_anchor(&anchor, &token_sha256)?;
         self.write_or_repair_license_installation_proof(payload)?;
 
         let verified_at = now_iso();
         let last_seen_date = anchor.max_seen_date.clone();
+        // Le coffre contient temporairement les deux générations. Ainsi, une
+        // coupure avant/après le commit SQLite reste lisible via l'empreinte
+        // stockée dans la base et ne réintroduit jamais le jeton dans celle-ci.
+        self.write_protected_license_tokens(&ProtectedLicenseTokens {
+            version: PROTECTED_LICENSE_TOKEN_VERSION,
+            installation_id: self.installation_id.clone(),
+            current_token: token.to_owned(),
+            previous_token: previous_token
+                .filter(|previous| *previous != token)
+                .map(str::to_owned),
+        })?;
+
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        tx.execute("INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET token=excluded.token,license_id=excluded.license_id,customer_name=excluded.customer_name,plan=excluded.plan,price_chf_cents=excluded.price_chf_cents,issued_at=excluded.issued_at,valid_from=excluded.valid_from,valid_until=excluded.valid_until,verified_at=excluded.verified_at,last_seen_date=excluded.last_seen_date,clock_anchor_version=1",params![token,payload.license_id,payload.customer_name,payload.plan,payload.price_chf_cents,payload.issued_at,payload.valid_from,payload.valid_until,verified_at,last_seen_date])?;
+        let current_fingerprint: Option<String> = tx
+            .query_row(
+                "SELECT token_sha256 FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if current_fingerprint != existing_fingerprint {
+            return Ok(false);
+        }
+        tx.execute("INSERT INTO license_state(id,token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET token_sha256=excluded.token_sha256,license_id=excluded.license_id,customer_name=excluded.customer_name,plan=excluded.plan,price_chf_cents=excluded.price_chf_cents,issued_at=excluded.issued_at,valid_from=excluded.valid_from,valid_until=excluded.valid_until,verified_at=excluded.verified_at,last_seen_date=excluded.last_seen_date,clock_anchor_version=1",params![token_sha256,payload.license_id,payload.customer_name,payload.plan,payload.price_chf_cents,payload.issued_at,payload.valid_from,payload.valid_until,verified_at,last_seen_date])?;
         let audit_ready: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM settings WHERE id=1 AND onboarding_completed=1)",
             [],
@@ -292,6 +393,15 @@ impl LocalStore {
             )?;
         }
         tx.commit()?;
+        self.promote_clock_anchor(&anchor, &token_sha256)?;
+        // Une transition avec previous_token reste sûre et pleinement lisible;
+        // sa réduction à une seule génération est donc un nettoyage best-effort.
+        let _ = self.write_protected_license_tokens(&ProtectedLicenseTokens {
+            version: PROTECTED_LICENSE_TOKEN_VERSION,
+            installation_id: self.installation_id.clone(),
+            current_token: token.to_owned(),
+            previous_token: None,
+        });
         Ok(true)
     }
 
@@ -305,15 +415,28 @@ impl LocalStore {
     }
 
     fn get_license_state_with_key(&self, key: &[u8; 32]) -> AppResult<Value> {
+        // En production, tous les appelants conservent LocalStore::lock pendant
+        // cette lecture-écriture de l'ancre (commande Tauri, install ou refresh).
         let connection = self.connect()?;
-        let row=query_all(&connection,"SELECT token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version FROM license_state WHERE id=1",[])?.into_iter().next();
+        let row=query_all(&connection,"SELECT token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version FROM license_state WHERE id=1",[])?.into_iter().next();
         let Some(row) = row else {
             return Ok(
                 json!({"enforcement_configured":true,"status":"missing","read_only":true,"can_refresh":false,"plan":LICENSE_PLAN,"price_chf_cents":LICENSE_PRICE_CHF_CENTS,"installation_id":self.installation_id,"token_version":TOKEN_VERSION}),
             );
         };
-        let token = row["token"].as_str().unwrap_or("");
-        let payload = match verify_token_with_key(token, key) {
+        let token = match row["token_sha256"]
+            .as_str()
+            .ok_or_else(protected_token_repair_required)
+            .and_then(|fingerprint| self.token_matching_fingerprint(fingerprint))
+        {
+            Ok(token) => token,
+            Err(error) => {
+                return Ok(
+                    json!({"enforcement_configured":true,"status":"invalid","read_only":true,"can_refresh":false,"plan":LICENSE_PLAN,"price_chf_cents":LICENSE_PRICE_CHF_CENTS,"installation_id":self.installation_id,"token_version":TOKEN_VERSION,"reason":error.to_string()}),
+                )
+            }
+        };
+        let payload = match verify_token_with_key(&token, key) {
             Ok(v) => v,
             Err(error) => {
                 return Ok(
@@ -328,7 +451,11 @@ impl LocalStore {
         }
 
         let clock_anchor_version = row["clock_anchor_version"].as_i64().unwrap_or(-1);
-        let mut anchor = match self.load_initialized_clock_anchor(&payload, clock_anchor_version) {
+        let mut anchor = match self.load_initialized_clock_anchor(
+            &payload,
+            clock_anchor_version,
+            &license_token_fingerprint(&token),
+        ) {
             Ok(anchor) => anchor,
             Err(error) => {
                 return Ok(self.license_state_json(
@@ -433,7 +560,8 @@ impl LocalStore {
             self.prepare_refresh_snapshot(&key, automatic)?
         };
         let Some(snapshot) = snapshot else {
-            return self.get_license_state();
+            let _guard = self.lock()?;
+            return self.get_license_state_with_key(&key);
         };
 
         let outcome = request_refreshed_license(&snapshot.token).await?;
@@ -460,11 +588,7 @@ impl LocalStore {
         automatic: bool,
     ) -> AppResult<Option<LicenseRefreshSnapshot>> {
         let connection = self.connect()?;
-        let token: Option<String> = connection
-            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
-                row.get(0)
-            })
-            .optional()?;
+        let token = self.stored_license_token(&connection)?;
         let Some(token) = token else {
             if automatic {
                 return Ok(None);
@@ -538,12 +662,10 @@ impl LocalStore {
         key: &[u8; 32],
         server_access: LicenseServerAccess,
     ) -> AppResult<()> {
+        // refresh_license détient LocalStore::lock; les appels cloud passent
+        // par mark_current_license_access, qui prend le même mutex partagé.
         let connection = self.connect()?;
-        let current: Option<String> = connection
-            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
-                row.get(0)
-            })
-            .optional()?;
+        let current = self.stored_license_token(&connection)?;
         if current.as_deref() != Some(expected_token) {
             return Ok(());
         }
@@ -558,8 +680,8 @@ impl LocalStore {
         self.write_clock_anchor(&anchor)?;
         self.write_or_repair_license_installation_proof(&payload)?;
         let updated = connection.execute(
-            "UPDATE license_state SET clock_anchor_version=1 WHERE id=1 AND token=?",
-            params![expected_token],
+            "UPDATE license_state SET clock_anchor_version=1 WHERE id=1 AND token_sha256=?",
+            params![license_token_fingerprint(expected_token)],
         )?;
         if updated != 1 {
             return Err(AppError::Validation(
@@ -582,12 +704,9 @@ impl LocalStore {
         let Some(key) = embedded_key()? else {
             return Ok(());
         };
+        let _guard = self.lock()?;
         let connection = self.connect()?;
-        let token: Option<String> = connection
-            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
-                row.get(0)
-            })
-            .optional()?;
+        let token = self.stored_license_token(&connection)?;
         drop(connection);
         if let Some(token) = token {
             self.mark_server_access(&token, &key, access)?;
@@ -599,6 +718,7 @@ impl LocalStore {
         &self,
         payload: &LicenseTokenPayload,
         clock_anchor_version: i64,
+        token_sha256: &str,
     ) -> AppResult<LicenseClockAnchor> {
         if clock_anchor_version == 0 {
             return Err(AppError::Validation(
@@ -618,6 +738,12 @@ impl LocalStore {
             .ok_or_else(installation_proof_repair_required)?;
         self.validate_license_installation_proof(&proof)
             .map_err(|_| installation_proof_repair_required())?;
+        if let Some(anchor) = self.pending_clock_anchor_for_token(payload, token_sha256)? {
+            self.write_clock_anchor(&anchor)
+                .map_err(|_| anchor_repair_required())?;
+            self.remove_pending_clock_anchor_if_matches(token_sha256);
+            return Ok(anchor);
+        }
         let anchor = self
             .load_clock_anchor()
             .map_err(|_| anchor_repair_required())?
@@ -672,6 +798,140 @@ impl LocalStore {
         self.data_dir.join(CLOCK_ANCHOR_FILE)
     }
 
+    fn pending_clock_anchor_path(&self) -> PathBuf {
+        self.data_dir.join(PENDING_CLOCK_ANCHOR_FILE)
+    }
+
+    fn license_token_path(&self) -> PathBuf {
+        self.data_dir.join(LICENSE_TOKEN_FILE)
+    }
+
+    pub(crate) fn stage_legacy_license_token_migration(
+        &self,
+        connection: &Connection,
+    ) -> AppResult<()> {
+        let has_table: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='license_state')",
+            [],
+            |row| row.get(0),
+        )?;
+        if !has_table {
+            return Ok(());
+        }
+        let mut columns = connection.prepare("PRAGMA table_info(license_state)")?;
+        let names = columns
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+        if !names.iter().any(|column| column == "token") {
+            return Ok(());
+        }
+        let legacy_token: Option<String> = connection
+            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        let Some(legacy_token) = legacy_token else {
+            return Ok(());
+        };
+        validate_protected_token(&legacy_token)?;
+
+        match self.load_protected_license_tokens() {
+            Ok(Some(record))
+                if record.current_token == legacy_token
+                    || record.previous_token.as_deref() == Some(legacy_token.as_str()) =>
+            {
+                Ok(())
+            }
+            Ok(Some(_)) => Err(AppError::Validation(
+                "Le jeton protégé et l'ancienne licence locale ne correspondent pas. La migration est arrêtée pour éviter toute perte; contactez le support."
+                    .into(),
+            )),
+            Ok(None) | Err(_) => self.write_protected_license_tokens(&ProtectedLicenseTokens {
+                version: PROTECTED_LICENSE_TOKEN_VERSION,
+                installation_id: self.installation_id.clone(),
+                current_token: legacy_token,
+                previous_token: None,
+            }),
+        }
+    }
+
+    fn load_protected_license_tokens(&self) -> AppResult<Option<ProtectedLicenseTokens>> {
+        let record: Option<ProtectedLicenseTokens> =
+            read_protected_json(&self.license_token_path())?;
+        if let Some(record) = record.as_ref() {
+            self.validate_protected_license_tokens(record)?;
+        }
+        Ok(record)
+    }
+
+    fn validate_protected_license_tokens(&self, record: &ProtectedLicenseTokens) -> AppResult<()> {
+        if record.version != PROTECTED_LICENSE_TOKEN_VERSION
+            || record.installation_id != self.installation_id
+        {
+            return Err(protected_token_repair_required());
+        }
+        validate_protected_token(&record.current_token)?;
+        if let Some(previous) = record.previous_token.as_deref() {
+            validate_protected_token(previous)?;
+            if previous == record.current_token {
+                return Err(protected_token_repair_required());
+            }
+        }
+        Ok(())
+    }
+
+    fn write_protected_license_tokens(&self, record: &ProtectedLicenseTokens) -> AppResult<()> {
+        self.validate_protected_license_tokens(record)?;
+        write_protected_json(&self.license_token_path(), record)
+    }
+
+    fn token_matching_fingerprint(&self, fingerprint: &str) -> AppResult<String> {
+        validate_token_fingerprint(fingerprint)?;
+        let record = self
+            .load_protected_license_tokens()?
+            .ok_or_else(protected_token_repair_required)?;
+        if license_token_fingerprint(&record.current_token) == fingerprint {
+            return Ok(record.current_token);
+        }
+        if let Some(previous) = record.previous_token {
+            if license_token_fingerprint(&previous) == fingerprint {
+                return Ok(previous);
+            }
+        }
+        Err(protected_token_repair_required())
+    }
+
+    fn stored_license_token(&self, connection: &Connection) -> AppResult<Option<String>> {
+        let fingerprint: Option<String> = connection
+            .query_row(
+                "SELECT token_sha256 FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        fingerprint
+            .map(|fingerprint| self.token_matching_fingerprint(&fingerprint))
+            .transpose()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn install_test_protected_license_token(&self, token: &str) -> AppResult<String> {
+        validate_protected_token(token)?;
+        self.write_protected_license_tokens(&ProtectedLicenseTokens {
+            version: PROTECTED_LICENSE_TOKEN_VERSION,
+            installation_id: self.installation_id.clone(),
+            current_token: token.to_owned(),
+            previous_token: None,
+        })?;
+        Ok(license_token_fingerprint(token))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn read_test_protected_license_token(&self) -> AppResult<Option<String>> {
+        self.load_protected_license_tokens()
+            .map(|record| record.map(|record| record.current_token))
+    }
+
     fn license_installation_proof_path(&self) -> PathBuf {
         self.data_dir.join(LICENSE_INSTALLATION_PROOF_FILE)
     }
@@ -686,6 +946,81 @@ impl LocalStore {
 
     fn write_clock_anchor(&self, anchor: &LicenseClockAnchor) -> AppResult<()> {
         write_protected_json(&self.clock_anchor_path(), anchor)
+    }
+
+    fn load_pending_clock_anchor(&self) -> AppResult<Option<PendingLicenseClockAnchor>> {
+        read_protected_json(&self.pending_clock_anchor_path())
+    }
+
+    fn write_pending_clock_anchor(
+        &self,
+        anchor: &LicenseClockAnchor,
+        token_sha256: &str,
+    ) -> AppResult<()> {
+        validate_token_fingerprint(token_sha256)?;
+        if anchor.version != CLOCK_ANCHOR_VERSION
+            || anchor.installation_id != self.installation_id
+            || anchor.license_id.trim().is_empty()
+        {
+            return Err(anchor_repair_required());
+        }
+        parse_utc(&anchor.max_seen_utc, "max_seen_utc")?;
+        parse_date(&anchor.max_seen_date, "max_seen_date")?;
+        write_protected_json(
+            &self.pending_clock_anchor_path(),
+            &PendingLicenseClockAnchor {
+                version: CLOCK_ANCHOR_VERSION,
+                installation_id: self.installation_id.clone(),
+                token_sha256: token_sha256.to_owned(),
+                anchor: anchor.clone(),
+            },
+        )
+    }
+
+    fn pending_clock_anchor_for_token(
+        &self,
+        payload: &LicenseTokenPayload,
+        token_sha256: &str,
+    ) -> AppResult<Option<LicenseClockAnchor>> {
+        validate_token_fingerprint(token_sha256)?;
+        let pending = match self.load_pending_clock_anchor() {
+            Ok(Some(pending)) => pending,
+            // L'ancien format n'avait pas de candidat. Un candidat absent ou
+            // illisible ne permet jamais de contourner la validation stricte
+            // de l'ancre active effectuée juste après.
+            Ok(None) | Err(_) => return Ok(None),
+        };
+        if pending.version != CLOCK_ANCHOR_VERSION
+            || pending.installation_id != self.installation_id
+            || pending.token_sha256 != token_sha256
+        {
+            return Ok(None);
+        }
+        self.validate_anchor_identity(&pending.anchor, payload)?;
+        Ok(Some(pending.anchor))
+    }
+
+    fn promote_clock_anchor(
+        &self,
+        anchor: &LicenseClockAnchor,
+        token_sha256: &str,
+    ) -> AppResult<()> {
+        self.write_clock_anchor(anchor)?;
+        self.remove_pending_clock_anchor_if_matches(token_sha256);
+        Ok(())
+    }
+
+    fn remove_pending_clock_anchor_if_matches(&self, token_sha256: &str) {
+        let matching = self.load_pending_clock_anchor().is_ok_and(|pending| {
+            pending.is_some_and(|pending| {
+                pending.version == CLOCK_ANCHOR_VERSION
+                    && pending.installation_id == self.installation_id
+                    && pending.token_sha256 == token_sha256
+            })
+        });
+        if matching {
+            let _ = crate::installation::remove_protected(&self.pending_clock_anchor_path());
+        }
     }
 
     fn load_license_installation_proof(&self) -> AppResult<Option<LicenseInstallationProof>> {
@@ -764,7 +1099,7 @@ impl LocalStore {
         let connection = self.connect()?;
         let row: (String, i64) = connection
             .query_row(
-                "SELECT token,clock_anchor_version FROM license_state WHERE id=1",
+                "SELECT token_sha256,clock_anchor_version FROM license_state WHERE id=1",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
@@ -772,7 +1107,8 @@ impl LocalStore {
             .ok_or_else(|| {
                 AppError::Validation("Licence requise : l'application est en lecture seule.".into())
             })?;
-        let payload = verify_token_with_key(&row.0, key)?;
+        let token = self.token_matching_fingerprint(&row.0)?;
+        let payload = verify_token_with_key(&token, key)?;
         self.validate_installation_binding(&payload)?;
         if payload.access_role == "read_only" {
             return Err(AppError::Validation(
@@ -780,7 +1116,7 @@ impl LocalStore {
                     .into(),
             ));
         }
-        let mut anchor = self.load_initialized_clock_anchor(&payload, row.1)?;
+        let mut anchor = self.load_initialized_clock_anchor(&payload, row.1, &row.0)?;
         let now_utc = Utc::now();
         let current_date = Local::now().date_naive();
         if clock_rolled_back(&anchor, now_utc, current_date)? {
@@ -838,6 +1174,38 @@ fn installation_proof_repair_required() -> AppError {
         "La preuve locale protégée de cette installation est absente ou invalide. Renouvelez la licence en ligne ou contactez le support."
             .into(),
     )
+}
+
+fn protected_token_repair_required() -> AppError {
+    AppError::Validation(
+        "Le jeton de licence protégé est absent, illisible ou ne correspond plus à cette installation. Réinstallez votre jeton ou contactez le support."
+            .into(),
+    )
+}
+
+fn validate_protected_token(token: &str) -> AppResult<()> {
+    // Le coffre accepte aussi un ancien jeton mal formé afin que la migration
+    // puisse l'effacer de SQLite sans bloquer l'ouverture. La signature et la
+    // forme stricte restent vérifiées avant toute autorisation d'accès.
+    if token.is_empty() || token.len() > MAX_LICENSE_TOKEN_BYTES {
+        return Err(protected_token_repair_required());
+    }
+    Ok(())
+}
+
+fn license_token_fingerprint(token: &str) -> String {
+    format!("{:x}", Sha256::digest(token.as_bytes()))
+}
+
+fn validate_token_fingerprint(fingerprint: &str) -> AppResult<()> {
+    if fingerprint.len() != 64
+        || !fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(protected_token_repair_required());
+    }
+    Ok(())
 }
 
 fn new_clock_anchor(
@@ -1240,14 +1608,79 @@ mod tests {
     fn simulate_v5_license_without_protected_state(store: &LocalStore) {
         std::fs::remove_file(store.clock_anchor_path()).unwrap();
         std::fs::remove_file(store.license_installation_proof_path()).unwrap();
-        store
-            .connect()
-            .unwrap()
-            .execute_batch(
-                "ALTER TABLE license_state DROP COLUMN clock_anchor_version;
-                 PRAGMA user_version=5;",
-            )
-            .unwrap();
+        let mut connection = store.connect().unwrap();
+        let token = store.stored_license_token(&connection).unwrap().unwrap();
+        let tx = connection.transaction().unwrap();
+        tx.execute_batch(
+            "ALTER TABLE license_state RENAME TO license_state_v38_snapshot;
+             CREATE TABLE license_state (
+               id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL,license_id TEXT NOT NULL,
+               customer_name TEXT,plan TEXT NOT NULL,price_chf_cents INTEGER NOT NULL,
+               issued_at TEXT NOT NULL,valid_from TEXT NOT NULL,valid_until TEXT NOT NULL,
+               verified_at TEXT NOT NULL,last_seen_date TEXT NOT NULL
+             );",
+        )
+        .unwrap();
+        tx.execute(
+            "INSERT INTO license_state(
+               id,token,license_id,customer_name,plan,price_chf_cents,issued_at,
+               valid_from,valid_until,verified_at,last_seen_date
+             )
+             SELECT id,?1,license_id,customer_name,plan,price_chf_cents,issued_at,
+                    valid_from,valid_until,verified_at,last_seen_date
+             FROM license_state_v38_snapshot",
+            params![token],
+        )
+        .unwrap();
+        tx.execute_batch(
+            "DROP TABLE license_state_v38_snapshot;
+             PRAGMA user_version=5;",
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        crate::installation::remove_protected(&store.license_token_path()).unwrap();
+    }
+
+    fn simulate_v37_plaintext_license(store: &LocalStore) -> String {
+        let mut connection = store.connect().unwrap();
+        let token = store.stored_license_token(&connection).unwrap().unwrap();
+        let tx = connection.transaction().unwrap();
+        tx.execute_batch(
+            "ALTER TABLE license_state RENAME TO license_state_v38_snapshot;
+             CREATE TABLE license_state (
+               id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL,license_id TEXT NOT NULL,
+               customer_name TEXT,plan TEXT NOT NULL,price_chf_cents INTEGER NOT NULL,
+               issued_at TEXT NOT NULL,valid_from TEXT NOT NULL,valid_until TEXT NOT NULL,
+               verified_at TEXT NOT NULL,last_seen_date TEXT NOT NULL,
+               clock_anchor_version INTEGER NOT NULL DEFAULT 0
+                 CHECK(clock_anchor_version IN (0,1))
+             );",
+        )
+        .unwrap();
+        tx.execute(
+            "INSERT INTO license_state(
+               id,token,license_id,customer_name,plan,price_chf_cents,issued_at,
+               valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version
+             )
+             SELECT id,?1,license_id,customer_name,plan,price_chf_cents,issued_at,
+                    valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version
+             FROM license_state_v38_snapshot",
+            params![token],
+        )
+        .unwrap();
+        tx.execute_batch(
+            "DROP TABLE license_state_v38_snapshot;
+             PRAGMA user_version=37;",
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        crate::installation::remove_protected(&store.license_token_path()).unwrap();
+        token
+    }
+
+    fn file_contains(path: &Path, needle: &[u8]) -> bool {
+        std::fs::read(path)
+            .is_ok_and(|bytes| bytes.windows(needle.len()).any(|window| window == needle))
     }
 
     #[test]
@@ -1632,6 +2065,7 @@ mod tests {
                 for protected in [
                     profile.join(CLOCK_ANCHOR_FILE),
                     profile.join(LICENSE_INSTALLATION_PROOF_FILE),
+                    profile.join(LICENSE_TOKEN_FILE),
                 ] {
                     if protected.exists() {
                         std::fs::remove_file(protected).unwrap();
@@ -1899,14 +2333,199 @@ mod tests {
             .persist_verified_license(&second_token, &second_payload, None, "install_online")
             .unwrap());
 
-        let stored: String = store
+        let connection = store.connect().unwrap();
+        let stored_fingerprint: String = connection
+            .query_row(
+                "SELECT token_sha256 FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored_fingerprint, license_token_fingerprint(&first_token));
+        assert_eq!(
+            store.stored_license_token(&connection).unwrap().as_deref(),
+            Some(first_token.as_str())
+        );
+    }
+
+    #[test]
+    fn sqlite_failure_before_anchor_promotion_keeps_previous_license_usable() {
+        let signing = SigningKey::from_bytes(&[53_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let profile = temporary.path().join("profile");
+        let store = LocalStore::initialize(profile.clone()).unwrap();
+        let (first_payload, first_token) = current_token(&store, &signing, "lic-atomic-old");
+        let (second_payload, second_token) = current_token(&store, &signing, "lic-atomic-new");
+
+        assert!(store
+            .persist_verified_license(&first_token, &first_payload, None, "install_online")
+            .unwrap());
+        assert!(!store.pending_clock_anchor_path().exists());
+        assert_eq!(
+            store.load_clock_anchor().unwrap().unwrap().license_id,
+            "lic-atomic-old"
+        );
+
+        // Le trigger injecte un échec dans l'UPSERT, après l'écriture du
+        // candidat protégé mais avant le commit SQLite.
+        store
             .connect()
             .unwrap()
-            .query_row("SELECT token FROM license_state WHERE id=1", [], |row| {
-                row.get(0)
-            })
+            .execute_batch(
+                "CREATE TRIGGER fail_license_replacement
+                 BEFORE UPDATE ON license_state
+                 BEGIN
+                   SELECT RAISE(ABORT, 'injected-license-commit-failure');
+                 END;",
+            )
             .unwrap();
-        assert_eq!(stored, first_token);
+        let error = store
+            .persist_verified_license(
+                &second_token,
+                &second_payload,
+                Some(&first_token),
+                "refresh",
+            )
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("injected-license-commit-failure"));
+        store
+            .connect()
+            .unwrap()
+            .execute_batch("DROP TRIGGER fail_license_replacement;")
+            .unwrap();
+
+        assert!(store.pending_clock_anchor_path().is_file());
+        assert_eq!(
+            store.load_clock_anchor().unwrap().unwrap().license_id,
+            "lic-atomic-old"
+        );
+        let connection = store.connect().unwrap();
+        let stored: (String, String) = connection
+            .query_row(
+                "SELECT token_sha256,license_id FROM license_state WHERE id=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(stored.0, license_token_fingerprint(&first_token));
+        assert_eq!(stored.1, "lic-atomic-old");
+        assert_eq!(
+            store.stored_license_token(&connection).unwrap().as_deref(),
+            Some(first_token.as_str())
+        );
+        drop(connection);
+        drop(store);
+
+        let reopened = LocalStore::initialize(profile).unwrap();
+        let state = reopened.get_license_state_with_key(&key).unwrap();
+        assert_eq!(state["status"], "valid");
+        assert_eq!(state["read_only"], false);
+        reopened.require_write_access_with_key(&key).unwrap();
+        assert_eq!(
+            reopened.load_clock_anchor().unwrap().unwrap().license_id,
+            "lic-atomic-old"
+        );
+    }
+
+    #[test]
+    fn committed_pending_anchor_is_promoted_on_restart() {
+        let signing = SigningKey::from_bytes(&[57_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let profile = temporary.path().join("profile");
+        let store = LocalStore::initialize(profile.clone()).unwrap();
+        let (first_payload, first_token) = current_token(&store, &signing, "lic-promote-old");
+        let (second_payload, second_token) = current_token(&store, &signing, "lic-promote-new");
+
+        assert!(store
+            .persist_verified_license(&first_token, &first_payload, None, "install_online")
+            .unwrap());
+        let previous_anchor = store.load_clock_anchor().unwrap().unwrap();
+        assert!(store
+            .persist_verified_license(
+                &second_token,
+                &second_payload,
+                Some(&first_token),
+                "refresh",
+            )
+            .unwrap());
+        let committed_anchor = store.load_clock_anchor().unwrap().unwrap();
+        assert_eq!(committed_anchor.license_id, "lic-promote-new");
+
+        // Reconstitue exactement une coupure après le commit SQLite mais avant
+        // la promotion : ancienne ancre active + candidat lié au nouveau hash.
+        store.write_clock_anchor(&previous_anchor).unwrap();
+        store
+            .write_pending_clock_anchor(
+                &committed_anchor,
+                &license_token_fingerprint(&second_token),
+            )
+            .unwrap();
+        drop(store);
+
+        let reopened = LocalStore::initialize(profile).unwrap();
+        assert_eq!(
+            reopened.get_license_state_with_key(&key).unwrap()["status"],
+            "valid"
+        );
+        assert_eq!(
+            reopened.load_clock_anchor().unwrap().unwrap().license_id,
+            "lic-promote-new"
+        );
+        assert!(!reopened.pending_clock_anchor_path().exists());
+    }
+
+    #[test]
+    fn operation_lock_prevents_a_stale_server_mark_from_overwriting_a_replacement() {
+        let signing = SigningKey::from_bytes(&[59_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (first_payload, first_token) = current_token(&store, &signing, "lic-race-old");
+        let (second_payload, second_token) = current_token(&store, &signing, "lic-race-new");
+        assert!(store
+            .persist_verified_license(&first_token, &first_payload, None, "install_online")
+            .unwrap());
+
+        let guard = store.lock().unwrap();
+        let marker_store = store.clone();
+        let marker_token = first_token.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let marker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let _guard = marker_store.lock().unwrap();
+            marker_store
+                .mark_server_access(&marker_token, &key, LicenseServerAccess::Inactive)
+                .unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+
+        // Le remplacement détient le verrou partagé. Le marquage issu de
+        // l'ancien snapshot ne peut vérifier son empreinte qu'après le commit.
+        assert!(store
+            .persist_verified_license(
+                &second_token,
+                &second_payload,
+                Some(&first_token),
+                "refresh",
+            )
+            .unwrap());
+        drop(guard);
+        marker.join().unwrap();
+
+        assert_eq!(
+            store.load_clock_anchor().unwrap().unwrap().license_id,
+            "lic-race-new"
+        );
+        assert_eq!(
+            store
+                .get_license_state_with_key(&signing.verifying_key().to_bytes())
+                .unwrap()["status"],
+            "valid"
+        );
     }
 
     #[test]
@@ -1941,6 +2560,106 @@ mod tests {
             )
             .unwrap();
         assert_eq!(marker, 1);
+        assert_eq!(
+            store.get_license_state_with_key(&key).unwrap()["status"],
+            "valid"
+        );
+    }
+
+    #[test]
+    fn v37_plaintext_token_moves_to_the_os_vault_and_is_purged_from_sqlite() {
+        let signing = SigningKey::from_bytes(&[43_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let profile = temporary.path().join("profile");
+        let store = LocalStore::initialize(profile.clone()).unwrap();
+        let (_payload, token) = current_token(&store, &signing, "lic-v38-migration");
+        store.install_server_token_with_key(&token, &key).unwrap();
+        let legacy_token = simulate_v37_plaintext_license(&store);
+        let database_path = store.database_path.clone();
+        assert!(["", "-wal"]
+            .iter()
+            .map(|suffix| PathBuf::from(format!("{}{suffix}", database_path.display())))
+            .any(|path| path.is_file() && file_contains(&path, legacy_token.as_bytes())));
+        drop(store);
+
+        let migrated = LocalStore::initialize(profile).unwrap();
+        let connection = migrated.connect().unwrap();
+        let columns = connection
+            .prepare("PRAGMA table_info(license_state)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(!columns.iter().any(|column| column == "token"));
+        assert!(columns.iter().any(|column| column == "token_sha256"));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT token_sha256 FROM license_state WHERE id=1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            license_token_fingerprint(&legacy_token)
+        );
+        assert_eq!(
+            migrated
+                .stored_license_token(&connection)
+                .unwrap()
+                .as_deref(),
+            Some(legacy_token.as_str())
+        );
+        drop(connection);
+
+        assert!(migrated.license_token_path().is_file());
+        assert!(!file_contains(
+            &migrated.license_token_path(),
+            legacy_token.as_bytes()
+        ));
+        for suffix in ["", "-wal", "-shm"] {
+            let path = PathBuf::from(format!("{}{suffix}", database_path.display()));
+            if path.is_file() {
+                assert!(
+                    !file_contains(&path, legacy_token.as_bytes()),
+                    "le jeton ne doit subsister dans aucun fichier SQLite: {}",
+                    path.display()
+                );
+            }
+        }
+        assert_eq!(
+            migrated.get_license_state_with_key(&key).unwrap()["status"],
+            "valid"
+        );
+    }
+
+    #[test]
+    fn missing_protected_token_fails_closed_but_online_install_repairs_it() {
+        let signing = SigningKey::from_bytes(&[47_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (_payload, token) = current_token(&store, &signing, "lic-vault-repair");
+        store.install_server_token_with_key(&token, &key).unwrap();
+        crate::installation::remove_protected(&store.license_token_path()).unwrap();
+
+        let invalid = store.get_license_state_with_key(&key).unwrap();
+        assert_eq!(invalid["status"], "invalid");
+        assert_eq!(invalid["read_only"], true);
+        assert_eq!(invalid["can_refresh"], false);
+        assert!(store.require_write_access_with_key(&key).is_err());
+
+        let snapshot = store
+            .prepare_license_install_snapshot(&token, &key)
+            .unwrap();
+        store
+            .finish_online_license_installation(
+                snapshot,
+                &key,
+                Ok(LicenseRefreshOutcome::Token(token)),
+            )
+            .unwrap();
         assert_eq!(
             store.get_license_state_with_key(&key).unwrap()["status"],
             "valid"

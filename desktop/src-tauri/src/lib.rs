@@ -86,12 +86,11 @@ pub fn run() {
             record_stock_exit,
             record_stock_correction,
             save_supplier_invoice_draft,
-            save_supplier_email_invoice_draft,
             validate_supplier_invoice,
             record_supplier_payment,
             delete_supplier_invoice_draft,
             inspect_supplier_email_file,
-            add_supplier_email_attachment,
+            import_supplier_email_invoice_draft,
             save_supplier_order_draft,
             confirm_supplier_order,
             cancel_supplier_order_remainder,
@@ -221,6 +220,7 @@ pub fn run() {
             create_backup,
             restore_backup,
             export_json,
+            export_csv_archive,
             add_supplier_invoice_attachment,
             delete_supplier_invoice_attachment,
             open_attachment,
@@ -3405,7 +3405,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .contains("référence existe déjà"));
 
         let source_attachment = temporary.path().join("supplier-invoice.pdf");
-        std::fs::write(&source_attachment, b"%PDF-1.7\nreal payload").unwrap();
+        std::fs::write(&source_attachment, crate::attachments::test_pdf_bytes()).unwrap();
         let attachment = store
             .add_supplier_invoice_attachment(AddSupplierInvoiceAttachmentInput {
                 supplier_invoice_id: draft_id.into(),
@@ -3449,14 +3449,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 ..input.clone()
             })
             .unwrap();
-        let disposable_source = temporary.path().join("disposable.png");
-        std::fs::write(
-            &disposable_source,
-            [
-                0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, b'd', b'a', b't', b'a',
-            ],
-        )
-        .unwrap();
+        let disposable_source = temporary.path().join("disposable.pdf");
+        std::fs::write(&disposable_source, crate::attachments::test_pdf_bytes()).unwrap();
         let disposable_attachment = store
             .add_supplier_invoice_attachment(AddSupplierInvoiceAttachmentInput {
                 supplier_invoice_id: disposable_id.into(),
@@ -6934,6 +6928,98 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn automatic_noop_reminder_scans_are_idempotent_and_bounded() {
+        let (_temporary, store) = initialized_store();
+        store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sender_name: Some("Entreprise de test".into()),
+            })
+            .unwrap();
+        let today = chrono::Local::now()
+            .date_naive()
+            .format("%Y-%m-%d")
+            .to_string();
+        let connection = store.connect().unwrap();
+        let operations_before: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM reminder_operation_requests",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        drop(connection);
+
+        let first_input = ScanRemindersInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            as_of: Some(today.clone()),
+        };
+        let first = store.scan_due_reminders(first_input.clone()).unwrap();
+        assert_eq!(first["idempotent"], false);
+        let replay = store.scan_due_reminders(first_input).unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["created"], first["created"]);
+        assert_eq!(replay["cancelled"], first["cancelled"]);
+        assert_eq!(replay["promoted"], first["promoted"]);
+
+        // Plus de deux jours de contrôles automatiques toutes les cinq minutes.
+        for _ in 0..600 {
+            let response = store
+                .scan_due_reminders(ScanRemindersInput {
+                    request_id: uuid::Uuid::new_v4().to_string(),
+                    as_of: Some(today.clone()),
+                })
+                .unwrap();
+            assert_eq!(response["idempotent"], false);
+            assert!(response["created"].as_array().unwrap().is_empty());
+            assert!(response["cancelled"].as_array().unwrap().is_empty());
+            assert!(response["promoted"].as_array().unwrap().is_empty());
+        }
+
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM reminder_operation_requests",
+                    [],
+                    |row| { row.get::<_, i64>(0) }
+                )
+                .unwrap(),
+            operations_before + crate::reminders::MAX_RETAINED_NOOP_SCAN_REQUESTS
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM reminder_operation_requests WHERE operation='scan'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            crate::reminders::MAX_RETAINED_NOOP_SCAN_REQUESTS
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_log WHERE action='scan' AND entity_type='reminders'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT last_scan_at IS NOT NULL FROM reminder_settings WHERE id=1",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
     fn planned_reminder_becomes_due_only_during_its_local_scan() {
         let (_temporary, store) = initialized_store();
         enable_accounting(&store);
@@ -7006,13 +7092,15 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 )
                 .unwrap();
         }
-        let scan = store
-            .scan_due_reminders(ScanRemindersInput {
-                request_id: uuid::Uuid::new_v4().to_string(),
-                as_of: Some(today_text),
-            })
-            .unwrap();
+        let scan_input = ScanRemindersInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            as_of: Some(today_text),
+        };
+        let scan = store.scan_due_reminders(scan_input.clone()).unwrap();
         assert_eq!(scan["promoted"], json!([reminder_id]));
+        let replay = store.scan_due_reminders(scan_input).unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(replay["promoted"], json!([reminder_id]));
         let connection = store.connect().unwrap();
         assert_eq!(
             connection
@@ -7029,6 +7117,26 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .query_row(
                     "SELECT COUNT(*) FROM reminder_history WHERE reminder_id=? AND action='due'",
                     rusqlite::params![reminder_id],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM reminder_operation_requests WHERE operation='scan'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_log WHERE action='scan' AND entity_type='reminders'",
+                    [],
                     |row| row.get::<_, i64>(0)
                 )
                 .unwrap(),

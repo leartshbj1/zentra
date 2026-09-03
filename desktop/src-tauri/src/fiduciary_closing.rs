@@ -1144,7 +1144,7 @@ fn rows(value: &Value) -> &[Value] {
     value.as_array().map(Vec::as_slice).unwrap_or(&[])
 }
 
-fn csv_from_rows(rows: &[Value], columns: &[(&str, &str)]) -> Vec<u8> {
+pub(crate) fn csv_from_rows(rows: &[Value], columns: &[(&str, &str)]) -> Vec<u8> {
     let mut csv = String::from("\u{feff}");
     csv.push_str(
         &columns

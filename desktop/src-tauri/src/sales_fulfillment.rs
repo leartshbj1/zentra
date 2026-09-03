@@ -2448,8 +2448,8 @@ macro_rules! sales_fulfillment_tests {
         let connection = store.connect().unwrap();
         connection
             .execute(
-                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,'token-source','lic-source','Entreprise source','elyko-monthly-50-chf',5000,'2026-01-01T00:00:00Z','2026-01-01','2027-01-01','2026-01-01T00:00:00Z','2026-01-01',1)",
-                [],
+                "INSERT INTO license_state(id,token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?1,'lic-source','Entreprise source','elyko-monthly-50-chf',5000,'2026-01-01T00:00:00Z','2026-01-01','2027-01-01','2026-01-01T00:00:00Z','2026-01-01',1)",
+                params!["a".repeat(64)],
             )
             .unwrap();
         let sequence_snapshot: Vec<(String, i64, i64)> = connection
@@ -2473,8 +2473,8 @@ macro_rules! sales_fulfillment_tests {
         let connection = store.connect().unwrap();
         connection
             .execute(
-                "UPDATE license_state SET token='token-destination',license_id='lic-destination' WHERE id=1",
-                [],
+                "UPDATE license_state SET token_sha256=?1,license_id='lic-destination' WHERE id=1",
+                params!["b".repeat(64)],
             )
             .unwrap();
         connection
@@ -2500,14 +2500,14 @@ macro_rules! sales_fulfillment_tests {
         let connection = store.connect().unwrap();
         let restored_license: (String, String) = connection
             .query_row(
-                "SELECT token,license_id FROM license_state WHERE id=1",
+                "SELECT token_sha256,license_id FROM license_state WHERE id=1",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
         assert_eq!(
             restored_license,
-            ("token-destination".into(), "lic-destination".into())
+            ("b".repeat(64), "lic-destination".into())
         );
         let restored_sequences: Vec<(String, i64, i64)> = connection
             .prepare(

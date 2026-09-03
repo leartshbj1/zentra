@@ -21,6 +21,7 @@ use crate::{
 
 const MAX_PAYLOAD_BYTES: usize = 100_000;
 const MAX_RESPONSE_BYTES: usize = 4_000_000;
+pub(crate) const MAX_RETAINED_NOOP_SCAN_REQUESTS: i64 = 576;
 const ALLOWED_PLACEHOLDERS: &[&str] = &[
     "balance",
     "balance_cents",
@@ -322,8 +323,8 @@ impl LocalStore {
             .unwrap_or(0)
             == 1;
         if !enabled {
-            let response = json!({"as_of":date,"enabled":false,"created":[],"cancelled":[],"review":[],"idempotent":false});
-            finish_operation(&transaction, &operation, "scan", &response)?;
+            let response = json!({"as_of":date,"enabled":false,"created":[],"cancelled":[],"promoted":[],"review":[],"idempotent":false});
+            finish_noop_scan_operation(&transaction, &operation, &response)?;
             transaction.commit()?;
             return Ok(response);
         }
@@ -565,16 +566,20 @@ impl LocalStore {
         });
         let created_count = response["created"].as_array().map_or(0, Vec::len);
         let cancelled_count = response["cancelled"].as_array().map_or(0, Vec::len);
-        if created_count > 0 || cancelled_count > 0 {
+        let promoted_count = response["promoted"].as_array().map_or(0, Vec::len);
+        let has_business_changes = created_count > 0 || cancelled_count > 0 || promoted_count > 0;
+        if has_business_changes {
             append_audit(
                 &transaction,
                 "scan",
                 "reminders",
                 &date,
-                &json!({"created":created_count,"cancelled":cancelled_count}),
+                &json!({"created":created_count,"cancelled":cancelled_count,"promoted":promoted_count}),
             )?;
+            finish_operation(&transaction, &operation, "scan", &response)?;
+        } else {
+            finish_noop_scan_operation(&transaction, &operation, &response)?;
         }
-        finish_operation(&transaction, &operation, "scan", &response)?;
         transaction.commit()?;
         Ok(response)
     }
@@ -1272,6 +1277,32 @@ fn finish_operation(
     transaction.execute(
         "INSERT INTO reminder_operation_requests(request_id,operation,payload_sha256,payload_json,response_json,created_at) VALUES(?,?,?,?,?,?)",
         params![state.request_id,operation,state.payload_sha256,state.payload_json,response_json,now_iso()],
+    )?;
+    Ok(())
+}
+
+fn finish_noop_scan_operation(
+    transaction: &Transaction<'_>,
+    state: &OperationState,
+    response: &Value,
+) -> AppResult<()> {
+    finish_operation(transaction, state, "scan", response)?;
+    transaction.execute(
+        "DELETE FROM reminder_operation_requests
+         WHERE request_id IN (
+           SELECT request_id FROM reminder_operation_requests
+           WHERE operation='scan'
+             AND json_valid(response_json)=1
+             AND json_type(response_json,'$.created')='array'
+             AND json_type(response_json,'$.cancelled')='array'
+             AND json_type(response_json,'$.promoted')='array'
+             AND json_array_length(response_json,'$.created')=0
+             AND json_array_length(response_json,'$.cancelled')=0
+             AND json_array_length(response_json,'$.promoted')=0
+           ORDER BY created_at DESC,rowid DESC
+           LIMIT -1 OFFSET ?
+         )",
+        params![MAX_RETAINED_NOOP_SCAN_REQUESTS],
     )?;
     Ok(())
 }

@@ -13,7 +13,7 @@
     "test:auth": "vitest run --config vitest.config.ts lib/supabase-auth.test.ts lib/supabase-auth-http.test.ts",
     "test:downloads": "vitest run --config vitest.config.ts lib/downloads.test.ts",
     "test:supabase-contract": "node scripts/check-supabase-contract.mjs",
-    "test:stripe": "vitest run --config vitest.config.ts lib/stripe-event.test.ts lib/stripe-sql.test.ts lib/stripe-webhook.test.ts lib/stripe-webhook-proof.test.ts lib/stripe-checkout.test.ts lib/stripe-account.test.ts lib/stripe-migrations.test.ts lib/license-constants.test.ts lib/request-body.test.ts lib/stripe-contract.test.ts lib/stripe-readiness.test.ts lib/stripe-test-access.test.ts lib/account-security.test.ts lib/invoice-archive.test.ts",
+    "test:stripe": "vitest run --config vitest.config.ts lib/stripe-event.test.ts lib/stripe-sql.test.ts lib/stripe-webhook.test.ts lib/stripe-webhook-proof.test.ts lib/stripe-checkout.test.ts lib/stripe-account.test.ts lib/stripe-migrations.test.ts lib/license-constants.test.ts lib/license-token.test.ts lib/request-body.test.ts lib/stripe-contract.test.ts lib/stripe-readiness.test.ts lib/stripe-test-access.test.ts lib/account-security.test.ts lib/invoice-archive.test.ts",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "audit:prod": "pnpm audit --prod --ignore GHSA-w3rx-r6r6-pgpr --ignore GHSA-5p2g-fcmc-qvqq",
     "db:generate": "drizzle-kit generate",

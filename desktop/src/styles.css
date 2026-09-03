@@ -14566,6 +14566,36 @@ select[aria-invalid='true']:focus {
 .planning-task:hover {
   background: #fafbf9;
 }
+.planning-task.is-agenda-target,
+.milestone-list article.is-agenda-target {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid rgba(38, 104, 67, 0.48);
+  outline-offset: -2px;
+  background: #eef6ef;
+  box-shadow:
+    inset 4px 0 0 var(--green-700),
+    0 8px 24px rgba(25, 74, 47, 0.13);
+  animation: planning-agenda-target 650ms ease-out both;
+}
+.planning-task.is-agenda-target:focus,
+.milestone-list article.is-agenda-target:focus {
+  outline-color: var(--green-700);
+}
+@keyframes planning-agenda-target {
+  from {
+    transform: translateY(3px);
+    box-shadow:
+      inset 4px 0 0 var(--green-700),
+      0 0 0 6px rgba(38, 104, 67, 0.14);
+  }
+  to {
+    transform: translateY(0);
+    box-shadow:
+      inset 4px 0 0 var(--green-700),
+      0 8px 24px rgba(25, 74, 47, 0.13);
+  }
+}
 .planning-task--done .planning-task__body strong,
 .planning-task--cancelled .planning-task__body strong {
   color: #808984;
@@ -14773,6 +14803,13 @@ select[aria-invalid='true']:focus {
   font-size: 9px;
   line-height: 1.55;
   text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planning-task.is-agenda-target,
+  .milestone-list article.is-agenda-target {
+    animation: none;
+  }
 }
 
 @media (max-width: 900px) {

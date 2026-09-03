@@ -1,9 +1,10 @@
 use std::{
     fs::{self, File},
-    io::{Read, Write},
+    io::{Cursor, Read, Write},
     path::{Path, PathBuf},
 };
 
+use image::{ImageFormat, ImageReader, Limits};
 use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -18,6 +19,9 @@ use crate::{
 
 const MAX_ATTACHMENT_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE: i64 = 20;
+const MAX_ATTACHMENT_IMAGE_EDGE: u32 = 12_000;
+const MAX_ATTACHMENT_IMAGE_PIXELS: u64 = 24_000_000;
+const MAX_ATTACHMENT_IMAGE_DECODE_BYTES: u64 = 128 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 pub struct AddSupplierInvoiceAttachmentInput {
@@ -29,6 +33,45 @@ pub struct AddSupplierInvoiceAttachmentInput {
 struct SupportedAttachment {
     mime_type: &'static str,
     extension: &'static str,
+}
+
+pub(crate) struct PreparedSupplierInvoiceAttachment {
+    id: String,
+    original_name: String,
+    stored_name: String,
+    detected: SupportedAttachment,
+    size_bytes: u64,
+    sha256: String,
+    temporary_path: PathBuf,
+    destination_path: PathBuf,
+    installed: bool,
+    retained: bool,
+}
+
+impl PreparedSupplierInvoiceAttachment {
+    pub(crate) fn install(&mut self) -> AppResult<()> {
+        fs::rename(&self.temporary_path, &self.destination_path)?;
+        self.installed = true;
+        Ok(())
+    }
+
+    pub(crate) fn retain(&mut self) {
+        self.retained = true;
+    }
+}
+
+impl Drop for PreparedSupplierInvoiceAttachment {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.temporary_path);
+        if self.installed && !self.retained {
+            let _ = fs::remove_file(&self.destination_path);
+        }
+    }
+}
+
+pub(crate) struct AttachmentInsertResult {
+    pub(crate) record: Value,
+    pub(crate) created: bool,
 }
 
 impl LocalStore {
@@ -163,117 +206,158 @@ impl LocalStore {
     /// message MIME choisi explicitement par l'utilisateur. Le contenu passe
     /// par les mêmes contrôles de taille, de signature binaire, de doublon et
     /// d'immuabilité que l'import depuis un fichier local.
+    #[cfg(test)]
     pub(crate) fn add_supplier_invoice_attachment_bytes(
         &self,
         supplier_invoice_id: &str,
         original_name: &str,
         bytes: &[u8],
     ) -> AppResult<Value> {
-        let invoice_id = required_uuid(supplier_invoice_id, "facture fournisseur")?;
-        validate_size(u64::try_from(bytes.len()).unwrap_or(u64::MAX))?;
-        let original_name = validated_original_name_value(original_name)?;
-        let detected = detect_supported_attachment_bytes(bytes)?;
+        let mut prepared = self.prepare_supplier_invoice_attachment_bytes(original_name, bytes)?;
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
+        let mut connection = connection;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let inserted = self.insert_prepared_supplier_invoice_attachment(
+            &tx,
+            supplier_invoice_id,
+            &prepared,
+            "supplier_email_mime",
+        )?;
+        if inserted.created {
+            prepared.install()?;
+        }
+        tx.commit()?;
+        if inserted.created {
+            prepared.retain();
+        }
+        Ok(inserted.record)
+    }
 
+    pub(crate) fn prepare_supplier_invoice_attachment_bytes(
+        &self,
+        original_name: &str,
+        bytes: &[u8],
+    ) -> AppResult<PreparedSupplierInvoiceAttachment> {
+        let size_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        validate_size(size_bytes)?;
+        let original_name = validated_original_name_value(original_name)?;
+        let detected = detect_supported_attachment_bytes(bytes)?;
         let id = Uuid::new_v4().to_string();
         let stored_name = format!("{id}.{}", detected.extension);
-        let destination = self.safe_attachment_path(&stored_name)?;
-        let temporary_name = format!(".{id}.attachment-part");
-        let temporary_path = self.safe_attachment_path(&temporary_name)?;
+        let destination_path = self.safe_attachment_path(&stored_name)?;
+        let temporary_path = self.safe_attachment_path(&format!(".{id}.attachment-part"))?;
+        let sha256 = format!("{:x}", Sha256::digest(bytes));
+        let prepared = PreparedSupplierInvoiceAttachment {
+            id,
+            original_name,
+            stored_name,
+            detected,
+            size_bytes,
+            sha256,
+            temporary_path,
+            destination_path,
+            installed: false,
+            retained: false,
+        };
         let write_result = (|| -> AppResult<()> {
-            let mut file = File::create(&temporary_path)?;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&prepared.temporary_path)?;
             file.write_all(bytes)?;
             file.sync_all()?;
-            if detect_supported_attachment(&temporary_path)? != detected {
+            if detect_supported_attachment(&prepared.temporary_path)? != prepared.detected
+                || sha256_file(&prepared.temporary_path)? != prepared.sha256
+            {
                 return Err(AppError::Validation(
-                    "Le justificatif décodé ne correspond plus à son format détecté.".into(),
+                    "Le justificatif décodé ne correspond plus aux octets contrôlés.".into(),
                 ));
             }
-            fs::rename(&temporary_path, &destination)?;
             Ok(())
         })();
         if let Err(error) = write_result {
-            let _ = fs::remove_file(&temporary_path);
+            drop(prepared);
             return Err(error);
         }
+        Ok(prepared)
+    }
 
-        let size_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-        let sha256 = format!("{:x}", Sha256::digest(bytes));
-        let database_result = (|| -> AppResult<Value> {
-            let mut connection = connection;
-            let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let (project_id, status): (Option<String>, String) = tx
-                .query_row(
-                    "SELECT project_id,status FROM supplier_invoices WHERE id=?",
-                    params![invoice_id],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()?
-                .ok_or_else(|| AppError::NotFound(format!("supplier_invoices/{invoice_id}")))?;
-            if status != "draft" {
-                return Err(AppError::Validation(
-                    "Les justificatifs d’une facture fournisseur validée sont figés.".into(),
-                ));
-            }
-            let existing = query_all(
-                &tx,
-                "SELECT * FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=? AND sha256=? LIMIT 1",
-                params![invoice_id, sha256],
-            )?
-            .into_iter()
-            .next();
-            if let Some(existing) = existing {
-                tx.commit()?;
-                return Ok(existing);
-            }
-            let count: i64 = tx.query_row(
-                "SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=?",
+    pub(crate) fn insert_prepared_supplier_invoice_attachment(
+        &self,
+        tx: &Transaction<'_>,
+        supplier_invoice_id: &str,
+        prepared: &PreparedSupplierInvoiceAttachment,
+        source: &str,
+    ) -> AppResult<AttachmentInsertResult> {
+        let invoice_id = required_uuid(supplier_invoice_id, "facture fournisseur")?;
+        let (project_id, status): (Option<String>, String) = tx
+            .query_row(
+                "SELECT project_id,status FROM supplier_invoices WHERE id=?",
                 params![invoice_id],
-                |row| row.get(0),
-            )?;
-            if count >= MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE {
-                return Err(AppError::Validation(format!(
-                    "Cette facture contient déjà la limite de {MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE} justificatifs."
-                )));
-            }
-            let now = now_iso();
-            tx.execute(
-                "INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'supplier_invoice',?,?,?,?,?,?,?,?)",
-                params![id,project_id,invoice_id,original_name,stored_name,detected.mime_type,i64::try_from(size_bytes).unwrap_or(i64::MAX),sha256,now,now],
-            )?;
-            let record = query_all(&tx, "SELECT * FROM attachments WHERE id=?", params![id])?
-                .into_iter()
-                .next()
-                .ok_or_else(|| AppError::NotFound(format!("attachments/{id}")))?;
-            append_audit(
-                &tx,
-                "attachment_add",
-                "supplier_invoice",
-                &invoice_id,
-                &json!({
-                    "attachment_id": id,
-                    "original_name": original_name,
-                    "mime_type": detected.mime_type,
-                    "size_bytes": size_bytes,
-                    "sha256": sha256,
-                    "source": "supplier_email_mime",
-                }),
-            )?;
-            tx.commit()?;
-            Ok(record)
-        })();
-
-        let destination_is_registered = database_result
-            .as_ref()
-            .ok()
-            .and_then(|record| record.get("id"))
-            .and_then(Value::as_str)
-            == Some(id.as_str());
-        if !destination_is_registered {
-            let _ = fs::remove_file(&destination);
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("supplier_invoices/{invoice_id}")))?;
+        if status != "draft" {
+            return Err(AppError::Validation(
+                "Les justificatifs d’une facture fournisseur validée sont figés.".into(),
+            ));
         }
-        database_result
+        let existing = query_all(
+            tx,
+            "SELECT * FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=? AND sha256=? LIMIT 1",
+            params![invoice_id, prepared.sha256],
+        )?
+        .into_iter()
+        .next();
+        if let Some(record) = existing {
+            return Ok(AttachmentInsertResult {
+                record,
+                created: false,
+            });
+        }
+        let count: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=?",
+            params![invoice_id],
+            |row| row.get(0),
+        )?;
+        if count >= MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE {
+            return Err(AppError::Validation(format!(
+                "Cette facture contient déjà la limite de {MAX_ATTACHMENTS_PER_SUPPLIER_INVOICE} justificatifs."
+            )));
+        }
+        let now = now_iso();
+        tx.execute(
+            "INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'supplier_invoice',?,?,?,?,?,?,?,?)",
+            params![prepared.id,project_id,invoice_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,i64::try_from(prepared.size_bytes).unwrap_or(i64::MAX),prepared.sha256,now,now],
+        )?;
+        let record = query_all(
+            tx,
+            "SELECT * FROM attachments WHERE id=?",
+            params![prepared.id],
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound(format!("attachments/{}", prepared.id)))?;
+        append_audit(
+            tx,
+            "attachment_add",
+            "supplier_invoice",
+            &invoice_id,
+            &json!({
+                "attachment_id": prepared.id,
+                "original_name": prepared.original_name,
+                "mime_type": prepared.detected.mime_type,
+                "size_bytes": prepared.size_bytes,
+                "sha256": prepared.sha256,
+                "source": source,
+            }),
+        )?;
+        Ok(AttachmentInsertResult {
+            record,
+            created: true,
+        })
     }
 
     pub fn delete_supplier_invoice_attachment(&self, id: &str) -> AppResult<Value> {
@@ -303,6 +387,16 @@ impl LocalStore {
         if status != "draft" {
             return Err(AppError::Validation(
                 "Un justificatif validé est immuable et ne peut plus être supprimé.".into(),
+            ));
+        }
+        let proves_email_import: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM supplier_email_invoice_imports WHERE attachment_id=?)",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if proves_email_import {
+            return Err(AppError::Validation(
+                "Cette pièce prouve l'import depuis l'e-mail d'origine. Supprimez le brouillon complet puis recommencez l'import pour choisir une autre pièce.".into(),
             ));
         }
         tx.execute("DELETE FROM attachments WHERE id=?", params![id])?;
@@ -478,11 +572,10 @@ fn validate_size(size: u64) -> AppResult<()> {
 }
 
 fn detect_supported_attachment(path: &Path) -> AppResult<SupportedAttachment> {
-    let mut file = File::open(path)?;
-    let mut signature = [0_u8; 16];
-    let count = file.read(&mut signature)?;
-    let bytes = &signature[..count];
-    detect_supported_attachment_bytes(bytes)
+    let metadata = fs::metadata(path)?;
+    validate_size(metadata.len())?;
+    let bytes = fs::read(path)?;
+    detect_supported_attachment_bytes(&bytes)
 }
 
 fn detect_supported_attachment_bytes(bytes: &[u8]) -> AppResult<SupportedAttachment> {
@@ -509,11 +602,94 @@ fn detect_supported_attachment_bytes(bytes: &[u8]) -> AppResult<SupportedAttachm
     } else {
         None
     };
-    kind.ok_or_else(|| {
+    let kind = kind.ok_or_else(|| {
         AppError::Validation(
             "Format refusé. Choisissez un vrai fichier PDF, PNG, JPEG ou WebP.".into(),
         )
-    })
+    })?;
+    validate_supported_attachment_structure(bytes, kind)?;
+    Ok(kind)
+}
+
+fn validate_supported_attachment_structure(
+    bytes: &[u8],
+    kind: SupportedAttachment,
+) -> AppResult<()> {
+    match kind.extension {
+        "pdf" => {
+            let document = lopdf::Document::load_mem(bytes).map_err(|_| {
+                AppError::Validation(
+                    "Le PDF est incomplet ou illisible. Exportez à nouveau le document avant de l'ajouter."
+                        .into(),
+                )
+            })?;
+            if document.get_pages().is_empty() {
+                return Err(AppError::Validation(
+                    "Le PDF ne contient aucune page exploitable.".into(),
+                ));
+            }
+        }
+        "png" | "jpg" | "webp" => {
+            let format = match kind.extension {
+                "png" => ImageFormat::Png,
+                "jpg" => ImageFormat::Jpeg,
+                "webp" => ImageFormat::WebP,
+                _ => unreachable!(),
+            };
+            let (declared_width, declared_height) =
+                ImageReader::with_format(Cursor::new(bytes), format)
+                    .into_dimensions()
+                    .map_err(|_| {
+                        AppError::Validation(
+                            "L'image est incomplète ou illisible. Exportez-la à nouveau avant de l'ajouter."
+                                .into(),
+                        )
+                    })?;
+            validate_attachment_image_dimensions(declared_width, declared_height)?;
+
+            let mut limits = Limits::default();
+            limits.max_image_width = Some(MAX_ATTACHMENT_IMAGE_EDGE);
+            limits.max_image_height = Some(MAX_ATTACHMENT_IMAGE_EDGE);
+            limits.max_alloc = Some(MAX_ATTACHMENT_IMAGE_DECODE_BYTES);
+            let mut reader = ImageReader::with_format(Cursor::new(bytes), format);
+            reader.limits(limits);
+            let image = reader.decode().map_err(|_| {
+                AppError::Validation(
+                    "L'image est incomplète ou illisible. Exportez-la à nouveau avant de l'ajouter."
+                        .into(),
+                )
+            })?;
+            validate_attachment_image_dimensions(image.width(), image.height())?;
+            if (image.width(), image.height()) != (declared_width, declared_height) {
+                return Err(AppError::Validation(
+                    "Les dimensions déclarées de l'image ne correspondent pas à son contenu."
+                        .into(),
+                ));
+            }
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "Le format du justificatif n'est pas pris en charge.".into(),
+            ))
+        }
+    }
+    Ok(())
+}
+
+fn validate_attachment_image_dimensions(width: u32, height: u32) -> AppResult<()> {
+    let pixels = u64::from(width).saturating_mul(u64::from(height));
+    if width == 0
+        || height == 0
+        || width > MAX_ATTACHMENT_IMAGE_EDGE
+        || height > MAX_ATTACHMENT_IMAGE_EDGE
+        || pixels > MAX_ATTACHMENT_IMAGE_PIXELS
+    {
+        return Err(AppError::Validation(format!(
+            "L'image annonce {width} × {height} pixels. La limite est de {MAX_ATTACHMENT_IMAGE_EDGE} pixels par côté et {} mégapixels.",
+            MAX_ATTACHMENT_IMAGE_PIXELS / 1_000_000,
+        )));
+    }
+    Ok(())
 }
 
 pub(crate) fn supported_attachment_mime(bytes: &[u8]) -> Option<&'static str> {
@@ -564,15 +740,75 @@ fn sha256_file(path: &Path) -> AppResult<String> {
 }
 
 #[cfg(test)]
+pub(crate) fn test_pdf_bytes() -> Vec<u8> {
+    use lopdf::{dictionary, Document, Object, Stream};
+
+    let mut document = Document::with_version("1.7");
+    let pages_id = document.new_object_id();
+    let content_id = document.add_object(Stream::new(dictionary! {}, Vec::new()));
+    let page_id = document.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "Contents" => content_id,
+        "MediaBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+    });
+    document.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1,
+        }),
+    );
+    let catalog_id = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+    document.trailer.set("Root", catalog_id);
+    let mut bytes = Vec::new();
+    document.save_to(&mut bytes).expect("serialize test PDF");
+    bytes
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut crc = u32::MAX;
+        for byte in bytes {
+            crc ^= u32::from(*byte);
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 {
+                    (crc >> 1) ^ 0xedb8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+
+    fn png_with_declared_dimensions(width: u32, height: u32) -> Vec<u8> {
+        let mut cursor = Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(1, 1)
+            .write_to(&mut cursor, ImageFormat::Png)
+            .unwrap();
+        let mut bytes = cursor.into_inner();
+        bytes[16..20].copy_from_slice(&width.to_be_bytes());
+        bytes[20..24].copy_from_slice(&height.to_be_bytes());
+        let checksum = crc32(&bytes[12..29]);
+        bytes[29..33].copy_from_slice(&checksum.to_be_bytes());
+        bytes
+    }
 
     #[test]
     fn detects_only_supported_binary_signatures() {
         let temporary = tempfile::tempdir().unwrap();
         let pdf = temporary.path().join("invoice.exe");
-        fs::write(&pdf, b"%PDF-1.7\nreal payload").unwrap();
+        fs::write(&pdf, test_pdf_bytes()).unwrap();
         assert_eq!(detect_supported_attachment(&pdf).unwrap().extension, "pdf");
+
+        let truncated = temporary.path().join("truncated.pdf");
+        fs::write(&truncated, b"%PDF-1.7\nreal payload").unwrap();
+        assert!(detect_supported_attachment(&truncated).is_err());
 
         let executable = temporary.path().join("invoice.pdf");
         fs::write(&executable, b"MZ\x90\0fake executable").unwrap();
@@ -580,11 +816,19 @@ mod tests {
     }
 
     #[test]
+    fn rejects_a_small_compressed_image_that_declares_too_many_pixels() {
+        assert!(detect_supported_attachment_bytes(&png_with_declared_dimensions(1, 1)).is_ok());
+        let error = detect_supported_attachment_bytes(&png_with_declared_dimensions(6_000, 5_000))
+            .expect_err("oversized declared dimensions must fail before decoding");
+        assert!(error.to_string().contains("24 mégapixels"));
+    }
+
+    #[test]
     fn limited_copy_hashes_the_exact_stored_bytes() {
         let temporary = tempfile::tempdir().unwrap();
         let source = temporary.path().join("source.pdf");
         let destination = temporary.path().join("destination.pdf");
-        fs::write(&source, b"%PDF-1.7\ncontent").unwrap();
+        fs::write(&source, test_pdf_bytes()).unwrap();
         let (size, digest) = copy_limited_and_hash(&source, &destination).unwrap();
         assert_eq!(size, fs::metadata(&destination).unwrap().len());
         assert_eq!(digest, sha256_file(&destination).unwrap());

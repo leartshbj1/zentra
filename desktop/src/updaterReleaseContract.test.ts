@@ -28,12 +28,23 @@ describe('contrat de publication des mises à jour', () => {
       new URL('../scripts/build-macos-updater-preview.sh', import.meta.url),
       'utf8',
     );
+    const notarizedBuild = readFileSync(
+      new URL('../scripts/build-macos-updater.sh', import.meta.url),
+      'utf8',
+    );
     const localBuild = readFileSync(
       new URL('../scripts/build-local-signed-updater.ps1', import.meta.url),
       'utf8',
     );
     const staging = readFileSync(
       new URL('../scripts/stage-updater-release.ps1', import.meta.url),
+      'utf8',
+    );
+    const assembler = readFileSync(
+      new URL(
+        '../scripts/assemble-cross-platform-updater-release.ps1',
+        import.meta.url,
+      ),
       'utf8',
     );
     const workflowEndpoint =
@@ -48,6 +59,13 @@ describe('contrat de publication des mises à jour', () => {
     expect(staging).toContain(
       'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
     );
+    expect(assembler).toContain('$trustedDownloadBaseUrl');
+    expect(assembler).toContain('"$windowsHash  $windowsName"');
+    expect(assembler).toContain('"$macArchiveHash  $macArchiveName"');
+    expect(assembler).toContain('"$macDmgHash  $macDmgName"');
+    expect(assembler).not.toContain(
+      "Copy-Item -LiteralPath $macChecksums -Destination (Join-Path $partialDirectory 'SHA256SUMS.txt')",
+    );
     expect(workflow).not.toContain(
       'public_key="$(tr -d \'\\r\\n\' < desktop/src-tauri/license-public-key.b64url)"',
     );
@@ -57,6 +75,23 @@ describe('contrat de publication des mises à jour', () => {
     expect(script).not.toContain('cp "$desktop_root/MACOS_PREVIEW.md"');
     expect(script).toContain('Contents/Resources/icon.icns');
     expect(script).toContain('Print :CFBundleIconFile');
+    expect(notarizedBuild).toContain('TAURI_SIGNING_PRIVATE_KEY_PASSWORD');
+    expect(notarizedBuild).toContain(
+      'cargo run --quiet --locked --manifest-path src-tauri/Cargo.toml',
+    );
+    expect(notarizedBuild).toContain(
+      '--example verify_updater_artifact -- "$app_archive" "$app_signature"',
+    );
+    expect(workflow).toContain(
+      'cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked',
+    );
+    expect(workflow).toContain(
+      'cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --locked --all-targets -- -D warnings',
+    );
+    expect(workflow).not.toContain('app_updater::tests');
+    expect(workflow).not.toContain('installation::tests');
+    expect(workflow).not.toContain('license::tests');
+    expect(workflow).not.toContain('account_cloud::tests');
   });
 
   it('documente honnêtement le canal macOS inclus dans le lot updater', () => {

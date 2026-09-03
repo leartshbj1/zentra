@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
     path::{Component, Path, PathBuf},
@@ -13,8 +14,9 @@ use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::{
-    database::{now_iso, LocalStore},
+    database::{now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
+    fiduciary_closing::csv_from_rows,
     models::{BackupManifest, ExportEnvelope},
     schema::SCHEMA_VERSION,
 };
@@ -30,6 +32,215 @@ const BACKUP_STATUS_FILE: &str = "backup-status.json";
 const BACKUP_STATUS_FORMAT: &str = "elyko-backup-status";
 const BACKUP_STATUS_VERSION: u32 = 1;
 const MAX_BACKUP_STATUS_BYTES: u64 = 16 * 1024;
+
+/// Collections tabulaires explicitement autorisées dans l'export CSV.
+///
+/// L'allowlist évite qu'une future table contenant un secret, un chemin local
+/// ou un document brut soit exportée automatiquement. Les fichiers binaires ne
+/// sont jamais copiés dans cette archive.
+const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
+    ("clients", "01_referentiels/clients.csv"),
+    ("catalog_items", "01_referentiels/catalogue.csv"),
+    ("suppliers", "01_referentiels/fournisseurs.csv"),
+    ("quotes", "02_ventes/devis.csv"),
+    ("quote_items", "02_ventes/lignes_devis.csv"),
+    ("quote_conversions", "02_ventes/conversions_devis.csv"),
+    ("sales_orders", "02_ventes/commandes_clients.csv"),
+    (
+        "sales_order_lines",
+        "02_ventes/lignes_commandes_clients.csv",
+    ),
+    (
+        "sales_order_cancellation_lines",
+        "02_ventes/annulations_commandes_clients.csv",
+    ),
+    ("delivery_notes", "02_ventes/bons_livraison.csv"),
+    ("delivery_note_lines", "02_ventes/lignes_bons_livraison.csv"),
+    (
+        "sales_order_invoice_batches",
+        "02_ventes/lots_facturation_commandes.csv",
+    ),
+    (
+        "sales_order_invoice_allocations",
+        "02_ventes/allocations_facturation_commandes.csv",
+    ),
+    ("invoices", "02_ventes/factures.csv"),
+    ("invoice_items", "02_ventes/lignes_factures.csv"),
+    (
+        "invoice_correction_workflows",
+        "02_ventes/corrections_factures.csv",
+    ),
+    ("invoice_qr_bills", "02_ventes/factures_qr.csv"),
+    ("payments", "02_ventes/paiements_clients.csv"),
+    (
+        "recurrence_schedules",
+        "02_ventes/planifications_recurrentes.csv",
+    ),
+    (
+        "recurrence_occurrences",
+        "02_ventes/occurrences_recurrentes.csv",
+    ),
+    ("expenses", "03_achats/depenses.csv"),
+    ("supplier_orders", "03_achats/commandes_fournisseurs.csv"),
+    (
+        "supplier_order_lines",
+        "03_achats/lignes_commandes_fournisseurs.csv",
+    ),
+    (
+        "supplier_order_cancellation_lines",
+        "03_achats/annulations_commandes_fournisseurs.csv",
+    ),
+    ("supplier_receipts", "03_achats/receptions_fournisseurs.csv"),
+    (
+        "supplier_receipt_lines",
+        "03_achats/lignes_receptions_fournisseurs.csv",
+    ),
+    ("supplier_invoices", "03_achats/factures_fournisseurs.csv"),
+    (
+        "supplier_email_invoice_imports",
+        "03_achats/provenance_factures_email.csv",
+    ),
+    (
+        "supplier_invoice_items",
+        "03_achats/lignes_factures_fournisseurs.csv",
+    ),
+    (
+        "supplier_invoice_matches",
+        "03_achats/rapprochements_achats.csv",
+    ),
+    ("supplier_payments", "03_achats/paiements_fournisseurs.csv"),
+    ("supplier_credit_notes", "03_achats/avoirs_fournisseurs.csv"),
+    (
+        "supplier_credit_note_items",
+        "03_achats/lignes_avoirs_fournisseurs.csv",
+    ),
+    (
+        "supplier_credit_allocations",
+        "03_achats/allocations_avoirs_fournisseurs.csv",
+    ),
+    (
+        "supplier_expense_reclassifications",
+        "03_achats/reclassements_depenses.csv",
+    ),
+    (
+        "supplier_expense_reclassification_lines",
+        "03_achats/lignes_reclassements_depenses.csv",
+    ),
+    ("stock_movements", "04_stock/mouvements_stock.csv"),
+    ("stock_availability", "04_stock/disponibilite_stock.csv"),
+    (
+        "stock_reservation_events",
+        "04_stock/reservations_stock.csv",
+    ),
+    ("accounts", "05_comptabilite/plan_comptable.csv"),
+    ("accounting_periods", "05_comptabilite/periodes.csv"),
+    ("journal_entries", "05_comptabilite/journal.csv"),
+    ("journal_lines", "05_comptabilite/lignes_journal.csv"),
+    ("vat_profiles", "05_comptabilite/profils_tva.csv"),
+    (
+        "vat_source_classifications",
+        "05_comptabilite/classifications_sources_tva.csv",
+    ),
+    ("vat_adjustments", "05_comptabilite/ajustements_tva.csv"),
+    (
+        "vat_return_exports",
+        "05_comptabilite/declarations_tva_exportees.csv",
+    ),
+    ("closing_reviews", "05_comptabilite/revues_cloture.csv"),
+    (
+        "closing_package_exports",
+        "05_comptabilite/exports_cloture.csv",
+    ),
+    ("bank_imports", "06_banque/imports_camt.csv"),
+    ("bank_movements", "06_banque/mouvements.csv"),
+    (
+        "bank_reconciliations",
+        "06_banque/rapprochements_clients.csv",
+    ),
+    (
+        "bank_supplier_reconciliations",
+        "06_banque/rapprochements_fournisseurs.csv",
+    ),
+    ("bank_movement_keys", "06_banque/cles_mouvements.csv"),
+    ("bank_account_links", "06_banque/comptes_associes.csv"),
+    ("projects", "07_projets/projets.csv"),
+    ("project_milestones", "07_projets/jalons.csv"),
+    ("project_tasks", "07_projets/taches.csv"),
+    ("agenda_events", "07_projets/agenda.csv"),
+    ("time_entries", "07_projets/heures.csv"),
+    (
+        "time_billing_batches",
+        "07_projets/lots_facturation_heures.csv",
+    ),
+    ("time_billing_entries", "07_projets/allocations_heures.csv"),
+    ("employees", "08_equipe/collaborateurs.csv"),
+    (
+        "employee_small_salary_decisions",
+        "08_equipe/decisions_petits_salaires.csv",
+    ),
+    ("payslips", "08_equipe/fiches_salaire.csv"),
+    ("payslip_items", "08_equipe/lignes_fiches_salaire.csv"),
+    (
+        "payslip_small_salary_assessments",
+        "08_equipe/evaluations_petits_salaires.csv",
+    ),
+    (
+        "payroll_contribution_definitions",
+        "08_equipe/definitions_cotisations.csv",
+    ),
+    (
+        "payslip_contributions",
+        "08_equipe/cotisations_fiches_salaire.csv",
+    ),
+    (
+        "employee_payroll_templates",
+        "08_equipe/modeles_salaire.csv",
+    ),
+    ("reminder_templates", "09_relances/modeles.csv"),
+    ("reminders", "09_relances/relances.csv"),
+    ("reminder_history", "09_relances/historique.csv"),
+    ("reminder_deliveries", "09_relances/envois.csv"),
+    ("attachments", "10_documents/index_pieces_jointes.csv"),
+    ("audit_log", "11_audit/journal_audit.csv"),
+];
+
+/// Registres métier volontairement absents du workspace interactif pour ne pas
+/// alourdir chaque rafraîchissement, mais indispensables dans un export CSV
+/// comptable complet.
+const CSV_EXPORT_DIRECT_COLLECTIONS: &[(&str, &str)] = &[
+    (
+        "employee_small_salary_decisions",
+        "SELECT * FROM employee_small_salary_decisions ORDER BY employee_id,assessment_year,revision",
+    ),
+    (
+        "payslip_small_salary_assessments",
+        "SELECT * FROM payslip_small_salary_assessments ORDER BY employee_id,assessment_year,payslip_id",
+    ),
+    (
+        "vat_profiles",
+        "SELECT * FROM vat_profiles ORDER BY effective_from,id",
+    ),
+    (
+        "vat_source_classifications",
+        "SELECT * FROM vat_source_classifications ORDER BY source_type,source_id",
+    ),
+    (
+        "vat_adjustments",
+        "SELECT * FROM vat_adjustments ORDER BY adjustment_date,sequence",
+    ),
+    (
+        "vat_return_exports",
+        "SELECT * FROM vat_return_exports ORDER BY date_from,date_to,sequence",
+    ),
+    (
+        "closing_reviews",
+        "SELECT * FROM closing_reviews ORDER BY accounting_period_id,sequence",
+    ),
+    (
+        "closing_package_exports",
+        "SELECT * FROM closing_package_exports ORDER BY accounting_period_id,sequence",
+    ),
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -54,7 +265,7 @@ const ARCHIVE_EXTRACTION_LIMITS: ArchiveExtractionLimits = ArchiveExtractionLimi
 };
 
 struct PreservedLicense {
-    token: String,
+    token_sha256: String,
     license_id: String,
     customer_name: Option<String>,
     plan: String,
@@ -245,6 +456,30 @@ impl LocalStore {
         Ok(destination.to_string_lossy().into_owned())
     }
 
+    pub fn export_csv_archive(
+        &self,
+        destination: Option<String>,
+        app_version: &str,
+    ) -> AppResult<String> {
+        let destination =
+            self.resolve_output_path(destination, &self.exports_dir, "export-listes", "zip")?;
+        let mut workspace = self.get_workspace()?;
+        let object = workspace.as_object_mut().ok_or_else(|| {
+            AppError::Validation(
+                "Les données locales ne peuvent pas être exportées en listes CSV.".into(),
+            )
+        })?;
+        let connection = self.connect()?;
+        for (collection, sql) in CSV_EXPORT_DIRECT_COLLECTIONS {
+            object.insert(
+                (*collection).into(),
+                json!(query_all(&connection, sql, [])?),
+            );
+        }
+        write_csv_export_archive(&destination, &workspace, app_version)?;
+        Ok(destination.to_string_lossy().into_owned())
+    }
+
     pub fn restore_backup(&self, source: &str, app_version: &str) -> AppResult<()> {
         self.restore_backup_with_limits(source, app_version, ARCHIVE_EXTRACTION_LIMITS)
     }
@@ -289,6 +524,7 @@ impl LocalStore {
             limits,
         )?;
         validate_database(&extracted_database)?;
+        strip_restored_license(&extracted_database)?;
 
         let safety_path = if self.database_path.is_file() {
             let safety_path =
@@ -397,11 +633,11 @@ impl LocalStore {
         let connection = self.connect()?;
         connection
             .query_row(
-                "SELECT token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version FROM license_state WHERE id=1",
+                "SELECT token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version FROM license_state WHERE id=1",
                 [],
                 |row| {
                     Ok(PreservedLicense {
-                        token: row.get(0)?,
+                        token_sha256: row.get(0)?,
                         license_id: row.get(1)?,
                         customer_name: row.get(2)?,
                         plan: row.get(3)?,
@@ -424,9 +660,9 @@ impl LocalStore {
         connection.execute("DELETE FROM license_state", [])?;
         if let Some(license) = preserved {
             connection.execute(
-                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO license_state(id,token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,?)",
                 params![
-                    license.token,
+                    license.token_sha256,
                     license.license_id,
                     license.customer_name,
                     license.plan,
@@ -649,6 +885,147 @@ impl LocalStore {
     }
 }
 
+fn write_csv_export_archive(
+    destination: &Path,
+    workspace: &Value,
+    app_version: &str,
+) -> AppResult<()> {
+    let object = workspace.as_object().ok_or_else(|| {
+        AppError::Validation(
+            "Les données locales ne peuvent pas être exportées en listes CSV.".into(),
+        )
+    })?;
+    let file = create_new_file(destination)?;
+    let result = (|| -> AppResult<()> {
+        let mut archive = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o600);
+
+        archive.start_file("LISEZ-MOI.txt", options)?;
+        archive.write_all(
+            concat!(
+                "EXPORT CSV ZENTRA\r\n",
+                "=================\r\n\r\n",
+                "Cette archive contient les listes métier et les registres comptables exportables au moment de l'export.\r\n",
+                "Elle sert à la consultation et à l'import dans un tableur; elle ne remplace pas une sauvegarde Zentra.\r\n\r\n",
+                "Format : UTF-8 avec BOM, séparateur virgule, champs entre guillemets et fins de ligne CRLF.\r\n",
+                "Les textes pouvant être interprétés comme des formules sont neutralisés par une apostrophe.\r\n",
+                "Les colonnes *_cents sont exprimées en centimes, *_milli en millièmes et *_bp en points de base.\r\n",
+                "Les noms de colonnes restent stables et techniques pour faciliter les imports contrôlés.\r\n\r\n",
+                "Aucun fichier PDF, image, sauvegarde, jeton de licence ni secret n'est inclus.\r\n",
+                "Les pièces jointes apparaissent uniquement dans un index de métadonnées.\r\n",
+                "Les documents de paie en cours d'analyse, leur texte extrait et les chemins locaux sont exclus.\r\n",
+                "Utilisez l'export JSON si vous avez besoin de la configuration complète en clair.\r\n",
+            )
+            .as_bytes(),
+        )?;
+
+        let mut exported = Vec::with_capacity(CSV_EXPORT_COLLECTIONS.len());
+        for (collection_name, file_name) in CSV_EXPORT_COLLECTIONS {
+            let rows = object
+                .get(*collection_name)
+                .and_then(Value::as_array)
+                .ok_or_else(|| {
+                    AppError::Validation(format!(
+                        "La collection {collection_name} n'est pas disponible sous forme de liste."
+                    ))
+                })?;
+            if rows.iter().any(|row| !row.is_object()) {
+                return Err(AppError::Validation(format!(
+                    "La collection {collection_name} contient une ligne non tabulaire."
+                )));
+            }
+
+            let columns = rows
+                .iter()
+                .filter_map(Value::as_object)
+                .flat_map(|row| row.keys().cloned())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            if rows.is_empty() {
+                exported.push(json!({
+                    "collection": collection_name,
+                    "file": Value::Null,
+                    "rows": 0,
+                    "columns": [],
+                }));
+                continue;
+            }
+            if columns.is_empty() {
+                return Err(AppError::Validation(format!(
+                    "La collection {collection_name} ne contient aucune colonne exportable."
+                )));
+            }
+
+            let column_refs = columns
+                .iter()
+                .map(|column| (column.as_str(), column.as_str()))
+                .collect::<Vec<_>>();
+            let bytes = csv_from_rows(rows, &column_refs);
+            archive.start_file(*file_name, options)?;
+            archive.write_all(&bytes)?;
+            exported.push(json!({
+                "collection": collection_name,
+                "file": file_name,
+                "rows": rows.len(),
+                "columns": columns,
+                "size_bytes": bytes.len(),
+            }));
+        }
+
+        let manifest = json!({
+            "format": "zentra-csv-export",
+            "format_version": 1,
+            "exported_at": now_iso(),
+            "app_version": app_version,
+            "encoding": "UTF-8 BOM",
+            "delimiter": ",",
+            "collections": exported,
+            "excluded": [
+                {
+                    "source": "settings, accounting_settings, reminder_settings, accounting_sequences",
+                    "reason": "configuration singleton; disponible dans l'export JSON"
+                },
+                {
+                    "source": "active_timers, backup_status",
+                    "reason": "état local temporaire"
+                },
+                {
+                    "source": "sales_operation_requests, recurrence_operation_requests, supplier_operation_requests, reminder_operation_requests",
+                    "reason": "clés techniques d'idempotence; les opérations métier correspondantes sont exportées"
+                },
+                {
+                    "source": "payroll_document_imports",
+                    "reason": "documents de travail, texte extrait et chemins locaux sensibles"
+                },
+                {
+                    "source": "company_brand_assets, attachment_files",
+                    "reason": "fichiers binaires exclus; métadonnées seulement"
+                },
+                {
+                    "source": "license_state",
+                    "reason": "état technique de licence exclu de tout export de données métier"
+                }
+            ]
+        });
+        let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
+        manifest_bytes.push(b'\n');
+        archive.start_file("manifest.json", options)?;
+        archive.write_all(&manifest_bytes)?;
+
+        let file = archive.finish()?;
+        file.sync_all()?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(destination);
+    }
+    result
+}
+
 fn validate_database(path: &Path) -> AppResult<()> {
     let connection = Connection::open(path)?;
     connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -684,6 +1061,28 @@ fn validate_database(path: &Path) -> AppResult<()> {
             "La sauvegarde contient des relations incohérentes.".into(),
         ));
     }
+    Ok(())
+}
+
+fn strip_restored_license(path: &Path) -> AppResult<()> {
+    let connection = Connection::open(path)?;
+    let has_license_table: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='license_state')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_license_table {
+        return Ok(());
+    }
+    // Une archive peut provenir d'une très ancienne version qui transportait
+    // encore le jeton. La copie extraite est assainie avant de devenir la base
+    // active, afin que sa migration ne puisse jamais remplacer le coffre de la
+    // machine destinataire.
+    connection.execute_batch(
+        "PRAGMA secure_delete=ON;
+         DELETE FROM license_state;
+         VACUUM;",
+    )?;
     Ok(())
 }
 
@@ -824,14 +1223,16 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-    fn seed_license(store: &LocalStore, license_id: &str) {
+    fn seed_license(store: &LocalStore, license_id: &str) -> String {
+        let token = format!("test-protected-{license_id}-{}", "x".repeat(128));
+        let token_sha256 = store.install_test_protected_license_token(&token).unwrap();
         store
             .connect()
             .unwrap()
             .execute(
-                "INSERT INTO license_state(id,token,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,1)",
+                "INSERT INTO license_state(id,token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version) VALUES(1,?,?,?,?,?,?,?,?,?,?,1)",
                 params![
-                    format!("token-{license_id}"),
+                    token_sha256,
                     license_id,
                     "Entreprise test",
                     crate::license::LICENSE_PLAN,
@@ -844,6 +1245,7 @@ mod tests {
                 ],
             )
             .unwrap();
+        token
     }
 
     fn stored_license_id(store: &LocalStore) -> Option<String> {
@@ -887,6 +1289,177 @@ mod tests {
             .unwrap();
         assert_eq!(snapshot_count, 0);
         assert_eq!(stored_license_id(&store).as_deref(), Some("lic-local-only"));
+    }
+
+    #[test]
+    fn restored_legacy_database_is_scrubbed_before_it_can_replace_the_local_vault() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("legacy.sqlite3");
+        let legacy_token = format!("legacy-secret-token-{}", "z".repeat(192));
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE license_state(id INTEGER PRIMARY KEY,token TEXT NOT NULL);",
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO license_state(id,token) VALUES(1,?1)",
+                    params![legacy_token],
+                )
+                .unwrap();
+        }
+
+        strip_restored_license(&path).unwrap();
+
+        let connection = Connection::open(&path).unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM license_state", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        drop(connection);
+        let bytes = fs::read(path).unwrap();
+        assert!(!bytes
+            .windows(legacy_token.len())
+            .any(|window| window == legacy_token.as_bytes()));
+    }
+
+    #[test]
+    fn csv_archive_exports_only_allowlisted_tabular_data_safely() {
+        let temporary = tempfile::tempdir().unwrap();
+        let destination = temporary.path().join("listes.zip");
+        let mut workspace = serde_json::Map::new();
+        for (collection, _) in CSV_EXPORT_COLLECTIONS {
+            workspace.insert((*collection).into(), Value::Array(Vec::new()));
+        }
+        workspace.insert(
+            "clients".into(),
+            json!([{
+                "id": "client-1",
+                "name": "=HYPERLINK(\"https://example.invalid\")",
+                "notes": "Ligne 1\nLigne \"2\"",
+                "balance_cents": 12345
+            }]),
+        );
+        workspace.insert(
+            "payroll_document_imports".into(),
+            json!([{
+                "stored_path": "C:\\\\Users\\\\Alice\\\\sensible.pdf",
+                "extracted_text": "contenu confidentiel"
+            }]),
+        );
+
+        write_csv_export_archive(&destination, &Value::Object(workspace), "1.21.0").unwrap();
+
+        let mut archive = ZipArchive::new(File::open(destination).unwrap()).unwrap();
+        let names = (0..archive.len())
+            .map(|index| archive.by_index(index).unwrap().name().to_owned())
+            .collect::<Vec<_>>();
+        assert!(names.contains(&"LISEZ-MOI.txt".to_owned()));
+        assert!(names.contains(&"01_referentiels/clients.csv".to_owned()));
+        assert!(names.contains(&"manifest.json".to_owned()));
+        assert!(CSV_EXPORT_COLLECTIONS
+            .iter()
+            .any(|(collection, _)| *collection == "vat_return_exports"));
+        assert!(CSV_EXPORT_COLLECTIONS
+            .iter()
+            .any(|(collection, _)| *collection == "payslip_small_salary_assessments"));
+        assert!(!names
+            .iter()
+            .any(|name| name.contains("payroll_document_imports")));
+
+        let mut clients_csv = String::new();
+        archive
+            .by_name("01_referentiels/clients.csv")
+            .unwrap()
+            .read_to_string(&mut clients_csv)
+            .unwrap();
+        assert!(clients_csv.starts_with('\u{feff}'));
+        assert!(clients_csv.contains("\"'=HYPERLINK(\"\"https://example.invalid\"\")\""));
+        assert!(clients_csv.contains("\"12345\""));
+        assert!(clients_csv.contains("\"Ligne 1\nLigne \"\"2\"\"\""));
+
+        let mut manifest_json = String::new();
+        archive
+            .by_name("manifest.json")
+            .unwrap()
+            .read_to_string(&mut manifest_json)
+            .unwrap();
+        let manifest: Value = serde_json::from_str(&manifest_json).unwrap();
+        assert_eq!(manifest["format"], "zentra-csv-export");
+        assert_eq!(manifest["app_version"], "1.21.0");
+        assert!(manifest["collections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["collection"] == "clients" && item["rows"] == 1));
+        assert!(manifest["excluded"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["source"]
+                .as_str()
+                .is_some_and(|source| source.contains("operation_requests"))));
+    }
+
+    #[test]
+    fn csv_archive_never_overwrites_an_existing_file() {
+        let temporary = tempfile::tempdir().unwrap();
+        let destination = temporary.path().join("listes.zip");
+        fs::write(&destination, b"a conserver").unwrap();
+        let workspace = Value::Object(
+            CSV_EXPORT_COLLECTIONS
+                .iter()
+                .map(|(collection, _)| ((*collection).into(), Value::Array(Vec::new())))
+                .collect(),
+        );
+
+        assert!(write_csv_export_archive(&destination, &workspace, "1.21.0").is_err());
+        assert_eq!(fs::read(destination).unwrap(), b"a conserver");
+    }
+
+    #[test]
+    fn csv_archive_includes_regulatory_registers_outside_the_live_workspace() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO settings(
+                   id,onboarding_completed,company_name,created_at,updated_at
+                 ) VALUES(1,1,'Entreprise export','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO vat_profiles(
+                   id,effective_from,reporting_method,form_of_reporting,periodicity,
+                   gross_or_net,afc_authorization_confirmed,created_at,updated_at
+                 ) VALUES('vat-profile-export','2026-01-01','effective','agreed',
+                          'quarterly','net',0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        let destination = temporary.path().join("registres.zip");
+        store
+            .export_csv_archive(Some(destination.to_string_lossy().into_owned()), "1.22.0")
+            .unwrap();
+
+        let mut archive = ZipArchive::new(File::open(destination).unwrap()).unwrap();
+        let mut vat_profiles = String::new();
+        archive
+            .by_name("05_comptabilite/profils_tva.csv")
+            .unwrap()
+            .read_to_string(&mut vat_profiles)
+            .unwrap();
+        assert!(vat_profiles.contains("vat-profile-export"));
     }
 
     #[test]
@@ -960,12 +1533,12 @@ mod tests {
     fn restore_keeps_the_destination_machine_license() {
         let temporary = tempfile::tempdir().unwrap();
         let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
-        seed_license(&source, "lic-source-must-not-travel");
+        let source_token = seed_license(&source, "lic-source-must-not-travel");
         let archive = temporary.path().join("source.hchantier");
         source.create_backup_at(&archive, "1.0.0").unwrap();
 
         let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
-        seed_license(&destination, "lic-destination");
+        let destination_token = seed_license(&destination, "lic-destination");
         destination
             .restore_backup(archive.to_str().unwrap(), "1.0.0")
             .unwrap();
@@ -975,6 +1548,14 @@ mod tests {
             Some("lic-destination")
         );
         assert_eq!(stored_clock_anchor_version(&destination), Some(1));
+        assert_eq!(
+            destination
+                .read_test_protected_license_token()
+                .unwrap()
+                .as_deref(),
+            Some(destination_token.as_str())
+        );
+        assert_ne!(destination_token, source_token);
         assert!(fs::read_dir(&destination.backups_dir)
             .unwrap()
             .filter_map(Result::ok)

@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 36;
+pub const SCHEMA_VERSION: i64 = 39;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -22,6 +22,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "time_billing_entries",
     "expenses",
     "supplier_invoices",
+    "supplier_email_invoice_imports",
     "supplier_invoice_items",
     "supplier_payments",
     "payslips",
@@ -6651,4 +6652,143 @@ CREATE INDEX IF NOT EXISTS idx_agenda_events_employee
 ON agenda_events(employee_id,start_date) WHERE employee_id IS NOT NULL;
 
 PRAGMA user_version=36;
+"#;
+
+/// Conserve une preuve locale, minimale et immuable de l'origine e-mail d'une
+/// facture fournisseur. Aucun chemin local ni contenu du message n'est stocké.
+pub const MIGRATION_V37_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS supplier_email_invoice_imports (
+  supplier_invoice_id TEXT PRIMARY KEY
+    REFERENCES supplier_invoices(id) ON UPDATE RESTRICT ON DELETE CASCADE,
+  source_sha256 TEXT NOT NULL UNIQUE CHECK (
+    LENGTH(source_sha256)=64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'
+  ),
+  source_message_id TEXT CHECK (
+    source_message_id IS NULL OR (
+      source_message_id=TRIM(source_message_id)
+      AND LENGTH(source_message_id) BETWEEN 1 AND 998
+    )
+  ),
+  source_file_name TEXT NOT NULL CHECK (
+    source_file_name=TRIM(source_file_name)
+    AND LENGTH(source_file_name) BETWEEN 1 AND 255
+    AND INSTR(source_file_name,'/')=0
+    AND INSTR(source_file_name,CHAR(92))=0
+  ),
+  attachment_sha256 TEXT NOT NULL CHECK (
+    LENGTH(attachment_sha256)=64
+    AND attachment_sha256 NOT GLOB '*[^0-9a-f]*'
+  ),
+  attachment_id TEXT NOT NULL UNIQUE
+    REFERENCES attachments(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  created_at TEXT NOT NULL CHECK (
+    created_at=TRIM(created_at) AND LENGTH(created_at) BETWEEN 1 AND 64
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_supplier_email_invoice_imports_message_id
+ON supplier_email_invoice_imports(source_message_id COLLATE NOCASE)
+WHERE source_message_id IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS supplier_email_invoice_imports_insert_guard
+BEFORE INSERT ON supplier_email_invoice_imports
+WHEN NOT EXISTS(
+  SELECT 1 FROM supplier_invoices invoice
+  WHERE invoice.id=NEW.supplier_invoice_id AND invoice.status='draft'
+) OR NOT EXISTS(
+    SELECT 1 FROM attachments attachment
+    WHERE attachment.id=NEW.attachment_id
+      AND attachment.entity_type='supplier_invoice'
+      AND attachment.entity_id=NEW.supplier_invoice_id
+      AND attachment.sha256=NEW.attachment_sha256
+)
+BEGIN SELECT RAISE(ABORT,'invalid supplier email invoice provenance'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_email_invoice_imports_no_update
+BEFORE UPDATE ON supplier_email_invoice_imports
+BEGIN SELECT RAISE(ABORT,'supplier email invoice provenance is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_email_invoice_imports_draft_delete
+BEFORE DELETE ON supplier_email_invoice_imports
+WHEN EXISTS(
+  SELECT 1 FROM supplier_invoices invoice
+  WHERE invoice.id=OLD.supplier_invoice_id AND invoice.status<>'draft'
+)
+BEGIN SELECT RAISE(ABORT,'validated supplier email invoice provenance is immutable'); END;
+
+PRAGMA user_version=37;
+"#;
+
+/// Le jeton signé n'appartient pas à la base métier. Seule son empreinte reste
+/// dans SQLite; la valeur opaque est déplacée vers le coffre du profil Windows
+/// (DPAPI) ou macOS (Trousseau) avant l'exécution de cette migration.
+pub const MIGRATION_V38_SQL: &str = r#"
+PRAGMA secure_delete=ON;
+
+CREATE TABLE license_state_v38 (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  token_sha256 TEXT NOT NULL CHECK (
+    LENGTH(token_sha256)=64 AND token_sha256 NOT GLOB '*[^0-9a-f]*'
+  ),
+  license_id TEXT NOT NULL,
+  customer_name TEXT,
+  plan TEXT NOT NULL,
+  price_chf_cents INTEGER NOT NULL,
+  issued_at TEXT NOT NULL,
+  valid_from TEXT NOT NULL,
+  valid_until TEXT NOT NULL,
+  verified_at TEXT NOT NULL,
+  last_seen_date TEXT NOT NULL,
+  clock_anchor_version INTEGER NOT NULL DEFAULT 0 CHECK (clock_anchor_version IN (0, 1))
+);
+
+INSERT INTO license_state_v38(
+  id,token_sha256,license_id,customer_name,plan,price_chf_cents,issued_at,
+  valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version
+)
+SELECT
+  id,LOWER(zentra_sha256(token)),license_id,customer_name,plan,price_chf_cents,issued_at,
+  valid_from,valid_until,verified_at,last_seen_date,clock_anchor_version
+FROM license_state;
+
+DROP TABLE license_state;
+ALTER TABLE license_state_v38 RENAME TO license_state;
+
+PRAGMA user_version=38;
+"#;
+
+/// Les scans périodiques sans effet conservent une fenêtre d'idempotence
+/// bornée. Seules les réponses explicitement vides peuvent être purgées; les
+/// opérations qui ont modifié une relance restent immuables.
+pub const MIGRATION_V39_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS reminder_operation_requests (
+  request_id TEXT PRIMARY KEY CHECK (LENGTH(request_id)=36),
+  operation TEXT NOT NULL CHECK (operation IN ('install_cycle','scan','record_action')),
+  payload_sha256 TEXT NOT NULL CHECK (LENGTH(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  payload_json TEXT NOT NULL CHECK (LENGTH(payload_json) BETWEEN 2 AND 100000),
+  response_json TEXT NOT NULL CHECK (LENGTH(response_json) BETWEEN 2 AND 4000000),
+  created_at TEXT NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS reminder_operation_requests_no_update
+BEFORE UPDATE ON reminder_operation_requests
+BEGIN SELECT RAISE(ABORT,'reminder operation requests are immutable'); END;
+
+DROP TRIGGER IF EXISTS reminder_operation_requests_no_delete;
+
+CREATE TRIGGER reminder_operation_requests_no_delete
+BEFORE DELETE ON reminder_operation_requests
+WHEN NOT (
+  OLD.operation='scan'
+  AND json_valid(OLD.response_json)=1
+  AND json_type(OLD.response_json,'$.created')='array'
+  AND json_type(OLD.response_json,'$.cancelled')='array'
+  AND json_type(OLD.response_json,'$.promoted')='array'
+  AND json_array_length(OLD.response_json,'$.created')=0
+  AND json_array_length(OLD.response_json,'$.cancelled')=0
+  AND json_array_length(OLD.response_json,'$.promoted')=0
+)
+BEGIN SELECT RAISE(ABORT,'reminder operation requests are immutable'); END;
+
+PRAGMA user_version=39;
 "#;

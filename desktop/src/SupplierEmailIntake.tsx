@@ -97,13 +97,22 @@ export function SupplierEmailIntake({
         invoiceSignal: inspection.invoiceSignal || manualInvoiceConfirmation,
       }
     : null;
-  const issues = useMemo(
-    () =>
-      draft && effectiveInspection
-        ? supplierEmailDraftIssues(draft, effectiveInspection, workspace)
-        : [],
-    [draft, effectiveInspection, workspace],
-  );
+  const issues = useMemo(() => {
+    if (!draft || !effectiveInspection) return [];
+    const next = supplierEmailDraftIssues(
+      draft,
+      effectiveInspection,
+      workspace,
+    );
+    if (!selectedAttachmentSha256) {
+      next.push(
+        effectiveInspection.importableAttachments.length
+          ? 'Choisissez la pièce qui constitue le justificatif original.'
+          : "Aucun justificatif PDF ou image exploitable n'a été trouvé dans ce message.",
+      );
+    }
+    return next;
+  }, [draft, effectiveInspection, selectedAttachmentSha256, workspace]);
   const duplicateInvoiceId = draft
     ? supplierEmailDuplicateId(draft, workspace) ||
       (inspection
@@ -152,25 +161,26 @@ export function SupplierEmailIntake({
   }
 
   async function save() {
-    if (!draft || !effectiveInspection || issues.length || !confirmed) return;
+    if (
+      !draft ||
+      !effectiveInspection ||
+      !selectedAttachmentSha256 ||
+      issues.length ||
+      !confirmed
+    )
+      return;
     const success = await runAction(
       async () => {
         return desktopApi.saveSupplierInvoiceDraftFromEmail(
           supplierEmailImportPayload(draft, effectiveInspection),
-          selectedAttachmentSha256 && sourcePath
-            ? {
-                sourcePath,
-                sourceSha256: effectiveInspection.sha256,
-                attachmentSha256: selectedAttachmentSha256,
-              }
-            : null,
+          {
+            sourcePath,
+            sourceSha256: effectiveInspection.sha256,
+            attachmentSha256: selectedAttachmentSha256,
+          },
         );
       },
-      selectedAttachmentSha256
-        ? 'Le brouillon et son justificatif ont été enregistrés localement. Contrôlez-les puis validez la facture pour la comptabiliser.'
-        : effectiveInspection.importableAttachments.length
-          ? 'Le brouillon a été enregistré sans justificatif automatique. Ajoutez ou contrôlez la bonne pièce avant de valider la facture.'
-        : "Le message a créé un brouillon fournisseur. Aucune pièce lisible n'a pu être extraite; joignez le justificatif original avant validation.",
+      'Le brouillon et son justificatif ont été enregistrés localement. Contrôlez-les puis validez la facture pour la comptabiliser.',
       false,
     );
     if (success) close();
@@ -284,7 +294,9 @@ export function SupplierEmailIntake({
                     setSelectedAttachmentSha256(event.target.value)
                   }
                 >
-                  <option value="">Ne pas joindre automatiquement</option>
+                  <option value="" disabled>
+                    Choisir le justificatif…
+                  </option>
                   {inspection.importableAttachments.map((attachment) => (
                     <option key={attachment.sha256} value={attachment.sha256}>
                       {attachment.name} ·{' '}
@@ -305,9 +317,10 @@ export function SupplierEmailIntake({
               <div className="supplier-email-no-attachment" role="status">
                 <AlertTriangle size={17} />
                 <span>
-                  Aucune pièce PDF ou image lisible n’a pu être extraite. Le
-                  brouillon reste possible, mais le justificatif devra être
-                  joint manuellement avant validation.
+                  Aucune pièce PDF ou image lisible n’a pu être extraite. Cet
+                  e-mail ne peut pas être importé comme facture. Créez un
+                  brouillon fournisseur depuis la liste des achats, puis
+                  joignez-y le justificatif original manuellement.
                 </span>
               </div>
             )}
@@ -528,7 +541,9 @@ export function SupplierEmailIntake({
             <FormActions
               onCancel={close}
               busy={busy || localBusy}
-              disabled={issues.length > 0 || !confirmed}
+              disabled={
+                issues.length > 0 || !selectedAttachmentSha256 || !confirmed
+              }
               submitLabel="Créer le brouillon"
             />
           </form>

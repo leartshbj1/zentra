@@ -71,8 +71,11 @@ jobs:
       - name: Test desktop interface
         run: pnpm --dir desktop test:ui
 
-      - name: Test Rust updater
-        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked app_updater::tests
+      - name: Test complete Rust application
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
+
+      - name: Lint complete Rust application
+        run: cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --locked --all-targets -- -D warnings
 
       - name: Build universal updater package
         run: pnpm --dir desktop build:macos:updater-preview

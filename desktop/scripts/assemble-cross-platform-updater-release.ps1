@@ -16,6 +16,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$trustedDownloadBaseUrl = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases'
 
 function Resolve-RequiredFile([string] $Path, [string] $Label) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -91,6 +92,9 @@ $baseUri = [Uri]$DownloadBaseUrl.TrimEnd('/')
 if (-not $baseUri.IsAbsoluteUri -or $baseUri.Scheme -ne 'https' -or [string]::IsNullOrWhiteSpace($baseUri.Host) -or -not [string]::IsNullOrEmpty($baseUri.UserInfo) -or -not [string]::IsNullOrEmpty($baseUri.Fragment)) {
     throw 'DownloadBaseUrl doit être une URL HTTPS absolue sans identifiants ni fragment.'
 }
+if ($baseUri.AbsoluteUri.TrimEnd('/') -cne $trustedDownloadBaseUrl) {
+    throw "DownloadBaseUrl refusée : le canal stable doit utiliser exactement le bucket de publication Zentra en Suisse."
+}
 
 $windowsDirectory = (Resolve-Path -LiteralPath $WindowsReleaseDirectory).Path
 $macDirectory = (Resolve-Path -LiteralPath $MacReleaseDirectory).Path
@@ -138,7 +142,16 @@ try {
     Copy-Item -LiteralPath $macArchive -Destination (Join-Path $partialDirectory $macArchiveName)
     Copy-Item -LiteralPath $macSignature -Destination (Join-Path $partialDirectory "$macArchiveName.sig")
     Copy-Item -LiteralPath $macDmg -Destination (Join-Path $partialDirectory $macDmgName)
-    Copy-Item -LiteralPath $macChecksums -Destination (Join-Path $partialDirectory 'SHA256SUMS.txt')
+    $aggregateChecksums = @(
+        "$windowsHash  $windowsName"
+        "$macArchiveHash  $macArchiveName"
+        "$macDmgHash  $macDmgName"
+    ) -join "`n"
+    [IO.File]::WriteAllText(
+        (Join-Path $partialDirectory 'SHA256SUMS.txt'),
+        "$aggregateChecksums`n",
+        [Text.UTF8Encoding]::new($false)
+    )
     [IO.File]::WriteAllText(
         (Join-Path $partialDirectory "$macDmgName.sha256.txt"),
         "$macDmgHash  $macDmgName`n",

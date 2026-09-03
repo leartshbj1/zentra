@@ -70,6 +70,29 @@ type PlanningEditor =
   | { kind: 'milestone'; item?: ProjectMilestone; projectId?: string }
   | null;
 
+type PlanningFocusSelection = {
+  id: string;
+  projectId: string;
+  status: ProjectPlanningStatus;
+};
+
+export function planningItemDomId(id: string) {
+  return `planning-item-${id}`;
+}
+
+export function planningFocusSelection(
+  workspace: Pick<Workspace, 'projectTasks' | 'projectMilestones'>,
+  itemId: string | null,
+): PlanningFocusSelection | null {
+  if (!itemId) return null;
+  const target =
+    workspace.projectTasks.find((item) => item.id === itemId) ||
+    workspace.projectMilestones.find((item) => item.id === itemId);
+  return target
+    ? { id: target.id, projectId: target.projectId, status: target.status }
+    : null;
+}
+
 const statusLabels: Record<ProjectPlanningStatus, string> = {
   todo: 'À faire',
   in_progress: 'En cours',
@@ -128,20 +151,25 @@ export function ProjectPlanningPanel({
   focusItemId: string | null;
   onFocusItemHandled: () => void;
 }) {
+  const initialFocus = planningFocusSelection(workspace, focusItemId);
   const [editor, setEditor] = useState<PlanningEditor>(null);
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState(initialFocus?.projectId || '');
   const [employeeId, setEmployeeId] = useState('');
-  const [status, setStatus] = useState<ProjectTask['status'] | 'open'>('open');
+  const [status, setStatus] = useState<ProjectTask['status'] | 'open'>(
+    initialFocus?.status || 'open',
+  );
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(
+    initialFocus?.id || null,
+  );
   const today = todayIso();
   useEffect(() => {
     if (!focusItemId) return;
-    const target =
-      workspace.projectTasks.find((item) => item.id === focusItemId) ||
-      workspace.projectMilestones.find((item) => item.id === focusItemId);
+    const target = planningFocusSelection(workspace, focusItemId);
     if (target) {
       setProjectId(target.projectId);
       setEmployeeId('');
       setStatus(target.status);
+      setFocusedItemId(target.id);
     }
     onFocusItemHandled();
   }, [
@@ -273,6 +301,30 @@ export function ProjectPlanningPanel({
     },
   ].filter((bucket) => bucket.tasks.length);
 
+  useEffect(() => {
+    if (!focusedItemId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const node = document.getElementById(planningItemDomId(focusedItemId));
+      if (!node) return;
+      const reduceMotion = window.matchMedia?.(
+        '(prefers-reduced-motion: reduce)',
+      ).matches;
+      node.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'center',
+      });
+      node.focus({ preventScroll: true });
+    });
+    const clearHighlight = window.setTimeout(
+      () => setFocusedItemId(null),
+      4_000,
+    );
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(clearHighlight);
+    };
+  }, [focusedItemId, buckets.length, milestones.length]);
+
   if (!workspace.projects.length)
     return (
       <EmptyState
@@ -377,6 +429,7 @@ export function ProjectPlanningPanel({
                     <TaskRow
                       key={task.id}
                       task={task}
+                      focused={task.id === focusedItemId}
                       workspace={workspace}
                       busy={busy}
                       readOnly={readOnly}
@@ -444,7 +497,17 @@ export function ProjectPlanningPanel({
                   milestone.status,
                 );
                 return (
-                  <article key={milestone.id}>
+                  <article
+                    key={milestone.id}
+                    id={planningItemDomId(milestone.id)}
+                    className={
+                      milestone.id === focusedItemId ? 'is-agenda-target' : ''
+                    }
+                    tabIndex={-1}
+                    aria-current={
+                      milestone.id === focusedItemId ? 'true' : undefined
+                    }
+                  >
                     <div className="milestone-list__top">
                       <span className={`priority-dot priority-dot--${milestone.priority}`} />
                       <div>
@@ -636,6 +699,7 @@ function PlanningMetric({
 
 function TaskRow({
   task,
+  focused,
   workspace,
   busy,
   readOnly,
@@ -645,6 +709,7 @@ function TaskRow({
   onDelete,
 }: {
   task: ProjectTask;
+  focused: boolean;
   workspace: Workspace;
   busy: boolean;
   readOnly: boolean;
@@ -662,7 +727,12 @@ function TaskRow({
     (entry) => entry.taskId === task.id,
   );
   return (
-    <div className={`planning-task planning-task--${task.status}`}>
+    <div
+      id={planningItemDomId(task.id)}
+      className={`planning-task planning-task--${task.status}${focused ? ' is-agenda-target' : ''}`}
+      tabIndex={-1}
+      aria-current={focused ? 'true' : undefined}
+    >
       <button
         type="button"
         className="planning-task__check"

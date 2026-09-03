@@ -79,6 +79,7 @@ impl LocalStore {
         self.save_supplier_invoice_draft_with_policy(input, false)
     }
 
+    #[cfg(test)]
     pub fn save_supplier_email_invoice_draft(
         &self,
         input: SaveSupplierInvoiceDraftInput,
@@ -88,6 +89,24 @@ impl LocalStore {
 
     fn save_supplier_invoice_draft_with_policy(
         &self,
+        input: SaveSupplierInvoiceDraftInput,
+        reject_duplicate_reference: bool,
+    ) -> AppResult<Value> {
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let result = self.save_supplier_invoice_draft_in_transaction(
+            &tx,
+            input,
+            reject_duplicate_reference,
+        )?;
+        tx.commit()?;
+        Ok(result)
+    }
+
+    pub(crate) fn save_supplier_invoice_draft_in_transaction(
+        &self,
+        tx: &Transaction<'_>,
         input: SaveSupplierInvoiceDraftInput,
         reject_duplicate_reference: bool,
     ) -> AppResult<Value> {
@@ -120,10 +139,6 @@ impl LocalStore {
                 )
             })?;
         }
-
-        let mut connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
         let existing_supplier_id = if let Some(id) =
             input.id.as_deref().filter(|id| !id.trim().is_empty())
@@ -197,7 +212,7 @@ impl LocalStore {
                     .into(),
             ));
         }
-        validate_optional_project(&tx, project_id.as_deref())?;
+        validate_optional_project(tx, project_id.as_deref())?;
 
         let (vat_registered, default_vat_bp, extra_settings): (bool, i64, String) = tx.query_row(
             "SELECT vat_registered,default_vat_bp,extra_settings_json FROM settings WHERE id=1",
@@ -210,7 +225,7 @@ impl LocalStore {
         let mut vat_cents = 0_i64;
         for line in input.items {
             let prepared = prepare_line(
-                &tx,
+                tx,
                 line,
                 project_id.as_deref(),
                 vat_registered,
@@ -238,7 +253,7 @@ impl LocalStore {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let before = query_all(
-            &tx,
+            tx,
             "SELECT * FROM supplier_invoices WHERE id=?",
             params![id],
         )?
@@ -247,7 +262,7 @@ impl LocalStore {
         .unwrap_or(Value::Null);
         if !before.is_null()
             && supplier_invoice_draft_matches(
-                &tx,
+                tx,
                 &id,
                 &before,
                 &supplier_id,
@@ -264,8 +279,7 @@ impl LocalStore {
                 &lines,
             )?
         {
-            let result = supplier_invoice_bundle(&tx, &id)?;
-            tx.commit()?;
+            let result = supplier_invoice_bundle(tx, &id)?;
             return Ok(result);
         }
         let now = now_iso();
@@ -290,15 +304,14 @@ impl LocalStore {
                 params![line.id,id,position as i64,line.description,line.quantity_milli,line.unit,line.unit_price_cents,line.discount_bp,line.vat_bp,line.net_cents,line.vat_cents,line.total_cents,line.category,line.expense_account_id,line.project_id,now,now],
             )?;
         }
-        let result = supplier_invoice_bundle(&tx, &id)?;
+        let result = supplier_invoice_bundle(tx, &id)?;
         append_audit(
-            &tx,
+            tx,
             if before.is_null() { "create" } else { "update" },
             "supplier_invoice_draft",
             &id,
             &json!({"before":before,"after":result}),
         )?;
-        tx.commit()?;
         Ok(result)
     }
 
@@ -306,6 +319,35 @@ impl LocalStore {
         let id = required(id, "facture fournisseur", 100)?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
+        let email_evidence: Option<(Option<String>, Option<String>)> = connection
+            .query_row(
+            "SELECT attachment_id,attachment_sha256 FROM supplier_email_invoice_imports WHERE supplier_invoice_id=?",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+            .optional()?;
+        if let Some((attachment_id, attachment_sha256)) = email_evidence {
+            let (Some(attachment_id), Some(attachment_sha256)) = (attachment_id, attachment_sha256)
+            else {
+                return Err(AppError::Validation(
+                    "La provenance e-mail ne désigne aucun justificatif original vérifiable. Réimportez le message avec sa pièce.".into(),
+                ));
+            };
+            let linked_evidence_exists: bool = connection.query_row(
+                "SELECT EXISTS(
+                   SELECT 1 FROM attachments
+                   WHERE id=? AND entity_type='supplier_invoice' AND entity_id=? AND sha256=?
+                 )",
+                params![attachment_id, id, attachment_sha256],
+                |row| row.get(0),
+            )?;
+            if !linked_evidence_exists {
+                return Err(AppError::Validation(
+                    "Le justificatif lié à la provenance e-mail est absent ou ne correspond plus au brouillon.".into(),
+                ));
+            }
+            self.verified_attachment_path(&attachment_id)?;
+        }
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let result = validate_supplier_invoice_in_transaction(&tx, &id)?;
         append_audit(&tx, "validate", "supplier_invoice", &id, &result)?;
@@ -340,6 +382,10 @@ impl LocalStore {
                 "Seul un brouillon fournisseur peut être supprimé.".into(),
             ));
         }
+        tx.execute(
+            "DELETE FROM supplier_email_invoice_imports WHERE supplier_invoice_id=?",
+            params![id],
+        )?;
         let attachment_files = delete_draft_attachments_in_transaction(&tx, &id)?;
         // Supprimer les lignes tant que le parent est encore visible comme
         // brouillon : leur garde SQL interdit toute suppression après validation.
@@ -569,6 +615,30 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
     if status != "draft" {
         return Err(AppError::Validation(
             "Cette facture fournisseur est déjà validée et verrouillée.".into(),
+        ));
+    }
+    let invalid_email_evidence: bool = tx.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM supplier_email_invoice_imports email_import
+            WHERE email_import.supplier_invoice_id=?
+              AND (
+                email_import.attachment_id IS NULL
+                OR email_import.attachment_sha256 IS NULL
+                OR NOT EXISTS(
+                SELECT 1 FROM attachments attachment
+                WHERE attachment.id=email_import.attachment_id
+                  AND attachment.entity_type='supplier_invoice'
+                  AND attachment.entity_id=email_import.supplier_invoice_id
+                  AND attachment.sha256=email_import.attachment_sha256
+                )
+              )
+        )",
+        params![id],
+        |row| row.get(0),
+    )?;
+    if invalid_email_evidence {
+        return Err(AppError::Validation(
+            "Le justificatif original lié à la provenance e-mail est absent ou incohérent. Réimportez le message avec sa pièce.".into(),
         ));
     }
     let normalized = reference_normalized
@@ -957,7 +1027,7 @@ fn prepare_line(
     })
 }
 
-fn supplier_invoice_bundle(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
+pub(crate) fn supplier_invoice_bundle(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
     let invoice = query_all(
         tx,
         "SELECT invoice.*,

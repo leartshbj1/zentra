@@ -35,7 +35,7 @@ use crate::{
         UpdatePayrollImportDraftInput, UpdateRecurrenceScheduleInput,
         ValidateSupplierCreditNoteInput,
     },
-    supplier_email::AddSupplierEmailAttachmentInput,
+    supplier_email::ImportSupplierEmailInvoiceDraftInput,
     swiss_qr,
     vat_reporting::{
         ExportVatReturnInput, ListVatAdjustmentsInput, ListVatReturnExportsInput,
@@ -351,18 +351,6 @@ pub fn save_supplier_invoice_draft(
     require_write(&state)?;
     state
         .save_supplier_invoice_draft(input)
-        .map_err(command_error)
-}
-
-#[tauri::command]
-pub fn save_supplier_email_invoice_draft(
-    state: State<'_, LocalStore>,
-    input: SaveSupplierInvoiceDraftInput,
-) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .save_supplier_email_invoice_draft(input)
         .map_err(command_error)
 }
 
@@ -1161,14 +1149,14 @@ pub fn inspect_supplier_email_file(
 }
 
 #[tauri::command]
-pub fn add_supplier_email_attachment(
+pub fn import_supplier_email_invoice_draft(
     state: State<'_, LocalStore>,
-    input: AddSupplierEmailAttachmentInput,
+    input: ImportSupplierEmailInvoiceDraftInput,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state
-        .add_supplier_email_attachment(input)
+        .import_supplier_email_invoice_draft(input)
         .map_err(command_error)
 }
 
@@ -1510,6 +1498,18 @@ pub fn export_json(
     let _guard = state.lock().map_err(command_error)?;
     state
         .export_json(destination, &app_version(&app))
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn export_csv_archive(
+    state: State<'_, LocalStore>,
+    app: AppHandle,
+    destination: Option<String>,
+) -> Result<String, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .export_csv_archive(destination, &app_version(&app))
         .map_err(command_error)
 }
 

@@ -33,6 +33,12 @@ export type AgendaItem = {
   event?: AgendaEvent;
 };
 
+export type AgendaNavigationTarget = {
+  route: AgendaRoute;
+  source: Exclude<AgendaItem['source'], 'event'>;
+  sourceId: string;
+};
+
 export type CalendarDay = {
   date: string;
   day: number;
@@ -347,7 +353,19 @@ export function itemOccursOn(item: AgendaItem, date: string) {
   return item.date <= date && item.endDate >= date;
 }
 
-/** Recherche ciblée utilisée par le bouton « Ouvrir » de l'agenda. */
+/** Cible stable utilisée pour ouvrir exactement l'entité depuis l'agenda. */
+export function agendaNavigationTarget(
+  item: AgendaItem,
+): AgendaNavigationTarget | null {
+  if (!item.route || item.source === 'event') return null;
+  return {
+    route: item.route,
+    source: item.source,
+    sourceId: item.sourceId,
+  };
+}
+
+/** Libellé de recherche historique, conservé pour les anciens appels/tests. */
 export function agendaNavigationQuery(item: AgendaItem, workspace: Workspace) {
   if (item.source === 'task') {
     return (
