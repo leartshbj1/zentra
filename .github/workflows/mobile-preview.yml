@@ -83,7 +83,7 @@ jobs:
       - name: Package simulator application
         run: |
           mkdir -p desktop/artifacts/ios
-          app_path="$(find desktop/src-tauri/gen/apple/build -type d -name '*.app' -print -quit)"
+          app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path '*/debug-iphonesimulator/Zentra.app' -print -quit)"
           test -n "$app_path"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" desktop/artifacts/ios/Zentra-iOS-simulator.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
