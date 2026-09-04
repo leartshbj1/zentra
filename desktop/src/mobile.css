@@ -116,6 +116,18 @@
   .mobile-navigation *, .project-folder * { scroll-behavior: auto; transition: none; }
 }
 
+@media screen and (max-width: 700px) {
+  .section-heading { flex-direction: column; align-items: stretch; }
+  .section-heading > div { min-width: 0; }
+  .section-heading__action, .catalog-heading-actions { width: 100%; min-width: 0; }
+  .catalog-heading-actions .button { max-width: 100%; white-space: normal; }
+  .catalog-filter-search, .catalog-filters p { flex: 0 1 auto; }
+  .catalog-filters input, .catalog-filters select { height: 44px; }
+  .catalog-filters label > span, .catalog-filters p { font-size: 13px; }
+  .metric-card span, .metric-card small { font-size: 12px; line-height: 1.4; }
+  .section-heading > div > p:last-child, .settings-copy { font-size: 13px; line-height: 1.6; }
+}
+
 @media print {
   .mobile-navigation { display: none !important; }
 }
