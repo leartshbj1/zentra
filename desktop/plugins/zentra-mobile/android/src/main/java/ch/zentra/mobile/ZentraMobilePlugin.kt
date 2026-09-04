@@ -16,6 +16,7 @@ import java.util.UUID
 
 @InvokeArg class ShareArgs { lateinit var path: String }
 @InvokeArg class UrlArgs { lateinit var url: String }
+class ZentraFileProvider: FileProvider()
 
 @TauriPlugin
 class ZentraMobilePlugin(private val activity: Activity): Plugin(activity) {
@@ -38,8 +39,8 @@ class ZentraMobilePlugin(private val activity: Activity): Plugin(activity) {
         Thread {
             try {
                 val source = File(args.path).canonicalFile
-                val roots = listOf(activity.filesDir, activity.cacheDir, activity.noBackupFilesDir).map { it.canonicalFile.toPath() }
-                require(source.isFile && roots.any { source.toPath().startsWith(it) }) { "Chemin de document refusé" }
+                val roots = listOf(activity.filesDir, activity.cacheDir, activity.noBackupFilesDir).map { it.canonicalPath + File.separator }
+                require(source.isFile && roots.any { source.path.startsWith(it) }) { "Chemin de document refusé" }
                 val root = File(activity.cacheDir, "zentra-share").apply { mkdirs() }
                 root.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86400000 }?.forEach { it.deleteRecursively() }
                 val folder = File(root, UUID.randomUUID().toString()).apply { mkdirs() }

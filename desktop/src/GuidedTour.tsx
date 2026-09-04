@@ -186,7 +186,7 @@ export const automaticGuidedTourSteps: readonly GuidedTourStep[] = [
 
 function initialOpen() {
   try {
-    if (window.matchMedia?.('(max-width: 700px)').matches) return false;
+    if (window.matchMedia?.('(max-width: 860px)').matches) return false;
     return window.localStorage.getItem(TOUR_STORAGE_KEY) !== 'completed';
   } catch {
     return true;

@@ -41,7 +41,7 @@
   .keyboard-open .mobile-navigation { display: none; }
 }
 
-@media screen and (max-width: 700px) {
+@media screen and (max-width: 860px) {
   .page-content > *, .modal-backdrop, .modal, .sidebar__nav button em { animation: none !important; }
   .modal-backdrop, .modal__header, .topbar { backdrop-filter: none; }
   .modal-backdrop, .modal, .modal__header { background: var(--paper); }

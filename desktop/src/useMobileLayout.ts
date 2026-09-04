@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 /** Adds visible labels to dense, existing tables without changing their data or desktop layout. */
 export function useMobileLayout() {
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 700px)');
+    const media = window.matchMedia('(max-width: 860px)');
     function labelTables(root: ParentNode = document) {
       if (!media.matches) return;
       root.querySelectorAll<HTMLTableElement>('.table-panel table').forEach((table) => {

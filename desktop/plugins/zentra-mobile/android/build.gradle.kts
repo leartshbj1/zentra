@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 android {
-    namespace = "ch.zentra.mobile"
+    namespace = "ch.zentra.nativebridge"
     compileSdk = 36
     defaultConfig { minSdk = 24 }
     compileOptions {
