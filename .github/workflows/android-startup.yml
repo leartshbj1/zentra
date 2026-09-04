@@ -7,6 +7,10 @@ on:
         description: Existing mobile preview run containing an x86_64 APK
         required: true
         type: string
+      compact_preview:
+        description: Strip debug symbols and export compact test APKs with an ephemeral test signature
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,6 +27,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUILD_RUN: ${{ inputs.build_run }}
         run: gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --pattern 'Zentra-Android-preview-*' --dir /tmp/zentra-apk
+      - name: Prepare compact debug previews
+        if: inputs.compact_preview
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "build-tools;36.0.0"
+          python3 desktop/scripts/compact-android-preview.py /tmp/zentra-apk desktop/artifacts/android
       - name: Configure emulator and verify startup
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
@@ -35,6 +44,9 @@ jobs:
           sudo chmod a+rw /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -avd zentra-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > /tmp/zentra-emulator.log 2>&1 &
           apk="$(find /tmp/zentra-apk -name '*x86_64*.apk' -print -quit)"
+          if [[ -f desktop/artifacts/android/app-x86_64-debug.apk ]]; then
+            apk=desktop/artifacts/android/app-x86_64-debug.apk
+          fi
           test -n "$apk"
           bash desktop/scripts/smoke-android.sh "$apk"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
