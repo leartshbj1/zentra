@@ -6,10 +6,12 @@ capture_diagnostics() {
   if [[ -f /tmp/zentra-emulator.log ]]; then
     cp /tmp/zentra-emulator.log desktop/artifacts/android/emulator.log
   fi
-  timeout 10 adb logcat -d -t 1000 > desktop/artifacts/android/startup.log 2>&1 || true
+  timeout 10 adb logcat -d > desktop/artifacts/android/startup.log 2>&1 || true
+  timeout 10 adb logcat -b crash -d > desktop/artifacts/android/crash.log 2>&1 || true
   if [[ "$status" -ne 0 ]]; then
     tail -n 60 desktop/artifacts/android/emulator.log 2>/dev/null || true
     tail -n 60 desktop/artifacts/android/startup.log || true
+    cat desktop/artifacts/android/crash.log || true
   fi
   exit "$status"
 }
