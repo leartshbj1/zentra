@@ -646,12 +646,12 @@ export default function FeaturesPage() {
             <SectionHeading
               eyebrow="Projets & heures"
               title="Comprendre ce qui a pris du temps et ce qui a rapporté."
-              text="Le vocabulaire s’adapte à l’activité choisie : projet, dossier, mission ou chantier. Les calculs utilisent uniquement les données enregistrées."
+              text="Chaque projet réunit ses documents, photos, devis et factures. Les calculs utilisent uniquement les données enregistrées."
             />
             <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-3">
               <FeatureCard
                 icon={FolderKanban}
-                title="Projets et chantiers"
+                title="Projets et documents"
                 text="Client, budget, dates prévues et réelles, dépenses, facturé, encaissé et marge."
               />
               <FeatureCard

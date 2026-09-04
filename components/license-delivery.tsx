@@ -130,7 +130,7 @@ export function LicenseDelivery({ sessionId }: { sessionId: string }) {
           <p className="mt-2 text-xs leading-5 text-[#5f6962]">
             Installez et ouvrez l’application, puis recopiez l’identifiant du
             bandeau « Activation requise ». Aucune facture, fiche de salaire ni
-            donnée de chantier n’est envoyée.
+            donnée de projet n’est envoyée.
           </p>
           <button
             disabled={busy || !installationId.trim()}

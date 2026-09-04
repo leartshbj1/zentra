@@ -208,7 +208,7 @@ function ProjectsView() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#8f5c1d]">
-              Projet / chantier
+              Projet
             </p>
             <h3 className="mt-2 text-xl font-semibold tracking-[-.03em] text-[#22372a]">
               Rénovation intérieure — exemple

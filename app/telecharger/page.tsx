@@ -75,8 +75,8 @@ const capabilities = [
   },
   {
     icon: FolderKanban,
-    title: 'Projets et chantiers',
-    text: 'Suivez durée, heures, dépenses, facturé, encaissé et rentabilité.',
+    title: 'Projets et documents',
+    text: 'Réunissez photos, documents, devis et factures dans chaque projet. Suivez aussi heures, dépenses et rentabilité.',
   },
   {
     icon: Users,
@@ -172,6 +172,11 @@ export default function DownloadPage() {
             <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
               Le téléchargement ne déclenche aucun paiement. Une licence active
               est requise pour utiliser l’application complète.
+            </p>
+            <p className="mt-4 max-w-xl rounded-xl border border-[#d5dad5] bg-white/70 p-4 text-sm leading-6 text-[#496054]">
+              Les versions iOS et Android sont en préparation. Les applications
+              mobiles seront distribuées et mises à jour depuis l’App Store et
+              Google Play après leur validation.
             </p>
           </div>
 
