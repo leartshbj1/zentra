@@ -541,16 +541,16 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Agenda fiable et factures reçues mieux contrôlées.
+                Chaque projet réunit ses documents, photos, devis et factures.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
-                  'Création, modification et suppression d’un rendez-vous protégées contre les doubles clics et conflits',
-                  'Passage au nouveau jour détecté automatiquement et échéances des sept prochains jours corrigées',
-                  'Navigation directe de l’agenda vers la facture, le devis, la fiche de salaire, la tâche ou le jalon concernés',
-                  'Extraction locale de la pièce PDF ou image réellement jointe à un e-mail .eml choisi',
-                  'Contrôle du type de fichier, de son empreinte et des doublons avant l’import',
-                  'Création d’un brouillon fournisseur seulement : la validation comptable reste entre vos mains',
+                  'Un dossier par projet, avec ajout de documents et photos dès sa création ou à tout moment',
+                  'Les devis et factures liés apparaissent automatiquement dans le dossier du projet',
+                  'Création de devis et factures depuis un projet avec son client déjà sélectionné',
+                  'Fichiers contrôlés, doublons détectés et documents inclus dans les sauvegardes locales',
+                  'Navigation tactile, formulaires simplifiés et tableaux adaptés aux petits écrans',
+                  'Recherche des mises à jour après le démarrage et installation signée sur Windows et macOS',
                 ].map((item) => (
                   <div
                     key={item}
