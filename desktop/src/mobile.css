@@ -125,6 +125,8 @@
   .catalog-filters input, .catalog-filters select { height: 44px; }
   .catalog-filters label > span, .catalog-filters p { font-size: 13px; }
   .metric-card span, .metric-card small { font-size: 12px; line-height: 1.4; }
+  .summary-strip span { font-size: 12px; line-height: 1.4; }
+  .summary-strip strong { font-size: 18px; }
   .section-heading > div > p:last-child, .settings-copy { font-size: 13px; line-height: 1.6; }
 }
 

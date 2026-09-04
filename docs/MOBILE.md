@@ -21,12 +21,15 @@ node desktop/scripts/configure-mobile-project.mjs android
 pnpm --dir desktop exec tauri android build --debug --apk --target aarch64 --ci
 ```
 
-Depuis macOS avec Xcode :
+Depuis macOS avec Xcode, dans un checkout de compilation dédié :
 
 ```sh
+printf '[toolchain]\nchannel = "stable"\n' > desktop/src-tauri/rust-toolchain.toml
 pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
 pnpm --dir desktop exec tauri ios build --debug --target aarch64-sim --ci
 ```
+
+Le choix du toolchain est écrit dans ce checkout car Xcode filtre la variable `RUSTUP_TOOLCHAIN` de ses phases de compilation. Conserver le toolchain GNU du dépôt dans le checkout utilisé pour produire Windows.
 
 Le workflow GitHub Actions `Zentra mobile preview` produit un APK Android ARM64 de test et une application pour simulateur iOS. Ces artefacts ne constituent pas une publication dans les stores. Une recette sur appareils réels doit aussi couvrir caméra, sélection des fichiers, clavier, export PDF, connexion, sauvegarde et restauration.
 
