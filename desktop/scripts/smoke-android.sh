@@ -42,10 +42,19 @@ sleep 5
 adb shell pidof ch.zentra.mobile
 identity_after="$(adb shell run-as ch.zentra.mobile sha256sum "$identity_path")"
 test "$identity_before" = "$identity_after"
+# The software-rendered CI emulator may still be compiling WebView shaders.
+# Wait for the actual welcome actions, not just a live process or a splash screen.
+for attempt in $(seq 1 10); do
+  timeout 15 adb shell uiautomator dump --compressed /sdcard/zentra-startup.xml >/dev/null 2>&1 || true
+  adb exec-out cat /sdcard/zentra-startup.xml > desktop/artifacts/android/startup-ui.xml 2>/dev/null || true
+  if grep -q 'Restaurer une sauvegarde' desktop/artifacts/android/startup-ui.xml; then break; fi
+  sleep 3
+done
+grep -q 'Restaurer une sauvegarde' desktop/artifacts/android/startup-ui.xml
 adb exec-out screencap -p > desktop/artifacts/android/startup.png
 adb logcat -d -s AndroidRuntime:E > desktop/artifacts/android/runtime.log
 if grep -q 'FATAL EXCEPTION' desktop/artifacts/android/runtime.log; then
   cat desktop/artifacts/android/runtime.log
   exit 1
 fi
-echo 'Android startup, SQLite, Keystore and identity recovery after restart verified.'
+echo 'Android welcome interface, SQLite, Keystore and identity recovery after restart verified.'
