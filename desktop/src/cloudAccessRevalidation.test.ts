@@ -40,7 +40,7 @@ describe('revalidation périodique du compte cloud', () => {
     expect(CLOUD_ACCESS_REVALIDATION_INTERVAL_MS).toBe(15 * 60 * 1_000);
   });
 
-  it('ignore les polls pending et revalide exactement à la transition connectée', () => {
+  it('ignore deux minutes de polls pending et revalide exactement à la transition connectée', () => {
     const pending: CloudAccountState = {
       status: 'pending',
       userCode: 'ABCD-EFGH',
@@ -49,8 +49,14 @@ describe('revalidation périodique du compte cloud', () => {
       authorizationExpiresAt: '2026-09-04T12:00:00Z',
       intervalSeconds: 3,
     };
-    const changes = [pending, pending, pending, connectedAccount];
+    // Le poll minimal est de trois secondes : quarante réponses pending
+    // reproduisent la fenêtre de deux minutes signalée sur macOS.
+    const pendingPolls = Array.from({ length: 40 }, () => pending);
+    const changes = [...pendingPolls, connectedAccount];
 
+    expect(pendingPolls.some(cloudAccountChangeNeedsFullRevalidation)).toBe(
+      false,
+    );
     expect(changes.filter(cloudAccountChangeNeedsFullRevalidation)).toEqual([
       connectedAccount,
     ]);

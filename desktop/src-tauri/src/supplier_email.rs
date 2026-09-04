@@ -18,7 +18,10 @@ use crate::{
     database::{now_iso, LocalStore},
     error::{AppError, AppResult},
     models::SaveSupplierInvoiceDraftInput,
-    supplier_invoices::supplier_invoice_bundle,
+    supplier_invoices::{
+        find_supplier_invoice_reference_duplicate, normalize_supplier_reference,
+        supplier_invoice_bundle,
+    },
 };
 
 const MAX_EMAIL_BYTES: u64 = 15 * 1024 * 1024;
@@ -175,14 +178,16 @@ impl LocalStore {
         let matched_supplier_id = match_supplier(&connection, &mailbox.email)?;
         let duplicate_invoice_id = match (&matched_supplier_id, &reference) {
             (Some(supplier_id), Some(reference)) => {
-                let normalized = normalize_reference(reference);
-                connection
-                    .query_row(
-                        "SELECT id FROM supplier_invoices WHERE supplier_id=? AND reference_normalized=? ORDER BY CASE status WHEN 'validated' THEN 0 ELSE 1 END,created_at LIMIT 1",
-                        params![supplier_id, normalized],
-                        |row| row.get::<_, String>(0),
-                    )
-                    .optional()?
+                match normalize_supplier_reference(Some(reference)) {
+                    Some(normalized) => find_supplier_invoice_reference_duplicate(
+                        &connection,
+                        supplier_id,
+                        "",
+                        &normalized,
+                        false,
+                    )?,
+                    None => None,
+                }
             }
             _ => None,
         };
@@ -1135,13 +1140,14 @@ fn parse_money(value: &str) -> Option<i64> {
 }
 
 fn detect_currency(text: &str) -> Option<String> {
-    let upper = text.to_ascii_uppercase();
-    for currency in ["CHF", "EUR", "USD", "GBP"] {
-        if upper.contains(currency) {
-            return Some(currency.to_owned());
-        }
-    }
-    None
+    let mut currencies = text
+        .split(|character: char| !character.is_ascii_alphabetic())
+        .map(str::to_ascii_uppercase)
+        .filter(|value| matches!(value.as_str(), "CHF" | "EUR" | "USD" | "GBP"))
+        .collect::<Vec<_>>();
+    currencies.sort();
+    currencies.dedup();
+    (currencies.len() == 1).then(|| currencies.remove(0))
 }
 
 fn match_supplier(
@@ -1177,14 +1183,6 @@ fn match_supplier(
         })?
         .collect::<Result<Vec<_>, _>>()?;
     Ok((matches.len() == 1).then(|| matches[0].clone()))
-}
-
-fn normalize_reference(value: &str) -> String {
-    value
-        .chars()
-        .filter(|character| character.is_alphanumeric())
-        .flat_map(char::to_uppercase)
-        .collect()
 }
 
 #[cfg(test)]
@@ -1655,6 +1653,24 @@ mod tests {
         assert_eq!(
             extract_labeled_amount(&amount_text, &["total ttc"]),
             Some(10_810)
+        );
+    }
+
+    #[test]
+    fn currency_detection_fails_closed_when_the_message_mentions_multiple_currencies() {
+        assert_eq!(detect_currency("Total TTC CHF 108.10"), Some("CHF".into()));
+        assert_eq!(
+            detect_currency("Total EUR 100.00\nConversion indicative CHF 95.00"),
+            None
+        );
+        assert_eq!(detect_currency("Référence ARCHFIVE sans devise"), None);
+    }
+
+    #[test]
+    fn email_duplicate_keys_match_compatibility_equivalent_references() {
+        assert_eq!(
+            normalize_supplier_reference(Some("ＩＮＶ－４２")),
+            normalize_supplier_reference(Some("INV-42"))
         );
     }
 

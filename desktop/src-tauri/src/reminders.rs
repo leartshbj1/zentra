@@ -329,6 +329,11 @@ impl LocalStore {
             return Ok(response);
         }
 
+        // A reminder for an invoice that is already settled must never pass
+        // through the `due` state during the same scan. Besides producing a
+        // misleading history entry, the old order returned the same id in
+        // both `promoted` and `cancelled`.
+        let cancelled = cancel_all_settled(&transaction)?;
         let planned_due = query_all(
             &transaction,
             "SELECT id FROM reminders WHERE status='planned' AND scheduled_date<=? ORDER BY scheduled_date,id",
@@ -361,7 +366,6 @@ impl LocalStore {
                 .filter_map(|row| Some((row["level"].as_i64()?, row["days_after_due"].as_i64()?)))
                 .collect::<Vec<_>>(),
         )?;
-        let cancelled = cancel_all_settled(&transaction)?;
         let invoices = query_all(
             &transaction,
             r#"SELECT i.id,i.number,i.due_date,i.total_cents,i.paid_cents,i.currency,i.client_id,
@@ -595,6 +599,21 @@ impl LocalStore {
     pub fn list_reminders(&self, filter: ReminderFilter) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
+        if let Some(date_from) = filter.date_from.as_deref() {
+            validate_date(date_from, "date_from")?;
+        }
+        if let Some(date_to) = filter.date_to.as_deref() {
+            validate_date(date_to, "date_to")?;
+        }
+        if let (Some(date_from), Some(date_to)) =
+            (filter.date_from.as_deref(), filter.date_to.as_deref())
+        {
+            if date_from > date_to {
+                return Err(AppError::Validation(
+                    "date_from doit précéder ou être égale à date_to.".into(),
+                ));
+            }
+        }
         let mut clauses = Vec::new();
         let mut values = Vec::new();
         if let Some(status) = filter.status {
@@ -612,12 +631,10 @@ impl LocalStore {
             values.push(SqlValue::Text(invoice_id));
         }
         if let Some(date_from) = filter.date_from {
-            validate_date(&date_from, "date_from")?;
             clauses.push("r.scheduled_date>=?");
             values.push(SqlValue::Text(date_from));
         }
         if let Some(date_to) = filter.date_to {
-            validate_date(&date_to, "date_to")?;
             clauses.push("r.scheduled_date<=?");
             values.push(SqlValue::Text(date_to));
         }
@@ -1163,17 +1180,27 @@ fn validate_template_text(value: &str, field: &str, max: usize) -> AppResult<()>
             "{field} est obligatoire et limité à {max} caractères."
         )));
     }
-    for fragment in value.split('{').skip(1) {
-        let Some((placeholder, _)) = fragment.split_once('}') else {
+    let mut remaining = value;
+    while let Some(position) = remaining.find(['{', '}']) {
+        let marker = remaining[position..].chars().next().unwrap_or_default();
+        if marker == '}' {
+            return Err(AppError::Validation(format!(
+                "Le champ {field} contient une accolade fermante sans ouverture."
+            )));
+        }
+        let after_open = &remaining[position + 1..];
+        let Some(close) = after_open.find('}') else {
             return Err(AppError::Validation(format!(
                 "Le champ {field} contient une accolade non refermée."
             )));
         };
-        if !ALLOWED_PLACEHOLDERS.contains(&placeholder) {
+        let placeholder = &after_open[..close];
+        if placeholder.contains('{') || !ALLOWED_PLACEHOLDERS.contains(&placeholder) {
             return Err(AppError::Validation(format!(
                 "Le champ {field} contient la variable inconnue {{{placeholder}}}."
             )));
         }
+        remaining = &after_open[close + 1..];
     }
     Ok(())
 }
@@ -1377,4 +1404,131 @@ fn clean(value: Option<String>, max: usize) -> Option<String> {
     value
         .map(|value| value.trim().chars().take(max).collect::<String>())
         .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    fn initialized_store() -> (tempfile::TempDir, LocalStore) {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        let connection = store.connect().expect("connect local database");
+        let now = now_iso();
+        connection
+            .execute(
+                "INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise relances',?,?)",
+                params![now, now],
+            )
+            .expect("mark onboarding complete");
+        drop(connection);
+        (temporary, store)
+    }
+
+    #[test]
+    fn reminder_filters_reject_an_inverted_date_range() {
+        let (_temporary, store) = initialized_store();
+        let error = store
+            .list_reminders(ReminderFilter {
+                date_from: Some("2026-09-02".into()),
+                date_to: Some("2026-09-01".into()),
+                ..ReminderFilter::default()
+            })
+            .expect_err("an inverted interval must fail closed");
+
+        assert!(error.to_string().contains("date_from doit précéder"));
+    }
+
+    #[test]
+    fn reminder_filters_reject_an_invalid_date_from_without_an_upper_bound() {
+        let (_temporary, store) = initialized_store();
+        let error = store
+            .list_reminders(ReminderFilter {
+                date_from: Some("2026-9-2".into()),
+                ..ReminderFilter::default()
+            })
+            .expect_err("an invalid lower bound must fail closed on its own");
+
+        assert!(error.to_string().contains("date_from"));
+    }
+
+    #[test]
+    fn reminder_filters_reject_an_invalid_date_to_without_a_lower_bound() {
+        let (_temporary, store) = initialized_store();
+        let error = store
+            .list_reminders(ReminderFilter {
+                date_to: Some("2026-9-2".into()),
+                ..ReminderFilter::default()
+            })
+            .expect_err("an invalid upper bound must fail closed on its own");
+
+        assert!(error.to_string().contains("date_to"));
+    }
+
+    #[test]
+    fn reminder_templates_reject_unmatched_closing_braces() {
+        assert!(validate_template_text("Solde {balance}", "body", 10_000).is_ok());
+        assert!(validate_template_text("Solde {balance}}", "body", 10_000).is_err());
+        assert!(validate_template_text("Solde {{balance}", "body", 10_000).is_err());
+    }
+
+    #[test]
+    fn settled_planned_reminder_is_cancelled_without_becoming_due_first() {
+        let (_temporary, store) = initialized_store();
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let now = now_iso();
+        let invoice_id = Uuid::new_v4().to_string();
+        let reminder_id = Uuid::new_v4().to_string();
+        {
+            let connection = store.connect().expect("connect local database");
+            connection
+                .execute(
+                    "INSERT INTO reminder_settings(id,enabled,sender_name,created_at,updated_at) VALUES(1,1,'Entreprise relances',?,?)",
+                    params![now, now],
+                )
+                .expect("enable reminders");
+            connection
+                .execute(
+                    "INSERT INTO invoices(id,number,title,type,status,issue_date,due_date,currency,total_cents,paid_cents,created_at,updated_at) VALUES(?,?,'Facture réglée','standard','payee',?,?,'CHF',1000,1000,?,?)",
+                    params![invoice_id, "F-2026-0001", today, today, now, now],
+                )
+                .expect("insert settled invoice");
+            connection
+                .execute(
+                    "INSERT INTO reminders(id,invoice_id,template_id,level,scheduled_date,status,subject,body,invoice_number,currency,invoice_total_cents,balance_cents,payment_deadline_days,snapshot_json,created_at,updated_at) VALUES(?,?,NULL,1,?,'planned','Facture réglée','Solde ouvert','F-2026-0001','CHF',1000,1000,10,'{}',?,?)",
+                    params![reminder_id, invoice_id, today, now, now],
+                )
+                .expect("insert planned reminder");
+        }
+
+        let response = store
+            .scan_due_reminders(ScanRemindersInput {
+                request_id: Uuid::new_v4().to_string(),
+                as_of: Some(today),
+            })
+            .expect("scan reminders");
+
+        assert_eq!(response["cancelled"], json!([reminder_id]));
+        assert_eq!(response["promoted"], json!([]));
+        let connection = store.connect().expect("connect local database");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM reminders WHERE id=?",
+                    params![reminder_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .expect("read reminder status"),
+            "cancelled"
+        );
+        let actions = connection
+            .prepare("SELECT action FROM reminder_history WHERE reminder_id=? ORDER BY rowid")
+            .expect("prepare reminder history")
+            .query_map(params![reminder_id], |row| row.get::<_, String>(0))
+            .expect("read reminder history")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect reminder history");
+        assert_eq!(actions, vec!["cancelled"]);
+    }
 }

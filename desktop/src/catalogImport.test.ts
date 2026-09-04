@@ -106,6 +106,29 @@ describe('catalogue fournisseur', () => {
     );
   });
 
+  it('préserve les zéros significatifs d’une référence numérique formatée par Excel', async () => {
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('Tarifs');
+    sheet.addRow(['Référence', 'Désignation', 'Prix de vente']);
+    sheet.addRow([42, 'Pièce numérotée', 19.9]);
+    sheet.getCell('A2').numFmt = '000000';
+    const output = await workbook.xlsx.writeBuffer();
+    const bytes = new Uint8Array(output);
+    const data = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
+
+    const preview = await previewCatalogXlsxBuffer('references.xlsx', data);
+
+    expect(preview.rows[0]).toEqual(expect.objectContaining({
+      sku: '000042',
+      name: 'Pièce numérotée',
+      salesPriceCents: 1_990,
+      errors: [],
+    }));
+  });
+
   it('applique la TVA de repli uniquement aux cellules vides et conserve un vrai taux de 0 %', () => {
     const preview = previewCatalogGrid('tarif.xlsx', 'Produits', [
       cells('Référence', 'Désignation', 'Prix de vente', 'TVA'),
@@ -144,6 +167,87 @@ describe('catalogue fournisseur', () => {
       name: 'Mèche béton',
       salesPriceCents: 1_250,
       vatBp: 810,
+      errors: [],
+    }));
+  });
+
+  it('conserve les retours à la ligne et guillemets contenus dans un champ CSV', async () => {
+    const csv = [
+      'Référence;Désignation;Description;Prix de vente;TVA',
+      'MULTI-1;Rapport;"Première ligne\r\nSeconde ligne avec ""guillemets""";125,50;8,1 %',
+    ].join('\r\n');
+    const file = {
+      name: 'catalogue-multiligne.csv',
+      size: new TextEncoder().encode(csv).byteLength,
+      text: async () => csv,
+    } as File;
+
+    const preview = await previewCatalogFile(file);
+
+    expect(preview.rows).toHaveLength(1);
+    expect(preview.rows[0]).toEqual(expect.objectContaining({
+      sku: 'MULTI-1',
+      description: 'Première ligne\nSeconde ligne avec "guillemets"',
+      salesPriceCents: 12_550,
+      vatBp: 810,
+      errors: [],
+    }));
+  });
+
+  it('conserve un symbole pouce non entouré de guillemets', async () => {
+    const csv = [
+      'Référence;Désignation;Description;Prix de vente',
+      'DIM-2;Raccord;Filetage 2" renforcé;25,00',
+    ].join('\n');
+    const file = {
+      name: 'dimensions.csv',
+      size: new TextEncoder().encode(csv).byteLength,
+      text: async () => csv,
+    } as File;
+
+    const preview = await previewCatalogFile(file);
+
+    expect(preview.rows[0].description).toBe('Filetage 2" renforcé');
+    expect(preview.rows[0].errors).toEqual([]);
+  });
+
+  it('explique clairement un champ CSV dont les guillemets ne sont pas refermés', async () => {
+    const csv = [
+      'Référence;Désignation;Prix de vente',
+      'BAD-1;"Désignation inachevée;25.00',
+    ].join('\n');
+    const file = {
+      name: 'catalogue-invalide.csv',
+      size: new TextEncoder().encode(csv).byteLength,
+      text: async () => csv,
+    } as File;
+
+    await expect(previewCatalogFile(file)).rejects.toThrow(/guillemets.*refermé/);
+  });
+
+  it('lit les anciens exports CSV Windows-1252 sans perdre les en-têtes accentués', async () => {
+    const csv = [
+      'Référence;Désignation;Prix de vente',
+      'CP-1252;Pièce détachée;49,90',
+    ].join('\r\n');
+    const bytes = Uint8Array.from(
+      Array.from(csv, (character) => character.charCodeAt(0)),
+    );
+    const file = {
+      name: 'ancien-export.csv',
+      size: bytes.byteLength,
+      arrayBuffer: async () => bytes.buffer.slice(0),
+      text: async () => {
+        throw new Error('le chemin de secours ne doit pas être utilisé');
+      },
+    } as unknown as File;
+
+    const preview = await previewCatalogFile(file);
+
+    expect(preview.rows[0]).toEqual(expect.objectContaining({
+      sku: 'CP-1252',
+      name: 'Pièce détachée',
+      salesPriceCents: 4_990,
       errors: [],
     }));
   });

@@ -1,14 +1,23 @@
 import {
   AutoModelForVision2Seq,
   AutoProcessor,
-  RawImage,
   Tensor,
   env,
+  load_image,
 } from '@huggingface/transformers';
 import {
   PAYROLL_AI_MODEL_ID,
   PAYROLL_AI_MODEL_REVISION,
 } from '../../src/payrollAiModel.ts';
+import { configurePayrollAiOnnxRuntime } from '../../src/payrollAiRuntimeAssets.ts';
+import { payrollAiImageBlobFromDataUrl } from '../../src/payrollAiImageSource.ts';
+import { parsePayrollAiJson } from '../../src/payrollImportAiDraft.ts';
+import {
+  payrollAiScanCorePrompt,
+  payrollCoreFromGeneratedProtocol,
+} from '../../src/payrollAiTextFallback.ts';
+
+configurePayrollAiOnnxRuntime(env.backends.onnx);
 
 const params = new URLSearchParams(location.search);
 const imageUrl = params.get('image');
@@ -38,14 +47,6 @@ function publish(state, payload = {}) {
   if (state === 'failed') status.className = 'fail';
 }
 
-function strictJson(text) {
-  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('Aucun objet JSON trouvé dans la génération.');
-  return JSON.parse(trimmed.slice(start, end + 1));
-}
-
 function normalizeName(value) {
   return String(value ?? '').normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
@@ -54,6 +55,18 @@ function progressCallback(update) {
   const pct = Number.isFinite(update?.progress) ? Math.max(0, Math.min(100, update.progress)) : 0;
   progress.value = pct;
   status.textContent = update?.file ? `Chargement local : ${update.file}` : 'Chargement local du modèle...';
+}
+
+async function localImageDataUrl(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Image de contrôle introuvable (${response.status}).`);
+  const source = await response.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Lecture de l'image impossible."));
+    reader.readAsDataURL(source);
+  });
 }
 
 async function main() {
@@ -84,19 +97,20 @@ async function main() {
     device: 'wasm',
     progress_callback: progressCallback,
   });
-  const imagePromise = RawImage.read(imageUrl);
+  const imagePromise = localImageDataUrl(imageUrl)
+    .then(payrollAiImageBlobFromDataUrl)
+    .then(load_image);
   const [processor, model, image] = await Promise.all([processorPromise, modelPromise, imagePromise]);
 
   progress.value = 100;
   status.textContent = 'Modèle chargé, génération locale en cours...';
   publish('generating', { image: { width: image.width, height: image.height } });
 
-  const localText = "EMPLOYEE: Élodie Exemple. PRINTED GROSS PAY: CHF 6'500.00. PRINTED NET PAY: CHF 6'284.00.";
-  const promptText = `Convert the supporting local PDF text into one JSON line after checking the payslip image. Follow this exact example.\nPDF: EMPLOYEE: Alice Smith. PRINTED GROSS PAY: CHF 1'000.00. PRINTED NET PAY: CHF 900.00.\nJSON: {"employee_name":"Alice Smith","gross_cents":100000,"net_cents":90000}\nNow convert the real document. Do not repeat the PDF text and do not add Markdown.\nPDF: ${localText}\nJSON:`;
+  const promptText = payrollAiScanCorePrompt('', 1);
   const messages = [{
     role: 'user',
     content: [
-      { type: 'image', image: imageUrl },
+      { type: 'image' },
       { type: 'text', text: promptText },
     ],
   }];
@@ -119,20 +133,22 @@ async function main() {
   const raw = processor.batch_decode(generatedOnly, { skip_special_tokens: true }).at(-1) ?? '';
   let parsed;
   try {
-    parsed = strictJson(raw);
+    const protocol = payrollCoreFromGeneratedProtocol(raw, 1, { allowMissingEnd: true });
+    if (!protocol) throw new Error('Le protocole NAME/GROSS_CHF/NET_CHF/END est absent ou incomplet.');
+    parsed = parsePayrollAiJson(protocol.rawOutput);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`${reason} Génération brute: ${JSON.stringify(raw)}`);
   }
   const matches = {
-    employee_name: normalizeName(parsed.employee_name) === normalizeName(expected.employee_name),
-    gross_cents: Number(parsed.gross_cents) === expected.gross_cents,
-    net_cents: Number(parsed.net_cents) === expected.net_cents,
+    employee_name: normalizeName(parsed.draft.employee.name) === normalizeName(expected.employee_name),
+    gross_cents: parsed.draft.grossCents === expected.gross_cents,
+    net_cents: parsed.draft.netCents === expected.net_cents,
   };
   const passed = Object.values(matches).every(Boolean);
   const result = {
     raw,
-    parsed,
+    parsed: parsed.draft,
     matches,
     tokenCounts: { prompt: promptLength, generated: Math.max(0, sequenceLength - promptLength) },
     image: { width: image.width, height: image.height },

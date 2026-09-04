@@ -141,6 +141,7 @@ import type {
   Workspace,
 } from './types';
 import type { SupplierEmailInspection } from './supplierEmail';
+import type { ManualJournalSubmission } from './accountingManualJournal';
 import type { OnboardingValidationScope } from './onboardingValidation';
 import type { CatalogImportRow } from './catalogImport';
 import {
@@ -3253,6 +3254,22 @@ export function toBackendData(data: Record<string, unknown>): RawRecord {
   );
 }
 
+export function documentLineToBackend(
+  line: DocumentLine,
+  preserveId = false,
+) {
+  return {
+    id: preserveId ? line.id : null,
+    catalog_item_id: line.catalogItemId || null,
+    description: line.description,
+    quantity: line.quantity,
+    unit: line.unit,
+    unit_price_cents: line.unitPriceCents,
+    discount_bp: line.discountBp ?? 0,
+    vat_bp: line.vatRateBp,
+  };
+}
+
 export function importCatalogItemsMutation(
   rows: CatalogImportRow[],
   conflictPolicy: 'update' | 'skip',
@@ -3312,18 +3329,12 @@ async function saveDocument(
       entity,
       id: existing?.id ?? null,
       data: backendData,
-      items: lines.map((line) => ({
-        id: previousLines.some((previous) => previous.id === line.id)
-          ? line.id
-          : null,
-        catalog_item_id: line.catalogItemId || null,
-        description: line.description,
-        quantity: line.quantity,
-        unit: line.unit,
-        unit_price_cents: line.unitPriceCents,
-        discount_bp: line.discountBp ?? 0,
-        vat_bp: line.vatRateBp,
-      })),
+      items: lines.map((line) =>
+        documentLineToBackend(
+          line,
+          previousLines.some((previous) => previous.id === line.id),
+        ),
+      ),
     },
   });
   return loadWorkspace();
@@ -5291,8 +5302,8 @@ export const desktopApi = {
     await invoke('update_quote_status', { id, status });
     return loadWorkspace();
   },
-  async createQuoteRevision(id: string) {
-    const raw = await invoke<RawRecord>('create_quote_revision', { id });
+  async createQuoteRevision(requestId: string, id: string) {
+    const raw = await invoke<RawRecord>('create_quote_revision', { requestId, id });
     const revisionId = stringValue(recordValue(raw.revision).id);
     if (!revisionId) {
       throw new Error('La révision créée n’a pas renvoyé d’identifiant exploitable.');
@@ -5967,20 +5978,11 @@ export const desktopApi = {
       }),
     );
   },
-  async postManualJournalEntry(input: {
-    entryDate: string;
-    description: string;
-    lines: Array<{
-      accountId: string;
-      debitCents: number;
-      creditCents: number;
-      memo?: string;
-      projectId?: string;
-      clientId?: string;
-      employeeId?: string;
-    }>;
-  }) {
+  async postManualJournalEntry(
+    input: ManualJournalSubmission & { requestId: string },
+  ) {
     await invoke('post_manual_journal_entry', {
+      requestId: input.requestId,
       input: {
         entry_date: input.entryDate,
         description: input.description,

@@ -1,6 +1,6 @@
 [package]
 name = "helvichantier"
-version = "1.23.0"
+version = "1.24.0"
 description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows et macOS"
 authors = ["Zentra"]
 edition = "2021"

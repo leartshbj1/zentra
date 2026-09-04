@@ -11,6 +11,12 @@ import { Button, EmptyState, ErrorPanel, Field, SectionHeading, StatusBadge, sub
 import { projectTerminology } from './terminology';
 import { ClosingFolder } from './ClosingFolder';
 import { VatCenter } from './VatCenter';
+import {
+  clearManualJournalAttempt,
+  loadManualJournalAttempt,
+  prepareManualJournalAttempt,
+  type ManualJournalAttempt,
+} from './accountingManualJournal';
 
 type Tab = 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods';
 type JournalDraftLine = { id: string; accountId: string; debitCents: number; creditCents: number; memo: string; projectId: string; clientId: string; employeeId: string };
@@ -116,6 +122,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const [activeEntryFocus, setActiveEntryFocus] = useState<ActiveEntryFocus | null>(null);
   const reportRequest = useRef(0);
   const actionRequest = useRef(0);
+  const manualJournalAttempt = useRef<ManualJournalAttempt | null>(loadManualJournalAttempt());
 
   const activeAccounts = accounts.filter((account) => account.active);
   const debit = entryLines.reduce((sum, line) => sum + line.debitCents, 0);
@@ -335,9 +342,26 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
 
   async function postEntry(form: FormData) {
     if (entryLines.length < 2 || debit <= 0 || debit !== credit || entryLines.some((line) => !line.accountId || (line.debitCents > 0) === (line.creditCents > 0))) { setError('Une écriture doit avoir au moins deux lignes, un seul côté par ligne et des débits égaux aux crédits.'); return; }
+    const submission = {
+      entryDate: String(form.get('entryDate')),
+      description: String(form.get('description')),
+      lines: entryLines,
+    };
     await run(async () => {
-      await desktopApi.postManualJournalEntry({ entryDate: String(form.get('entryDate')), description: String(form.get('description')), lines: entryLines });
-      setEntryLines([newJournalLine(), newJournalLine()]); setEntryOpen(false); await refreshReports();
+      const attempt = await prepareManualJournalAttempt(
+        manualJournalAttempt.current,
+        submission,
+      );
+      manualJournalAttempt.current = attempt;
+      await desktopApi.postManualJournalEntry({
+        ...submission,
+        requestId: attempt.requestId,
+      });
+      await refreshReports();
+      clearManualJournalAttempt(attempt);
+      manualJournalAttempt.current = null;
+      setEntryLines([newJournalLine(), newJournalLine()]);
+      setEntryOpen(false);
     }, 'L’écriture équilibrée a été comptabilisée.');
   }
 

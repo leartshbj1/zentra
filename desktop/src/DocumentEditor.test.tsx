@@ -80,6 +80,7 @@ describe('éditeur devis et factures', () => {
     expect(html).toContain('Conditions standard');
     expect(html).toContain('Nouveau contact');
     expect(html).toContain('Enregistrer le modèle');
+    expect(html).toContain('min="2026-09-03" required="" value="2026-10-03"');
   });
 
   it('permet de créer le premier client depuis un nouveau document', () => {
@@ -135,6 +136,61 @@ describe('éditeur devis et factures', () => {
       html.indexOf('aria-label="Référence du catalogue à ajouter"') + 220,
     );
     expect(selector).toContain('<option value="" selected="">Choisir une référence</option>');
+  });
+
+  it('conserve un taux 0 % explicitement sélectionné pour une entreprise assujettie', () => {
+    const zeroVatQuote: Quote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], vatRateBp: 0 }],
+    };
+    const registeredWorkspace = workspace({
+      settings: {
+        ...initialOnboardingSettings,
+        organization: {
+          ...initialOnboardingSettings.organization,
+          vatRegistered: true,
+        },
+        billing: {
+          ...initialOnboardingSettings.billing,
+          vatRatesBp: [810],
+          footerTemplates: [],
+        },
+      },
+      quotes: [zeroVatQuote],
+    });
+    const html = renderToStaticMarkup(
+      <DocumentEditor
+        entity="quotes"
+        item={zeroVatQuote}
+        workspace={registeredWorkspace}
+        busy={false}
+        close={() => undefined}
+        act={async () => true}
+      />,
+    );
+
+    const selector = html.slice(
+      html.indexOf('aria-label="Taux TVA"') - 120,
+      html.indexOf('aria-label="Taux TVA"') + 300,
+    );
+    expect(selector).toContain('<option value="0" selected="">0 % · Hors TVA / taux 0</option>');
+    expect(selector).toContain('<option value="810">8,1 %</option>');
+
+    const newDocumentHtml = renderToStaticMarkup(
+      <DocumentEditor
+        entity="quotes"
+        workspace={registeredWorkspace}
+        busy={false}
+        close={() => undefined}
+        act={async () => true}
+      />,
+    );
+    const newDocumentSelector = newDocumentHtml.slice(
+      newDocumentHtml.indexOf('aria-label="Taux TVA"') - 120,
+      newDocumentHtml.indexOf('aria-label="Taux TVA"') + 300,
+    );
+    expect(newDocumentSelector).toContain('<option value="" selected="">Choisir</option>');
+    expect(newDocumentSelector).toContain('<option value="0">0 % · Hors TVA / taux 0</option>');
   });
 
   it('reconstitue la base et affiche le total calculé d’un acompte', () => {

@@ -3168,6 +3168,11 @@ impl LocalStore {
             Some(value) if !value.trim().is_empty() => normalized_date(&value, "valid_until")?,
             _ => add_days(&date, quote_validity_days)?,
         };
+        if valid < date {
+            return Err(AppError::Validation(
+                "La date de validité du devis ne peut pas précéder sa date d'émission.".into(),
+            ));
+        }
         let number = assign_document_number(&transaction, "quotes", id, "quote", &date)?;
         let item_count: i64 = transaction.query_row(
             "SELECT COUNT(*) FROM quote_items WHERE quote_id=?",
@@ -3267,6 +3272,11 @@ impl LocalStore {
             _ if invoice_type == "avoir" => date.clone(),
             _ => add_days(&date, payment_terms_days)?,
         };
+        if due < date {
+            return Err(AppError::Validation(
+                "La date d'échéance de la facture ne peut pas précéder sa date d'émission.".into(),
+            ));
+        }
         let service_from = existing
             .get("service_date_from")
             .and_then(Value::as_str)
@@ -3974,14 +3984,112 @@ impl LocalStore {
     /// snapshot et sa chaîne d'audit; si une commande ou facture en dépend,
     /// son statut reste inchangé. La nouvelle version repart en brouillon et
     /// recevra un nouveau numéro à sa prochaine émission.
+    #[cfg(test)]
     pub fn create_quote_revision(&self, id: &str) -> AppResult<Value> {
-        if id.trim().is_empty() {
-            return Err(AppError::Validation("id est obligatoire.".into()));
-        }
+        self.create_quote_revision_with_request_id(&Uuid::new_v4().to_string(), id)
+    }
+
+    /// Variante idempotente utilisée par l'interface. Le résultat complet est
+    /// conservé dans la chaîne d'audit afin qu'une réponse perdue puisse être
+    /// rejouée à l'identique sans créer une deuxième révision.
+    pub fn create_quote_revision_with_request_id(
+        &self,
+        request_id: &str,
+        id: &str,
+    ) -> AppResult<Value> {
+        const OPERATION: &str = "create_quote_revision";
+        const REQUEST_ENTITY: &str = "quote_revision_request";
+
+        let request_id = Uuid::parse_str(request_id.trim())
+            .map(|value| value.to_string())
+            .map_err(|_| AppError::Validation("request_id doit être un UUID valide.".into()))?;
+        let id = Uuid::parse_str(id.trim())
+            .map(|value| value.to_string())
+            .map_err(|_| AppError::Validation("id doit être un UUID valide.".into()))?;
+        let payload = json!({"request_id":request_id,"quote_id":id});
+        let payload_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&payload)?));
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let source = query_record_tx(&transaction, "quotes", id)?;
+
+        let replay_payloads = {
+            let mut statement = transaction.prepare(
+                "SELECT payload_json FROM audit_log
+                 WHERE entity_type=? AND entity_id=? AND action='complete'
+                 ORDER BY rowid",
+            )?;
+            let rows = statement
+                .query_map(params![REQUEST_ENTITY, request_id], |row| {
+                    row.get::<_, String>(0)
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            rows
+        };
+        if replay_payloads.len() > 1 {
+            return Err(AppError::Validation(
+                "Le registre idempotent de cette révision est incohérent.".into(),
+            ));
+        }
+        if let Some(replay_payload) = replay_payloads.first() {
+            let replay: Value = serde_json::from_str(replay_payload).map_err(|_| {
+                AppError::Validation(
+                    "Le registre idempotent de cette révision est illisible.".into(),
+                )
+            })?;
+            if replay.get("operation").and_then(Value::as_str) != Some(OPERATION)
+                || replay.get("payload_sha256").and_then(Value::as_str)
+                    != Some(payload_sha256.as_str())
+                || replay.get("source_quote_id").and_then(Value::as_str) != Some(id.as_str())
+            {
+                return Err(AppError::Validation(
+                    "Ce request_id a déjà été utilisé pour une autre révision ou un autre devis."
+                        .into(),
+                ));
+            }
+            let response = replay.get("response").cloned().ok_or_else(|| {
+                AppError::Validation("La réponse idempotente de cette révision est absente.".into())
+            })?;
+            let revision_id = response
+                .pointer("/revision/id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::Validation(
+                        "La réponse idempotente de cette révision est incohérente.".into(),
+                    )
+                })?;
+            if response.pointer("/source/id").and_then(Value::as_str) != Some(id.as_str())
+                || replay.get("revision_quote_id").and_then(Value::as_str) != Some(revision_id)
+            {
+                return Err(AppError::Validation(
+                    "La source ou le résultat idempotent de cette révision est incohérent.".into(),
+                ));
+            }
+            let revision_exists: bool = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM quotes WHERE id=?)",
+                params![revision_id],
+                |row| row.get(0),
+            )?;
+            if !revision_exists {
+                return Err(AppError::Validation(
+                    "La révision enregistrée pour cette tentative n'existe plus.".into(),
+                ));
+            }
+            transaction.commit()?;
+            return Ok(response);
+        }
+
+        let conflicting_sales_request: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sales_operation_requests WHERE request_id=?)",
+            params![request_id],
+            |row| row.get(0),
+        )?;
+        if conflicting_sales_request {
+            return Err(AppError::Validation(
+                "Ce request_id a déjà été utilisé pour une autre opération commerciale.".into(),
+            ));
+        }
+
+        let source = query_record_tx(&transaction, "quotes", &id)?;
         if source
             .get("number")
             .and_then(Value::as_str)
@@ -3991,7 +4099,7 @@ impl LocalStore {
                 "Ce devis est encore un brouillon et peut être modifié directement.".into(),
             ));
         }
-        let has_downstream_document = quote_downstream_document(&transaction, id)?.is_some();
+        let has_downstream_document = quote_downstream_document(&transaction, &id)?.is_some();
 
         let status = source.get("status").and_then(Value::as_str).unwrap_or("");
         if !matches!(status, "emis" | "accepte" | "refuse" | "expire" | "annulee") {
@@ -4012,16 +4120,30 @@ impl LocalStore {
 
         let revision_id = Uuid::new_v4().to_string();
         let now = now_iso();
+        let revision_issue_date = today();
+        let quote_validity_days: i64 = transaction.query_row(
+            "SELECT quote_validity_days FROM settings WHERE id=1",
+            [],
+            |row| row.get(0),
+        )?;
+        let revision_valid_until = add_days(&revision_issue_date, quote_validity_days)?;
         transaction.execute(
             "INSERT INTO quotes(
                id,client_id,project_id,number,title,status,issue_date,valid_until,currency,
                subtotal_cents,discount_cents,vat_cents,total_cents,notes,terms,snapshot_json,
                created_at,updated_at
              )
-             SELECT ?,client_id,project_id,NULL,title,'brouillon',issue_date,valid_until,currency,
+             SELECT ?,client_id,project_id,NULL,title,'brouillon',?,?,currency,
                     0,0,0,0,notes,terms,NULL,?,?
                FROM quotes WHERE id=?",
-            params![revision_id, now, now, id],
+            params![
+                revision_id,
+                revision_issue_date,
+                revision_valid_until,
+                now,
+                now,
+                id
+            ],
         )?;
         let source_lines = {
             let mut statement = transaction.prepare(
@@ -4091,28 +4213,50 @@ impl LocalStore {
             &transaction,
             "revise",
             "quote",
-            id,
+            &id,
             &json!({
                 "source_number":source.get("number"),
                 "source_status":status,
                 "revision_quote_id":revision_id,
+                "request_id":request_id,
+                "payload_sha256":payload_sha256,
                 "source_preserved":true,
                 "source_status_preserved":has_downstream_document
             }),
         )?;
+        let response = json!({
+            "source":source,
+            "revision":revision,
+            "items":items
+        });
         append_audit(
             &transaction,
             "create_revision",
             "quote",
             &revision_id,
-            &json!({"source_quote_id":id,"document":revision,"items":items}),
+            &json!({
+                "source_quote_id":id,
+                "request_id":request_id,
+                "payload_sha256":payload_sha256,
+                "document":revision,
+                "items":items
+            }),
+        )?;
+        append_audit(
+            &transaction,
+            "complete",
+            REQUEST_ENTITY,
+            &request_id,
+            &json!({
+                "operation":OPERATION,
+                "payload_sha256":payload_sha256,
+                "source_quote_id":id,
+                "revision_quote_id":revision_id,
+                "response":response
+            }),
         )?;
         transaction.commit()?;
-        Ok(json!({
-            "source":source,
-            "revision":revision,
-            "items":items
-        }))
+        Ok(response)
     }
 
     pub fn convert_quote_to_invoice(&self, input: ConvertQuoteInput) -> AppResult<Value> {

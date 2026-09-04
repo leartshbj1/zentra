@@ -283,7 +283,8 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
   return items.sort(
     (left, right) =>
       left.date.localeCompare(right.date) ||
-      (left.time || '99:99').localeCompare(right.time || '99:99') ||
+      Number(left.time !== null) - Number(right.time !== null) ||
+      (left.time || '').localeCompare(right.time || '') ||
       left.title.localeCompare(right.title, 'fr-CH'),
   );
 }

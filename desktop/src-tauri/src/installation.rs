@@ -668,14 +668,17 @@ mod tests {
         write_protected_atomically(&path, b"first").unwrap();
         #[cfg(target_os = "macos")]
         let first_reference = read_protected_reference(&path).unwrap();
-        write_protected_atomically(&path, b"second").unwrap();
-        assert_eq!(read_protected(&path).unwrap(), b"second");
-        #[cfg(target_os = "macos")]
-        assert_eq!(
-            read_protected_reference(&path).unwrap(),
-            first_reference,
-            "une mise à jour doit réutiliser l'entrée Keychain existante"
-        );
+        for index in 0..40 {
+            let latest = format!("update-{index}").into_bytes();
+            write_protected_atomically(&path, &latest).unwrap();
+            #[cfg(target_os = "macos")]
+            assert_eq!(
+                read_protected_reference(&path).unwrap(),
+                first_reference,
+                "les mises à jour répétées doivent réutiliser l'entrée Keychain existante"
+            );
+        }
+        assert_eq!(read_protected(&path).unwrap(), b"update-39");
         assert_eq!(
             std::fs::read_dir(temporary.path()).unwrap().count(),
             1,

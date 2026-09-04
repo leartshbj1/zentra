@@ -79,13 +79,20 @@ describe('catalogue produits et services', () => {
     expect(line).toEqual({
       id: 'line-1',
       catalogItemId: 'service-audit',
-      description: 'Audit électrique — Contrôle initial et rapport',
+      description: 'SRV-001 · Audit électrique — Contrôle initial et rapport',
       quantity: 1,
       unit: 'heure',
       unitPriceCents: 15_000,
       discountBp: 0,
       vatRateBp: 810,
     });
+  });
+
+  it('reste lisible pour une fiche sans référence fournisseur', () => {
+    expect(
+      catalogItemToDocumentLine({ ...service, sku: null }, 'line-no-sku')
+        .description,
+    ).toBe('Audit électrique — Contrôle initial et rapport');
   });
 
   it('convertit les quantités en milli-unités et signale le stock réel sous le seuil', () => {

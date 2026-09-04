@@ -43,6 +43,9 @@ describe('file locale d’analyse des fiches de salaire', () => {
   it('reconnaît les analyses SmolVLM déjà persistées, quel que soit le mode local', () => {
     expect(hasCompletedLocalPayrollAiAnalysis(importItem('gpu', 'smolvlm-500m-webgpu-multipage-double-read-2'))).toBe(true);
     expect(hasCompletedLocalPayrollAiAnalysis(importItem('cpu', 'smolvlm-500m-wasm-multipage-double-read-2'))).toBe(true);
+    const boundedCpu = importItem('bounded-cpu', 'smolvlm-500m-wasm-multipage-single-read-1');
+    boundedCpu.analysisManifest!.passes = 1;
+    expect(hasCompletedLocalPayrollAiAnalysis(boundedCpu)).toBe(true);
     expect(hasCompletedLocalPayrollAiAnalysis(importItem('legacy-v1', 'smolvlm-500m-wasm-multipage-double-read-2', 'needs_review', 1))).toBe(true);
     expect(hasCompletedLocalPayrollAiAnalysis(importItem('text', 'pdf_text'))).toBe(false);
     const corrected = importItem('corrected', 'smolvlm-500m-webgpu-multipage-double-read-2');

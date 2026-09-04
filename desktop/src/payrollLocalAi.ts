@@ -1,7 +1,7 @@
 import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel';
 
 type WorkerPayload = Record<string, unknown>;
-const PAYROLL_ANALYSIS_TIMEOUT_MS = 15 * 60 * 1_000;
+export const PAYROLL_ANALYSIS_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
 export const PAYROLL_MODEL_LOAD_TIMEOUT_MS = 15 * 60 * 1_000;
 export const PAYROLL_ENGINE_CHECK_TIMEOUT_MS = 15 * 1_000;
 
@@ -18,6 +18,7 @@ export type PayrollAiAnalysis = {
   modelId: string;
   modelVersion: string;
   mode: PayrollAiMode;
+  partialError?: string;
 };
 
 export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
@@ -29,14 +30,14 @@ class PayrollLocalAi {
     timeout: ReturnType<typeof setTimeout>;
   }> = [];
   private loadWaiters: Array<{
-    resolve: () => void;
+    resolve: (mode: PayrollAiMode) => void;
     reject: (reason: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
   }> = [];
   private analyses = new Map<string, {
     resolve: (value: PayrollAiAnalysis) => void;
     reject: (reason: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
+    timeout: ReturnType<typeof setTimeout> | null;
   }>();
   private progressListeners = new Set<(progress: PayrollAiProgress) => void>();
 
@@ -44,9 +45,19 @@ class PayrollLocalAi {
     if (this.worker) return this.worker;
     const worker = new Worker(new URL('./payrollAi.worker.ts', import.meta.url), { type: 'module' });
     this.worker = worker;
-    worker.addEventListener('message', (event: MessageEvent<WorkerPayload>) => this.handleMessage(event.data));
+    worker.addEventListener('message', (event: MessageEvent<WorkerPayload>) => {
+      // terminate() n'annule pas nécessairement un événement déjà placé dans
+      // la file du thread principal. Un ancien Worker ne doit jamais pouvoir
+      // résoudre ou rejeter les opérations de la génération qui l'a remplacé.
+      if (this.worker !== worker) return;
+      this.handleMessage(event.data);
+    });
     const failWorker = (error: Error) => {
-      if (this.worker === worker) this.worker = null;
+      if (this.worker !== worker) {
+        worker.terminate();
+        return;
+      }
+      this.worker = null;
       worker.terminate();
       this.rejectAll(error);
     };
@@ -75,18 +86,27 @@ class PayrollLocalAi {
       const rawPercent = typeof progress.progress === 'number' ? progress.progress : null;
       const label = typeof progress.file === 'string' ? `Téléchargement local · ${progress.file}` : typeof progress.status === 'string' ? progress.status : 'Préparation du modèle local';
       this.progressListeners.forEach((listener) => listener({ label, percent: rawPercent }));
+      // During WebGPU -> WASM fallback, model download/compilation emits
+      // generic Transformers.js progress messages without a request id. It is
+      // still authoritative activity from this single sequential Worker.
+      for (const requestId of this.analyses.keys()) this.refreshAnalysisTimeout(requestId);
       return;
     }
     if (type === 'analysis_stage') {
       const label = typeof message.label === 'string' ? message.label : 'Analyse locale en cours';
       const percent = typeof message.percent === 'number' ? Math.max(0, Math.min(100, message.percent)) : null;
       this.progressListeners.forEach((listener) => listener({ label, percent }));
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      if (requestId) this.refreshAnalysisTimeout(requestId);
       return;
     }
     if (type === 'ready') {
+      const mode: PayrollAiMode = message.mode === 'webgpu' || message.mode === 'wasm'
+        ? message.mode
+        : 'unavailable';
       this.loadWaiters.splice(0).forEach(({ resolve, timeout }) => {
         clearTimeout(timeout);
-        resolve();
+        resolve(mode);
       });
       return;
     }
@@ -103,7 +123,7 @@ class PayrollLocalAi {
       const pending = this.analyses.get(requestId);
       if (!pending) return;
       this.analyses.delete(requestId);
-      clearTimeout(pending.timeout);
+      if (pending.timeout) clearTimeout(pending.timeout);
       if (type === 'analysis_error') {
         pending.reject(new Error(typeof message.error === 'string' ? message.error : "L'analyse locale a échoué."));
       } else {
@@ -120,6 +140,7 @@ class PayrollLocalAi {
           modelId: typeof message.modelId === 'string' && message.modelId.trim() ? message.modelId : PAYROLL_AI_MODEL_ID,
           modelVersion: typeof message.modelVersion === 'string' && message.modelVersion.trim() ? message.modelVersion : PAYROLL_AI_MODEL_REVISION,
           mode: message.mode === 'webgpu' || message.mode === 'wasm' ? message.mode : 'unavailable',
+          partialError: typeof message.partialError === 'string' ? message.partialError : undefined,
         });
       }
     }
@@ -131,7 +152,7 @@ class PayrollLocalAi {
       reject(error);
     });
     for (const pending of this.analyses.values()) {
-      clearTimeout(pending.timeout);
+      if (pending.timeout) clearTimeout(pending.timeout);
       pending.reject(error);
     }
     this.analyses.clear();
@@ -144,6 +165,19 @@ class PayrollLocalAi {
   onProgress(listener: (progress: PayrollAiProgress) => void) {
     this.progressListeners.add(listener);
     return () => this.progressListeners.delete(listener);
+  }
+
+  private refreshAnalysisTimeout(requestId: string) {
+    const pending = this.analyses.get(requestId);
+    if (!pending) return;
+    if (pending.timeout) clearTimeout(pending.timeout);
+    pending.timeout = setTimeout(() => {
+      if (!this.analyses.has(requestId)) return;
+      const worker = this.worker;
+      this.worker = null;
+      worker?.terminate();
+      this.rejectAll(new Error('L’analyse locale ne progresse plus depuis 15 minutes et le moteur a été redémarré. Aucun brouillon incomplet n’a été enregistré; réduisez le nombre de pages ou relancez cette fiche.'));
+    }, PAYROLL_ANALYSIS_STALL_TIMEOUT_MS);
   }
 
   cancel() {
@@ -174,7 +208,7 @@ class PayrollLocalAi {
     });
   }
 
-  load(): Promise<void> {
+  load(): Promise<PayrollAiMode> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         const worker = this.worker;
@@ -197,14 +231,8 @@ class PayrollLocalAi {
   analyze(input: { imageUrls?: string[]; extractedText?: string; pageStart?: number; pageEnd?: number }): Promise<PayrollAiAnalysis> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
-      const timeout = setTimeout(() => {
-        if (!this.analyses.has(requestId)) return;
-        const worker = this.worker;
-        this.worker = null;
-        worker?.terminate();
-        this.rejectAll(new Error('L’analyse locale a dépassé 15 minutes et le moteur a été redémarré. Aucun brouillon incomplet n’a été enregistré; réduisez le nombre de pages ou relancez cette fiche.'));
-      }, PAYROLL_ANALYSIS_TIMEOUT_MS);
-      this.analyses.set(requestId, { resolve, reject, timeout });
+      this.analyses.set(requestId, { resolve, reject, timeout: null });
+      this.refreshAnalysisTimeout(requestId);
       try {
         this.ensureWorker().postMessage({
           type: 'analyze',
@@ -215,7 +243,8 @@ class PayrollLocalAi {
           pageEnd: input.pageEnd,
         });
       } catch (reason) {
-        clearTimeout(timeout);
+        const pending = this.analyses.get(requestId);
+        if (pending?.timeout) clearTimeout(pending.timeout);
         this.analyses.delete(requestId);
         reject(reason instanceof Error ? reason : new Error("L'analyse locale n'a pas pu démarrer."));
       }

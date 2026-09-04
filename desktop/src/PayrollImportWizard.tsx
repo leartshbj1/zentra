@@ -30,6 +30,7 @@ import {
 } from './payrollImportAiDraft';
 import { findPotentialPayrollEmployeeDuplicate, findStrongEmployeeMatch } from './payrollEmployeeMatching';
 import { payrollLocalAi, type PayrollAiMode, type PayrollAiProgress } from './payrollLocalAi';
+import { payrollAiGenerationPlan, payrollAiSafePageBatchSize } from './payrollAiGenerationPolicy';
 import {
   assertPayrollAnalysisDraftUnchanged,
   payrollAnalysisDraftSnapshot,
@@ -67,7 +68,6 @@ type BatchAnalysisState = {
   failures: Array<{ id: string; sourceName: string; message: string }>;
 };
 const MAX_VISUAL_PAYROLL_PAGES = 12;
-const AI_PAGE_BATCH_SIZE = 3;
 
 function cloneDraft(draft: PayrollImportDraft): PayrollImportDraft {
   return {
@@ -328,7 +328,13 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     }
     setAiState('loading');
     setAiProgress({ label: 'Téléchargement unique du pack SmolVLM local…', percent: null });
-    await payrollLocalAi.load();
+    const loadedMode = await payrollLocalAi.load();
+    if (loadedMode === 'unavailable') {
+      setAiState('unavailable');
+      throw new Error("Le pack IA local s'est chargé sans runtime utilisable.");
+    }
+    aiModeRef.current = loadedMode;
+    setAiMode(loadedMode);
     aiLoadedRef.current = true;
     setAiState('ready');
   }
@@ -380,14 +386,27 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
 
     const pageBatches: Parameters<typeof combinePayrollAiPageBatches>[0] = [];
     let latestResult: Awaited<ReturnType<typeof payrollLocalAi.analyze>> | null = null;
-    const totalBatches = Math.ceil(imageUrls.length / AI_PAGE_BATCH_SIZE);
-    for (let offset = 0; offset < imageUrls.length; offset += AI_PAGE_BATCH_SIZE) {
+    const initialRuntime = aiModeRef.current === 'wasm' ? 'wasm' : 'webgpu';
+    // The first capability check can report WebGPU while a later inference
+    // still falls back to WASM. Segment before sending so that same request is
+    // always valid on both runtimes and no page is silently lost.
+    const pageBatchSize = payrollAiSafePageBatchSize(initialRuntime);
+    const totalBatches = Math.ceil(imageUrls.length / pageBatchSize);
+    for (let offset = 0; offset < imageUrls.length; offset += pageBatchSize) {
       if (batchCancelRequested.current) throw new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.');
-      const batchImages = imageUrls.slice(offset, offset + AI_PAGE_BATCH_SIZE);
+      const batchImages = imageUrls.slice(offset, offset + pageBatchSize);
       const pageStart = offset + 1;
       const pageEnd = offset + batchImages.length;
-      const batchNumber = Math.floor(offset / AI_PAGE_BATCH_SIZE) + 1;
-      setAiProgress({ label: `${queuePrefix}lot ${batchNumber}/${totalBatches} · pages ${pageStart}–${pageEnd} · deux passages du même modèle`, percent: Math.round(((batchNumber - 1) / totalBatches) * 100) });
+      const batchNumber = Math.floor(offset / pageBatchSize) + 1;
+      // A successful first batch can reveal that WebGPU fell back to WASM.
+      // Re-read the effective runtime before each following page so the UI and
+      // strategy label never claim a GPU double-read while the CPU is active.
+      const batchRuntime = aiModeRef.current === 'wasm' ? 'wasm' : 'webgpu';
+      const generationPlan = payrollAiGenerationPlan(batchRuntime);
+      const readingLabel = generationPlan.passes === 2
+        ? 'deux lectures indépendantes · WebGPU'
+        : 'une lecture bornée · CPU/WASM · proposition faible';
+      setAiProgress({ label: `${queuePrefix}lot ${batchNumber}/${totalBatches} · pages ${pageStart}–${pageEnd} · ${readingLabel}`, percent: Math.round(((batchNumber - 1) / totalBatches) * 100) });
       latestResult = await payrollLocalAi.analyze({
         imageUrls: batchImages,
         // PDF.js restitue la couche texte page par page : chaque lot ne voit
@@ -406,6 +425,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         analysis: reconcilePayrollAiPasses(
           latestResult.primaryRawOutput,
           latestResult.verifiedRawOutput,
+          { expectedPasses: latestResult.mode === 'wasm' ? 1 : 2 },
         ),
       });
     }
@@ -462,7 +482,8 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       passes: analysisPasses,
       hasTextLayer: corroboratedAiDraft.hasTextLayer,
     });
-    const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `smolvlm-500m-${latestResult.mode}-multipage-double-read-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
+    const readingStrategy = analysisPasses === 2 ? 'double-read' : 'single-read';
+    const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `smolvlm-500m-${latestResult.mode}-multipage-${readingStrategy}-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
     setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
     setAiProvenance((current) => ({ ...current, [saved.id]: payrollAiProvenanceFromManifest(saved.analysisManifest) ?? finalProvenance }));
     setEmployeeLinks((current) => ({ ...current, [saved.id]: employeeId }));
@@ -725,7 +746,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     line.label.trim() && evidencePagesForLine(line, lineIndex).length
   )).length ?? 0;
 
-  return <Modal title="Importer des fiches de salaire" description="Zentra effectue deux passages locaux du même modèle, affiche des indications de pages puis attend votre validation champ par champ." onClose={() => { if (!interactionBusy) void persistAndClose(); }} wide>
+  return <Modal title="Importer des fiches de salaire" description="Zentra adapte la lecture locale à cet ordinateur, affiche des indications de pages puis attend votre validation champ par champ." onClose={() => { if (!interactionBusy) void persistAndClose(); }} wide>
     <div className="payroll-import-shell">
       <section className="payroll-import-privacy"><ShieldCheck size={21} /><div><strong>Les salaires ne quittent jamais cet ordinateur</strong><p>Seul le modèle public est téléchargé une fois. Le PDF, l’image, la couche texte et le résultat restent dans les données locales Zentra.</p></div><span><HardDrive size={14} /> local</span></section>
       <div className="payroll-import-toolbar">
@@ -733,7 +754,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
           <Button type="button" onClick={() => void chooseDocuments()} disabled={staging || aiBusy}>{staging ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Ajouter PDF ou images</Button>
           {imports.length > 1 && pendingAiImports.length ? <Button type="button" variant="secondary" onClick={() => void analyzePendingQueue()} disabled={aiBusy || aiState === 'unavailable'}><Sparkles size={16} /> {batchAnalysis.status === 'cancelled' || batchAnalysis.failures.length ? 'Reprendre la file' : 'Analyser la file'} ({pendingAiImports.length})</Button> : null}
         </div>
-        <div className={`ai-engine-state ai-engine-state--${aiState}`}><BrainCircuit size={17} /><span><strong>SmolVLM 500M · deux passages locaux</strong><small>{aiState === 'idle' ? 'Arrêté · démarre seulement quand vous lancez une analyse' : aiState === 'checking' ? 'Vérification de cet ordinateur' : aiState === 'unavailable' ? 'Moteur local indisponible' : aiState === 'available' ? `Pack disponible · ${aiMode === 'webgpu' ? 'GPU' : 'CPU lent'}` : aiState === 'loading' ? `Installation locale · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : aiState === 'analyzing' ? `Deux passages du même modèle en cours · ${aiMode === 'webgpu' ? 'GPU' : 'CPU lent'}` : aiState === 'ready' ? `Prêt sur cet ordinateur · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : 'Contrôle nécessaire'}</small></span></div>
+        <div className={`ai-engine-state ai-engine-state--${aiState}`}><BrainCircuit size={17} /><span><strong>SmolVLM 500M · lecture locale adaptative</strong><small>{aiState === 'idle' ? 'Arrêté · démarre seulement quand vous lancez une analyse' : aiState === 'checking' ? 'Vérification de cet ordinateur' : aiState === 'unavailable' ? 'Moteur local indisponible' : aiState === 'available' ? `Pack disponible · ${aiMode === 'webgpu' ? 'deux lectures WebGPU' : 'une lecture CPU bornée'}` : aiState === 'loading' ? `Installation locale · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : aiState === 'analyzing' ? aiMode === 'webgpu' ? 'Deux lectures indépendantes en cours · WebGPU' : 'Lecture bornée en cours · CPU/WASM · contrôle humain renforcé' : aiState === 'ready' ? `Prêt sur cet ordinateur · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : 'Contrôle nécessaire'}</small></span></div>
       </div>
       {aiBusy ? <div className="ai-progress"><span><i style={{ width: aiProgress.percent === null ? '24%' : `${Math.max(2, Math.min(100, aiProgress.percent))}%` }} /></span><small>{aiProgress.label}{aiProgress.percent === null ? '' : ` · ${Math.round(aiProgress.percent)} %`}</small><Button type="button" variant="ghost" size="small" onClick={cancelAiAnalysis}>Annuler l’analyse</Button></div> : null}
       {batchAnalysis.status !== 'idle' && batchAnalysis.total ? <section className={`payroll-batch-status payroll-batch-status--${batchAnalysis.status}${batchAnalysis.failures.length ? ' has-failures' : ''}`}>
@@ -752,12 +773,12 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         <div className="payroll-review-grid" inert={interactionBusy ? true : undefined} aria-busy={interactionBusy}>
           <section className="payroll-source-pane">
             <header><span><FileSearch size={17} /> Document original</span><strong>copie locale SHA‑256</strong></header>
-            {active.mediaKind === 'image' && documentDataUrl ? <img src={documentDataUrl} alt={`Fiche importée ${active.sourceName}`} /> : active.mediaKind === 'pdf' && pdfPages.length ? <><img src={pdfPages[selectedPdfPage] ?? pdfPages[0]} alt={`Page ${selectedPdfPage + 1} de ${active.sourceName}`} />{pdfPages.length > 1 ? <div className="payroll-page-picker" aria-label="Pages du document">{pdfPages.map((page, index) => <button key={index} type="button" aria-current={selectedPdfPage === index ? 'page' : undefined} onClick={() => setSelectedPdfPage(index)}><img src={page} alt="" /><span>{index + 1}</span></button>)}</div> : null}{pdfPageCount > pdfPages.length ? <p className="payroll-page-note">{pdfPageCount} pages au total · analyse bloquée pour éviter d’ignorer les pages après la {pdfPages.length}. Séparez le fichier.</p> : <p className="payroll-page-note">{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''} · couverture visuelle complète par lots de trois · texte local disponible sur {pdfTextPages.filter(Boolean).length}/{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''}.</p>}</> : <div className="payroll-pdf-loading">{pdfPreviewError ? <><AlertTriangle size={18} /><span>{pdfPreviewError}</span></> : <><LoaderCircle className="spin" size={18} /><span>Rendu local des pages…</span></>}</div>}
+            {active.mediaKind === 'image' && documentDataUrl ? <img src={documentDataUrl} alt={`Fiche importée ${active.sourceName}`} /> : active.mediaKind === 'pdf' && pdfPages.length ? <><img src={pdfPages[selectedPdfPage] ?? pdfPages[0]} alt={`Page ${selectedPdfPage + 1} de ${active.sourceName}`} />{pdfPages.length > 1 ? <div className="payroll-page-picker" aria-label="Pages du document">{pdfPages.map((page, index) => <button key={index} type="button" aria-current={selectedPdfPage === index ? 'page' : undefined} onClick={() => setSelectedPdfPage(index)}><img src={page} alt="" /><span>{index + 1}</span></button>)}</div> : null}{pdfPageCount > pdfPages.length ? <p className="payroll-page-note">{pdfPageCount} pages au total · analyse bloquée pour éviter d’ignorer les pages après la {pdfPages.length}. Séparez le fichier.</p> : <p className="payroll-page-note">{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''} · couverture visuelle complète page par page · texte local disponible sur {pdfTextPages.filter(Boolean).length}/{pdfPages.length} page{pdfPages.length > 1 ? 's' : ''}.</p>}</> : <div className="payroll-pdf-loading">{pdfPreviewError ? <><AlertTriangle size={18} /><span>{pdfPreviewError}</span></> : <><LoaderCircle className="spin" size={18} /><span>Rendu local des pages…</span></>}</div>}
             <div className="source-hash">{active.fileSha256.slice(0, 20)}…</div>
           </section>
           <section className="payroll-review-pane">
             <header><div><span>1</span><div><strong>Identité et période</strong><small>Valeurs proposées, toutes modifiables</small></div></div><Button type="button" variant="secondary" size="small" disabled={aiBusy || aiState === 'unavailable'} onClick={() => void analyzeCurrent()}>{aiBusy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />} {active.extractionEngine.startsWith('smolvlm') ? 'Relancer l’IA locale' : 'Analyser avec l’IA locale'}</Button></header>
-            {aiState === 'unavailable' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Le moteur local n’est pas disponible. Vous pouvez quand même contrôler et compléter les données extraites du PDF.</span></div> : aiMode === 'wasm' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Mode CPU local actif : l’analyse peut prendre plusieurs minutes, mais aucun document ne quitte cet ordinateur.</span></div> : null}
+            {aiState === 'unavailable' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Le moteur local n’est pas disponible. Vous pouvez quand même contrôler et compléter les données extraites du PDF.</span></div> : aiMode === 'wasm' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Mode CPU local actif : une seule lecture bornée est utilisée pour rester fiable. Toutes ses valeurs restent des propositions faibles à contrôler sur le document original.</span></div> : null}
             {currentProvenance ? <div className="payroll-evidence-summary"><div><ShieldCheck size={16} /><span><strong>{provenancePages.length} indication{provenancePages.length > 1 ? 's' : ''} de page</strong><small>{currentAnalysisPasses >= 2 ? 'Pages proposées par deux passages du même modèle' : 'Pages proposées par un seul passage JSON exploitable'}</small></span></div><div><FileSearch size={16} /><span><strong>{sourcedLineCount}/{traceableLineCount} rubrique{sourcedLineCount > 1 ? 's' : ''} avec indication</strong><small>Un clic sur « p. » ouvre la page originale à contrôler</small></span></div></div> : null}
             <div className="form-grid payroll-review-fields"><Field label="Collaborateur" required><input value={draft.employee.name} onChange={(event) => patchEmployee({ name: event.target.value })} /></Field><Field label="N° employé"><input value={draft.employee.employeeNumber} onChange={(event) => patchEmployee({ employeeNumber: event.target.value })} /></Field><Field label="Fonction"><input value={draft.employee.role} onChange={(event) => patchEmployee({ role: event.target.value })} /></Field><Field label="Taux d’activité (%)" required><input type="number" min="1" max="100" value={draft.employee.employmentRate} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], employmentRate: true } })); patchEmployee({ employmentRate: Math.min(100, Math.max(1, event.target.valueAsNumber || 100)) }); }} /></Field><Field label="Période" required><input type="month" value={draft.period} onChange={(event) => updateDraft((current) => ({ ...current, period: event.target.value }))} /></Field><Field label="Date de paiement"><input type="date" value={draft.paymentDate} onChange={(event) => updateDraft((current) => ({ ...current, paymentDate: event.target.value }))} /></Field><Field label="N° AVS"><input value={draft.employee.avsNumber} onChange={(event) => patchEmployee({ avsNumber: event.target.value })} /></Field><Field label="IBAN de l’employé"><input value={draft.employee.iban} onChange={(event) => patchEmployee({ iban: event.target.value })} /></Field><Field label="Rue" wide><input value={draft.employee.addressLine1} onChange={(event) => patchEmployee({ addressLine1: event.target.value })} /></Field><Field label="Complément"><input value={draft.employee.addressLine2} onChange={(event) => patchEmployee({ addressLine2: event.target.value })} /></Field><Field label="NPA"><input value={draft.employee.postalCode} onChange={(event) => patchEmployee({ postalCode: event.target.value })} /></Field><Field label="Localité"><input value={draft.employee.city} onChange={(event) => patchEmployee({ city: event.target.value })} /></Field><Field label="Canton"><input maxLength={2} value={draft.employee.canton} onChange={(event) => patchEmployee({ canton: event.target.value.toUpperCase() })} /></Field><Field label="Mode de salaire"><select value={draft.employee.salaryMode} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], salaryMode: true } })); patchEmployee({ salaryMode: event.target.value as PayrollImportEmployeeDraft['salaryMode'] }); }}><option value="monthly">Mensuel</option><option value="hourly">Horaire</option></select></Field></div>
             <header className="payroll-lines-heading"><div><span>2</span><div><strong>Rubriques et montants</strong><small>L’IA ne choisit aucun taux légal à votre place</small></div></div><Button type="button" variant="secondary" size="small" onClick={() => updateDraft((current) => ({ ...current, lines: [...current.lines, { id: createId(), label: '', kind: 'earning', amountCents: 0, recurring: false, confidenceBp: 10_000 }] }))}><Plus size={14} /> Ajouter</Button></header>

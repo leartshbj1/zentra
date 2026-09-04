@@ -250,23 +250,175 @@ function pythonLiteralToJson(raw: string): string {
 }
 
 function completePayrollEnvelope(candidate: RecordValue): RecordValue | null {
-  if (Object.keys(recordValue(candidate.employee)).length || Array.isArray(candidate.lines)) return candidate;
+  const compactEmployee = recordValue(candidate.e);
+  const compactLines = Array.isArray(candidate.l) ? candidate.l : null;
+  if (Object.keys(compactEmployee).length || compactLines) {
+    const sourcePage = pageNumbers(candidate.pg)[0];
+    const compactKind = (value: unknown) => {
+      const kind = textValue(value);
+      if (kind === 'e') return 'earning';
+      if (kind === 'd') return 'deduction';
+      if (kind === 'r') return 'reimbursement';
+      if (kind === 'o') return 'employer';
+      return kind;
+    };
+    const employee: RecordValue = {
+      employee_number: compactEmployee.id,
+      name: compactEmployee.n,
+      role: compactEmployee.r,
+      address_line1: compactEmployee.a1,
+      address_line2: compactEmployee.a2,
+      postal_code: compactEmployee.zip,
+      city: compactEmployee.city,
+      canton: compactEmployee.canton,
+      birth_date: compactEmployee.birth,
+      avs_number: compactEmployee.avs,
+      iban: compactEmployee.iban,
+      employment_rate: compactEmployee.rate,
+      salary_mode: compactEmployee.mode,
+    };
+    Object.keys(employee).forEach((key) => {
+      if (employee[key] === undefined || employee[key] === null || employee[key] === '') delete employee[key];
+    });
+    const compactFieldSources: Array<[string, unknown]> = [
+      ['employee.name', compactEmployee.n],
+      ['employee.employee_number', compactEmployee.id],
+      ['employee.role', compactEmployee.r],
+      ['employee.address', compactEmployee.a1],
+      ['employee.birth_date', compactEmployee.birth],
+      ['employee.avs_number', compactEmployee.avs],
+      ['employee.iban', compactEmployee.iban],
+      ['employee.employment_rate', compactEmployee.rate],
+      ['employee.salary_mode', compactEmployee.mode],
+      ['period', candidate.p],
+      ['payment_date', candidate.d],
+      ['gross_cents', candidate.g],
+      ['net_cents', candidate.net],
+    ];
+    const fieldPages = sourcePage
+      ? Object.fromEntries(compactFieldSources.flatMap(([field, value]) => (
+          value === undefined || value === null || value === '' ? [] : [[field, sourcePage]]
+        )))
+      : {};
+    return {
+      employee,
+      period: candidate.p,
+      payment_date: candidate.d,
+      gross_cents: candidate.g,
+      net_cents: candidate.net,
+      field_pages: fieldPages,
+      lines: compactLines?.map((line) => {
+        if (Array.isArray(line)) {
+          return {
+            label: line[0],
+            kind: compactKind(line[1]),
+            amount_cents: line[2],
+            recurring: false,
+            confidence_bp: 0,
+            source_page: pageNumbers(line[3])[0] ?? sourcePage ?? null,
+          };
+        }
+        const compactLine = recordValue(line);
+        return {
+          label: compactLine.label ?? compactLine.n,
+          kind: compactKind(compactLine.kind ?? compactLine.k),
+          amount_cents: compactLine.amount_cents ?? compactLine.a,
+          recurring: false,
+          confidence_bp: 0,
+          source_page: pageNumbers(compactLine.source_page ?? compactLine.pg)[0] ?? sourcePage ?? null,
+        };
+      }) ?? [],
+      warnings: Array.isArray(candidate.w) ? candidate.w : [],
+    };
+  }
   const keys = Object.keys(candidate);
-  const flatKeys = new Set(['employee_name', 'gross_cents', 'net_cents']);
-  const isKnownPartial = keys.length === 3
-    && keys.every((key) => flatKeys.has(key))
-    && textValue(candidate.employee_name)
+  const flatKeys = new Set([
+    'employee_name', 'gross_cents', 'net_cents', 'employee_number', 'role',
+    'employment_rate', 'salary_mode', 'period', 'payment_date', 'address',
+    'birth_date', 'avs_number', 'iban', 'source_page', 'lines', 'warnings',
+  ]);
+  const hasCompleteCore = Boolean(
+    textValue(candidate.employee_name)
     && centsValue(candidate.gross_cents) > 0
-    && centsValue(candidate.net_cents) > 0;
-  if (!isKnownPartial) return null;
+    && centsValue(candidate.net_cents) > 0,
+  );
+  const hasUsefulOptionalField = [
+    candidate.employee_number, candidate.role, candidate.employment_rate,
+    candidate.salary_mode, candidate.period, candidate.payment_date,
+    candidate.address, candidate.birth_date, candidate.avs_number, candidate.iban,
+  ].some((value) => value !== undefined && value !== null && String(value).trim());
+  const hasLinePayload = Array.isArray(candidate.lines);
+  const isKnownFlat = keys.length > 0
+    && keys.every((key) => flatKeys.has(key))
+    && (hasCompleteCore || hasUsefulOptionalField || hasLinePayload);
+  if (!isKnownFlat) {
+    if (Object.keys(recordValue(candidate.employee)).length || Array.isArray(candidate.lines)) return candidate;
+    return null;
+  }
+  const sourcePageText = textValue(candidate.source_page);
+  const sourcePageFromText = sourcePageText.match(/^(?:page\s*|p\.?\s*)?(\d{1,3})$/i);
+  const sourcePage = pageNumbers(candidate.source_page)[0]
+    ?? pageNumbers(sourcePageFromText ? Number(sourcePageFromText[1]) : null)[0];
+  const flatEmployee: RecordValue = {
+    name: candidate.employee_name,
+    employee_number: candidate.employee_number,
+    role: candidate.role,
+    address_line1: candidate.address,
+    birth_date: candidate.birth_date,
+    avs_number: candidate.avs_number,
+    iban: candidate.iban,
+    employment_rate: candidate.employment_rate,
+    salary_mode: candidate.salary_mode,
+  };
+  Object.keys(flatEmployee).forEach((key) => {
+    if (flatEmployee[key] === undefined || flatEmployee[key] === null || flatEmployee[key] === '') delete flatEmployee[key];
+  });
+  const flatFieldSources: Array<[string, unknown]> = [
+    ['employee.name', candidate.employee_name],
+    ['employee.employee_number', candidate.employee_number],
+    ['employee.role', candidate.role],
+    ['employee.address', candidate.address],
+    ['employee.birth_date', candidate.birth_date],
+    ['employee.avs_number', candidate.avs_number],
+    ['employee.iban', candidate.iban],
+    ['employee.employment_rate', candidate.employment_rate],
+    ['employee.salary_mode', candidate.salary_mode],
+    ['period', candidate.period],
+    ['payment_date', candidate.payment_date],
+    ['gross_cents', candidate.gross_cents],
+    ['net_cents', candidate.net_cents],
+  ];
   return {
-    employee: { name: candidate.employee_name },
-    period: '',
-    payment_date: '',
+    employee: flatEmployee,
+    period: candidate.period,
+    payment_date: candidate.payment_date,
     gross_cents: candidate.gross_cents,
     net_cents: candidate.net_cents,
-    lines: [],
-    warnings: ['Sortie IA partielle normalisée : contrôlez le nom et les deux montants sur le document original.'],
+    field_pages: sourcePage
+      ? Object.fromEntries(flatFieldSources.flatMap(([field, value]) => (
+          value === undefined || value === null || value === '' ? [] : [[field, sourcePage]]
+        )))
+      : {},
+    lines: (Array.isArray(candidate.lines) ? candidate.lines : []).map((line) => {
+      if (!Array.isArray(line)) {
+        const flatLine = recordValue(line);
+        return {
+          ...flatLine,
+          label: flatLine.label ?? flatLine.line ?? flatLine.n,
+          kind: flatLine.kind ?? flatLine.k,
+          amount_cents: flatLine.amount_cents ?? flatLine.amount ?? flatLine.a,
+          source_page: pageNumbers(flatLine.source_page)[0] ?? sourcePage ?? null,
+        };
+      }
+      return {
+        label: line[0], kind: line[1], amount_cents: line[2],
+        recurring: false, confidence_bp: 0, source_page: sourcePage ?? null,
+      };
+    }),
+    warnings: [
+      ...(Array.isArray(candidate.warnings) ? candidate.warnings : []),
+      'Sortie IA CPU normalisée : contrôlez le nom et les deux montants, puis chaque rubrique sur le document original.',
+    ],
   };
 }
 
@@ -389,6 +541,121 @@ export function parsePayrollAiJson(raw: string): ParsedPayrollAiDraft {
         pages,
       })),
     },
+  };
+}
+
+export type PayrollAiCpuPhaseComposition = {
+  rawOutput: string;
+  usedCore: boolean;
+  usedLines: boolean;
+};
+
+/**
+ * CPU/WASM uses two short extraction phases (header/totals, then rows) but it
+ * remains a single, unverified reading. Compose only successfully parsed
+ * phase outputs and keep page provenance deterministic because the CPU policy
+ * guarantees one source page per request.
+ */
+export function composePayrollAiCpuPhases(input: {
+  coreRaw: string;
+  linesRaw: string;
+  sourcePage: number;
+}): PayrollAiCpuPhaseComposition {
+  const parsePhase = (raw: string) => {
+    if (!raw.trim()) return null;
+    try { return parsePayrollAiJson(raw); } catch { return null; }
+  };
+  const core = parsePhase(input.coreRaw);
+  const rows = parsePhase(input.linesRaw);
+  if (!core && !rows) throw new Error("Les deux phases CPU locales n'ont renvoyé aucun JSON exploitable.");
+
+  const phaseHasUsefulCore = (phase: ParsedPayrollAiDraft | null) => Boolean(phase && (
+    phase.draft.employee.name.trim()
+    || phase.draft.grossCents > 0
+    || phase.draft.netCents > 0
+    || phase.draft.lines.length > 0
+  ));
+  if (!phaseHasUsefulCore(core) && !phaseHasUsefulCore(rows)) {
+    throw new Error("Aucune valeur exploitable n'a été lue localement. Vérifiez la netteté du document ou saisissez les champs manuellement; aucun brouillon vide n'a été enregistré.");
+  }
+
+  const sourcePage = Math.max(1, Math.min(200, Math.round(input.sourcePage) || 1));
+  const primary = core ?? rows!;
+  const secondary = rows ?? core!;
+  const chooseText = (left: string, right: string) => left.trim() || right.trim();
+  const chooseAmount = (left: number, right: number) => left > 0 ? left : right;
+  const employee = {
+    employee_number: chooseText(primary.draft.employee.employeeNumber, secondary.draft.employee.employeeNumber),
+    name: chooseText(primary.draft.employee.name, secondary.draft.employee.name),
+    role: chooseText(primary.draft.employee.role, secondary.draft.employee.role),
+    address_line1: chooseText(primary.draft.employee.addressLine1, secondary.draft.employee.addressLine1),
+    address_line2: chooseText(primary.draft.employee.addressLine2, secondary.draft.employee.addressLine2),
+    postal_code: chooseText(primary.draft.employee.postalCode, secondary.draft.employee.postalCode),
+    city: chooseText(primary.draft.employee.city, secondary.draft.employee.city),
+    canton: chooseText(primary.draft.employee.canton, secondary.draft.employee.canton),
+    birth_date: chooseText(primary.draft.employee.birthDate, secondary.draft.employee.birthDate),
+    avs_number: chooseText(primary.draft.employee.avsNumber, secondary.draft.employee.avsNumber),
+    iban: chooseText(primary.draft.employee.iban, secondary.draft.employee.iban),
+    employment_rate: core?.detected.employmentRate
+      ? core.draft.employee.employmentRate
+      : rows?.detected.employmentRate ? rows.draft.employee.employmentRate : null,
+    salary_mode: core?.detected.salaryMode
+      ? core.draft.employee.salaryMode
+      : rows?.detected.salaryMode ? rows.draft.employee.salaryMode : null,
+  };
+  const period = chooseText(primary.draft.period, secondary.draft.period);
+  const paymentDate = chooseText(primary.draft.paymentDate, secondary.draft.paymentDate);
+  const grossCents = chooseAmount(primary.draft.grossCents, secondary.draft.grossCents);
+  const netCents = chooseAmount(primary.draft.netCents, secondary.draft.netCents);
+  const valuesByField: Record<string, string | number | null> = {
+    'employee.name': employee.name,
+    'employee.employee_number': employee.employee_number,
+    'employee.role': employee.role,
+    'employee.address': employee.address_line1,
+    'employee.birth_date': employee.birth_date,
+    'employee.avs_number': employee.avs_number,
+    'employee.iban': employee.iban,
+    'employee.employment_rate': employee.employment_rate,
+    'employee.salary_mode': employee.salary_mode,
+    period,
+    payment_date: paymentDate,
+    gross_cents: grossCents,
+    net_cents: netCents,
+  };
+  const fieldPages = Object.fromEntries(Object.entries(valuesByField).flatMap(([field, value]) => (
+    value === null || value === '' || value === 0 ? [] : [[field, sourcePage]]
+  )));
+  const seenLines = new Set<string>();
+  const lines = [core, rows].flatMap((phase) => phase?.draft.lines ?? []).flatMap((line) => {
+    const key = `${line.kind}\u0000${line.label.trim().toLocaleLowerCase('fr-CH')}\u0000${line.amountCents}`;
+    if (!line.label.trim() || line.amountCents <= 0 || seenLines.has(key)) return [];
+    seenLines.add(key);
+    return [{
+      label: line.label,
+      kind: line.kind,
+      amount_cents: line.amountCents,
+      recurring: false,
+      confidence_bp: 0,
+      source_page: sourcePage,
+    }];
+  });
+  return {
+    rawOutput: JSON.stringify({
+      employee,
+      period,
+      payment_date: paymentDate,
+      gross_cents: grossCents,
+      net_cents: netCents,
+      field_pages: fieldPages,
+      lines,
+      warnings: [...new Set([...(core?.draft.warnings ?? []), ...(rows?.draft.warnings ?? [])])],
+    }),
+    usedCore: Boolean(core && (
+      core.draft.employee.name.trim()
+      || core.draft.grossCents > 0
+      || core.draft.netCents > 0
+    )),
+    usedLines: lines.length > 0,
   };
 }
 
@@ -750,7 +1017,11 @@ function consensusText(
  * les deux sorties concordent; la couche texte existante reste ensuite
  * prioritaire dans mergePayrollImportDraft.
  */
-export function reconcilePayrollAiPasses(primaryRaw: string, verifiedRaw: string): ReconciledPayrollAiDraft {
+export function reconcilePayrollAiPasses(
+  primaryRaw: string,
+  verifiedRaw: string,
+  options: { expectedPasses?: 1 | 2 } = {},
+): ReconciledPayrollAiDraft {
   let primary: ParsedPayrollAiDraft | null = null;
   let verified: ParsedPayrollAiDraft | null = null;
   let primaryError: unknown;
@@ -761,12 +1032,15 @@ export function reconcilePayrollAiPasses(primaryRaw: string, verifiedRaw: string
   if (!primary && !verified) throw verifiedError ?? primaryError ?? new Error("Les deux passages locaux du modèle sont inexploitables.");
   if (!primary || !verified) {
     const single = primary ?? verified!;
+    const singlePassWarning = options.expectedPasses === 1
+      ? 'Lecture locale CPU non vérifiée : toutes les valeurs restent des propositions faibles et aucun collaborateur ne sera associé automatiquement.'
+      : 'Un seul des deux passages du même modèle est exploitable : toutes les valeurs restent des propositions faibles et aucun collaborateur ne sera associé automatiquement.';
     return {
       draft: {
         ...single.draft,
         employee: { ...single.draft.employee },
         lines: single.draft.lines.map((line) => ({ ...line, recurring: false, confidenceBp: Math.min(4_999, line.confidenceBp) })),
-        warnings: [...new Set([...single.draft.warnings, 'Un seul des deux passages du même modèle est exploitable : toutes les valeurs restent des propositions faibles et aucun collaborateur ne sera associé automatiquement.'])],
+        warnings: [...new Set([...single.draft.warnings, singlePassWarning])],
       },
       detected: { employmentRate: false, salaryMode: false },
       provenance: single.provenance,

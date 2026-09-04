@@ -1,4 +1,10 @@
-import type { Expense, Project, Supplier, SupplierInvoice } from './types';
+import type {
+  AccountingSettings,
+  Expense,
+  Project,
+  Supplier,
+  SupplierInvoice,
+} from './types';
 import { addDaysIso, searchText } from './utils';
 
 export type PurchaseTab = 'draft' | 'pending' | 'partial' | 'paid' | 'suppliers';
@@ -6,6 +12,17 @@ export type SupplierVisibility = 'active' | 'archived' | 'all';
 
 export function expensePaymentStatusFromRaw(value: unknown): Expense['paymentStatus'] {
   return value === 'paid' ? 'paid' : 'pending';
+}
+
+export function supplierInvoiceAccountingReady(
+  accounting: AccountingSettings | null | undefined,
+): boolean {
+  return Boolean(
+    accounting?.enabled &&
+      accounting.expenseAccountId &&
+      accounting.vatReceivableAccountId &&
+      accounting.supplierPayableAccountId,
+  );
 }
 
 export function activeSuppliers(suppliers: Supplier[]): Supplier[] {

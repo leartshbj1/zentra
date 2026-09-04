@@ -251,6 +251,7 @@ pub fn run() {
 mod tests {
     use std::{collections::HashMap, fs};
 
+    use chrono::{Days, Local};
     use pretty_assertions::assert_eq;
     use rusqlite::{OptionalExtension, TransactionBehavior};
     use serde_json::json;
@@ -2340,6 +2341,122 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn document_issue_rejects_dates_before_issue_without_consuming_numbers() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client dates document"))
+                .expect("create client"),
+        );
+        let quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({"client_id":client_id,"title":"Devis avec échéance"}),
+                )
+                .expect("create quote"),
+        );
+        store
+            .create_record(
+                "quote_items",
+                json!({
+                    "quote_id":quote_id,
+                    "description":"Prestation",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "vat_bp":0
+                }),
+            )
+            .expect("create quote item");
+
+        let quote_error = store
+            .issue_quote(
+                &quote_id,
+                Some("2026-09-10".into()),
+                Some("2026-09-09".into()),
+            )
+            .expect_err("validity before issue date must fail");
+        assert!(quote_error
+            .to_string()
+            .contains("date de validité du devis ne peut pas précéder"));
+
+        let invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture avec échéance",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-01"
+                    }),
+                )
+                .expect("create invoice"),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id,
+                    "description":"Prestation",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "vat_bp":0
+                }),
+            )
+            .expect("create invoice item");
+
+        let invoice_error = store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-09-10".into()),
+                Some("2026-09-09".into()),
+            )
+            .expect_err("due date before issue date must fail");
+        assert!(invoice_error
+            .to_string()
+            .contains("date d'échéance de la facture ne peut pas précéder"));
+
+        let connection = store.connect().expect("database connection");
+        let quote_state: (Option<String>, String, Option<String>) = connection
+            .query_row(
+                "SELECT number,status,snapshot_json FROM quotes WHERE id=?",
+                rusqlite::params![quote_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("quote state after rejected issue");
+        let invoice_state: (Option<String>, String, Option<String>) = connection
+            .query_row(
+                "SELECT number,status,snapshot_json FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("invoice state after rejected issue");
+        assert_eq!(quote_state, (None, "brouillon".into(), None));
+        assert_eq!(invoice_state, (None, "brouillon".into(), None));
+        drop(connection);
+
+        let quote = store
+            .issue_quote(
+                &quote_id,
+                Some("2026-09-10".into()),
+                Some("2026-09-10".into()),
+            )
+            .expect("same-day quote validity remains valid");
+        let invoice = store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-09-10".into()),
+                Some("2026-09-10".into()),
+            )
+            .expect("same-day invoice due date remains valid");
+        assert_eq!(quote["number"], "D-2026-0001");
+        assert_eq!(invoice["number"], "F-2026-0001");
+    }
+
+    #[test]
     fn document_and_all_lines_are_saved_in_one_transaction() {
         let (_temporary, store) = initialized_store();
         let client_id = value_id(
@@ -3631,13 +3748,63 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let original_number = issued["number"].as_str().unwrap().to_owned();
         let original_snapshot = issued["snapshot_json"].as_str().unwrap().to_owned();
 
-        let result = store.create_quote_revision(&quote_id).unwrap();
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let result = store
+            .create_quote_revision_with_request_id(&request_id, &quote_id)
+            .unwrap();
         let revision_id = result["revision"]["id"].as_str().unwrap().to_owned();
         assert_eq!(result["source"]["status"], "accepte");
         assert_eq!(result["revision"]["number"], json!(null));
         assert_eq!(result["revision"]["status"], "brouillon");
+        let expected_issue_date = Local::now().date_naive();
+        let expected_valid_until = expected_issue_date
+            .checked_add_days(Days::new(30))
+            .expect("validité du devis révisé");
+        assert_eq!(
+            result["revision"]["issue_date"],
+            expected_issue_date.format("%Y-%m-%d").to_string()
+        );
+        assert_eq!(
+            result["revision"]["valid_until"],
+            expected_valid_until.format("%Y-%m-%d").to_string()
+        );
         assert_eq!(result["revision"]["total_cents"], 25_000);
         assert_eq!(result["items"][0]["description"], "Prestation initiale");
+
+        // Une réponse perdue ou un double clic rejoue exactement la réponse
+        // validée, y compris l'état de la source avant son annulation.
+        let replay = store
+            .create_quote_revision_with_request_id(&request_id, &quote_id)
+            .unwrap();
+        assert_eq!(replay, result);
+        let connection = store.connect().unwrap();
+        let quote_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM quotes", [], |row| row.get(0))
+            .unwrap();
+        let request_audit_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE entity_type='quote_revision_request' AND entity_id=?",
+                rusqlite::params![request_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let revision_audit_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE action='create_revision' AND entity_id=?",
+                rusqlite::params![revision_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(quote_count, 2);
+        assert_eq!(request_audit_count, 1);
+        assert_eq!(revision_audit_count, 1);
+        drop(connection);
+
+        let mismatched_source = store
+            .create_quote_revision_with_request_id(&request_id, &uuid::Uuid::new_v4().to_string())
+            .unwrap_err()
+            .to_string();
+        assert!(mismatched_source.contains("autre révision ou un autre devis"));
 
         let source_after: (String, String, String) = store
             .connect()
@@ -3753,6 +3920,62 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
         assert_eq!(status, "accepte");
+    }
+
+    #[test]
+    fn accepted_quote_can_be_cancelled_before_any_conversion() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client annulation devis"))
+                .unwrap(),
+        );
+        let quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({"client_id":client_id,"title":"Devis accepté sans suite"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "quote_items",
+                json!({
+                    "quote_id":quote_id,
+                    "description":"Prestation annulable",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":15_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_quote(
+                &quote_id,
+                Some("2026-09-01".into()),
+                Some("2026-10-01".into()),
+            )
+            .unwrap();
+        assert_eq!(
+            store.update_quote_status(&quote_id, "accepted").unwrap()["status"],
+            "accepte"
+        );
+        assert_eq!(
+            store.update_quote_status(&quote_id, "cancelled").unwrap()["status"],
+            "annulee"
+        );
+        assert_eq!(
+            store.update_quote_status(&quote_id, "cancelled").unwrap()["status"],
+            "annulee",
+            "une reprise après interruption reste idempotente"
+        );
+        assert!(store
+            .update_quote_status(&quote_id, "accepted")
+            .unwrap_err()
+            .to_string()
+            .contains("Transition de statut interdite"));
     }
 
     #[test]
@@ -12418,6 +12641,22 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         store
             .issue_invoice(replacement_id, Some("2026-09-03".into()), None)
             .unwrap();
+        assert!(store
+            .create_invoice_correction(CreateInvoiceCorrectionInput {
+                original_invoice_id: invoice_id.clone(),
+                reason: "Tentative sur une ancienne version".into(),
+            })
+            .unwrap_err()
+            .to_string()
+            .contains("facture de remplacement la plus récente"));
+        let next_correction = store
+            .create_invoice_correction(CreateInvoiceCorrectionInput {
+                original_invoice_id: replacement_id.to_owned(),
+                reason: "Deuxième correction sur la version récente".into(),
+            })
+            .unwrap();
+        assert!(next_correction["credit_note_id"].as_str().is_some());
+        assert!(next_correction["replacement_invoice_id"].as_str().is_some());
         assert!(store
             .update_record(
                 "invoices",

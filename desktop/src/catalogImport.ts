@@ -41,7 +41,7 @@ export type CatalogImportPreview = {
   warnings: string[];
 };
 
-type GridCell = { value: unknown; numberFormat?: string };
+type GridCell = { value: unknown; numberFormat?: string; displayText?: string };
 type GridRow = GridCell[];
 
 const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
@@ -172,6 +172,26 @@ function cellText(value: unknown): string {
   return '';
 }
 
+function visibleCellText(cell: GridCell): string {
+  const displayed = cell.displayText?.trim();
+  return displayed || cellText(cell.value);
+}
+
+function supplierReferenceText(cell: GridCell): string {
+  if (
+    typeof cell.value === 'number' &&
+    Number.isSafeInteger(cell.value) &&
+    cell.value >= 0
+  ) {
+    // Les fournisseurs livrent fréquemment des références numériques avec un
+    // masque Excel (p. ex. 000042). La valeur brute seule ferait perdre les
+    // zéros significatifs et empêcherait ensuite de retrouver l'article.
+    const integerMask = cell.numberFormat?.trim().match(/^0+$/)?.[0];
+    if (integerMask) return String(cell.value).padStart(integerMask.length, '0');
+  }
+  return visibleCellText(cell);
+}
+
 function headerKey(value: unknown): CatalogImportColumn | null {
   const normalized = normalizedHeader(value);
   if (!normalized) return null;
@@ -227,7 +247,7 @@ function itemKind(value: unknown): CatalogItem['kind'] {
 function mappedColumns(row: GridRow): Map<CatalogImportColumn, number> {
   const result = new Map<CatalogImportColumn, number>();
   row.forEach((cell, index) => {
-    const key = headerKey(cell.value);
+    const key = headerKey(visibleCellText(cell));
     if (key && !result.has(key)) result.set(key, index);
   });
   return result;
@@ -272,14 +292,14 @@ export function previewCatalogGrid(
   const seenSku = new Set<string>();
   for (let index = headerIndex + 1; index < rows.length; index += 1) {
     const source = rows[index];
-    const sku = cellText(rowCell(source, columns, 'sku').value);
-    const name = cellText(rowCell(source, columns, 'name').value);
+    const sku = supplierReferenceText(rowCell(source, columns, 'sku'));
+    const name = visibleCellText(rowCell(source, columns, 'name'));
     const sale = priceCents(rowCell(source, columns, 'salesPriceCents'));
     const purchase = priceCents(rowCell(source, columns, 'purchaseCostCents'));
     const vatCell = rowCell(source, columns, 'vatBp');
-    const vatCellIsEmpty = cellText(vatCell.value) === '';
+    const vatCellIsEmpty = visibleCellText(vatCell) === '';
     const vat = vatBasisPoints(vatCell);
-    const hasAnyValue = source.some((cell) => cellText(cell.value) !== '');
+    const hasAnyValue = source.some((cell) => visibleCellText(cell) !== '');
     if (!hasAnyValue) {
       ignoredRows += 1;
       continue;
@@ -302,12 +322,12 @@ export function previewCatalogGrid(
       rowNumber: index + 1,
       sku,
       name,
-      description: cellText(rowCell(source, columns, 'description').value),
-      unit: cellText(rowCell(source, columns, 'unit').value) || 'unité',
+      description: visibleCellText(rowCell(source, columns, 'description')),
+      unit: visibleCellText(rowCell(source, columns, 'unit')) || 'unité',
       purchaseCostCents: purchase ?? 0,
       salesPriceCents: sale ?? 0,
       vatBp: vat,
-      kind: itemKind(rowCell(source, columns, 'kind').value),
+      kind: itemKind(visibleCellText(rowCell(source, columns, 'kind'))),
       errors,
     });
   }
@@ -325,7 +345,10 @@ export function previewCatalogGrid(
     sheetName,
     headerRowNumber: headerIndex + 1,
     columns: Object.fromEntries(
-      Array.from(columns.entries()).map(([key, index]) => [key, cellText(rows[headerIndex][index]?.value)]),
+      Array.from(columns.entries()).map(([key, index]) => [
+        key,
+        visibleCellText(rows[headerIndex][index] ?? { value: null }),
+      ]),
     ),
     rows: parsedRows,
     ignoredRows,
@@ -333,15 +356,17 @@ export function previewCatalogGrid(
   };
 }
 
-function csvSeparator(lines: string[]): ',' | ';' | '\t' {
+function csvSeparator(text: string): ',' | ';' | '\t' {
   const candidates = [',', ';', '\t'] as const;
-  const samples = lines.filter((line) => line.trim() !== '').slice(0, 20);
   let best: (typeof candidates)[number] = ',';
   let bestScore = -1;
   for (const separator of candidates) {
+    const samples = parseCsvRecords(text, separator)
+      .filter((row) => row.some((value) => value.trim() !== ''))
+      .slice(0, 20);
     let score = 0;
-    for (const line of samples) {
-      const cells = parseCsvLine(line, separator).map((value) => ({ value }));
+    for (const sample of samples) {
+      const cells = sample.map((value) => ({ value }));
       const columns = mappedColumns(cells);
       const requiredColumns = Number(columns.has('sku'))
         + Number(columns.has('name'))
@@ -361,28 +386,70 @@ function csvSeparator(lines: string[]): ',' | ';' | '\t' {
   return best;
 }
 
-function parseCsvLine(line: string, separator: string): string[] {
-  const cells: string[] = [];
+/**
+ * Lit un CSV comme une suite d'enregistrements, et non comme une liste de
+ * lignes physiques. Un catalogue fournisseur peut légitimement contenir un
+ * retour à la ligne dans une description entourée de guillemets.
+ */
+function parseCsvRecords(text: string, separator: string): string[][] {
+  const rows: string[][] = [];
+  let cells: string[] = [];
   let current = '';
   let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
     if (character === '"') {
-      if (quoted && line[index + 1] === '"') {
+      if (quoted && text[index + 1] === '"') {
         current += '"';
         index += 1;
+      } else if (!quoted && current.length > 0) {
+        // Un guillemet au milieu d'un champ non entouré (p. ex. une dimension
+        // 2") est un caractère métier, pas l'ouverture d'un champ CSV.
+        current += '"';
       } else {
         quoted = !quoted;
       }
     } else if (character === separator && !quoted) {
       cells.push(current);
       current = '';
+    } else if ((character === '\r' || character === '\n') && !quoted) {
+      cells.push(current);
+      rows.push(cells);
+      cells = [];
+      current = '';
+      if (character === '\r' && text[index + 1] === '\n') index += 1;
+    } else if (character === '\r' && quoted) {
+      current += '\n';
+      if (text[index + 1] === '\n') index += 1;
     } else {
       current += character;
     }
   }
+  if (quoted) {
+    throw new Error(
+      'Le fichier CSV contient un champ entre guillemets qui n’est pas refermé.',
+    );
+  }
   cells.push(current);
-  return cells;
+  rows.push(cells);
+  return rows;
+}
+
+async function delimitedFileText(file: File): Promise<string> {
+  if (typeof file.arrayBuffer !== 'function') {
+    return (await file.text()).replace(/^\uFEFF/, '');
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  try {
+    return new TextDecoder('utf-8', { fatal: true })
+      .decode(bytes)
+      .replace(/^\uFEFF/, '');
+  } catch {
+    // De nombreux logiciels de fournisseurs suisses exportent encore leurs
+    // CSV en Windows-1252. On ne bascule sur cet encodage que si les octets ne
+    // forment réellement pas un UTF-8 valide, pour ne jamais deviner au hasard.
+    return new TextDecoder('windows-1252').decode(bytes).replace(/^\uFEFF/, '');
+  }
 }
 
 async function workbookRows(file: File): Promise<{ sheetName: string; rows: GridRow[] }> {
@@ -391,12 +458,13 @@ async function workbookRows(file: File): Promise<{ sheetName: string; rows: Grid
   }
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension === 'csv' || extension === 'tsv') {
-    const text = (await file.text()).replace(/^\uFEFF/, '');
-    const lines = text.split(/\r?\n/);
-    const separator = extension === 'tsv' ? '\t' : csvSeparator(lines);
+    const text = await delimitedFileText(file);
+    const separator = extension === 'tsv' ? '\t' : csvSeparator(text);
     return {
       sheetName: extension.toUpperCase(),
-      rows: lines.map((line) => parseCsvLine(line, separator).map((value) => ({ value }))),
+      rows: parseCsvRecords(text, separator).map((row) =>
+        row.map((value) => ({ value })),
+      ),
     };
   }
   if (extension !== 'xlsx') {
@@ -428,7 +496,11 @@ async function xlsxRows(data: ArrayBuffer): Promise<{ sheetName: string; rows: G
       const lastCell = Math.max(row.actualCellCount, row.cellCount);
       for (let column = 1; column <= lastCell; column += 1) {
         const cell = row.getCell(column);
-        cells.push({ value: cell.value, numberFormat: cell.numFmt });
+        cells.push({
+          value: cell.value,
+          numberFormat: cell.numFmt,
+          displayText: cell.text,
+        });
       }
       rows.push(cells);
     });

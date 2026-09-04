@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   combinePayrollAiPageBatches,
+  composePayrollAiCpuPhases,
   markPayrollAiContributions,
   mergePayrollImportDraft,
   parsePayrollAiJson,
@@ -30,6 +31,121 @@ function aiJson(employmentRate: number | null, salaryMode: 'monthly' | 'hourly' 
 }
 
 describe('fusion du brouillon de paie et de la lecture IA', () => {
+  it('developpe le contrat CPU compact sans perdre les rubriques ni leur page', () => {
+    const parsed = parsePayrollAiJson(JSON.stringify({
+      pg: 4,
+      e: { n: 'Élodie Exemple', id: 'E-42', r: 'Cheffe de projet', rate: 80, mode: 'monthly' },
+      p: '2026-08',
+      d: '2026-08-25',
+      g: 650_000,
+      net: 628_400,
+      l: [
+        ['Salaire mensuel', 'earning', 650_000],
+        ['AVS/AI/APG', 'deduction', 34_450],
+        ['Frais', 'r', 20_000],
+      ],
+      w: [],
+    }));
+
+    expect(parsed.draft).toMatchObject({
+      employee: { name: 'Élodie Exemple', employeeNumber: 'E-42', role: 'Cheffe de projet', employmentRate: 80 },
+      period: '2026-08',
+      paymentDate: '2026-08-25',
+      grossCents: 650_000,
+      netCents: 628_400,
+    });
+    expect(parsed.draft.lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Salaire mensuel', kind: 'earning', amountCents: 650_000, recurring: false }),
+      expect.objectContaining({ label: 'AVS/AI/APG', kind: 'deduction', amountCents: 34_450 }),
+      expect.objectContaining({ label: 'Frais', kind: 'reimbursement', amountCents: 20_000 }),
+    ]));
+    expect(parsed.provenance.fields).toMatchObject({ 'employee.name': [4], period: [4], gross_cents: [4], net_cents: [4] });
+    expect(parsed.provenance.lines.every((line) => line.pages[0] === 4)).toBe(true);
+  });
+
+  it('developpe la sortie CPU plate en gardant les trois champs prioritaires et les lignes', () => {
+    const parsed = parsePayrollAiJson(JSON.stringify({
+      employee_name: 'Élodie Exemple', gross_cents: 650_000, net_cents: 628_400,
+      employee_number: 'E-0042', role: 'Cheffe de projet', employment_rate: 80,
+      period: '2026-08', payment_date: '2026-08-25', source_page: 1,
+      lines: [['Salaire mensuel', 'earning', 650_000], ['AVS', 'deduction', 34_450]],
+    }));
+
+    expect(parsed.draft).toMatchObject({
+      employee: { name: 'Élodie Exemple', employeeNumber: 'E-0042', role: 'Cheffe de projet', employmentRate: 80 },
+      grossCents: 650_000, netCents: 628_400, period: '2026-08', paymentDate: '2026-08-25',
+    });
+    expect(parsed.draft.lines).toHaveLength(2);
+    expect(parsed.provenance.fields).toMatchObject({ 'employee.name': [1], gross_cents: [1], net_cents: [1] });
+    expect(parsed.provenance.lines.every((line) => line.pages[0] === 1)).toBe(true);
+  });
+
+  it('combine une page coeur et une page suivante contenant uniquement des rubriques', () => {
+    const first = reconcilePayrollAiPasses(JSON.stringify({
+      employee_name: 'Élodie Exemple', gross_cents: 650_000, net_cents: 570_000,
+      source_page: 1, lines: [['Salaire', 'earning', 650_000]],
+    }), '');
+    const second = reconcilePayrollAiPasses(JSON.stringify({
+      source_page: 2,
+      lines: [['AVS', 'deduction', 34_450], ['LPP', 'deduction', 45_550]],
+    }), '');
+    const combined = combinePayrollAiPageBatches([
+      { pageStart: 1, pageEnd: 1, analysis: first },
+      { pageStart: 2, pageEnd: 2, analysis: second },
+    ]);
+
+    expect(combined.draft.employee.name).toBe('Élodie Exemple');
+    expect(combined.draft.grossCents).toBe(650_000);
+    expect(combined.draft.netCents).toBe(570_000);
+    expect(combined.draft.lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Salaire', kind: 'earning', amountCents: 650_000 }),
+      expect.objectContaining({ label: 'AVS', kind: 'deduction', amountCents: 34_450 }),
+      expect.objectContaining({ label: 'LPP', kind: 'deduction', amountCents: 45_550 }),
+    ]));
+    expect(combined.provenance.lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Salaire', pages: [1] }),
+      expect.objectContaining({ label: 'AVS', pages: [2] }),
+      expect.objectContaining({ label: 'LPP', pages: [2] }),
+    ]));
+  });
+
+  it('compose les phases CPU ciblees sans transformer deux extractions en double lecture', () => {
+    const composition = composePayrollAiCpuPhases({
+      sourcePage: 3,
+      coreRaw: JSON.stringify({
+        employee_name: 'Élodie Exemple', gross_cents: 650_000, net_cents: 570_000,
+        employee_number: 'E-42', period: '2026-08', source_page: 3,
+      }),
+      linesRaw: JSON.stringify({
+        source_page: 3,
+        lines: [['Salaire', 'earning', 650_000], ['AVS', 'deduction', 80_000]],
+      }),
+    });
+    const parsed = parsePayrollAiJson(composition.rawOutput);
+
+    expect(composition).toMatchObject({ usedCore: true, usedLines: true });
+    expect(parsed.draft).toMatchObject({
+      employee: { name: 'Élodie Exemple', employeeNumber: 'E-42' },
+      period: '2026-08', grossCents: 650_000, netCents: 570_000,
+    });
+    expect(parsed.draft.lines).toHaveLength(2);
+    expect(parsed.provenance.fields).toMatchObject({ 'employee.name': [3], gross_cents: [3], net_cents: [3] });
+    expect(parsed.provenance.lines.every((line) => line.pages[0] === 3)).toBe(true);
+  });
+
+  it('conserve le coeur CPU lorsque la phase rubriques est inexploitable', () => {
+    const composition = composePayrollAiCpuPhases({
+      sourcePage: 1,
+      coreRaw: JSON.stringify({ employee_name: 'Ada', gross_cents: 100_000, net_cents: 90_000 }),
+      linesRaw: 'rubriques tronquées',
+    });
+
+    expect(composition).toMatchObject({ usedCore: true, usedLines: false });
+    expect(parsePayrollAiJson(composition.rawOutput).draft).toMatchObject({
+      employee: { name: 'Ada' }, grossCents: 100_000, netCents: 90_000,
+    });
+  });
+
   it('remplace les valeurs d’interface non confirmées par les valeurs réellement détectées', () => {
     const merged = mergePayrollImportDraft(existingDraft(), parsePayrollAiJson(aiJson(80, 'hourly')));
     expect(merged.employee.employmentRate).toBe(80);
@@ -145,6 +261,29 @@ describe('fusion du brouillon de paie et de la lecture IA', () => {
     expect(result.identity.passes).toBe(1);
     expect(result.identity.avsNumber).toBe('');
     expect(result.draft.lines[0]).toMatchObject({ recurring: false, confidenceBp: 4_999 });
+  });
+
+  it('décrit honnêtement la lecture CPU volontairement unique', () => {
+    const valid = JSON.stringify({
+      employee: { name: 'Élodie Exemple' },
+      gross_cents: 650_000,
+      net_cents: 628_400,
+      lines: [],
+      warnings: [],
+    });
+    const result = reconcilePayrollAiPasses(valid, '', { expectedPasses: 1 });
+
+    expect(result.validatedPasses).toBe(1);
+    expect(result.draft.warnings).toContain(
+      'Lecture locale CPU non vérifiée : toutes les valeurs restent des propositions faibles et aucun collaborateur ne sera associé automatiquement.',
+    );
+    expect(result.draft.warnings.join(' ')).not.toContain('deux passages');
+  });
+
+  it('refuse un brouillon CPU vide avec un message actionnable', () => {
+    const empty = JSON.stringify({ employee: {}, gross_cents: 0, net_cents: 0, lines: [], warnings: [] });
+    expect(() => composePayrollAiCpuPhases({ coreRaw: empty, linesRaw: empty, sourcePage: 1 }))
+      .toThrow(/Aucune valeur exploitable.*netteté.*aucun brouillon vide/i);
   });
 
   it('écarte une classification IA inconnue au lieu de la transformer en gain', () => {

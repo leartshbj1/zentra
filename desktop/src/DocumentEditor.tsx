@@ -30,6 +30,10 @@ import {
 } from './deposit';
 import {
   DOCUMENT_CATALOG_RESULT_LIMIT,
+  documentLinesValidationError,
+  documentVatRateFromInput,
+  prepareDocumentQuickClient,
+  salesDocumentDateError,
   searchableDocumentCatalogItems,
   upsertDocumentFooterTemplate,
 } from './documentUi';
@@ -80,7 +84,7 @@ export function DocumentEditor({
         unit: '',
         unitPriceCents: 0,
         discountBp: 0,
-        vatRateBp: 0,
+        vatRateBp: settings.organization.vatRegistered ? -1 : 0,
       },
     ],
   );
@@ -197,37 +201,21 @@ export function DocumentEditor({
 
   async function createQuickClient() {
     setLocalError('');
-    const contactPerson = quickClient.contactPerson.trim();
-    const company = quickClient.company.trim();
-    const street = quickClient.street.trim();
-    const postalCode = quickClient.postalCode.trim();
-    const city = quickClient.city.trim();
-    const country = quickClient.country.trim().toUpperCase();
-    if (!contactPerson || !street || !postalCode || !city || !/^[A-Z]{2}$/.test(country)) {
+    const id = createId();
+    let client: ReturnType<typeof prepareDocumentQuickClient>;
+    try {
+      client = prepareDocumentQuickClient(quickClient, id);
+    } catch (reason) {
       setLocalError(
-        'Pour ajouter le client, complétez le contact, la rue, le NPA, la localité et un code pays à deux lettres.',
+        reason instanceof Error
+          ? reason.message
+          : 'Le nouveau client n’a pas pu être préparé.',
       );
       return;
     }
-    const id = createId();
     const saved = await act(
-      () =>
-        desktopApi.createEntity('clients', {
-          id,
-          name: company || contactPerson,
-          contactPerson,
-          company,
-          email: quickClient.email.trim(),
-          phone: quickClient.phone.trim(),
-          addressLine1: street,
-          addressLine2: quickClient.buildingNumber.trim(),
-          postalCode,
-          city,
-          canton: quickClient.canton.trim(),
-          country,
-          notes: '',
-        }),
-      `Le client ${company || contactPerson} a été ajouté et sélectionné.`,
+      () => desktopApi.createEntity('clients', client),
+      `Le client ${client.company || client.contactPerson} a été ajouté et sélectionné.`,
       false,
     );
     if (!saved) return;
@@ -336,22 +324,9 @@ export function DocumentEditor({
       <form
         onSubmit={submitForm(async (form) => {
           setLocalError('');
-          if (
-            !lines.length ||
-            lines.some(
-              (line) =>
-                !line.description.trim() ||
-                line.quantity <= 0 ||
-                !line.unit.trim() ||
-                line.unitPriceCents < 0 ||
-                (line.discountBp ?? 0) < 0 ||
-                (line.discountBp ?? 0) > 10_000 ||
-                (settings.organization.vatRegistered && line.vatRateBp <= 0),
-            )
-          ) {
-            setLocalError(
-              'Complétez chaque ligne et vérifiez que la remise reste comprise entre 0 et 100 %.',
-            );
+          const lineError = documentLinesValidationError(lines);
+          if (lineError) {
+            setLocalError(lineError);
             return;
           }
           if (
@@ -364,6 +339,14 @@ export function DocumentEditor({
             setLocalError(
               'Choisissez le type et une période de prestation valide avant l’enregistrement.',
             );
+            return;
+          }
+          const dateError =
+            entity === 'quotes' || invoiceType !== 'credit_note'
+              ? salesDocumentDateError(entity, issueDate, dueDate)
+              : '';
+          if (dateError) {
+            setLocalError(dateError);
             return;
           }
           if (invoiceType === 'credit_note' && !originalInvoiceId) {
@@ -525,6 +508,7 @@ export function DocumentEditor({
               >
                 <input
                   type="date"
+                  min={issueDate}
                   value={dueDate}
                   onChange={(event) => setDueDate(event.target.value)}
                   required
@@ -574,12 +558,15 @@ export function DocumentEditor({
               <header>
                 <div>
                   <strong>Nouveau client</strong>
-                  <small>Il sera enregistré puis sélectionné sans fermer le document.</small>
+                  <small>
+                    Renseignez l’entreprise ou le nom du contact. Il sera
+                    enregistré puis sélectionné sans fermer le document.
+                  </small>
                 </div>
               </header>
               <div className="form-grid">
                 {([
-                  ['contactPerson', 'Nom du contact', true],
+                  ['contactPerson', 'Nom du contact', false],
                   ['company', 'Entreprise', false],
                   ['email', 'E-mail', false],
                   ['phone', 'Téléphone', false],
@@ -740,7 +727,7 @@ export function DocumentEditor({
                         unit: '',
                         unitPriceCents: 0,
                         discountBp: 0,
-                        vatRateBp: 0,
+                        vatRateBp: settings.organization.vatRegistered ? -1 : 0,
                       },
                     ])
                   }
@@ -827,21 +814,24 @@ export function DocumentEditor({
                 </label>
                 {settings.organization.vatRegistered ? (
                   <select
-                    value={line.vatRateBp || ''}
+                    value={line.vatRateBp < 0 ? '' : line.vatRateBp}
                     onChange={(event) =>
                       updateLine(line.id, {
-                        vatRateBp: Number(event.target.value),
+                        vatRateBp: documentVatRateFromInput(event.target.value),
                       })
                     }
                     aria-label="Taux TVA"
                     required
                   >
                     <option value="">Choisir</option>
-                    {settings.billing.vatRatesBp.map((rate) => (
-                      <option value={rate} key={rate}>
-                        {(rate / 100).toLocaleString('fr-CH')} %
-                      </option>
-                    ))}
+                    <option value={0}>0 % · Hors TVA / taux 0</option>
+                    {settings.billing.vatRatesBp
+                      .filter((rate) => rate !== 0)
+                      .map((rate) => (
+                        <option value={rate} key={rate}>
+                          {(rate / 100).toLocaleString('fr-CH')} %
+                        </option>
+                      ))}
                   </select>
                 ) : (
                   <span className="no-vat">Sans TVA</span>

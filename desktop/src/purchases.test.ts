@@ -9,9 +9,16 @@ import {
   purchaseSummary,
   selectableSuppliers,
   supplierDueDate,
+  supplierInvoiceAccountingReady,
   supplierSnapshotForDraft,
 } from './purchases';
-import type { Expense, Project, Supplier, SupplierInvoice } from './types';
+import type {
+  AccountingSettings,
+  Expense,
+  Project,
+  Supplier,
+  SupplierInvoice,
+} from './types';
 import { projectFinancials } from './utils';
 import { supplierInvoiceLineTotals } from './PurchasesScreen';
 
@@ -152,6 +159,35 @@ describe('compatibilité des achats', () => {
 });
 
 describe('pilotage des achats', () => {
+  it('autorise une facture fournisseur sans exiger les comptes de paie', () => {
+    const accounting = {
+      enabled: true,
+      arAccountId: 'ar',
+      revenueAccountId: 'revenue',
+      vatPayableAccountId: 'vat-payable',
+      vatDeferredPayableAccountId: 'vat-deferred',
+      bankAccountId: 'bank',
+      expenseAccountId: 'expense',
+      vatReceivableAccountId: 'vat-receivable',
+      supplierPayableAccountId: 'supplier-payable',
+      wagesExpenseAccountId: '',
+      wagesPayableAccountId: '',
+      socialExpenseAccountId: '',
+      socialPayableAccountId: '',
+    } satisfies AccountingSettings;
+
+    expect(supplierInvoiceAccountingReady(accounting)).toBe(true);
+    expect(
+      supplierInvoiceAccountingReady({
+        ...accounting,
+        supplierPayableAccountId: '',
+      }),
+    ).toBe(false);
+    expect(
+      supplierInvoiceAccountingReady({ ...accounting, enabled: false }),
+    ).toBe(false);
+  });
+
   it('sépare les montants à payer, échus et payés', () => {
     expect(purchaseSummary([pending, paid], '2026-09-01')).toEqual({
       draftCount: 0,

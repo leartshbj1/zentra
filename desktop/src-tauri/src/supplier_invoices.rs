@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
 use chrono::NaiveDate;
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde_json::{json, Value};
+use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 use crate::{
@@ -129,7 +130,7 @@ impl LocalStore {
             ));
         }
         let reference = optional_text(input.reference.as_deref(), "référence", 200)?;
-        let reference_normalized = normalize_reference(reference.as_deref());
+        let reference_normalized = normalize_supplier_reference(reference.as_deref());
         let note = optional_text(input.note.as_deref(), "note", 10_000)?;
         let project_id = optional_id(input.project_id.as_deref());
         if let Some(id) = input.id.as_deref().filter(|id| !id.trim().is_empty()) {
@@ -183,13 +184,13 @@ impl LocalStore {
                 ));
             };
             let current_id = input.id.as_deref().unwrap_or_default().trim();
-            let duplicate = tx
-                .query_row(
-                    "SELECT id FROM supplier_invoices WHERE supplier_id=? AND reference_normalized=? AND id<>? ORDER BY created_at,id LIMIT 1",
-                    params![supplier_id, normalized, current_id],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()?;
+            let duplicate = find_supplier_invoice_reference_duplicate(
+                tx,
+                &supplier_id,
+                current_id,
+                normalized,
+                false,
+            )?;
             if duplicate.is_some() {
                 return Err(AppError::Validation(
                     "Cette référence existe déjà pour ce fournisseur. Ouvrez la facture existante plutôt que de créer un doublon."
@@ -604,7 +605,7 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         document_date,
         due_date,
         reference,
-        reference_normalized,
+        _reference_normalized,
         currency,
         net_cents,
         vat_cents,
@@ -641,13 +642,11 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
             "Le justificatif original lié à la provenance e-mail est absent ou incohérent. Réimportez le message avec sa pièce.".into(),
         ));
     }
-    let normalized = reference_normalized
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            AppError::Validation(
-                "Le numéro ou la référence du fournisseur est obligatoire avant validation.".into(),
-            )
-        })?;
+    let normalized = normalize_supplier_reference(reference.as_deref()).ok_or_else(|| {
+        AppError::Validation(
+            "Le numéro ou la référence du fournisseur est obligatoire avant validation.".into(),
+        )
+    })?;
     if total_cents <= 0
         || net_cents < 0
         || vat_cents < 0
@@ -657,12 +656,8 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
             "Les totaux de la facture fournisseur sont incohérents.".into(),
         ));
     }
-    let duplicate: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM supplier_invoices WHERE id<>? AND supplier_id=? AND reference_normalized=? AND status='validated')",
-        params![id,supplier_id,normalized],
-        |row| row.get(0),
-    )?;
-    if duplicate {
+    if find_supplier_invoice_reference_duplicate(tx, &supplier_id, id, &normalized, true)?.is_some()
+    {
         return Err(AppError::Validation(
             "Une facture validée de ce fournisseur possède déjà la même référence.".into(),
         ));
@@ -846,8 +841,8 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
     })?;
     let now = now_iso();
     tx.execute(
-        "UPDATE supplier_invoices SET status='validated',validated_at=?,validation_journal_entry_id=?,snapshot_json=?,updated_at=? WHERE id=? AND status='draft'",
-        params![now,journal_id,serde_json::to_string(&snapshot)?,now,id],
+        "UPDATE supplier_invoices SET status='validated',reference_normalized=?,validated_at=?,validation_journal_entry_id=?,snapshot_json=?,updated_at=? WHERE id=? AND status='draft'",
+        params![normalized,now,journal_id,serde_json::to_string(&snapshot)?,now,id],
     )?;
     let order_ids = {
         let mut statement = tx.prepare(
@@ -1294,17 +1289,112 @@ fn optional_id(value: Option<&str>) -> Option<String> {
 
 fn date(value: &str, label: &str) -> AppResult<String> {
     let value = value.trim();
-    NaiveDate::parse_from_str(value, "%Y-%m-%d")
+    let parsed = NaiveDate::parse_from_str(value, "%Y-%m-%d")
         .map_err(|_| AppError::Validation(format!("La {label} doit être au format AAAA-MM-JJ.")))?;
+    if parsed.format("%Y-%m-%d").to_string() != value {
+        return Err(AppError::Validation(format!(
+            "La {label} doit être une date canonique au format AAAA-MM-JJ."
+        )));
+    }
     Ok(value.to_owned())
 }
 
-fn normalize_reference(value: Option<&str>) -> Option<String> {
+pub(crate) fn normalize_supplier_reference(value: Option<&str>) -> Option<String> {
     let normalized = value
         .unwrap_or_default()
-        .chars()
+        .nfkc()
         .filter(|character| character.is_alphanumeric())
         .flat_map(char::to_uppercase)
         .collect::<String>();
     (!normalized.is_empty()).then_some(normalized)
+}
+
+pub(crate) fn find_supplier_invoice_reference_duplicate(
+    connection: &Connection,
+    supplier_id: &str,
+    current_id: &str,
+    normalized_reference: &str,
+    validated_only: bool,
+) -> AppResult<Option<String>> {
+    let status_clause = if validated_only {
+        "AND status='validated'"
+    } else {
+        ""
+    };
+    let mut statement = connection.prepare(&format!(
+        "SELECT id,reference,reference_normalized FROM supplier_invoices
+         WHERE supplier_id=? AND id<>? {status_clause}
+         ORDER BY CASE status WHEN 'validated' THEN 0 ELSE 1 END,created_at,id"
+    ))?;
+    let candidates = statement.query_map(params![supplier_id, current_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<String>>(2)?,
+        ))
+    })?;
+    for candidate in candidates {
+        let (id, reference, stored_normalized) = candidate?;
+        let normalized = normalize_supplier_reference(reference.as_deref())
+            .or_else(|| normalize_supplier_reference(stored_normalized.as_deref()));
+        if normalized.as_deref() == Some(normalized_reference) {
+            return Ok(Some(id));
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    #[test]
+    fn supplier_dates_must_be_real_and_canonical_before_lexical_comparisons() {
+        assert_eq!(date("2026-09-02", "date").unwrap(), "2026-09-02");
+        assert!(date("2026-9-2", "date").is_err());
+        assert!(date("2026-02-30", "date").is_err());
+    }
+
+    #[test]
+    fn supplier_references_use_compatibility_normalization() {
+        assert_eq!(
+            normalize_supplier_reference(Some("ＩＮＶ－４２")),
+            normalize_supplier_reference(Some("INV-42"))
+        );
+    }
+
+    #[test]
+    fn duplicate_lookup_rechecks_legacy_reference_text_after_normalization_changes() {
+        let connection = Connection::open_in_memory().expect("open in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE supplier_invoices(
+                    id TEXT PRIMARY KEY,
+                    supplier_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    reference TEXT,
+                    reference_normalized TEXT,
+                    created_at TEXT NOT NULL
+                 );
+                 INSERT INTO supplier_invoices(
+                    id,supplier_id,status,reference,reference_normalized,created_at
+                 ) VALUES(
+                    'legacy','supplier-1','validated','ＩＮＶ－４２','ＩＮＶ４２','2026-01-01T00:00:00Z'
+                 );",
+            )
+            .expect("insert legacy reference");
+        let normalized = normalize_supplier_reference(Some("INV-42")).unwrap();
+
+        assert_eq!(
+            find_supplier_invoice_reference_duplicate(
+                &connection,
+                "supplier-1",
+                "new-invoice",
+                &normalized,
+                true,
+            )
+            .unwrap(),
+            Some("legacy".into())
+        );
+    }
 }

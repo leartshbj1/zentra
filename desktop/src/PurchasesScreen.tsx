@@ -9,6 +9,7 @@ import {
   isSupplierInvoiceOverdue,
   purchaseSummary,
   selectableSuppliers,
+  supplierInvoiceAccountingReady,
   supplierSnapshotForDraft,
   supplierDueDate,
   type PurchaseTab,
@@ -93,19 +94,7 @@ export function PurchasesScreen({
   const accountingEnabled = Boolean(workspace.accountingSettings?.enabled);
   const accounting = workspace.accountingSettings;
   const supplierPaymentReady = Boolean(accounting?.enabled && accounting.bankAccountId);
-  const supplierAccountingReady = Boolean(accounting?.enabled && [
-    accounting.arAccountId,
-    accounting.revenueAccountId,
-    accounting.vatPayableAccountId,
-    accounting.bankAccountId,
-    accounting.expenseAccountId,
-    accounting.vatReceivableAccountId,
-    accounting.wagesExpenseAccountId,
-    accounting.wagesPayableAccountId,
-    accounting.socialExpenseAccountId,
-    accounting.socialPayableAccountId,
-    accounting.supplierPayableAccountId,
-  ].every(Boolean));
+  const supplierAccountingReady = supplierInvoiceAccountingReady(accounting);
   const tabCounts = {
     draft: workspace.supplierInvoices.filter((invoice) => invoice.documentStatus === 'draft').length,
     pending: workspace.supplierInvoices.filter((invoice) => invoice.paymentStatus === 'pending').length + workspace.expenses.filter((expense) => expense.paymentStatus === 'pending').length,

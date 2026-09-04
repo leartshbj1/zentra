@@ -7,12 +7,11 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'"
     />
-    <title>Zentra - validation SmolVLM locale</title>
+    <title>Zentra - validation du Worker SmolVLM</title>
     <style>
       :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
       body { margin: 0; padding: 24px; background: #07150f; color: #eaf7f0; }
       main { max-width: 860px; margin: auto; }
-      h1 { margin-bottom: 6px; }
       p { color: #acc3b7; }
       progress { width: 100%; height: 12px; accent-color: #49d38a; }
       pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #10231a; border: 1px solid #284738; border-radius: 12px; padding: 16px; }
@@ -22,12 +21,12 @@
   </head>
   <body>
     <main>
-      <h1>Validation locale SmolVLM 500M</h1>
-      <p id="identity">Initialisation du moteur exact de Zentra...</p>
+      <h1>Validation du Worker IA de Zentra</h1>
+      <p id="identity">Initialisation du chemin exact utilisé par l’import de paie…</p>
       <progress id="progress" max="100" value="0"></progress>
       <h2 id="status">En attente</h2>
       <pre id="details">Aucun résultat.</pre>
     </main>
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="./worker-main.js"></script>
   </body>
 </html>

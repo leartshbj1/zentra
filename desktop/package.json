@@ -1,6 +1,6 @@
 {
   "name": "zentra-desktop",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "private": true,
   "description": "Application locale Windows et macOS de gestion d’entreprise multisectorielle Zentra",
   "type": "module",
@@ -23,6 +23,7 @@
     "@tauri-apps/plugin-dialog": "2.4.2",
     "exceljs": "4.4.0",
     "lucide-react": "1.31.0",
+    "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4",
     "pdfjs-dist": "^6.3.289",
     "qrcode.react": "4.2.0",
     "react": "19.2.8",

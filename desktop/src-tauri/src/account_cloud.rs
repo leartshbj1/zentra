@@ -1227,7 +1227,7 @@ mod tests {
     }
 
     #[test]
-    fn repeated_pending_polls_unlock_the_same_generation_once() {
+    fn two_minutes_of_pending_polls_unlock_the_same_generation_once() {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         let cache = ProtectedDataCache::enabled_for_test();
@@ -1235,7 +1235,10 @@ mod tests {
         let clear = serde_json::to_vec(&pending).unwrap();
         let unlocks = AtomicUsize::new(0);
 
-        for _ in 0..10 {
+        // Le frontend accepte un intervalle minimal de trois secondes :
+        // quarante lectures couvrent exactement les deux minutes du bug
+        // macOS signalé et ne doivent déverrouiller le Trousseau qu'une fois.
+        for _ in 0..40 {
             let decoded: PendingAuthorization = decode_cached_secret(
                 b"pending-generation",
                 &cache,
@@ -1247,6 +1250,34 @@ mod tests {
             )
             .unwrap();
             assert_eq!(decoded.user_code, "ABCD-EFGH");
+        }
+
+        assert_eq!(unlocks.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn active_session_checks_unlock_the_same_generation_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = ProtectedDataCache::enabled_for_test();
+        let session = session_for(TEST_INSTALLATION_ID);
+        let clear = serde_json::to_vec(&session).unwrap();
+        let unlocks = AtomicUsize::new(0);
+
+        // Quarante contrôles représentent deux minutes au rythme minimal du
+        // poll cloud. Une session déjà active doit rester servie par le cache.
+        for _ in 0..40 {
+            let decoded: CloudSession = decode_cached_secret(
+                b"session-generation",
+                &cache,
+                || {
+                    unlocks.fetch_add(1, Ordering::SeqCst);
+                    Ok(clear.clone())
+                },
+                |value| validate_session_for_installation(value, TEST_INSTALLATION_ID),
+            )
+            .unwrap();
+            assert_eq!(decoded.session_token, session.session_token);
         }
 
         assert_eq!(unlocks.load(Ordering::SeqCst), 1);

@@ -187,6 +187,57 @@ describe('agenda', () => {
     ]);
   });
 
+  it('affiche les éléments de toute la journée avant les rendez-vous horaires', () => {
+    const common = {
+      startDate: '2026-09-08',
+      endDate: '2026-09-08',
+      kind: 'appointment' as const,
+      status: 'scheduled' as const,
+      location: '',
+      notes: '',
+      projectId: null,
+      employeeId: null,
+      createdAt: '',
+      updatedAt: '',
+    };
+    const result = buildAgendaItems(
+      workspace({
+        agendaEvents: [
+          {
+            ...common,
+            id: 'timed',
+            title: 'Rendez-vous à neuf heures',
+            allDay: false,
+            startTime: '09:00',
+            endTime: '10:00',
+          },
+          {
+            ...common,
+            id: 'all-day',
+            title: 'Échéance de la journée',
+            allDay: true,
+            startTime: null,
+            endTime: null,
+          },
+          {
+            ...common,
+            id: 'early',
+            title: 'Rendez-vous à huit heures',
+            allDay: false,
+            startTime: '08:00',
+            endTime: '08:30',
+          },
+        ],
+      }),
+    );
+
+    expect(result.map((item) => item.sourceId)).toEqual([
+      'all-day',
+      'early',
+      'timed',
+    ]);
+  });
+
   it('cible le vrai titre d’un jalon sans conserver le préfixe de l’agenda', () => {
     const source = workspace({
       projectMilestones: [

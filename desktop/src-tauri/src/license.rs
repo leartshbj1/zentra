@@ -2964,7 +2964,7 @@ mod tests {
     }
 
     #[test]
-    fn protected_license_cache_reuses_only_an_unchanged_marker() {
+    fn active_license_session_reuses_only_an_unchanged_marker() {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         let cache = LicenseProtectedCache {
@@ -2984,13 +2984,15 @@ mod tests {
         // Les clones de LocalStore partagent ce cache : le même marqueur ne
         // déclenche donc jamais un second déverrouillage du coffre.
         let shared = cache.clone();
-        let cached = shared
-            .tokens
-            .get_or_try_init(b"marker-a", || {
-                panic!("le chargeur du coffre ne doit pas être rappelé")
-            })
-            .unwrap();
-        assert_eq!(cached, b"secret-token-a");
+        for _ in 0..40 {
+            let cached = shared
+                .tokens
+                .get_or_try_init(b"marker-a", || {
+                    panic!("le chargeur du coffre ne doit pas être rappelé")
+                })
+                .unwrap();
+            assert_eq!(cached, b"secret-token-a");
+        }
         assert_eq!(reads.load(Ordering::SeqCst), 1);
 
         // Une rotation du marqueur force au contraire une nouvelle lecture.

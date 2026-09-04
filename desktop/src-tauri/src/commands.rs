@@ -628,10 +628,16 @@ pub fn update_quote_status(
 }
 
 #[tauri::command]
-pub fn create_quote_revision(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
+pub fn create_quote_revision(
+    state: State<'_, LocalStore>,
+    request_id: String,
+    id: String,
+) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.create_quote_revision(&id).map_err(command_error)
+    state
+        .create_quote_revision_with_request_id(&request_id, &id)
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -983,11 +989,12 @@ pub fn list_vat_return_exports(
 pub fn post_manual_journal_entry(
     state: State<'_, LocalStore>,
     input: ManualJournalInput,
+    request_id: String,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state
-        .post_manual_journal_entry(input)
+        .post_manual_journal_entry_with_request_id(input, &request_id)
         .map_err(command_error)
 }
 #[tauri::command]

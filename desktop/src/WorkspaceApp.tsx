@@ -229,6 +229,10 @@ import {
   invoiceModificationAction,
   reserveDocumentAction,
 } from './documentUi';
+import {
+  clearQuoteRevisionAttempt,
+  prepareQuoteRevisionAttempt,
+} from './quoteRevisionAttempt';
 
 const PayrollImportWizard = lazy(() =>
   import('./PayrollImportWizard').then((module) => ({
@@ -862,10 +866,23 @@ export function WorkspaceApp({
         )
       )
         return;
+      let attempt;
+      try {
+        attempt = await prepareQuoteRevisionAttempt(item.id);
+      } catch (reason) {
+        setNotice({
+          tone: 'error',
+          text: errorMessage(reason, 'La révision ne peut pas être préparée.'),
+        });
+        return;
+      }
       let revision: Quote | null = null;
       const revised = await act(
         async () => {
-          const result = await desktopApi.createQuoteRevision(item.id);
+          const result = await desktopApi.createQuoteRevision(
+            attempt.requestId,
+            item.id,
+          );
           revision = result.workspace.quotes.find(
             (candidate) => candidate.id === result.revisionId,
           ) ?? null;
@@ -875,6 +892,18 @@ export function WorkspaceApp({
         false,
       );
       if (revised && revision) {
+        try {
+          clearQuoteRevisionAttempt(attempt);
+        } catch (reason) {
+          setNotice({
+            tone: 'error',
+            text: errorMessage(
+              reason,
+              'La révision est créée, mais sa reprise doit être finalisée.',
+            ),
+          });
+          return;
+        }
         setModal({ type: 'document', entity: 'quotes', item: revision });
       }
     } finally {

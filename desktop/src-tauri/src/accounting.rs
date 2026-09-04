@@ -714,7 +714,19 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn post_manual_journal_entry(&self, input: ManualJournalInput) -> AppResult<Value> {
+        self.post_manual_journal_entry_with_request_id(input, &Uuid::new_v4().to_string())
+    }
+
+    pub fn post_manual_journal_entry_with_request_id(
+        &self,
+        input: ManualJournalInput,
+        request_id: &str,
+    ) -> AppResult<Value> {
+        let request_id = Uuid::parse_str(request_id.trim())
+            .map(|value| value.to_string())
+            .map_err(|_| AppError::Validation("request_id doit être un UUID valide.".into()))?;
         validate_date(&input.entry_date, "entry_date")?;
         let description = required(&input.description, "description", 500)?;
         let currency = currency(&input.currency)?;
@@ -735,23 +747,29 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let source_id = Uuid::new_v4().to_string();
+        let replay: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='manual' AND source_id=? AND source_event='posted')",
+            params![request_id],
+            |row| row.get(0),
+        )?;
         let result = post_entry(
             &tx,
             &input.entry_date,
             &description,
             "manual",
-            &source_id,
+            &request_id,
             "posted",
             lines,
         )?;
-        append_audit(
-            &tx,
-            "post",
-            "journal_entry",
-            result["id"].as_str().unwrap_or(""),
-            &result,
-        )?;
+        if !replay {
+            append_audit(
+                &tx,
+                "post",
+                "journal_entry",
+                result["id"].as_str().unwrap_or(""),
+                &result,
+            )?;
+        }
         tx.commit()?;
         Ok(result)
     }
@@ -3126,8 +3144,18 @@ fn post_entry_with_reversal(
             "Une écriture doit contenir au moins deux lignes.".into(),
         ));
     }
-    let debit: i64 = lines.iter().map(|l| l.debit_cents).sum();
-    let credit: i64 = lines.iter().map(|l| l.credit_cents).sum();
+    let debit = lines
+        .iter()
+        .try_fold(0_i64, |total, line| total.checked_add(line.debit_cents))
+        .ok_or_else(|| {
+            AppError::Validation("Le total des débits dépasse la limite autorisée.".into())
+        })?;
+    let credit = lines
+        .iter()
+        .try_fold(0_i64, |total, line| total.checked_add(line.credit_cents))
+        .ok_or_else(|| {
+            AppError::Validation("Le total des crédits dépasse la limite autorisée.".into())
+        })?;
     if debit <= 0 || debit != credit {
         return Err(AppError::Validation(format!(
             "Écriture déséquilibrée : débits {debit}, crédits {credit}."
@@ -4852,5 +4880,183 @@ mod cumulative_close_tests {
             )
             .unwrap();
         assert_eq!(blank_state, ("pending".into(), None));
+    }
+}
+
+#[cfg(test)]
+mod manual_journal_idempotence_tests {
+    use super::*;
+    use crate::models::ManualJournalLineInput;
+
+    fn initialized_store() -> (tempfile::TempDir, LocalStore, String, String) {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let store = LocalStore::initialize(temporary.path().join("profile"))
+            .expect("initialize local database");
+        let connection = store.connect().expect("connect local database");
+        connection
+            .execute(
+                "INSERT INTO settings(id,onboarding_completed,company_name,currency,created_at,updated_at)
+                 VALUES(1,1,'Zentra journal','CHF','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                [],
+            )
+            .expect("mark onboarding complete");
+        drop(connection);
+        store
+            .install_swiss_accounting_starter()
+            .expect("install accounting starter");
+        let connection = store.connect().expect("connect local database");
+        let debit_account = connection
+            .query_row("SELECT id FROM accounts WHERE code='1020'", [], |row| {
+                row.get::<_, String>(0)
+            })
+            .expect("read debit account");
+        let credit_account = connection
+            .query_row("SELECT id FROM accounts WHERE code='3200'", [], |row| {
+                row.get::<_, String>(0)
+            })
+            .expect("read credit account");
+        drop(connection);
+        (temporary, store, debit_account, credit_account)
+    }
+
+    fn manual_input(
+        debit_account: &str,
+        credit_account: &str,
+        description: &str,
+    ) -> ManualJournalInput {
+        ManualJournalInput {
+            entry_date: "2026-09-04".into(),
+            description: description.into(),
+            currency: "CHF".into(),
+            lines: vec![
+                ManualJournalLineInput {
+                    account_id: debit_account.into(),
+                    debit_cents: 10_000,
+                    credit_cents: 0,
+                    memo: Some("Débit contrôlé".into()),
+                    project_id: None,
+                    client_id: None,
+                    employee_id: None,
+                },
+                ManualJournalLineInput {
+                    account_id: credit_account.into(),
+                    debit_cents: 0,
+                    credit_cents: 10_000,
+                    memo: Some("Crédit contrôlé".into()),
+                    project_id: None,
+                    client_id: None,
+                    employee_id: None,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn manual_journal_request_replays_once_and_rejects_changed_payload() {
+        let (_temporary, store, debit_account, credit_account) = initialized_store();
+        let request_id = Uuid::new_v4().to_string();
+        let first = store
+            .post_manual_journal_entry_with_request_id(
+                manual_input(&debit_account, &credit_account, "Écriture rejouable"),
+                &request_id,
+            )
+            .expect("post manual journal entry");
+        let replay = store
+            .post_manual_journal_entry_with_request_id(
+                manual_input(&debit_account, &credit_account, "Écriture rejouable"),
+                &request_id,
+            )
+            .expect("replay manual journal entry");
+        assert_eq!(replay["id"], first["id"]);
+
+        let conflict = store
+            .post_manual_journal_entry_with_request_id(
+                manual_input(&debit_account, &credit_account, "Contenu modifié"),
+                &request_id,
+            )
+            .expect_err("a request id cannot be reused for changed content");
+        assert!(conflict.to_string().contains("fausse idempotence"));
+
+        let connection = store.connect().expect("connect local database");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM journal_entries WHERE source_type='manual' AND source_id=? AND source_event='posted'",
+                    params![request_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count manual journal entries"),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_log WHERE action='post' AND entity_type='journal_entry' AND entity_id=?",
+                    params![first["id"].as_str().unwrap_or_default()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count manual journal audit rows"),
+            1
+        );
+    }
+
+    #[test]
+    fn manual_journal_rejects_total_overflow_without_writing() {
+        let (_temporary, store, debit_account, credit_account) = initialized_store();
+        let mut input = manual_input(&debit_account, &credit_account, "Montant excessif");
+        input.lines = vec![
+            ManualJournalLineInput {
+                account_id: debit_account.clone(),
+                debit_cents: i64::MAX,
+                credit_cents: 0,
+                memo: None,
+                project_id: None,
+                client_id: None,
+                employee_id: None,
+            },
+            ManualJournalLineInput {
+                account_id: debit_account,
+                debit_cents: 1,
+                credit_cents: 0,
+                memo: None,
+                project_id: None,
+                client_id: None,
+                employee_id: None,
+            },
+            ManualJournalLineInput {
+                account_id: credit_account.clone(),
+                debit_cents: 0,
+                credit_cents: i64::MAX,
+                memo: None,
+                project_id: None,
+                client_id: None,
+                employee_id: None,
+            },
+            ManualJournalLineInput {
+                account_id: credit_account,
+                debit_cents: 0,
+                credit_cents: 1,
+                memo: None,
+                project_id: None,
+                client_id: None,
+                employee_id: None,
+            },
+        ];
+
+        let error = store
+            .post_manual_journal_entry_with_request_id(input, &Uuid::new_v4().to_string())
+            .expect_err("overflowing totals must be rejected");
+        assert!(error.to_string().contains("total des débits"));
+        let connection = store.connect().expect("connect local database");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM journal_entries WHERE source_type='manual'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count manual journal entries"),
+            0
+        );
     }
 }

@@ -3,16 +3,38 @@
 import {
   AutoModelForVision2Seq,
   AutoProcessor,
+  StoppingCriteria,
+  StoppingCriteriaList,
   Tensor,
+  env,
   load_image,
 } from '@huggingface/transformers';
 import type { ProgressInfo } from '@huggingface/transformers';
+import { payrollAiImageBlobFromDataUrl } from './payrollAiImageSource';
+import { composePayrollAiCpuPhases } from './payrollImportAiDraft';
+import {
+  payrollAiScanCorePrompt,
+  payrollAiScanLinesPrompt,
+  payrollCoreFromGeneratedProtocol,
+  payrollCoreFromLocalText,
+  payrollLinesFromGeneratedProtocol,
+  payrollLinesFromLocalText,
+} from './payrollAiTextFallback';
 import { PAYROLL_AI_MODEL_ID as MODEL_ID, PAYROLL_AI_MODEL_REVISION as MODEL_VERSION } from './payrollAiModel';
+import { configurePayrollAiOnnxRuntime } from './payrollAiRuntimeAssets';
+import {
+  firstCompleteGeneratedJson,
+  payrollAiGenerationPercent,
+  payrollAiGenerationPlan,
+  payrollAiSafePageBatchSize,
+} from './payrollAiGenerationPolicy';
 import {
   nextPayrollAiRuntimeAfterFailure,
   selectInitialPayrollAiRuntime,
   type PayrollAiRuntimeDevice,
 } from './payrollAiRuntimePolicy';
+
+configurePayrollAiOnnxRuntime(env.backends.onnx);
 
 type WorkerRequest =
   | { type: 'check' }
@@ -158,54 +180,206 @@ ${text ? `Text layer extracted locally from the PDF:\n${text}` : 'No extracted t
 
 async function analyze(requestId: string, imageUrls: string[] = [], extractedText = '', requestedPageStart = 1, requestedPageEnd?: number) {
   try {
+    const maximumFallbackSafePages = payrollAiSafePageBatchSize('webgpu');
+    if (imageUrls.length > maximumFallbackSafePages) {
+      throw new Error(`Le lot IA local contient ${imageUrls.length} pages; il doit être resegmenté à ${maximumFallbackSafePages} page par lot pour garantir le repli CPU sans perte.`);
+    }
     const pageStart = Number.isInteger(requestedPageStart) && requestedPageStart >= 1 ? requestedPageStart : 1;
     const maximumPageEnd = pageStart + Math.max(0, Math.min(3, imageUrls.length) - 1);
     const pageEnd = Number.isInteger(requestedPageEnd) && (requestedPageEnd ?? 0) >= pageStart
       ? Math.min(requestedPageEnd!, maximumPageEnd)
       : maximumPageEnd;
     const images: Awaited<ReturnType<typeof load_image>>[] = [];
-    for (const imageUrl of imageUrls.slice(0, 3)) images.push(await load_image(imageUrl));
+    for (const imageUrl of imageUrls.slice(0, 3)) {
+      images.push(await load_image(payrollAiImageBlobFromDataUrl(imageUrl)));
+    }
 
     const result = await runWithCpuFallback({
       run: async (device) => {
         const [processor, model] = await getEngine(device);
-        const runPass = async (promptText: string) => {
-          const content: Array<{ type: 'image'; image: string } | { type: 'text'; text: string }> = imageUrls
+        const plan = payrollAiGenerationPlan(device);
+        const runPass = async (promptText: string, pass: 1 | 2, options: {
+          maxNewTokens?: number;
+          stageLabel?: string;
+          startPercent?: number;
+          endPercent?: number;
+          completionExtractor?: (decoded: string, allowMissingEnd: boolean) => string | null;
+        } = {}) => {
+          const maxNewTokens = options.maxNewTokens ?? plan.maxNewTokens;
+          const content: Array<{ type: 'image' } | { type: 'text'; text: string }> = imageUrls
             .slice(0, 3)
-            .map((image) => ({ type: 'image' as const, image }));
+            .map(() => ({ type: 'image' as const }));
           content.push({ type: 'text', text: promptText });
           // Transformers.js supports multimodal content at runtime, while its public
           // Message type still describes text-only content in v3.7.1.
           const messages = [{ role: 'user', content }] as unknown as Parameters<typeof processor.apply_chat_template>[0];
           const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
-          const inputs = await processor(prompt, images, { do_image_splitting: true });
+          const hasUsefulTextLayer = extractedText.trim().length >= 160;
+          const inputs = await processor(prompt, images, {
+            // A global page image plus the actual PDF text is enough on CPU and
+            // avoids encoding a dozen high-resolution tiles. Scanned documents
+            // without useful text keep image splitting for visual OCR quality.
+            do_image_splitting: plan.splitImagesWhenTextAvailable || !hasUsefulTextLayer,
+          });
+          const inputIds = inputs.input_ids;
+          const promptLength = inputIds instanceof Tensor ? inputIds.dims.at(-1) ?? 0 : 0;
+          const startPercent = options.startPercent ?? (pass === 1 ? 55 : 82);
+          const endPercent = options.endPercent ?? (pass === 1 ? (device === 'wasm' ? 96 : 78) : 98);
+          let lastReportedTokenCount = 0;
+          let lastInspectedTokenCount = 0;
+          const extractCompletion = (decoded: string, allowMissingEnd = false) => (
+            options.completionExtractor
+              ? options.completionExtractor(decoded, allowMissingEnd)
+              : firstCompleteGeneratedJson(decoded)
+          );
+          const completionCriterion = new class extends StoppingCriteria {
+            override _call(inputIdsByBatch: number[][]): boolean[] {
+              const allIds = inputIdsByBatch[0] ?? [];
+              const generatedIds = allIds.slice(promptLength);
+              const generatedTokens = generatedIds.length;
+              if (
+                generatedTokens === 1
+                || generatedTokens - lastReportedTokenCount >= plan.progressEveryTokens
+              ) {
+                lastReportedTokenCount = generatedTokens;
+                post({
+                  type: 'analysis_stage',
+                  requestId,
+                  stage: pass === 1 ? 'reading' : 'verifying',
+                  label: `${options.stageLabel ?? `Lecture locale ${pass}/${plan.passes}`} · ${generatedTokens}/${maxNewTokens} jetons max${device === 'wasm' ? ' · CPU/WASM' : ' · WebGPU'}`,
+                  percent: payrollAiGenerationPercent({
+                    generatedTokens,
+                    maxNewTokens,
+                    startPercent,
+                    endPercent,
+                  }),
+                });
+              }
+              if (
+                generatedTokens < 2
+                || (
+                  generatedTokens < maxNewTokens
+                  && generatedTokens - lastInspectedTokenCount < plan.progressEveryTokens
+                )
+              ) return [false];
+              lastInspectedTokenCount = generatedTokens;
+              const decoded = processor.batch_decode(
+                [generatedIds] as number[][],
+                { skip_special_tokens: true },
+              ).at(-1) ?? '';
+              return [Boolean(extractCompletion(decoded))];
+            }
+          }();
+          const stoppingCriteria = new StoppingCriteriaList();
+          stoppingCriteria.push(completionCriterion);
           const output = await model.generate({
             ...inputs,
             do_sample: false,
             repetition_penalty: 1.05,
-            max_new_tokens: 1_100,
+            max_new_tokens: maxNewTokens,
+            stopping_criteria: stoppingCriteria,
             return_dict_in_generate: true,
           });
           const sequences = output && typeof output === 'object' && 'sequences' in output
             ? (output as { sequences: unknown }).sequences
             : output;
           if (!(sequences instanceof Tensor)) throw new Error("SmolVLM n'a pas renvoyé de séquence exploitable.");
-          const inputIds = inputs.input_ids;
-          const promptLength = inputIds instanceof Tensor ? inputIds.dims.at(-1) ?? 0 : 0;
           // Les modèles causaux renvoient généralement le prompt suivi des jetons
           // générés. Ne jamais redécoder le prompt : il contient le schéma JSON et
           // le texte OCR, qui ne doivent pas pouvoir se faire passer pour la réponse.
           const generatedOnly = promptLength > 0 && (sequences.dims.at(-1) ?? 0) > promptLength
             ? sequences.slice(null, [promptLength, sequences.dims.at(-1) ?? promptLength])
             : sequences;
-          return processor.batch_decode(generatedOnly, { skip_special_tokens: true }).at(-1) ?? '';
+          const decoded = processor.batch_decode(generatedOnly, { skip_special_tokens: true }).at(-1) ?? '';
+          const completedOutput = extractCompletion(decoded) ?? extractCompletion(decoded, true);
+          if (!completedOutput) {
+            const generatedTokenCount = Math.max(0, (sequences.dims.at(-1) ?? promptLength) - promptLength);
+            const localDevelopmentDiagnostic = import.meta.env.DEV
+              ? ` Sortie brute locale de développement: ${JSON.stringify(decoded)}`
+              : '';
+            throw new Error(`SmolVLM s'est arrêté après ${generatedTokenCount}/${maxNewTokens} jetons sans terminer sa sortie structurée. Aucun brouillon incomplet n'a été conservé.${localDevelopmentDiagnostic}`);
+          }
+          return completedOutput;
         };
 
-        post({ type: 'analysis_stage', requestId, stage: 'reading', label: `Lecture locale 1 sur 2 · transcription${device === 'wasm' ? ' · CPU/WASM' : ''}`, percent: 55 });
-        const primaryOutput = await runPass(extractionPrompt(extractedText, pageStart, pageEnd));
-        post({ type: 'analysis_stage', requestId, stage: 'verifying', label: `Lecture locale 2 sur 2 · vérification indépendante${device === 'wasm' ? ' · CPU/WASM' : ''}`, percent: 82 });
+        if (device === 'wasm') {
+          const phaseErrors: string[] = [];
+          let coreRaw = '';
+          let linesRaw = '';
+          const phaseBudgets = plan.phaseTokenBudgets ?? { core: 96, lines: 288 };
+          const localTextCore = payrollCoreFromLocalText(extractedText, pageStart);
+          const localTextLines = payrollLinesFromLocalText(extractedText, pageStart);
+          if (localTextCore) {
+            coreRaw = localTextCore.rawOutput;
+            post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Noyau identifié dans le texte local · contrôle visuel à effectuer', percent: 72 });
+          } else {
+            post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Phase CPU 1/2 · identité et totaux imprimés', percent: 55 });
+            try {
+              coreRaw = await runPass(payrollAiScanCorePrompt(extractedText, pageStart), 1, {
+                maxNewTokens: phaseBudgets.core,
+                stageLabel: 'Phase CPU 1/2 · identité et totaux',
+                startPercent: 55,
+                endPercent: 72,
+                completionExtractor: (decoded, allowMissingEnd) => payrollCoreFromGeneratedProtocol(
+                  decoded,
+                  pageStart,
+                  { allowMissingEnd },
+                )?.rawOutput ?? null,
+              });
+            } catch (error) {
+              phaseErrors.push(`identité/totaux: ${String(error)}`);
+            }
+          }
+          if (!coreRaw.trim() && !extractedText.trim()) {
+            throw new Error("Le scan n'a pas permis de lire de façon fiable le nom, le brut et le net. Vérifiez sa netteté et son orientation ou saisissez les champs manuellement; aucun brouillon n'a été enregistré.");
+          }
+          if (localTextLines) {
+            linesRaw = localTextLines.rawOutput;
+            post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Rubriques explicites relevées dans le texte local · contrôle visuel à effectuer', percent: 96 });
+          } else {
+            post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Phase CPU 2/2 · rubriques monétaires', percent: 74 });
+            try {
+              linesRaw = await runPass(payrollAiScanLinesPrompt(extractedText, pageStart), 1, {
+                maxNewTokens: phaseBudgets.lines,
+                stageLabel: 'Phase CPU 2/2 · rubriques',
+                startPercent: 74,
+                endPercent: 96,
+                completionExtractor: (decoded, allowMissingEnd) => payrollLinesFromGeneratedProtocol(
+                  decoded,
+                  pageStart,
+                  { allowMissingEnd },
+                )?.rawOutput ?? null,
+              });
+            } catch (error) {
+              phaseErrors.push(`rubriques: ${String(error)}`);
+            }
+          }
+          let composition: ReturnType<typeof composePayrollAiCpuPhases>;
+          try {
+            composition = composePayrollAiCpuPhases({ coreRaw, linesRaw, sourcePage: pageStart });
+          } catch (error) {
+            const localDevelopmentDiagnostic = import.meta.env.DEV
+              ? ` Sorties de phases: ${JSON.stringify({ coreRaw, linesRaw })}`
+              : '';
+            throw new Error(`${String(error)} ${phaseErrors.join(' ')}${localDevelopmentDiagnostic}`.trim());
+          }
+          if (!composition.usedCore) phaseErrors.push('identité et totaux non exploitables sur cette page');
+          if (!composition.usedLines) phaseErrors.push('rubriques non exploitables sur cette page');
+          return {
+            device,
+            primaryOutput: composition.rawOutput,
+            verifiedOutput: '',
+            partialError: [
+              `Le mode CPU/WASM effectue une seule lecture non vérifiée en deux phases ciblées${localTextCore || localTextLines ? ', avec extraction déterministe des libellés explicites du texte PDF' : ''}. Toutes les valeurs restent des propositions faibles soumises au contrôle humain.`,
+              ...phaseErrors,
+            ].join(' '),
+          };
+        }
+        post({ type: 'analysis_stage', requestId, stage: 'reading', label: 'Lecture locale 1 sur 2 · transcription · WebGPU', percent: 55 });
+        const primaryOutput = await runPass(extractionPrompt(extractedText, pageStart, pageEnd), 1);
+        post({ type: 'analysis_stage', requestId, stage: 'verifying', label: 'Lecture locale 2 sur 2 · vérification indépendante · WebGPU', percent: 82 });
         try {
-          const verifiedOutput = await runPass(verificationPrompt(extractedText, pageStart, pageEnd));
+          const verifiedOutput = await runPass(verificationPrompt(extractedText, pageStart, pageEnd), 2);
           return { device, primaryOutput, verifiedOutput, partialError: '' };
         } catch (error) {
           // A WebGPU inference failure must trigger the one allowed CPU retry.
@@ -227,7 +401,12 @@ async function analyze(requestId: string, imageUrls: string[] = [], extractedTex
     });
 
     if (result.partialError) {
-      post({ type: 'analysis_stage', requestId, stage: 'partial', label: 'Seconde lecture indisponible · proposition faible uniquement', percent: 100 });
+      post({
+        type: 'analysis_stage', requestId, stage: 'partial', percent: 100,
+        label: result.device === 'wasm'
+          ? 'Lecture CPU terminée · proposition faible à contrôler'
+          : 'Seconde lecture indisponible · proposition faible uniquement',
+      });
     }
     post({
       type: 'analysis',

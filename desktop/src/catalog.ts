@@ -27,10 +27,15 @@ export function filterCatalogItems(
 
 export function catalogItemToDocumentLine(item: CatalogItem, id = createId()): DocumentLine {
   const description = item.description.trim();
+  const identity = [item.sku?.trim(), item.name.trim()].filter(Boolean).join(' · ');
   return {
     id,
     catalogItemId: item.id,
-    description: description ? `${item.name} — ${description}` : item.name,
+    // La description devient le snapshot lisible du catalogue dans le devis ou
+    // la facture. Y inclure la référence évite qu'elle disparaisse du PDF si la
+    // fiche catalogue est renommée plus tard; l'utilisateur peut toujours
+    // adapter librement cette ligne avant l'émission.
+    description: description ? `${identity} — ${description}` : identity,
     quantity: 1,
     unit: item.unit,
     unitPriceCents: item.salesPriceCents,
