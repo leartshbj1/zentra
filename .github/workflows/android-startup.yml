@@ -26,8 +26,12 @@ jobs:
       - name: Configure emulator and verify startup
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/zentra-android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "system-images;android-35;google_apis;x86_64"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n zentra-ci -k "system-images;android-35;google_apis;x86_64" --device pixel_6
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx zentra-ci
           sudo chmod a+rw /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -avd zentra-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > /tmp/zentra-emulator.log 2>&1 &
           apk="$(find /tmp/zentra-apk -name '*x86_64*.apk' -print -quit)"
