@@ -1,0 +1,41 @@
+name: Zentra Android startup check
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Existing mobile preview run containing an x86_64 APK
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  startup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download the existing native build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --pattern 'Zentra-Android-preview-*' --dir /tmp/zentra-apk
+      - name: Configure emulator and verify startup
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n zentra-ci -k "system-images;android-35;google_apis;x86_64" --device pixel_6
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd zentra-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > /tmp/zentra-emulator.log 2>&1 &
+          apk="$(find /tmp/zentra-apk -name '*x86_64*.apk' -print -quit)"
+          test -n "$apk"
+          bash desktop/scripts/smoke-android.sh "$apk"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: Android-startup-${{ github.run_id }}
+          path: desktop/artifacts/android/*
+          retention-days: 14

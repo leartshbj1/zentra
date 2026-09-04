@@ -16,7 +16,7 @@ capture_diagnostics() {
 trap capture_diagnostics EXIT
 timeout 120 adb wait-for-device
 timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 2; done'
-apk="$(find desktop/src-tauri/gen/android/app/build/outputs/apk -name '*x86_64*.apk' -print -quit)"
+apk="${1:-$(find desktop/src-tauri/gen/android/app/build/outputs/apk -name '*x86_64*.apk' -print -quit)}"
 test -n "$apk"
 adb install "$apk"
 adb logcat -c
