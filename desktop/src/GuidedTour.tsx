@@ -77,7 +77,7 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     id: 'projects',
     view: 'projects',
     eyebrow: 'Activité',
-    title: 'Pilotez chaque chantier ou projet',
+    title: 'Pilotez chaque projet',
     text: 'Suivez budget, durée, tâches, heures, dépenses, facturation et marge. Les termes s’adaptent au domaine choisi lors de la configuration.',
     target: '.page-header',
   },
@@ -186,6 +186,7 @@ export const automaticGuidedTourSteps: readonly GuidedTourStep[] = [
 
 function initialOpen() {
   try {
+    if (window.matchMedia?.('(max-width: 700px)').matches) return false;
     return window.localStorage.getItem(TOUR_STORAGE_KEY) !== 'completed';
   } catch {
     return true;

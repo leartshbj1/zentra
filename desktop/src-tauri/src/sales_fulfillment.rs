@@ -1861,6 +1861,7 @@ macro_rules! sales_fulfillment_tests {
             .convert_quote_to_invoice(ConvertQuoteInput {
                 quote_id: quote_id.clone(),
                 title: None,
+                deposit_percentage_bp: None,
                 issue_date: None,
                 due_date: None,
                 service_date_from: Some("2026-01-01".into()),
@@ -2828,6 +2829,7 @@ macro_rules! sales_fulfillment_tests {
             .convert_quote_to_invoice(ConvertQuoteInput {
                 quote_id: direct_quote.clone(),
                 title: None,
+                deposit_percentage_bp: None,
                 issue_date: None,
                 due_date: None,
                 service_date_from: Some("2026-01-01".into()),
@@ -2852,6 +2854,7 @@ macro_rules! sales_fulfillment_tests {
             .convert_quote_to_invoice(ConvertQuoteInput {
                 quote_id: order_quote,
                 title: None,
+                deposit_percentage_bp: None,
                 issue_date: None,
                 due_date: None,
                 service_date_from: Some("2026-01-01".into()),

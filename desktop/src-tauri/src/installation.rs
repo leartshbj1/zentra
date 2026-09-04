@@ -532,7 +532,22 @@ fn forget_protected(protected: &[u8]) {
 #[cfg(windows)]
 fn forget_protected(_protected: &[u8]) {}
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn protect_for_current_user(clear: &[u8]) -> AppResult<Vec<u8>> {
+    crate::mobile_secure_storage::protect(clear)
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn unprotect_for_current_user(protected: &[u8]) -> AppResult<Vec<u8>> {
+    crate::mobile_secure_storage::unprotect(protected)
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn forget_protected(protected: &[u8]) {
+    crate::mobile_secure_storage::forget(protected);
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "ios")))]
 fn protect_for_current_user(_clear: &[u8]) -> AppResult<Vec<u8>> {
     Err(AppError::Validation(
         "Cette plateforme ne fournit pas encore de coffre système pris en charge par Zentra."
@@ -540,7 +555,7 @@ fn protect_for_current_user(_clear: &[u8]) -> AppResult<Vec<u8>> {
     ))
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "ios")))]
 fn unprotect_for_current_user(_protected: &[u8]) -> AppResult<Vec<u8>> {
     Err(AppError::Validation(
         "Cette plateforme ne fournit pas encore de coffre système pris en charge par Zentra."
@@ -548,7 +563,7 @@ fn unprotect_for_current_user(_protected: &[u8]) -> AppResult<Vec<u8>> {
     ))
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "android", target_os = "ios")))]
 fn forget_protected(_protected: &[u8]) {}
 
 #[cfg(test)]

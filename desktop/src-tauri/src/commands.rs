@@ -50,7 +50,7 @@ fn app_version(app: &AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
-fn require_write(state: &State<'_, LocalStore>) -> Result<(), String> {
+fn require_write(state: &LocalStore) -> Result<(), String> {
     state.require_write_access().map_err(command_error)
 }
 
@@ -1564,9 +1564,102 @@ pub fn delete_supplier_invoice_attachment(
 }
 
 #[tauri::command]
-pub fn open_attachment(state: State<'_, LocalStore>, id: String) -> Result<String, String> {
+pub async fn open_attachment(state: State<'_, LocalStore>, id: String) -> Result<String, String> {
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = store.lock().map_err(command_error)?;
+        store.open_attachment(&id).map_err(command_error)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub fn prepare_mobile_export(state: State<'_, LocalStore>, name: String) -> Result<String, String> {
+    let name = std::path::Path::new(&name)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .filter(|name| {
+            !name.is_empty() && !name.contains(['/', '\\']) && !name.chars().any(char::is_control)
+        })
+        .ok_or("Nom de fichier invalide")?;
+    let directory = state.exports_dir.join(uuid::Uuid::new_v4().to_string());
+    std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    Ok(directory.join(name).to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn mobile_file_name(url: String) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    return tauri::async_runtime::spawn_blocking(move || {
+        tauri_plugin_zentra_mobile::file_name(&url)
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = url;
+        Err("Commande réservée à Android.".into())
+    }
+}
+
+#[tauri::command]
+pub async fn share_mobile_export(state: State<'_, LocalStore>, path: String) -> Result<(), String> {
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = std::path::Path::new(&path)
+            .canonicalize()
+            .map_err(|_| "Document introuvable")?;
+        if !path.is_file()
+            || ![&store.exports_dir, &store.backups_dir]
+                .iter()
+                .any(|root| root.canonicalize().is_ok_and(|root| path.starts_with(root)))
+        {
+            return Err("Seuls les exports et sauvegardes de Zentra peuvent être partagés.".into());
+        }
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        return tauri_plugin_zentra_mobile::share_file(&path);
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Err("Partage réservé à iOS et Android.".into())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn add_project_document(
+    state: State<'_, LocalStore>,
+    input: crate::project_documents::AddProjectDocumentInput,
+) -> Result<Value, String> {
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = store.lock().map_err(command_error)?;
+        require_write(&store)?;
+        store.add_project_document(input).map_err(command_error)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub fn delete_project_document(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
-    state.open_attachment(&id).map_err(command_error)
+    require_write(&state)?;
+    state.delete_project_document(&id).map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn read_project_document(
+    state: State<'_, LocalStore>,
+    id: String,
+) -> Result<String, String> {
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = store.lock().map_err(command_error)?;
+        store.read_project_document(&id).map_err(command_error)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]

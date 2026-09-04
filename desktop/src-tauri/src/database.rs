@@ -3357,7 +3357,7 @@ impl LocalStore {
                 || credit_currency != original_currency
             {
                 return Err(AppError::Validation(
-                    "L'avoir doit conserver le client, le chantier et la devise de la facture originale."
+                    "L'avoir doit conserver le client, le projet et la devise de la facture originale."
                         .into(),
                 ));
             }
@@ -4260,6 +4260,15 @@ impl LocalStore {
     }
 
     pub fn convert_quote_to_invoice(&self, input: ConvertQuoteInput) -> AppResult<Value> {
+        let deposit_percentage_bp = match input.deposit_percentage_bp {
+            Some(value) if (1..=10_000).contains(&value) => Some(value),
+            Some(_) => {
+                return Err(AppError::Validation(
+                    "Le pourcentage d'acompte doit être compris entre 0,01 et 100 %.".into(),
+                ))
+            }
+            None => None,
+        };
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -4342,22 +4351,22 @@ impl LocalStore {
             .title
             .filter(|v| !v.trim().is_empty())
             .unwrap_or_else(|| quote["title"].as_str().unwrap_or("Facture").to_owned());
-        transaction.execute("INSERT INTO invoices(id,client_id,project_id,quote_id,title,type,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,terms,created_at,updated_at) VALUES(?,?,?,?,?,'standard','brouillon',?,?,?,?,?,?,?,?,?)",params![invoice_id,quote["client_id"].as_str(),quote["project_id"].as_str(),input.quote_id,title,issue_date,due_date,service_from,service_to,quote["currency"].as_str(),quote["notes"].as_str(),quote["terms"].as_str(),now,now])?;
-        let mut statement=transaction.prepare("SELECT position,catalog_item_id,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents FROM quote_items WHERE quote_id=? ORDER BY position,rowid")?;
+        let mut statement=transaction.prepare("SELECT id,position,catalog_item_id,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents FROM quote_items WHERE quote_id=? ORDER BY position,rowid")?;
         let items = statement
             .query_map(params![input.quote_id], |r| {
                 Ok((
-                    r.get::<_, i64>(0)?,
-                    r.get::<_, Option<String>>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, f64>(3)?,
-                    r.get::<_, String>(4)?,
-                    r.get::<_, i64>(5)?,
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, f64>(4)?,
+                    r.get::<_, String>(5)?,
                     r.get::<_, i64>(6)?,
                     r.get::<_, i64>(7)?,
                     r.get::<_, i64>(8)?,
                     r.get::<_, i64>(9)?,
                     r.get::<_, i64>(10)?,
+                    r.get::<_, i64>(11)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -4367,10 +4376,97 @@ impl LocalStore {
                 "Le devis accepté ne contient aucune ligne.".into(),
             ));
         }
+        let deposit_basis_json = deposit_percentage_bp
+            .map(|_| {
+                serde_json::to_string(
+                    &items
+                        .iter()
+                        .map(|item| {
+                            json!({
+                                "id": item.0,
+                                "catalog_item_id": item.2,
+                                "description": item.3,
+                                "quantity": item.4,
+                                "unit": item.5,
+                                "unit_price_cents": item.6,
+                                "discount_bp": item.7,
+                                "vat_bp": item.8,
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .transpose()?;
+        if let Some(serialized_basis) = deposit_basis_json.as_ref() {
+            let basis_value = Value::String(serialized_basis.clone());
+            validate_deposit_basis_json(Some(&basis_value))?;
+        }
+        let invoice_type = if deposit_percentage_bp.is_some() {
+            "acompte"
+        } else {
+            "standard"
+        };
+        transaction.execute(
+            "INSERT INTO invoices(id,client_id,project_id,quote_id,title,type,deposit_percentage_bp,deposit_basis_json,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,terms,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'brouillon',?,?,?,?,?,?,?,?,?)",
+            params![
+                invoice_id,
+                quote["client_id"].as_str(),
+                quote["project_id"].as_str(),
+                input.quote_id,
+                title,
+                invoice_type,
+                deposit_percentage_bp,
+                deposit_basis_json,
+                issue_date,
+                due_date,
+                service_from,
+                service_to,
+                quote["currency"].as_str(),
+                quote["notes"].as_str(),
+                quote["terms"].as_str(),
+                now,
+                now
+            ],
+        )?;
         for item in items {
-            transaction.execute("INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.1,item.0,item.2,item.3,item.4,item.5,item.6,item.7,item.8,item.9,item.10,now,now])?;
+            if let Some(percentage_bp) = deposit_percentage_bp {
+                let amount_cents = round_basis_points(item.9, percentage_bp);
+                let vat_cents = round_basis_points(amount_cents, item.8);
+                transaction.execute(
+                    "INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,NULL,?,?,1,'acompte',?,0,?,?,?,?,?,?)",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        invoice_id,
+                        item.1,
+                        deposit_line_description(percentage_bp, &item.3),
+                        amount_cents,
+                        item.8,
+                        amount_cents,
+                        vat_cents,
+                        amount_cents.saturating_add(vat_cents),
+                        now,
+                        now
+                    ],
+                )?;
+            } else {
+                transaction.execute("INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.2,item.1,item.3,item.4,item.5,item.6,item.7,item.8,item.9,item.10,item.11,now,now])?;
+            }
         }
         recompute_invoice(&transaction, &invoice_id)?;
+        if deposit_percentage_bp.is_some() {
+            let total_cents: i64 = transaction.query_row(
+                "SELECT total_cents FROM invoices WHERE id=?",
+                params![invoice_id],
+                |row| row.get(0),
+            )?;
+            if total_cents <= 0 {
+                return Err(AppError::Validation(
+                    "Ce pourcentage produit un acompte de 0 CHF. Choisissez un pourcentage plus élevé."
+                        .into(),
+                ));
+            }
+            validate_deposit_basis_matches_items(&transaction, &invoice_id)?;
+        }
         transaction.execute(
             "INSERT INTO quote_conversions(quote_id,invoice_id,created_at) VALUES(?,?,?)",
             params![input.quote_id, invoice_id, now],
@@ -6342,6 +6438,19 @@ fn round_basis_points(value: i64, basis_points: i64) -> i64 {
     (sign * ((absolute * basis_points as i128 + 5_000) / 10_000)) as i64
 }
 
+fn deposit_line_description(percentage_bp: i64, description: &str) -> String {
+    let whole = percentage_bp / 100;
+    let decimals = percentage_bp % 100;
+    let percentage = if decimals == 0 {
+        whole.to_string()
+    } else if decimals % 10 == 0 {
+        format!("{whole},{}", decimals / 10)
+    } else {
+        format!("{whole},{decimals:02}")
+    };
+    format!("Acompte {percentage} % — {}", description.trim())
+}
+
 fn recompute_all_invoice_lines(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
     let mut statement=transaction.prepare("SELECT id,quantity,unit_price_cents,discount_bp,vat_bp FROM invoice_items WHERE invoice_id=?")?;
     let rows = statement
@@ -7431,6 +7540,10 @@ fn bool_to_i64(value: bool) -> i64 {
 }
 
 fn open_path(path: &Path) -> AppResult<()> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return tauri_plugin_zentra_mobile::share_file(path).map_err(AppError::Validation);
+    }
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer.exe")
@@ -7443,7 +7556,7 @@ fn open_path(path: &Path) -> AppResult<()> {
         std::process::Command::new("open").arg(path).spawn()?;
         return Ok(());
     }
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open").arg(path).spawn()?;
         return Ok(());

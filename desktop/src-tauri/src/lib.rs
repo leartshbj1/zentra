@@ -4,6 +4,10 @@ mod account_cloud;
 mod accounting;
 mod accounting_closure;
 mod agenda;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod app_updater;
+#[cfg(any(target_os = "android", target_os = "ios"))]
+#[path = "app_updater_mobile.rs"]
 mod app_updater;
 mod attachments;
 mod audit;
@@ -17,11 +21,14 @@ mod error;
 mod fiduciary_closing;
 mod installation;
 mod license;
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod mobile_secure_storage;
 mod models;
 mod noga;
 mod payroll;
 mod payroll_import;
 mod payroll_pdf;
+mod project_documents;
 mod project_planning;
 mod recurrence;
 mod reminders;
@@ -59,6 +66,10 @@ pub fn run() {
     }));
     #[cfg(not(test))]
     let builder = builder.plugin(tauri_plugin_dialog::init());
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let builder = builder
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_zentra_mobile::init());
 
     builder
         .setup(|app| {
@@ -76,6 +87,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            add_project_document,
+            delete_project_document,
+            read_project_document,
+            prepare_mobile_export,
+            mobile_file_name,
+            share_mobile_export,
             get_app_state,
             get_noga_catalog,
             validate_onboarding,
@@ -3895,6 +3912,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .convert_quote_to_invoice(ConvertQuoteInput {
                 quote_id: quote_id.clone(),
                 title: None,
+                deposit_percentage_bp: None,
                 issue_date: None,
                 due_date: None,
                 service_date_from: Some("2026-09-01".into()),
@@ -4267,6 +4285,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let input = ConvertQuoteInput {
             quote_id: quote_id.clone(),
             title: None,
+            deposit_percentage_bp: None,
             issue_date: None,
             due_date: None,
             service_date_from: Some("2026-05-01".into()),
@@ -4282,6 +4301,9 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         store.update_quote_status(&quote_id, "accepted").unwrap();
         let converted = store.convert_quote_to_invoice(input.clone()).unwrap();
         assert_eq!(converted["invoice"]["quote_id"], quote_id);
+        assert_eq!(converted["invoice"]["type"], "standard");
+        assert_eq!(converted["invoice"]["deposit_percentage_bp"], json!(null));
+        assert_eq!(converted["invoice"]["deposit_basis_json"], json!(null));
         assert_eq!(converted["invoice_items"].as_array().unwrap().len(), 1);
         assert_eq!(
             converted["invoice_items"][0]["catalog_item_id"],
@@ -4298,6 +4320,169 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .query_row("SELECT COUNT(*) FROM invoices", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn accepted_quote_can_create_a_valid_percentage_deposit_invoice() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client acompte devis"))
+                .unwrap(),
+        );
+        let service_id = value_id(
+            &store
+                .create_record(
+                    "catalog_items",
+                    json!({
+                        "kind":"service",
+                        "sku":"SERV-ACOMPTE",
+                        "name":"Conseil",
+                        "unit":"heure",
+                        "sales_price_cents":10_000,
+                        "vat_bp":810,
+                        "track_stock":false
+                    }),
+                )
+                .unwrap(),
+        );
+        let quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({"client_id":client_id,"title":"Mandat avec acompte"}),
+                )
+                .unwrap(),
+        );
+        let first_basis_id = value_id(
+            &store
+                .create_record(
+                    "quote_items",
+                    json!({
+                        "quote_id":quote_id,
+                        "catalog_item_id":service_id,
+                        "position":0,
+                        "description":"Conseil",
+                        "quantity":2,
+                        "unit":"heure",
+                        "unit_price_cents":10_000,
+                        "discount_bp":1_000,
+                        "vat_bp":810
+                    }),
+                )
+                .unwrap(),
+        );
+        let second_basis_id = value_id(
+            &store
+                .create_record(
+                    "quote_items",
+                    json!({
+                        "quote_id":quote_id,
+                        "position":1,
+                        "description":"Débours",
+                        "quantity":1,
+                        "unit":"forfait",
+                        "unit_price_cents":2_500,
+                        "discount_bp":0,
+                        "vat_bp":260
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .issue_quote(
+                &quote_id,
+                Some("2026-09-01".into()),
+                Some("2026-10-01".into()),
+            )
+            .unwrap();
+        store.update_quote_status(&quote_id, "accepted").unwrap();
+
+        let input_for = |percentage| ConvertQuoteInput {
+            quote_id: quote_id.clone(),
+            title: None,
+            deposit_percentage_bp: Some(percentage),
+            issue_date: Some("2026-09-02".into()),
+            due_date: Some("2026-09-30".into()),
+            service_date_from: Some("2026-09-01".into()),
+            service_date_to: Some("2026-09-30".into()),
+        };
+        for invalid in [-1, 0, 10_001] {
+            assert!(store
+                .convert_quote_to_invoice(input_for(invalid))
+                .unwrap_err()
+                .to_string()
+                .contains("0,01 et 100"));
+        }
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM invoices", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0,
+            "un pourcentage invalide ne doit laisser aucune facture partielle"
+        );
+
+        let converted = store.convert_quote_to_invoice(input_for(3_000)).unwrap();
+        assert_eq!(converted["invoice"]["quote_id"], quote_id);
+        assert_eq!(converted["invoice"]["type"], "acompte");
+        assert_eq!(converted["invoice"]["deposit_percentage_bp"], 3_000);
+        assert_eq!(converted["invoice"]["subtotal_cents"], 6_150);
+        assert_eq!(converted["invoice"]["discount_cents"], 0);
+        assert_eq!(converted["invoice"]["vat_cents"], 457);
+        assert_eq!(converted["invoice"]["total_cents"], 6_607);
+
+        let basis: serde_json::Value =
+            serde_json::from_str(converted["invoice"]["deposit_basis_json"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(basis.as_array().unwrap().len(), 2);
+        assert_eq!(basis[0]["id"], first_basis_id);
+        assert_eq!(basis[0]["catalog_item_id"], service_id);
+        assert_eq!(basis[0]["quantity"], 2.0);
+        assert_eq!(basis[0]["unit_price_cents"], 10_000);
+        assert_eq!(basis[0]["discount_bp"], 1_000);
+        assert_eq!(basis[0]["vat_bp"], 810);
+        assert_eq!(basis[1]["id"], second_basis_id);
+        assert_eq!(basis[1]["catalog_item_id"], json!(null));
+
+        let invoice_items = converted["invoice_items"].as_array().unwrap();
+        assert_eq!(invoice_items.len(), 2);
+        assert_eq!(invoice_items[0]["catalog_item_id"], json!(null));
+        assert_eq!(invoice_items[0]["description"], "Acompte 30 % — Conseil");
+        assert_eq!(invoice_items[0]["quantity"], 1.0);
+        assert_eq!(invoice_items[0]["unit"], "acompte");
+        assert_eq!(invoice_items[0]["unit_price_cents"], 5_400);
+        assert_eq!(invoice_items[0]["discount_bp"], 0);
+        assert_eq!(invoice_items[0]["vat_bp"], 810);
+        assert_eq!(invoice_items[0]["line_vat_cents"], 437);
+        assert_eq!(invoice_items[0]["line_total_cents"], 5_837);
+        assert_eq!(invoice_items[1]["catalog_item_id"], json!(null));
+        assert_eq!(invoice_items[1]["unit_price_cents"], 750);
+        assert_eq!(invoice_items[1]["vat_bp"], 260);
+        assert_eq!(invoice_items[1]["line_vat_cents"], 20);
+        assert_eq!(invoice_items[1]["line_total_cents"], 770);
+
+        assert!(store.convert_quote_to_invoice(input_for(3_000)).is_err());
+        let connection = store.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM quote_conversions", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM invoice_items", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2
+        );
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
     }
 
     #[test]

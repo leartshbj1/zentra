@@ -274,16 +274,20 @@ pub async fn poll_cloud_account_link(
 }
 
 #[tauri::command]
-pub fn open_cloud_account_link(state: State<'_, LocalStore>) -> Result<String, String> {
+pub async fn open_cloud_account_link(state: State<'_, LocalStore>) -> Result<String, String> {
     let pending = read_pending_secret(state.inner())
         .map_err(command_error)?
         .ok_or_else(|| "Aucune connexion de compte n’est en attente.".to_owned())?;
-    open_verification_uri(&pending.verification_uri).map_err(command_error)?;
-    Ok(pending.verification_uri)
+    tauri::async_runtime::spawn_blocking(move || {
+        open_verification_uri(&pending.verification_uri).map_err(command_error)?;
+        Ok(pending.verification_uri)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub fn open_cloud_account_portal() -> Result<String, String> {
+pub async fn open_cloud_account_portal() -> Result<String, String> {
     let uri = format!("{ACCOUNT_API_ORIGIN}/compte");
     let url =
         Url::parse(&uri).map_err(|_| "L’adresse du compte Zentra est invalide.".to_owned())?;
@@ -295,8 +299,12 @@ pub fn open_cloud_account_portal() -> Result<String, String> {
     {
         return Err("L’adresse du compte Zentra est refusée.".to_owned());
     }
-    launch_external_url(&uri).map_err(command_error)?;
-    Ok(uri)
+    tauri::async_runtime::spawn_blocking(move || {
+        launch_external_url(&uri).map_err(command_error)?;
+        Ok(uri)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -1154,6 +1162,10 @@ fn open_verification_uri(uri: &str) -> AppResult<()> {
 }
 
 fn launch_external_url(uri: &str) -> AppResult<()> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return tauri_plugin_zentra_mobile::open_url(uri).map_err(AppError::Validation);
+    }
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("rundll32.exe")
@@ -1167,7 +1179,7 @@ fn launch_external_url(uri: &str) -> AppResult<()> {
         std::process::Command::new("open").arg(uri).spawn()?;
         return Ok(());
     }
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open").arg(uri).spawn()?;
         return Ok(());

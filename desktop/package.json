@@ -1,6 +1,6 @@
 {
   "name": "zentra-desktop",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "private": true,
   "description": "Application locale Windows et macOS de gestion d’entreprise multisectorielle Zentra",
   "type": "module",
@@ -13,6 +13,12 @@
     "build:macos": "bash scripts/build-macos-updater.sh",
     "build:macos:preview": "bash scripts/build-macos-preview.sh",
     "build:macos:updater-preview": "bash scripts/build-macos-updater-preview.sh",
+    "mobile:android:init": "tauri android init --ci && node scripts/configure-mobile-project.mjs android",
+    "mobile:android:dev": "tauri android dev",
+    "mobile:android:build": "tauri android build --target aarch64 --apk --aab --ci",
+    "mobile:ios:init": "tauri ios init --ci",
+    "mobile:ios:dev": "tauri ios dev",
+    "mobile:ios:build": "tauri ios build --ci",
     "build:updater": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-updater-release.ps1",
     "release:stage-updater": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1",
     "tauri": "tauri"
@@ -21,6 +27,7 @@
     "@huggingface/transformers": "3.7.1",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-dialog": "2.4.2",
+    "@tauri-apps/plugin-fs": "2.5.2",
     "exceljs": "4.4.0",
     "lucide-react": "1.31.0",
     "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4",

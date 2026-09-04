@@ -85,6 +85,7 @@ import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import { assessPayrollPaymentDate } from './payrollPaymentDate';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
+import { QuoteConversionModal } from './QuoteConversionModal';
 import {
   CatalogItemForm,
   CatalogScreen,
@@ -211,6 +212,9 @@ import {
   submitForm,
 } from './ui';
 import { projectTerminology } from './terminology';
+import { ProjectFolder } from './ProjectFolder';
+import { ProjectFilesPicker } from './ProjectFilesPicker';
+import { isMobileRuntime } from './mobileRuntime';
 import {
   COMPACT_NAVIGATION_QUERY,
   compactSidebarHidden,
@@ -293,7 +297,9 @@ type ModalState =
       entity: 'quotes' | 'invoices';
       item?: Quote | Invoice;
       quoteSource?: Quote;
+      initialProject?: Project;
     }
+  | { type: 'quoteConversion'; quote: Quote }
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
   | { type: 'timeBilling' }
@@ -328,7 +334,7 @@ const navigation: Array<{
 }> = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
-  { id: 'projects', label: 'Chantiers / projets', icon: FolderKanban },
+  { id: 'projects', label: 'Projets', icon: FolderKanban },
   { id: 'clients', label: 'Clients', icon: UserRound },
   { id: 'catalog', label: 'Produits & services', icon: Package },
   { id: 'quotes', label: 'Ventes', icon: BriefcaseBusiness, group: 'Gestion' },
@@ -351,7 +357,7 @@ const viewTitles: Record<View, [string, string]> = {
     'Agenda',
     'Rendez-vous et échéances réelles réunis au même endroit',
   ],
-  projects: ['Chantiers', 'Budget, durée, temps et rentabilité par chantier'],
+  projects: ['Projets', 'Documents, budget, temps et rentabilité par projet'],
   clients: ['Clients', 'Coordonnées et historique des travaux'],
   catalog: [
     'Produits & services',
@@ -364,7 +370,7 @@ const viewTitles: Record<View, [string, string]> = {
     'Relances',
     'Échéances, niveaux et historique des actions locales',
   ],
-  time: ['Temps', 'Pointage réel et heures par chantier'],
+  time: ['Temps', 'Pointage réel et heures par projet'],
   team: ['Équipe & salaires', 'Collaborateurs et fiches sans retenue estimée'],
   expenses: [
     'Achats & fournisseurs',
@@ -399,6 +405,7 @@ export function WorkspaceApp({
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<string | null>(null);
   const [compactNavigation, setCompactNavigation] = useState(() =>
     typeof window !== 'undefined'
       && typeof window.matchMedia === 'function'
@@ -430,6 +437,18 @@ export function WorkspaceApp({
   const readOnlyMutationMessage = readOnlySource === 'cloud'
     ? 'Votre rôle « Lecture seule » bloque les modifications sur ce poste. La consultation et les exports restent disponibles.'
     : 'La licence doit être active pour modifier les données. Lecture, sauvegarde et export restent disponibles.';
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void desktopApi.getSecureUpdatePolicy().then(async (policy) => {
+        if (!policy.enabled || !active) return;
+        const update = await desktopApi.checkSecureUpdate();
+        if (active && update) setAvailableUpdate(update.version);
+      }).catch(() => { /* An offline device remains usable; manual checking reports errors. */ });
+    }, 12_000);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, []);
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -840,17 +859,24 @@ export function WorkspaceApp({
     }
   }
 
-  async function convertAcceptedQuote(item: Quote) {
+  async function convertAcceptedQuote(
+    item: Quote,
+    depositPercentageBp: number | null,
+  ) {
     const converted = await act(
-      () => desktopApi.convertQuote(item),
-      'La facture brouillon unique a été créée. Complétez ses dates de prestation puis contrôlez-la avant émission.',
+      () => desktopApi.convertQuote(item, depositPercentageBp),
+      depositPercentageBp === null
+        ? 'La facture complète a été créée en brouillon. Complétez ses dates de prestation puis contrôlez-la avant émission.'
+        : `La facture d’acompte de ${(depositPercentageBp / 100).toLocaleString('fr-CH', { maximumFractionDigits: 2 })} % a été créée en brouillon. Contrôlez-la avant émission.`,
       false,
     );
     if (converted) {
+      setModal(null);
       setView('invoices');
       setSearch('');
       setMenuOpen(false);
     }
+    return converted;
   }
 
   async function reviseQuote(item: Quote) {
@@ -1296,7 +1322,7 @@ export function WorkspaceApp({
                 : item.icon;
             const label =
               item.id === 'projects'
-                ? `${terminology.moduleLabel} · ${terminology.pluralTitle}`
+                ? terminology.moduleLabel
                 : item.label;
             const active =
               item.id === 'quotes'
@@ -1327,11 +1353,12 @@ export function WorkspaceApp({
             );
           })}
         </nav>
+        <Button variant="ghost" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={17} /> Guide de prise en main</Button>
         <div className="sidebar__local">
           <ShieldCheck size={17} />
           <div>
             <strong>Données locales</strong>
-            <span>Sur cet ordinateur</span>
+            <span>Sur cet appareil</span>
           </div>
           <i />
         </div>
@@ -1394,6 +1421,8 @@ export function WorkspaceApp({
           </div>
         </header>
 
+        {availableUpdate ? <div className="notice" role="status"><span><Download size={18} /> Zentra {availableUpdate} est disponible.</span><Button size="small" onClick={openUpdater}>Voir la mise à jour</Button><Button variant="ghost" size="icon" aria-label="Masquer la notification de mise à jour" onClick={() => setAvailableUpdate(null)}><X size={16} /></Button></div> : null}
+
         {readOnly && readOnlySource === 'cloud' ? (
           <div className="notice notice--warning" role="status">
             <span>
@@ -1436,7 +1465,7 @@ export function WorkspaceApp({
           <div>
             {view === 'projects' ? (
               <small className="module-kicker">
-                Module Chantiers / projets
+                Projets
               </small>
             ) : null}
             <p>{title[1]}</p>
@@ -1545,6 +1574,9 @@ export function WorkspaceApp({
               onEdit={(item) => setModal({ type: 'project', item })}
               onCreate={() => setModal({ type: 'project' })}
               onArchive={(item) => void deleteEmptyProject(item)}
+              onWorkspaceChange={setWorkspace}
+              onOpenDocument={(entity, item) => setModal({ type: 'document', entity, item })}
+              onCreateDocument={(entity, initialProject) => setModal({ type: 'document', entity, initialProject })}
               onSaveTask={(input) =>
                 act(
                   () => desktopApi.saveProjectTask(input),
@@ -1700,7 +1732,9 @@ export function WorkspaceApp({
                   false,
                 );
               }}
-              onConvert={(item) => void convertAcceptedQuote(item)}
+              onConvert={(item) =>
+                setModal({ type: 'quoteConversion', quote: item })
+              }
               onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
               onPrint={(item) =>
                 setPrintTarget({ entity: 'quotes', value: item })
@@ -1932,6 +1966,13 @@ export function WorkspaceApp({
         </section>
       </main>
 
+      <nav className="mobile-navigation" aria-label="Navigation mobile">
+        {([
+          ['dashboard', 'Accueil', Home], ['projects', 'Projets', FolderKanban], ['quotes', 'Ventes', Receipt],
+        ] as const).map(([target, label, Icon]) => <button key={target} type="button" aria-current={view === target || (target === 'quotes' && ['orders', 'invoices'].includes(view)) ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} /><span>{label}</span></button>)}
+        <button type="button" aria-label="Tous les modules" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
+      </nav>
+
       {modal ? (
         <WorkspaceModal
           state={modal}
@@ -1950,6 +1991,9 @@ export function WorkspaceApp({
             setView('accounting');
             setSearch('');
           }}
+          onConvertQuote={(quote, depositPercentageBp) =>
+            convertAcceptedQuote(quote, depositPercentageBp)
+          }
           onQrReady={(invoice, qr) => {
             setModal(null);
             setPrintTarget({ entity: 'invoices', value: invoice, qr });
@@ -2346,6 +2390,9 @@ function ProjectsScreen({
   onEdit,
   onCreate,
   onArchive,
+  onWorkspaceChange,
+  onOpenDocument,
+  onCreateDocument,
   onSaveTask,
   onSaveMilestone,
   onSetTaskStatus,
@@ -2361,6 +2408,9 @@ function ProjectsScreen({
   onEdit: (item: Project) => void;
   onCreate: () => void;
   onArchive: (item: Project) => void;
+  onWorkspaceChange: (workspace: Workspace) => void;
+  onOpenDocument: (entity: 'quotes' | 'invoices', item: Quote | Invoice) => void;
+  onCreateDocument: (entity: 'quotes' | 'invoices', project: Project) => void;
   onSaveTask: (input: ProjectTaskDraft) => Promise<boolean>;
   onSaveMilestone: (input: ProjectMilestoneDraft) => Promise<boolean>;
   onSetTaskStatus: (
@@ -2373,6 +2423,7 @@ function ProjectsScreen({
   onAgendaPlanningTargetHandled: () => void;
 }) {
   const [mode, setMode] = useState<'overview' | 'planning'>('overview');
+  const [folderId, setFolderId] = useState<string | null>(null);
   const [planningTarget, setPlanningTarget] = useState<string | null>(
     agendaPlanningTarget,
   );
@@ -2400,6 +2451,8 @@ function ProjectsScreen({
   const hasActiveClient = workspace.clients.some(
     (client) => !client.archivedAt,
   );
+  const folder = workspace.projects.find((project) => project.id === folderId);
+  if (folder) return <ProjectFolder project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => setFolderId(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
   if (!workspace.projects.length)
     return (
       <EmptyState
@@ -2426,7 +2479,7 @@ function ProjectsScreen({
         aria-label="Vue des projets"
       >
         <div>
-          <span>Une seule base, deux vues</span>
+          <span>Projets</span>
           <strong>
             {mode === 'overview'
               ? 'Rentabilité et durée'
@@ -2549,6 +2602,9 @@ function ProjectsScreen({
                   </span>
                 </div>
                 <footer>
+                  <Button size="small" onClick={() => setFolderId(project.id)}>
+                    <FolderOpen size={16} /> Ouvrir le dossier
+                  </Button>
                   <Button
                     variant="secondary"
                     size="small"
@@ -3282,7 +3338,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                               className="quote-convert-button"
                               disabled={busy}
                               onClick={() => props.onConvert(quote)}
-                              title="Créer une facture brouillon unique"
+                              title="Choisir une facture complète ou un acompte"
                             >
                               <ArrowRight size={15} /> Créer la facture
                             </Button>
@@ -4526,7 +4582,7 @@ function SettingsScreen({
         <SectionHeading
           eyebrow="Activité"
           title="Profil NOGA 2025 et terminologie"
-          description="Le secteur adapte les libellés de projet, dossier ou chantier sans modifier vos données existantes."
+          description="Votre secteur précise l’activité de l’entreprise. Vos projets et documents sont conservés."
         />
         <BusinessProfileFields
           profile={settings.business}
@@ -5539,7 +5595,7 @@ function SettingsScreen({
           </span>
           <div>
             <strong>Base locale</strong>
-            <p>Les données actives restent sur cet ordinateur.</p>
+            <p>Les données actives restent sur cet appareil.</p>
           </div>
           <i />
         </div>
@@ -5567,13 +5623,13 @@ function SettingsScreen({
           </span>
         </label>
         <div className="settings-actions">
-          <Button
+          {!isMobileRuntime() && <Button
             variant="secondary"
             disabled={busy}
             onClick={() => void chooseBackupFolder()}
           >
             <FolderOpen size={16} /> Choisir le dossier
-          </Button>
+          </Button>}
           <Button disabled={busy} onClick={() => void backup()}>
             <Download size={16} /> Créer une sauvegarde
           </Button>
@@ -5633,13 +5689,13 @@ function SettingsScreen({
           >
             <FileText size={16} /> Exporter les listes CSV
           </Button>
-          <Button
+          {!isMobileRuntime() && <Button
             variant="ghost"
             disabled={busy}
             onClick={() => void desktopApi.openDataFolder()}
           >
             <FolderOpen size={16} /> Ouvrir le dossier local
-          </Button>
+          </Button>}
         </div>
       </section>
     </div>
@@ -5776,6 +5832,7 @@ function WorkspaceModal({
   act,
   onOpenInvoices,
   onOpenAccounting,
+  onConvertQuote,
   onQrReady,
 }: {
   state: Exclude<ModalState, null>;
@@ -5790,6 +5847,10 @@ function WorkspaceModal({
   ) => Promise<boolean>;
   onOpenInvoices: () => void;
   onOpenAccounting: () => void;
+  onConvertQuote: (
+    quote: Quote,
+    depositPercentageBp: number | null,
+  ) => Promise<boolean>;
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
 }) {
   if (state.type === 'client')
@@ -5843,6 +5904,7 @@ function WorkspaceModal({
     return (
       <DocumentEditor
         entity={state.entity}
+        initialProject={state.initialProject}
         item={state.item}
         quoteSource={state.quoteSource}
         workspace={workspace}
@@ -5858,6 +5920,15 @@ function WorkspaceModal({
         }
         close={close}
         act={act}
+      />
+    );
+  if (state.type === 'quoteConversion')
+    return (
+      <QuoteConversionModal
+        quote={state.quote}
+        busy={busy}
+        close={close}
+        onConvert={onConvertQuote}
       />
     );
   if (state.type === 'invoiceCorrection')
@@ -6117,6 +6188,10 @@ function ProjectForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState('');
+  const savedProjectId = useRef(item?.id);
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
@@ -6127,8 +6202,8 @@ function ProjectForm({
           ? `Modifier le ${terminology.singular}`
           : `Nouveau ${terminology.singular}`
       }
-      description="Les dates prévues et réelles restent distinctes pour un suivi honnête."
-      onClose={close}
+      description="Regroupez les informations et les documents de votre projet."
+      onClose={() => { if (!busy) close(); }}
       wide
     >
       <form
@@ -6154,15 +6229,22 @@ function ProjectForm({
             description: '',
             notes: String(form.get('notes')),
           };
-          await act(
-            () =>
-              item
-                ? desktopApi.updateEntity('projects', item.id, data)
-                : desktopApi.createEntity('projects', data),
-            item
-              ? `Le ${terminology.singular} a été mis à jour.`
-              : `Le ${terminology.singular} a été créé.`,
-          );
+          setFileError('');
+          let remaining: File[] = [];
+          const saved = await act(async () => {
+            savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current);
+            const failures: string[] = [];
+            for (const [index, file] of files.entries()) {
+              setUploadProgress(`Document ${index + 1}/${files.length} : ${file.name}`);
+              try { await desktopApi.addProjectDocument(savedProjectId.current, file); }
+              catch (reason) { remaining.push(file); failures.push(`${file.name} : ${errorMessage(reason, 'ajout impossible')}`); }
+            }
+            setFiles(remaining);
+            setFileError(failures.length ? `Le projet est enregistré. Ces fichiers restent à ajouter : ${failures.join(' ')}` : '');
+            return desktopApi.loadWorkspace();
+          }, 'Le projet a été enregistré.', false);
+          setUploadProgress('');
+          if (saved && !remaining.length) close();
         })}
       >
         <div className="form-grid">
@@ -6194,6 +6276,16 @@ function ProjectForm({
               <option value="closed">Clôturé</option>
             </select>
           </Field>
+        </div>
+        <section className="project-create-files">
+          <h3>Documents et photos</h3>
+          <ProjectFilesPicker files={files} onChange={setFiles} disabled={busy} />
+          {fileError ? <ErrorPanel message={fileError} /> : null}
+          {uploadProgress ? <p role="status">{uploadProgress}</p> : null}
+        </section>
+        <details className="project-optional-details" open={!!item}>
+          <summary>Adresse, dates, budget et notes</summary>
+          <div className="form-grid">
           <Field label={`Adresse du ${terminology.singular}`} wide>
             <textarea name="address" rows={2} defaultValue={item?.address} />
           </Field>
@@ -6249,6 +6341,7 @@ function ProjectForm({
             <textarea name="notes" rows={3} defaultValue={item?.notes} />
           </Field>
         </div>
+        </details>
         <FormActions onCancel={close} busy={busy} />
       </form>
     </Modal>

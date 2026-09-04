@@ -471,7 +471,7 @@ export function SupplierEmailIntake({
                   )}
                 </select>
               </Field>
-              <Field label="Projet / chantier">
+              <Field label="Projet">
                 <select
                   value={draft.projectId}
                   onChange={(event) =>

@@ -1,0 +1,84 @@
+name: Zentra mobile preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Android ARM64 APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Configure Android build tools
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "platforms;android-36" "build-tools;36.0.0"
+          rustup target add aarch64-linux-android
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir desktop test:ui
+      - name: Initialize Android project
+        run: |
+          pnpm --dir desktop exec tauri android init --ci --skip-targets-install
+          node desktop/scripts/configure-mobile-project.mjs android
+      - name: Build Android preview
+        run: pnpm --dir desktop exec tauri android build --debug --apk --target aarch64 --ci
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Zentra-Android-preview-${{ github.sha }}
+          path: desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    name: iOS simulator
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: rustup target add aarch64-apple-ios-sim aarch64-apple-ios
+      - run: pnpm install --frozen-lockfile
+      - name: Initialize iOS project
+        run: pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
+      - name: Compile the complete iOS engine
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --locked --target aarch64-apple-ios-sim --lib
+      - name: Build simulator application
+        run: pnpm --dir desktop exec tauri ios build --debug --target aarch64-sim --ci
+      - name: Package simulator application
+        run: |
+          mkdir -p desktop/artifacts/ios
+          app_path="$(find desktop/src-tauri/gen/apple/build -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" desktop/artifacts/ios/Zentra-iOS-simulator.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Zentra-iOS-simulator-${{ github.sha }}
+          path: desktop/artifacts/ios/*.zip
+          if-no-files-found: error
+          retention-days: 30

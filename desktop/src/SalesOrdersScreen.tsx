@@ -1467,7 +1467,7 @@ function DeliveryNoteForm({
           </Field>
           <Field
             label="Référence"
-            hint="Facultatif : tournée, chantier, référence client…"
+            hint="Facultatif : tournée, projet, référence client…"
           >
             <input
               name="reference"

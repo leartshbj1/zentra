@@ -5337,6 +5337,73 @@ table {
   color: var(--green-900);
   font-size: 10px;
 }
+.quote-conversion-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding: 15px 16px;
+  border: 1px solid rgba(38, 83, 61, 0.14);
+  border-radius: 13px;
+  background: #f2f7f3;
+}
+.quote-conversion-intro span,
+.quote-conversion-summary span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+.quote-conversion-intro strong {
+  color: var(--green-900);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.quote-conversion-toggle {
+  margin-bottom: 14px;
+}
+.quote-conversion-toggle:has(input:checked) {
+  border-color: rgba(52, 102, 77, 0.38);
+  background: #f7fbf7;
+  box-shadow: 0 0 0 3px rgba(52, 102, 77, 0.06);
+}
+.quote-conversion-percentage {
+  max-width: 260px;
+  margin: 0 0 14px 29px;
+}
+.quote-conversion-percentage .percent-input span {
+  top: 11px;
+  right: 12px;
+  font-size: 10px;
+}
+.quote-conversion-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  margin-top: 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 13px;
+  background: #fff;
+}
+.quote-conversion-summary > div {
+  padding: 14px 16px;
+}
+.quote-conversion-summary > div + div {
+  border-left: 1px solid var(--line-soft);
+}
+.quote-conversion-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--green-900);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.quote-conversion-note {
+  margin: 11px 2px 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
 .document-copy-fields {
   display: grid;
   gap: 12px;
@@ -14156,6 +14223,28 @@ select[aria-invalid='true']:focus {
   .sales-order-card__progress i span,
   .order-progress > i span {
     transition: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .quote-conversion-intro {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .quote-conversion-percentage {
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .quote-conversion-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-conversion-summary > div + div {
+    border-top: 1px solid var(--line-soft);
+    border-left: 0;
   }
 }
 

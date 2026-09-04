@@ -201,6 +201,11 @@ export function AppUpdater() {
   const formattedDate = available ? formatUpdateDate(available.date) : null;
   const showProgress = installing || progress.phase !== 'idle';
 
+  if (policy?.channel === 'store') return <section id={APP_UPDATER_TARGET_ID} className="panel settings-card settings-card--wide app-updater" tabIndex={-1}>
+    <SectionHeading title="Mises à jour mobiles" description={`Version installée : ${policy.currentVersion}`} />
+    <p>{policy.reason}</p>
+  </section>;
+
   return <section
     id={APP_UPDATER_TARGET_ID}
     className="panel settings-card settings-card--wide app-updater settings-scroll-target"

@@ -3,6 +3,8 @@ import {
   useEffect,
   useRef,
   useState,
+  lazy,
+  Suspense,
   type FormEvent,
 } from 'react';
 import {
@@ -23,12 +25,14 @@ import {
   createSingleFlightCloudAccessRevalidator,
 } from './cloudAccessRevalidation';
 import { Onboarding } from './Onboarding';
-import { WorkspaceApp } from './WorkspaceApp';
+const WorkspaceApp = lazy(() => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp })));
 import type { AppSettings, LicenseState, Workspace } from './types';
 import { Button, ErrorPanel } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
+import { useMobileLayout } from './useMobileLayout';
 
 export function App() {
+  useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [license, setLicense] = useState<LicenseState | null>(null);
   const [cloudAccount, setCloudAccount] = useState<CloudAccountState | null>(
@@ -173,14 +177,14 @@ export function App() {
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />
     ) : (
-      <WorkspaceApp
+      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>Ouverture de votre espace…</p></main>}><WorkspaceApp
         workspace={workspace}
         setWorkspace={setWorkspace}
         readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)}
         readOnlySource={cloudRoleReadOnly ? 'cloud' : 'license'}
         cloudAccount={cloudAccount}
         onCloudAccountChange={handleCloudAccountChange}
-      />
+      /></Suspense>
     );
 
   const licenseNeedsAttention = Boolean(license && license.status !== 'valid');

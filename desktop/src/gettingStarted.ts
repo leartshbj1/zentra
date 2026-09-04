@@ -272,7 +272,7 @@ export function buildGettingStartedJourney(workspace: Workspace): GettingStarted
     {
       id: 'project',
       title: 'Projet suivi',
-      description: 'Un chantier ou projet non archivé est lié à l’activité.',
+      description: 'Un projet non archivé est lié à l’activité.',
       complete: workspace.projects.some((project) =>
         !project.archivedAt && activeClientIds.has(project.clientId),
       ),

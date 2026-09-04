@@ -1619,6 +1619,7 @@ export type LicenseState = {
 };
 
 export type Workspace = {
+  attachments?: Attachment[];
   schemaVersion: number;
   onboardingCompleted: boolean;
   activityProfileRequired: boolean;
@@ -2460,10 +2461,10 @@ export type StoredSwissQrBill = SwissQrPayload & {
 export type SecureUpdaterPolicy = {
   enabled: boolean;
   currentVersion: string;
-  channel: 'stable';
+  channel: 'stable' | 'store';
   endpointHost: string | null;
   signatureRequired: true;
-  transport: 'HTTPS';
+  transport: 'HTTPS' | 'store';
   automaticInstall: false;
   reason: string;
 };

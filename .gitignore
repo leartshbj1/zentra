@@ -12,6 +12,13 @@
 # testing
 /coverage
 /.qa/
+/desktop/.qa/
+/desktop/.qa-*.log
+/desktop/src-tauri/gen/android/
+/desktop/src-tauri/gen/apple/
+/desktop/plugins/**/.tauri/
+/desktop/plugins/**/android/.gradle/
+/desktop/plugins/**/android/build/
 
 # next.js
 /.next/

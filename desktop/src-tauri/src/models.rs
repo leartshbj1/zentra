@@ -328,6 +328,8 @@ pub struct ConvertQuoteInput {
     #[serde(default)]
     pub title: Option<String>,
     #[serde(default)]
+    pub deposit_percentage_bp: Option<i64>,
+    #[serde(default)]
     pub issue_date: Option<String>,
     #[serde(default)]
     pub due_date: Option<String>,

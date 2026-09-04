@@ -1,3 +1,4 @@
+import { useId, useState } from 'react';
 import {
   ArrowRight,
   Check,
@@ -36,6 +37,8 @@ export function GettingStartedChecklist({
   readOnly: boolean;
   onAction: (action: GettingStartedAction) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const stepsId = useId();
   const journey = buildGettingStartedJourney(workspace);
   const action = journey.nextAction;
 
@@ -76,7 +79,8 @@ export function GettingStartedChecklist({
         <span style={{ width: `${journey.percent}%` }} />
       </div>
 
-      <ol className="getting-started__steps">
+      <button className="mobile-checklist-toggle" type="button" aria-expanded={expanded} aria-controls={stepsId} onClick={() => setExpanded(!expanded)}>{expanded ? 'Masquer les étapes' : `Voir les ${journey.totalCount} étapes`}</button>
+      <ol id={stepsId} className={`getting-started__steps ${expanded ? '' : 'is-mobile-collapsed'}`}>
         {journey.steps.map((step, index) => {
           const Icon = stepIcons[step.id];
           const current = journey.nextStep?.id === step.id;

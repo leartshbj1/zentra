@@ -1,6 +1,6 @@
 # Zentra
 
-Zentra 1.24 réunit deux produits dans ce dépôt :
+Zentra 1.25 réunit deux produits dans ce dépôt :
 
 - une véritable application Windows x64 et une cible macOS universelle (Intel + Apple Silicon) basée sur Tauri, React et SQLite ;
 - un site commercial avec téléchargement direct de l’installateur.
@@ -11,8 +11,10 @@ Zentra 1.24 réunit deux produits dans ce dépôt :
 - Aucun client, projet, chantier, devis, montant ou salarié de démonstration.
 - Questionnaire obligatoire au premier lancement, avec section et division NOGA 2025 puis description précise de l’activité.
 - Checklist de prise en main calculée uniquement à partir des vraies données locales : client, projet, devis accepté, facture issue du devis, paiement comptabilisé et première sauvegarde. Aucun état de réussite simulé ou coché manuellement.
-- Interface multisectorielle : le vocabulaire du module projets / dossiers / chantiers s’adapte au domaine choisi.
-- Devis, factures, paiements, projets et chantiers, heures, dépenses, rentabilité, employés, fiches de salaire et comptabilité en partie double.
+- Interface multisectorielle avec le même module « Projets » pour chaque activité.
+- Dossier par projet réunissant documents, photos, devis et factures ; fichiers ajoutables dès la création, inclus dans les sauvegardes locales.
+- Navigation mobile avec accès direct à l’accueil, aux projets et aux ventes, formulaires plein écran et lignes de devis adaptées au tactile.
+- Devis, factures, paiements, projets, heures, dépenses, rentabilité, employés, fiches de salaire et comptabilité en partie double.
 - Agenda local léger réunissant les rendez-vous saisis et les échéances déjà présentes, sans charger de service externe au démarrage.
 - Sauvegarde/restauration locale au format `.zentra`, avec import compatible des formats historiques `.elyko` et `.hchantier`, et export JSON.
 - Fonctionnement local par défaut. La connexion au compte transmet uniquement les données techniques nécessaires à l’authentification, aux rôles et à la licence.

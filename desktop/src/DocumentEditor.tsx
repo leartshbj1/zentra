@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { activeCatalogItems, catalogItemToDocumentLine } from './catalog';
-import type { DocumentLine, Invoice, Quote, Workspace } from './types';
+import type { DocumentLine, Invoice, Project, Quote, Workspace } from './types';
 import {
   addDaysIso,
   createId,
@@ -48,6 +48,7 @@ export function DocumentEditor({
   entity,
   item,
   quoteSource,
+  initialProject,
   workspace,
   busy,
   readOnlyReason,
@@ -57,6 +58,7 @@ export function DocumentEditor({
   entity: 'quotes' | 'invoices';
   item?: Quote | Invoice;
   quoteSource?: Quote;
+  initialProject?: Project;
   workspace: Workspace;
   busy: boolean;
   readOnlyReason?: string;
@@ -99,7 +101,7 @@ export function DocumentEditor({
     [catalogItems, catalogQuery],
   );
   const [selectedClientId, setSelectedClientId] = useState(
-    item?.clientId ?? quoteSource?.clientId ?? '',
+    item?.clientId ?? quoteSource?.clientId ?? initialProject?.clientId ?? '',
   );
   const [quickClientOpen, setQuickClientOpen] = useState(false);
   const [quickClient, setQuickClient] = useState({
@@ -452,7 +454,7 @@ export function DocumentEditor({
             <Field label={terminology.singularTitle}>
               <select
                 name="projectId"
-                defaultValue={item?.projectId ?? quoteSource?.projectId ?? ''}
+                defaultValue={item?.projectId ?? quoteSource?.projectId ?? initialProject?.id ?? ''}
               >
                 <option value="">Aucun {terminology.singular} lié</option>
                 {workspace.projects.map((project) => (
@@ -747,6 +749,7 @@ export function DocumentEditor({
             </div>
             {lines.map((line) => (
               <div className="line-editor__row" key={line.id}>
+                <label className="document-line-field" data-label="Description">
                 <input
                   value={line.description}
                   onChange={(event) =>
@@ -755,6 +758,8 @@ export function DocumentEditor({
                   aria-label="Description"
                   required
                 />
+                </label>
+                <label className="document-line-field" data-label="Quantité">
                 <input
                   type="number"
                   min="0.0001"
@@ -768,6 +773,8 @@ export function DocumentEditor({
                   aria-label="Quantité"
                   required
                 />
+                </label>
+                <label className="document-line-field" data-label="Unité">
                 <input
                   value={line.unit}
                   onChange={(event) =>
@@ -776,7 +783,8 @@ export function DocumentEditor({
                   aria-label="Unité"
                   required
                 />
-                <label className="money-input">
+                </label>
+                <label className="money-input" data-label="Prix unitaire">
                   <input
                     type="number"
                     min="0"
@@ -794,7 +802,7 @@ export function DocumentEditor({
                   />
                   <span>CHF</span>
                 </label>
-                <label className="percent-input">
+                <label className="percent-input" data-label="Remise">
                   <input
                     type="number"
                     min="0"
@@ -813,6 +821,7 @@ export function DocumentEditor({
                   <span>%</span>
                 </label>
                 {settings.organization.vatRegistered ? (
+                  <label className="document-line-field" data-label="TVA">
                   <select
                     value={line.vatRateBp < 0 ? '' : line.vatRateBp}
                     onChange={(event) =>
@@ -833,6 +842,7 @@ export function DocumentEditor({
                         </option>
                       ))}
                   </select>
+                  </label>
                 ) : (
                   <span className="no-vat">Sans TVA</span>
                 )}

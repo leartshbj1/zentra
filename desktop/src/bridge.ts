@@ -1,4 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
+import { fileBase64 } from './projectDocuments';
+import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
   OpenDialogOptions,
   SaveDialogOptions,
@@ -144,6 +146,7 @@ import type { SupplierEmailInspection } from './supplierEmail';
 import type { ManualJournalSubmission } from './accountingManualJournal';
 import type { OnboardingValidationScope } from './onboardingValidation';
 import type { CatalogImportRow } from './catalogImport';
+import { validDepositPercentageBp } from './deposit';
 import {
   bankAccountAssociationPayload,
   bankConfirmationPayload,
@@ -517,10 +520,10 @@ function secureUpdaterPolicyFromRaw(value: unknown): SecureUpdaterPolicy {
   return {
     enabled: boolValue(row.enabled),
     currentVersion: stringValue(row.currentVersion ?? row.current_version),
-    channel: 'stable',
+    channel: row.channel === 'store' ? 'store' : 'stable',
     endpointHost: stringValue(row.endpointHost ?? row.endpoint_host) || null,
     signatureRequired: true,
-    transport: 'HTTPS',
+    transport: row.channel === 'store' ? 'store' : 'HTTPS',
     automaticInstall: false,
     reason: stringValue(row.reason),
   };
@@ -2906,6 +2909,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const timer = raw.active_timer;
   return {
     schemaVersion: numberValue(raw.schema_version) || 20,
+    attachments: (raw.attachments ?? []).map(attachmentFromRaw),
     onboardingCompleted: appState.onboarding_completed,
     activityProfileRequired: boolValue(appState.activity_profile_required),
     settings: settingsFromRaw(raw.settings, appState.data_dir),
@@ -3294,6 +3298,30 @@ export function importCatalogItemsMutation(
     },
   };
 }
+
+export function convertQuoteMutation(
+  quote: Pick<Quote, 'id' | 'title'>,
+  depositPercentageBp: number | null = null,
+) {
+  if (
+    depositPercentageBp !== null &&
+    !validDepositPercentageBp(depositPercentageBp)
+  ) {
+    throw new RangeError(
+      'Le pourcentage d’acompte doit être compris entre 0,01 et 100 %.',
+    );
+  }
+  return {
+    command: 'convert_quote_to_invoice' as const,
+    args: {
+      input: {
+        quote_id: quote.id,
+        title: quote.title,
+        deposit_percentage_bp: depositPercentageBp,
+      },
+    },
+  };
+}
 const createRecord = (entity: string, data: RawRecord) =>
   invoke<RawRecord>('create_record', { entity, data });
 
@@ -3344,7 +3372,8 @@ async function chooseFile(
   options: OpenDialogOptions & { multiple?: false },
 ): Promise<string | null> {
   const dialog = await import('@tauri-apps/plugin-dialog');
-  return dialog.open(options);
+  const selected = await dialog.open(options);
+  return selected && !options.directory ? materializeMobileFile(selected) : selected;
 }
 
 async function chooseFiles(
@@ -3352,12 +3381,15 @@ async function chooseFiles(
 ): Promise<string[]> {
   const dialog = await import('@tauri-apps/plugin-dialog');
   const result = await dialog.open(options);
-  return result ?? [];
+  const files: string[] = [];
+  for (const path of result ?? []) files.push(await materializeMobileFile(path));
+  return files;
 }
 
 async function chooseSaveFile(
   options: SaveDialogOptions,
 ): Promise<string | null> {
+  if (isMobileRuntime()) return invoke<string>('prepare_mobile_export', { name: options.defaultPath || 'document.pdf' });
   const dialog = await import('@tauri-apps/plugin-dialog');
   return dialog.save(options);
 }
@@ -4701,6 +4733,26 @@ export const desktopApi = {
     await createRecord(entityToBackend[entity], toBackendData(data));
     return loadWorkspace();
   },
+  async saveProject(data: Record<string, unknown>, id?: string): Promise<string> {
+    if (id) {
+      await invoke('update_record', { entity: 'projects', id, data: toBackendData(data) });
+      return id;
+    }
+    const record = await createRecord('projects', toBackendData(data));
+    return stringValue(record.id);
+  },
+  async addProjectDocument(projectId: string, file: File) {
+    return invoke('add_project_document', { input: {
+      project_id: projectId, original_name: file.name, content_base64: await fileBase64(file),
+    } });
+  },
+  async deleteProjectDocument(id: string) {
+    await invoke('delete_project_document', { id });
+    return loadWorkspace();
+  },
+  async readProjectDocument(id: string) {
+    return invoke<string>('read_project_document', { id });
+  },
   async updateEntity<T extends Record<string, unknown>>(
     entity: EntityKind,
     id: string,
@@ -5310,10 +5362,9 @@ export const desktopApi = {
     }
     return { revisionId, workspace: await loadWorkspace() };
   },
-  async convertQuote(quote: Quote) {
-    await invoke('convert_quote_to_invoice', {
-      input: { quote_id: quote.id, title: quote.title },
-    });
+  async convertQuote(quote: Quote, depositPercentageBp: number | null = null) {
+    const mutation = convertQuoteMutation(quote, depositPercentageBp);
+    await invoke(mutation.command, mutation.args);
     return loadWorkspace();
   },
   async convertQuoteToSalesOrder(requestId: string, quoteId: string) {
@@ -5681,7 +5732,8 @@ export const desktopApi = {
     return loadWorkspace();
   },
   async createBackup(destination?: string) {
-    const path = await invoke<string>('create_backup', { destination });
+    const path = await invoke<string>('create_backup', { destination: isMobileRuntime() ? undefined : destination });
+    await shareMobileExport(path);
     return { workspace: await loadWorkspace(), path };
   },
   chooseCamtFile: () =>
@@ -5757,7 +5809,9 @@ export const desktopApi = {
   },
   async exportData(format: 'json' | 'csv') {
     const command = format === 'json' ? 'export_json' : 'export_csv_archive';
-    return { path: await invoke<string>(command, {}) };
+    const path = await invoke<string>(command, {});
+    await shareMobileExport(path);
+    return { path };
   },
   chooseBackupFolder: () =>
     chooseFile({
@@ -5938,6 +5992,7 @@ export const desktopApi = {
     const row = recordValue(
       await invoke('export_fiduciary_closing_zip', { reviewId }),
     );
+    await shareMobileExport(stringValue(row.path));
     return {
       schema: 'elyko.fiduciary-package-export.v1',
       exportId: stringValue(row.export_id),
@@ -6269,7 +6324,7 @@ export const desktopApi = {
     businessReferenceId: string;
     fileName?: string;
   }): Promise<VatReturnExport> {
-    return vatExportFromRaw(
+    const exported = vatExportFromRaw(
       await invoke('export_vat_return_xml', {
         input: {
           date_from: input.dateFrom,
@@ -6281,6 +6336,8 @@ export const desktopApi = {
         },
       }),
     );
+    await shareMobileExport(exported.filePath);
+    return exported;
   },
   async listVatReturnExports(filter: PeriodFilter): Promise<VatReturnExport[]> {
     return rawArray(
@@ -6630,6 +6687,7 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('generate_payslip_pdf', {
       input: { payslip_id: payslipId, destination_path: destinationPath },
     });
+    await shareMobileExport(stringValue(raw.path));
     return {
       path: stringValue(raw.path),
       pages: numberValue(raw.pages),
@@ -6661,6 +6719,7 @@ export const desktopApi = {
       'generate_sales_document_pdf',
       salesPdfInvokeInput(entity, documentId, destinationPath),
     );
+    await shareMobileExport(stringValue(raw.path));
     return {
       path: stringValue(raw.path),
       pages: numberValue(raw.pages),
