@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-preview-${{ github.ref }}
+  group: mobile-preview-${{ github.ref }}-${{ inputs.platform }}
   cancel-in-progress: false
 
 jobs:
@@ -82,7 +82,12 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: rustup target add aarch64-apple-ios-sim aarch64-apple-ios
+      - name: Configure the native Apple toolchain
+        run: |
+          # Xcode filters environment variables from its Rust build phase.
+          # Set the host toolchain in this temporary CI checkout as well.
+          printf '[toolchain]\nchannel = "stable"\n' > desktop/src-tauri/rust-toolchain.toml
+          rustup target add aarch64-apple-ios-sim aarch64-apple-ios
       - run: pnpm install --frozen-lockfile
       - name: Initialize iOS project
         run: pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
