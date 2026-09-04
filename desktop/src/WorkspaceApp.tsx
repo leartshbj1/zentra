@@ -5642,7 +5642,7 @@ function SettingsScreen({
           </Button>
           <Button
             variant="ghost"
-            disabled={busy || !settings.backup.folder}
+            disabled={busy || (!isMobileRuntime() && !settings.backup.folder)}
             onClick={() => {
               const next = confirmDeferredSetup(settings, 'backup');
               void execute(
@@ -5654,7 +5654,9 @@ function SettingsScreen({
             <CheckCircle2 size={16} /> Enregistrer la stratégie
           </Button>
         </div>
-        {settings.backup.folder ? (
+        {isMobileRuntime() ? (
+          <p className="path-note">La sauvegarde est créée dans le stockage privé, puis vous choisissez où la conserver depuis le partage du système.</p>
+        ) : settings.backup.folder ? (
           <p className="path-note">
             <FolderOpen size={14} /> {settings.backup.folder}
           </p>

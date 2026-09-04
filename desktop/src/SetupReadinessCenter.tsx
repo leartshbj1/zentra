@@ -9,6 +9,7 @@ import {
   Users,
 } from 'lucide-react';
 import { isValidSwissIban } from './onboardingValidation';
+import { isMobileRuntime } from './mobileRuntime';
 import type { AccountingSettings, AppSettings, Workspace } from './types';
 
 export const SETTINGS_READINESS_TARGETS = {
@@ -120,6 +121,7 @@ function step(
 export function buildSetupReadiness(
   workspace: Workspace,
   settings: AppSettings,
+  backupStorage: 'folder' | 'system' = isMobileRuntime() ? 'system' : 'folder',
 ): SetupReadiness {
   const { organization, billing, work, payroll, backup } = settings;
   const identityMissing: string[] = [];
@@ -268,22 +270,22 @@ export function buildSetupReadiness(
   const backupMissing: string[] = [];
   if (settings.setupDeferred?.backup)
     backupMissing.push('confirmation de la stratégie de sauvegarde');
-  if (!hasText(backup.folder)) backupMissing.push('dossier de sauvegarde');
+  if (backupStorage === 'folder' && !hasText(backup.folder)) backupMissing.push('dossier de sauvegarde');
   if (!backup.recoveryConfirmed) backupMissing.push('stratégie de récupération confirmée');
   if (!workspace.backupStatus.lastSuccessAt) backupMissing.push('première sauvegarde réussie');
   const backupFolder = normalizedStoragePath(backup.folder);
   const lastBackupPath = normalizedStoragePath(workspace.backupStatus.lastPath);
   if (
     workspace.backupStatus.lastSuccessAt &&
-    (!lastBackupPath || !backupFolder || !lastBackupPath.startsWith(`${backupFolder}\\`))
+    (!lastBackupPath || (backupStorage === 'folder' && (!backupFolder || !lastBackupPath.startsWith(`${backupFolder}\\`))))
   )
-    backupMissing.push('archive réussie dans le dossier configuré');
+    backupMissing.push(backupStorage === 'system' ? 'archive locale confirmée' : 'archive réussie dans le dossier configuré');
   steps.push(
     step(
       'backup',
       'Sauvegarde',
       backupMissing,
-      'Dossier et stratégie configurés; une sauvegarde locale réussie est enregistrée.',
+      backupStorage === 'system' ? 'Stratégie confirmée; une sauvegarde locale réussie est enregistrée.' : 'Dossier et stratégie configurés; une sauvegarde locale réussie est enregistrée.',
     ),
   );
 

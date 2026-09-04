@@ -1,4 +1,5 @@
 import type { AppSettings, NogaCatalog, PayrollRate } from './types';
+import { isMobileRuntime } from './mobileRuntime';
 
 export type OnboardingIssue = {
   step: number;
@@ -151,6 +152,7 @@ export function validateOnboarding(
   catalog: NogaCatalog | null,
   privacyConfirmed: boolean,
   scope: OnboardingValidationScope = 'complete',
+  backupStorage: 'folder' | 'system' = isMobileRuntime() ? 'system' : 'folder',
 ): OnboardingIssue[] {
   const settings = normalizeOnboardingSettings(rawSettings);
   const issues: OnboardingIssue[] = [];
@@ -383,7 +385,7 @@ export function validateOnboarding(
     validateRates(payroll.employerRates, 'employerRates');
   }
 
-  if (!settings.backup.folder)
+  if (backupStorage === 'folder' && !settings.backup.folder)
     add(5, 'backup.folder', 'Le dossier de sauvegarde', 'Choisissez un dossier local pour vos sauvegardes.');
   if (!privacyConfirmed)
     add(5, 'backup.privacyConfirmed', 'La confidentialité locale', 'Confirmez avoir compris où vos données sont stockées.');

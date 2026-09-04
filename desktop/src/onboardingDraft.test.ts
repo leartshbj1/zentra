@@ -17,6 +17,17 @@ const catalog: NogaCatalog = {
 };
 
 describe('reprise du brouillon de configuration', () => {
+  it('utilise le stockage mobile sans exiger un dossier et conserve les confirmations de sauvegarde', () => {
+    const settings = structuredClone(initialOnboardingSettings);
+    const mobileIssues = validateOnboarding(settings, catalog, false, 'complete', 'system').map((issue) => issue.field);
+    expect(mobileIssues).not.toContain('backup.folder');
+    expect(mobileIssues).toContain('backup.privacyConfirmed');
+    expect(mobileIssues).toContain('backup.recoveryConfirmed');
+    expect(validateOnboarding(settings, catalog, false, 'complete', 'folder').map((issue) => issue.field)).toContain('backup.folder');
+    settings.backup.recoveryConfirmed = true;
+    expect(validateOnboarding(settings, catalog, true, 'complete', 'system').filter((issue) => issue.step === 5)).toEqual([]);
+  });
+
   it('refuse un règlement LPP partiel et normalise ses références sans inventer de valeur', () => {
     const settings = {
       ...initialOnboardingSettings,

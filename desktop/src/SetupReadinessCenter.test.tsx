@@ -137,6 +137,21 @@ function workspace(
 }
 
 describe('centre de préparation', () => {
+  it('utilise la preuve de sauvegarde mobile sans demander un dossier système', () => {
+    const settings = structuredClone(baseSettings);
+    settings.backup.folder = '';
+    const mobile = workspace(settings);
+    mobile.backupStatus.lastSuccessAt = null;
+    mobile.backupStatus.lastPath = null;
+    expect(buildSetupReadiness(mobile, settings, 'system').steps.find((step) => step.id === 'backup')).toMatchObject({ ready: false, missing: ['première sauvegarde réussie'] });
+    mobile.backupStatus.lastSuccessAt = '2026-09-04T12:00:00Z';
+    mobile.backupStatus.lastPath = '/data/user/0/ch.zentra.mobile/files/backups/sauvegarde.zentra';
+    expect(buildSetupReadiness(mobile, settings, 'system').steps.find((step) => step.id === 'backup')).toMatchObject({ ready: true, missing: [] });
+    expect(buildSetupReadiness(mobile, settings, 'folder').steps.find((step) => step.id === 'backup')?.missing).toContain('dossier de sauvegarde');
+    mobile.backupStatus.lastPath = null;
+    expect(buildSetupReadiness(mobile, settings, 'system').steps.find((step) => step.id === 'backup')?.missing).toContain('archive locale confirmée');
+  });
+
   it('calcule cinq étapes prêtes lorsque la paie est désactivée', () => {
     const result = buildSetupReadiness(workspace(), baseSettings);
 
