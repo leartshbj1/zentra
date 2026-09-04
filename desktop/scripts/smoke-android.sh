@@ -34,10 +34,18 @@ done
 adb shell pidof ch.zentra.mobile
 grep -q 'helvichantier.sqlite3' <<< "$profile_files"
 grep -q 'installation-identity.protected' <<< "$profile_files"
+identity_path="$(grep 'installation-identity.protected' <<< "$profile_files" | head -n 1 | tr -d '\r')"
+identity_before="$(adb shell run-as ch.zentra.mobile sha256sum "$identity_path")"
+adb shell am force-stop ch.zentra.mobile
+adb shell am start -W -n ch.zentra.mobile/.MainActivity
+sleep 5
+adb shell pidof ch.zentra.mobile
+identity_after="$(adb shell run-as ch.zentra.mobile sha256sum "$identity_path")"
+test "$identity_before" = "$identity_after"
 adb exec-out screencap -p > desktop/artifacts/android/startup.png
 adb logcat -d -s AndroidRuntime:E > desktop/artifacts/android/runtime.log
 if grep -q 'FATAL EXCEPTION' desktop/artifacts/android/runtime.log; then
   cat desktop/artifacts/android/runtime.log
   exit 1
 fi
-echo 'Android startup, SQLite and Keystore initialization verified.'
+echo 'Android startup, SQLite, Keystore and identity recovery after restart verified.'
