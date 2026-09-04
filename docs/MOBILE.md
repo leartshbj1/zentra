@@ -12,6 +12,8 @@ Les fichiers restent dans le stockage privé de l’application. Les exports PDF
 
 Depuis un environnement Android SDK, Java 17 et Rust configuré :
 
+Sur Linux et macOS, utiliser `RUSTUP_TOOLCHAIN=stable` ; le fichier de toolchain local Windows reste réservé à ce système.
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm --dir desktop exec tauri android init --ci --skip-targets-install
