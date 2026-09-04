@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p desktop/artifacts/android
-adb wait-for-device
+capture_diagnostics() {
+  status=$?
+  if [[ -f /tmp/zentra-emulator.log ]]; then
+    cp /tmp/zentra-emulator.log desktop/artifacts/android/emulator.log
+  fi
+  timeout 10 adb logcat -d -t 1000 > desktop/artifacts/android/startup.log 2>&1 || true
+  if [[ "$status" -ne 0 ]]; then
+    tail -n 60 desktop/artifacts/android/emulator.log 2>/dev/null || true
+    tail -n 60 desktop/artifacts/android/startup.log || true
+  fi
+  exit "$status"
+}
+trap capture_diagnostics EXIT
+timeout 120 adb wait-for-device
 timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 2; done'
 apk="$(find desktop/src-tauri/gen/android/app/build/outputs/apk -name '*x86_64*.apk' -print -quit)"
 test -n "$apk"
