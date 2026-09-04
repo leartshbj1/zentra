@@ -67,11 +67,15 @@
   .line-editor__actions, .catalog-line-picker { min-width: 0; max-width: 100%; }
   .catalog-line-picker { flex-wrap: wrap; }
   .catalog-line-picker input, .catalog-line-picker select { width: 100%; min-width: 0; }
+  .catalog-line-picker:has(select:disabled) { display: none; }
+  .line-editor:has(.catalog-line-picker select:disabled) > header > div:first-child > small { display: none; }
   .table-panel table[data-mobile-cards] { display: block; min-width: 0; width: 100%; }
   table[data-mobile-cards] > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   table[data-mobile-cards] > tbody { display: grid; gap: 12px; }
   table[data-mobile-cards] > tbody > tr { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
   .table-panel table[data-mobile-cards] td { display: block; min-width: 0; width: 100%; padding: 8px; white-space: normal; border: 0; }
+  .table-panel table[data-mobile-cards] td, .table-panel table[data-mobile-cards] td strong { font-size: 14px; line-height: 1.5; }
+  .table-panel table[data-mobile-cards] td small { font-size: 13px; line-height: 1.4; }
   table[data-mobile-cards] td[data-label]:not([data-label=''])::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; margin-bottom: 5px; }
   table[data-mobile-cards] .table-actions { flex-wrap: wrap; justify-content: flex-start; }
   html, body, #root { min-width: 0; }
