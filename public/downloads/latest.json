@@ -1,15 +1,15 @@
 {
-    "version":  "1.24.0",
-    "notes":  "Zentra 1.24.0 : fiabilité renforcée des devis, factures, achats, agenda, comptabilité et import salarial local.",
-    "pub_date":  "2026-09-04T13:57:05.1074124+00:00",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlJjZGFDYndHS1NvdUQrU2lENTlLZnQ4a25HakIxTFR0VTRkWkc2U3hQOERLbkZ3a1A3OCtSb3hKakFFRlhSNEExY0kyQkdaYmwzTzUxWWdVZzZqeVFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTI4NDUxCWZpbGU6WmVudHJhXzEuMjQuMF94NjQtc2V0dXAuZXhlClRucXZLcUJHWDZ4djNqYklyU09qZ0dhZ2VjekRKbVVRbGYySnExYlphYU1VaWZYY3hodFFDdThOYWFjSS9UNzIyRS9xZFRwb2dUSVYzOHF3M2hSQ0NRPT0K",
-                                             "url":  "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.24.0_x64-setup.exe"
-                                         },
-                      "macos-universal":  {
-                                              "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlI0WitOOFcxTEhVNmNOSjZiZnRPTWgxTXRWMVVJK3VGSVNlbkJRQi82NnRYQU1CTGQ0QlBSeC9GVkpaM0hMQW40OXVjVkc1cmVXL0xuUWFQYlZOVmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTMwMDExCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKTzc1N1RUN3hQY1FxYTdlWklqMjdtUVl0ZGJlV2hMZ3dJK0VPb25MY0ZjYjVpdVJXQ3NoZG53RDY5aXVtRE5QemtLK0s2SFdZbU9DeTNOSnQ5aktkQnc9PQo=",
-                                              "url":  "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.24.0_macos-universal.app.tar.gz"
-                                          }
-                  }
+  "version": "1.25.0",
+  "notes": "Zentra 1.25 : dossiers de projets avec documents et photos, devis et factures liés, navigation et formulaires adaptés aux mobiles et tablettes, améliorations de la facturation.",
+  "pub_date": "2026-09-04T20:49:45.1752763+00:00",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmNSMitFQklMeEFZV3ZNMEZaQi90Mis5TnUvNkduZnpoNkE5Q2xmYkxobXdoNHEyUkZDNkF1dEIrdmxYVkxDanVScThMQkpBYW5XbnhqWWJQVzNidHdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTUzNTc0CWZpbGU6WmVudHJhXzEuMjUuMF94NjQtc2V0dXAuZXhlCmNnN0pOMVA4WDFoTm9kZC8xc0ptckt3OWZnZ3V0UElYYVNTbXd1NWhmVGMrRVhnWFlTQ3ZoOHRMVHVwOU9jMkl1ZHdpbGdhTHBUM2pieTk2ZHoxbkFBPT0K",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.25.0_x64-setup.exe"
+    },
+    "macos-universal": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlJjM1RXeHVpcHhLRnQwNGRadWxSdXAyM2t3WldyNXNuUWplbkdQV0tZbUx2NGRsNUNIaFZleUgrWEJBNHNtd0F2b2lMU3lWK2xhaUlPUlVVQUVrQWdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTU0ODU2CWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKRW9wTWFIMWtiV2Y3cEtaYUFPb1FtMFloS1c1UlhtaU5ZQ0hOaUNRdHdQcmVra1VOWFB3MHdlNWZoWXZ5YUNQRG4wREFLVkk1WFJPN0d3UTJLM0Q3RFE9PQo=",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.25.0_macos-universal.app.tar.gz"
+    }
+  }
 }
