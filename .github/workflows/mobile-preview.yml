@@ -38,7 +38,8 @@ jobs:
         run: |
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "platforms;android-36" "build-tools;36.0.0"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "ndk;27.2.12479018" "platforms;android-36" "build-tools;36.0.0"
           rustup target add aarch64-linux-android x86_64-linux-android
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir desktop test:ui
@@ -57,6 +58,7 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" -avd zentra-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > /tmp/zentra-emulator.log 2>&1 &
           bash desktop/scripts/smoke-android.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: Zentra-Android-preview-${{ github.sha }}
           path: |
@@ -105,6 +107,7 @@ jobs:
           test -n "$app_path"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" desktop/artifacts/ios/Zentra-iOS-simulator.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: Zentra-iOS-simulator-${{ github.sha }}
           path: desktop/artifacts/ios/*
