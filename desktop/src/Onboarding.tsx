@@ -22,6 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { isMobileRuntime } from './mobileRuntime';
 import { BrandWordmark } from './BrandMark';
 import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
 import { createId, errorMessage } from './utils';
@@ -298,17 +299,17 @@ export function Onboarding({
   }
 
   return (
-    <div className="onboarding">
+    <div className={`onboarding${isMobileRuntime() ? ' onboarding--mobile' : ''}`}>
       <aside className="onboarding__rail">
         <div className="onboarding__brand">
           <div className="onboarding__wordmark">
             <BrandWordmark />
-            <small>Application Windows + macOS</small>
+            <small>{isMobileRuntime() ? 'Application mobile' : 'Application Windows + macOS'}</small>
           </div>
         </div>
         <div className="onboarding__promise">
           <LockKeyhole size={22} />
-          <p><strong>Votre entreprise reste chez vous.</strong> Les données métier sont stockées localement sur cet ordinateur.</p>
+          <p><strong>Votre entreprise reste chez vous.</strong> Les données métier sont stockées localement sur cet {isMobileRuntime() ? 'appareil' : 'ordinateur'}.</p>
         </div>
         <nav className="setup-steps" aria-label="Étapes de configuration">
           {steps.map(({ label, icon: Icon }, index) => {
@@ -327,7 +328,7 @@ export function Onboarding({
           {draftStatus === 'failed' ? <AlertCircle size={15} /> : draftStatus === 'saved' ? <Check size={15} /> : <Save size={15} />}
           <p>
             <strong>{draftStatus === 'failed' ? 'Brouillon non enregistré' : 'Brouillon local'}</strong>
-            <span>{draftStatus === 'failed' ? 'Vérifiez les droits de stockage du système' : draftStatus === 'saved' ? 'Toutes les modifications sont enregistrées' : 'Enregistrement sur cet ordinateur…'}</span>
+            <span>{draftStatus === 'failed' ? 'Vérifiez les droits de stockage du système' : draftStatus === 'saved' ? 'Toutes les modifications sont enregistrées' : isMobileRuntime() ? 'Enregistrement sur cet appareil…' : 'Enregistrement sur cet ordinateur…'}</span>
           </p>
         </div>
       </aside>
@@ -412,13 +413,13 @@ function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRes
           <span><BriefcaseBusiness size={25} /></span><div><strong>Créer mon entreprise</strong><p>Commencer par l’identité et le domaine, puis choisir entre un accès rapide et la configuration complète.</p></div><ArrowRight size={20} />
         </button>
         <button className="setup-choice" onClick={onRestore} disabled={busy}>
-          <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>Reprendre une archive .zentra, .elyko ou .hchantier provenant d’un autre ordinateur.</p></div><FolderOpen size={20} />
+          <span><RefreshCw size={25} /></span><div><strong>Restaurer une sauvegarde</strong><p>{isMobileRuntime() ? 'Reprendre vos données depuis un fichier de sauvegarde Zentra.' : 'Reprendre une archive .zentra, .elyko ou .hchantier provenant d’un autre ordinateur.'}</p></div><FolderOpen size={20} />
         </button>
       </div>
       <div className="local-facts">
-        <div><DatabaseIcon /><strong>Base locale sur cet ordinateur</strong><span>Fonctionne même sans connexion</span></div>
+        <div><DatabaseIcon /><strong>Base locale sur cet {isMobileRuntime() ? 'appareil' : 'ordinateur'}</strong><span>Fonctionne même sans connexion</span></div>
         <div><FileArchive /><strong>Sauvegardes portables</strong><span>Vous gardez la maîtrise des fichiers</span></div>
-        <div><ShieldCheck /><strong>Coffre du système</strong><span>DPAPI sous Windows · Trousseau sous macOS</span></div>
+        <div><ShieldCheck /><strong>Coffre du système</strong><span>{isMobileRuntime() ? 'Trousseau iOS · Android Keystore' : 'DPAPI sous Windows · Trousseau sous macOS'}</span></div>
       </div>
     </div>
   );

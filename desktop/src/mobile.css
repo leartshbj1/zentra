@@ -117,6 +117,8 @@
 }
 
 @media screen and (max-width: 700px) {
+  .onboarding--mobile { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .setup-choice p { font-size: 13px; line-height: 1.5; }
   .section-heading { flex-direction: column; align-items: stretch; }
   .section-heading > div { min-width: 0; }
   .section-heading__action, .catalog-heading-actions { width: 100%; min-width: 0; }
