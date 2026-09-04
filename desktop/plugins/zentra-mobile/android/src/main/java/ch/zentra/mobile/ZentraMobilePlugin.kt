@@ -39,7 +39,13 @@ class ZentraMobilePlugin(private val activity: Activity): Plugin(activity) {
         Thread {
             try {
                 val source = File(args.path).canonicalFile
-                val roots = listOf(activity.filesDir, activity.cacheDir, activity.noBackupFilesDir).map { it.canonicalPath + File.separator }
+                // Tauri stores its managed folders directly under applicationInfo.dataDir.
+                // Keep the database and protected installation identity outside this allowlist.
+                val dataRoot = File(activity.applicationInfo.dataDir)
+                val roots = listOf(
+                    activity.filesDir, activity.cacheDir, activity.noBackupFilesDir,
+                    File(dataRoot, "attachments"), File(dataRoot, "exports"), File(dataRoot, "backups")
+                ).map { it.canonicalPath + File.separator }
                 require(source.isFile && roots.any { source.path.startsWith(it) }) { "Chemin de document refusé" }
                 val root = File(activity.cacheDir, "zentra-share").apply { mkdirs() }
                 root.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86400000 }?.forEach { it.deleteRecursively() }
