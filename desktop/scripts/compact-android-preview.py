@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix="zentra-preview-") as temp:
         unsigned = staging / "unsigned.apk"
         with zipfile.ZipFile(source) as original, zipfile.ZipFile(unsigned, "w") as compact:
             for entry in original.infolist():
-                if entry.filename.upper().startswith("META-INF/"):
+                if re.fullmatch(r"META-INF/(MANIFEST\.MF|[^/]+\.(SF|RSA|DSA|EC))", entry.filename, re.IGNORECASE):
                     continue
                 data = original.read(entry)
                 if re.fullmatch(r"lib/(arm64-v8a|x86_64)/[^/]+\.so", entry.filename):
