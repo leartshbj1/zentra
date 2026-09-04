@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 39;
+pub const SCHEMA_VERSION: i64 = 41;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -6791,4 +6791,68 @@ WHEN NOT (
 BEGIN SELECT RAISE(ABORT,'reminder operation requests are immutable'); END;
 
 PRAGMA user_version=39;
+"#;
+
+/// Pourcentage explicite des factures d'acompte. Le montant reste porté par
+/// les lignes de facture; cette donnée documente le pourcentage choisi sans
+/// réinterpréter ni recalculer les factures historiques.
+pub const MIGRATION_V40_SQL: &str = r#"
+DROP TRIGGER IF EXISTS invoices_issued_financial_no_update;
+CREATE TRIGGER invoices_issued_financial_no_update
+BEFORE UPDATE ON invoices WHEN OLD.number IS NOT NULL AND (
+  NEW.number IS NOT OLD.number OR NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR NEW.quote_id IS NOT OLD.quote_id OR
+  NEW.original_invoice_id IS NOT OLD.original_invoice_id OR NEW.title IS NOT OLD.title OR NEW.type IS NOT OLD.type OR
+  NEW.deposit_percentage_bp IS NOT OLD.deposit_percentage_bp OR
+  NEW.issue_date IS NOT OLD.issue_date OR NEW.due_date IS NOT OLD.due_date OR NEW.service_date_from IS NOT OLD.service_date_from OR NEW.service_date_to IS NOT OLD.service_date_to OR NEW.currency IS NOT OLD.currency OR
+  NEW.subtotal_cents IS NOT OLD.subtotal_cents OR NEW.discount_cents IS NOT OLD.discount_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR
+  NEW.total_cents IS NOT OLD.total_cents OR NEW.notes IS NOT OLD.notes OR NEW.terms IS NOT OLD.terms OR NEW.snapshot_json IS NOT OLD.snapshot_json
+) BEGIN SELECT RAISE(ABORT, 'issued invoice financial fields are immutable'); END;
+
+DROP TRIGGER IF EXISTS sales_order_invoice_link_guard;
+CREATE TRIGGER sales_order_invoice_link_guard
+BEFORE UPDATE ON invoices
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_id=OLD.id) AND (
+  NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR
+  NEW.quote_id IS NOT OLD.quote_id OR NEW.original_invoice_id IS NOT OLD.original_invoice_id OR
+  NEW.type IS NOT OLD.type OR NEW.deposit_percentage_bp IS NOT OLD.deposit_percentage_bp OR
+  NEW.currency IS NOT OLD.currency OR NEW.subtotal_cents IS NOT OLD.subtotal_cents OR
+  NEW.discount_cents IS NOT OLD.discount_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR
+  NEW.total_cents IS NOT OLD.total_cents
+)
+BEGIN SELECT RAISE(ABORT,'sales order invoice linkage and totals are immutable'); END;
+
+PRAGMA user_version=40;
+"#;
+
+/// Conserve la base commerciale détaillée d'une facture d'acompte séparément
+/// des lignes financières effectivement facturées. Cette base permet de
+/// rouvrir un brouillon sans perdre quantités, unités, remises ni références
+/// catalogue; les anciennes factures restent valides avec une valeur NULL.
+pub const MIGRATION_V41_SQL: &str = r#"
+DROP TRIGGER IF EXISTS invoices_issued_financial_no_update;
+CREATE TRIGGER invoices_issued_financial_no_update
+BEFORE UPDATE ON invoices WHEN OLD.number IS NOT NULL AND (
+  NEW.number IS NOT OLD.number OR NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR NEW.quote_id IS NOT OLD.quote_id OR
+  NEW.original_invoice_id IS NOT OLD.original_invoice_id OR NEW.title IS NOT OLD.title OR NEW.type IS NOT OLD.type OR
+  NEW.deposit_percentage_bp IS NOT OLD.deposit_percentage_bp OR NEW.deposit_basis_json IS NOT OLD.deposit_basis_json OR
+  NEW.issue_date IS NOT OLD.issue_date OR NEW.due_date IS NOT OLD.due_date OR NEW.service_date_from IS NOT OLD.service_date_from OR NEW.service_date_to IS NOT OLD.service_date_to OR NEW.currency IS NOT OLD.currency OR
+  NEW.subtotal_cents IS NOT OLD.subtotal_cents OR NEW.discount_cents IS NOT OLD.discount_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR
+  NEW.total_cents IS NOT OLD.total_cents OR NEW.notes IS NOT OLD.notes OR NEW.terms IS NOT OLD.terms OR NEW.snapshot_json IS NOT OLD.snapshot_json
+) BEGIN SELECT RAISE(ABORT, 'issued invoice financial fields are immutable'); END;
+
+DROP TRIGGER IF EXISTS sales_order_invoice_link_guard;
+CREATE TRIGGER sales_order_invoice_link_guard
+BEFORE UPDATE ON invoices
+WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_id=OLD.id) AND (
+  NEW.client_id IS NOT OLD.client_id OR NEW.project_id IS NOT OLD.project_id OR
+  NEW.quote_id IS NOT OLD.quote_id OR NEW.original_invoice_id IS NOT OLD.original_invoice_id OR
+  NEW.type IS NOT OLD.type OR NEW.deposit_percentage_bp IS NOT OLD.deposit_percentage_bp OR
+  NEW.deposit_basis_json IS NOT OLD.deposit_basis_json OR
+  NEW.currency IS NOT OLD.currency OR NEW.subtotal_cents IS NOT OLD.subtotal_cents OR
+  NEW.discount_cents IS NOT OLD.discount_cents OR NEW.vat_cents IS NOT OLD.vat_cents OR
+  NEW.total_cents IS NOT OLD.total_cents
+)
+BEGIN SELECT RAISE(ABORT,'sales order invoice linkage and totals are immutable'); END;
+
+PRAGMA user_version=41;
 "#;

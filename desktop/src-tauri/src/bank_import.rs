@@ -1332,8 +1332,8 @@ mod tests {
     use crate::{
         models::{
             AccountInput, AccountingPeriodInput, AccountingSettingsInput, OnboardingInput,
-            SaveInvoiceQrBillInput, SaveSupplierInvoiceDraftInput, SupplierInvoiceLineInput,
-            SwissQrBillInput, SwissQrParty,
+            SaveDocumentWithItemsInput, SaveInvoiceQrBillInput, SaveSupplierInvoiceDraftInput,
+            SupplierInvoiceLineInput, SwissQrBillInput, SwissQrParty,
         },
         schema::SCHEMA_VERSION,
         swiss_qr::generate_qrr,
@@ -1465,20 +1465,46 @@ mod tests {
                 }),
             )
             .unwrap();
-        let invoice = store
-            .create_record(
-                "invoices",
-                json!({"client_id":value_id(&client),"title":"Facture CAMT","type":invoice_type,"currency":currency,"service_date_from":"2026-08-01","service_date_to":"2026-08-31"}),
-            )
+        let mut invoice_data = json!({
+            "client_id":value_id(&client),
+            "title":"Facture CAMT",
+            "type":invoice_type,
+            "currency":currency,
+            "service_date_from":"2026-08-01",
+            "service_date_to":"2026-08-31"
+        });
+        if matches!(invoice_type, "deposit" | "acompte") {
+            // Ces tests portent sur le rapprochement CAMT, pas sur le calcul
+            // d'acompte. Une base à 100 % garde le montant attendu identique
+            // tout en empruntant le même enregistrement atomique que l'UI.
+            invoice_data["deposit_percentage_bp"] = json!(10_000);
+            invoice_data["deposit_basis_json"] = json!([{
+                "id":"camt-deposit-basis",
+                "catalog_item_id":null,
+                "description":"Prestation",
+                "quantity":1,
+                "unit":"forfait",
+                "unit_price_cents":amount_cents,
+                "discount_bp":0,
+                "vat_bp":0
+            }]);
+        }
+        let saved = store
+            .save_document_with_items(SaveDocumentWithItemsInput {
+                entity: "invoices".into(),
+                id: None,
+                data: invoice_data,
+                items: vec![json!({
+                    "description":"Prestation",
+                    "quantity":1,
+                    "unit":if matches!(invoice_type, "deposit" | "acompte") { "acompte" } else { "forfait" },
+                    "unit_price_cents":amount_cents,
+                    "discount_bp":0,
+                    "vat_bp":0
+                })],
+            })
             .unwrap();
-        let invoice_id = value_id(&invoice);
-        store
-            .create_record(
-                "invoice_items",
-                json!({"invoice_id":invoice_id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":amount_cents,"vat_bp":0}),
-            )
-            .unwrap();
-        invoice_id
+        value_id(&saved["document"])
     }
 
     fn create_open_invoice_of_type(

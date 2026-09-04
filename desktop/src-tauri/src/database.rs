@@ -21,6 +21,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
+    account_cloud::AccountProtectedCache,
     accounting::{
         cash_vat_invoice_is_consistent, ensure_accounting_date_open,
         payment_accounting_block_reason, post_expense_if_enabled, post_invoice_if_enabled,
@@ -30,6 +31,7 @@ use crate::{
     branding::stage_active_company_logo_for_snapshot,
     error::{AppError, AppResult},
     installation::load_or_create,
+    license::LicenseProtectedCache,
     models::{
         AbandonInvoiceCorrectionInput, AppStateInfo, CompleteOnboardingResult, ConvertQuoteInput,
         CreateInvoiceCorrectionInput, DeleteResult, OnboardingInput, OnboardingIssue,
@@ -51,8 +53,8 @@ use crate::{
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
         MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V35_SQL, MIGRATION_V36_SQL,
         MIGRATION_V37_SQL, MIGRATION_V38_SQL, MIGRATION_V39_SQL, MIGRATION_V3_SQL,
-        MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL,
-        MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
+        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -68,6 +70,8 @@ pub struct LocalStore {
     pub(crate) backups_dir: PathBuf,
     pub(crate) exports_dir: PathBuf,
     pub(crate) installation_id: String,
+    pub(crate) account_protected_cache: AccountProtectedCache,
+    pub(crate) license_protected_cache: LicenseProtectedCache,
     operation_lock: Arc<Mutex<()>>,
 }
 
@@ -1026,6 +1030,49 @@ fn migrate_v39(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v40(transaction: &Transaction<'_>) -> AppResult<()> {
+    let invoices_exist: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='invoices')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !invoices_exist {
+        // Certaines fixtures et quelques bases d'installation interrompues ne
+        // possèdent pas encore le module ventes. Leur migration doit rester
+        // additive sans inventer une table métier partielle.
+        transaction.pragma_update(None, "user_version", 40)?;
+        return Ok(());
+    }
+    add_column_if_missing(
+        transaction,
+        "invoices",
+        "deposit_percentage_bp",
+        "deposit_percentage_bp INTEGER CHECK (deposit_percentage_bp IS NULL OR (TYPEOF(deposit_percentage_bp)='integer' AND deposit_percentage_bp BETWEEN 1 AND 10000))",
+    )?;
+    transaction.execute_batch(MIGRATION_V40_SQL)?;
+    Ok(())
+}
+
+fn migrate_v41(transaction: &Transaction<'_>) -> AppResult<()> {
+    let invoices_exist: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='invoices')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !invoices_exist {
+        transaction.pragma_update(None, "user_version", 41)?;
+        return Ok(());
+    }
+    add_column_if_missing(
+        transaction,
+        "invoices",
+        "deposit_basis_json",
+        "deposit_basis_json TEXT CHECK (deposit_basis_json IS NULL OR (json_valid(deposit_basis_json)=1 AND json_type(deposit_basis_json)='array'))",
+    )?;
+    transaction.execute_batch(MIGRATION_V41_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1359,6 +1406,8 @@ impl LocalStore {
             backups_dir,
             exports_dir,
             installation_id,
+            account_protected_cache: AccountProtectedCache::default(),
+            license_protected_cache: LicenseProtectedCache::default(),
             operation_lock: Arc::new(Mutex::new(())),
         };
         store.migrate()?;
@@ -1530,7 +1579,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=38 => {}
+            28..=40 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1589,6 +1638,12 @@ impl LocalStore {
         }
         if current < 39 {
             migrate_v39(&transaction)?;
+        }
+        if current < 40 {
+            migrate_v40(&transaction)?;
+        }
+        if current < 41 {
+            migrate_v41(&transaction)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2665,6 +2720,7 @@ impl LocalStore {
             recompute_quote(&transaction, &document_id)?;
         } else {
             recompute_invoice(&transaction, &document_id)?;
+            validate_deposit_basis_matches_items(&transaction, &document_id)?;
         }
         let document = query_record_tx(&transaction, document_spec.table, &document_id)?;
         let items = query_all(
@@ -2808,6 +2864,9 @@ impl LocalStore {
             return Err(AppError::NotFound(format!("{entity}/{id}")));
         }
         recompute_after_change(&transaction, entity, &object, Some(&previous))?;
+        if entity == "invoices" {
+            validate_deposit_basis_matches_items(&transaction, id)?;
+        }
         if entity == "expenses"
             && previous.get("payment_status").and_then(Value::as_str) == Some("pending")
             && object.get("payment_status").and_then(Value::as_str) == Some("paid")
@@ -3191,6 +3250,12 @@ impl LocalStore {
             .get("type")
             .and_then(Value::as_str)
             .unwrap_or("standard");
+        validate_invoice_deposit_percentage(
+            existing
+                .as_object()
+                .ok_or_else(|| AppError::Validation("La facture à émettre est invalide.".into()))?,
+            false,
+        )?;
         if !matches!(invoice_type, "avoir" | "credit_note") {
             let issuer_iban: Option<String> =
                 transaction
@@ -3233,6 +3298,7 @@ impl LocalStore {
                 "La facture doit contenir au moins une ligne avant émission.".into(),
             ));
         }
+        validate_deposit_basis_matches_items(&transaction, id)?;
         let original_invoice_id = existing
             .get("original_invoice_id")
             .and_then(Value::as_str)
@@ -3563,12 +3629,15 @@ impl LocalStore {
         ] {
             transaction.execute(
                 "INSERT INTO invoices(
-                   id,client_id,project_id,quote_id,original_invoice_id,number,title,type,status,
+                   id,client_id,project_id,quote_id,original_invoice_id,number,title,type,
+                   deposit_percentage_bp,deposit_basis_json,status,
                    issue_date,due_date,service_date_from,service_date_to,currency,
                    subtotal_cents,discount_cents,vat_cents,total_cents,paid_cents,
                    notes,terms,snapshot_json,created_at,updated_at
                  )
-                 SELECT ?,client_id,project_id,NULL,?,NULL,?,?, 'brouillon',
+                 SELECT ?,client_id,project_id,NULL,?,NULL,?,?,
+                        CASE WHEN ?='acompte' THEN deposit_percentage_bp ELSE NULL END,
+                        CASE WHEN ?='acompte' THEN deposit_basis_json ELSE NULL END,'brouillon',
                         ?,?,service_date_from,service_date_to,currency,
                         0,0,0,0,0,?,terms,NULL,?,?
                    FROM invoices WHERE id=?",
@@ -3576,6 +3645,8 @@ impl LocalStore {
                     id,
                     linked_original,
                     title,
+                    invoice_type,
+                    invoice_type,
                     invoice_type,
                     issue_date,
                     due_date,
@@ -3851,9 +3922,10 @@ impl LocalStore {
             "accepted" | "accepte" => "accepte",
             "refused" | "refuse" => "refuse",
             "expired" | "expire" => "expire",
+            "cancelled" | "canceled" | "annule" | "annulee" => "annulee",
             _ => {
                 return Err(AppError::Validation(
-                    "status doit être accepted, refused ou expired.".into(),
+                    "status doit être accepted, refused, expired ou cancelled.".into(),
                 ))
             }
         };
@@ -3871,10 +3943,15 @@ impl LocalStore {
             transaction.commit()?;
             return Ok(previous);
         }
-        if current != "emis" {
+        let transition_allowed =
+            current == "emis" || (current == "accepte" && normalized == "annulee");
+        if !transition_allowed {
             return Err(AppError::Validation(format!(
                 "Transition de statut interdite depuis {current}."
             )));
+        }
+        if normalized == "annulee" {
+            ensure_quote_has_no_downstream_document(&transaction, id)?;
         }
         transaction.execute(
             "UPDATE quotes SET status=?,updated_at=? WHERE id=?",
@@ -3890,6 +3967,152 @@ impl LocalStore {
         )?;
         transaction.commit()?;
         Ok(record)
+    }
+
+    /// Prépare une version modifiable d'un devis déjà émis sans réécrire le
+    /// document historique. L'ancienne version reste numérotée, avec son
+    /// snapshot et sa chaîne d'audit; si une commande ou facture en dépend,
+    /// son statut reste inchangé. La nouvelle version repart en brouillon et
+    /// recevra un nouveau numéro à sa prochaine émission.
+    pub fn create_quote_revision(&self, id: &str) -> AppResult<Value> {
+        if id.trim().is_empty() {
+            return Err(AppError::Validation("id est obligatoire.".into()));
+        }
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let source = query_record_tx(&transaction, "quotes", id)?;
+        if source
+            .get("number")
+            .and_then(Value::as_str)
+            .is_none_or(|number| number.trim().is_empty())
+        {
+            return Err(AppError::Validation(
+                "Ce devis est encore un brouillon et peut être modifié directement.".into(),
+            ));
+        }
+        let has_downstream_document = quote_downstream_document(&transaction, id)?.is_some();
+
+        let status = source.get("status").and_then(Value::as_str).unwrap_or("");
+        if !matches!(status, "emis" | "accepte" | "refuse" | "expire" | "annulee") {
+            return Err(AppError::Validation(format!(
+                "Le devis ne peut pas être révisé depuis le statut {status}."
+            )));
+        }
+        let line_count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM quote_items WHERE quote_id=?",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if line_count == 0 {
+            return Err(AppError::Validation(
+                "Le devis à réviser ne contient aucune ligne.".into(),
+            ));
+        }
+
+        let revision_id = Uuid::new_v4().to_string();
+        let now = now_iso();
+        transaction.execute(
+            "INSERT INTO quotes(
+               id,client_id,project_id,number,title,status,issue_date,valid_until,currency,
+               subtotal_cents,discount_cents,vat_cents,total_cents,notes,terms,snapshot_json,
+               created_at,updated_at
+             )
+             SELECT ?,client_id,project_id,NULL,title,'brouillon',issue_date,valid_until,currency,
+                    0,0,0,0,notes,terms,NULL,?,?
+               FROM quotes WHERE id=?",
+            params![revision_id, now, now, id],
+        )?;
+        let source_lines = {
+            let mut statement = transaction.prepare(
+                "SELECT catalog_item_id,position,description,quantity,unit,unit_price_cents,
+                        discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents
+                   FROM quote_items WHERE quote_id=? ORDER BY position,rowid",
+            )?;
+            let rows = statement
+                .query_map(params![id], |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, f64>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, i64>(5)?,
+                        row.get::<_, i64>(6)?,
+                        row.get::<_, i64>(7)?,
+                        row.get::<_, i64>(8)?,
+                        row.get::<_, i64>(9)?,
+                        row.get::<_, i64>(10)?,
+                    ))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            rows
+        };
+        for line in source_lines {
+            transaction.execute(
+                "INSERT INTO quote_items(
+                   id,quote_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,
+                   discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at
+                 ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                params![
+                    Uuid::new_v4().to_string(),
+                    revision_id,
+                    line.0,
+                    line.1,
+                    line.2,
+                    line.3,
+                    line.4,
+                    line.5,
+                    line.6,
+                    line.7,
+                    line.8,
+                    line.9,
+                    line.10,
+                    now,
+                    now
+                ],
+            )?;
+        }
+        recompute_quote(&transaction, &revision_id)?;
+
+        if status != "annulee" && !has_downstream_document {
+            transaction.execute(
+                "UPDATE quotes SET status='annulee',updated_at=? WHERE id=?",
+                params![now_iso(), id],
+            )?;
+        }
+        let revision = query_record_tx(&transaction, "quotes", &revision_id)?;
+        let items = query_all(
+            &transaction,
+            "SELECT * FROM quote_items WHERE quote_id=? ORDER BY position,rowid",
+            params![revision_id],
+        )?;
+        append_audit(
+            &transaction,
+            "revise",
+            "quote",
+            id,
+            &json!({
+                "source_number":source.get("number"),
+                "source_status":status,
+                "revision_quote_id":revision_id,
+                "source_preserved":true,
+                "source_status_preserved":has_downstream_document
+            }),
+        )?;
+        append_audit(
+            &transaction,
+            "create_revision",
+            "quote",
+            &revision_id,
+            &json!({"source_quote_id":id,"document":revision,"items":items}),
+        )?;
+        transaction.commit()?;
+        Ok(json!({
+            "source":source,
+            "revision":revision,
+            "items":items
+        }))
     }
 
     pub fn convert_quote_to_invoice(&self, input: ConvertQuoteInput) -> AppResult<Value> {
@@ -4397,6 +4620,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "original_invoice_id",
                 "title",
                 "type",
+                "deposit_percentage_bp",
+                "deposit_basis_json",
                 "status",
                 "issue_date",
                 "due_date",
@@ -4583,6 +4808,46 @@ fn ensure_record_mutable(
     Ok(())
 }
 
+fn ensure_quote_has_no_downstream_document(
+    transaction: &Transaction<'_>,
+    quote_id: &str,
+) -> AppResult<()> {
+    let Some((document_kind, document_id)) = quote_downstream_document(transaction, quote_id)?
+    else {
+        return Ok(());
+    };
+    Err(AppError::Validation(format!(
+        "Ce devis est déjà lié à {document_kind} {document_id}. Annulez ou corrigez d'abord le document en aval afin de préserver la traçabilité."
+    )))
+}
+
+fn quote_downstream_document(
+    transaction: &Transaction<'_>,
+    quote_id: &str,
+) -> AppResult<Option<(&'static str, String)>> {
+    let invoice_id: Option<String> = transaction
+        .query_row(
+            "SELECT invoice_id FROM quote_conversions WHERE quote_id=?",
+            params![quote_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(invoice_id) = invoice_id {
+        return Ok(Some(("la facture", invoice_id)));
+    }
+    let order_id: Option<String> = transaction
+        .query_row(
+            "SELECT id FROM sales_orders WHERE quote_id=? ORDER BY created_at LIMIT 1",
+            params![quote_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(order_id) = order_id {
+        return Ok(Some(("la commande", order_id)));
+    }
+    Ok(None)
+}
+
 fn ensure_project_empty_before_delete(
     transaction: &Transaction<'_>,
     project_id: &str,
@@ -4764,6 +5029,263 @@ fn strip_readonly_fields(entity: &str, object: &mut Map<String, Value>) {
     }
 }
 
+fn validate_invoice_deposit_percentage(
+    object: &Map<String, Value>,
+    require_deposit_basis: bool,
+) -> AppResult<()> {
+    let invoice_type = object
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("standard");
+    let percentage = object.get("deposit_percentage_bp");
+
+    if invoice_type == "acompte" {
+        if percentage
+            .and_then(Value::as_i64)
+            .is_some_and(|value| (1..=10_000).contains(&value))
+        {
+            validate_deposit_basis_json(object.get("deposit_basis_json"))?;
+            if require_deposit_basis
+                && parsed_deposit_basis(object.get("deposit_basis_json"))?.is_none()
+            {
+                return Err(AppError::Validation(
+                    "Une nouvelle facture d'acompte exige une base détaillée non vide.".into(),
+                ));
+            }
+            return Ok(());
+        }
+        return Err(AppError::Validation(
+            "Une facture d'acompte exige deposit_percentage_bp entre 1 et 10000 (0,01 % à 100 %)."
+                .into(),
+        ));
+    }
+
+    if percentage.is_some_and(|value| !value.is_null()) {
+        return Err(AppError::Validation(
+            "deposit_percentage_bp doit être null pour une facture qui n'est pas un acompte."
+                .into(),
+        ));
+    }
+    if object
+        .get("deposit_basis_json")
+        .is_some_and(|value| !value.is_null())
+    {
+        return Err(AppError::Validation(
+            "deposit_basis_json doit être null pour une facture qui n'est pas un acompte.".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn parsed_deposit_basis(value: Option<&Value>) -> AppResult<Option<Vec<Map<String, Value>>>> {
+    let parsed = match value {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::Array(lines)) => Value::Array(lines.clone()),
+        Some(Value::String(serialized)) => serde_json::from_str(serialized).map_err(|_| {
+            AppError::Validation("deposit_basis_json doit contenir un tableau JSON valide.".into())
+        })?,
+        Some(_) => {
+            return Err(AppError::Validation(
+                "deposit_basis_json doit contenir un tableau JSON valide.".into(),
+            ))
+        }
+    };
+    let lines = parsed.as_array().ok_or_else(|| {
+        AppError::Validation("deposit_basis_json doit contenir un tableau JSON valide.".into())
+    })?;
+    if lines.is_empty() {
+        return Err(AppError::Validation(
+            "La base détaillée de l'acompte ne peut pas être vide.".into(),
+        ));
+    }
+    if lines.len() > 5_000 {
+        return Err(AppError::Validation(
+            "La base détaillée de l'acompte dépasse 5000 lignes.".into(),
+        ));
+    }
+    lines
+        .iter()
+        .enumerate()
+        .map(|(index, line)| {
+            line.as_object().cloned().ok_or_else(|| {
+                AppError::Validation(format!(
+                    "La ligne {} de la base d'acompte doit être un objet.",
+                    index + 1
+                ))
+            })
+        })
+        .collect::<AppResult<Vec<_>>>()
+        .map(Some)
+}
+
+fn validate_deposit_basis_json(value: Option<&Value>) -> AppResult<()> {
+    let Some(lines) = parsed_deposit_basis(value)? else {
+        // Compatibilité : les acomptes historiques ne possédaient pas cette
+        // base séparée. Ils restent lisibles et peuvent être migrés au prochain
+        // enregistrement depuis l'éditeur.
+        return Ok(());
+    };
+    const ALLOWED: &[&str] = &[
+        "id",
+        "catalog_item_id",
+        "description",
+        "quantity",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+    ];
+    for (index, line) in lines.iter().enumerate() {
+        validate_keys(line, ALLOWED)?;
+        let row = index + 1;
+        required_text(
+            line.get("description")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            &format!("deposit_basis_json[{row}].description"),
+            10_000,
+        )?;
+        required_text(
+            line.get("unit").and_then(Value::as_str).unwrap_or_default(),
+            &format!("deposit_basis_json[{row}].unit"),
+            80,
+        )?;
+        if line
+            .get("id")
+            .is_some_and(|id| !id.is_null() && id.as_str().is_none_or(str::is_empty))
+        {
+            return Err(AppError::Validation(format!(
+                "deposit_basis_json[{row}].id doit être un texte non vide ou null."
+            )));
+        }
+        if line.get("catalog_item_id").is_some_and(|catalog_id| {
+            !catalog_id.is_null()
+                && catalog_id
+                    .as_str()
+                    .is_none_or(|identifier| identifier.trim().is_empty())
+        }) {
+            return Err(AppError::Validation(format!(
+                "deposit_basis_json[{row}].catalog_item_id doit être un texte non vide ou null."
+            )));
+        }
+        let quantity = line.get("quantity").and_then(Value::as_f64).unwrap_or(0.0);
+        if !quantity.is_finite() || quantity <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "deposit_basis_json[{row}].quantity doit être strictement positive."
+            )));
+        }
+        let unit_price = line
+            .get("unit_price_cents")
+            .and_then(Value::as_i64)
+            .unwrap_or(-1);
+        if !(0..=9_000_000_000_000_000).contains(&unit_price) {
+            return Err(AppError::Validation(format!(
+                "deposit_basis_json[{row}].unit_price_cents est hors de la plage monétaire sûre."
+            )));
+        }
+        for field in ["discount_bp", "vat_bp"] {
+            if !line
+                .get(field)
+                .and_then(Value::as_i64)
+                .is_some_and(|basis_points| (0..=10_000).contains(&basis_points))
+            {
+                return Err(AppError::Validation(format!(
+                    "deposit_basis_json[{row}].{field} doit être un entier entre 0 et 10000."
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_deposit_basis_matches_items(
+    transaction: &Transaction<'_>,
+    invoice_id: &str,
+) -> AppResult<()> {
+    let (invoice_type, percentage_bp, serialized_basis): (String, Option<i64>, Option<String>) =
+        transaction
+            .query_row(
+                "SELECT type,deposit_percentage_bp,deposit_basis_json FROM invoices WHERE id=?",
+                params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("invoices/{invoice_id}")))?;
+    if invoice_type != "acompte" {
+        return Ok(());
+    }
+    let Some(serialized_basis) = serialized_basis else {
+        return Ok(());
+    };
+    let percentage_bp = percentage_bp.ok_or_else(|| {
+        AppError::Validation("Le pourcentage de la facture d'acompte est manquant.".into())
+    })?;
+    let basis_value = Value::String(serialized_basis);
+    let basis_lines = parsed_deposit_basis(Some(&basis_value))?.ok_or_else(|| {
+        AppError::Validation("La base détaillée de la facture d'acompte est manquante.".into())
+    })?;
+    let actual_lines = {
+        let mut statement = transaction.prepare(
+            "SELECT catalog_item_id,quantity,unit,unit_price_cents,discount_bp,vat_bp
+               FROM invoice_items WHERE invoice_id=? ORDER BY position,rowid",
+        )?;
+        let rows = statement
+            .query_map(params![invoice_id], |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, f64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    if basis_lines.len() != actual_lines.len() {
+        return Err(AppError::Validation(
+            "Les lignes facturées ne correspondent pas à la base détaillée de l'acompte.".into(),
+        ));
+    }
+    for (index, (basis, actual)) in basis_lines.iter().zip(actual_lines).enumerate() {
+        let quantity = basis.get("quantity").and_then(Value::as_f64).unwrap_or(0.0);
+        let unit_price = basis
+            .get("unit_price_cents")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let discount_bp = basis
+            .get("discount_bp")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let vat_bp = basis.get("vat_bp").and_then(Value::as_i64).unwrap_or(0);
+        let raw_subtotal = quantity * unit_price as f64;
+        if !raw_subtotal.is_finite() || raw_subtotal.abs() > 9_000_000_000_000_000_f64 {
+            return Err(AppError::Validation(format!(
+                "La ligne {} de la base d'acompte dépasse la plage monétaire sûre.",
+                index + 1
+            )));
+        }
+        let base_subtotal = raw_subtotal.round() as i64;
+        let base_discount = round_basis_points(base_subtotal, discount_bp);
+        let expected_amount = round_basis_points(base_subtotal - base_discount, percentage_bp);
+        let (catalog_item_id, actual_quantity, unit, amount, actual_discount, actual_vat) = actual;
+        if catalog_item_id.is_some()
+            || (actual_quantity - 1.0).abs() > f64::EPSILON
+            || unit != "acompte"
+            || amount != expected_amount
+            || actual_discount != 0
+            || actual_vat != vat_bp
+        {
+            return Err(AppError::Validation(format!(
+                "La ligne {} facturée ne correspond pas au pourcentage et à la base détaillée de l'acompte.",
+                index + 1
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn normalize_record(
     entity: &str,
     object: &mut Map<String, Value>,
@@ -4802,6 +5324,7 @@ fn normalize_record(
                 };
                 *invoice_type = Value::String(normalized.into());
             }
+            validate_invoice_deposit_percentage(object, creating)?;
         }
         "expenses" => normalize_expense(object)?,
         "employees" => {
@@ -5574,6 +6097,21 @@ fn normalize_record_patch(
         }
     }
     normalize_record(entity, &mut merged, false)?;
+    if entity == "invoices"
+        && merged.get("type").and_then(Value::as_str) == Some("acompte")
+        && parsed_deposit_basis(merged.get("deposit_basis_json"))?.is_none()
+    {
+        let previous_was_legacy_deposit =
+            matches!(
+                previous.get("type").and_then(Value::as_str),
+                Some("acompte" | "deposit")
+            ) && parsed_deposit_basis(previous.get("deposit_basis_json"))?.is_none();
+        if !previous_was_legacy_deposit {
+            return Err(AppError::Validation(
+                "Une facture d'acompte exige une base détaillée non vide.".into(),
+            ));
+        }
+    }
 
     for field in supplied_fields {
         if let Some(value) = merged.get(&field) {
@@ -9153,6 +9691,8 @@ mod v34_small_salary_migration_tests {
             backups_dir,
             exports_dir,
             installation_id: "v33-fixture".into(),
+            account_protected_cache: AccountProtectedCache::default(),
+            license_protected_cache: LicenseProtectedCache::default(),
             operation_lock: Arc::new(Mutex::new(())),
         };
         let connection = Connection::open(&store.database_path).unwrap();
@@ -10272,6 +10812,245 @@ mod v37_supplier_email_provenance_migration_tests {
             .execute(
                 "DELETE FROM supplier_email_invoice_imports
                  WHERE supplier_invoice_id='invoice-sealed'",
+                [],
+            )
+            .is_err());
+    }
+}
+
+#[cfg(test)]
+mod v40_invoice_deposit_migration_tests {
+    use super::*;
+
+    #[test]
+    fn deposit_percentage_is_required_only_for_deposit_invoices() {
+        let mut missing = json!({"title":"Acompte","type":"deposit"})
+            .as_object()
+            .unwrap()
+            .clone();
+        let error = normalize_record("invoices", &mut missing, true).unwrap_err();
+        assert!(error.to_string().contains("deposit_percentage_bp"));
+
+        let mut valid = json!({
+            "title":"Acompte",
+            "type":"deposit",
+            "deposit_percentage_bp":3_000,
+            "deposit_basis_json":[{
+                "id":"base-1",
+                "catalog_item_id":null,
+                "description":"Mandat détaillé",
+                "quantity":2,
+                "unit":"heure",
+                "unit_price_cents":5_000,
+                "discount_bp":0,
+                "vat_bp":810
+            }]
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        normalize_record("invoices", &mut valid, true).unwrap();
+        assert_eq!(valid["type"], "acompte");
+        assert_eq!(valid["deposit_percentage_bp"], 3_000);
+
+        let mut missing_basis = json!({
+            "title":"Nouvel acompte sans base",
+            "type":"deposit",
+            "deposit_percentage_bp":3_000
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        assert!(normalize_record("invoices", &mut missing_basis, true)
+            .unwrap_err()
+            .to_string()
+            .contains("base détaillée"));
+
+        let mut legacy = json!({
+            "title":"Acompte historique",
+            "type":"acompte",
+            "deposit_percentage_bp":3_000,
+            "deposit_basis_json":null
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        normalize_record("invoices", &mut legacy, false).unwrap();
+
+        for invalid in [json!(0), json!(10_001), json!(30.5), Value::Null] {
+            let mut record = json!({
+                "title":"Acompte",
+                "type":"acompte",
+                "deposit_percentage_bp":invalid
+            })
+            .as_object()
+            .unwrap()
+            .clone();
+            assert!(normalize_record("invoices", &mut record, true).is_err());
+        }
+
+        let mut standard = json!({
+            "title":"Facture",
+            "type":"standard",
+            "deposit_percentage_bp":3_000
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        assert!(normalize_record("invoices", &mut standard, true)
+            .unwrap_err()
+            .to_string()
+            .contains("doit être null"));
+    }
+
+    #[test]
+    fn migration_v40_is_idempotent_preserves_invoices_and_seals_the_new_financial_field() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE invoices (
+                   id TEXT PRIMARY KEY,
+                   client_id TEXT,
+                   project_id TEXT,
+                   quote_id TEXT,
+                   original_invoice_id TEXT,
+                   number TEXT,
+                   title TEXT NOT NULL,
+                   type TEXT NOT NULL DEFAULT 'standard',
+                   status TEXT NOT NULL DEFAULT 'brouillon',
+                   issue_date TEXT,
+                   due_date TEXT,
+                   service_date_from TEXT,
+                   service_date_to TEXT,
+                   currency TEXT NOT NULL DEFAULT 'CHF',
+                   subtotal_cents INTEGER NOT NULL DEFAULT 0,
+                   discount_cents INTEGER NOT NULL DEFAULT 0,
+                   vat_cents INTEGER NOT NULL DEFAULT 0,
+                   total_cents INTEGER NOT NULL DEFAULT 0,
+                   paid_cents INTEGER NOT NULL DEFAULT 0,
+                   notes TEXT,
+                   terms TEXT,
+                   snapshot_json TEXT,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL
+                 );
+                 CREATE TABLE sales_order_invoice_batches(invoice_id TEXT);
+                 INSERT INTO invoices(
+                   id,number,title,type,status,issue_date,total_cents,created_at,updated_at
+                 ) VALUES(
+                   'invoice-issued','F-2026-0001','Facture historique','standard','emise',
+                   '2026-09-01',10000,'2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'
+                 );
+                 INSERT INTO invoices(
+                   id,title,type,status,created_at,updated_at
+                 ) VALUES(
+                   'invoice-legacy-deposit','Acompte historique','acompte','brouillon',
+                   '2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'
+                 );
+                 PRAGMA user_version=39;",
+            )
+            .unwrap();
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        migrate_v40(&transaction).unwrap();
+        transaction.commit().unwrap();
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        migrate_v40(&transaction).unwrap();
+        transaction.commit().unwrap();
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            40
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT title FROM invoices WHERE id='invoice-issued'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "Facture historique"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT deposit_percentage_bp FROM invoices WHERE id='invoice-legacy-deposit'",
+                    [],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+                .unwrap(),
+            None,
+            "la migration ne doit pas inventer un pourcentage historique"
+        );
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET deposit_percentage_bp=3000 WHERE id='invoice-issued'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET deposit_percentage_bp=10001 WHERE id='invoice-legacy-deposit'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET deposit_percentage_bp=30.5 WHERE id='invoice-legacy-deposit'",
+                [],
+            )
+            .is_err());
+
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        migrate_v41(&transaction).unwrap();
+        transaction.commit().unwrap();
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        migrate_v41(&transaction).unwrap();
+        transaction.commit().unwrap();
+
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            41
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT deposit_basis_json FROM invoices WHERE id='invoice-legacy-deposit'",
+                    [],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .unwrap(),
+            None,
+            "la migration ne doit pas inventer la base d'un acompte historique"
+        );
+        let detailed_basis = r#"[{"id":"base-1","catalog_item_id":null,"description":"Mandat","quantity":2,"unit":"heure","unit_price_cents":5000,"discount_bp":0,"vat_bp":810}]"#;
+        connection
+            .execute(
+                "UPDATE invoices SET deposit_basis_json=? WHERE id='invoice-legacy-deposit'",
+                params![detailed_basis],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET deposit_basis_json='{}' WHERE id='invoice-legacy-deposit'",
+                [],
+            )
+            .is_err());
+        assert!(connection
+            .execute(
+                "UPDATE invoices SET deposit_basis_json='[]' WHERE id='invoice-issued'",
                 [],
             )
             .is_err());

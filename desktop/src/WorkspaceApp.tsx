@@ -224,6 +224,11 @@ import {
   availabilityForCatalogItem,
   quoteRequiresSalesOrder,
 } from './orderFlow';
+import {
+  invoiceCorrectionWorkflowFor,
+  invoiceModificationAction,
+  reserveDocumentAction,
+} from './documentUi';
 
 const PayrollImportWizard = lazy(() =>
   import('./PayrollImportWizard').then((module) => ({
@@ -415,6 +420,7 @@ export function WorkspaceApp({
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
+  const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
   const sidebarHidden = compactSidebarHidden(compactNavigation, menuOpen);
   const readOnlyMutationMessage = readOnlySource === 'cloud'
@@ -840,6 +846,39 @@ export function WorkspaceApp({
       setView('invoices');
       setSearch('');
       setMenuOpen(false);
+    }
+  }
+
+  async function reviseQuote(item: Quote) {
+    if (
+      actionInFlight.current ||
+      !reserveDocumentAction(quoteRevisionInFlight.current, item.id)
+    )
+      return;
+    try {
+      if (
+        !window.confirm(
+          `Créer une version modifiable de « ${item.number || item.title} » ? Le devis émis restera conservé dans l’historique et les documents déjà créés ne seront jamais réécrits.`,
+        )
+      )
+        return;
+      let revision: Quote | null = null;
+      const revised = await act(
+        async () => {
+          const result = await desktopApi.createQuoteRevision(item.id);
+          revision = result.workspace.quotes.find(
+            (candidate) => candidate.id === result.revisionId,
+          ) ?? null;
+          return result.workspace;
+        },
+        `Le devis ${item.number || item.title} est conservé dans l’historique. Sa nouvelle version est prête à être modifiée.`,
+        false,
+      );
+      if (revised && revision) {
+        setModal({ type: 'document', entity: 'quotes', item: revision });
+      }
+    } finally {
+      quoteRevisionInFlight.current.delete(item.id);
     }
   }
 
@@ -1554,10 +1593,12 @@ export function WorkspaceApp({
           {view === 'catalog' ? (
             <CatalogScreen
               items={workspace.catalogItems}
+              vatRatesBp={workspace.settings!.billing.vatRatesBp}
               movements={workspace.stockMovements}
               reservationEvents={workspace.stockReservationEvents}
               availabilityRows={workspace.stockAvailability}
               query={search}
+              busy={busy}
               readOnly={readOnly}
               onQueryChange={setSearch}
               onCreate={() => setModal({ type: 'catalogItem' })}
@@ -1577,6 +1618,13 @@ export function WorkspaceApp({
               }
               onArchive={(item) => void archiveCatalogItem(item)}
               onRestore={(item) => void restoreCatalogItem(item)}
+              onImport={(rows, conflictPolicy) =>
+                act(
+                  () => desktopApi.importCatalogItems(rows, conflictPolicy),
+                  `Catalogue importé : ${rows.length} référence${rows.length > 1 ? 's contrôlées' : ' contrôlée'}.`,
+                  false,
+                )
+              }
             />
           ) : null}
           {view === 'quotes' ? (
@@ -1588,6 +1636,7 @@ export function WorkspaceApp({
               onEdit={(item) =>
                 setModal({ type: 'document', entity: 'quotes', item })
               }
+              onRevise={(item) => void reviseQuote(item)}
               onCreate={() => setModal({ type: 'document', entity: 'quotes' })}
               onIssue={(item) =>
                 void act(
@@ -1602,17 +1651,26 @@ export function WorkspaceApp({
                   false,
                 )
               }
-              onStatus={(item, status) =>
+              onStatus={(item, status) => {
+                if (
+                  status === 'cancelled' &&
+                  !window.confirm(
+                    `Annuler l’acceptation de « ${item.number || item.title} » ? Le devis restera dans l’historique.`,
+                  )
+                )
+                  return;
                 void act(
                   () => desktopApi.updateQuoteStatus(item.id, status),
                   status === 'accepted'
                     ? 'Le devis a été marqué accepté. Un produit passera par une commande et une livraison; un service peut être facturé directement.'
                     : status === 'refused'
                       ? 'Le devis a été marqué refusé.'
-                      : 'Le devis a été marqué expiré.',
+                      : status === 'expired'
+                        ? 'Le devis a été marqué expiré.'
+                        : 'L’acceptation a été annulée. Le devis reste conservé dans l’historique.',
                   false,
-                )
-              }
+                );
+              }}
               onConvert={(item) => void convertAcceptedQuote(item)}
               onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
               onPrint={(item) =>
@@ -2943,8 +3001,9 @@ type DocumentsProps =
       onIssue: (item: Quote) => void;
       onStatus: (
         item: Quote,
-        status: 'accepted' | 'refused' | 'expired',
+        status: 'accepted' | 'refused' | 'expired' | 'cancelled',
       ) => void;
+      onRevise: (item: Quote) => void;
       onConvert: (item: Quote) => void;
       onCreateOrder: (item: Quote) => void;
       onPrint: (item: Quote) => void;
@@ -2970,6 +3029,7 @@ type DocumentsProps =
       onArchiveCloud: (item: Invoice) => void;
       onConvert?: never;
       onStatus?: never;
+      onRevise?: never;
     };
 
 type LooseDocumentsProps = {
@@ -3004,25 +3064,13 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     ),
   );
   if (!documents.length) {
-    const hasClients = workspace.clients.some((client) => !client.archivedAt);
     return (
       <EmptyState
         icon={entity === 'quotes' ? <FileCheck2 /> : <Receipt />}
         title={entity === 'quotes' ? 'Aucun devis' : 'Aucune facture'}
-        text={
-          hasClients
-            ? `Créez ${entity === 'quotes' ? 'un devis' : 'une facture'} avec vos propres lignes et montants.`
-            : 'Ajoutez d’abord un client pour créer un document.'
-        }
-        actionLabel={
-          hasClients
-            ? entity === 'quotes'
-              ? 'Créer un devis'
-              : 'Créer une facture'
-            : 'Ajoutez d’abord un client'
-        }
+        text={`Créez ${entity === 'quotes' ? 'un devis' : 'une facture'} avec vos propres lignes et montants. Vous pourrez ajouter le client directement pendant la saisie.`}
+        actionLabel={entity === 'quotes' ? 'Créer un devis' : 'Créer une facture'}
         onAction={onCreate}
-        disabled={!hasClients}
       />
     );
   }
@@ -3096,14 +3144,21 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => props.onEdit(quote)}
+                        disabled={busy}
+                        onClick={() =>
+                          quote.status === 'draft'
+                            ? props.onEdit(quote)
+                            : props.onRevise(quote)
+                        }
                         title={
-                          quote.status === 'draft' ? 'Modifier' : 'Consulter'
+                          quote.status === 'draft'
+                            ? 'Modifier'
+                            : 'Créer une version modifiable'
                         }
                         aria-label={
                           quote.status === 'draft'
                             ? `Modifier le devis ${quote.number || quote.title}`
-                            : `Consulter le devis ${quote.number || quote.title}`
+                            : `Créer une version modifiable du devis ${quote.number || quote.title}`
                         }
                       >
                         <Pencil size={15} />
@@ -3168,7 +3223,18 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       {quote.status === 'accepted' &&
                       !converted &&
                       !convertedOrder ? (
-                        requiresOrder ? (
+                        <>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          className="quote-convert-button"
+                          disabled={busy}
+                          onClick={() => props.onStatus(quote, 'cancelled')}
+                          title="Annuler l’acceptation sans supprimer le devis"
+                        >
+                          <X size={15} /> Annuler l’acceptation
+                        </Button>
+                        {requiresOrder ? (
                           <Button
                             variant="secondary"
                             size="small"
@@ -3202,7 +3268,8 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                               <CalendarDays size={15} /> Planifier
                             </Button>
                           </>
-                        )
+                        )}
+                        </>
                       ) : null}
                       {quote.status !== 'draft' ? (
                         <Button
@@ -3266,10 +3333,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
             const linkedOrderDraftBatch =
               item.status === 'draft' ? linkedOrderBatch : undefined;
             const correctionWorkflow = invoice
-              ? workspace.invoiceCorrectionWorkflows.find(
-                  (workflow) =>
-                    workflow.creditNoteId === invoice.id ||
-                    workflow.replacementInvoiceId === invoice.id,
+              ? invoiceCorrectionWorkflowFor(
+                  invoice.id,
+                  workspace.invoiceCorrectionWorkflows,
                 )
               : undefined;
             const correctionCredit = correctionWorkflow
@@ -3290,6 +3356,16 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                 !correctionCredit.number &&
                 correctionReplacement?.status === 'draft' &&
                 !correctionReplacement.number,
+            );
+            const modificationAction = invoice
+              ? invoiceModificationAction(
+                  invoice,
+                  correctionWorkflow,
+                  workspace.invoices,
+                )
+              : null;
+            const modificationUsesReplacement = Boolean(
+              modificationAction && modificationAction.invoice.id !== item.id,
             );
             return (
               <tr key={item.id}>
@@ -3322,6 +3398,10 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       ? `Valable au ${formatDate((item as Quote).validUntil)}`
                       : invoice?.type === 'credit_note'
                         ? 'Avoir sans encaissement'
+                        : invoice?.type === 'deposit'
+                          ? invoice.depositPercentageBp
+                            ? `Acompte ${(invoice.depositPercentageBp / 100).toLocaleString('fr-CH')} % · échéance ${formatDate(invoice.dueDate)}`
+                            : `Facture d’acompte · échéance ${formatDate(invoice.dueDate)}`
                         : `Échéance ${formatDate(invoice?.dueDate ?? '')}`}
                   </small>
                 </td>
@@ -3417,10 +3497,33 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         variant="secondary"
                         size="small"
                         disabled={busy}
-                        onClick={() => props.onCorrect(item as Invoice)}
-                        title="Corriger sans réécrire l’original"
+                        onClick={() => {
+                          if (!modificationAction) return;
+                          if (
+                            modificationAction.kind === 'edit' ||
+                            modificationAction.kind === 'view'
+                          ) {
+                            props.onEdit(modificationAction.invoice);
+                          } else {
+                            props.onCorrect(modificationAction.invoice);
+                          }
+                        }}
+                        title={
+                          modificationUsesReplacement
+                            ? modificationAction?.kind === 'view'
+                              ? 'Consulter la facture de remplacement annulée'
+                              : 'Continuer depuis la facture de remplacement existante'
+                            : 'Modifier avec une trace comptable sans réécrire l’original'
+                        }
                       >
-                        <Pencil size={14} /> Corriger
+                        <Pencil size={14} />
+                        {modificationUsesReplacement
+                          ? modificationAction?.kind === 'edit'
+                            ? 'Ouvrir la version modifiable'
+                            : modificationAction?.kind === 'view'
+                              ? 'Voir la version annulée'
+                              : 'Modifier la version récente'
+                          : 'Modifier'}
                       </Button>
                     ) : null}
                     {entity === 'invoices' &&
@@ -5534,8 +5637,8 @@ function InvoiceCorrectionModal({
   const [localError, setLocalError] = useState('');
   return (
     <Modal
-      title={`Corriger ${invoice.number || 'la facture'}`}
-      description="L’original reste intact. Zentra prépare les deux documents qui tracent la correction."
+      title={`Modifier ${invoice.number || 'la facture'}`}
+      description="Même payée, la facture peut être modifiée. Zentra conserve l’original et prépare automatiquement la trace de correction."
       onClose={close}
     >
       <form
@@ -5558,7 +5661,7 @@ function InvoiceCorrectionModal({
               replacementInvoiceId = result.replacementInvoiceId;
               return result.workspace;
             },
-            'La correction est prête : modifiez la facture de remplacement, puis émettez d’abord l’avoir et ensuite la nouvelle facture.',
+            'La version modifiable est prête. Corrigez-la, puis émettez d’abord l’avoir et ensuite la nouvelle facture.',
             false,
           );
           if (!created || !nextWorkspace || !replacementInvoiceId) return;
@@ -5628,7 +5731,7 @@ function InvoiceCorrectionModal({
         <FormActions
           onCancel={close}
           busy={busy}
-          submitLabel="Préparer la correction"
+          submitLabel="Créer la version modifiable"
         />
       </form>
     </Modal>
@@ -8345,7 +8448,7 @@ function PrintSheet({
   const settings = settingsForSnapshot(
     workspace.settings!,
     source.snapshot?.issuer,
-    source.snapshot?.document.terms,
+    source.snapshot?.document.terms ?? source.terms,
   );
   const client = clientForSnapshot(
     source.snapshot?.customer,
@@ -8853,7 +8956,7 @@ function InvoicePrintSheet({
   const settings = settingsForSnapshot(
     workspace.settings!,
     sourceInvoice.snapshot?.issuer,
-    sourceInvoice.snapshot?.document.terms,
+    sourceInvoice.snapshot?.document.terms ?? sourceInvoice.terms,
   );
   const client = clientForSnapshot(
     sourceInvoice.snapshot?.customer,
@@ -8898,7 +9001,13 @@ function InvoicePrintSheet({
         <div className="print-invoice-body">
           <PrintHeader
             settings={settings}
-            title={invoice.type === 'credit_note' ? 'AVOIR' : 'FACTURE'}
+            title={
+              invoice.type === 'credit_note'
+                ? 'AVOIR'
+                : invoice.type === 'deposit'
+                  ? 'FACTURE D’ACOMPTE'
+                  : 'FACTURE'
+            }
             number={invoice.number}
           />
           <div className="print-meta">
@@ -8921,6 +9030,14 @@ function InvoicePrintSheet({
                 <strong>{original?.number || '—'}</strong>
               </div>
             )}
+            {invoice.type === 'deposit' && invoice.depositPercentageBp ? (
+              <div>
+                <span>Acompte</span>
+                <strong>
+                  {(invoice.depositPercentageBp / 100).toLocaleString('fr-CH')} %
+                </strong>
+              </div>
+            ) : null}
           </div>
           <section className="print-recipient">
             <span>DESTINATAIRE</span>
@@ -9001,6 +9118,10 @@ function InvoicePrintSheet({
               <span>
                 {invoice.type === 'credit_note'
                   ? 'Total de l’avoir'
+                  : invoice.type === 'deposit'
+                    ? invoice.depositPercentageBp
+                      ? `Acompte ${(invoice.depositPercentageBp / 100).toLocaleString('fr-CH')} % · total TTC`
+                      : 'Acompte · total TTC'
                   : 'Total TTC'}
               </span>
               <strong>{formatMoney(totals.totalCents)}</strong>

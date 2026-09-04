@@ -5,6 +5,7 @@ use tauri::{AppHandle, State};
 
 use crate::{
     attachments::AddSupplierInvoiceAttachmentInput,
+    catalog_import::ImportCatalogItemsInput,
     database::{LocalStore, OnboardingValidationScope},
     error::command_error,
     models::{
@@ -234,6 +235,16 @@ pub fn delete_record(
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state.delete_record(&entity, &id).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn import_catalog_items(
+    state: State<'_, LocalStore>,
+    input: ImportCatalogItemsInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.import_catalog_items(input).map_err(command_error)
 }
 
 #[tauri::command]
@@ -615,6 +626,14 @@ pub fn update_quote_status(
         .update_quote_status(&id, &status)
         .map_err(command_error)
 }
+
+#[tauri::command]
+pub fn create_quote_revision(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.create_quote_revision(&id).map_err(command_error)
+}
+
 #[tauri::command]
 pub fn convert_quote_to_invoice(
     state: State<'_, LocalStore>,

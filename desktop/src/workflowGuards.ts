@@ -16,7 +16,6 @@ export function creationBlockReason(view: CreationView, prerequisites: Workspace
   if (view === 'quotes' || view === 'invoices') {
     if (prerequisites.billingSetupDeferred)
       return 'Confirmez d’abord les réglages de facturation dans Paramètres.';
-    if (prerequisites.clients === 0) return 'Ajoutez d’abord un client.';
   }
   if (view === 'time') {
     if (prerequisites.workSetupDeferred)

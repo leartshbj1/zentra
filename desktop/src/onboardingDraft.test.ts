@@ -127,6 +127,23 @@ describe('reprise du brouillon de configuration', () => {
     expect(restored.organization.address.buildingNumber).toBe('14A');
   });
 
+  it('conserve et nettoie les modèles de texte des devis et factures', () => {
+    const restored = settingsFromOnboardingDraft({
+      ...initialOnboardingSettings,
+      billing: {
+        ...initialOnboardingSettings.billing,
+        footerTemplates: [
+          { id: ' conditions-1 ', name: ' Devis standard ', text: ' Paiement à 30 jours. ' },
+          { id: '', name: 'Invalide', text: 'Sans identifiant' },
+        ],
+      },
+    });
+
+    expect(normalizeOnboardingSettings(restored).billing.footerTemplates).toEqual([
+      { id: 'conditions-1', name: 'Devis standard', text: 'Paiement à 30 jours.' },
+    ]);
+  });
+
   it('écarte les chemins de logo injectés ou non gérés dans le brouillon local', () => {
     for (const logoPath of [
       'C:\\Windows\\System32\\secret.png',

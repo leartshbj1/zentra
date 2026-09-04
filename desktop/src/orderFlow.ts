@@ -99,7 +99,7 @@ export function quoteRequiresSalesOrder(
   const byId = new Map(catalogItems.map((item) => [item.id, item]));
   return quote.lines.some((line) => {
     const item = line.catalogItemId ? byId.get(line.catalogItemId) : undefined;
-    return item?.kind === 'product';
+    return item?.kind === 'product' && item.trackStock;
   });
 }
 

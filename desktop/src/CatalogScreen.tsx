@@ -5,6 +5,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   Box,
+  FileSpreadsheet,
   History,
   Package,
   Pencil,
@@ -13,6 +14,11 @@ import {
   ShieldCheck,
   Wrench,
 } from 'lucide-react';
+import {
+  CatalogImportWizard,
+  type CatalogImportConflictPolicy,
+} from './CatalogImportWizard';
+import type { CatalogImportRow } from './catalogImport';
 import { desktopApi } from './bridge';
 import { availabilityForCatalogItem } from './orderFlow';
 import {
@@ -63,10 +69,12 @@ type ActionRunner = (
 
 export function CatalogScreen({
   items,
+  vatRatesBp,
   movements,
   reservationEvents,
   availabilityRows,
   query,
+  busy,
   readOnly,
   onQueryChange,
   onCreate,
@@ -74,12 +82,15 @@ export function CatalogScreen({
   onStockMovement,
   onArchive,
   onRestore,
+  onImport,
 }: {
   items: CatalogItem[];
+  vatRatesBp: number[];
   movements: StockMovement[];
   reservationEvents: StockReservationEvent[];
   availabilityRows: StockAvailability[];
   query: string;
+  busy: boolean;
   readOnly: boolean;
   onQueryChange: (query: string) => void;
   onCreate: () => void;
@@ -87,10 +98,15 @@ export function CatalogScreen({
   onStockMovement: (item: CatalogItem, movementType: StockMovementType) => void;
   onArchive: (item: CatalogItem) => void;
   onRestore: (item: CatalogItem) => void;
+  onImport: (
+    rows: CatalogImportRow[],
+    conflictPolicy: CatalogImportConflictPolicy,
+  ) => Promise<boolean>;
 }) {
   const [kind, setKind] = useState<CatalogKindFilter>('all');
   const [visibility, setVisibility] = useState<CatalogVisibilityFilter>('active');
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const filtered = useMemo(
     () => filterCatalogItems(items, query, kind, visibility),
     [items, query, kind, visibility],
@@ -106,6 +122,7 @@ export function CatalogScreen({
   );
 
   return (
+    <>
     <div className="stack-layout catalog-screen">
       <div className="summary-strip catalog-summary" aria-label="Résumé du catalogue">
         <div>
@@ -128,9 +145,18 @@ export function CatalogScreen({
           title="Produits & services"
           description="Les produits suivis utilisent un registre de mouvements immuable. Les services ne modifient jamais le stock."
           action={
-            <Button onClick={onCreate}>
-              <Plus size={16} /> Nouvelle référence
-            </Button>
+            <div className="catalog-heading-actions">
+              <Button
+                variant="secondary"
+                disabled={readOnly || busy}
+                onClick={() => setImportOpen(true)}
+              >
+                <FileSpreadsheet size={16} /> Importer Excel
+              </Button>
+              <Button onClick={onCreate}>
+                <Plus size={16} /> Nouvelle référence
+              </Button>
+            </div>
           }
         />
         {lowStock.length ? (
@@ -359,6 +385,16 @@ export function CatalogScreen({
         )}
       </section>
     </div>
+    {importOpen ? (
+      <CatalogImportWizard
+        existingItems={items}
+        vatRatesBp={vatRatesBp}
+        busy={busy || readOnly}
+        close={() => setImportOpen(false)}
+        onImport={onImport}
+      />
+    ) : null}
+    </>
   );
 }
 

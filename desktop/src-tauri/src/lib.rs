@@ -10,6 +10,7 @@ mod audit;
 mod backup;
 mod bank_import;
 mod branding;
+mod catalog_import;
 mod commands;
 mod database;
 mod error;
@@ -42,6 +43,20 @@ use database::LocalStore;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
+    // Le cache macOS des secrets déverrouillés suppose une seule instance du
+    // profil. Enregistrer ce garde avant tout autre plugin ferme la course
+    // inter-processus avant même l'initialisation de LocalStore. Un second
+    // lancement restaure et focalise la fenêtre existante afin que le garde ne
+    // ressemble pas à un lancement sans effet.
+    #[cfg(all(desktop, not(test)))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
     #[cfg(not(test))]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
@@ -75,6 +90,7 @@ pub fn run() {
             create_record,
             update_record,
             delete_record,
+            import_catalog_items,
             save_project_milestone,
             delete_project_milestone,
             save_project_task,
@@ -111,6 +127,7 @@ pub fn run() {
             issue_invoice,
             create_invoice_from_time_entries,
             update_quote_status,
+            create_quote_revision,
             convert_quote_to_invoice,
             convert_quote_to_sales_order,
             save_sales_order_draft,
@@ -241,6 +258,9 @@ mod tests {
 
     use crate::{
         attachments::AddSupplierInvoiceAttachmentInput,
+        catalog_import::{
+            CatalogImportConflictPolicy, CatalogImportRowInput, ImportCatalogItemsInput,
+        },
         database::{now_iso, require_setup_confirmed, LocalStore, OnboardingValidationScope},
         models::{
             AbandonInvoiceCorrectionInput, AccountInput, AccountingPeriodInput,
@@ -2377,6 +2397,217 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn deposit_invoice_is_saved_issued_and_snapshotted_with_its_percentage() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client acompte"))
+                .unwrap(),
+        );
+
+        let missing = store.save_document_with_items(SaveDocumentWithItemsInput {
+            entity: "invoices".into(),
+            id: None,
+            data: json!({
+                "client_id":client_id,
+                "title":"Acompte sans pourcentage",
+                "type":"acompte",
+                "service_date_from":"2026-09-01",
+                "service_date_to":"2026-09-01",
+                "currency":"CHF"
+            }),
+            items: vec![json!({
+                "description":"Acompte",
+                "quantity":1,
+                "unit":"forfait",
+                "unit_price_cents":25_000,
+                "discount_bp":0,
+                "vat_bp":0
+            })],
+        });
+        assert!(missing
+            .unwrap_err()
+            .to_string()
+            .contains("deposit_percentage_bp"));
+
+        let detailed_basis = json!([{
+            "id":"base-line-1",
+            "catalog_item_id":"catalog-reference-17",
+            "description":"Mandat détaillé",
+            "quantity":2.5,
+            "unit":"heure",
+            "unit_price_cents":40_000,
+            "discount_bp":0,
+            "vat_bp":810
+        }]);
+        let missing_basis = store.save_document_with_items(SaveDocumentWithItemsInput {
+            entity: "invoices".into(),
+            id: None,
+            data: json!({
+                "client_id":client_id,
+                "title":"Nouvel acompte sans base détaillée",
+                "type":"acompte",
+                "deposit_percentage_bp":2_500,
+                "service_date_from":"2026-09-01",
+                "service_date_to":"2026-09-01",
+                "currency":"CHF"
+            }),
+            items: vec![json!({
+                "description":"Acompte 25 % sur mandat",
+                "quantity":1,
+                "unit":"acompte",
+                "unit_price_cents":25_000,
+                "discount_bp":0,
+                "vat_bp":810
+            })],
+        });
+        assert!(missing_basis
+            .unwrap_err()
+            .to_string()
+            .contains("base détaillée"));
+
+        let saved = store
+            .save_document_with_items(SaveDocumentWithItemsInput {
+                entity: "invoices".into(),
+                id: None,
+                data: json!({
+                    "client_id":client_id,
+                    "title":"Acompte 25 %",
+                    "type":"deposit",
+                    "deposit_percentage_bp":2_500,
+                    "deposit_basis_json":detailed_basis,
+                    "service_date_from":"2026-09-01",
+                    "service_date_to":"2026-09-01",
+                    "currency":"CHF"
+                }),
+                items: vec![json!({
+                    "description":"Acompte 25 % sur mandat",
+                    "quantity":1,
+                    "unit":"acompte",
+                    "unit_price_cents":25_000,
+                    "discount_bp":0,
+                    "vat_bp":810
+                })],
+            })
+            .unwrap();
+        let invoice_id = saved["document"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(saved["document"]["type"], "acompte");
+        assert_eq!(saved["document"]["deposit_percentage_bp"], 2_500);
+        let saved_basis: serde_json::Value =
+            serde_json::from_str(saved["document"]["deposit_basis_json"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(saved_basis, detailed_basis);
+
+        let mismatched = store.save_document_with_items(SaveDocumentWithItemsInput {
+            entity: "invoices".into(),
+            id: Some(invoice_id.clone()),
+            data: json!({"deposit_basis_json":detailed_basis}),
+            items: vec![json!({
+                "description":"Acompte 25 % sur mandat",
+                "quantity":1,
+                "unit":"acompte",
+                "unit_price_cents":24_999,
+                "discount_bp":0,
+                "vat_bp":810
+            })],
+        });
+        assert!(mismatched
+            .unwrap_err()
+            .to_string()
+            .contains("base détaillée"));
+
+        let issued = store
+            .issue_invoice(&invoice_id, Some("2026-09-01".into()), None)
+            .unwrap();
+        assert_eq!(issued["deposit_percentage_bp"], 2_500);
+        let snapshot: serde_json::Value =
+            serde_json::from_str(issued["snapshot_json"].as_str().unwrap()).unwrap();
+        assert_eq!(snapshot["document"]["deposit_percentage_bp"], 2_500);
+        let snapshot_basis: serde_json::Value =
+            serde_json::from_str(snapshot["document"]["deposit_basis_json"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(snapshot_basis, detailed_basis);
+
+        let correction = store
+            .create_invoice_correction(CreateInvoiceCorrectionInput {
+                original_invoice_id: invoice_id,
+                reason: "Correction du montant de l'acompte".into(),
+            })
+            .unwrap();
+        let connection = store.connect().unwrap();
+        let credit_deposit: (Option<i64>, Option<String>) = connection
+            .query_row(
+                "SELECT deposit_percentage_bp,deposit_basis_json FROM invoices WHERE id=?",
+                rusqlite::params![correction["credit_note_id"].as_str().unwrap()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let replacement_deposit: (Option<i64>, Option<String>) = connection
+            .query_row(
+                "SELECT deposit_percentage_bp,deposit_basis_json FROM invoices WHERE id=?",
+                rusqlite::params![correction["replacement_invoice_id"].as_str().unwrap()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(credit_deposit, (None, None));
+        assert_eq!(replacement_deposit.0, Some(2_500));
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(replacement_deposit.1.as_deref().unwrap())
+                .unwrap(),
+            detailed_basis
+        );
+    }
+
+    #[test]
+    fn deposit_invoice_emission_rejects_a_legacy_missing_percentage() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client acompte historique"))
+                .unwrap(),
+        );
+        let invoice_id = "legacy-deposit-without-percentage";
+        let now = now_iso();
+        let connection = store.connect().unwrap();
+        connection
+            .execute(
+                "INSERT INTO invoices(
+                   id,client_id,title,type,status,service_date_from,service_date_to,currency,
+                   created_at,updated_at
+                 ) VALUES(?,?,'Acompte historique','acompte','brouillon',
+                          '2026-09-01','2026-09-01','CHF',?,?)",
+                rusqlite::params![invoice_id, client_id, now, now],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO invoice_items(
+                   id,invoice_id,position,description,quantity,unit,unit_price_cents,
+                   discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,
+                   created_at,updated_at
+                 ) VALUES('legacy-deposit-line',?,0,'Acompte',1,'forfait',25000,
+                          0,0,25000,0,25000,?,?)",
+                rusqlite::params![invoice_id, now, now],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = store
+            .issue_invoice(invoice_id, Some("2026-09-01".into()), None)
+            .unwrap_err();
+        assert!(error.to_string().contains("deposit_percentage_bp"));
+        let connection = store.connect().unwrap();
+        let number: Option<String> = connection
+            .query_row(
+                "SELECT number FROM invoices WHERE id=?",
+                rusqlite::params![invoice_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(number, None, "l'émission invalide doit rester atomique");
+    }
+
+    #[test]
     fn payroll_lines_recompute_the_payslip_without_hidden_rates() {
         let (_temporary, store) = initialized_store();
         let employee = store
@@ -3029,6 +3260,664 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap()
             .execute("UPDATE audit_log SET action='tampered'", []);
         assert!(tamper.is_err());
+    }
+
+    #[test]
+    fn catalog_import_is_atomic_case_insensitive_and_preserves_stock_state() {
+        fn row(
+            row_number: usize,
+            sku: &str,
+            name: &str,
+            kind: &str,
+            purchase_cost_cents: i64,
+            sales_price_cents: i64,
+        ) -> CatalogImportRowInput {
+            CatalogImportRowInput {
+                row_number,
+                sku: sku.into(),
+                name: name.into(),
+                description: format!("Description {name}"),
+                unit: "unité".into(),
+                purchase_cost_cents,
+                sales_price_cents,
+                vat_bp: 810,
+                kind: kind.into(),
+            }
+        }
+
+        let (_temporary, store) = initialized_store();
+        let existing_id = value_id(
+            &store
+                .create_record(
+                    "catalog_items",
+                    json!({
+                        "kind":"product",
+                        "sku":"AbC-42",
+                        "name":"Ancienne désignation",
+                        "description":"Ancienne description",
+                        "unit":"pièce",
+                        "sales_price_cents":12_000,
+                        "purchase_cost_cents":5_000,
+                        "vat_bp":0,
+                        "track_stock":true,
+                        "reorder_level_milli":2_000
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .record_stock_entry(StockEntryInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                catalog_item_id: existing_id.clone(),
+                quantity_milli: 7_500,
+                reason: "Stock à préserver pendant l'import".into(),
+                reference: Some("TEST-IMPORT".into()),
+                date: Some("2026-09-01".into()),
+            })
+            .unwrap();
+        let archived_at = "2026-09-02T09:00:00Z";
+        store
+            .update_record(
+                "catalog_items",
+                &existing_id,
+                json!({"archived_at":archived_at}),
+            )
+            .unwrap();
+
+        let result = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Update,
+                rows: vec![
+                    row(
+                        2,
+                        "abc-42",
+                        "Désignation fournisseur",
+                        "product",
+                        6_000,
+                        14_900,
+                    ),
+                    row(3, "SVC-9", "Service fournisseur", "service", 0, 25_000),
+                ],
+            })
+            .unwrap();
+        assert_eq!(result["received_count"], 2);
+        assert_eq!(result["created_count"], 1);
+        assert_eq!(result["updated_count"], 1);
+        assert_eq!(result["skipped_count"], 0);
+
+        let connection = store.connect().unwrap();
+        let updated: (String, String, i64, i64, i64, i64, i64, Option<String>) = connection
+            .query_row(
+                "SELECT sku,name,purchase_cost_cents,sales_price_cents,track_stock,
+                        stock_quantity_milli,reorder_level_milli,archived_at
+                   FROM catalog_items WHERE id=?",
+                rusqlite::params![existing_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                        row.get(7)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            updated,
+            (
+                "abc-42".into(),
+                "Désignation fournisseur".into(),
+                6_000,
+                14_900,
+                1,
+                7_500,
+                2_000,
+                Some(archived_at.into())
+            )
+        );
+        let created: (String, i64, i64, Option<String>) = connection
+            .query_row(
+                "SELECT kind,track_stock,stock_quantity_milli,archived_at
+                   FROM catalog_items WHERE sku='SVC-9'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(created, ("service".into(), 0, 0, None));
+        let audit_payload: String = connection
+            .query_row(
+                "SELECT payload_json FROM audit_log
+                  WHERE action='import' AND entity_type='catalog' ORDER BY rowid DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let audit: serde_json::Value = serde_json::from_str(&audit_payload).unwrap();
+        assert_eq!(
+            audit
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>(),
+            [
+                "conflict_policy".into(),
+                "created_count".into(),
+                "received_count".into(),
+                "skipped_count".into(),
+                "source".into(),
+                "updated_count".into(),
+            ]
+            .into_iter()
+            .collect(),
+            "l'audit ne conserve ni références, ni noms, ni prix"
+        );
+        drop(connection);
+
+        let skipped = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Skip,
+                rows: vec![row(2, "ABC-42", "Valeur à ignorer", "product", 1, 2)],
+            })
+            .unwrap();
+        assert_eq!(skipped["created_count"], 0);
+        assert_eq!(skipped["updated_count"], 0);
+        assert_eq!(skipped["skipped_count"], 1);
+        let unchanged_price: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT sales_price_cents FROM catalog_items WHERE id=?",
+                rusqlite::params![existing_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(unchanged_price, 14_900);
+
+        for (sku, name) in [("AMB-1", "Doublon A"), ("amb-1", "Doublon B")] {
+            store
+                .create_record(
+                    "catalog_items",
+                    json!({"kind":"product","sku":sku,"name":name}),
+                )
+                .unwrap();
+        }
+        let ambiguous = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Update,
+                rows: vec![
+                    row(2, "NEW-ATOMIC", "Ne doit pas être créée", "product", 10, 20),
+                    row(3, "AmB-1", "Ambiguë", "product", 10, 20),
+                ],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(ambiguous.contains("plusieurs fiches"));
+        let missing_atomic_row: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM catalog_items WHERE sku='NEW-ATOMIC'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(missing_atomic_row, 0);
+
+        let tracked_kind_change = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Update,
+                rows: vec![
+                    row(
+                        2,
+                        "ANOTHER-ATOMIC",
+                        "Ne doit pas être créée",
+                        "product",
+                        10,
+                        20,
+                    ),
+                    row(3, "ABC-42", "Service interdit", "service", 10, 20),
+                ],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(tracked_kind_change.contains("suivi en stock"));
+        let missing_second_atomic_row: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM catalog_items WHERE sku='ANOTHER-ATOMIC'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(missing_second_atomic_row, 0);
+
+        store
+            .connect()
+            .unwrap()
+            .execute_batch(
+                "CREATE TRIGGER catalog_import_test_failure
+                   BEFORE INSERT ON catalog_items WHEN NEW.sku='TRIGGER-FAIL'
+                   BEGIN SELECT RAISE(ABORT,'simulated catalog write failure'); END;",
+            )
+            .unwrap();
+        let database_failure = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Update,
+                rows: vec![
+                    row(2, "DB-ATOMIC-FIRST", "Première écriture", "product", 10, 20),
+                    row(3, "TRIGGER-FAIL", "Échec simulé", "product", 10, 20),
+                ],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(database_failure.contains("simulated catalog write failure"));
+        let rolled_back_first_write: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM catalog_items WHERE sku='DB-ATOMIC-FIRST'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(rolled_back_first_write, 0);
+    }
+
+    #[test]
+    fn catalog_import_rejects_invalid_duplicate_and_oversized_payloads() {
+        fn row(row_number: usize, sku: String) -> CatalogImportRowInput {
+            CatalogImportRowInput {
+                row_number,
+                sku,
+                name: "Article valide".into(),
+                description: String::new(),
+                unit: "unité".into(),
+                purchase_cost_cents: 100,
+                sales_price_cents: 200,
+                vat_bp: 810,
+                kind: "product".into(),
+            }
+        }
+
+        let (_temporary, store) = initialized_store();
+        let duplicate = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Update,
+                rows: vec![row(2, "Ref-X".into()), row(3, "ref-x".into())],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(duplicate.contains("plusieurs fois"));
+
+        let invalid_money = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Update,
+                rows: vec![CatalogImportRowInput {
+                    sales_price_cents: -1,
+                    ..row(2, "INVALIDE".into())
+                }],
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(invalid_money.contains("plage monétaire sûre"));
+
+        let oversized = store
+            .import_catalog_items(ImportCatalogItemsInput {
+                conflict_policy: CatalogImportConflictPolicy::Skip,
+                rows: (1..=5_001)
+                    .map(|index| row(index, format!("SKU-{index}")))
+                    .collect(),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(oversized.contains("5000 lignes"));
+        let count: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM catalog_items", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn issued_quote_revision_preserves_history_and_returns_an_editable_draft() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client révision"))
+                .unwrap(),
+        );
+        let quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Devis accepté à réviser",
+                        "notes":"Périmètre initial",
+                        "terms":"Conditions initiales"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "quote_items",
+                json!({
+                    "quote_id":quote_id,
+                    "description":"Prestation initiale",
+                    "quantity":2,
+                    "unit":"heure",
+                    "unit_price_cents":12_500,
+                    "discount_bp":0,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        let issued = store
+            .issue_quote(
+                &quote_id,
+                Some("2026-09-01".into()),
+                Some("2026-09-30".into()),
+            )
+            .unwrap();
+        store.update_quote_status(&quote_id, "accepted").unwrap();
+        let original_number = issued["number"].as_str().unwrap().to_owned();
+        let original_snapshot = issued["snapshot_json"].as_str().unwrap().to_owned();
+
+        let result = store.create_quote_revision(&quote_id).unwrap();
+        let revision_id = result["revision"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(result["source"]["status"], "accepte");
+        assert_eq!(result["revision"]["number"], json!(null));
+        assert_eq!(result["revision"]["status"], "brouillon");
+        assert_eq!(result["revision"]["total_cents"], 25_000);
+        assert_eq!(result["items"][0]["description"], "Prestation initiale");
+
+        let source_after: (String, String, String) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT number,status,snapshot_json FROM quotes WHERE id=?",
+                rusqlite::params![quote_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            source_after,
+            (original_number, "annulee".into(), original_snapshot)
+        );
+        assert_eq!(
+            store.update_quote_status(&quote_id, "cancelled").unwrap()["status"],
+            "annulee",
+            "l'annulation est rejouable sans altérer l'historique"
+        );
+
+        let updated = store
+            .save_document_with_items(SaveDocumentWithItemsInput {
+                entity: "quotes".into(),
+                id: Some(revision_id.clone()),
+                data: json!({
+                    "title":"Devis révisé",
+                    "notes":"Périmètre confirmé",
+                    "terms":"Conditions révisées"
+                }),
+                items: vec![json!({
+                    "description":"Prestation révisée",
+                    "quantity":3,
+                    "unit":"heure",
+                    "unit_price_cents":12_500,
+                    "discount_bp":0,
+                    "vat_bp":0
+                })],
+            })
+            .unwrap();
+        assert_eq!(updated["document"]["title"], "Devis révisé");
+        assert_eq!(updated["document"]["total_cents"], 37_500);
+        assert!(store
+            .update_record("quotes", &quote_id, json!({"title":"Réécriture interdite"}))
+            .is_err());
+        assert!(store.delete_record("quotes", &revision_id).unwrap().deleted);
+        assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+    }
+
+    #[test]
+    fn accepted_quote_cannot_be_cancelled_but_can_be_revised_after_conversion() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client conversion figée"))
+                .unwrap(),
+        );
+        let quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({"client_id":client_id,"title":"Devis matérialisé"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "quote_items",
+                json!({
+                    "quote_id":quote_id,
+                    "description":"Service accepté",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "discount_bp":0,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_quote(
+                &quote_id,
+                Some("2026-09-01".into()),
+                Some("2026-09-30".into()),
+            )
+            .unwrap();
+        store.update_quote_status(&quote_id, "accepted").unwrap();
+        store
+            .convert_quote_to_invoice(ConvertQuoteInput {
+                quote_id: quote_id.clone(),
+                title: None,
+                issue_date: None,
+                due_date: None,
+                service_date_from: Some("2026-09-01".into()),
+                service_date_to: Some("2026-09-30".into()),
+            })
+            .unwrap();
+
+        let cancellation = store
+            .update_quote_status(&quote_id, "cancelled")
+            .unwrap_err()
+            .to_string();
+        assert!(cancellation.contains("facture"));
+        let revision = store.create_quote_revision(&quote_id).unwrap();
+        assert_eq!(revision["revision"]["status"], "brouillon");
+        assert_eq!(revision["revision"]["number"], json!(null));
+        let status: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT status FROM quotes WHERE id=?",
+                rusqlite::params![quote_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "accepte");
+    }
+
+    #[test]
+    fn customer_documents_are_numbered_once_and_listed_newest_first() {
+        let (_temporary, store) = initialized_store();
+        let client_id = value_id(
+            &store
+                .create_record("clients", test_client("Client chronologie"))
+                .unwrap(),
+        );
+        let first_invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture ancienne",
+                        "service_date_from":"2026-08-01",
+                        "service_date_to":"2026-08-31"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":first_invoice_id,
+                    "description":"Prestation août",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":10_000,
+                    "discount_bp":0,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        let first = store
+            .issue_invoice(
+                &first_invoice_id,
+                Some("2026-09-01".into()),
+                Some("2026-09-30".into()),
+            )
+            .unwrap();
+
+        let second_invoice_id = value_id(
+            &store
+                .create_record(
+                    "invoices",
+                    json!({
+                        "client_id":client_id,
+                        "title":"Facture récente",
+                        "service_date_from":"2026-09-01",
+                        "service_date_to":"2026-09-30"
+                    }),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":second_invoice_id,
+                    "description":"Prestation septembre",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":20_000,
+                    "discount_bp":0,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        let second = store
+            .issue_invoice(
+                &second_invoice_id,
+                Some("2026-09-02".into()),
+                Some("2026-10-02".into()),
+            )
+            .unwrap();
+        assert_eq!(first["number"], "F-2026-0001");
+        assert_eq!(second["number"], "F-2026-0002");
+        assert_ne!(first["number"], second["number"]);
+        assert_eq!(
+            store
+                .issue_invoice(
+                    &first_invoice_id,
+                    Some("2026-09-03".into()),
+                    Some("2026-10-03".into()),
+                )
+                .unwrap()["number"],
+            "F-2026-0001",
+            "une nouvelle tentative d'émission conserve la référence attribuée"
+        );
+
+        let first_quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({"client_id":client_id,"title":"Devis ancien"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "quote_items",
+                json!({
+                    "quote_id":first_quote_id,
+                    "description":"Ancienne proposition",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":1_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_quote(
+                &first_quote_id,
+                Some("2026-09-01".into()),
+                Some("2026-10-01".into()),
+            )
+            .unwrap();
+        let second_quote_id = value_id(
+            &store
+                .create_record(
+                    "quotes",
+                    json!({"client_id":client_id,"title":"Devis récent"}),
+                )
+                .unwrap(),
+        );
+        store
+            .create_record(
+                "quote_items",
+                json!({
+                    "quote_id":second_quote_id,
+                    "description":"Nouvelle proposition",
+                    "quantity":1,
+                    "unit":"forfait",
+                    "unit_price_cents":2_000,
+                    "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_quote(
+                &second_quote_id,
+                Some("2026-09-02".into()),
+                Some("2026-10-02".into()),
+            )
+            .unwrap();
+
+        let workspace = store.get_workspace().unwrap();
+        assert_eq!(workspace["invoices"][0]["id"], second_invoice_id);
+        assert_eq!(workspace["invoices"][1]["id"], first_invoice_id);
+        assert_eq!(workspace["quotes"][0]["id"], second_quote_id);
+        assert_eq!(workspace["quotes"][1]["id"], first_quote_id);
+        let connection = store.connect().unwrap();
+        let unique_index: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_index_list('invoices') WHERE name='idx_invoices_number' AND \"unique\"=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(unique_index, 1);
     }
 
     #[test]
@@ -11372,6 +12261,20 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             ("progress", "2026-09-05"),
             ("final", "2026-09-06"),
         ] {
+            let is_deposit = invoice_type == "deposit";
+            let deposit_percentage_bp = is_deposit.then_some(3_000);
+            let deposit_basis_json = is_deposit.then(|| {
+                json!([{
+                    "id":"deposit-base-stock-line",
+                    "catalog_item_id":first_item_id,
+                    "description":"Produit sans livraison dédiée",
+                    "quantity":1,
+                    "unit":"unité",
+                    "unit_price_cents":1_000,
+                    "discount_bp":0,
+                    "vat_bp":0
+                }])
+            });
             let special_invoice_id = value_id(
                 &store
                     .create_record(
@@ -11380,6 +12283,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                             "client_id":client_id,
                             "title":format!("Document {invoice_type} sans sortie automatique"),
                             "type":invoice_type,
+                            "deposit_percentage_bp":deposit_percentage_bp,
+                            "deposit_basis_json":deposit_basis_json,
                             "service_date_from":"2026-09-01",
                             "service_date_to":"2026-09-01"
                         }),
@@ -11391,11 +12296,12 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     "invoice_items",
                     json!({
                         "invoice_id":special_invoice_id,
-                        "catalog_item_id":first_item_id,
-                        "description":"Produit sans livraison dédiée",
+                        "catalog_item_id":if is_deposit { None } else { Some(first_item_id.as_str()) },
+                        "description":if is_deposit { "Acompte 30 % — Produit sans livraison dédiée" } else { "Produit sans livraison dédiée" },
                         "quantity":1,
-                        "unit":"unité",
-                        "unit_price_cents":1_000,
+                        "unit":if is_deposit { "acompte" } else { "unité" },
+                        "unit_price_cents":if is_deposit { 300 } else { 1_000 },
+                        "discount_bp":0,
                         "vat_bp":0
                     }),
                 )

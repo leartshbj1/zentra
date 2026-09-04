@@ -98,6 +98,7 @@ struct SalesPdfData {
     number: String,
     title: String,
     document_type: String,
+    deposit_percentage_bp: Option<i64>,
     issue_date: String,
     deadline_date: String,
     service_date_from: String,
@@ -344,6 +345,15 @@ fn load_sales_pdf_data(
         (SalesDocumentKind::Invoice, false) => fallback_string(&document, "type", "standard"),
         (SalesDocumentKind::Quote, _) => "quote".into(),
     };
+    let deposit_percentage_bp =
+        if kind == SalesDocumentKind::Invoice && is_deposit_invoice(&document_type) {
+            document
+                .get("deposit_percentage_bp")
+                .and_then(Value::as_i64)
+                .filter(|value| (1..=10_000).contains(value))
+        } else {
+            None
+        };
     let original_invoice_id = string_at(&document, "original_invoice_id");
     let original_invoice_number =
         if kind == SalesDocumentKind::Invoice && !original_invoice_id.is_empty() {
@@ -389,6 +399,7 @@ fn load_sales_pdf_data(
         number: string_at(&document, "number"),
         title: string_at(&document, "title"),
         document_type,
+        deposit_percentage_bp,
         issue_date: string_at(&document, "issue_date"),
         deadline_date: if kind == SalesDocumentKind::Quote {
             string_at(&document, "valid_until")
@@ -476,7 +487,23 @@ pub(crate) fn validate_document_snapshot_legal_fields(
             require_date(document, "valid_until", "une date de validité valide")?;
         }
         "invoices" => {
-            required_final_invoice_type(document)?;
+            let invoice_type = required_final_invoice_type(document)?;
+            // Les instantanés créés avant la migration v40 ne possèdent pas
+            // encore ce champ. Ils restent exportables sans réécrire leur
+            // histoire; tout snapshot récent qui expose le champ doit en
+            // revanche contenir une valeur stricte.
+            if is_deposit_invoice(&invoice_type)
+                && document.get("deposit_percentage_bp").is_some()
+                && !document
+                    .get("deposit_percentage_bp")
+                    .and_then(Value::as_i64)
+                    .is_some_and(|value| (1..=10_000).contains(&value))
+            {
+                return Err(AppError::Validation(
+                    "L'instantané final d'une facture d'acompte doit contenir un pourcentage entre 0,01 % et 100 %."
+                        .into(),
+                ));
+            }
             validate_snapshot_qr_consistency(snapshot)?;
             require_date(document, "due_date", "une date d'échéance valide")?;
             require_date(
@@ -1340,6 +1367,9 @@ fn document_label(data: &SalesPdfData) -> &'static str {
     match data.kind {
         SalesDocumentKind::Quote => "DEVIS",
         SalesDocumentKind::Invoice if is_credit_note(&data.document_type) => "AVOIR",
+        SalesDocumentKind::Invoice if is_deposit_invoice(&data.document_type) => {
+            "FACTURE D’ACOMPTE"
+        }
         SalesDocumentKind::Invoice => "FACTURE",
     }
 }
@@ -1635,6 +1665,17 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
         if data.final_document { GREEN } else { MUTED },
         state,
     );
+    if let Some(percentage_bp) = data.deposit_percentage_bp {
+        text_right(
+            ops,
+            PAGE_WIDTH - MARGIN,
+            PAGE_HEIGHT - 120.0,
+            7.5,
+            "F2",
+            GREEN,
+            &format!("ACOMPTE {}", format_basis_points_percentage(percentage_bp)),
+        );
+    }
     line_segment(ops, MARGIN, 704.0, PAGE_WIDTH - 2.0 * MARGIN, 1.6, GREEN);
 
     let meta_y = 676.0;
@@ -3049,6 +3090,22 @@ fn is_credit_note(value: &str) -> bool {
     matches!(value, "avoir" | "credit_note")
 }
 
+fn is_deposit_invoice(value: &str) -> bool {
+    matches!(value, "acompte" | "deposit")
+}
+
+fn format_basis_points_percentage(value: i64) -> String {
+    let whole = value / 100;
+    let decimals = value % 100;
+    if decimals == 0 {
+        format!("{whole} %")
+    } else if decimals % 10 == 0 {
+        format!("{whole},{} %", decimals / 10)
+    } else {
+        format!("{whole},{decimals:02} %")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3168,6 +3225,7 @@ mod tests {
             number: "F-2026-0001".into(),
             title: "Prestations de septembre".into(),
             document_type: "standard".into(),
+            deposit_percentage_bp: None,
             issue_date: "2026-09-01".into(),
             deadline_date: "2026-09-30".into(),
             service_date_from: "2026-08-01".into(),
@@ -3441,6 +3499,61 @@ mod tests {
         );
         assert!(required_final_invoice_type(&json!({})).is_err());
         assert!(required_final_invoice_type(&json!({"type": "autre"})).is_err());
+    }
+
+    #[test]
+    fn deposit_invoice_header_names_the_document_and_shows_its_percentage() {
+        let mut data = sample_data(1, false);
+        data.document_type = "acompte".into();
+        data.deposit_percentage_bp = Some(3_333);
+        assert_eq!(document_label(&data), "FACTURE D’ACOMPTE");
+        assert_eq!(format_basis_points_percentage(3_333), "33,33 %");
+        assert_eq!(format_basis_points_percentage(3_000), "30 %");
+        assert_eq!(format_basis_points_percentage(5), "0,05 %");
+
+        let mut operations = Vec::new();
+        render_first_header(&mut operations, &data, None);
+        for expected in ["FACTURE D’ACOMPTE", "ACOMPTE 33,33 %"] {
+            assert!(operations.iter().any(|operation| {
+                operation.operator == "Tj"
+                    && operation.operands.first() == Some(&pdf_literal(expected))
+            }));
+        }
+    }
+
+    #[test]
+    fn legacy_deposit_snapshot_without_percentage_stays_exportable() {
+        let mut snapshot = json!({
+            "issuer": {
+                "company_name": "Atelier Exemple SA",
+                "address_line1": "Rue du Lac 8",
+                "postal_code": "1000",
+                "city": "Lausanne",
+                "vat_registered": false
+            },
+            "customer": {
+                "name": "Client Exemple Sàrl",
+                "address_line1": "Route du Test 12",
+                "postal_code": "1200",
+                "city": "Genève"
+            },
+            "document": {
+                "type": "acompte",
+                "issue_date": "2026-08-01",
+                "due_date": "2026-08-31",
+                "service_date_from": "2026-08-01",
+                "service_date_to": "2026-08-01",
+                "currency": "CHF"
+            },
+            "qr_bill": null
+        });
+
+        validate_document_snapshot_legal_fields("invoices", &snapshot).unwrap();
+
+        snapshot["document"]["deposit_percentage_bp"] = Value::Null;
+        assert!(validate_document_snapshot_legal_fields("invoices", &snapshot).is_err());
+        snapshot["document"]["deposit_percentage_bp"] = json!(3_000);
+        validate_document_snapshot_legal_fields("invoices", &snapshot).unwrap();
     }
 
     #[test]

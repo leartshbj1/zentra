@@ -142,6 +142,7 @@ import type {
 } from './types';
 import type { SupplierEmailInspection } from './supplierEmail';
 import type { OnboardingValidationScope } from './onboardingValidation';
+import type { CatalogImportRow } from './catalogImport';
 import {
   bankAccountAssociationPayload,
   bankConfirmationPayload,
@@ -1272,6 +1273,22 @@ function settingsFromRaw(
           ? [defaultVat]
           : [],
       defaultFooter: extraBilling?.defaultFooter ?? '',
+      footerTemplates: Array.isArray(extraBilling?.footerTemplates)
+        ? extraBilling.footerTemplates
+            .filter(
+              (template) =>
+                template &&
+                typeof template.id === 'string' &&
+                typeof template.name === 'string' &&
+                typeof template.text === 'string',
+            )
+            .map((template) => ({
+              id: template.id.trim(),
+              name: template.name.trim(),
+              text: template.text,
+            }))
+            .filter((template) => template.id && template.name && template.text.trim())
+        : [],
     },
     work: extra.work ?? {
       workWeekHours: 0,
@@ -1341,6 +1358,7 @@ const quoteStatusFromRaw = (value: unknown): Quote['status'] => {
         accepte: 'accepted',
         refuse: 'refused',
         expire: 'expired',
+        annulee: 'cancelled',
       } as Record<string, Quote['status']>
     )[status] ?? 'draft'
   );
@@ -1685,6 +1703,25 @@ function lineFromRaw(row: RawRecord): DocumentLine {
   };
 }
 
+function depositBasisLinesFromRaw(value: unknown): DocumentLine[] | null {
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    if (!parsed.trim()) return null;
+    try {
+      parsed = JSON.parse(parsed) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(parsed)) return null;
+  return parsed
+    .filter(
+      (line): line is RawRecord =>
+        Boolean(line && typeof line === 'object' && !Array.isArray(line)),
+    )
+    .map(lineFromRaw);
+}
+
 function catalogItemFromRaw(row: RawRecord): CatalogItem {
   const kind = stringValue(row.kind) === 'product' ? 'product' : 'service';
   return {
@@ -2017,6 +2054,9 @@ function documentSnapshotFromRaw(
       currency: stringValue(document.currency) || 'CHF',
       notes: stringValue(document.notes),
       terms: stringValue(document.terms),
+      depositPercentageBp:
+        numberValue(document.deposit_percentage_bp) || null,
+      depositBasisLines: depositBasisLinesFromRaw(document.deposit_basis_json),
     },
     items: rawArray(root.items).map(lineFromRaw),
     qrBill: storedQrBillFromRaw(root.qr_bill, stringValue(document.id)),
@@ -2252,6 +2292,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       .sort((a, b) => numberValue(a.position) - numberValue(b.position))
       .map(lineFromRaw),
     notes: stringValue(row.notes),
+    terms: stringValue(row.terms),
     createdAt: stringValue(row.created_at),
     snapshot: documentSnapshotFromRaw(row.snapshot_json, appState.data_dir),
   }));
@@ -2405,6 +2446,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         .sort((a, b) => numberValue(a.position) - numberValue(b.position))
         .map(lineFromRaw),
       notes: stringValue(row.notes),
+      terms: stringValue(row.terms),
+      depositPercentageBp: numberValue(row.deposit_percentage_bp) || null,
+      depositBasisLines: depositBasisLinesFromRaw(row.deposit_basis_json),
       createdAt: stringValue(row.created_at),
       snapshot,
       qrBill,
@@ -2999,6 +3043,7 @@ function backendExtra(settings: AppSettings): string {
       quoteValidityDays: settings.billing.quoteValidityDays,
       vatRatesBp: settings.billing.vatRatesBp,
       defaultFooter: settings.billing.defaultFooter,
+      footerTemplates: settings.billing.footerTemplates,
     },
     work: settings.work,
     payroll: settings.payroll,
@@ -3207,6 +3252,31 @@ export function toBackendData(data: Record<string, unknown>): RawRecord {
     ]),
   );
 }
+
+export function importCatalogItemsMutation(
+  rows: CatalogImportRow[],
+  conflictPolicy: 'update' | 'skip',
+) {
+  return {
+    command: 'import_catalog_items' as const,
+    args: {
+      input: {
+        conflict_policy: conflictPolicy,
+        rows: rows.map((row) => ({
+          row_number: row.rowNumber,
+          sku: row.sku,
+          name: row.name,
+          description: row.description,
+          unit: row.unit,
+          purchase_cost_cents: row.purchaseCostCents,
+          sales_price_cents: row.salesPriceCents,
+          vat_bp: row.vatBp,
+          kind: row.kind,
+        })),
+      },
+    },
+  };
+}
 const createRecord = (entity: string, data: RawRecord) =>
   invoke<RawRecord>('create_record', { entity, data });
 
@@ -3217,11 +3287,31 @@ async function saveDocument(
   existing?: Quote | Invoice,
 ): Promise<Workspace> {
   const previousLines = existing?.lines ?? [];
+  const backendData = toBackendData(data);
+  const depositBasisLines = data.depositBasisLines;
+  delete backendData.deposit_basis_lines;
+  if (depositBasisLines === null) {
+    backendData.deposit_basis_json = null;
+  } else if (Array.isArray(depositBasisLines)) {
+    backendData.deposit_basis_json = depositBasisLines.map((line) => {
+      const basisLine = line as DocumentLine;
+      return {
+        id: basisLine.id,
+        catalog_item_id: basisLine.catalogItemId || null,
+        description: basisLine.description,
+        quantity: basisLine.quantity,
+        unit: basisLine.unit,
+        unit_price_cents: basisLine.unitPriceCents,
+        discount_bp: basisLine.discountBp ?? 0,
+        vat_bp: basisLine.vatRateBp,
+      };
+    });
+  }
   await invoke('save_document_with_items', {
     input: {
       entity,
       id: existing?.id ?? null,
-      data: toBackendData(data),
+      data: backendData,
       items: lines.map((line) => ({
         id: previousLines.some((previous) => previous.id === line.id)
           ? line.id
@@ -4762,6 +4852,14 @@ export const desktopApi = {
     await invoke(mutation.command, mutation.args);
     return loadWorkspace();
   },
+  async importCatalogItems(
+    rows: CatalogImportRow[],
+    conflictPolicy: 'update' | 'skip',
+  ) {
+    const mutation = importCatalogItemsMutation(rows, conflictPolicy);
+    await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
   async saveSupplierOrderDraft(input: {
     id?: string;
     supplierId: string;
@@ -5188,10 +5286,18 @@ export const desktopApi = {
   },
   async updateQuoteStatus(
     id: string,
-    status: 'accepted' | 'refused' | 'expired',
+    status: 'accepted' | 'refused' | 'expired' | 'cancelled',
   ) {
     await invoke('update_quote_status', { id, status });
     return loadWorkspace();
+  },
+  async createQuoteRevision(id: string) {
+    const raw = await invoke<RawRecord>('create_quote_revision', { id });
+    const revisionId = stringValue(recordValue(raw.revision).id);
+    if (!revisionId) {
+      throw new Error('La révision créée n’a pas renvoyé d’identifiant exploitable.');
+    }
+    return { revisionId, workspace: await loadWorkspace() };
   },
   async convertQuote(quote: Quote) {
     await invoke('convert_quote_to_invoice', {

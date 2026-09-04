@@ -86,6 +86,13 @@ export function normalizeOnboardingSettings(settings: AppSettings): AppSettings 
       creditNotePrefix: clean(settings.billing.creditNotePrefix).toUpperCase(),
       vatRatesBp: settings.organization.vatRegistered ? uniqueVatRates : [],
       defaultFooter: clean(settings.billing.defaultFooter),
+      footerTemplates: settings.billing.footerTemplates
+        .map((template) => ({
+          id: clean(template.id),
+          name: clean(template.name),
+          text: clean(template.text),
+        }))
+        .filter((template) => template.id && template.name && template.text),
     },
     work: { ...settings.work, costCategories: uniqueCategories },
     payroll: {

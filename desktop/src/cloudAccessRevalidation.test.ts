@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CloudAccountState } from './bridge';
 import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
+  cloudAccountChangeNeedsFullRevalidation,
   createSingleFlightCloudAccessRevalidator,
   readRevalidatedCloudAccess,
 } from './cloudAccessRevalidation';
@@ -37,6 +38,22 @@ const ownerLicense: LicenseState = {
 describe('revalidation périodique du compte cloud', () => {
   it('utilise un intervalle raisonnable sans contrôle agressif', () => {
     expect(CLOUD_ACCESS_REVALIDATION_INTERVAL_MS).toBe(15 * 60 * 1_000);
+  });
+
+  it('ignore les polls pending et revalide exactement à la transition connectée', () => {
+    const pending: CloudAccountState = {
+      status: 'pending',
+      userCode: 'ABCD-EFGH',
+      verificationUri:
+        'https://elyko.alb-leart1.chatgpt.site/appareil?code=ABCD-EFGH',
+      authorizationExpiresAt: '2026-09-04T12:00:00Z',
+      intervalSeconds: 3,
+    };
+    const changes = [pending, pending, pending, connectedAccount];
+
+    expect(changes.filter(cloudAccountChangeNeedsFullRevalidation)).toEqual([
+      connectedAccount,
+    ]);
   });
 
   it('renouvelle immédiatement la licence quand le rôle serveur change', async () => {

@@ -34,6 +34,7 @@ export const initialOnboardingSettings: AppSettings = {
     quoteValidityDays: 30,
     vatRatesBp: [],
     defaultFooter: '',
+    footerTemplates: [],
   },
   work: { workWeekHours: 0, dailyHours: 0, roundingMinutes: 5, breakMinutes: 0, costCategories: [] },
   payroll: {
@@ -179,6 +180,15 @@ export function settingsFromOnboardingDraft(value: unknown): AppSettings {
       ...merged.billing,
       vatRatesBp: Array.isArray(billing.vatRatesBp)
         ? billing.vatRatesBp.filter((item): item is number => typeof item === 'number' && Number.isFinite(item))
+        : [],
+      footerTemplates: Array.isArray(billing.footerTemplates)
+        ? billing.footerTemplates.flatMap((item) => {
+            if (!isRecord(item)) return [];
+            const id = typeof item.id === 'string' ? item.id.trim() : '';
+            const name = typeof item.name === 'string' ? item.name.trim() : '';
+            const text = typeof item.text === 'string' ? item.text : '';
+            return id && name && text.trim() ? [{ id, name, text }] : [];
+          })
         : [],
     },
     work: {

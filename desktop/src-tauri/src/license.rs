@@ -22,7 +22,11 @@ use crate::{
     audit::append_audit,
     database::{now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
-    installation::{read_protected, write_protected_atomically},
+    installation::{
+        read_protected_reference, unprotect_protected_reference,
+        write_protected_atomically_with_reference,
+        write_protected_atomically_with_reference_after_server_verification, ProtectedDataCache,
+    },
     models::LicenseTokenPayload,
 };
 
@@ -128,6 +132,20 @@ struct ProtectedLicenseTokens {
     current_token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     previous_token: Option<String>,
+}
+
+/// Cache de session des valeurs de licence conservées dans le coffre système.
+/// Elles restent protégées par DPAPI/le Trousseau sur disque, mais une valeur
+/// déjà déverrouillée n'interroge plus le Trousseau macOS à chaque commande ou
+/// contrôle périodique. Chaque entrée reste liée à sa référence non secrète :
+/// supprimer ou remplacer le fichier protégé invalide immédiatement le cache.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LicenseProtectedCache {
+    tokens: ProtectedDataCache,
+    clock_anchor: ProtectedDataCache,
+    pending_clock_anchor: ProtectedDataCache,
+    installation_proof: ProtectedDataCache,
+    refresh_attempt: ProtectedDataCache,
 }
 
 #[derive(Deserialize)]
@@ -349,15 +367,15 @@ impl LocalStore {
             self.prepare_anchor_from_online_verification(payload, now_utc, current_date)?;
         // L'ancre active reste intacte jusqu'au commit SQLite. Si le processus
         // s'arrête après le commit, le candidat est récupéré par son empreinte.
-        self.write_pending_clock_anchor(&anchor, &token_sha256)?;
-        self.write_or_repair_license_installation_proof(payload)?;
+        self.write_pending_clock_anchor_after_server_verification(&anchor, &token_sha256)?;
+        self.write_or_repair_license_installation_proof_after_server_verification(payload)?;
 
         let verified_at = now_iso();
         let last_seen_date = anchor.max_seen_date.clone();
         // Le coffre contient temporairement les deux générations. Ainsi, une
         // coupure avant/après le commit SQLite reste lisible via l'empreinte
         // stockée dans la base et ne réintroduit jamais le jeton dans celle-ci.
-        self.write_protected_license_tokens(&ProtectedLicenseTokens {
+        self.write_protected_license_tokens_after_server_verification(&ProtectedLicenseTokens {
             version: PROTECTED_LICENSE_TOKEN_VERSION,
             installation_id: self.installation_id.clone(),
             current_token: token.to_owned(),
@@ -393,15 +411,17 @@ impl LocalStore {
             )?;
         }
         tx.commit()?;
-        self.promote_clock_anchor(&anchor, &token_sha256)?;
+        self.promote_clock_anchor_after_server_verification(&anchor, &token_sha256)?;
         // Une transition avec previous_token reste sûre et pleinement lisible;
         // sa réduction à une seule génération est donc un nettoyage best-effort.
-        let _ = self.write_protected_license_tokens(&ProtectedLicenseTokens {
-            version: PROTECTED_LICENSE_TOKEN_VERSION,
-            installation_id: self.installation_id.clone(),
-            current_token: token.to_owned(),
-            previous_token: None,
-        });
+        let _ = self.write_protected_license_tokens_after_server_verification(
+            &ProtectedLicenseTokens {
+                version: PROTECTED_LICENSE_TOKEN_VERSION,
+                installation_id: self.installation_id.clone(),
+                current_token: token.to_owned(),
+                previous_token: None,
+            },
+        );
         Ok(true)
     }
 
@@ -572,12 +592,17 @@ impl LocalStore {
                 self.validate_installation_binding(&payload)?;
                 self.persist_verified_license(&token, &payload, Some(&snapshot.token), "refresh")?;
             }
-            LicenseRefreshOutcome::Inactive => {
-                self.mark_server_access(&snapshot.token, &key, LicenseServerAccess::Inactive)?
-            }
-            LicenseRefreshOutcome::Unrecognized => {
-                self.mark_server_access(&snapshot.token, &key, LicenseServerAccess::Unrecognized)?
-            }
+            LicenseRefreshOutcome::Inactive => self.mark_server_access_after_server_verification(
+                &snapshot.token,
+                &key,
+                LicenseServerAccess::Inactive,
+            )?,
+            LicenseRefreshOutcome::Unrecognized => self
+                .mark_server_access_after_server_verification(
+                    &snapshot.token,
+                    &key,
+                    LicenseServerAccess::Unrecognized,
+                )?,
         }
         self.get_license_state_with_key(&key)
     }
@@ -656,11 +681,30 @@ impl LocalStore {
         Ok(true)
     }
 
-    fn mark_server_access(
+    fn mark_server_access_after_server_verification(
         &self,
         expected_token: &str,
         key: &[u8; 32],
         server_access: LicenseServerAccess,
+    ) -> AppResult<()> {
+        self.mark_server_access_internal(expected_token, key, server_access, true)
+    }
+
+    fn mark_server_access_locally(
+        &self,
+        expected_token: &str,
+        key: &[u8; 32],
+        server_access: LicenseServerAccess,
+    ) -> AppResult<()> {
+        self.mark_server_access_internal(expected_token, key, server_access, false)
+    }
+
+    fn mark_server_access_internal(
+        &self,
+        expected_token: &str,
+        key: &[u8; 32],
+        server_access: LicenseServerAccess,
+        server_verified: bool,
     ) -> AppResult<()> {
         // refresh_license détient LocalStore::lock; les appels cloud passent
         // par mark_current_license_access, qui prend le même mutex partagé.
@@ -677,11 +721,48 @@ impl LocalStore {
             Local::now().date_naive(),
         )?;
         anchor.server_access = server_access;
-        self.write_clock_anchor(&anchor)?;
-        self.write_or_repair_license_installation_proof(&payload)?;
+
+        let token_sha256 = license_token_fingerprint(expected_token);
+        // Fermer d'abord l'accès dans SQLite. Si le coffre devient
+        // indisponible entre cette décision serveur et sa persistance, le
+        // marqueur legacy=0 maintient l'application en lecture seule au lieu
+        // de réutiliser une ancienne ancre Active depuis la RAM.
+        let invalidated = connection.execute(
+            "UPDATE license_state SET clock_anchor_version=0 WHERE id=1 AND token_sha256=?",
+            params![token_sha256],
+        )?;
+        if invalidated != 1 {
+            return Err(AppError::Validation(
+                "La licence locale a changé pendant le renouvellement. Relancez la vérification."
+                    .into(),
+            ));
+        }
+
+        let protected_result = if server_verified {
+            self.write_clock_anchor_after_server_verification(&anchor)
+                .and_then(|()| {
+                    self.write_or_repair_license_installation_proof_after_server_verification(
+                        &payload,
+                    )
+                })
+        } else {
+            // Une décision purement locale peut mettre à jour une ancre
+            // existante, mais ne doit jamais recréer une preuve ou un item du
+            // Trousseau. Leur absence laisse le marqueur SQLite à 0.
+            read_protected_reference(&self.clock_anchor_path())
+                .map(|_| ())
+                .and_then(|()| self.load_license_installation_proof())
+                .and_then(|proof| proof.ok_or_else(installation_proof_repair_required))
+                .and_then(|proof| self.validate_license_installation_proof(&proof))
+                .and_then(|()| self.write_clock_anchor(&anchor))
+        };
+        if let Err(error) = protected_result {
+            self.license_protected_cache.clock_anchor.clear()?;
+            return Err(error);
+        }
         let updated = connection.execute(
             "UPDATE license_state SET clock_anchor_version=1 WHERE id=1 AND token_sha256=?",
-            params![license_token_fingerprint(expected_token)],
+            params![token_sha256],
         )?;
         if updated != 1 {
             return Err(AppError::Validation(
@@ -692,15 +773,25 @@ impl LocalStore {
         Ok(())
     }
 
-    pub(crate) fn mark_current_license_unrecognized(&self) -> AppResult<()> {
-        self.mark_current_license_access(LicenseServerAccess::Unrecognized)
+    pub(crate) fn mark_current_license_unrecognized_locally(&self) -> AppResult<()> {
+        self.mark_current_license_access(LicenseServerAccess::Unrecognized, false)
     }
 
-    pub(crate) fn mark_current_license_inactive(&self) -> AppResult<()> {
-        self.mark_current_license_access(LicenseServerAccess::Inactive)
+    pub(crate) fn mark_current_license_unrecognized_after_server_verification(
+        &self,
+    ) -> AppResult<()> {
+        self.mark_current_license_access(LicenseServerAccess::Unrecognized, true)
     }
 
-    fn mark_current_license_access(&self, access: LicenseServerAccess) -> AppResult<()> {
+    pub(crate) fn mark_current_license_inactive_after_server_verification(&self) -> AppResult<()> {
+        self.mark_current_license_access(LicenseServerAccess::Inactive, true)
+    }
+
+    fn mark_current_license_access(
+        &self,
+        access: LicenseServerAccess,
+        server_verified: bool,
+    ) -> AppResult<()> {
         let Some(key) = embedded_key()? else {
             return Ok(());
         };
@@ -709,7 +800,11 @@ impl LocalStore {
         let token = self.stored_license_token(&connection)?;
         drop(connection);
         if let Some(token) = token {
-            self.mark_server_access(&token, &key, access)?;
+            if server_verified {
+                self.mark_server_access_after_server_verification(&token, &key, access)?;
+            } else {
+                self.mark_server_access_locally(&token, &key, access)?;
+            }
         }
         Ok(())
     }
@@ -856,12 +951,35 @@ impl LocalStore {
     }
 
     fn load_protected_license_tokens(&self) -> AppResult<Option<ProtectedLicenseTokens>> {
-        let record: Option<ProtectedLicenseTokens> =
-            read_protected_json(&self.license_token_path())?;
-        if let Some(record) = record.as_ref() {
-            self.validate_protected_license_tokens(record)?;
+        let protected_reference = match read_protected_reference(&self.license_token_path()) {
+            Ok(reference) => reference,
+            Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => {
+                self.license_protected_cache.tokens.clear()?;
+                return Ok(None);
+            }
+            Err(error) => {
+                self.license_protected_cache.tokens.clear()?;
+                return Err(error);
+            }
+        };
+        let clear = self
+            .license_protected_cache
+            .tokens
+            .get_or_try_init(&protected_reference, || {
+                unprotect_protected_reference(&protected_reference)
+            })?;
+        let record: ProtectedLicenseTokens = match serde_json::from_slice(&clear) {
+            Ok(record) => record,
+            Err(error) => {
+                self.license_protected_cache.tokens.clear()?;
+                return Err(error.into());
+            }
+        };
+        if let Err(error) = self.validate_protected_license_tokens(&record) {
+            self.license_protected_cache.tokens.clear()?;
+            return Err(error);
         }
-        Ok(record)
+        Ok(Some(record))
     }
 
     fn validate_protected_license_tokens(&self, record: &ProtectedLicenseTokens) -> AppResult<()> {
@@ -881,8 +999,29 @@ impl LocalStore {
     }
 
     fn write_protected_license_tokens(&self, record: &ProtectedLicenseTokens) -> AppResult<()> {
+        self.write_protected_license_tokens_internal(record, false)
+    }
+
+    fn write_protected_license_tokens_after_server_verification(
+        &self,
+        record: &ProtectedLicenseTokens,
+    ) -> AppResult<()> {
+        self.write_protected_license_tokens_internal(record, true)
+    }
+
+    fn write_protected_license_tokens_internal(
+        &self,
+        record: &ProtectedLicenseTokens,
+        server_verified: bool,
+    ) -> AppResult<()> {
         self.validate_protected_license_tokens(record)?;
-        write_protected_json(&self.license_token_path(), record)
+        let clear = serde_json::to_vec(record)?;
+        write_cached_protected_bytes(
+            &self.license_token_path(),
+            &clear,
+            &self.license_protected_cache.tokens,
+            server_verified,
+        )
     }
 
     fn token_matching_fingerprint(&self, fingerprint: &str) -> AppResult<String> {
@@ -941,17 +1080,39 @@ impl LocalStore {
     }
 
     fn load_clock_anchor(&self) -> AppResult<Option<LicenseClockAnchor>> {
-        read_protected_json(&self.clock_anchor_path())
+        read_cached_protected_json(
+            &self.clock_anchor_path(),
+            &self.license_protected_cache.clock_anchor,
+        )
     }
 
     fn write_clock_anchor(&self, anchor: &LicenseClockAnchor) -> AppResult<()> {
-        write_protected_json(&self.clock_anchor_path(), anchor)
+        write_cached_protected_json(
+            &self.clock_anchor_path(),
+            anchor,
+            &self.license_protected_cache.clock_anchor,
+        )
+    }
+
+    fn write_clock_anchor_after_server_verification(
+        &self,
+        anchor: &LicenseClockAnchor,
+    ) -> AppResult<()> {
+        write_cached_protected_json_after_server_verification(
+            &self.clock_anchor_path(),
+            anchor,
+            &self.license_protected_cache.clock_anchor,
+        )
     }
 
     fn load_pending_clock_anchor(&self) -> AppResult<Option<PendingLicenseClockAnchor>> {
-        read_protected_json(&self.pending_clock_anchor_path())
+        read_cached_protected_json(
+            &self.pending_clock_anchor_path(),
+            &self.license_protected_cache.pending_clock_anchor,
+        )
     }
 
+    #[cfg(test)]
     fn write_pending_clock_anchor(
         &self,
         anchor: &LicenseClockAnchor,
@@ -966,7 +1127,7 @@ impl LocalStore {
         }
         parse_utc(&anchor.max_seen_utc, "max_seen_utc")?;
         parse_date(&anchor.max_seen_date, "max_seen_date")?;
-        write_protected_json(
+        write_cached_protected_json(
             &self.pending_clock_anchor_path(),
             &PendingLicenseClockAnchor {
                 version: CLOCK_ANCHOR_VERSION,
@@ -974,6 +1135,33 @@ impl LocalStore {
                 token_sha256: token_sha256.to_owned(),
                 anchor: anchor.clone(),
             },
+            &self.license_protected_cache.pending_clock_anchor,
+        )
+    }
+
+    fn write_pending_clock_anchor_after_server_verification(
+        &self,
+        anchor: &LicenseClockAnchor,
+        token_sha256: &str,
+    ) -> AppResult<()> {
+        validate_token_fingerprint(token_sha256)?;
+        if anchor.version != CLOCK_ANCHOR_VERSION
+            || anchor.installation_id != self.installation_id
+            || anchor.license_id.trim().is_empty()
+        {
+            return Err(anchor_repair_required());
+        }
+        parse_utc(&anchor.max_seen_utc, "max_seen_utc")?;
+        parse_date(&anchor.max_seen_date, "max_seen_date")?;
+        write_cached_protected_json_after_server_verification(
+            &self.pending_clock_anchor_path(),
+            &PendingLicenseClockAnchor {
+                version: CLOCK_ANCHOR_VERSION,
+                installation_id: self.installation_id.clone(),
+                token_sha256: token_sha256.to_owned(),
+                anchor: anchor.clone(),
+            },
+            &self.license_protected_cache.pending_clock_anchor,
         )
     }
 
@@ -1000,12 +1188,12 @@ impl LocalStore {
         Ok(Some(pending.anchor))
     }
 
-    fn promote_clock_anchor(
+    fn promote_clock_anchor_after_server_verification(
         &self,
         anchor: &LicenseClockAnchor,
         token_sha256: &str,
     ) -> AppResult<()> {
-        self.write_clock_anchor(anchor)?;
+        self.write_clock_anchor_after_server_verification(anchor)?;
         self.remove_pending_clock_anchor_if_matches(token_sha256);
         Ok(())
     }
@@ -1018,13 +1206,18 @@ impl LocalStore {
                     && pending.token_sha256 == token_sha256
             })
         });
-        if matching {
-            let _ = crate::installation::remove_protected(&self.pending_clock_anchor_path());
+        if matching
+            && crate::installation::remove_protected(&self.pending_clock_anchor_path()).is_ok()
+        {
+            let _ = self.license_protected_cache.pending_clock_anchor.clear();
         }
     }
 
     fn load_license_installation_proof(&self) -> AppResult<Option<LicenseInstallationProof>> {
-        read_protected_json(&self.license_installation_proof_path())
+        read_cached_protected_json(
+            &self.license_installation_proof_path(),
+            &self.license_protected_cache.installation_proof,
+        )
     }
 
     fn validate_license_installation_proof(
@@ -1041,32 +1234,39 @@ impl LocalStore {
         Ok(())
     }
 
-    fn write_license_installation_proof(&self, payload: &LicenseTokenPayload) -> AppResult<()> {
-        let proof = LicenseInstallationProof {
-            version: LICENSE_INSTALLATION_PROOF_VERSION,
-            installation_id: self.installation_id.clone(),
-            first_license_id: payload.license_id.clone(),
-            established_at_utc: Utc::now().to_rfc3339(),
-        };
-        write_protected_json(&self.license_installation_proof_path(), &proof)
-    }
-
-    fn write_or_repair_license_installation_proof(
+    fn write_or_repair_license_installation_proof_after_server_verification(
         &self,
         payload: &LicenseTokenPayload,
     ) -> AppResult<()> {
-        match self.load_license_installation_proof() {
-            Ok(Some(proof)) if self.validate_license_installation_proof(&proof).is_ok() => Ok(()),
-            Ok(Some(_)) | Ok(None) | Err(_) => self.write_license_installation_proof(payload),
-        }
+        let proof = match self.load_license_installation_proof() {
+            Ok(Some(proof)) if self.validate_license_installation_proof(&proof).is_ok() => proof,
+            Ok(Some(_)) | Ok(None) | Err(_) => LicenseInstallationProof {
+                version: LICENSE_INSTALLATION_PROOF_VERSION,
+                installation_id: self.installation_id.clone(),
+                first_license_id: payload.license_id.clone(),
+                established_at_utc: Utc::now().to_rfc3339(),
+            },
+        };
+        write_cached_protected_json_after_server_verification(
+            &self.license_installation_proof_path(),
+            &proof,
+            &self.license_protected_cache.installation_proof,
+        )
     }
 
     fn load_refresh_attempt(&self) -> AppResult<Option<LicenseRefreshAttempt>> {
-        read_protected_json(&self.refresh_attempt_path())
+        read_cached_protected_json(
+            &self.refresh_attempt_path(),
+            &self.license_protected_cache.refresh_attempt,
+        )
     }
 
     fn write_refresh_attempt(&self, attempt: &LicenseRefreshAttempt) -> AppResult<()> {
-        write_protected_json(&self.refresh_attempt_path(), attempt)
+        write_cached_protected_json(
+            &self.refresh_attempt_path(),
+            attempt,
+            &self.license_protected_cache.refresh_attempt,
+        )
     }
 
     pub(crate) fn require_write_access(&self) -> AppResult<()> {
@@ -1258,20 +1458,70 @@ fn clock_rolled_back(
     )
 }
 
-fn read_protected_json<T>(path: &Path) -> AppResult<Option<T>>
+fn read_cached_protected_json<T>(path: &Path, cache: &ProtectedDataCache) -> AppResult<Option<T>>
 where
     T: for<'de> Deserialize<'de>,
 {
-    let clear = match read_protected(path) {
-        Ok(clear) => clear,
-        Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
+    let protected_reference = match read_protected_reference(path) {
+        Ok(reference) => reference,
+        Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => {
+            cache.clear()?;
+            return Ok(None);
+        }
+        Err(error) => {
+            cache.clear()?;
+            return Err(error);
+        }
     };
-    Ok(Some(serde_json::from_slice(&clear)?))
+    let clear = cache.get_or_try_init(&protected_reference, || {
+        unprotect_protected_reference(&protected_reference)
+    })?;
+    match serde_json::from_slice(&clear) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) => {
+            cache.clear()?;
+            Err(error.into())
+        }
+    }
 }
 
-fn write_protected_json<T: Serialize>(path: &Path, value: &T) -> AppResult<()> {
-    write_protected_atomically(path, &serde_json::to_vec(value)?)
+fn write_cached_protected_json<T: Serialize>(
+    path: &Path,
+    value: &T,
+    cache: &ProtectedDataCache,
+) -> AppResult<()> {
+    let clear = serde_json::to_vec(value)?;
+    write_cached_protected_bytes(path, &clear, cache, false)
+}
+
+fn write_cached_protected_json_after_server_verification<T: Serialize>(
+    path: &Path,
+    value: &T,
+    cache: &ProtectedDataCache,
+) -> AppResult<()> {
+    let clear = serde_json::to_vec(value)?;
+    write_cached_protected_bytes(path, &clear, cache, true)
+}
+
+fn write_cached_protected_bytes(
+    path: &Path,
+    clear: &[u8],
+    cache: &ProtectedDataCache,
+    server_verified: bool,
+) -> AppResult<()> {
+    let result = if server_verified {
+        write_protected_atomically_with_reference_after_server_verification(path, clear)
+    } else {
+        write_protected_atomically_with_reference(path, clear)
+    };
+    match result {
+        Ok(protected_reference) => cache.replace(protected_reference, clear),
+        Err(error) => {
+            let current_reference = read_protected_reference(path).ok();
+            cache.retain_only_for_reference(current_reference.as_deref())?;
+            Err(error)
+        }
+    }
 }
 
 async fn request_refreshed_license(token: &str) -> AppResult<LicenseRefreshOutcome> {
@@ -1767,7 +2017,11 @@ mod tests {
             .unwrap();
 
         store
-            .mark_server_access(&token, &key, LicenseServerAccess::Inactive)
+            .mark_server_access_after_server_verification(
+                &token,
+                &key,
+                LicenseServerAccess::Inactive,
+            )
             .unwrap();
         assert!(store
             .require_onboarding_write_access_with_key(&key)
@@ -1776,13 +2030,84 @@ mod tests {
             .contains("inactif"));
 
         store
-            .mark_server_access(&token, &key, LicenseServerAccess::Unrecognized)
+            .mark_server_access_after_server_verification(
+                &token,
+                &key,
+                LicenseServerAccess::Unrecognized,
+            )
             .unwrap();
         assert!(store
             .require_onboarding_write_access_with_key(&key)
             .unwrap_err()
             .to_string()
             .contains("non reconnue"));
+    }
+
+    #[test]
+    fn failed_server_revocation_persistence_leaves_the_license_fail_closed() {
+        let signing = SigningKey::from_bytes(&[61_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (_payload, token) = current_token(&store, &signing, "lic-revoke-fail-closed");
+        store.install_server_token_with_key(&token, &key).unwrap();
+
+        let anchor_path = store.clock_anchor_path();
+        crate::installation::remove_protected(&anchor_path).unwrap();
+        std::fs::create_dir(&anchor_path).unwrap();
+        assert!(store
+            .mark_server_access_after_server_verification(
+                &token,
+                &key,
+                LicenseServerAccess::Inactive,
+            )
+            .is_err());
+
+        let marker: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT clock_anchor_version FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(marker, 0);
+        let state = store.get_license_state_with_key(&key).unwrap();
+        assert_eq!(state["read_only"], true);
+        assert_ne!(state["status"], "valid");
+    }
+
+    #[test]
+    fn local_revocation_never_recreates_a_missing_protected_anchor() {
+        let signing = SigningKey::from_bytes(&[62_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (_payload, token) = current_token(&store, &signing, "lic-local-revoke-strict");
+        store.install_server_token_with_key(&token, &key).unwrap();
+
+        let anchor_path = store.clock_anchor_path();
+        crate::installation::remove_protected(&anchor_path).unwrap();
+        assert!(store
+            .mark_server_access_locally(&token, &key, LicenseServerAccess::Unrecognized)
+            .is_err());
+        assert!(!anchor_path.exists());
+
+        let marker: i64 = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT clock_anchor_version FROM license_state WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(marker, 0);
+        assert_eq!(
+            store.get_license_state_with_key(&key).unwrap()["read_only"],
+            true
+        );
     }
 
     #[test]
@@ -2498,7 +2823,11 @@ mod tests {
             started_tx.send(()).unwrap();
             let _guard = marker_store.lock().unwrap();
             marker_store
-                .mark_server_access(&marker_token, &key, LicenseServerAccess::Inactive)
+                .mark_server_access_after_server_verification(
+                    &marker_token,
+                    &key,
+                    LicenseServerAccess::Inactive,
+                )
                 .unwrap();
         });
         started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -2635,6 +2964,49 @@ mod tests {
     }
 
     #[test]
+    fn protected_license_cache_reuses_only_an_unchanged_marker() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = LicenseProtectedCache {
+            tokens: ProtectedDataCache::enabled_for_test(),
+            ..LicenseProtectedCache::default()
+        };
+        let reads = AtomicUsize::new(0);
+        let loaded = cache
+            .tokens
+            .get_or_try_init(b"marker-a", || {
+                reads.fetch_add(1, Ordering::SeqCst);
+                Ok(b"secret-token-a".to_vec())
+            })
+            .unwrap();
+        assert_eq!(loaded, b"secret-token-a");
+
+        // Les clones de LocalStore partagent ce cache : le même marqueur ne
+        // déclenche donc jamais un second déverrouillage du coffre.
+        let shared = cache.clone();
+        let cached = shared
+            .tokens
+            .get_or_try_init(b"marker-a", || {
+                panic!("le chargeur du coffre ne doit pas être rappelé")
+            })
+            .unwrap();
+        assert_eq!(cached, b"secret-token-a");
+        assert_eq!(reads.load(Ordering::SeqCst), 1);
+
+        // Une rotation du marqueur force au contraire une nouvelle lecture.
+        let rotated = shared
+            .tokens
+            .get_or_try_init(b"marker-b", || {
+                reads.fetch_add(1, Ordering::SeqCst);
+                Ok(b"secret-token-b".to_vec())
+            })
+            .unwrap();
+        assert_eq!(rotated, b"secret-token-b");
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+        assert!(!format!("{shared:?}").contains("secret-token"));
+    }
+
+    #[test]
     fn missing_protected_token_fails_closed_but_online_install_repairs_it() {
         let signing = SigningKey::from_bytes(&[47_u8; 32]);
         let key = signing.verifying_key().to_bytes();
@@ -2705,7 +3077,11 @@ mod tests {
         let (_payload, token) = current_token(&store, &signing, "lic-inactive");
         store.install_server_token_with_key(&token, &key).unwrap();
         store
-            .mark_server_access(&token, &key, LicenseServerAccess::Inactive)
+            .mark_server_access_after_server_verification(
+                &token,
+                &key,
+                LicenseServerAccess::Inactive,
+            )
             .unwrap();
         assert_eq!(
             store.get_license_state_with_key(&key).unwrap()["status"],

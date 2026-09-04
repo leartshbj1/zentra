@@ -1,4 +1,4 @@
-use std::{fs, io::ErrorKind, path::Path, time::Duration};
+use std::{fs, io::ErrorKind, path::Path, sync::Arc, time::Duration};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use chrono::{DateTime, Utc};
@@ -18,7 +18,10 @@ use uuid::{Uuid, Version};
 use crate::{
     database::LocalStore,
     error::{command_error, AppError, AppResult},
-    installation::{read_protected, remove_protected, write_protected_atomically},
+    installation::{
+        read_protected_reference, remove_protected, unprotect_protected_reference,
+        write_protected_atomically_with_reference_after_server_verification, ProtectedDataCache,
+    },
     models::GenerateSalesDocumentPdfInput,
 };
 
@@ -68,6 +71,14 @@ struct PendingExchange {
     installation_id: String,
     session: CloudSession,
     license_token: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AccountProtectedCache {
+    pending: ProtectedDataCache,
+    exchange: ProtectedDataCache,
+    session: ProtectedDataCache,
+    operation_lock: Arc<futures_util::lock::Mutex<()>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -240,6 +251,7 @@ pub async fn get_cloud_account_state(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
     cloud_account_state(&store).await.map_err(command_error)
 }
 
@@ -248,6 +260,7 @@ pub async fn start_cloud_account_link(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
     start_link(&store).await.map_err(command_error)
 }
 
@@ -256,15 +269,15 @@ pub async fn poll_cloud_account_link(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
     poll_link(&store).await.map_err(command_error)
 }
 
 #[tauri::command]
 pub fn open_cloud_account_link(state: State<'_, LocalStore>) -> Result<String, String> {
-    let pending = read_secret::<PendingAuthorization>(&pending_path(state.inner()))
+    let pending = read_pending_secret(state.inner())
         .map_err(command_error)?
         .ok_or_else(|| "Aucune connexion de compte n’est en attente.".to_owned())?;
-    validate_pending(&pending).map_err(command_error)?;
     open_verification_uri(&pending.verification_uri).map_err(command_error)?;
     Ok(pending.verification_uri)
 }
@@ -289,6 +302,7 @@ pub fn open_cloud_account_portal() -> Result<String, String> {
 #[tauri::command]
 pub async fn disconnect_cloud_account(state: State<'_, LocalStore>) -> Result<(), String> {
     let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
     disconnect(&store).await.map_err(command_error)
 }
 
@@ -299,17 +313,18 @@ pub async fn archive_invoice_to_cloud(
     correction_reason: Option<String>,
 ) -> Result<InvoiceArchiveResult, String> {
     let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
     archive_invoice(&store, &invoice_id, correction_reason.as_deref())
         .await
         .map_err(command_error)
 }
 
 async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
-    if let Some(mut session) = read_secret::<CloudSession>(&session_path(store))? {
+    if let Some(mut session) = read_session_secret(store)? {
         let cached = CloudAccountState::from_session(&session)?;
         if cached.status != "connected" {
             if cached.status == "expired" {
-                store.mark_current_license_unrecognized()?;
+                store.mark_current_license_unrecognized_locally()?;
             }
             return Ok(cached);
         }
@@ -327,29 +342,38 @@ async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState>
             if me.installation_id != store.installation_id
                 || me.organization.id != session.organization_id
             {
-                store.mark_current_license_unrecognized()?;
-                remove_protected(&session_path(store))?;
+                store.mark_current_license_unrecognized_after_server_verification()?;
+                remove_secret(&session_path(store), &store.account_protected_cache.session)?;
                 return Ok(CloudAccountState::disconnected());
             }
-            let role_changed = session.role != me.organization.role;
-            session.organization_name = me.organization.name;
-            session.role = me.organization.role;
-            validate_session(&session)?;
+            let (profile_changed, role_changed) =
+                session_profile_changes(&session, &me.organization);
+            if profile_changed {
+                session.organization_name = me.organization.name;
+                session.role = me.organization.role;
+                validate_session_for_installation(&session, &store.installation_id)?;
+            }
             if role_changed {
                 // La licence actuelle porte encore l'ancien rôle signé. Elle
                 // reste bloquée jusqu'à sa réémission immédiate par App.tsx.
-                store.mark_current_license_unrecognized()?;
+                store.mark_current_license_unrecognized_after_server_verification()?;
             }
-            write_secret(&session_path(store), &session)?;
+            if profile_changed {
+                write_server_verified_secret(
+                    &session_path(store),
+                    &session,
+                    &store.account_protected_cache.session,
+                )?;
+            }
             return CloudAccountState::from_session(&session);
         }
         if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
-            store.mark_current_license_unrecognized()?;
-            remove_protected(&session_path(store))?;
+            store.mark_current_license_unrecognized_after_server_verification()?;
+            remove_secret(&session_path(store), &store.account_protected_cache.session)?;
             return Ok(CloudAccountState::disconnected());
         }
         if status == StatusCode::PAYMENT_REQUIRED {
-            store.mark_current_license_inactive()?;
+            store.mark_current_license_inactive_after_server_verification()?;
             return CloudAccountState::inactive(&session);
         }
         if status.is_server_error() {
@@ -357,7 +381,7 @@ async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState>
         }
         return Err(server_response_error(status, &bytes));
     }
-    if let Some(pending) = read_secret::<PendingAuthorization>(&pending_path(store))? {
+    if let Some(pending) = read_pending_secret(store)? {
         return CloudAccountState::from_pending(&pending);
     }
     Ok(CloudAccountState::disconnected())
@@ -382,19 +406,29 @@ async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
         expires_at: expires_at.to_rfc3339(),
         interval_seconds: response.interval.clamp(3, 30),
     };
-    validate_pending(&pending)?;
-    write_secret(&pending_path(store), &pending)?;
+    validate_pending_for_installation(&pending, &store.installation_id)?;
+    // Une nouvelle autorisation serveur rend toute réponse d'un cycle
+    // précédent inutilisable, y compris si ce cycle avait déjà produit un
+    // échange protégé avant une interruption locale.
+    remove_secret(
+        &exchange_path(store),
+        &store.account_protected_cache.exchange,
+    )?;
+    write_server_verified_secret(
+        &pending_path(store),
+        &pending,
+        &store.account_protected_cache.pending,
+    )?;
     CloudAccountState::from_pending(&pending)
 }
 
 async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
-    if let Some(exchange) = read_secret::<PendingExchange>(&exchange_path(store))? {
+    if let Some(exchange) = read_exchange_secret(store)? {
         return finalize_exchange(store, exchange);
     }
-    let pending = read_secret::<PendingAuthorization>(&pending_path(store))?.ok_or_else(|| {
+    let pending = read_pending_secret(store)?.ok_or_else(|| {
         AppError::Validation("Relancez la connexion au compte depuis les paramètres.".into())
     })?;
-    validate_pending(&pending)?;
     if parse_future_or_past_date(&pending.expires_at, "autorisation")? <= Utc::now() {
         return Err(AppError::Validation(
             "Le code de connexion a expiré. Demandez un nouveau code.".into(),
@@ -443,7 +477,7 @@ async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
         role: organization.role,
         connected_at: Utc::now().to_rfc3339(),
     };
-    validate_session(&session)?;
+    validate_session_for_installation(&session, &store.installation_id)?;
     if license_token.len() < 100 || license_token.len() > 8 * 1024 {
         return Err(AppError::Validation(
             "La licence signée est invalide.".into(),
@@ -455,7 +489,12 @@ async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
         session,
         license_token,
     };
-    write_secret(&exchange_path(store), &exchange)?;
+    validate_exchange_for_installation(&exchange, &store.installation_id)?;
+    write_server_verified_secret(
+        &exchange_path(store),
+        &exchange,
+        &store.account_protected_cache.exchange,
+    )?;
     finalize_exchange(store, exchange)
 }
 
@@ -463,22 +502,23 @@ fn finalize_exchange(
     store: &LocalStore,
     exchange: PendingExchange,
 ) -> AppResult<CloudAccountState> {
-    if exchange.version != SECRET_VERSION || exchange.installation_id != store.installation_id {
-        return Err(AppError::Validation(
-            "La réponse protégée ne correspond pas à cette installation.".into(),
-        ));
-    }
-    validate_session(&exchange.session)?;
+    validate_exchange_for_installation(&exchange, &store.installation_id)?;
     store.install_server_issued_license(&exchange.license_token)?;
-    write_secret(&session_path(store), &exchange.session)?;
-    remove_protected(&exchange_path(store))?;
-    remove_protected(&pending_path(store))?;
+    write_server_verified_secret(
+        &session_path(store),
+        &exchange.session,
+        &store.account_protected_cache.session,
+    )?;
+    remove_secret(
+        &exchange_path(store),
+        &store.account_protected_cache.exchange,
+    )?;
+    remove_secret(&pending_path(store), &store.account_protected_cache.pending)?;
     CloudAccountState::from_session(&exchange.session)
 }
 
 async fn disconnect(store: &LocalStore) -> AppResult<()> {
-    if let Some(session) = read_secret::<CloudSession>(&session_path(store))? {
-        validate_session(&session)?;
+    let revocation_confirmed_by_server = if let Some(session) = read_session_secret(store)? {
         let (status, bytes) = account_request(
             Method::DELETE,
             SESSION_PATH,
@@ -489,14 +529,24 @@ async fn disconnect(store: &LocalStore) -> AppResult<()> {
         if !status.is_success() && status != StatusCode::UNAUTHORIZED {
             return Err(server_response_error(status, &bytes));
         }
-    }
+        true
+    } else {
+        false
+    };
     // Une déconnexion explicite révoque aussi le droit d'écriture local. Les
     // données restent lisibles, mais une nouvelle autorisation serveur est
     // requise pour modifier ce profil.
-    store.mark_current_license_unrecognized()?;
-    remove_protected(&session_path(store))?;
-    remove_protected(&pending_path(store))?;
-    remove_protected(&exchange_path(store))?;
+    if revocation_confirmed_by_server {
+        store.mark_current_license_unrecognized_after_server_verification()?;
+    } else {
+        store.mark_current_license_unrecognized_locally()?;
+    }
+    remove_secret(&session_path(store), &store.account_protected_cache.session)?;
+    remove_secret(&pending_path(store), &store.account_protected_cache.pending)?;
+    remove_secret(
+        &exchange_path(store),
+        &store.account_protected_cache.exchange,
+    )?;
     Ok(())
 }
 
@@ -505,7 +555,7 @@ async fn archive_invoice(
     invoice_id: &str,
     correction_reason: Option<&str>,
 ) -> AppResult<InvoiceArchiveResult> {
-    let session = read_secret::<CloudSession>(&session_path(store))?.ok_or_else(|| {
+    let session = read_session_secret(store)?.ok_or_else(|| {
         AppError::Validation(
             "Reliez ce poste au compte Zentra avant d’archiver une facture.".into(),
         )
@@ -709,6 +759,19 @@ fn validate_pending(pending: &PendingAuthorization) -> AppResult<()> {
     Ok(())
 }
 
+fn validate_pending_for_installation(
+    pending: &PendingAuthorization,
+    installation_id: &str,
+) -> AppResult<()> {
+    validate_pending(pending)?;
+    if pending.installation_id != installation_id {
+        return Err(AppError::Validation(
+            "La demande de connexion protégée ne correspond pas à cette installation.".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_session(session: &CloudSession) -> AppResult<()> {
     if session.version != SECRET_VERSION {
         return Err(AppError::Validation(
@@ -734,6 +797,46 @@ fn validate_session(session: &CloudSession) -> AppResult<()> {
         ));
     }
     Ok(())
+}
+
+fn validate_session_for_installation(
+    session: &CloudSession,
+    installation_id: &str,
+) -> AppResult<()> {
+    validate_session(session)?;
+    if session.installation_id != installation_id {
+        return Err(AppError::Validation(
+            "La session protégée ne correspond pas à cette installation.".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_exchange_for_installation(
+    exchange: &PendingExchange,
+    installation_id: &str,
+) -> AppResult<()> {
+    if exchange.version != SECRET_VERSION || exchange.installation_id != installation_id {
+        return Err(AppError::Validation(
+            "La réponse protégée ne correspond pas à cette installation.".into(),
+        ));
+    }
+    validate_session_for_installation(&exchange.session, installation_id)?;
+    if exchange.license_token.len() < 100 || exchange.license_token.len() > 8 * 1024 {
+        return Err(AppError::Validation(
+            "La licence signée protégée est invalide.".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn session_profile_changes(
+    session: &CloudSession,
+    organization: &PollOrganization,
+) -> (bool, bool) {
+    let name_changed = session.organization_name != organization.name;
+    let role_changed = session.role != organization.role;
+    (name_changed || role_changed, role_changed)
 }
 
 fn validate_installation_id(value: &str) -> AppResult<()> {
@@ -926,17 +1029,100 @@ fn server_response_error(status: StatusCode, bytes: &[u8]) -> AppError {
     AppError::Validation(message)
 }
 
-fn write_secret<T: Serialize>(path: &Path, value: &T) -> AppResult<()> {
-    write_protected_atomically(path, &serde_json::to_vec(value)?)
+fn write_server_verified_secret<T: Serialize>(
+    path: &Path,
+    value: &T,
+    cache: &ProtectedDataCache,
+) -> AppResult<()> {
+    let clear = serde_json::to_vec(value)?;
+    match write_protected_atomically_with_reference_after_server_verification(path, &clear) {
+        Ok(protected_reference) => cache.replace(protected_reference, &clear),
+        Err(error) => {
+            let current_reference = read_protected_reference(path).ok();
+            cache.retain_only_for_reference(current_reference.as_deref())?;
+            Err(error)
+        }
+    }
 }
 
-fn read_secret<T: DeserializeOwned>(path: &Path) -> AppResult<Option<T>> {
-    let bytes = match read_protected(path) {
-        Ok(bytes) => bytes,
-        Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
+fn read_pending_secret(store: &LocalStore) -> AppResult<Option<PendingAuthorization>> {
+    read_secret(
+        &pending_path(store),
+        &store.account_protected_cache.pending,
+        |pending| validate_pending_for_installation(pending, &store.installation_id),
+    )
+}
+
+fn read_exchange_secret(store: &LocalStore) -> AppResult<Option<PendingExchange>> {
+    read_secret(
+        &exchange_path(store),
+        &store.account_protected_cache.exchange,
+        |exchange| validate_exchange_for_installation(exchange, &store.installation_id),
+    )
+}
+
+fn read_session_secret(store: &LocalStore) -> AppResult<Option<CloudSession>> {
+    read_secret(
+        &session_path(store),
+        &store.account_protected_cache.session,
+        |session| validate_session_for_installation(session, &store.installation_id),
+    )
+}
+
+fn read_secret<T, V>(path: &Path, cache: &ProtectedDataCache, validate: V) -> AppResult<Option<T>>
+where
+    T: DeserializeOwned,
+    V: FnOnce(&T) -> AppResult<()>,
+{
+    let protected_reference = match read_protected_reference(path) {
+        Ok(reference) => reference,
+        Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => {
+            cache.clear()?;
+            return Ok(None);
+        }
+        Err(error) => {
+            cache.clear()?;
+            return Err(error);
+        }
     };
-    Ok(Some(serde_json::from_slice(&bytes)?))
+    decode_cached_secret(
+        &protected_reference,
+        cache,
+        || unprotect_protected_reference(&protected_reference),
+        validate,
+    )
+    .map(Some)
+}
+
+fn decode_cached_secret<T, L, V>(
+    protected_reference: &[u8],
+    cache: &ProtectedDataCache,
+    load: L,
+    validate: V,
+) -> AppResult<T>
+where
+    T: DeserializeOwned,
+    L: FnOnce() -> AppResult<Vec<u8>>,
+    V: FnOnce(&T) -> AppResult<()>,
+{
+    let clear = cache.get_or_try_init(protected_reference, load)?;
+    let value = match serde_json::from_slice(&clear) {
+        Ok(value) => value,
+        Err(error) => {
+            cache.clear()?;
+            return Err(error.into());
+        }
+    };
+    if let Err(error) = validate(&value) {
+        cache.clear()?;
+        return Err(error);
+    }
+    Ok(value)
+}
+
+fn remove_secret(path: &Path, cache: &ProtectedDataCache) -> AppResult<()> {
+    remove_protected(path)?;
+    cache.clear()
 }
 
 fn pending_path(store: &LocalStore) -> std::path::PathBuf {
@@ -994,6 +1180,34 @@ fn launch_external_url(uri: &str) -> AppResult<()> {
 mod tests {
     use super::*;
 
+    const TEST_INSTALLATION_ID: &str = "55af29dd-fdaa-4993-ae78-17f9ca220e51";
+
+    fn pending_for(installation_id: &str) -> PendingAuthorization {
+        PendingAuthorization {
+            version: SECRET_VERSION,
+            installation_id: installation_id.into(),
+            device_code: format!("zdv_{}", "A".repeat(43)),
+            user_code: "ABCD-EFGH".into(),
+            verification_uri: "https://elyko.alb-leart1.chatgpt.site/appareil?code=ABCD-EFGH"
+                .into(),
+            expires_at: "2026-09-05T12:00:00Z".into(),
+            interval_seconds: 3,
+        }
+    }
+
+    fn session_for(installation_id: &str) -> CloudSession {
+        CloudSession {
+            version: SECRET_VERSION,
+            installation_id: installation_id.into(),
+            session_token: format!("zds_{}", "B".repeat(43)),
+            session_expires_at: "2026-10-05T12:00:00Z".into(),
+            organization_id: "org_369d3fcf-b05b-4d78-9f2a-3c4141aed7fd".into(),
+            organization_name: "Atelier Zentra".into(),
+            role: "owner".into(),
+            connected_at: "2026-09-04T12:00:00Z".into(),
+        }
+    }
+
     #[test]
     fn validates_server_credentials_and_fixed_verification_origin() {
         validate_opaque_token("zds_0123456789abcdefghijklmnopqrstuvwxyz_ABCD-E", "zds_").unwrap();
@@ -1010,5 +1224,136 @@ mod tests {
             "ABCD-EFGH"
         )
         .is_err());
+    }
+
+    #[test]
+    fn repeated_pending_polls_unlock_the_same_generation_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = ProtectedDataCache::enabled_for_test();
+        let pending = pending_for(TEST_INSTALLATION_ID);
+        let clear = serde_json::to_vec(&pending).unwrap();
+        let unlocks = AtomicUsize::new(0);
+
+        for _ in 0..10 {
+            let decoded: PendingAuthorization = decode_cached_secret(
+                b"pending-generation",
+                &cache,
+                || {
+                    unlocks.fetch_add(1, Ordering::SeqCst);
+                    Ok(clear.clone())
+                },
+                |value| validate_pending_for_installation(value, TEST_INSTALLATION_ID),
+            )
+            .unwrap();
+            assert_eq!(decoded.user_code, "ABCD-EFGH");
+        }
+
+        assert_eq!(unlocks.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn invalid_rotated_pending_generation_cannot_restore_the_old_cache() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = ProtectedDataCache::enabled_for_test();
+        let valid_clear = serde_json::to_vec(&pending_for(TEST_INSTALLATION_ID)).unwrap();
+        let invalid_clear =
+            serde_json::to_vec(&pending_for("5bf79bcc-921e-4822-86fc-c773ea2cf7bb")).unwrap();
+        let unlocks = AtomicUsize::new(0);
+
+        let _: PendingAuthorization = decode_cached_secret(
+            b"generation-a",
+            &cache,
+            || {
+                unlocks.fetch_add(1, Ordering::SeqCst);
+                Ok(valid_clear.clone())
+            },
+            |value| validate_pending_for_installation(value, TEST_INSTALLATION_ID),
+        )
+        .unwrap();
+        assert!(decode_cached_secret::<PendingAuthorization, _, _>(
+            b"generation-b",
+            &cache,
+            || {
+                unlocks.fetch_add(1, Ordering::SeqCst);
+                Ok(invalid_clear)
+            },
+            |value| validate_pending_for_installation(value, TEST_INSTALLATION_ID),
+        )
+        .is_err());
+
+        let _: PendingAuthorization = decode_cached_secret(
+            b"generation-a",
+            &cache,
+            || {
+                unlocks.fetch_add(1, Ordering::SeqCst);
+                Ok(valid_clear)
+            },
+            |value| validate_pending_for_installation(value, TEST_INSTALLATION_ID),
+        )
+        .unwrap();
+        assert_eq!(unlocks.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn removed_secret_cannot_be_resurrected_from_memory() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("pending.protected");
+        let marker = b"synthetic-marker";
+        let clear = serde_json::to_vec(&pending_for(TEST_INSTALLATION_ID)).unwrap();
+        let cache = ProtectedDataCache::enabled_for_test();
+        fs::write(&path, marker).unwrap();
+        cache.replace(marker.to_vec(), &clear).unwrap();
+
+        remove_secret(&path, &cache).unwrap();
+        fs::write(&path, marker).unwrap();
+        let reloads = AtomicUsize::new(0);
+        let _: PendingAuthorization = decode_cached_secret(
+            marker,
+            &cache,
+            || {
+                reloads.fetch_add(1, Ordering::SeqCst);
+                Ok(clear)
+            },
+            |value| validate_pending_for_installation(value, TEST_INSTALLATION_ID),
+        )
+        .unwrap();
+        assert_eq!(reloads.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn account_operations_share_one_async_mutex() {
+        let cache = AccountProtectedCache::default();
+        let shared = cache.clone();
+        let guard = cache.operation_lock.try_lock().unwrap();
+        assert!(shared.operation_lock.try_lock().is_none());
+        drop(guard);
+        assert!(shared.operation_lock.try_lock().is_some());
+    }
+
+    #[test]
+    fn unchanged_server_profile_does_not_require_a_session_write() {
+        let session = session_for(TEST_INSTALLATION_ID);
+        let unchanged = PollOrganization {
+            id: session.organization_id.clone(),
+            name: session.organization_name.clone(),
+            role: session.role.clone(),
+        };
+        assert_eq!(
+            session_profile_changes(&session, &unchanged),
+            (false, false)
+        );
+
+        let role_changed = PollOrganization {
+            role: "accountant".into(),
+            ..unchanged
+        };
+        assert_eq!(
+            session_profile_changes(&session, &role_changed),
+            (true, true)
+        );
     }
 }

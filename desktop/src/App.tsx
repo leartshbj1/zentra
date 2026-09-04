@@ -19,6 +19,7 @@ import { desktopApi, type CloudAccountState } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
 import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
+  cloudAccountChangeNeedsFullRevalidation,
   createSingleFlightCloudAccessRevalidator,
 } from './cloudAccessRevalidation';
 import { Onboarding } from './Onboarding';
@@ -110,7 +111,9 @@ export function App() {
   const handleCloudAccountChange = useCallback(
     (next: CloudAccountState) => {
       setCloudAccount(next);
-      void revalidateCloudAccess();
+      if (cloudAccountChangeNeedsFullRevalidation(next)) {
+        void revalidateCloudAccess();
+      }
     },
     [revalidateCloudAccess],
   );

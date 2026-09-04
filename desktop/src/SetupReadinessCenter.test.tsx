@@ -88,6 +88,7 @@ const baseSettings: AppSettings = {
     quoteValidityDays: 30,
     vatRatesBp: [],
     defaultFooter: '',
+    footerTemplates: [],
   },
   work: {
     workWeekHours: 42,

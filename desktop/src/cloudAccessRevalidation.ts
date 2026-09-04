@@ -8,6 +8,15 @@ export type CloudAccessSnapshot = {
   license: LicenseState;
 };
 
+export function cloudAccountChangeNeedsFullRevalidation(
+  account: CloudAccountState,
+): boolean {
+  // Le panneau publie le même état pending à chaque poll court. Le backend
+  // a déjà validé cet état et le garder ici évite de relire la licence et le
+  // compte protégés jusqu'à une vraie transition.
+  return account.status !== 'pending';
+}
+
 type CloudAccessApi = {
   getCloudAccountState: () => Promise<CloudAccountState>;
   getLicenseState: () => Promise<LicenseState>;

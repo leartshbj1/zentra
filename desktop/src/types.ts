@@ -49,6 +49,13 @@ export type BillingSettings = {
   quoteValidityDays: number;
   vatRatesBp: number[];
   defaultFooter: string;
+  footerTemplates: DocumentFooterTemplate[];
+};
+
+export type DocumentFooterTemplate = {
+  id: Identifier;
+  name: string;
+  text: string;
 };
 
 export type WorkSettings = {
@@ -408,6 +415,8 @@ export type FrozenDocumentRecord = {
   currency: string;
   notes: string;
   terms: string;
+  depositPercentageBp: number | null;
+  depositBasisLines: DocumentLine[] | null;
 };
 
 export type FrozenDocumentSnapshot = {
@@ -424,7 +433,8 @@ export type QuoteStatus =
   | 'issued'
   | 'accepted'
   | 'refused'
-  | 'expired';
+  | 'expired'
+  | 'cancelled';
 
 export type Quote = {
   id: Identifier;
@@ -438,6 +448,7 @@ export type Quote = {
   status: QuoteStatus;
   lines: DocumentLine[];
   notes: string;
+  terms: string;
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
 };
@@ -472,6 +483,9 @@ export type Invoice = {
   status: InvoiceStatus;
   lines: DocumentLine[];
   notes: string;
+  terms: string;
+  depositPercentageBp: number | null;
+  depositBasisLines: DocumentLine[] | null;
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
   qrBill?: StoredSwissQrBill | null;

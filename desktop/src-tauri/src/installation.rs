@@ -1,7 +1,9 @@
 use std::{
+    fmt,
     fs::{self, OpenOptions},
     io::{ErrorKind, Write},
     path::Path,
+    sync::{Arc, Mutex},
 };
 
 use uuid::{Uuid, Version};
@@ -12,11 +14,131 @@ use crate::error::{AppError, AppResult};
 const IDENTITY_FILE: &str = "installation-identity.dpapi";
 #[cfg(not(windows))]
 const IDENTITY_FILE: &str = "installation-identity.protected";
+const MAX_PROTECTED_BYTES: usize = 64 * 1024;
 
 #[cfg(target_os = "macos")]
 const MACOS_KEYCHAIN_SERVICE: &str = "ch.zentra.desktop.protected-data";
 #[cfg(target_os = "macos")]
 const MACOS_KEYCHAIN_MARKER: &str = "zentra-keychain-v1:";
+
+/// Cache de session d'une valeur déverrouillée du coffre système. Il n'est
+/// actif qu'à la compilation macOS : DPAPI ne présente pas de dialogue sous
+/// Windows et n'a pas besoin de prolonger la durée de vie du secret en RAM.
+#[derive(Clone)]
+pub(crate) struct ProtectedDataCache {
+    record: Arc<Mutex<Option<CachedProtectedData>>>,
+    enabled: bool,
+}
+
+#[derive(Clone)]
+struct CachedProtectedData {
+    protected_reference: Vec<u8>,
+    clear: Vec<u8>,
+}
+
+impl Default for ProtectedDataCache {
+    fn default() -> Self {
+        Self {
+            record: Arc::new(Mutex::new(None)),
+            enabled: cfg!(target_os = "macos"),
+        }
+    }
+}
+
+impl fmt::Debug for ProtectedDataCache {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ProtectedDataCache(<redacted>)")
+    }
+}
+
+impl ProtectedDataCache {
+    #[cfg(test)]
+    pub(crate) fn enabled_for_test() -> Self {
+        Self {
+            record: Arc::new(Mutex::new(None)),
+            enabled: true,
+        }
+    }
+
+    pub(crate) fn get_or_try_init<F>(
+        &self,
+        protected_reference: &[u8],
+        load: F,
+    ) -> AppResult<Vec<u8>>
+    where
+        F: FnOnce() -> AppResult<Vec<u8>>,
+    {
+        if !self.enabled {
+            return load();
+        }
+        // Garder le verrou pendant le premier accès évite que deux commandes
+        // concurrentes affichent chacune une demande Keychain.
+        let mut cached = self.record.lock().map_err(|_| cache_unavailable())?;
+        if let Some(cached) = cached
+            .as_ref()
+            .filter(|cached| cached.protected_reference == protected_reference)
+        {
+            return Ok(cached.clear.clone());
+        }
+
+        // Une autre référence désigne une autre génération. Invalider
+        // l'ancienne avant de tenter le déverrouillage garantit qu'un échec
+        // sur la nouvelle génération ne permet jamais de ressusciter ensuite
+        // l'ancien secret depuis la RAM.
+        *cached = None;
+        let clear = load()?;
+        *cached = Some(CachedProtectedData {
+            protected_reference: protected_reference.to_vec(),
+            clear: clear.clone(),
+        });
+        Ok(clear)
+    }
+
+    pub(crate) fn replace(&self, protected_reference: Vec<u8>, clear: &[u8]) -> AppResult<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let mut cached = self.record.lock().map_err(|_| cache_unavailable())?;
+        *cached = Some(CachedProtectedData {
+            protected_reference,
+            clear: clear.to_vec(),
+        });
+        Ok(())
+    }
+
+    pub(crate) fn clear(&self) -> AppResult<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        *self.record.lock().map_err(|_| cache_unavailable())? = None;
+        Ok(())
+    }
+
+    /// Après l'échec d'une écriture, ne conserve une valeur déverrouillée
+    /// que si sa propre référence est toujours exactement celle du disque.
+    pub(crate) fn retain_only_for_reference(
+        &self,
+        current_reference: Option<&[u8]>,
+    ) -> AppResult<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let mut cached = self.record.lock().map_err(|_| cache_unavailable())?;
+        let still_current = cached.as_ref().is_some_and(|cached| {
+            current_reference.is_some_and(|reference| cached.protected_reference == reference)
+        });
+        if !still_current {
+            *cached = None;
+        }
+        Ok(())
+    }
+}
+
+fn cache_unavailable() -> AppError {
+    AppError::Validation(
+        "Le cache en mémoire des données protégées est indisponible. Redémarrez Zentra.".into(),
+    )
+}
 
 pub fn load_or_create(data_dir: &Path) -> AppResult<String> {
     let path = data_dir.join(IDENTITY_FILE);
@@ -63,7 +185,38 @@ fn parse_identity(bytes: &[u8]) -> AppResult<String> {
     Ok(uuid.to_string())
 }
 
+#[cfg(test)]
 pub(crate) fn write_protected_atomically(path: &Path, clear: &[u8]) -> AppResult<()> {
+    write_protected_atomically_with_reference(path, clear).map(|_| ())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+pub(crate) fn write_protected_atomically_after_server_verification(
+    path: &Path,
+    clear: &[u8],
+) -> AppResult<()> {
+    write_protected_atomically_with_reference_after_server_verification(path, clear).map(|_| ())
+}
+
+pub(crate) fn write_protected_atomically_with_reference(
+    path: &Path,
+    clear: &[u8],
+) -> AppResult<Vec<u8>> {
+    write_protected_atomically_internal(path, clear, false)
+}
+
+pub(crate) fn write_protected_atomically_with_reference_after_server_verification(
+    path: &Path,
+    clear: &[u8],
+) -> AppResult<Vec<u8>> {
+    write_protected_atomically_internal(path, clear, true)
+}
+
+fn write_protected_atomically_internal(
+    path: &Path,
+    clear: &[u8],
+    _recreate_missing_keychain_item: bool,
+) -> AppResult<Vec<u8>> {
     const MAX_CLEAR_BYTES: usize = 16 * 1024;
     if clear.is_empty() || clear.len() > MAX_CLEAR_BYTES {
         return Err(AppError::Validation(
@@ -78,6 +231,36 @@ pub(crate) fn write_protected_atomically(path: &Path, clear: &[u8]) -> AppResult
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| AppError::Validation("Le nom de la donnée protégée est invalide.".into()))?;
+
+    // Un fichier macOS ne contient qu'un identifiant aléatoire de compte
+    // Keychain. Conserver ce compte lors d'une mise à jour évite de créer puis
+    // supprimer une entrée à chaque avancée de l'ancre de licence (opération
+    // très fréquente), sans déplacer le secret hors du Trousseau.
+    #[cfg(target_os = "macos")]
+    match read_protected_reference(path) {
+        Ok(previous_protected) => match marker_account(&previous_protected) {
+            Ok(account) => match update_keychain_secret(account, clear) {
+                Ok(()) => return Ok(previous_protected),
+                Err(KeychainUpdateError::Missing) if _recreate_missing_keychain_item => {}
+                Err(KeychainUpdateError::Missing) => {
+                    return Err(AppError::Validation(
+                            "Le secret protégé est absent du Trousseau macOS. Une vérification en ligne est nécessaire pour le réparer."
+                                .into(),
+                        ));
+                }
+                Err(KeychainUpdateError::Other(error)) => return Err(error),
+            },
+            Err(_) if _recreate_missing_keychain_item => {}
+            Err(error) => return Err(error),
+        },
+        Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => {}
+        // Une référence malformée n'est réparable qu'à partir d'une valeur que
+        // le serveur vient de vérifier. Les erreurs d'accès ne sont jamais
+        // masquées.
+        Err(AppError::Validation(_)) if _recreate_missing_keychain_item => {}
+        Err(error) => return Err(error),
+    }
+
     let temporary_path = parent.join(format!(".{file_name}.{}.tmp", Uuid::new_v4()));
     let protected = protect_for_current_user(clear)?;
     let previous_protected = fs::read(path).ok();
@@ -96,24 +279,52 @@ pub(crate) fn write_protected_atomically(path: &Path, clear: &[u8]) -> AppResult
         fs::rename(&temporary_path, path)?;
         Ok(())
     })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary_path);
-        forget_protected(&protected);
-    } else if let Some(previous) = previous_protected {
-        forget_protected(&previous);
+    match result {
+        Ok(()) => {
+            if let Some(previous) = previous_protected {
+                forget_protected(&previous);
+            }
+            Ok(protected)
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&temporary_path);
+            forget_protected(&protected);
+            Err(error)
+        }
     }
-    result
 }
 
+#[cfg(test)]
 pub(crate) fn read_protected(path: &Path) -> AppResult<Vec<u8>> {
-    const MAX_PROTECTED_BYTES: u64 = 64 * 1024;
+    let protected = read_protected_reference(path)?;
+    unprotect_protected_reference(&protected)
+}
+
+/// Lit seulement la référence persistée du coffre. Sous macOS, elle contient
+/// un identifiant aléatoire de compte Keychain, jamais le secret en clair.
+pub(crate) fn read_protected_reference(path: &Path) -> AppResult<Vec<u8>> {
     let metadata = fs::metadata(path)?;
-    if metadata.len() == 0 || metadata.len() > MAX_PROTECTED_BYTES {
+    if metadata.len() == 0 || metadata.len() > MAX_PROTECTED_BYTES as u64 {
         return Err(AppError::Validation(
             "La donnée locale protégée est vide ou trop volumineuse.".into(),
         ));
     }
-    unprotect_for_current_user(&fs::read(path)?)
+    let protected = fs::read(path)?;
+    if protected.is_empty() || protected.len() > MAX_PROTECTED_BYTES {
+        return Err(AppError::Validation(
+            "La donnée locale protégée est vide ou trop volumineuse.".into(),
+        ));
+    }
+    Ok(protected)
+}
+
+pub(crate) fn unprotect_protected_reference(protected: &[u8]) -> AppResult<Vec<u8>> {
+    if protected.is_empty() || protected.len() > MAX_PROTECTED_BYTES {
+        return Err(AppError::Validation(
+            "La donnée locale protégée est vide ou trop volumineuse.".into(),
+        ));
+    }
+    unprotect_for_current_user(protected)
 }
 
 pub(crate) fn remove_protected(path: &Path) -> AppResult<()> {
@@ -219,6 +430,59 @@ fn keychain_entry(account: &str) -> AppResult<keyring::Entry> {
 }
 
 #[cfg(target_os = "macos")]
+fn create_keychain_secret(account: &str, clear: &[u8]) -> AppResult<()> {
+    security_framework::passwords::set_generic_password(MACOS_KEYCHAIN_SERVICE, account, clear)
+        .map_err(|error| {
+            AppError::Validation(format!(
+                "Le Trousseau macOS a refusé l’enregistrement sécurisé ({error})."
+            ))
+        })
+}
+
+#[cfg(target_os = "macos")]
+enum KeychainUpdateError {
+    Missing,
+    Other(AppError),
+}
+
+#[cfg(target_os = "macos")]
+fn update_keychain_secret(account: &str, clear: &[u8]) -> Result<(), KeychainUpdateError> {
+    use core_foundation::data::CFData;
+    use security_framework::{
+        item::{update_item, ItemClass, ItemSearchOptions, ItemUpdateOptions, ItemUpdateValue},
+        os::macos::keychain::{SecKeychain, SecPreferencesDomain},
+    };
+
+    // Construire une requête sans kSecReturnData puis appeler directement
+    // SecItemUpdate : la valeur existante n'est jamais lue. Si l'entrée a été
+    // supprimée du Trousseau, l'update échoue au lieu de la recréer depuis une
+    // copie en mémoire.
+    let keychain =
+        SecKeychain::default_for_domain(SecPreferencesDomain::User).map_err(|error| {
+            KeychainUpdateError::Other(AppError::Validation(format!(
+                "Le Trousseau macOS est indisponible ({error})."
+            )))
+        })?;
+    let mut search = ItemSearchOptions::new();
+    search
+        .keychains(std::slice::from_ref(&keychain))
+        .class(ItemClass::generic_password())
+        .service(MACOS_KEYCHAIN_SERVICE)
+        .account(account);
+    let mut update = ItemUpdateOptions::new();
+    update.set_value(ItemUpdateValue::Data(CFData::from_buffer(clear)));
+    match update_item(&search, &update) {
+        Ok(()) => Ok(()),
+        Err(error) if error.code() == security_framework_sys::base::errSecItemNotFound => {
+            Err(KeychainUpdateError::Missing)
+        }
+        Err(error) => Err(KeychainUpdateError::Other(AppError::Validation(format!(
+            "Le Trousseau macOS a refusé la mise à jour sécurisée ({error})."
+        )))),
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn marker_account(protected: &[u8]) -> AppResult<&str> {
     let marker = std::str::from_utf8(protected).map_err(|_| {
         AppError::Validation("La référence protégée du Trousseau macOS est illisible.".into())
@@ -240,13 +504,7 @@ fn marker_account(protected: &[u8]) -> AppResult<&str> {
 #[cfg(target_os = "macos")]
 fn protect_for_current_user(clear: &[u8]) -> AppResult<Vec<u8>> {
     let account = Uuid::new_v4().to_string();
-    keychain_entry(&account)?
-        .set_secret(clear)
-        .map_err(|error| {
-            AppError::Validation(format!(
-                "Le Trousseau macOS a refusé l’enregistrement sécurisé ({error})."
-            ))
-        })?;
+    create_keychain_secret(&account, clear)?;
     Ok(format!("{MACOS_KEYCHAIN_MARKER}{account}").into_bytes())
 }
 
@@ -297,6 +555,96 @@ fn forget_protected(_protected: &[u8]) {}
 mod tests {
     use super::*;
 
+    #[test]
+    fn protected_cache_invalidates_old_generation_before_failed_reload() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = ProtectedDataCache::enabled_for_test();
+        cache
+            .get_or_try_init(b"generation-a", || Ok(b"secret-a".to_vec()))
+            .unwrap();
+
+        assert!(cache
+            .get_or_try_init(b"generation-b", || {
+                Err(AppError::Validation("nouvelle génération illisible".into()))
+            })
+            .is_err());
+
+        let reloads = AtomicUsize::new(0);
+        let reloaded = cache
+            .get_or_try_init(b"generation-a", || {
+                reloads.fetch_add(1, Ordering::SeqCst);
+                Ok(b"secret-a-relu".to_vec())
+            })
+            .unwrap();
+        assert_eq!(reloaded, b"secret-a-relu");
+        assert_eq!(reloads.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn protected_cache_serializes_the_first_unlock() {
+        use std::{
+            sync::{
+                atomic::{AtomicUsize, Ordering},
+                Arc, Barrier,
+            },
+            thread,
+        };
+
+        let cache = ProtectedDataCache::enabled_for_test();
+        let starts = Arc::new(Barrier::new(8));
+        let unlocks = Arc::new(AtomicUsize::new(0));
+        let threads = (0..8)
+            .map(|_| {
+                let cache = cache.clone();
+                let starts = Arc::clone(&starts);
+                let unlocks = Arc::clone(&unlocks);
+                thread::spawn(move || {
+                    starts.wait();
+                    cache
+                        .get_or_try_init(b"shared-generation", || {
+                            unlocks.fetch_add(1, Ordering::SeqCst);
+                            Ok(b"shared-secret".to_vec())
+                        })
+                        .unwrap()
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for thread in threads {
+            assert_eq!(thread.join().unwrap(), b"shared-secret");
+        }
+        assert_eq!(unlocks.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn protected_cache_is_retained_only_while_its_marker_is_current() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = ProtectedDataCache::enabled_for_test();
+        cache
+            .get_or_try_init(b"generation-a", || Ok(b"secret-a".to_vec()))
+            .unwrap();
+        cache
+            .retain_only_for_reference(Some(b"generation-a"))
+            .unwrap();
+        cache
+            .get_or_try_init(b"generation-a", || panic!("cache attendu"))
+            .unwrap();
+
+        cache
+            .retain_only_for_reference(Some(b"generation-b"))
+            .unwrap();
+        let reloads = AtomicUsize::new(0);
+        cache
+            .get_or_try_init(b"generation-a", || {
+                reloads.fetch_add(1, Ordering::SeqCst);
+                Ok(b"secret-a-relu".to_vec())
+            })
+            .unwrap();
+        assert_eq!(reloads.load(Ordering::SeqCst), 1);
+    }
+
     #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn installation_identity_is_stable_and_not_plaintext() {
@@ -318,8 +666,16 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let path = temporary.path().join("anchor.dpapi");
         write_protected_atomically(&path, b"first").unwrap();
+        #[cfg(target_os = "macos")]
+        let first_reference = read_protected_reference(&path).unwrap();
         write_protected_atomically(&path, b"second").unwrap();
         assert_eq!(read_protected(&path).unwrap(), b"second");
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            read_protected_reference(&path).unwrap(),
+            first_reference,
+            "une mise à jour doit réutiliser l'entrée Keychain existante"
+        );
         assert_eq!(
             std::fs::read_dir(temporary.path()).unwrap().count(),
             1,
@@ -327,5 +683,26 @@ mod tests {
         );
         remove_protected(&path).unwrap();
         assert!(!path.exists());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn only_server_verified_write_recreates_a_missing_keychain_item() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("anchor.protected");
+        write_protected_atomically(&path, b"first").unwrap();
+        let reference = read_protected_reference(&path).unwrap();
+        forget_protected(&reference);
+
+        assert!(write_protected_atomically(&path, b"second").is_err());
+        assert!(unprotect_protected_reference(&reference).is_err());
+        write_protected_atomically_after_server_verification(&path, b"second").unwrap();
+        let repaired_reference = read_protected_reference(&path).unwrap();
+        assert_ne!(repaired_reference, reference);
+        assert_eq!(
+            unprotect_protected_reference(&repaired_reference).unwrap(),
+            b"second"
+        );
+        remove_protected(&path).unwrap();
     }
 }

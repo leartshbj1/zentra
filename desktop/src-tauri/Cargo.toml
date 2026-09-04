@@ -1,6 +1,6 @@
 [package]
 name = "helvichantier"
-version = "1.22.0"
+version = "1.23.0"
 description = "Zentra - gestion d’entreprise locale et multisectorielle pour Windows et macOS"
 authors = ["Zentra"]
 edition = "2021"
@@ -51,8 +51,14 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
 [target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
 keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
+security-framework = "3.7"
+security-framework-sys = "2.17"
 
 [dev-dependencies]
 pretty_assertions = "1"

@@ -156,6 +156,9 @@ function invoice(status: Invoice['status']): Invoice {
     status,
     lines: [],
     notes: '',
+    terms: '',
+    depositPercentageBp: null,
+    depositBasisLines: null,
     createdAt: '2026-09-02T10:00:00Z',
   };
 }
@@ -200,7 +203,7 @@ const flow = (
 });
 
 describe('flux commande client', () => {
-  it('oriente un devis produit vers une commande et un devis service vers le flux simple', () => {
+  it('impose une commande uniquement aux articles réellement suivis en stock', () => {
     const quote: Quote = {
       id: 'quote-1',
       number: 'D-1',
@@ -223,9 +226,25 @@ describe('flux commande client', () => {
         },
       ],
       notes: '',
+      terms: '',
       createdAt: '',
     };
     expect(quoteRequiresSalesOrder(quote, [product, service])).toBe(true);
+    expect(
+      quoteRequiresSalesOrder(
+        { ...quote, lines: [{ ...quote.lines[0], catalogItemId: 'product-untracked' }] },
+        [
+          product,
+          service,
+          {
+            ...product,
+            id: 'product-untracked',
+            name: 'Produit non suivi',
+            trackStock: false,
+          },
+        ],
+      ),
+    ).toBe(false);
     expect(
       quoteRequiresSalesOrder(
         { ...quote, lines: [{ ...quote.lines[0], catalogItemId: service.id }] },
