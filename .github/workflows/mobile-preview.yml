@@ -39,7 +39,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "platforms;android-36" "build-tools;36.0.0"
-          rustup target add aarch64-linux-android
+          rustup target add aarch64-linux-android x86_64-linux-android
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir desktop test:ui
       - name: Initialize Android project
@@ -47,11 +47,21 @@ jobs:
           pnpm --dir desktop exec tauri android init --ci --skip-targets-install
           node desktop/scripts/configure-mobile-project.mjs android
       - name: Build Android preview
-        run: pnpm --dir desktop exec tauri android build --debug --apk --target aarch64 --ci
+        run: pnpm --dir desktop exec tauri android build --debug --apk --split-per-abi --target aarch64 x86_64 --ci
+      - name: Verify Android startup and secure storage
+        timeout-minutes: 10
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n zentra-ci -k "system-images;android-35;google_apis;x86_64" --device pixel_6
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd zentra-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > /tmp/zentra-emulator.log 2>&1 &
+          bash desktop/scripts/smoke-android.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Zentra-Android-preview-${{ github.sha }}
-          path: desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: |
+            desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            desktop/artifacts/android/*
           if-no-files-found: error
           retention-days: 30
 
@@ -80,6 +90,9 @@ jobs:
         run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --locked --target aarch64-apple-ios-sim --lib
       - name: Build simulator application
         run: pnpm --dir desktop exec tauri ios build --debug --target aarch64-sim --ci
+      - name: Verify iOS startup and secure storage
+        timeout-minutes: 10
+        run: bash desktop/scripts/smoke-ios.sh
       - name: Package simulator application
         run: |
           mkdir -p desktop/artifacts/ios
@@ -89,6 +102,6 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Zentra-iOS-simulator-${{ github.sha }}
-          path: desktop/artifacts/ios/*.zip
+          path: desktop/artifacts/ios/*
           if-no-files-found: error
           retention-days: 30
