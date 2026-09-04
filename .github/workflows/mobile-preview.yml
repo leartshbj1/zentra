@@ -2,6 +2,12 @@ name: Zentra mobile preview
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Mobile platform to build
+        type: choice
+        options: [both, android, ios]
+        default: both
 
 permissions:
   contents: read
@@ -12,6 +18,7 @@ concurrency:
 
 jobs:
   android:
+    if: inputs.platform != 'ios'
     name: Android ARM64 APK
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -49,6 +56,7 @@ jobs:
           retention-days: 30
 
   ios:
+    if: inputs.platform != 'android'
     name: iOS simulator
     runs-on: macos-15
     timeout-minutes: 60

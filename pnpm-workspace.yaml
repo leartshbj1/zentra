@@ -2,6 +2,9 @@ packages:
   - "."
   - "desktop"
 
+# Keep dependency layout identical inside Xcode build phases and ordinary CI shells.
+enableGlobalVirtualStore: false
+
 allowBuilds:
   esbuild: true
   onnxruntime-node: false
