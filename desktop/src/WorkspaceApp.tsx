@@ -103,6 +103,8 @@ import { DetailedPayslipForm } from './DetailedPayslipForm';
 import { parseSmallSalaryEmployeeForm } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
+import { NavigationPalette } from './NavigationPalette';
+import { SettingsCategory, revealSettingsTarget } from './SettingsCategory';
 import {
   buildGettingStartedJourney,
   type GettingStartedAction,
@@ -351,7 +353,7 @@ const navigation: Array<{
 const viewTitles: Record<View, [string, string]> = {
   dashboard: [
     'Tableau de bord',
-    'Votre activité réelle, sans données de démonstration',
+    'L’essentiel de votre activité, en un coup d’œil',
   ],
   agenda: [
     'Agenda',
@@ -403,8 +405,21 @@ export function WorkspaceApp({
   const [view, setView] = useState<View>('dashboard');
   const [modal, setModal] = useState<ModalState>(null);
   const [search, setSearch] = useState('');
+  const [projectFolderId, setProjectFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  useEffect(() => {
+    function openNavigation(event: globalThis.KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !event.altKey && !document.querySelector('[role="dialog"], [role="alertdialog"]')) {
+        event.preventDefault();
+        setMenuOpen(false);
+        setNavigationOpen(true);
+      }
+    }
+    window.addEventListener('keydown', openNavigation);
+    return () => window.removeEventListener('keydown', openNavigation);
+  }, []);
   const [availableUpdate, setAvailableUpdate] = useState<string | null>(null);
   const [compactNavigation, setCompactNavigation] = useState(() =>
     typeof window !== 'undefined'
@@ -460,6 +475,7 @@ export function WorkspaceApp({
   }, []);
   const navigateTour = useCallback((nextView: TourView) => {
     setAccountingEntryFocus(null);
+    setProjectFolderId(null);
     setView(nextView);
     setSearch('');
     setMenuOpen(false);
@@ -549,6 +565,7 @@ export function WorkspaceApp({
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => {
         const target = document.getElementById(settingsFocusTarget);
+        revealSettingsTarget(target);
         target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         target?.focus({ preventScroll: true });
         setSettingsFocusTarget(null);
@@ -1240,7 +1257,7 @@ export function WorkspaceApp({
     view === 'projects'
       ? [
           terminology.pluralTitle,
-          `Budget, durée, temps et rentabilité par ${terminology.singular}`,
+          `Documents, planning et suivi de vos ${terminology.plural}`,
         ]
       : view === 'time'
         ? (viewTitles.time.map((value, index) =>
@@ -1258,7 +1275,8 @@ export function WorkspaceApp({
   const timerEmployee = workspace.employees.find(
     (employee) => employee.id === workspace.activeTimer?.employeeId,
   );
-  const searchableView = [
+  const activeProjectFolder = view === 'projects' && workspace.projects.some((project) => project.id === projectFolderId);
+  const searchableView = !activeProjectFolder && [
     'projects',
     'clients',
     'catalog',
@@ -1314,7 +1332,7 @@ export function WorkspaceApp({
             <X size={18} />
           </Button>
         </div>
-        <nav className="sidebar__nav">
+        <nav className="sidebar__nav" aria-label="Navigation principale">
           {navigation.map((item) => {
             const Icon =
               item.id === 'projects' && terminology.icon === 'hard-hat'
@@ -1336,6 +1354,7 @@ export function WorkspaceApp({
                   className={active ? 'is-active' : ''}
                   onClick={() => {
                     setAccountingEntryFocus(null);
+                    setProjectFolderId(null);
                     setView(item.id);
                     setSearch('');
                     setMenuOpen(false);
@@ -1380,7 +1399,7 @@ export function WorkspaceApp({
               <Menu size={20} />
             </Button>
             <div>
-              <p>Zentra local</p>
+              <p>{settings.organization.legalName || 'Mon entreprise'}</p>
               <h1>{title[0]}</h1>
             </div>
           </div>
@@ -1391,10 +1410,14 @@ export function WorkspaceApp({
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Rechercher dans cette vue"
+                  type="search"
+                  aria-label={`Rechercher dans ${title[0]}`}
+                  placeholder={`Rechercher dans ${title[0].toLocaleLowerCase('fr')}`}
                 />
+                {search ? <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => setSearch('')}><X size={15} /></button> : null}
               </label>
             ) : null}
+            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label="Aller à un écran" title="Aller à un écran (Ctrl / ⌘ K)" onClick={() => setNavigationOpen(true)}><Search size={19} /></Button>
             <Button
               type="button"
               variant="ghost"
@@ -1461,13 +1484,8 @@ export function WorkspaceApp({
           </div>
         ) : null}
 
-        <div className="page-header">
+        {!activeProjectFolder ? <div className="page-header">
           <div>
-            {view === 'projects' ? (
-              <small className="module-kicker">
-                Projets
-              </small>
-            ) : null}
             <p>{title[1]}</p>
           </div>
           <div className="page-header__actions">
@@ -1494,7 +1512,7 @@ export function WorkspaceApp({
               />
             ) : null}
           </div>
-        </div>
+        </div> : <div className="project-folder-spacing" />}
         {notice ? (
           <div
             className={`notice notice--${notice.tone} ${modal ? 'notice--floating' : ''}`}
@@ -1537,6 +1555,7 @@ export function WorkspaceApp({
               readOnly={readOnly}
               onNavigate={setView}
               onCreate={setModal}
+              onOpenProject={(project) => { setProjectFolderId(project.id); setSearch(''); setView('projects'); }}
             />
           ) : null}
           {view === 'agenda' ? (
@@ -1568,6 +1587,8 @@ export function WorkspaceApp({
           {view === 'projects' ? (
             <ProjectsScreen
               workspace={workspace}
+              folderId={projectFolderId}
+              onFolderChange={setProjectFolderId}
               query={search}
               busy={busy}
               readOnly={readOnly}
@@ -1966,6 +1987,11 @@ export function WorkspaceApp({
         </section>
       </main>
 
+      {navigationOpen ? <NavigationPalette destinations={[
+        ...navigation.map((item) => ({ ...item, label: item.id === 'quotes' ? 'Devis' : item.label, description: viewTitles[item.id][1] })),
+        { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
+        { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
+      ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
       <nav className="mobile-navigation" aria-label="Navigation mobile">
         {([
           ['dashboard', 'Accueil', Home], ['projects', 'Projets', FolderKanban], ['quotes', 'Ventes', Receipt],
@@ -2067,11 +2093,13 @@ function Dashboard({
   readOnly,
   onNavigate,
   onCreate,
+  onOpenProject,
 }: {
   workspace: Workspace;
   readOnly: boolean;
   onNavigate: (view: View) => void;
   onCreate: Dispatch<SetStateAction<ModalState>>;
+  onOpenProject: (project: Project) => void;
 }) {
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
@@ -2252,7 +2280,7 @@ function Dashboard({
                     <ProjectIcon size={18} />
                   </div>
                   <div className="dashboard-projects__name">
-                    <strong>{project.name}</strong>
+                    <strong><button type="button" className="project-name-link" onClick={() => onOpenProject(project)}>{project.name}</button></strong>
                     <span>
                       {client?.company ||
                         client?.name ||
@@ -2384,6 +2412,8 @@ function MetricCard({
 
 function ProjectsScreen({
   workspace,
+  folderId,
+  onFolderChange,
   query,
   busy,
   readOnly,
@@ -2402,6 +2432,8 @@ function ProjectsScreen({
   onAgendaPlanningTargetHandled,
 }: {
   workspace: Workspace;
+  folderId: string | null;
+  onFolderChange: (id: string | null) => void;
   query: string;
   busy: boolean;
   readOnly: boolean;
@@ -2423,7 +2455,7 @@ function ProjectsScreen({
   onAgendaPlanningTargetHandled: () => void;
 }) {
   const [mode, setMode] = useState<'overview' | 'planning'>('overview');
-  const [folderId, setFolderId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [planningTarget, setPlanningTarget] = useState<string | null>(
     agendaPlanningTarget,
   );
@@ -2438,12 +2470,14 @@ function ProjectsScreen({
   );
   const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const projects = workspace.projects.filter((project) =>
-    searchText(
+    (statusFilter === 'all' || project.status === statusFilter) && searchText(
       [
         project.name,
         project.address,
         workspace.clients.find((client) => client.id === project.clientId)
           ?.name,
+        workspace.clients.find((client) => client.id === project.clientId)
+          ?.company,
       ],
       query,
     ),
@@ -2452,7 +2486,7 @@ function ProjectsScreen({
     (client) => !client.archivedAt,
   );
   const folder = workspace.projects.find((project) => project.id === folderId);
-  if (folder) return <ProjectFolder project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => setFolderId(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
+  if (folder) return <ProjectFolder project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
   if (!workspace.projects.length)
     return (
       <EmptyState
@@ -2506,6 +2540,16 @@ function ProjectsScreen({
         </div>
       </section>
 
+      {mode === 'overview' ? <div className="project-filter-bar">
+        <label htmlFor="project-status-filter">État du projet</label>
+        <select id="project-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="all">Tous les projets ({workspace.projects.length})</option>
+          {(['planned', 'in_progress', 'paused', 'completed', 'closed'] as const).map((status) => <option key={status} value={status}>{({ planned: 'Planifiés', in_progress: 'En cours', paused: 'En pause', completed: 'Terminés', closed: 'Clôturés' })[status]} ({workspace.projects.filter((project) => project.status === status).length})</option>)}
+        </select>
+        <span role="status">{projects.length} projet{projects.length > 1 ? 's' : ''}{query ? ' trouvé' : ' affiché'}{projects.length > 1 ? 's' : ''}</span>
+        {statusFilter !== 'all' ? <Button variant="ghost" size="small" onClick={() => setStatusFilter('all')}>Tous les états</Button> : null}
+      </div> : null}
+
       {mode === 'planning' ? (
         <ProjectPlanningPanel
           workspace={workspace}
@@ -2548,7 +2592,7 @@ function ProjectsScreen({
                     <ProjectIcon size={20} />
                   </div>
                   <div>
-                    <h3>{project.name}</h3>
+                    <h3><button type="button" className="project-name-link" onClick={() => onFolderChange(project.id)}>{project.name}</button></h3>
                     <p>
                       {client?.company ||
                         client?.name ||
@@ -2557,9 +2601,7 @@ function ProjectsScreen({
                   </div>
                   <StatusBadge status={project.status} />
                 </header>
-                <p className="project-card__address">
-                  {project.address || 'Adresse non renseignée'}
-                </p>
+                {project.address ? <p className="project-card__address"><MapPin size={14} /> {project.address}</p> : null}
                 <div className="project-stats">
                   <div>
                     <span>Facturé TTC</span>
@@ -2602,7 +2644,7 @@ function ProjectsScreen({
                   </span>
                 </div>
                 <footer>
-                  <Button size="small" onClick={() => setFolderId(project.id)}>
+                  <Button size="small" onClick={() => onFolderChange(project.id)}>
                     <FolderOpen size={16} /> Ouvrir le dossier
                   </Button>
                   <Button
@@ -2614,10 +2656,12 @@ function ProjectsScreen({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="small"
+                    size="icon"
+                    aria-label={`Supprimer le projet ${project.name}`}
+                    title="Supprimer le projet"
                     onClick={() => onArchive(project)}
                   >
-                    <Archive size={14} /> Supprimer
+                    <Archive size={16} />
                   </Button>
                 </footer>
               </article>
@@ -2627,7 +2671,7 @@ function ProjectsScreen({
             <div className="panel panel--span">
               <EmptyState
                 title="Aucun résultat"
-                text={`Modifiez votre recherche pour retrouver un ${terminology.singular}.`}
+                text={`Modifiez votre recherche ou l’état sélectionné pour retrouver un ${terminology.singular}.`}
               />
             </div>
           ) : null}
@@ -4401,6 +4445,7 @@ function SettingsScreen({
   function navigateToSetting(targetId: string) {
     const target = document.getElementById(targetId);
     if (!(target instanceof HTMLElement)) return;
+    revealSettingsTarget(target);
     const reducedMotion = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)',
     ).matches;
@@ -4571,13 +4616,18 @@ function SettingsScreen({
   }
 
   return (
-    <div className="settings-layout">
+    <div className="settings-categories">
+      <SettingsCategory title="État de la configuration" description="Les réglages prêts et les prochaines étapes" icon={ListChecks}>
       <SetupReadinessCenter
         workspace={workspace}
         settings={settings}
         onNavigate={navigateToSetting}
       />
+      </SettingsCategory>
+      <SettingsCategory title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
       <CloudAccountPanel onAccountChange={onCloudAccountChange} />
+      </SettingsCategory>
+      <SettingsCategory title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Activité"
@@ -5000,6 +5050,8 @@ function SettingsScreen({
         </Button>
       </section>
 
+      </SettingsCategory>
+      <SettingsCategory title="Comptabilité" description="Activation et comptes de liaison" icon={Landmark}>
       <section
         id={SETTINGS_READINESS_TARGETS.accounting}
         className="panel settings-card settings-card--wide settings-scroll-target"
@@ -5041,6 +5093,8 @@ function SettingsScreen({
         </p>
       </section>
 
+      </SettingsCategory>
+      <SettingsCategory title="Temps et coûts" description="Horaires, taux et catégories de dépenses" icon={Clock3}>
       <section
         id={SETTINGS_READINESS_TARGETS.work}
         className="panel settings-card settings-card--wide settings-scroll-target"
@@ -5142,6 +5196,8 @@ function SettingsScreen({
         </form>
       </section>
 
+      </SettingsCategory>
+      <SettingsCategory title="Équipe et paie" description="Règles, cotisations et organismes sociaux" icon={Users}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Référentiel officiel"
@@ -5578,6 +5634,8 @@ function SettingsScreen({
         </form>
       </section>
 
+      </SettingsCategory>
+      <SettingsCategory title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <AppUpdater />
       <section
         id={SETTINGS_READINESS_TARGETS.backup}
@@ -5669,7 +5727,7 @@ function SettingsScreen({
           eyebrow="Portabilité"
           title="Vos données vous appartiennent"
         />
-        <p className="settings-copy">
+          <p className="settings-copy">
           Le JSON conserve la structure complète. L’archive CSV regroupe les
           listes métier dans des fichiers lisibles par un tableur, sans copier
           les PDF, images, jetons ou documents de paie en cours d’analyse. Ces
@@ -5700,6 +5758,7 @@ function SettingsScreen({
           </Button>}
         </div>
       </section>
+      </SettingsCategory>
     </div>
   );
 }

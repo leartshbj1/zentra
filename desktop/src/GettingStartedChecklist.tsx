@@ -52,13 +52,13 @@ export function GettingStartedChecklist({
           <p className="eyebrow">Premiers pas</p>
           <h2 id="getting-started-title">
             {journey.complete
-              ? 'Votre chaîne initiale est opérationnelle'
-              : 'Avancez avec vos données réelles'}
+              ? 'Votre espace est prêt'
+              : 'Votre espace prend forme'}
           </h2>
           <p>
             {journey.complete
-              ? 'Le premier cycle client, facture, comptabilité et sauvegarde est prouvé.'
-              : 'Zentra vous montre uniquement la prochaine action utile. Rien n’est simulé.'}
+              ? 'Votre premier cycle de vente et votre sauvegarde sont enregistrés.'
+              : 'Retrouvez ici la prochaine étape pour démarrer votre activité.'}
           </p>
         </div>
         <div className="getting-started__score" aria-hidden="true">
@@ -79,8 +79,8 @@ export function GettingStartedChecklist({
         <span style={{ width: `${journey.percent}%` }} />
       </div>
 
-      <button className="mobile-checklist-toggle" type="button" aria-expanded={expanded} aria-controls={stepsId} onClick={() => setExpanded(!expanded)}>{expanded ? 'Masquer les étapes' : `Voir les ${journey.totalCount} étapes`}</button>
-      <ol id={stepsId} className={`getting-started__steps ${expanded ? '' : 'is-mobile-collapsed'}`}>
+      <button className="checklist-toggle" type="button" aria-expanded={expanded} aria-controls={stepsId} onClick={() => setExpanded(!expanded)}>{expanded ? 'Masquer les étapes' : `Voir les ${journey.totalCount} étapes`}</button>
+      <ol id={stepsId} className="getting-started__steps" hidden={!expanded}>
         {journey.steps.map((step, index) => {
           const Icon = stepIcons[step.id];
           const current = journey.nextStep?.id === step.id;

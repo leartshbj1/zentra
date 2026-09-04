@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { AlertTriangle, Archive, ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
 
@@ -206,7 +207,7 @@ export function Modal({
     }
   }
 
-  return (
+  const content = (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section
         ref={dialogRef}
@@ -231,6 +232,8 @@ export function Modal({
       </section>
     </div>
   );
+  // Cover the viewport even inside a scrolling or transformed card.
+  return typeof document === 'undefined' ? content : createPortal(content, document.body);
 }
 
 export function FormActions({

@@ -30,7 +30,7 @@ describe('checklist de premiers pas', () => {
       />,
     );
 
-    expect(html).toContain('Avancez avec vos données réelles');
+    expect(html).toContain('Votre espace prend forme');
     expect(html).toContain('aria-valuenow="0"');
     expect(html).toContain('aria-valuemax="6"');
     expect(html).toContain('0 étapes terminées sur 6');
@@ -100,7 +100,7 @@ describe('checklist de premiers pas', () => {
       />,
     );
 
-    expect(html).toContain('Votre chaîne initiale est opérationnelle');
+    expect(html).toContain('Votre espace est prêt');
     expect(html).toContain('Toutes les étapes ont été confirmées');
     expect(html).not.toContain('data-getting-started-action');
   });

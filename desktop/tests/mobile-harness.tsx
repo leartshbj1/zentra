@@ -7,6 +7,7 @@ import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
 import '../src/styles.css';
+import '../src/workspace-design.css';
 import '../src/mobile.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
@@ -24,8 +25,22 @@ let data = {
 } as unknown as Workspace;
 const storedFiles = new Map<string, File>();
 desktopApi.loadWorkspace = async () => structuredClone(data);
-desktopApi.getReminderSettings = async () => ({ enabled: false }) as never;
+desktopApi.getReminderSettings = async () => ({ enabled: false, senderName: '', lastScanAt: '' });
+desktopApi.listReminderTemplates = async () => [];
+desktopApi.listReminders = async () => [];
+desktopApi.getBankWorkspace = async () => ({ summary: { importCount: 0, movementCount: 0, unreconciledCount: 0, unreconciledSupplierCount: 0, pendingCount: 0, bookedCreditCount: 0, bookedDebitCount: 0 }, accounts: [], imports: [], movements: [], reconciliations: [], supplierReconciliations: [] });
+desktopApi.listAccounts = async () => [];
+desktopApi.getAccountingSettings = async () => ({ enabled: false, arAccountId: '', revenueAccountId: '', vatPayableAccountId: '', vatDeferredPayableAccountId: '', bankAccountId: '', expenseAccountId: '', vatReceivableAccountId: '', wagesExpenseAccountId: '', wagesPayableAccountId: '', socialExpenseAccountId: '', socialPayableAccountId: '', supplierPayableAccountId: '' });
+desktopApi.listAccountingPeriods = async () => [];
+desktopApi.getAccountingContinuity = async () => ({ enabled: false, mappingReady: false, starterAvailable: true, journalEntryCount: 0, missingInvoices: 0, missingPayments: 0, missingExpenses: 0, missingSupplierInvoices: 0, missingSupplierPayments: 0, missingPayslips: 0, missingPayslipPayments: 0, undatedPayslipPayments: 0, payslipPaymentLinksMissing: 0, totalMissing: 0, closedHistoryRequiresOpening: 0, skippedCancelledInvoices: 0, cancelledInvoicePayments: 0, reversedSources: 0, cancelledActivePostings: 0, semanticPostingMismatches: 0, totalAnomalies: 0 });
+const currency = { baseCurrency: 'CHF', currencies: ['CHF'], singleCurrency: true, exchangeRatesApplied: false };
+const scope = { dateFrom: '2026-01-01', dateTo: '2026-12-31', previousDateFrom: '2025-01-01', previousDateTo: '2025-12-31', comparisonLabel: 'Exercice précédent', comparisonSource: 'same_dates_previous_year' as const, previousHasActivity: false };
+desktopApi.getJournal = async () => ({ entries: [], lines: [], currency });
+desktopApi.getTrialBalance = async () => ({ rows: [], currency, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, debitCents: 0, creditCents: 0, closingDebitBalanceCents: 0, closingCreditBalanceCents: 0, balanced: true });
+desktopApi.getBalanceSheet = async () => ({ asOf: scope.dateTo, exerciseFrom: scope.dateFrom, scope, currency, rows: [], sections: {}, previousSections: {}, assetsCents: 0, liabilitiesCents: 0, equityCents: 0, currentResultCents: 0, unallocatedPriorResultsCents: 0, balanced: true, previousAssetsCents: 0, previousLiabilitiesCents: 0, previousEquityCents: 0, previousCurrentResultCents: 0, previousUnallocatedPriorResultsCents: 0, previousBalanced: true });
+desktopApi.getIncomeStatement = async () => ({ scope, currency, rows: [], sections: {}, previousSections: {}, revenueCents: 0, expenseCents: 0, profitCents: 0, previousRevenueCents: 0, previousExpenseCents: 0, previousProfitCents: 0 });
 desktopApi.getSecureUpdatePolicy = async () => ({ enabled: false, reason: 'Recette locale' }) as never;
+desktopApi.getNogaCatalog = async () => ({ version: 'Recette', source: 'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025', sections: [{ code: 'M', label: 'Activités immobilières', divisions: [{ code: '68', label: 'Activités immobilières' }] }] });
 desktopApi.saveProject = async (input, existingId) => {
   const id = existingId || crypto.randomUUID();
   const project = { id, clientId: input.clientId, name: input.name, address: input.addressLine1, status: input.status, plannedStart: input.plannedStartDate, plannedEnd: input.plannedEndDate, actualStart: input.actualStartDate, actualEnd: input.actualEndDate, budgetCents: input.budgetCents, plannedMinutes: input.plannedMinutes, notes: input.notes } as Project;
