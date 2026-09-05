@@ -1,0 +1,43 @@
+name: Zentra iOS startup audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Existing mobile preview run containing the exact simulator ZIP
+        required: true
+        type: string
+      archive_sha256:
+        description: Verified SHA-256 of the exact simulator ZIP
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: macos-15
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download the existing simulator archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --pattern 'Zentra-iOS-simulator-*' --dir /tmp/zentra-ios-archive
+      - name: Check startup, app restart and simulator restart
+        env:
+          ZENTRA_IOS_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+        run: |
+          archive="$(find /tmp/zentra-ios-archive -name Zentra-iOS-simulator.zip -print -quit)"
+          test -n "$archive"
+          python3 -B desktop/scripts/audit-ios-startup.py "$archive"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: iOS-startup-audit-${{ github.run_id }}
+          path: desktop/artifacts/ios-audit/*
+          if-no-files-found: error
+          retention-days: 14
