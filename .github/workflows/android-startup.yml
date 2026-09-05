@@ -8,9 +8,13 @@ on:
         required: true
         type: string
       compact_preview:
-        description: Strip debug symbols and export compact test APKs with an ephemeral test signature
+        description: Strip debug symbols and export compact test APKs with the pinned preview signature
         type: boolean
         default: false
+      upgrade_from_run:
+        description: Optional previous mobile preview build to re-sign as an isolated upgrade test fixture
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -19,7 +23,7 @@ permissions:
 jobs:
   startup:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Download the existing native build
@@ -29,9 +33,24 @@ jobs:
         run: gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --pattern 'Zentra-Android-preview-*' --dir /tmp/zentra-apk
       - name: Prepare compact debug previews
         if: inputs.compact_preview
+        env:
+          ZENTRA_ANDROID_PREVIEW_KEYSTORE: ${{ secrets.ZENTRA_ANDROID_PREVIEW_KEYSTORE }}
+          ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD: ${{ secrets.ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD }}
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "build-tools;36.0.0"
           python3 desktop/scripts/compact-android-preview.py /tmp/zentra-apk desktop/artifacts/android
+      - name: Prepare the previous version as an upgrade fixture
+        if: inputs.upgrade_from_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_RUN: ${{ inputs.upgrade_from_run }}
+          COMPACT_PREVIEW: ${{ inputs.compact_preview }}
+          ZENTRA_ANDROID_PREVIEW_KEYSTORE: ${{ secrets.ZENTRA_ANDROID_PREVIEW_KEYSTORE }}
+          ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD: ${{ secrets.ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD }}
+        run: |
+          test "$COMPACT_PREVIEW" = true
+          gh run download "$PREVIOUS_RUN" --repo "$GITHUB_REPOSITORY" --pattern 'Zentra-Android-preview-*' --dir /tmp/zentra-previous
+          python3 desktop/scripts/compact-android-preview.py /tmp/zentra-previous /tmp/zentra-upgrade-fixture
       - name: Configure emulator and verify startup
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
@@ -48,7 +67,12 @@ jobs:
             apk=desktop/artifacts/android/app-x86_64-debug.apk
           fi
           test -n "$apk"
-          bash desktop/scripts/smoke-android.sh "$apk"
+          if [[ -f /tmp/zentra-upgrade-fixture/app-x86_64-debug.apk ]]; then
+            bash desktop/scripts/smoke-android.sh /tmp/zentra-upgrade-fixture/app-x86_64-debug.apk
+            bash desktop/scripts/smoke-android-upgrade.sh "$apk"
+          else
+            bash desktop/scripts/smoke-android.sh "$apk"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

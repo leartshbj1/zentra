@@ -1,8 +1,11 @@
-"""Strip native debug symbols from CI test APKs, realign, and sign with a test key.
+"""Strip native debug symbols, realign and sign with the durable preview identity.
 
 Only debuggable APKs are accepted. Production/store signing is deliberately separate.
 """
 
+import base64
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -27,11 +30,21 @@ output.mkdir(parents=True, exist_ok=True)
 
 with tempfile.TemporaryDirectory(prefix="zentra-preview-") as temp:
     staging = Path(temp)
-    keystore = staging / "debug.keystore"
-    # This ephemeral standard Android test key must never sign a store release.
-    run("keytool", "-genkeypair", "-keystore", str(keystore), "-storepass", "android",
-        "-keypass", "android", "-alias", "androiddebugkey", "-keyalg", "RSA",
-        "-keysize", "2048", "-validity", "365", "-dname", "CN=Android Debug,O=Android,C=US")
+    keystore = staging / "preview.p12"
+    encoded = os.environ.pop("ZENTRA_ANDROID_PREVIEW_KEYSTORE", "")
+    if not encoded or not os.environ.get("ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD"):
+        raise SystemExit("The protected Android preview signing identity is required; refusing key rotation")
+    keystore.write_bytes(base64.b64decode(encoded, validate=True))
+    keystore.chmod(0o600)
+    del encoded
+    pin = (Path(__file__).parents[1] / "android-preview-certificate.sha256").read_text().strip().lower()
+    certificate = subprocess.check_output([
+        "keytool", "-exportcert", "-keystore", str(keystore), "-storetype", "PKCS12",
+        "-storepass:env", "ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD", "-alias", "zentra-preview",
+    ])
+    if not re.fullmatch(r"[0-9a-f]{64}", pin) or hashlib.sha256(certificate).hexdigest() != pin:
+        raise SystemExit("Android preview certificate does not match the pinned identity")
+    reports = []
     for source in sources:
         manifest = subprocess.check_output([str(build_tools / "aapt"), "dump", "badging", str(source)], text=True)
         if "application-debuggable" not in manifest.splitlines():
@@ -51,9 +64,16 @@ with tempfile.TemporaryDirectory(prefix="zentra-preview-") as temp:
         aligned = staging / "aligned.apk"
         run(str(build_tools / "zipalign"), "-P", "16", "-f", "4", str(unsigned), str(aligned))
         target = output / source.name
-        run(str(build_tools / "apksigner"), "sign", "--ks", str(keystore), "--ks-key-alias",
-            "androiddebugkey", "--ks-pass", "pass:android", "--key-pass", "pass:android",
+        run(str(build_tools / "apksigner"), "sign", "--ks", str(keystore), "--ks-type", "PKCS12", "--ks-key-alias",
+            "zentra-preview", "--ks-pass", "env:ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD",
+            "--key-pass", "env:ZENTRA_ANDROID_PREVIEW_KEYSTORE_PASSWORD",
             "--out", str(target), str(aligned))
-        run(str(build_tools / "apksigner"), "verify", str(target))
+        verification = subprocess.check_output([str(build_tools / "apksigner"), "verify", "--print-certs", str(target)], text=True)
+        if f"Signer #1 certificate SHA-256 digest: {pin}" not in verification:
+            raise SystemExit("Signed APK certificate differs from the preview identity")
         run(str(build_tools / "zipalign"), "-c", "-P", "16", "4", str(target))
+        reports.append({"name": target.name, "bytes": target.stat().st_size,
+                        "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+                        "certificateSha256": pin, "package": manifest.splitlines()[0]})
         print(f"{source.name}: {source.stat().st_size} -> {target.stat().st_size} bytes", flush=True)
+    (output / "signing-report.json").write_text(json.dumps(reports, indent=2) + "\n")
