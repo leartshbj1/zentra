@@ -13,7 +13,6 @@ import {
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
-  X,
 } from 'lucide-react';
 import { AppUpdater } from './AppUpdater';
 import { BrandMark } from './BrandMark';
@@ -28,7 +27,7 @@ import {
 import { Onboarding } from './Onboarding';
 const WorkspaceApp = lazy(() => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp })));
 import type { AppSettings, LicenseState, Workspace } from './types';
-import { Button, ErrorPanel } from './ui';
+import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
 
@@ -212,17 +211,9 @@ export function App() {
   );
 }
 
-function StandaloneUpdaterAccess() {
+export function StandaloneUpdaterAccess() {
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [open]);
+  const [installing, setInstalling] = useState(false);
 
   return (
     <>
@@ -235,33 +226,16 @@ function StandaloneUpdaterAccess() {
         <RefreshCw size={16} /> Mise à jour
       </Button>
       {open ? (
-        <div
-          className="standalone-updater"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Mise à jour de Zentra"
+        <Modal
+          title="Mise à jour de Zentra"
+          wide
+          dismissible={!installing}
+          onClose={() => { if (!installing) setOpen(false); }}
         >
-          <button
-            type="button"
-            className="standalone-updater__backdrop"
-            aria-label="Fermer les mises à jour"
-            onClick={() => setOpen(false)}
-          />
-          <div className="standalone-updater__dialog">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="standalone-updater__close"
-              aria-label="Fermer"
-              title="Fermer"
-              onClick={() => setOpen(false)}
-            >
-              <X size={18} />
-            </Button>
-            <AppUpdater />
+          <div className="standalone-updater-content">
+            <AppUpdater onInstallingChange={setInstalling} />
           </div>
-        </div>
+        </Modal>
       ) : null}
     </>
   );

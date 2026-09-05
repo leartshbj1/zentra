@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -32,7 +32,8 @@ type CheckOutcome = 'idle' | 'available' | 'current' | 'installed';
 
 export const APP_UPDATER_TARGET_ID = 'app-updater';
 
-export function AppUpdater() {
+export function AppUpdater({ onInstallingChange }: { onInstallingChange?: (installing: boolean) => void } = {}) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [policy, setPolicy] = useState<SecureUpdaterPolicy | null>(null);
   const [policyLoading, setPolicyLoading] = useState(true);
   const [available, setAvailable] = useState<SecureUpdateMetadata | null>(null);
@@ -139,6 +140,10 @@ export function AppUpdater() {
     if (!available) return;
     setConfirming(false);
     setInstalling(true);
+    onInstallingChange?.(true);
+    // The confirmation button disappears during installation. Keep keyboard
+    // focus on the persistent panel so the surrounding dialog retains it.
+    sectionRef.current?.focus({ preventScroll: true });
     setError('');
     setMessage('Préparation de la mise à jour…');
     try {
@@ -154,6 +159,7 @@ export function AppUpdater() {
       );
     } finally {
       setInstalling(false);
+      onInstallingChange?.(false);
     }
   }
 
@@ -178,6 +184,8 @@ export function AppUpdater() {
           : 'is-disabled';
   const statusTitle = error
     ? 'Une action est nécessaire'
+    : installing
+      ? 'Mise à jour en cours'
     : outcome === 'installed'
       ? 'Installation lancée'
       : outcome === 'current'
@@ -191,7 +199,7 @@ export function AppUpdater() {
               : 'Canal inactif dans cette édition';
   const statusIcon = error
     ? <AlertTriangle size={22} />
-    : policyLoading || checking
+    : policyLoading || checking || installing
       ? <LoaderCircle className="spin" size={22} />
       : outcome === 'current' || outcome === 'installed'
         ? <CheckCircle2 size={22} />
@@ -207,6 +215,7 @@ export function AppUpdater() {
   </section>;
 
   return <section
+    ref={sectionRef}
     id={APP_UPDATER_TARGET_ID}
     className="panel settings-card settings-card--wide app-updater settings-scroll-target"
     tabIndex={-1}
@@ -214,7 +223,7 @@ export function AppUpdater() {
     <SectionHeading
       eyebrow="Maintenance sécurisée"
       title="Mettre Zentra à jour sans le réinstaller"
-      description="Le canal est figé dans l’application. Zentra exige un téléchargement HTTPS et une signature valide avant de confier l’installation à Windows ou macOS."
+      description={`Version installée : ${policy?.currentVersion || '…'}. Retrouvez les dernières améliorations en conservant vos données. Le fichier est vérifié avant l’installation.`}
     />
 
     <div
@@ -230,14 +239,6 @@ export function AppUpdater() {
           <Clock3 size={13} /> Dernière recherche réussie à {new Date(checkedAt).toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}
         </small> : null}
       </div>
-    </div>
-
-    <div className="app-updater__facts">
-      <div><Server size={16} /><span>Version installée</span><strong>{policy?.currentVersion || '—'}</strong></div>
-      <div><LockKeyhole size={16} /><span>Transport</span><strong>{policy?.transport || 'HTTPS'}</strong></div>
-      <div><ShieldCheck size={16} /><span>Signature</span><strong>Ed25519 obligatoire</strong></div>
-      <div><RotateCw size={16} /><span>Installation sécurisée</span><strong>Fermeture et redémarrage</strong></div>
-      {policy?.endpointHost ? <div><Server size={16} /><span>Serveur</span><strong>{policy.endpointHost}</strong></div> : null}
     </div>
 
     <ol className="app-updater__steps" aria-label="Étapes de la mise à jour">
@@ -299,7 +300,7 @@ export function AppUpdater() {
         {checking ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
         {checking ? 'Recherche…' : error ? 'Réessayer la recherche' : 'Rechercher une mise à jour'}
       </Button>
-      {available && !confirming ? <Button
+      {available && !confirming && !installing ? <Button
         type="button"
         disabled={checking || installing}
         onClick={() => setConfirming(true)}
@@ -307,6 +308,16 @@ export function AppUpdater() {
         <Download size={16} /> Préparer l’installation {available.version}
       </Button> : null}
     </div>
-    <p className="app-updater__notice">Aucune mise à jour ne s’installe seule. La requête indique la version, le système et l’architecture ; comme toute connexion HTTPS, le serveur voit aussi l’adresse IP et les métadonnées techniques. Aucune donnée métier n’est envoyée par ce contrôle.</p>
+    <details className="app-updater__technical">
+      <summary>Informations techniques et confidentialité</summary>
+      <div className="app-updater__facts">
+        <div><Server size={16} /><span>Version installée</span><strong>{policy?.currentVersion || '—'}</strong></div>
+        <div><LockKeyhole size={16} /><span>Transport</span><strong>{policy?.transport || 'HTTPS'}</strong></div>
+        <div><ShieldCheck size={16} /><span>Signature</span><strong>Ed25519 obligatoire</strong></div>
+        <div><RotateCw size={16} /><span>Installation sécurisée</span><strong>Fermeture et redémarrage</strong></div>
+        {policy?.endpointHost ? <div><Server size={16} /><span>Serveur</span><strong>{policy.endpointHost}</strong></div> : null}
+      </div>
+      <p className="app-updater__notice">Aucune mise à jour ne s’installe seule. La requête indique la version, le système et l’architecture ; comme toute connexion HTTPS, le serveur voit aussi l’adresse IP et les métadonnées techniques. Aucune donnée métier n’est envoyée par ce contrôle.</p>
+    </details>
   </section>;
 }

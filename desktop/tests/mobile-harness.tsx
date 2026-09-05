@@ -14,6 +14,8 @@ import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
 import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixture';
 import { installRecurrenceFixture } from './recurrence-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
+import { StandaloneUpdaterAccess } from '../src/App';
+import { installUpdaterFixture } from './updater-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -96,9 +98,11 @@ if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => d
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);
+if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
+  if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
   return <><WorkspaceApp workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
