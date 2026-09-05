@@ -6,7 +6,7 @@ on:
       platform:
         description: Mobile platform to build
         type: choice
-        options: [both, android, ios]
+        options: [both, android, ios, ipa]
         default: both
 
 permissions:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   android:
-    if: inputs.platform != 'ios'
+    if: inputs.platform == 'both' || inputs.platform == 'android'
     name: Android ARM64 APK
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -74,7 +74,7 @@ jobs:
           retention-days: 30
 
   ios:
-    if: inputs.platform != 'android'
+    if: inputs.platform == 'both' || inputs.platform == 'ios'
     name: iOS simulator
     runs-on: macos-15
     timeout-minutes: 60
@@ -117,5 +117,45 @@ jobs:
         with:
           name: Zentra-iOS-simulator-${{ github.sha }}
           path: desktop/artifacts/ios/*
+          if-no-files-found: error
+          retention-days: 30
+
+  iphone:
+    if: inputs.platform == 'ipa'
+    name: iPhone IPA for Sideloadly or AltStore
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Configure the native Apple toolchain
+        run: |
+          printf '[toolchain]\nchannel = "stable"\n' > desktop/src-tauri/rust-toolchain.toml
+          rustup target add aarch64-apple-ios
+      - run: pnpm install --frozen-lockfile
+      - name: Initialize iOS project
+        run: pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
+      - name: Build unsigned iPhone IPA
+        run: pnpm --dir desktop mobile:ios:ipa
+      - name: Verify and package the iPhone IPA
+        run: |
+          python3 desktop/scripts/verify-ios-ipa.py \
+            desktop/src-tauri/target/aarch64-apple-ios/release/Zentra.ipa \
+            --output-dir desktop/artifacts/iphone \
+            --source-revision "$GITHUB_SHA"
+          cp docs/INSTALL-IPHONE.md desktop/artifacts/iphone/INSTALL-IPHONE.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Zentra-iPhone-IPA-${{ github.sha }}
+          path: desktop/artifacts/iphone/*
           if-no-files-found: error
           retention-days: 30

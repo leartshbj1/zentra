@@ -19,6 +19,7 @@
     "mobile:ios:init": "tauri ios init --ci",
     "mobile:ios:dev": "tauri ios dev",
     "mobile:ios:build": "tauri ios build --ci",
+    "mobile:ios:ipa": "tauri ios build --target aarch64 --no-sign --ci",
     "build:updater": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-updater-release.ps1",
     "release:stage-updater": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-updater-release.ps1",
     "tauri": "tauri"
