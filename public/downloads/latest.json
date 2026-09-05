@@ -1,15 +1,15 @@
 {
-  "version": "1.33.0",
-  "notes": "Remboursements depuis la banque et justificatifs fiables sur ordinateur et mobile.",
-  "pub_date": "2026-09-05T20:26:33.4700380+00:00",
+  "version": "1.35.0",
+  "notes": "La conversion d’un devis avec acompte crée les deux factures liées : acompte et solde, avec déduction exacte de l’acompte. Un dossier commun regroupe le devis, les factures et les encaissements depuis Devis, Factures et le projet. Les anciens acomptes isolés proposent une action pour créer leur solde sans doublon.\n\nChaque facture reçoit son numéro et sa référence bancaire lors de son émission. Le solde cite l’acompte dans le PDF. Les arrondis de TVA, les paiements partiels, les sauvegardes et le cas d’un acompte à 100 % sont pris en compte. Les dates et notes restent modifiables sur les brouillons liés.\n\nCette version comprend également une correction du démarrage natif lorsque sa notification de disponibilité manque.\n\nValidation : 538 tests natifs Windows, 696 tests d’interface, huit parcours de facturation sur mobile et ordinateur, 21 parcours de démarrage dans le navigateur et relecture visuelle des PDF.\n\nWindows et macOS : les fichiers de mise à jour sont signés avec la clé de mise à jour Zentra. Ils ne disposent pas de signature Authenticode ni de notarisation Apple.\n\nAndroid : APK de test ARM64 avec certificat de préversion persistant. iOS : archive pour simulateur ARM64 uniquement. Ces fichiers ne constituent pas une publication App Store ou Google Play ; aucune mise à jour automatique mobile ni synchronisation des données entre appareils n’est annoncée.\n",
+  "pub_date": "2026-09-05T23:31:37.7241562+00:00",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmJLb1JRVEc0TW0rOFJKamNyMWpVL2JQZCtwTk5wc2F5K0lIMnlLdEN4SFByR0RXcDNlQjZIK2swUUplc2U4ZnJyYXNQL2YwclM2NHRMbXJYN21GZkFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjM4NTk5CWZpbGU6WmVudHJhXzEuMzMuMF94NjQtc2V0dXAuZXhlClZHNFJTZEFWY1dXdEZOL3VSbC8vSm1WL2JUUVFxYkdsN2lpODg3dTFVWlRhR2JqZEhGekpZbEFxMjhCYnJVNXRGR0NYb004NU04eHltR3NrQ3RSdURRPT0K",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.33.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlpCUUN4S1h5U2RrZVNSU0tqMTNmbE0wZSthVFpoWXpndUlqS24wdXdPRS9JVTZjYzl3dkk5aDdxOWhVL1RSb0ZxanR4a3pqMm1YSUdOMkxLaE9KM2dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjQ5NDc4CWZpbGU6WmVudHJhXzEuMzUuMF94NjQtc2V0dXAuZXhlCnhidzY0V1BhS1BYU1hzVVlXVzZWV0hqMUtVSnY0Zk9RQVg2MU5xSzhuZnJYeE9WaWczcmxOWjh1NmlJT05mM3pHVFpUVnJSdno3cDg3NklOb0dYNkRBPT0K",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.35.0_x64-setup.exe"
     },
     "macos-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlpqd0ZNbTQzSnJwcEs4ck44dVpGTjUwa09pUmR2N2JUam1KazdpL2xtT1pEUFoyVU9CZ2xqMFhIV3VrMmRhZldhWkRnZkV2ODVTckJrWlNlMTVVYkFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjM5OTE1CWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKcUFRWWR5MkJqcHJhdkVoSGlHRVpUTmxCY1creGcyakQ4eENMSVorY3YrZGk2bWQyQW5JejkyTTF1ZURWZ3RIaTBEeFJPTC9PNW52RFVkemswSmp5REE9PQo=",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.33.0_macos-universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlo2TU9MV2VMZEZxU3RMVGtwTHZ2VmNwYzlsRG9pNjNJU3RYY1lLMVRQbWZEQytmNWc0NFZMVnp6QkZ4LzJ6RGlWMTJ6bjR5dmxIU3oyWU5jT3ZwQ1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjUwOTQyCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKQ1dXVy93RnZpUFladjBkY2h3bEFiOTRGOEJtMW11aWFRNk11b1ZHY3NidTRTYVVBVlIveHBUV1N1ZGhCVTY1Yk56d0p4bGxmOVIrNnlDaGp6cU14RFE9PQo=",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.35.0_macos-universal.app.tar.gz"
     }
   }
 }

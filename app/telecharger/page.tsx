@@ -589,12 +589,14 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Chaque projet réunit ses documents, photos, devis et factures.
+                Le devis, l’acompte et le solde restent dans le même dossier.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
                   'Un dossier par projet, avec ajout de documents et photos dès sa création ou à tout moment',
-                  'Les devis et factures liés apparaissent automatiquement dans le dossier du projet',
+                  'La conversion avec acompte prépare les deux factures liées : acompte et solde avec déduction exacte',
+                  'Retrouvez le devis, les deux factures et les paiements depuis Devis, Factures ou le projet',
+                  'Un ancien acompte isolé peut être complété avec sa facture de solde sans recréer l’acompte',
                   'Avoirs et remboursements validés intégrés aux coûts du projet, avec prise en compte de la TVA non récupérable',
                   'Création de devis et factures depuis un projet avec son client déjà sélectionné',
                   'Fichiers contrôlés, doublons détectés et documents inclus dans les sauvegardes locales',
