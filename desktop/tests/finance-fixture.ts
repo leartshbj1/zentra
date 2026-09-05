@@ -20,6 +20,11 @@ export function installFinanceFixture(workspace: Workspace) {
     simpleTaxRateMethod: null, payableTaxCents: 4050, payableCode: '500', otherFlowsOfFunds: { subsidiesCents: 0, donationsCents: 0 }, sourceCount: 2, adjustmentCount: 0, transmissionWording: 'Exemple de recette, aucune donnée réelle.',
   };
   desktopApi.listVatProfiles = async () => [profile];
+  if (new URLSearchParams(location.search).has('creditVat')) {
+    preview.unclassifiedSources = [{ sourceType: 'supplier_credit_note_item', sourceId: 'credit-line', parentId: 'credit-qa', occurrenceDate: '2026-03-10', description: 'Avoir fournisseur · Retour de vis', amountCents: -5000, vatCents: -405, vatRateBp: 810 }];
+    preview.exportable = false;
+    preview.sourceCount += 1;
+  }
   desktopApi.listVatAdjustments = async () => [];
   desktopApi.listVatReturnExports = async () => [];
   desktopApi.previewVatReturn = async (input) => ({ ...structuredClone(preview), ...input });
@@ -39,9 +44,24 @@ export function installFinanceFixture(workspace: Workspace) {
     saved.supplierInvoices = [{ ...input, id: input.id, documentDate: input.date, documentStatus: 'draft', paymentStatus: null, supplierName: 'Fournitures du Léman', currency: 'CHF', netCents: 50000, vatCents: 4050, totalCents: 54050, paidCents: 0, creditedCents: 0, balanceCents: 54050, matchStatus: 'unmatched', validatedAt: null, validationJournalEntryId: null, attachments: [], payments: [], createdAt: '', updatedAt: '', lines: input.items.map((item) => ({ ...item, supplierInvoiceId: input.id })) }] as Workspace['supplierInvoices'];
     return saved;
   };
+  desktopApi.saveSupplierCreditNoteDraft = async (input) => {
+    const attempts = JSON.parse(sessionStorage.getItem('qa-credit-attempts') || '[]');
+    attempts.push(input);
+    sessionStorage.setItem('qa-credit-attempts', JSON.stringify(attempts));
+    if (attempts.length === 1 && new URLSearchParams(location.search).has('creditRetry')) throw new Error('Brouillon enregistré, mais actualisation interrompue. Réessayez.');
+    const saved = structuredClone(workspace);
+    saved.supplierCreditNotes = [{ ...input, id: input.id, number: '', status: 'draft', supplierName: 'Fournitures du Léman', currency: 'CHF', netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, availableCents: 5405, validationJournalEntryId: null, validatedAt: null, createdAt: '', updatedAt: '', items: input.items.map((item) => ({ ...item, supplierCreditNoteId: input.id, lineNetCents: 5000, lineVatCents: 405, lineTotalCents: 5405 })) }] as Workspace['supplierCreditNotes'];
+    return saved;
+  };
   desktopApi.setVatSourceClassification = async (input) => {
     if (sessionStorage.getItem('qa-reject-classification') === '1') throw new Error('Le compte de TVA est inactif. Aucune modification enregistrée.');
     sessionStorage.setItem('qa-vat-classification', JSON.stringify(input));
+    const unclassified = preview.unclassifiedSources.find((item) => item.sourceId === input.sourceId && item.sourceType === input.sourceType);
+    if (unclassified) {
+      preview.classifiedSources!.push({ ...unclassified, treatment: input.treatment, currency: 'CHF' });
+      preview.unclassifiedSources = preview.unclassifiedSources.filter((item) => item !== unclassified);
+      preview.exportable = !preview.unclassifiedSources.length;
+    }
     const source = preview.classifiedSources?.find((item) => item.sourceId === input.sourceId && item.sourceType === input.sourceType);
     if (source && preview.effectiveReportingMethod) {
       source.treatment = input.treatment;

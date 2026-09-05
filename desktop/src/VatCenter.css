@@ -289,4 +289,10 @@
 .vat-purchase-review .vat-unclassified article { border-color: var(--border, #d7dde5); background: var(--surface, #fff); }
 .vat-purchase-review__actions { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .vat-purchase-review__actions select { width: 100%; }
+.vat-calculation-details { padding: 16px; border: 1px solid var(--border, #d7dde5); border-radius: 12px; background: var(--surface, #fff); }
+.vat-calculation-details > summary { min-height: 44px; cursor: pointer; font-weight: 650; }
+.vat-calculation-details > summary span { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; font-weight: 400; }
+.vat-calculation-details[open] > summary { margin-bottom: 16px; }
+.vat-calculation-details .vat-rate-table { margin-bottom: 16px; }
+@media screen and (max-width: 800px) { .vat-summary { display: none; } }
 @media screen and (max-width: 800px) { .vat-purchase-review .vat-unclassified article { display: flex; flex-direction: column; align-items: stretch; } }

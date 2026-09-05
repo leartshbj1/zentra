@@ -53,8 +53,9 @@ use crate::{
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
         MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V35_SQL, MIGRATION_V36_SQL,
         MIGRATION_V37_SQL, MIGRATION_V38_SQL, MIGRATION_V39_SQL, MIGRATION_V3_SQL,
-        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL,
-        MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V42_SQL, MIGRATION_V4_SQL,
+        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
+        SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -1073,6 +1074,22 @@ fn migrate_v41(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v42(transaction: &Transaction<'_>) -> AppResult<()> {
+    let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='vat_source_classifications')", [], |row| row.get(0))?;
+    if !exists {
+        transaction.pragma_update(None, "user_version", 42)?;
+        return Ok(());
+    }
+    add_column_if_missing(
+        transaction,
+        "supplier_credit_note_items",
+        "posted_expense_account_id",
+        "posted_expense_account_id TEXT REFERENCES accounts(id)",
+    )?;
+    transaction.execute_batch(MIGRATION_V42_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1579,7 +1596,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=40 => {}
+            28..=41 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1644,6 +1661,9 @@ impl LocalStore {
         }
         if current < 41 {
             migrate_v41(&transaction)?;
+        }
+        if current < 42 {
+            migrate_v42(&transaction)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {

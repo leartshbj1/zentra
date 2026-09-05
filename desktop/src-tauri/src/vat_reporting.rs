@@ -929,13 +929,11 @@ fn load_classification(
 fn validate_source_type(source_type: &str) -> AppResult<()> {
     if matches!(
         source_type,
-        "invoice_item" | "supplier_invoice_item" | "expense"
+        "invoice_item" | "supplier_invoice_item" | "supplier_credit_note_item" | "expense"
     ) {
         Ok(())
     } else {
-        Err(AppError::Validation(
-            "source_type doit valoir invoice_item, supplier_invoice_item ou expense.".into(),
-        ))
+        Err(AppError::Validation("Type de source TVA inconnu.".into()))
     }
 }
 
@@ -952,7 +950,7 @@ fn validate_source_type_and_treatment(source_type: &str, treatment: &str) -> App
                 | "out_of_scope"
                 | "opted"
         ),
-        "supplier_invoice_item" | "expense" => matches!(
+        "supplier_invoice_item" | "supplier_credit_note_item" | "expense" => matches!(
             treatment,
             "input_materials" | "input_investments" | "non_deductible"
         ),
@@ -976,6 +974,9 @@ fn vat_source_exists(
         "invoice_item" => "SELECT EXISTS(SELECT 1 FROM invoice_items WHERE id=?)",
         "supplier_invoice_item" => "SELECT EXISTS(SELECT 1 FROM supplier_invoice_items WHERE id=?)",
         "expense" => "SELECT EXISTS(SELECT 1 FROM expenses WHERE id=?)",
+        "supplier_credit_note_item" => {
+            "SELECT EXISTS(SELECT 1 FROM supplier_credit_note_items WHERE id=?)"
+        }
         _ => return Ok(false),
     };
     connection
@@ -2022,6 +2023,11 @@ fn load_raw_vat_sources(
             date_from,
             date_to,
         )?);
+        if profile.form_of_reporting == "agreed" {
+            sources.extend(load_supplier_credit_sources(
+                connection, date_from, date_to,
+            )?);
+        }
     }
     let mut unreliable_parents = BTreeSet::new();
     let mut foreign_parents = BTreeSet::new();
@@ -2185,11 +2191,7 @@ fn load_supplier_sources(
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
     let credit_note_count: i64 = if form == "agreed" {
-        connection.query_row(
-            "SELECT COUNT(*) FROM supplier_credit_notes WHERE status='validated' AND vat_cents<>0 AND document_date BETWEEN ? AND ?",
-            params![date_from, date_to],
-            |row| row.get(0),
-        )?
+        0
     } else {
         connection.query_row(
             "SELECT COUNT(*) FROM supplier_credit_notes WHERE status='validated' AND vat_cents<>0 AND document_date<=?",
@@ -2201,7 +2203,7 @@ fn load_supplier_sources(
         push_issue(
             issues,
             "unsupported_supplier_credit_tax",
-            "Décompte bloqué : les notes de crédit fournisseur ne disposent pas d'une classification TVA V22 ni, en mode reçu, d'une date d'imputation fiscale exacte. Leur ventilation n'est donc pas exportable dans cette version."
+            "Mode reçu bloqué : les avoirs fournisseurs nécessitent une date d'imputation ou de remboursement fiscalement justifiée. La date du document ne suffit pas à les affecter à ce décompte."
                 .into(),
             None,
             None,
@@ -2285,6 +2287,41 @@ fn load_supplier_sources(
                     "Mode reçu bloqué pour la facture fournisseur : paiements cumulés {paid_total} centimes sur {invoice_total}, crédits {credited_cents}, répartis du {min_date} au {max_date}; aucune allocation fiscale exacte par ligne n'est disponible."
                 )
             }),
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+fn load_supplier_credit_sources(
+    connection: &Connection,
+    date_from: &str,
+    date_to: &str,
+) -> AppResult<Vec<RawVatSource>> {
+    let mut statement = connection.prepare(
+        "SELECT item.id,credit.id,credit.document_date,item.description,UPPER(TRIM(credit.currency)),-item.line_net_cents,-item.line_vat_cents,-item.line_total_cents,item.vat_bp,classification.id,classification.treatment,classification.note,classification.updated_at
+         FROM supplier_credit_note_items item JOIN supplier_credit_notes credit ON credit.id=item.supplier_credit_note_id
+         LEFT JOIN vat_source_classifications classification ON classification.source_type='supplier_credit_note_item' AND classification.source_id=item.id
+         WHERE credit.status='validated' AND credit.document_date BETWEEN ? AND ? AND (item.line_net_cents<>0 OR item.line_vat_cents<>0 OR item.line_total_cents<>0)
+         ORDER BY credit.document_date,credit.id,item.position,item.id"
+    )?;
+    let rows = statement.query_map(params![date_from, date_to], |row| {
+        Ok(RawVatSource {
+            source_type: "supplier_credit_note_item".into(),
+            source_id: row.get(0)?,
+            parent_id: row.get(1)?,
+            occurrence_date: row.get(2)?,
+            description: format!("Avoir fournisseur · {}", row.get::<_, String>(3)?),
+            currency: row.get(4)?,
+            net_cents: row.get(5)?,
+            vat_cents: row.get(6)?,
+            total_cents: row.get(7)?,
+            vat_rate_bp: Some(row.get(8)?),
+            classification_id: row.get(9)?,
+            treatment: row.get(10)?,
+            classification_note: row.get(11)?,
+            classification_updated_at: row.get(12)?,
+            reliable: true,
+            reliability_detail: None,
         })
     })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -2403,7 +2440,7 @@ fn apply_classified_source(
                 }
             }
         }
-        "supplier_invoice_item" | "expense" => match treatment {
+        "supplier_invoice_item" | "supplier_credit_note_item" | "expense" => match treatment {
             "input_materials" => add_money(
                 &mut calculation.input_materials,
                 i128::from(source.vat_cents),

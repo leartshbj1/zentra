@@ -98,6 +98,13 @@
   .sales-list-toolbar select { flex: 1; }
   .sales-list-toolbar > span { width: 100%; }
   .purchase-workflow__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .purchase-workflow { grid-template-columns: minmax(0, 1fr); }
+  .purchase-workflow > .report-callout { display: grid; grid-template-columns: 20px minmax(0, 1fr); }
+  .purchase-workflow > .report-callout > .button { grid-column: 1 / -1; width: 100%; }
+  .purchase-workflow > .report-callout p { font-size: 13px; }
+  .purchase-document-card { grid-template-columns: minmax(0, 1fr); }
+  .purchase-document-card > div { min-width: 0; }
+  .purchase-document-card h3, .purchase-document-card p { overflow-wrap: anywhere; }
   .purchase-workflow__summary > div { padding: 12px; min-width: 0; }
   .purchase-workflow__summary > div:nth-child(2) { border-top: 0; }
   .purchase-workflow__summary > div:nth-child(even) { border-left: 1px solid var(--line-soft); }

@@ -845,7 +845,7 @@ impl LocalStore {
                    JOIN journal_entries parent ON parent.id=ancestry.reversal_of
                  )
                  SELECT source_type,source_id,id,depth FROM ancestry
-                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification')
+                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note')
                  ORDER BY depth DESC LIMIT 1",
                 params![id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),

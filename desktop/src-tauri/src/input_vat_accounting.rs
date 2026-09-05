@@ -37,6 +37,11 @@ fn posting(
             (SELECT line.account_id FROM journal_lines line WHERE line.journal_entry_id=entry.id AND line.memo='Charge' AND line.debit_cents=expense.net_cents AND line.credit_cents=0),expense.project_id
             FROM expenses expense JOIN journal_entries entry ON entry.source_type='expense' AND entry.source_id=expense.id AND entry.source_event='create'
             WHERE expense.id=? AND expense.payment_status='paid'",
+        "supplier_credit_note_item" => "SELECT entry.id,entry.entry_date,credit.currency,-line.line_vat_cents,-credit.vat_cents,
+            COALESCE(line.posted_expense_account_id,(SELECT CASE WHEN COUNT(DISTINCT posted.account_id)=1 THEN MIN(posted.account_id) END FROM journal_lines posted JOIN accounts account ON account.id=posted.account_id WHERE posted.journal_entry_id=entry.id AND posted.memo=line.description AND posted.credit_cents=line.line_net_cents AND posted.debit_cents=0 AND account.account_type='expense')),line.project_id
+            FROM supplier_credit_note_items line JOIN supplier_credit_notes credit ON credit.id=line.supplier_credit_note_id
+            JOIN journal_entries entry ON entry.id=credit.validation_journal_entry_id
+            WHERE line.id=? AND credit.status='validated'",
         _ => return Ok(None),
     };
     tx.query_row(sql, params![source_id], |row| {
@@ -102,7 +107,9 @@ pub(crate) fn sync_source(
     if !non_deductible && !has_prior {
         return Ok(0);
     }
-    if source.vat_cents < 0 || source.expense_account.is_empty() {
+    if (source.vat_cents < 0 && source_type != "supplier_credit_note_item")
+        || source.expense_account.is_empty()
+    {
         return Err(AppError::Validation("Le compte de charge ou le montant historique de cet achat n'est pas identifiable ; contrôlez sa comptabilisation avant de changer son traitement TVA.".into()));
     }
     let reversed: bool = tx.query_row(
@@ -113,13 +120,13 @@ pub(crate) fn sync_source(
     if reversed {
         return Err(AppError::Validation("L'écriture de cet achat a été extournée. Rétablissez un achat cohérent avant de modifier sa TVA.".into()));
     }
-    let vat_memo = if source_type == "expense" {
-        "TVA préalable"
-    } else {
-        "TVA préalable fournisseur"
+    let vat_memo = match source_type {
+        "expense" => "TVA préalable",
+        "supplier_credit_note_item" => "Correction TVA préalable fournisseur",
+        _ => "TVA préalable fournisseur",
     };
     let vat_accounts = {
-        let mut statement = tx.prepare("SELECT line.account_id FROM journal_lines line JOIN accounts account ON account.id=line.account_id WHERE line.journal_entry_id=? AND line.memo=? AND line.debit_cents=? AND line.credit_cents=0 AND account.account_type='asset'")?;
+        let mut statement = tx.prepare("SELECT line.account_id FROM journal_lines line JOIN accounts account ON account.id=line.account_id WHERE line.journal_entry_id=? AND line.memo=? AND line.debit_cents-line.credit_cents=? AND account.account_type='asset'")?;
         let rows = statement
             .query_map(
                 params![source.journal_id, vat_memo, source.document_vat_cents],
@@ -241,7 +248,7 @@ pub(crate) fn sync_period(
     date_to: &str,
 ) -> AppResult<usize> {
     let sources = {
-        let mut statement = tx.prepare("SELECT 'supplier_invoice_item',line.id FROM supplier_invoice_items line JOIN supplier_invoices invoice ON invoice.id=line.supplier_invoice_id JOIN journal_entries entry ON entry.id=invoice.validation_journal_entry_id WHERE invoice.status='validated' AND entry.entry_date BETWEEN ?1 AND ?2 UNION ALL SELECT 'expense',expense.id FROM expenses expense JOIN journal_entries entry ON entry.source_type='expense' AND entry.source_id=expense.id AND entry.source_event='create' WHERE expense.payment_status='paid' AND entry.entry_date BETWEEN ?1 AND ?2")?;
+        let mut statement = tx.prepare("SELECT 'supplier_invoice_item',line.id FROM supplier_invoice_items line JOIN supplier_invoices invoice ON invoice.id=line.supplier_invoice_id JOIN journal_entries entry ON entry.id=invoice.validation_journal_entry_id WHERE invoice.status='validated' AND entry.entry_date BETWEEN ?1 AND ?2 UNION ALL SELECT 'expense',expense.id FROM expenses expense JOIN journal_entries entry ON entry.source_type='expense' AND entry.source_id=expense.id AND entry.source_event='create' WHERE expense.payment_status='paid' AND entry.entry_date BETWEEN ?1 AND ?2 UNION ALL SELECT 'supplier_credit_note_item',line.id FROM supplier_credit_note_items line JOIN supplier_credit_notes credit ON credit.id=line.supplier_credit_note_id JOIN journal_entries entry ON entry.id=credit.validation_journal_entry_id WHERE credit.status='validated' AND entry.entry_date BETWEEN ?1 AND ?2")?;
         let rows = statement
             .query_map(params![date_from, date_to], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

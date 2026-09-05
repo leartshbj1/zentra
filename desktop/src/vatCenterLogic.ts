@@ -47,6 +47,7 @@ export const vatPeriodicityLabels: Record<VatReportingPeriodicity, string> = {
 export const vatSourceTypeLabels: Record<VatSourceType, string> = {
   invoice_item: 'Vente',
   supplier_invoice_item: 'Facture fournisseur',
+  supplier_credit_note_item: 'Avoir fournisseur',
   expense: 'Dépense',
 };
 

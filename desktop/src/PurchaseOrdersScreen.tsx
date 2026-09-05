@@ -3938,6 +3938,7 @@ function SupplierCreditNoteForm({
     input: Parameters<typeof desktopApi.saveSupplierCreditNoteDraft>[0],
   ) => void;
 }) {
+  const [draftId] = useState(() => credit?.id || createId());
   const [supplierId, setSupplierId] = useState(
     credit?.supplierId ||
       invoice?.supplierId ||
@@ -4040,15 +4041,13 @@ function SupplierCreditNoteForm({
       );
     setError('');
     onSave({
-      id: credit?.id,
+      id: draftId,
       supplierId,
       documentDate,
       reference,
       note,
       items: lines.map((line) => ({
-        id: credit?.items.some((item) => item.id === line.id)
-          ? line.id
-          : undefined,
+        id: line.id,
         description: line.description.trim(),
         quantityMilli: line.quantityMilli,
         unit: line.unit,
@@ -4128,7 +4127,7 @@ function SupplierCreditNoteForm({
           <div className="purchase-line-editor__heading">
             <div>
               <strong>Lignes de l’avoir</strong>
-              <small>Les montants seront négatifs après validation.</small>
+              <small>L’avoir réduit la dette et les achats. Après validation, classez sa TVA dans Comptabilité → TVA selon le traitement de l’achat concerné.</small>
             </div>
             <Button
               type="button"

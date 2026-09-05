@@ -105,6 +105,240 @@ fn journal_count(store: &LocalStore) -> i64 {
         .unwrap()
 }
 
+fn credit_draft(store: &LocalStore, date: &str) -> (String, String) {
+    let supplier = store
+        .create_record("suppliers", json!({"name":"Fournisseur avoir TVA"}))
+        .unwrap();
+    let id = Uuid::new_v4().to_string();
+    let line = Uuid::new_v4().to_string();
+    store
+        .save_supplier_credit_note_draft(crate::models::SaveSupplierCreditNoteDraftInput {
+            id: Some(id.clone()),
+            supplier_id: supplier["id"].as_str().unwrap().into(),
+            document_date: date.into(),
+            reference: Some(id.clone()),
+            note: None,
+            items: vec![SupplierInvoiceLineInput {
+                id: Some(line.clone()),
+                description: "Retour marchandises".into(),
+                quantity_milli: 1000,
+                unit: Some("pièce".into()),
+                unit_price_cents: 5000,
+                discount_bp: 0,
+                vat_bp: 810,
+                category: "Marchandises".into(),
+                expense_account_id: None,
+                project_id: None,
+            }],
+            allocations: vec![],
+        })
+        .unwrap();
+    (id, line)
+}
+
+fn validate_credit(store: &LocalStore, id: &str) -> serde_json::Value {
+    store
+        .validate_supplier_credit_note(crate::models::ValidateSupplierCreditNoteInput {
+            request_id: Uuid::new_v4().to_string(),
+            supplier_credit_note_id: id.into(),
+        })
+        .unwrap()
+}
+
+fn period_preview(
+    store: &LocalStore,
+    from: &str,
+    to: &str,
+) -> crate::vat_reporting::VatReturnPreview {
+    store
+        .preview_vat_return(VatReturnPreviewInput {
+            date_from: from.into(),
+            date_to: to.into(),
+            submission_type: "initial".into(),
+            profile_id: None,
+        })
+        .unwrap()
+}
+
+#[test]
+fn input_vat_credit_reduces_deduction_in_its_own_period_and_preserves_the_purchase() {
+    let (_temp, store, accounts) = fixture();
+    store.create_vat_profile(profile(false)).unwrap();
+    let (invoice, lines) = draft(&store);
+    for line in &lines {
+        classify(&store, "supplier_invoice_item", line, "input_materials");
+    }
+    store.validate_supplier_invoice(&invoice).unwrap();
+    let (credit, line) = credit_draft(&store, "2026-04-01");
+    let result = validate_credit(&store, &credit);
+    let journal = result["credit_note"]["validation_journal_entry_id"]
+        .as_str()
+        .unwrap();
+    assert!(store
+        .reverse_journal_entry(journal, "2026-04-02", None)
+        .is_err());
+    let before = period_preview(&store, "2026-04-01", "2026-06-30");
+    assert!(!before.exportable);
+    assert_eq!(
+        before.unclassified_sources[0].source_type,
+        "supplier_credit_note_item"
+    );
+    classify(
+        &store,
+        "supplier_credit_note_item",
+        &line,
+        "input_materials",
+    );
+    let q2 = period_preview(&store, "2026-04-01", "2026-06-30");
+    assert!(q2.exportable, "{:?}", q2.blocking_issues);
+    assert_eq!(q2.payable_tax_cents, 405);
+    assert_eq!(
+        q2.effective_reporting_method
+            .unwrap()
+            .input_tax_material_and_services_cents,
+        -405
+    );
+    let export = store
+        .export_vat_return_xml(crate::vat_reporting::ExportVatReturnInput {
+            date_from: "2026-04-01".into(),
+            date_to: "2026-06-30".into(),
+            submission_type: "initial".into(),
+            profile_id: None,
+            business_reference_id: "Credit-T2".into(),
+            file_name: None,
+        })
+        .unwrap();
+    let xml = std::fs::read_to_string(export.file_path).unwrap();
+    assert!(xml.contains(
+        "<eCH-0217:inputTaxMaterialAndServices>-4.05</eCH-0217:inputTaxMaterialAndServices>"
+    ));
+    if let Ok(path) = std::env::var("ZENTRA_QA_VAT_XML_PATH") {
+        std::fs::write(path, &xml).unwrap();
+    }
+    assert_eq!(
+        period_preview(&store, "2026-01-01", "2026-03-31").payable_tax_cents,
+        -1620
+    );
+    assert_eq!(
+        balance(&store, &accounts["vat_receivable"], "2026-06-30"),
+        1215
+    );
+    let snapshot: String = store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT snapshot_json FROM supplier_credit_notes WHERE id=?",
+            params![credit],
+            |row| row.get(0),
+        )
+        .unwrap();
+    classify(&store, "supplier_credit_note_item", &line, "non_deductible");
+    assert_eq!(
+        period_preview(&store, "2026-04-01", "2026-06-30").payable_tax_cents,
+        0
+    );
+    assert_eq!(
+        balance(&store, &accounts["vat_receivable"], "2026-06-30"),
+        1620
+    );
+    assert_eq!(balance(&store, &accounts["expense"], "2026-06-30"), 14595);
+    let count = journal_count(&store);
+    classify(&store, "supplier_credit_note_item", &line, "non_deductible");
+    assert_eq!(journal_count(&store), count);
+    classify(
+        &store,
+        "supplier_credit_note_item",
+        &line,
+        "input_investments",
+    );
+    assert_eq!(
+        balance(&store, &accounts["vat_receivable"], "2026-06-30"),
+        1215
+    );
+    let unchanged: String = store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT snapshot_json FROM supplier_credit_notes WHERE id=?",
+            params![credit],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(unchanged, snapshot);
+    let exports = store
+        .list_vat_return_exports(crate::vat_reporting::ListVatReturnExportsInput::default())
+        .unwrap();
+    assert_eq!(
+        exports[0].payload.payable_tax_cents, 405,
+        "The earlier VAT export remains frozen after reclassification"
+    );
+}
+
+#[test]
+fn input_vat_credit_simple_method_and_legacy_migration_preserve_closed_classifications() {
+    let (_temp, store, accounts) = fixture();
+    let expense = store.create_record("expenses", json!({"date":"2026-01-10","due_date":"2026-01-31","supplier":"Test","currency":"CHF","net_cents":10000,"vat_cents":810,"payment_status":"pending"})).unwrap();
+    let expense_id = expense["id"].as_str().unwrap();
+    classify(&store, "expense", expense_id, "input_materials");
+    let connection = store.connect().unwrap();
+    // Restore precisely the v41 classification table constraint and absence of the new column.
+    let old = crate::schema::MIGRATION_V22_SQL;
+    let table_start = old
+        .find("CREATE TABLE IF NOT EXISTS vat_source_classifications (")
+        .unwrap();
+    let table_end = old[table_start..]
+        .find("CREATE TABLE IF NOT EXISTS vat_adjustments (")
+        .unwrap()
+        + table_start;
+    connection.execute_batch("DROP TABLE vat_source_classifications; ALTER TABLE supplier_credit_note_items DROP COLUMN posted_expense_account_id;").unwrap();
+    connection
+        .execute_batch(&old[table_start..table_end])
+        .unwrap();
+    connection.execute("INSERT INTO vat_source_classifications VALUES('legacy','expense',?,'input_materials','Justificatif historique','2026-01-10','2026-01-10')", params![expense_id]).unwrap();
+    connection.execute_batch("INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at) VALUES('closed','Janvier','2026-01-01','2026-01-31','closed','2026-02-01','2026-02-01'); PRAGMA user_version=41;").unwrap();
+    drop(connection);
+    store.migrate().unwrap();
+    store.migrate().unwrap();
+    let connection = store.connect().unwrap();
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT note FROM vat_source_classifications WHERE id='legacy'",
+                [],
+                |row| row.get::<_, String>(0)
+            )
+            .unwrap(),
+        "Justificatif historique"
+    );
+    assert!(connection
+        .execute(
+            "UPDATE vat_source_classifications SET treatment='non_deductible' WHERE id='legacy'",
+            []
+        )
+        .is_err());
+    assert_eq!(
+        connection
+            .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap(),
+        0
+    );
+    let mut method = profile(true);
+    method.effective_from = "2026-02-01".into();
+    store.create_vat_profile(method).unwrap();
+    let (credit, line) = credit_draft(&store, "2026-02-10");
+    validate_credit(&store, &credit);
+    assert_eq!(
+        balance(&store, &accounts["vat_receivable"], "2026-03-31"),
+        0
+    );
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), -5405);
+    classify(&store, "supplier_credit_note_item", &line, "non_deductible");
+    connection.execute_batch("INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at) VALUES('closed-feb','Février','2026-02-01','2026-02-28','closed','2026-03-01','2026-03-01');").unwrap();
+    assert!(connection.execute("UPDATE vat_source_classifications SET treatment='input_materials' WHERE source_type='supplier_credit_note_item' AND source_id=?", params![line]).is_err());
+}
+
 #[test]
 fn input_vat_mixed_purchase_matches_return_ledger_and_immutable_snapshot() {
     let (temp, store, accounts) = fixture();
@@ -142,7 +376,12 @@ fn input_vat_mixed_purchase_matches_return_ledger_and_immutable_snapshot() {
         .unwrap();
     assert!(preview.exportable, "{:?}", preview.blocking_issues);
     assert_eq!(preview.classified_sources.len(), 2);
-    assert!(preview.classified_sources.iter().any(|source| source.source.source_id == lines[0] && source.treatment == "non_deductible" && source.currency == "CHF"));
+    assert!(preview
+        .classified_sources
+        .iter()
+        .any(|source| source.source.source_id == lines[0]
+            && source.treatment == "non_deductible"
+            && source.currency == "CHF"));
     // Archived export payloads from 1.27 did not contain the review list.
     let mut legacy = serde_json::to_value(&preview).unwrap();
     legacy.as_object_mut().unwrap().remove("classified_sources");

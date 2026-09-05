@@ -17,4 +17,9 @@ describe('détail des achats classés dans le décompte TVA', () => {
     expect(preview.classifiedSources).toEqual([]);
     expect(preview.sourceSha256).toBe('historical-export');
   });
+  it('conserve la réduction signée d’un avoir fournisseur', async () => {
+    invokeMock.mockResolvedValueOnce({ classified_sources: [{ source_type: 'supplier_credit_note_item', source_id: 'credit-line', parent_id: 'credit', amount_cents: -5000, vat_cents: -405, treatment: 'input_materials', currency: 'CHF' }] });
+    const preview = await desktopApi.previewVatReturn(input);
+    expect(preview.classifiedSources?.[0]).toMatchObject({ sourceType: 'supplier_credit_note_item', amountCents: -5000, vatCents: -405, treatment: 'input_materials' });
+  });
 });

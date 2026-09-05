@@ -1840,7 +1840,7 @@ impl LocalStore {
         require_account(&tx, &default_expense, "expense")?;
         require_account(&tx, &vat_account, "asset")?;
         require_account(&tx, &payable_account, "liability")?;
-        let items = query_all(&tx, "SELECT * FROM supplier_credit_note_items WHERE supplier_credit_note_id=? ORDER BY position,created_at", params![id])?;
+        let mut items = query_all(&tx, "SELECT * FROM supplier_credit_note_items WHERE supplier_credit_note_id=? ORDER BY position,created_at", params![id])?;
         if items.is_empty() {
             return Err(AppError::Validation(
                 "L’avoir ne contient aucune ligne.".into(),
@@ -1859,7 +1859,7 @@ impl LocalStore {
             client_id: None,
             employee_id: None,
         }];
-        for item in &items {
+        for item in &mut items {
             let amount = item["line_net_cents"].as_i64().unwrap_or(0);
             if amount == 0 {
                 continue;
@@ -1870,6 +1870,11 @@ impl LocalStore {
                 .unwrap_or(&default_expense)
                 .to_owned();
             require_account(&tx, &account_id, "expense")?;
+            tx.execute(
+                "UPDATE supplier_credit_note_items SET posted_expense_account_id=? WHERE id=?",
+                params![account_id, item["id"].as_str().unwrap_or_default()],
+            )?;
+            item["posted_expense_account_id"] = json!(account_id);
             journal_lines.push(EntryLine {
                 account_id,
                 debit_cents: 0,
@@ -1921,6 +1926,13 @@ impl LocalStore {
             "UPDATE supplier_credit_notes SET number=?,status='validated',snapshot_json=?,validation_journal_entry_id=?,validated_at=?,updated_at=? WHERE id=? AND status='draft'",
             params![number,snapshot,journal_id,now,now,id],
         )?;
+        for item in &items {
+            crate::input_vat_accounting::sync_source(
+                &tx,
+                "supplier_credit_note_item",
+                item["id"].as_str().unwrap_or_default(),
+            )?;
+        }
         let result = supplier_credit_bundle(&tx, &id, false)?;
         finish_operation(
             &tx,

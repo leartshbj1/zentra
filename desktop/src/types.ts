@@ -2011,6 +2011,7 @@ export type VatSubmissionType =
   | 'annual_reconciliation';
 export type VatSourceType =
   | 'invoice_item'
+  | 'supplier_credit_note_item'
   | 'supplier_invoice_item'
   | 'expense';
 export type VatSourceTreatment =

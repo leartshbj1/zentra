@@ -1518,7 +1518,7 @@ export function WorkspaceApp({
         </div> : <div className="project-folder-spacing" />}
         {notice ? (
           <div
-            className={`notice notice--${notice.tone} ${modal ? 'notice--floating' : ''}`}
+            className={`notice notice--${notice.tone} ${modal || notice.tone === 'error' ? 'notice--floating' : ''}`}
             role={notice.tone === 'error' ? 'alert' : 'status'}
             aria-live={notice.tone === 'error' ? 'assertive' : 'polite'}
           >

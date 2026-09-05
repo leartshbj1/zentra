@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: i64 = 41;
+pub const SCHEMA_VERSION: i64 = 42;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[
@@ -6855,4 +6855,115 @@ WHEN EXISTS(SELECT 1 FROM sales_order_invoice_batches batch WHERE batch.invoice_
 BEGIN SELECT RAISE(ABORT,'sales order invoice linkage and totals are immutable'); END;
 
 PRAGMA user_version=41;
+"#;
+
+/// Classification des avoirs et protection cumulative de leur date fiscale.
+pub const MIGRATION_V42_SQL: &str = r#"
+CREATE TABLE vat_source_classifications_v42 (
+  id TEXT PRIMARY KEY CHECK (LENGTH(id) BETWEEN 1 AND 255),
+  source_type TEXT NOT NULL CHECK (source_type IN ('invoice_item','supplier_invoice_item','supplier_credit_note_item','expense')),
+  source_id TEXT NOT NULL CHECK (LENGTH(source_id) BETWEEN 1 AND 255),
+  treatment TEXT NOT NULL CHECK (treatment IN (
+    'taxable','supplies_to_foreign','supplies_abroad','transfer_notification','exempt','out_of_scope','opted',
+    'input_materials','input_investments','non_deductible'
+  )),
+  note TEXT CHECK (note IS NULL OR LENGTH(note)<=1000),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(source_type,source_id),
+  CHECK (
+    (source_type='invoice_item' AND treatment IN ('taxable','supplies_to_foreign','supplies_abroad','transfer_notification','exempt','out_of_scope','opted')) OR
+    (source_type IN ('supplier_invoice_item','supplier_credit_note_item','expense') AND treatment IN ('input_materials','input_investments','non_deductible'))
+  )
+);
+INSERT INTO vat_source_classifications_v42 SELECT * FROM vat_source_classifications;
+DROP TABLE vat_source_classifications;
+ALTER TABLE vat_source_classifications_v42 RENAME TO vat_source_classifications;
+CREATE INDEX IF NOT EXISTS idx_vat_classifications_source
+ON vat_source_classifications(source_type,source_id);
+
+DROP VIEW vat_source_fiscal_dates;
+CREATE VIEW vat_source_fiscal_dates AS
+SELECT source_type,source_id,MIN(fiscal_date) AS fiscal_date
+FROM (
+  SELECT 'invoice_item' AS source_type,item.id AS source_id,invoice.issue_date AS fiscal_date
+  FROM invoice_items item
+  JOIN invoices invoice ON invoice.id=item.invoice_id
+  UNION ALL
+  SELECT 'invoice_item',item.id,payment.date
+  FROM invoice_items item
+  JOIN payments payment ON payment.invoice_id=item.invoice_id
+  UNION ALL
+  SELECT 'supplier_invoice_item',item.id,invoice.document_date
+  FROM supplier_invoice_items item
+  JOIN supplier_invoices invoice ON invoice.id=item.supplier_invoice_id
+  UNION ALL
+  SELECT 'supplier_invoice_item',item.id,payment.date
+  FROM supplier_invoice_items item
+  JOIN supplier_payments payment ON payment.supplier_invoice_id=item.supplier_invoice_id
+  UNION ALL
+  SELECT 'supplier_credit_note_item',item.id,credit.document_date
+  FROM supplier_credit_note_items item JOIN supplier_credit_notes credit ON credit.id=item.supplier_credit_note_id
+  UNION ALL
+  SELECT 'expense',expense.id,expense.date
+  FROM expenses expense
+  UNION ALL
+  SELECT 'expense',expense.id,expense.paid_at
+  FROM expenses expense
+  WHERE expense.paid_at IS NOT NULL AND TRIM(expense.paid_at)<>''
+)
+WHERE fiscal_date IS NOT NULL AND TRIM(fiscal_date)<>''
+GROUP BY source_type,source_id;
+DROP TRIGGER IF EXISTS vat_source_classifications_closed_through_insert_guard;
+CREATE TRIGGER vat_source_classifications_closed_through_insert_guard
+BEFORE INSERT ON vat_source_classifications
+WHEN EXISTS(
+  SELECT 1 FROM vat_source_fiscal_dates source
+  WHERE source.source_type=NEW.source_type AND source.source_id=NEW.source_id
+    AND source.fiscal_date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+)
+BEGIN SELECT RAISE(ABORT,'VAT source classification is on or before cumulative closed-through date'); END;
+
+DROP TRIGGER IF EXISTS vat_source_classifications_closed_through_update_guard;
+CREATE TRIGGER vat_source_classifications_closed_through_update_guard
+BEFORE UPDATE ON vat_source_classifications
+WHEN (
+    NEW.id IS NOT OLD.id
+    OR NEW.source_type IS NOT OLD.source_type
+    OR NEW.source_id IS NOT OLD.source_id
+    OR NEW.treatment IS NOT OLD.treatment
+    OR NEW.note IS NOT OLD.note
+    OR NEW.created_at IS NOT OLD.created_at
+    OR NEW.updated_at IS NOT OLD.updated_at
+  )
+  AND EXISTS(
+    SELECT 1 FROM vat_source_fiscal_dates source
+    WHERE (
+        (source.source_type=OLD.source_type AND source.source_id=OLD.source_id)
+        OR (source.source_type=NEW.source_type AND source.source_id=NEW.source_id)
+      )
+      AND source.fiscal_date<=COALESCE(
+        (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+        '0000-00-00'
+      )
+  )
+BEGIN SELECT RAISE(ABORT,'VAT source classification through the closed date is immutable'); END;
+
+DROP TRIGGER IF EXISTS vat_source_classifications_closed_through_delete_guard;
+CREATE TRIGGER vat_source_classifications_closed_through_delete_guard
+BEFORE DELETE ON vat_source_classifications
+WHEN EXISTS(
+  SELECT 1 FROM vat_source_fiscal_dates source
+  WHERE source.source_type=OLD.source_type AND source.source_id=OLD.source_id
+    AND source.fiscal_date<=COALESCE(
+      (SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),
+      '0000-00-00'
+    )
+)
+BEGIN SELECT RAISE(ABORT,'VAT source classification through the closed date is immutable'); END;
+
+PRAGMA user_version=42;
 "#;
