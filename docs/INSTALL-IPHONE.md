@@ -27,7 +27,8 @@ Zentra avant de réinstaller ; supprimer l'application efface ses données local
 
 Mettre le fichier IPA dans Fichiers sur l'iPhone, ouvrir **AltStore > My Apps > +**,
 sélectionner l'IPA et suivre l'installation avec AltServer accessible. Renouveler
-la signature avant son expiration. Guide : https://faq.altstore.io/altstore-classic/your-altstore
+la signature avant son expiration. Guide officiel :
+https://github.com/altstoreio/FAQ/blob/main/altstore-world/your-altstore.md
 
 ## Contenu et vérifications
 
