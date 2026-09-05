@@ -19,6 +19,25 @@ capture_diagnostics() {
   exit "$status"
 }
 trap capture_diagnostics EXIT
+
+wait_for_welcome() {
+  local phase="$1"
+  # Database/identity files are created before React finishes opening the profile.
+  # Prove a usable first launch before testing recovery from a normal restart.
+  for attempt in $(seq 1 20); do
+    adb shell pidof ch.zentra.mobile >/dev/null
+    timeout 15 adb shell uiautomator dump --compressed /sdcard/zentra-startup.xml >/dev/null 2>&1 || true
+    adb exec-out cat /sdcard/zentra-startup.xml > desktop/artifacts/android/startup-ui.xml 2>/dev/null || true
+    if grep -q 'Restaurer une sauvegarde' desktop/artifacts/android/startup-ui.xml; then
+      echo "Android welcome interface verified: $phase"
+      return 0
+    fi
+    sleep 3
+  done
+  echo "Android welcome interface missing: $phase" >&2
+  return 1
+}
+
 timeout 120 adb wait-for-device
 timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 2; done'
 apk="${1:-$(find desktop/src-tauri/gen/android/app/build/outputs/apk -name '*x86_64*.apk' -print -quit)}"
@@ -34,6 +53,7 @@ done
 adb shell pidof ch.zentra.mobile
 grep -q 'helvichantier.sqlite3' <<< "$profile_files"
 grep -q 'installation-identity.protected' <<< "$profile_files"
+wait_for_welcome 'first launch'
 identity_path="$(grep 'installation-identity.protected' <<< "$profile_files" | head -n 1 | tr -d '\r')"
 identity_before="$(adb shell run-as ch.zentra.mobile sha256sum "$identity_path")"
 adb shell am force-stop ch.zentra.mobile
@@ -42,15 +62,7 @@ sleep 5
 adb shell pidof ch.zentra.mobile
 identity_after="$(adb shell run-as ch.zentra.mobile sha256sum "$identity_path")"
 test "$identity_before" = "$identity_after"
-# The software-rendered CI emulator may still be compiling WebView shaders.
-# Wait for the actual welcome actions, not just a live process or a splash screen.
-for attempt in $(seq 1 10); do
-  timeout 15 adb shell uiautomator dump --compressed /sdcard/zentra-startup.xml >/dev/null 2>&1 || true
-  adb exec-out cat /sdcard/zentra-startup.xml > desktop/artifacts/android/startup-ui.xml 2>/dev/null || true
-  if grep -q 'Restaurer une sauvegarde' desktop/artifacts/android/startup-ui.xml; then break; fi
-  sleep 3
-done
-grep -q 'Restaurer une sauvegarde' desktop/artifacts/android/startup-ui.xml
+wait_for_welcome 'after restart'
 adb exec-out screencap -p > desktop/artifacts/android/startup.png
 adb logcat -d -s AndroidRuntime:E > desktop/artifacts/android/runtime.log
 if grep -q 'FATAL EXCEPTION' desktop/artifacts/android/runtime.log; then
