@@ -11,6 +11,7 @@ capture_diagnostics() {
   timeout 10 adb exec-out screencap -p > desktop/artifacts/android/startup.png || true
   timeout 10 adb shell run-as ch.zentra.mobile find . -type f > desktop/artifacts/android/profile-files.txt 2>&1 || true
   if [[ "$status" -ne 0 ]]; then
+    timeout 75 node desktop/scripts/diagnose-android-startup.mjs || true
     tail -n 60 desktop/artifacts/android/emulator.log 2>/dev/null || true
     tail -n 60 desktop/artifacts/android/startup.log || true
     cat desktop/artifacts/android/crash.log || true
