@@ -2,9 +2,9 @@
 
 Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corriger les erreurs observées et préparer une mise à jour commune. Ce document suit le travail ; il ne constitue pas une déclaration de conformité ni une recette complète de toutes les fonctions.
 
-## Lot en cours après la publication 1.27.0
+## Préparation du lot 1.28.0
 
-Les améliorations ci-dessous sont dans le code en cours de validation. Les installateurs et le site publiés restent en version 1.27.0 jusqu'à la prochaine publication vérifiée.
+Les améliorations ci-dessous sont figées dans la source `b107cb85fda7bf6ff42efa0771da4339a3a9548a` du lot 1.28.0. L'installateur Windows est construit et vérifié ; les fichiers versionnés sont déposés. Le canal actif et le site restent en 1.27.0 jusqu'à la publication commune vérifiée avec macOS.
 
 - Ventes : filtres par état, solde à encaisser et retard calculé après paiements et avoirs ; recherche par référence bancaire avec espaces ; recherche textuelle tolérant les accents et espaces multiples.
 - Listes : ordre récent conservé, pagination de 25 documents et remise à la première page après changement de recherche ou d'état. Cartes mobiles en deux colonnes et boutons tactiles de 44 px.
@@ -34,8 +34,10 @@ Environnement : Windows, Edge headless, largeurs 320, 390, 768, 1024 et 1440 px.
 
 | Contrôle | Preuve |
 | --- | --- |
-| Moteur natif : ventes, stock, achats, banque, paie, TVA, clôture, sauvegardes et documents | Suite complète : 462 réussis, aucun échec, un ignoré ; `.qa/received-native-full.log`. |
-| Interface et logique TypeScript | `pnpm --dir desktop test:ui` : 575 tests réussis / 84 fichiers ; `.qa/bank-ui-final.log`. Compilation de l'interface réussie ; `.qa/bank-build-final.log`. |
+| Moteur natif : ventes, stock, achats, banque, paie, TVA, clôture, sauvegardes et documents | Suite complète du lot 1.28 avec toutes les cibles de test Windows : 462 réussis, aucun échec, un ignoré ; `.qa/native-1.28-tests.log`. |
+| Interface et logique TypeScript | `pnpm --dir desktop test:ui` : 575 tests réussis / 84 fichiers sur la source 1.28 ; `.qa/ui-1.28-tests.log`. Compilation de l'interface et de l'application réussie ; `.qa/windows-release-1.28.log`. |
+| Installateur et démarrage Windows 1.28 | Signature Ed25519 vérifiée, provenance et empreinte du fichier public conformes ; `.qa/stage-1.28.log`. Démarrage du binaire produit avec profil isolé, base SQLite 42 intègre sans données fictives, version affichée 1.28.0, contrôle HTTPS du canal stable réussi sans rétrogradation vers 1.27.0 ; `.qa/native-1.28/updater-check.json`. Captures natives inspectées, processus de test arrêté. |
+| Démarrage des versions mobiles 1.28 | [Exécution 33942682262](https://github.com/leartshbj1/zentra/actions/runs/33942682262) réussie pour Android et iOS : accueil natif, SQLite et coffre système ; Android vérifie aussi la reprise de l'identité après redémarrage. Captures téléchargées et inspectées. L'archive iOS porte la version 1.28.0 et cible exclusivement le simulateur ; `.qa/ios-1.28-verified.json`. |
 | Banque avec documents et mouvements actifs | `desktop/tests/bank-journey.mjs` : cinq largeurs et 33 mouvements fictifs. Import automatique intégral et partiel, import enregistré suivi d'un échec de lecture, recherche, pagination, sélection masquée retirée, annulation, refus, paiement enregistré suivi d'un échec de lecture, actualisation sans second paiement, débit fournisseur, mouvement en attente et réimport sans doublon. `.qa/bank/report.json`. Captures de la sélection et de la reprise inspectées. |
 | Aperçu natif macOS du lot TVA `f04f3e2` | [Exécution GitHub 33940914599](https://github.com/leartshbj1/zentra/actions/runs/33940914599) réussie : 463 tests natifs, un ignoré, 573 tests UI. Application et DMG construits, signature ad hoc vérifiée sur le runner. Archives téléchargées, SHA-256 conformes au manifeste, binaire universel Intel/Apple Silicon vérifié ; `.qa/macos-f04f3e2-verified.json`. Cet aperçu précède les corrections UI bancaires. |
 | Paiements partiels, multi-taux, impôt préalable mixte, TDFN, centimes, reprise idempotente et classification des impayés avant clôture | Tests natifs inclus dans la suite complète ; `vat_received.rs`, `vat_reporting.rs`, `input_vat_tests.rs`. Export partiel validé avec dix schémas officiels ; `.qa/ech-0217-received/validation.json`. |
@@ -50,9 +52,11 @@ Environnement : Windows, Edge headless, largeurs 320, 390, 768, 1024 et 1440 px.
 | Recherche de référence, filtres, devis/facture EUR enregistrés, projet lié au client, avoir lié, pagination de 80 factures | `desktop/tests/sales-browsing-journey.mjs` ; `.qa/sales/report.json` |
 | Sept formulaires de création, cinq sections achats et maintien du focus dans les dialogues | `desktop/tests/forms-journey.mjs` : 60 captures ; `.qa/forms/report.json` |
 
-Les tests navigateur vérifient le parcours UI et les paramètres transmis aux fonctions simulées. Ils ne prouvent pas l'accès à une banque réelle, l'envoi d'un e-mail, une publication sur les stores ou une synchronisation entre appareils. Les modifications de ce lot n'ont pas encore été exécutées dans de nouveaux binaires natifs Windows/macOS/iOS/Android.
+Les tests navigateur vérifient le parcours UI et les paramètres transmis aux fonctions simulées. Ils ne prouvent pas l'accès à une banque réelle, l'envoi d'un e-mail, une publication sur les stores ou une synchronisation entre appareils. Les nouveaux binaires Windows, Android et iOS ont passé les contrôles de démarrage précisés ci-dessus ; cela ne remplace pas la recette de tous les parcours métier sur appareil physique. Le paquet universel macOS signé pour l'updater est encore en construction.
 
 L'aperçu macOS téléchargé est un artefact de test, version interne 1.27.0 et identifiant `ch.zentra.desktop`, issu de la configuration d'aperçu. Il n'est pas l'artefact d'updater signé à publier, dont l'identifiant de production doit être conservé. Les contrôles ci-dessus prouvent sa construction et le contenu du binaire, pas une session utilisateur dans les fenêtres natives de la nouvelle application.
+
+Les identifiants de production diffèrent selon le système : `ch.helvichantier.desktop` sous Windows et `ch.zentra.desktop` sous macOS. Ce dernier est confirmé par l'Info.plist extrait de l'archive publique 1.27.0. La mise à jour doit conserver l'identifiant déjà utilisé sur chaque système.
 
 ## Points encore ouverts dans l'audit
 
@@ -60,7 +64,8 @@ L'aperçu macOS téléchargé est un artefact de test, version interne 1.27.0 et
 2. **Historique et changements de méthode TVA.** Les paiements partiels sur plusieurs périodes d'un même profil sont couverts. Examiner encore la reprise des débiteurs et créanciers ouverts lors d'un changement convenues/reçues, ainsi que les anciens impayés non classés dont la date d'origine est déjà clôturée. Le nouveau contrôle prévient les prochaines clôtures sans classification ; il ne modifie pas les périodes déjà fermées.
 3. **Avoirs en mode reçu.** Le mode « convenues » des avoirs fournisseurs est couvert dans le nouveau lot. Le mode « reçues » signale encore `unsupported_supplier_credit_tax` et `received_credit_note_timing_unknown`, car les avoirs ne portent pas de date fiscale d'imputation ou de remboursement. Ajouter ces preuves avant d'automatiser le traitement de ce mode.
 4. **Parcours de gestion avancés.** La recette bancaire avec documents actifs, erreurs et reprises est maintenant exécutée. Compléter les essais UI des commandes, livraisons, récurrences, paie et clôture. Examiner aussi le classement des opérations bancaires sans facture correspondante (frais, apports et autres mouvements) ; la recette actuelle porte sur les rapprochements clients et fournisseurs.
-5. **Diffusion.** Préparer les binaires signés pour l'updater, vérifier les artefacts Windows/macOS et les démarrages mobiles, puis publier le lot stabilisé. L'adhésion Apple Developer et le compte Google Play restent distincts de cet audit du logiciel.
+5. **Diffusion.** Terminer la vérification du paquet macOS et du paquet Android allégé, puis publier le canal commun et les téléchargements. Le lot Windows est signé pour l'updater, déposé et vérifié ; le canal actif reste 1.27.0. L'adhésion Apple Developer et le compte Google Play restent distincts de cet audit du logiciel.
+6. **Bandeau des versions mobiles de test.** Les captures natives 1.28 montrent que le diagnostic de licence de développement occupe une grande partie du bas de l'écran. Replier ses détails pour libérer le contenu, tout en conservant un accès clair aux informations et aux éventuelles actions d'activation.
 
 ## Références produit
 
