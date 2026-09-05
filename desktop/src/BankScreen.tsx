@@ -32,12 +32,13 @@ import {
   initialSupplierInvoiceChoice,
   type BankMovementFilter,
 } from './bank';
-import type { BankAccountLink, BankMovement, BankWorkspace, Workspace } from './types';
+import type { BankAccountLink, BankMovement, BankWorkspace, ExpenseRefundInput, Workspace } from './types';
 import { errorMessage, formatDate, formatDateTime } from './utils';
 import { Button, EmptyState, ErrorPanel, SectionHeading } from './ui';
 import './BankScreen.css';
 import { BankExpensePicker } from './BankExpensePicker';
 import { BankRefundPicker, BankRefundUnlink, BankRefundHistory } from './BankRefunds';
+import { BankRefundCreate } from './BankRefundCreate';
 import { BankExpenseForm, type BankExpenseDraft } from './BankExpenseForm';
 import { BankExpenseCorrection, BankExpenseHistory } from './BankExpenseCorrection';
 
@@ -203,6 +204,7 @@ export function BankScreen({
   const [bank, setBank] = useState<BankWorkspace | null>(null);
   const [filter, setFilter] = useState<BankMovementFilter>('unreconciled');
   const [refundToUnlink, setRefundToUnlink] = useState<BankMovement | null>(null);
+  const [newRefundMovement, setNewRefundMovement] = useState<BankMovement | null>(null);
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [candidateQueries, setCandidateQueries] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -454,6 +456,17 @@ export function BankScreen({
     } finally { setBusy(false); }
   }
 
+  async function createRefund(input: ExpenseRefundInput) {
+    if (writesDisabled || !newRefundMovement) throw new Error('Actualisez les données avant de créer le remboursement.');
+    setBusy(true); setFeedback(null);
+    try {
+      await desktopApi.createBankExpenseRefund(newRefundMovement.id, input);
+      setNewRefundMovement(null);
+      const warnings = await refreshBoth();
+      setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Remboursement créé et rapproché', text: 'Le remboursement, ses justificatifs et ses écritures sont enregistrés avec le crédit bancaire.' + (warnings.length ? ' Actualisez les données pour afficher le résultat.' : ''), warnings });
+    } finally { setBusy(false); }
+  }
+
   async function confirmRefund(movement: BankMovement, requestId: string, refundId: string, dateReason?: string) {
     if (writesDisabled) throw new Error('Actualisez les données avant une nouvelle association.');
     setBusy(true); setFeedback(null);
@@ -479,6 +492,7 @@ export function BankScreen({
   if (!bank) return null;
 
   return <div className="stack-layout bank-screen">
+    {newRefundMovement ? <BankRefundCreate movement={newRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly || refreshPending} close={() => setNewRefundMovement(null)} onSave={createRefund} /> : null}
     {refundToUnlink ? <BankRefundUnlink movement={refundToUnlink} busy={writesDisabled} close={() => setRefundToUnlink(null)} onConfirm={unlinkRefund} /> : null}
     {correctionMovement ? <BankExpenseCorrection movement={correctionMovement} workspace={workspace} busy={writesDisabled} onClose={() => setCorrectionMovement(null)} onConfirm={unlinkExpense} /> : null}
     {newExpenseMovement ? <BankExpenseForm movement={newExpenseMovement} workspace={workspace} busy={writesDisabled} onClose={() => setNewExpenseMovement(null)} onSave={createExpense} /> : null}
@@ -575,9 +589,11 @@ export function BankScreen({
                           }}
                           onSelect={(invoiceId) => setChoices((current) => ({ ...current, [movement.id]: invoiceId }))}
                         /> : null}
-                        <Button size="small" disabled={writesDisabled || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer l’encaissement</Button>
-                        {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
-                        <BankRefundPicker onOpenExpense={onOpenExpense} key={`${movement.id}:${movement.refundHistory?.length || 0}:${movement.refundHistory?.[0]?.id || ''}`} movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(requestId, refundId, reason) => confirmRefund(movement, requestId, refundId, reason)} />
+                        {movement.suggestion.candidates.length ? <>
+                          <Button size="small" disabled={writesDisabled || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer l’encaissement</Button>
+                          {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
+                        </> : null}
+                        <BankRefundPicker onCreate={() => setNewRefundMovement(movement)} onOpenExpense={onOpenExpense} key={`${movement.id}:${movement.refundHistory?.length || 0}:${movement.refundHistory?.[0]?.id || ''}`} movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(requestId, refundId, reason) => confirmRefund(movement, requestId, refundId, reason)} />
                       </>}
             </div>
             <BankExpenseHistory movement={movement} />

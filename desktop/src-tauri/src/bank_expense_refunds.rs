@@ -1,6 +1,6 @@
-//! Associate an imported credit with an already posted refund. No financial write.
+//! Bank evidence for existing refunds and refunds created atomically from a credit.
 use super::*;
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +49,9 @@ pub(super) fn reject_linked(connection: &Connection, movement: &str) -> AppResul
     Ok(())
 }
 fn movement_date(connection: &Connection, movement: &Value) -> AppResult<String> {
+    if movement["amount_cents"].as_i64().unwrap_or_default() <= 0 {
+        return Err(reject("Le crédit bancaire doit avoir un montant positif."));
+    }
     if movement["status"] != "BOOK"
         || booked_message_type(connection, movement)?.as_deref() != Some("camt.053")
     {
@@ -104,6 +107,32 @@ fn movement_date(connection: &Connection, movement: &Value) -> AppResult<String>
         return Err(reject("La date bancaire ne peut pas être future."));
     }
     Ok(date.into())
+}
+pub(crate) fn validate_creation(connection: &Transaction<'_>, movement_id: &str, amount: i64, payment_date: &str) -> AppResult<()> {
+    let movement = query_record_tx(connection, "bank_movements", movement_id)?;
+    let date = movement_date(connection, &movement)?;
+    let linked: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1)", params![movement_id], |row| row.get(0))?;
+    if linked { return Err(reject("Ce crédit est déjà rapproché. Actualisez les mouvements.")); }
+    if date != payment_date || movement["amount_cents"].as_i64() != Some(amount) {
+        return Err(reject("Le montant et la date du remboursement doivent reprendre exactement le crédit bancaire."));
+    }
+    Ok(())
+}
+pub(crate) fn insert_created_match(connection: &Transaction<'_>, request: &str, movement_id: &str, refund: &Value) -> AppResult<()> {
+    let movement = query_record_tx(connection, "bank_movements", movement_id)?;
+    let date = movement_date(connection, &movement)?;
+    refund_state(connection, refund, movement["amount_cents"].as_i64().unwrap_or_default(), &date, false)?;
+    connection.execute("INSERT INTO bank_expense_refund_matches(id,movement_id,refund_id,date_difference_reason,confirmed_at) VALUES(?,?,?,NULL,?)", params![request,movement_id,refund["id"].as_str(),now_iso()])?;
+    let proof = query_record_tx(connection, "bank_expense_refund_matches", request)?;
+    append_audit(connection, "create_from_bank", "bank_expense_refund_match", request, &proof)?;
+    Ok(())
+}
+pub(crate) fn verify_created_match(connection: &Transaction<'_>, request: &str, movement: &str, refund: &str) -> AppResult<()> {
+    let matched = existing(connection, movement)?.ok_or_else(|| reject("Ce remboursement a été enregistré, puis dissocié du relevé. Actualisez et rapprochez la pièce existante."))?;
+    if matched["id"] != request || matched["refund_id"] != refund {
+        return Err(reject("L’association bancaire a changé. Actualisez les données avant de poursuivre."));
+    }
+    Ok(())
 }
 fn refund_state(
     connection: &Connection,
@@ -165,7 +194,7 @@ pub(super) fn suggestion(connection: &Connection, movement: &Value) -> AppResult
         candidates.push(json!({"refund_id":refund["id"],"expense_id":refund["expense_id"],"reference":refund["reference"],"expense_reference":refund["expense_reference"],"supplier":refund["supplier"],"payment_date":refund["payment_date"],"total_cents":amount,"requires_date_reason":differs,"confirmable":problem.is_none(),"reason":problem.unwrap_or_else(||if differs {"Écart de dates à justifier ; la TVA et les écritures restent inchangées.".into()} else {"Remboursement déjà comptabilisé ; aucune nouvelle écriture.".into()})}));
     }
     Ok(
-        json!({"reason":"Choisissez le remboursement reçu correspondant à ce crédit, après vérification de la référence et du fournisseur.","candidates":candidates}),
+        json!({"reason":"Choisissez le remboursement reçu correspondant à ce crédit, après vérification de la référence et du fournisseur.","candidates":candidates,"can_create":true}),
     )
 }
 

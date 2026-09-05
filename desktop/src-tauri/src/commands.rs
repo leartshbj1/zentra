@@ -260,6 +260,13 @@ pub fn record_expense_refund(state: State<'_, LocalStore>, input: crate::expense
 }
 
 #[tauri::command]
+pub fn create_bank_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput, movement_id: String, attachment: Option<crate::expense_refund_attachments::RefundAttachmentInput>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.create_bank_expense_refund(input, attachment, &movement_id).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn add_expense_refund_attachment(state: State<'_, LocalStore>, refund_id: String, attachment: crate::expense_refund_attachments::RefundAttachmentInput) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;

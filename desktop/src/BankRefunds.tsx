@@ -4,9 +4,10 @@ import type { BankMovement } from './types';
 import { Button, ErrorPanel, Field, FormActions, Modal } from './ui';
 import { createId, errorMessage, formatDate, formatDateTime, formatMoney, searchText } from './utils';
 
-export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense }: {
+export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense, onCreate }: {
   movement: BankMovement; disabled: boolean;
   onOpenExpense?: (expenseId: string) => void;
+  onCreate?: () => void;
   onConfirm: (requestId: string, refundId: string, dateReason?: string) => Promise<void>;
 }) {
   const [requestId] = useState(createId);
@@ -49,7 +50,8 @@ export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense 
           catch (cause) { setError(errorMessage(cause, 'L’association n’a pas pu être confirmée. Votre choix est conservé.')); }
           finally { submitting.current = false; }
         }}><Link2 size={14} /> Associer le remboursement</Button>
-      </> : <p>Si le remboursement n’est pas encore enregistré, ouvrez la dépense dans Achats & fournisseurs, puis ajoutez le remboursement reçu.</p>}
+      </> : <p>Aucun remboursement déjà saisi ne correspond à ce crédit.</p>}
+      {onCreate && movement.refundSuggestion?.canCreate ? <div className="bank-refund-create-action"><p>Le remboursement n’est pas encore saisi ? Retrouvez l’achat d’origine pour l’enregistrer et le rapprocher en une fois.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreate}>Créer le remboursement reçu</Button></div> : null}
     </>}
   </details>;
 }

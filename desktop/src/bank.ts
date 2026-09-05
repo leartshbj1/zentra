@@ -194,7 +194,7 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
     } : null,
     refundMatch: Object.keys(record(row.refund_match)).length ? refundMatchFromRaw(record(row.refund_match)) : null,
     refundHistory: array(row.refund_history).map((entry) => ({ ...refundMatchFromRaw(entry), reason: text(entry.reason), unlinkedAt: text(entry.unlinked_at) })),
-    refundSuggestion: { reason: text(record(row.refund_suggestion).reason), candidates: array(record(row.refund_suggestion).candidates).map((candidate) => ({ refundId: text(candidate.refund_id), expenseId: text(candidate.expense_id), reference: text(candidate.reference), expenseReference: text(candidate.expense_reference), supplier: text(candidate.supplier), paymentDate: text(candidate.payment_date), totalCents: integer(candidate.total_cents), requiresDateReason: bool(candidate.requires_date_reason), confirmable: bool(candidate.confirmable), reason: text(candidate.reason) })) },
+    refundSuggestion: { canCreate: bool(record(row.refund_suggestion).can_create), reason: text(record(row.refund_suggestion).reason), candidates: array(record(row.refund_suggestion).candidates).map((candidate) => ({ refundId: text(candidate.refund_id), expenseId: text(candidate.expense_id), reference: text(candidate.reference), expenseReference: text(candidate.expense_reference), supplier: text(candidate.supplier), paymentDate: text(candidate.payment_date), totalCents: integer(candidate.total_cents), requiresDateReason: bool(candidate.requires_date_reason), confirmable: bool(candidate.confirmable), reason: text(candidate.reason) })) },
     expenseSuggestion: {
       canCreate: record(row.expense_suggestion).can_create === true,
       reason: text(record(row.expense_suggestion).reason),

@@ -74,6 +74,12 @@
   .bank-screen .bank-candidate-option__reason { grid-column: 1 / -1; }
 }
 .bank-expense-form { display: grid; gap: 16px; min-width: 0; }
+.bank-refund-create-action { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.bank-refund-create__choices { display: grid; gap: 10px; }
+.bank-refund-create__choice { display: grid; gap: 4px; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft, #f4f6f8); color: inherit; cursor: pointer; overflow-wrap: anywhere; min-height: 44px; }
+.bank-refund-create__choice:disabled { cursor: default; opacity: .7; }
+.bank-refund-create__choice:focus-visible { outline: 2px solid var(--accent, #315f47); outline-offset: 3px; }
+.bank-refund-create .button { min-height: 44px; }
 .bank-expense-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; min-width: 0; }
 .bank-expense-form__hint { margin: 0; font-size: 14px; line-height: 1.5; }
 .bank-expense-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

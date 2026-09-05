@@ -24,6 +24,10 @@ try {
       await page.screenshot({path:`.qa/bank-create/${width}-${name}.png`});
     };
     await dialog.locator('input[type=file]').setInputFiles({name:'Ticket-marchandises-pour-projet-renovation.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7\nUI fixture; real bytes validated by native tests')});
+    await dialog.locator('input[type=file]').setInputFiles({name:'remplacement-invalide.exe',mimeType:'application/octet-stream',buffer:Buffer.from('invalid')});
+    await dialog.getByRole('alert').waitFor();
+    assert.equal(await dialog.locator('.bank-expense-form__file').count(),0,'Invalid replacement must clear the previous receipt');
+    await dialog.locator('input[type=file]').setInputFiles({name:'Ticket-marchandises-pour-projet-renovation.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7\nUI fixture; real bytes validated by native tests')});
     await dialog.locator('input[name=reference]').fill('TICKET-2026-81');
     await dialog.locator('input[name=date]').fill('2026-08-20');
     await dialog.locator('input[name=category]').fill('Marchandises');

@@ -118,6 +118,7 @@ pub fn run() {
             match_bank_expense_refund,
             unmatch_bank_expense_refund,
             record_expense_refund,
+            create_bank_expense_refund,
             add_expense_refund_attachment,
             create_record,
             update_record,

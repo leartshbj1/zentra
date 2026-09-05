@@ -47,7 +47,7 @@ export function BankExpenseForm({ movement, workspace, busy, onClose, onSave }: 
           <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={(event) => {
             const file = event.target.files?.[0];
             if (!file) return;
-            if (!file.size || file.size > PROJECT_FILE_MAX_BYTES || !/\.(pdf|jpe?g|png|webp)$/i.test(file.name)) { setError('Choisissez un PDF ou une image JPG, PNG ou WebP de 1 octet à 25 Mo.'); event.target.value = ''; return; }
+            if (!file.size || file.size > PROJECT_FILE_MAX_BYTES || !/\.(pdf|jpe?g|png|webp)$/i.test(file.name)) { setReceipt(null); setError('Choisissez un PDF ou une image JPG, PNG ou WebP de 1 octet à 25 Mo.'); event.target.value = ''; return; }
             setReceipt(file); setError('');
           }} />
           {receipt ? <span className="bank-expense-form__file">{receipt.name} · {fileSizeLabel(receipt.size)}</span> : null}

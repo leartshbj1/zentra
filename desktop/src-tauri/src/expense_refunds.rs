@@ -65,7 +65,17 @@ impl LocalStore {
         self.record_expense_refund_with_attachment(input, None)
     }
 
-    pub fn record_expense_refund_with_attachment(&self, mut input: ExpenseRefundInput, attachment: Option<RefundAttachmentInput>) -> AppResult<Value> {
+    pub fn record_expense_refund_with_attachment(&self, input: ExpenseRefundInput, attachment: Option<RefundAttachmentInput>) -> AppResult<Value> {
+        self.record_refund_transaction(input, attachment, None)
+    }
+
+    pub fn create_bank_expense_refund(&self, input: ExpenseRefundInput, attachment: Option<RefundAttachmentInput>, movement_id: &str) -> AppResult<Value> {
+        let movement_id = Uuid::parse_str(movement_id.trim()).map_err(|_| reject("Mouvement bancaire invalide."))?.to_string();
+        if input.reverses_id.is_some() { return Err(reject("Ce parcours enregistre un remboursement reçu, pas une correction.")); }
+        self.record_refund_transaction(input, attachment, Some(movement_id))
+    }
+
+    fn record_refund_transaction(&self, mut input: ExpenseRefundInput, attachment: Option<RefundAttachmentInput>, bank_movement: Option<String>) -> AppResult<Value> {
         input.request_id = Uuid::parse_str(input.request_id.trim())
             .map_err(|_| reject("Identifiant de tentative invalide."))?
             .to_string();
@@ -116,6 +126,10 @@ impl LocalStore {
             (Some(file), Some(bytes)) => serde_json::to_string(&json!({"refund":input,"attachment":{"original_name":file.original_name.trim(),"sha256":format!("{:x}",Sha256::digest(bytes))}}))?,
             _ => serde_json::to_string(&input)?,
         };
+        // Keep the existing request format unchanged outside the bank workflow.
+        let request_json = if let Some(movement_id) = &bank_movement {
+            serde_json::to_string(&json!({"bank_movement_id":movement_id,"request":serde_json::from_str::<Value>(&request_json)?}))?
+        } else { request_json };
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -132,7 +146,13 @@ impl LocalStore {
                     "Cette tentative a déjà été enregistrée avec d’autres données.",
                 ));
             }
+            if let Some(movement_id) = &bank_movement {
+                crate::bank_import::refunds::verify_created_match(&tx, &input.request_id, movement_id, row["id"].as_str().unwrap_or_default())?;
+            }
             return Ok(json!({"refund":row,"already_recorded":true}));
+        }
+        if let Some(movement_id) = &bank_movement {
+            crate::bank_import::refunds::validate_creation(&tx, movement_id, total, &input.payment_date)?;
         }
         let expense = query_record_tx(&tx, "expenses", &input.expense_id)?;
         if expense["payment_status"] != "paid" || expense["currency"] != "CHF" {
@@ -342,6 +362,9 @@ impl LocalStore {
         )?;
         tx.execute("INSERT INTO expense_refunds(id,request_id,request_json,expense_id,event_type,reverses_id,credit_date,payment_date,reference,reason,net_cents,vat_cents,total_cents,cost_cents,treatment,expense_account_id,vat_account_id,bank_account_id,clearing_account_id,credit_journal_id,payment_journal_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![id,input.request_id,request_json,input.expense_id,if sign==1{"refund"}else{"reverse"},input.reverses_id,input.credit_date,input.payment_date,input.reference,input.reason,input.net_cents,input.vat_cents,total,cost,treatment,expense_account,vat_account,bank_account,clearing_account,credit["entry"]["id"].as_str(),payment["entry"]["id"].as_str(),now_iso()])?;
         let refund = query_record_tx(&tx, "expense_refunds", &id)?;
+        if let Some(movement_id) = &bank_movement {
+            crate::bank_import::refunds::insert_created_match(&tx, &input.request_id, movement_id, &refund)?;
+        }
         let mut prepared = match (&attachment, &attachment_bytes) {
             (Some(file), Some(bytes)) => Some(self.prepare_supplier_invoice_attachment_bytes(&file.original_name, bytes)?),
             _ => None,
