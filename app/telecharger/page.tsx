@@ -96,12 +96,12 @@ const capabilities = [
   {
     icon: Building2,
     title: 'Fournisseurs et achats',
-    text: 'Joignez les justificatifs locaux, suivez les échéances et comptabilisez validation et règlement.',
+    text: 'Joignez un justificatif à vos achats, y compris depuis le relevé bancaire. Suivez échéances, paiements et TVA déductible.',
   },
   {
     icon: Landmark,
     title: 'Import CAMT local',
-    text: 'Importez CAMT.053/.054 et confirmez manuellement le crédit client ou le débit fournisseur proposé.',
+    text: 'Rapprochez les encaissements par référence exacte ou après contrôle. Associez les débits aux achats et conservez l’historique des corrections.',
   },
   {
     icon: Package,
