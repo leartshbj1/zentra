@@ -76,7 +76,7 @@ const capabilities = [
   {
     icon: FolderKanban,
     title: 'Projets et documents',
-    text: 'Réunissez photos, documents, devis et factures dans chaque projet. Suivez aussi heures, dépenses et rentabilité.',
+    text: 'Réunissez photos, documents, devis et factures dans chaque projet. Les coûts tiennent compte des avoirs et de la TVA non récupérable.',
   },
   {
     icon: Users,
@@ -96,12 +96,12 @@ const capabilities = [
   {
     icon: Building2,
     title: 'Fournisseurs et achats',
-    text: 'Joignez un justificatif à vos achats, y compris depuis le relevé bancaire. Suivez échéances, paiements et TVA déductible.',
+    text: 'Joignez un justificatif à vos achats. Suivez échéances, paiements, remboursements de dépenses et TVA déductible.',
   },
   {
     icon: Landmark,
     title: 'Import CAMT local',
-    text: 'Rapprochez les encaissements par référence exacte ou après contrôle. Associez les débits aux achats et conservez l’historique des corrections.',
+    text: 'Rapprochez les règlements clients par référence exacte ou après contrôle. Associez les débits aux achats et les crédits aux remboursements déjà saisis.',
   },
   {
     icon: Package,
@@ -547,6 +547,7 @@ export default function DownloadPage() {
                 {[
                   'Un dossier par projet, avec ajout de documents et photos dès sa création ou à tout moment',
                   'Les devis et factures liés apparaissent automatiquement dans le dossier du projet',
+                  'Avoirs et remboursements validés intégrés aux coûts du projet, avec prise en compte de la TVA non récupérable',
                   'Création de devis et factures depuis un projet avec son client déjà sélectionné',
                   'Fichiers contrôlés, doublons détectés et documents inclus dans les sauvegardes locales',
                   'Navigation tactile, formulaires simplifiés et tableaux adaptés aux petits écrans',
