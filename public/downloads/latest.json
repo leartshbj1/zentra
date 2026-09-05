@@ -1,15 +1,15 @@
 {
-  "version": "1.31.0",
-  "notes": "Dépenses remboursées et rapprochement bancaire sans doublons, TVA et coûts des projets corrigés, interfaces mobiles simplifiées.",
-  "pub_date": "2026-09-05T17:39:56.2195542+00:00",
+  "version": "1.32.0",
+  "notes": "Justificatifs des remboursements dans les dépenses et les projets, accès depuis la banque, dossiers et boutons adaptés au mobile.",
+  "pub_date": "2026-09-05T19:06:38.6257906+00:00",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmZqL2JuWUlSa0NOVmVwK1ZJUE9DQUZVWlh2RXVPaGZteUlkQmdDOUQ2TFdZdkdDQytUYjk0S3B6RWRaQVNmU05mTzNVN0RNWC9LblR6S081ZW9ROWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjI4MjI0CWZpbGU6WmVudHJhXzEuMzEuMF94NjQtc2V0dXAuZXhlCkd4bVU1STZtdndlWUkya0YwS1hMbXZ5Rk9mRlF3ek0wZWZpVjljMWtNdEdVakx3WXBEcmVoMzZRbTU3VnZza2U1U3NqSkl4eFZkaVRiTjhrQVZ4cEF3PT0K",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.31.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlhEZmFGM0Y1bEUrQkduQ2FxZFJoS0ROV0FQVDlKb1llZ1E0YXRydktKQ1VWM0hjSTgxcGF6SmVWWGFtaFJJSTlRNi9lS0pxYVpXU1VTcWo2Wm0yc2dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjMzMTY4CWZpbGU6WmVudHJhXzEuMzIuMF94NjQtc2V0dXAuZXhlCnVwM1N2aHhZcUpVMEM0UmI5Q0tocTdIYW5OSE1aZDZuSk1manFVRURERVJ6UTRIVFUxTG5hN1ZlSklVSGI0bDZtR3ZzeE1kZzNlNk0vQWJsbVdBYUJBPT0K",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.32.0_x64-setup.exe"
     },
     "macos-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlZORVpTUjZHSjg3Z3V3elJ0Y3RndEFER0dOSjd2Nk5aUDJPZ1l5QXp1b2ROK0pRUnVHR3dMdG9TK3I5Y29TcWpYbmlxVXRQWWd2cHBpNWJtbm1GZndRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjI5ODA3CWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKcWIvM000MjdCZm9WRjZsNzdrZXFYZG00dmljb1NVNE56Q2NMam9uMFFROFlncThpVzFlQXAvc2JRZkpCRENvTzZBT29qVzF1WkowaXhSUXNKSXoxQXc9PQo=",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.31.0_macos-universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZld3M0JQVkc0WDIzYlBQeDN4S003bmUxMHZxbVpiTVRaU0w1SlNUNTRTd2NlcExXKzhQZXZSK0hGSURaNjhnSmpyRnB3UWZQN3V3dFd1TlV3UFExTkFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjM1MDIzCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKc0tJT1Exb2ZNK1BzYlgwWmdDTmlJRDFKSEZ4cGYvUVZKSXFMOFhSMXFiS0JwTU5yaDJ4Ym5McnMydEtCTXE2YlRRTzJMRG5DZWRYWFE3Mjh4czduQ3c9PQo=",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.32.0_macos-universal.app.tar.gz"
     }
   }
 }

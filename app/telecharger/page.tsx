@@ -76,7 +76,7 @@ const capabilities = [
   {
     icon: FolderKanban,
     title: 'Projets et documents',
-    text: 'Réunissez photos, documents, devis et factures dans chaque projet. Les coûts tiennent compte des avoirs et de la TVA non récupérable.',
+    text: 'Regroupez devis, factures, photos et justificatifs de remboursements dans chaque projet. Suivez les coûts après avoirs et TVA non récupérable.',
   },
   {
     icon: Users,
@@ -96,7 +96,7 @@ const capabilities = [
   {
     icon: Building2,
     title: 'Fournisseurs et achats',
-    text: 'Joignez un justificatif à vos achats. Suivez échéances, paiements, remboursements de dépenses et TVA déductible.',
+    text: 'Conservez les justificatifs des achats et des remboursements. Suivez les échéances, les paiements et la TVA déductible.',
   },
   {
     icon: Landmark,
