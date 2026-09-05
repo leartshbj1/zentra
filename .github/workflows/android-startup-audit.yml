@@ -1,0 +1,58 @@
+name: Zentra Android startup audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      current_run:
+        description: Verified compact APK artifact run
+        required: true
+        type: string
+        default: '33990005351'
+      previous_run:
+        description: Previous compact APK artifact run
+        required: true
+        type: string
+        default: '33986301458'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Retrieve the exact signed test APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_RUN: ${{ inputs.current_run }}
+          PREVIOUS_RUN: ${{ inputs.previous_run }}
+        run: |
+          gh run download "$CURRENT_RUN" --repo "$GITHUB_REPOSITORY" --name "Android-startup-$CURRENT_RUN" --dir /tmp/zentra-current
+          gh run download "$PREVIOUS_RUN" --repo "$GITHUB_REPOSITORY" --name "Android-startup-$PREVIOUS_RUN" --dir /tmp/zentra-previous
+      - name: Create an isolated emulator and audit startup
+        env:
+          ZENTRA_STARTUP_AUDIT: ${{ github.run_id }}
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/zentra-startup-audit"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n zentra-audit -k "system-images;android-35;google_apis;x86_64" --device pixel_6
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd zentra-audit -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > /tmp/zentra-audit-emulator.log 2>&1 &
+          timeout 120 adb wait-for-device
+          timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 2; done'
+          python3 desktop/scripts/audit-android-startup.py /tmp/zentra-previous /tmp/zentra-current
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: Android-startup-audit-${{ github.run_id }}
+          path: desktop/artifacts/android-audit/*
+          retention-days: 14
