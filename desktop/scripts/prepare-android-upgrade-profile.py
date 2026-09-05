@@ -7,7 +7,10 @@ and fixture preservation remain mandatory in smoke-android-upgrade.py.
 import json
 from pathlib import Path
 import re
+import sqlite3
 import subprocess
+import sys
+import tempfile
 import time
 
 
@@ -22,7 +25,6 @@ deadline = time.monotonic() + 180
 while adb("shell", "getprop", "sys.boot_completed").strip() != b"1":
     assert time.monotonic() < deadline, "Emulator boot timed out"
     time.sleep(2)
-import sys
 apk = Path(sys.argv[1]).resolve(strict=True)
 adb("install", str(apk))
 package = "ch.zentra.mobile"
@@ -33,8 +35,23 @@ deadline = time.monotonic() + 75
 while True:
     files = adb("shell", "run-as", package, "find", ".", "-maxdepth", "1", "-type", "f")
     if b"installation-identity.protected" in files and b"helvichantier.sqlite3" in files:
-        break
-    assert time.monotonic() < deadline, "Previous native profile did not initialize"
+        # The files precede schema initialization. LocalStore checkpoints its
+        # completed migration into the main database before becoming available.
+        # Inspect only a disposable local copy; an in-progress copy is retried.
+        raw = adb("exec-out", "run-as", package, "cat", "./helvichantier.sqlite3")
+        if len(raw) >= 100 and int.from_bytes(raw[60:64], "big") >= 49:
+            with tempfile.TemporaryDirectory(prefix="zentra-old-profile-") as folder:
+                copy = Path(folder) / "profile.sqlite3"
+                copy.write_bytes(raw)
+                try:
+                    with sqlite3.connect(copy.as_uri() + "?mode=ro", uri=True) as connection:
+                        complete = connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+                        complete &= connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('clients','projects')").fetchone() == (2,)
+                    if complete:
+                        break
+                except sqlite3.DatabaseError:
+                    pass
+    assert time.monotonic() < deadline, "Previous native database did not finish initialization"
     time.sleep(2)
 # Keep a screenshot of the old state without depending on old React readiness.
 # smoke-android-upgrade.py stops the process before reading/checking the database.
