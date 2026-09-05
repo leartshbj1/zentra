@@ -264,6 +264,33 @@
   .employee-card__main > p, .report-card header p, .report-card span { font-size: 13px; }
   .employee-card__main span { font-size: 12px; }
   .report-card strong { font-size: 15px; }
+  .project-reports .report-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+  .project-reports .report-card, .project-reports .report-card header > div { min-width: 0; }
+  .project-reports .report-card h3 { overflow-wrap: anywhere; }
+  .project-reports .report-card header { align-items: flex-start; }
+  .project-reports .report-card header > .status { flex: 0 0 auto; white-space: nowrap; font-size: 12px; }
+  .project-reports .report-callout { align-items: flex-start; }
+  .project-reports .report-callout > svg { flex-shrink: 0; }
+  .project-reports .report-callout strong { font-size: 16px; }
+  .project-reports .report-callout p { font-size: 14px; }
+  .project-reports .report-callout small { display: block; margin-top: 8px; font-size: 13px; line-height: 1.5; }
+  .project-reports .report-card__figures { grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr)); }
+  .project-reports .report-card__figures div { min-width: 0; }
+  .project-reports .report-card__figures strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .project-reports .report-card footer { gap: 12px; flex-wrap: wrap; }
+  .project-reports .report-card footer strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .project-purchase-details { margin-top: 16px; border-block: 1px solid var(--line-soft); }
+  .project-purchase-details > summary { min-height: 44px; padding-block: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .project-purchase-details dl { margin: 0; font-size: 13px; }
+  .project-purchase-details dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-block: 6px; }
+  .project-purchase-details dt { color: var(--muted); }
+  .project-purchase-details dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .project-purchase-details p { margin-block: 8px 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .project-cost-review { display: flex; align-items: flex-start; gap: 10px; padding: 12px; margin-top: 12px; border: 1px solid #e4c98c; border-radius: 9px; background: #fff8e9; color: #674c16; }
+  .project-cost-review > svg { flex: 0 0 auto; margin-top: 4px; }
+  .project-cost-review > div { min-width: 0; }
+  .project-cost-review p { margin-block: 6px 10px; font-size: 13px; line-height: 1.5; }
+  .project-cost-review .button { min-height: 44px; white-space: normal; }
   .settings-copy, .settings-section-description { font-size: 14px; line-height: 1.6; }
   .settings-categories { display: grid; gap: 12px; min-width: 0; }
   .settings-category { min-width: 0; border: 1px solid var(--line-soft); border-radius: 12px; background: #fff; }

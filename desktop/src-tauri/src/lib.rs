@@ -35,6 +35,7 @@ mod payroll_import;
 mod payroll_pdf;
 mod project_documents;
 mod project_planning;
+mod purchase_costs;
 mod recurrence;
 mod reminders;
 mod sales_fulfillment;

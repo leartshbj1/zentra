@@ -883,7 +883,13 @@ export type ActiveTimer = {
   hourlyCostCents?: number;
 } | null;
 
-export type Expense = {
+export type PurchaseCostEvidence = {
+  costCents?: number;
+  costReviewRequired?: boolean;
+  costBasis?: 'accounted' | 'estimated' | 'review';
+};
+
+export type Expense = PurchaseCostEvidence & {
   id: Identifier;
   projectId: Identifier | null;
   supplierId?: Identifier | null;
@@ -903,7 +909,7 @@ export type Expense = {
   archivedAt?: string | null;
 };
 
-export type SupplierInvoiceItem = {
+export type SupplierInvoiceItem = PurchaseCostEvidence & {
   id: Identifier;
   supplierInvoiceId: Identifier;
   position: number;

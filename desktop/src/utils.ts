@@ -1,4 +1,4 @@
-import type { DocumentLine, Invoice, Payment, Payslip, Project, Quote, SupplierInvoice, TimeEntry } from './types';
+import type { DocumentLine, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, Quote, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
 
 export function errorMessage(reason: unknown, fallback: string): string {
   if (typeof reason === 'string' && reason.trim()) return reason.trim();
@@ -150,8 +150,9 @@ export function projectFinancials(
   invoices: Invoice[],
   payments: Payment[],
   entries: TimeEntry[],
-  expenses: { projectId?: string | null; netCents: number }[],
+  expenses: ({ projectId?: string | null; netCents: number } & PurchaseCostEvidence)[],
   supplierInvoices: SupplierInvoice[] = [],
+  supplierCreditNotes: SupplierCreditNote[] = [],
 ) {
   const issued = invoices.filter(
     (invoice) => invoice.projectId === project.id && invoice.status !== 'draft' && invoice.status !== 'cancelled',
@@ -174,28 +175,39 @@ export function projectFinancials(
     (total, entry) => total + Math.round((entry.minutes * entry.hourlyCostCents) / 60),
     0,
   );
-  const expenseNet = expenses
-    .filter((expense) => expense.projectId === project.id)
-    .reduce((total, expense) => total + expense.netCents, 0)
-    + supplierInvoices
-      .filter((invoice) => invoice.documentStatus === 'validated')
-      .flatMap((invoice) => invoice.lines.map((line) => ({
-        projectId: line.projectId ?? invoice.projectId,
-        netCents: line.netCents,
-      })))
-      .filter((line) => line.projectId === project.id)
-      .reduce((total, line) => total + line.netCents, 0);
+  const purchases = [
+    ...expenses.filter((expense) => expense.projectId === project.id),
+    ...supplierInvoices.filter((invoice) => invoice.documentStatus === 'validated')
+      .flatMap((invoice) => invoice.lines.filter((line) => (line.projectId ?? invoice.projectId) === project.id)),
+  ];
+  const credits = supplierCreditNotes.filter((credit) => credit.status === 'validated')
+    .flatMap((credit) => credit.items.filter((line) => line.projectId === project.id));
+  const cost = (line: { netCents: number } & PurchaseCostEvidence) => line.costCents ?? line.netCents;
+  const purchaseGrossCost = purchases.reduce((total, line) => total + cost(line), 0);
+  const purchaseCreditCost = credits.reduce((total, line) => total + cost(line), 0);
+  const expenseNet = purchaseGrossCost - purchaseCreditCost;
+  const nonDeductibleVatCost = purchases.reduce((total, line) => total + cost(line) - line.netCents, 0)
+    - credits.reduce((total, line) => total + cost(line) - line.netCents, 0);
+  const purchaseCostReviewCount = [...purchases, ...credits].filter((line) => line.costReviewRequired).length;
+  const marginUnavailableReason = requiresCurrencyConversion ? 'Conversion CHF requise'
+    : purchaseCostReviewCount ? 'Coût des achats à contrôler' : null;
   return {
+    hasActivity: Boolean(issued.length || projectEntries.length || purchases.length || credits.length),
     invoicedNet,
     invoicedTotal,
     paid,
     minutes,
     laborCost,
     expenseNet,
+    purchaseGrossCost,
+    purchaseCreditCost,
+    nonDeductibleVatCost,
+    purchaseCostReviewCount,
+    marginUnavailableReason,
     invoicedNetLabel: revenueByCurrency.map(([currency, amount]) => formatMoney(amount.net, currency)).join(' · ') || formatMoney(0),
     invoicedTotalLabel: revenueByCurrency.map(([currency, amount]) => formatMoney(amount.total, currency)).join(' · ') || formatMoney(0),
     requiresCurrencyConversion,
-    margin: requiresCurrencyConversion ? null : invoicedNet - laborCost - expenseNet,
+    margin: marginUnavailableReason ? null : invoicedNet - laborCost - expenseNet,
   };
 }
 

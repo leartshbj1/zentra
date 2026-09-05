@@ -1,3 +1,4 @@
+import { ReportsScreen } from './ProjectReports';
 import {
   Fragment,
   Suspense,
@@ -2009,7 +2010,7 @@ export function WorkspaceApp({
               />
             </Suspense>
           ) : null}
-          {view === 'reports' ? <ReportsScreen workspace={workspace} /> : null}
+          {view === 'reports' ? <ReportsScreen workspace={workspace} onOpenAccounting={() => { setView('accounting'); setSearch(''); }} /> : null}
           {view === 'accounting' ? (
             <Suspense
               fallback={<ViewLoading label="Ouverture de la comptabilité…" />}
@@ -2319,6 +2320,7 @@ function Dashboard({
                 workspace.timeEntries,
                 workspace.expenses,
                 workspace.supplierInvoices,
+                workspace.supplierCreditNotes,
               );
               return (
                 <article key={project.id}>
@@ -2623,6 +2625,7 @@ function ProjectsScreen({
               workspace.timeEntries,
               workspace.expenses,
               workspace.supplierInvoices,
+              workspace.supplierCreditNotes,
             );
             const projectTasks = workspace.projectTasks.filter(
               (task) =>
@@ -2664,11 +2667,11 @@ function ProjectsScreen({
                     </strong>
                   </div>
                   <div>
-                    <span>Marge nette saisie</span>
+                    <span>Marge de gestion</span>
                     <strong>
-                      {stats.requiresCurrencyConversion
-                        ? 'Conversion CHF requise'
-                        : stats.invoicedNet || stats.laborCost || stats.expenseNet
+                      {stats.marginUnavailableReason
+                        ? stats.marginUnavailableReason
+                        : stats.hasActivity
                           ? formatMoney(stats.margin)
                           : '—'}
                     </strong>
@@ -3088,6 +3091,7 @@ function ClientDetail({
                   workspace.timeEntries,
                   workspace.expenses,
                   workspace.supplierInvoices,
+                  workspace.supplierCreditNotes,
                 );
                 return (
                   <article key={project.id}>
@@ -4406,89 +4410,6 @@ function TeamScreen({
         ) : null}
         {pageCount > 1 ? <nav className="sales-list-pagination" aria-label="Pages des fiches de salaire"><Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)}>Précédent</Button><span role="status">{page + 1} / {pageCount}</span><Button variant="secondary" disabled={page + 1 === pageCount} onClick={() => changePage(page + 1)}>Suivant</Button></nav> : null}
       </section>
-    </div>
-  );
-}
-
-function ReportsScreen({ workspace }: { workspace: Workspace }) {
-  const terminology = projectTerminology(
-    workspace.settings!.business.nogaSection,
-  );
-  if (!workspace.projects.length)
-    return (
-      <EmptyState
-        icon={<BarChart3 />}
-        title="Aucun rapport disponible"
-        text={`Les rapports apparaissent après la création d’un ${terminology.singular}. Aucun graphique fictif n’est affiché.`}
-      />
-    );
-  const rows = workspace.projects.map((project) => ({
-    project,
-    stats: projectFinancials(
-      project,
-      workspace.invoices,
-      workspace.payments,
-      workspace.timeEntries,
-      workspace.expenses,
-      workspace.supplierInvoices,
-    ),
-  }));
-  const withFinancialData = rows.filter(
-    (row) =>
-      row.stats.invoicedNet || row.stats.requiresCurrencyConversion || row.stats.laborCost || row.stats.expenseNet,
-  );
-  return (
-    <div className="stack-layout">
-      <div className="report-callout">
-        <BarChart3 size={24} />
-        <div>
-          <strong>Calculs transparents</strong>
-          <p>
-            Marge = facturation nette émise − coûts horaires saisis − dépenses
-            nettes. Les brouillons sont exclus.
-          </p>
-        </div>
-      </div>
-      {withFinancialData.length ? (
-        <div className="report-grid">
-          {withFinancialData.map(({ project, stats }) => (
-            <article className="report-card" key={project.id}>
-              <header>
-                <div>
-                  <h3>{project.name}</h3>
-                  <p>{formatMinutes(stats.minutes)} saisis</p>
-                </div>
-                <StatusBadge status={project.status} />
-              </header>
-              <div className="report-card__figures">
-                <div>
-                  <span>Facturé net</span>
-                  <strong>{stats.invoicedNetLabel}</strong>
-                </div>
-                <div>
-                  <span>Main-d’œuvre</span>
-                  <strong>{formatMoney(stats.laborCost)}</strong>
-                </div>
-                <div>
-                  <span>Dépenses nettes</span>
-                  <strong>{formatMoney(stats.expenseNet)}</strong>
-                </div>
-              </div>
-              <footer>
-                <span>Marge issue des saisies</span>
-                <strong className={stats.margin !== null && stats.margin < 0 ? 'is-negative' : ''}>
-                  {stats.margin === null ? 'Conversion CHF requise' : formatMoney(stats.margin)}
-                </strong>
-              </footer>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          title="Pas encore assez de données"
-          text="Ajoutez une facture émise, des heures avec coût ou une dépense pour calculer la rentabilité. Aucun pourcentage n’est inventé."
-        />
-      )}
     </div>
   );
 }

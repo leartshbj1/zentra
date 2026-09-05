@@ -2156,11 +2156,12 @@ impl LocalStore {
             "SELECT * FROM time_billing_entries ORDER BY batch_id,entry_date_snapshot,time_entry_id",
             [],
         )?;
-        let expenses = query_all(
+        let mut expenses = query_all(
             connection,
             "SELECT * FROM expenses ORDER BY date DESC, created_at DESC",
             [],
         )?;
+        crate::purchase_costs::enrich(connection, "expense", &mut expenses)?;
         let supplier_invoices = query_all(
             connection,
             "SELECT invoice.*,
@@ -2194,11 +2195,12 @@ impl LocalStore {
              FROM supplier_invoices invoice ORDER BY invoice.document_date DESC, invoice.created_at DESC",
             [],
         )?;
-        let supplier_invoice_items = query_all(
+        let mut supplier_invoice_items = query_all(
             connection,
             "SELECT * FROM supplier_invoice_items ORDER BY supplier_invoice_id,position,rowid",
             [],
         )?;
+        crate::purchase_costs::enrich(connection, "supplier_invoice_item", &mut supplier_invoice_items)?;
         let supplier_email_invoice_imports = query_all(
             connection,
             "SELECT * FROM supplier_email_invoice_imports ORDER BY created_at DESC,supplier_invoice_id",
@@ -2253,11 +2255,12 @@ impl LocalStore {
              FROM supplier_credit_notes credit ORDER BY credit.document_date DESC,credit.created_at DESC",
             [],
         )?;
-        let supplier_credit_note_items = query_all(
+        let mut supplier_credit_note_items = query_all(
             connection,
             "SELECT * FROM supplier_credit_note_items ORDER BY supplier_credit_note_id,position,created_at",
             [],
         )?;
+        crate::purchase_costs::enrich(connection, "supplier_credit_note_item", &mut supplier_credit_note_items)?;
         let supplier_credit_allocations = query_all(
             connection,
             "SELECT * FROM supplier_credit_allocations ORDER BY sequence",

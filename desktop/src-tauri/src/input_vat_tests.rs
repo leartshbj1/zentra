@@ -8,6 +8,8 @@ use uuid::Uuid;
 mod received_credit_tests;
 #[path = "expense_journal_tests.rs"]
 mod expense_journal_tests;
+#[path = "project_purchase_cost_tests.rs"]
+mod project_purchase_cost_tests;
 
 use crate::{
     database::LocalStore,

@@ -1813,8 +1813,24 @@ function supplierFromRaw(row: RawRecord): Supplier {
   };
 }
 
+function purchaseCostFromRaw(row: RawRecord, vatField: string): Pick<Expense, 'costCents' | 'costReviewRequired' | 'costBasis'> {
+  const rawCost = row.cost_cents;
+  const parsedCost = typeof rawCost === 'number' ? rawCost : typeof rawCost === 'string' && rawCost.trim() ? Number(rawCost) : NaN;
+  const cost = Number.isSafeInteger(parsedCost) && parsedCost >= 0 ? parsedCost : undefined;
+  const basis = stringValue(row.cost_basis);
+  const knownBasis = basis === 'accounted' || basis === 'estimated' || basis === 'review';
+  return {
+    costCents: cost,
+    costReviewRequired: boolValue(row.cost_review_required) || basis === 'review'
+      || (rawCost != null && (cost === undefined || !knownBasis))
+      || (cost === undefined && numberValue(row[vatField]) !== 0),
+    costBasis: knownBasis ? basis : undefined,
+  };
+}
+
 function supplierInvoiceItemFromRaw(row: RawRecord): SupplierInvoiceItem {
   return {
+    ...purchaseCostFromRaw(row, 'line_vat_cents'),
     id: stringValue(row.id),
     supplierInvoiceId: stringValue(row.supplier_invoice_id),
     position: numberValue(row.position),
@@ -2613,6 +2629,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     createdAt: stringValue(row.created_at),
   }));
   const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({
+    ...purchaseCostFromRaw(row, 'vat_cents'),
     id: stringValue(row.id),
     projectId: stringValue(row.project_id) || null,
     supplierId: stringValue(row.supplier_id) || null,

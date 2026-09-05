@@ -18,6 +18,7 @@ import type {
   Project,
   Supplier,
   SupplierInvoice,
+  SupplierCreditNote,
 } from './types';
 import { projectFinancials } from './utils';
 import { supplierInvoiceLineTotals } from './PurchasesScreen';
@@ -143,6 +144,54 @@ const supplierInvoice: SupplierInvoice = {
   createdAt: '2026-08-10T08:00:00Z',
   updatedAt: '2026-08-20T08:00:00Z',
 };
+
+describe('coût réel des achats dans les projets', () => {
+  const credit: SupplierCreditNote = {
+    id: 'credit-1', supplierId: supplier.id, number: 'AV-1', documentDate: '2026-08-25',
+    supplierName: supplier.name, reference: 'RETOUR-1', currency: 'CHF', status: 'validated',
+    netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, note: '',
+    validatedAt: '2026-08-25', validationJournalEntryId: 'credit-journal', allocations: [],
+    createdAt: '2026-08-25', updatedAt: '2026-08-25',
+    items: [{ ...supplierInvoice.lines[0], id: 'credit-line', supplierCreditNoteId: 'credit-1',
+      projectId: project.id, netCents: 5000, vatCents: 405, totalCents: 5405, costCents: 5405 }],
+  };
+
+  it('inclut la TVA conservée dans le coût de la dépense', () => {
+    const expense = { ...pending, costCents: 10810, costReviewRequired: false };
+    expect(projectFinancials(project, [], [], [], [expense]).expenseNet).toBe(10810);
+  });
+
+  it('déduit un avoir validé une seule fois, indépendamment de sa compensation', () => {
+    const purchase = { ...supplierInvoice, lines: [{ ...supplierInvoice.lines[0], costCents: 21620 }] };
+    const draft = { ...credit, id: 'draft-credit', status: 'draft' as const };
+    const result = projectFinancials(project, [], [], [], [], [purchase], [credit, draft]);
+    expect(result.expenseNet).toBe(16215);
+    expect(result.margin).toBe(-16215);
+    expect(projectFinancials(project, [], [], [], [], [purchase], [{ ...credit, allocatedCents: 5405 }]).expenseNet).toBe(16215);
+  });
+
+  it('ne présente pas une marge définitive quand le coût doit être vérifié', () => {
+    const expense = { ...pending, costCents: 10000, costReviewRequired: true };
+    expect(projectFinancials(project, [], [], [], [expense]).margin).toBeNull();
+  });
+
+  it('respecte le projet de chaque ligne et exclut les avoirs sans projet ou sur un autre projet', () => {
+    const purchase = { ...supplierInvoice, projectId: 'other', lines: [{ ...supplierInvoice.lines[0], projectId: project.id, costCents: 21620 }] };
+    const unassigned = { ...credit, id: 'unassigned', items: [{ ...credit.items[0], projectId: null, costReviewRequired: true }] };
+    const other = { ...credit, id: 'other', items: [{ ...credit.items[0], projectId: 'other' }] };
+    const result = projectFinancials(project, [], [], [], [], [purchase], [credit, unassigned, other]);
+    expect(result.expenseNet).toBe(16215);
+    expect(result.nonDeductibleVatCost).toBe(1215);
+    expect(result.purchaseCostReviewCount).toBe(0);
+  });
+
+  it('conserve une activité intégralement créditée avec une marge nulle', () => {
+    const purchase = { ...pending, netCents: 5000, vatCents: 405, totalCents: 5405, costCents: 5405 };
+    const result = projectFinancials(project, [], [], [], [purchase], [], [credit]);
+    expect(result).toMatchObject({ hasActivity: true, expenseNet: 0, margin: 0, nonDeductibleVatCost: 0 });
+    expect(projectFinancials(project, [], [], [], []).hasActivity).toBe(false);
+  });
+});
 
 describe('compatibilité des achats', () => {
   it('ne transforme jamais un statut ancien ou inconnu en paiement', () => {
