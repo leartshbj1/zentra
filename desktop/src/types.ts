@@ -1337,6 +1337,7 @@ export type CamtImportResult = {
   skippedDuplicateCount: number;
   ignoredCount: number;
   warnings: string[];
+  automaticReconciliation?: { enabled: boolean; paidCount: number; partialCount: number; reviewCount: number; failures: string[] };
 };
 
 export type BankReconciliationResult = {

@@ -143,7 +143,7 @@ impl LocalStore {
     }
 }
 
-fn validate_pdf_destination(raw_path: &str) -> AppResult<PathBuf> {
+pub(crate) fn validate_pdf_destination(raw_path: &str) -> AppResult<PathBuf> {
     let path = PathBuf::from(raw_path.trim());
     if raw_path.trim().is_empty() || !path.is_absolute() {
         return Err(AppError::Validation(
@@ -2890,7 +2890,7 @@ fn helvetica_glyph_width_1000(character: char, bold: bool) -> f32 {
     }
 }
 
-fn helvetica_text_width(value: &str, font_size: f32, bold: bool) -> f32 {
+pub(crate) fn helvetica_text_width(value: &str, font_size: f32, bold: bool) -> f32 {
     normalize_pdf_text(value)
         .chars()
         .map(|character| helvetica_glyph_width_1000(character, bold))
@@ -2899,7 +2899,12 @@ fn helvetica_text_width(value: &str, font_size: f32, bold: bool) -> f32 {
         / 1_000.0
 }
 
-fn wrap_text_width(value: &str, max_width: f32, font_size: f32, bold: bool) -> Vec<String> {
+pub(crate) fn wrap_text_width(
+    value: &str,
+    max_width: f32,
+    font_size: f32,
+    bold: bool,
+) -> Vec<String> {
     let normalized = normalize_pdf_text(value.trim());
     if normalized.is_empty() {
         return vec![String::new()];

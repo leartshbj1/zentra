@@ -21,7 +21,7 @@ limitée à l’application Zentra téléchargée depuis le site officiel.
 
 ## Mises à jour suivantes
 
-Depuis Zentra 1.24.0, le canal de mise à jour est intégré. Lorsqu’une version plus
+Depuis Zentra 1.24.0, le canal de mise à jour intégré est disponible. Lorsqu’une version plus
 récente est publiée, l’application télécharge son archive depuis le stockage
 Zentra, vérifie sa signature Tauri/Ed25519, puis demande votre confirmation
 avant l’installation.

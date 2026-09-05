@@ -259,6 +259,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
   const supplierChoices = selectableSuppliers(workspace.suppliers, item?.supplierId);
   const initialSupplier = supplierChoices.find((supplier) => supplier.id === item?.supplierId) ?? supplierChoices[0];
   const [draftId] = useState(() => item?.id ?? createId());
+  const [vatTreatment, setVatTreatment] = useState<'' | 'input_materials' | 'input_investments' | 'non_deductible'>('');
   const [supplierId, setSupplierId] = useState(initialSupplier?.id ?? '');
   const [documentDate, setDocumentDate] = useState(item?.documentDate ?? todayIso());
   const [dueDate, setDueDate] = useState(item?.dueDate ?? supplierDueDate(todayIso(), initialSupplier, settings.billing.paymentTermsDays));
@@ -301,7 +302,8 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
   return <Modal title={item ? 'Modifier le brouillon fournisseur' : 'Nouvelle facture fournisseur'} description="Enregistrez d’abord un brouillon. La validation comptable se fait ensuite, après votre contrôle." onClose={close} wide>
     <form onSubmit={submitForm(async (form) => {
       await act(
-        () => desktopApi.saveSupplierInvoiceDraft({
+        async () => {
+          const saved = await desktopApi.saveSupplierInvoiceDraft({
           id: draftId,
           supplierId,
           projectId: projectId || null,
@@ -321,7 +323,20 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
             expenseAccountId: line.expenseAccountId || null,
             projectId: line.projectId || null,
           })),
-        }),
+          });
+          if (vatTreatment) {
+            const invoice = saved.supplierInvoices.find((candidate) => candidate.id === draftId);
+            if (!invoice) throw new Error('Le brouillon est enregistré, mais ses lignes TVA doivent être relues.');
+            try {
+              for (const line of invoice.lines) {
+                await desktopApi.setVatSourceClassification({ sourceType: 'supplier_invoice_item', sourceId: line.id, treatment: vatTreatment, note: 'Traitement choisi pour les lignes de la facture fournisseur.' });
+              }
+            } catch (error) {
+              throw new Error(`Brouillon enregistré. Le classement TVA doit être terminé avant validation : ${errorMessage(error, 'Réessayez l’enregistrement.')}`);
+            }
+          }
+          return saved;
+        },
         item || currentInvoice ? 'Le brouillon fournisseur a été mis à jour.' : 'Le brouillon fournisseur a été enregistré. Vous pouvez maintenant joindre le document original.',
         false,
       );
@@ -333,6 +348,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
         <Field label="Date de facture" required><input type="date" value={documentDate} onChange={(event) => { const nextDate = event.target.value; setDocumentDate(nextDate); if (!item) { const supplier = supplierChoices.find((candidate) => candidate.id === supplierId); setDueDate(supplierDueDate(nextDate, supplier, settings.billing.paymentTermsDays)); } }} required /></Field>
         <Field label="Échéance" required><input type="date" min={documentDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} required /></Field>
         <Field label="Devise"><output className="field-output">CHF</output></Field>
+        {settings.organization.vatRegistered ? <Field label="Traitement TVA de ces achats" wide hint="S’applique à toutes les lignes de ce brouillon. Pour des usages différents, choisissez chaque ligne dans Comptabilité → TVA. Le calcul suit la méthode et la période déclarées."><select value={vatTreatment} onChange={(event) => setVatTreatment(event.target.value as typeof vatTreatment)}><option value="">Conserver le classement / classer ensuite</option><option value="input_materials">Marchandises et prestations professionnelles · TVA déductible (400)</option><option value="input_investments">Investissements et autres charges · TVA déductible (405)</option><option value="non_deductible">Sans droit à déduction / usage privé</option></select></Field> : null}
       </div>
 
       <section className="supplier-invoice-lines">

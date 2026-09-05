@@ -201,6 +201,7 @@ export function BankScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [autoReconcile, setAutoReconcile] = useState(true);
   const accounting = workspace.accountingSettings;
   const accountingReady = Boolean(accounting?.enabled && [
     accounting.arAccountId,
@@ -259,16 +260,22 @@ export function BankScreen({
     setBusy(true);
     setFeedback(null);
     try {
-      const result = await importCamtFromLocalDialog(desktopApi.chooseCamtFile, desktopApi.importCamtFile);
+      const result = await importCamtFromLocalDialog(desktopApi.chooseCamtFile, (path) => desktopApi.importCamtFile(path, autoReconcile));
       if (!result) return;
+      const automatic = result.automaticReconciliation;
+      const automaticText = automatic?.enabled
+        ? ` ${automatic.paidCount} facture(s) soldée(s), ${automatic.partialCount} paiement(s) partiel(s) enregistré(s) automatiquement. ${automatic.reviewCount} mouvement(s) client à contrôler.`
+        : '';
+      const warnings = [...result.warnings, ...(automatic?.failures ?? [])];
+      onWorkspaceChange(await desktopApi.loadWorkspace());
       await load();
       setFeedback({
-        tone: result.duplicate || result.warnings.length ? 'warning' : 'success',
+        tone: warnings.length || automatic?.reviewCount ? 'warning' : 'success',
         title: result.duplicate ? 'Relevé déjà connu' : 'Relevé importé localement',
-        text: result.duplicate
+        text: (result.duplicate
           ? `Aucun doublon n’a été créé. ${result.skippedDuplicateCount} mouvement${result.skippedDuplicateCount > 1 ? 's ont' : ' a'} été ignoré${result.skippedDuplicateCount > 1 ? 's' : ''}.`
-          : `${result.importedCount} mouvement${result.importedCount > 1 ? 's' : ''} ajouté${result.importedCount > 1 ? 's' : ''}. ${result.ignoredCount ? `${result.ignoredCount} entrée${result.ignoredCount > 1 ? 's' : ''} non exploitable${result.ignoredCount > 1 ? 's' : ''}.` : 'Toutes les entrées compatibles ont été lues.'}`,
-        warnings: result.warnings,
+          : `${result.importedCount} mouvement${result.importedCount > 1 ? 's' : ''} ajouté${result.importedCount > 1 ? 's' : ''}. ${result.ignoredCount ? `${result.ignoredCount} entrée${result.ignoredCount > 1 ? 's' : ''} non exploitable${result.ignoredCount > 1 ? 's' : ''}.` : 'Toutes les entrées compatibles ont été lues.'}`) + automaticText,
+        warnings,
       });
     } catch (reason) {
       setFeedback({ tone: 'error', title: 'Import impossible', text: errorMessage(reason, 'Le fichier CAMT n’a pas pu être lu localement.') });
@@ -382,10 +389,11 @@ export function BankScreen({
   return <div className="stack-layout bank-screen">
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
-      <div><p className="eyebrow">ISO 20022 · traitement local</p><h2>Rapprochez vos encaissements et règlements en gardant le contrôle.</h2><p>Importez un XML CAMT fourni par votre banque. Zentra distingue les entrées clients des sorties fournisseurs, sans connexion au compte ni paiement créé avant votre confirmation.</p></div>
+      <div><p className="eyebrow">Relevés bancaires</p><h2>Retrouvez les factures payées.</h2><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></div>
       <Button disabled={busy || readOnly} onClick={() => void importStatement()} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet ordinateur'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>
 
+    <label className="check-card bank-auto-reconcile"><input type="checkbox" checked={autoReconcile} disabled={busy || readOnly} onChange={(event) => setAutoReconcile(event.target.checked)} /><span><strong>Rapprocher automatiquement les encaissements certains</strong><small>Relevé camt.053 définitif, compte associé, référence QR ou RF unique et montant compatible. Un versement partiel conserve le solde restant dû.</small></span></label>
     {feedback ? <div className={`bank-feedback bank-feedback--${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
       {feedback.tone === 'success' ? <CheckCircle2 size={19} /> : <AlertTriangle size={19} />}
       <div><strong>{feedback.title}</strong><p>{feedback.text}</p>{feedback.warnings?.length ? <ul>{feedback.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}</div>
@@ -410,7 +418,7 @@ export function BankScreen({
     </section> : null}
 
     <section className="panel bank-movements-panel">
-      <SectionHeading eyebrow="Contrôle humain" title="Mouvements bancaires" description="Les propositions facilitent le choix; elles ne valent jamais confirmation." action={<Button variant="ghost" size="small" disabled={busy} onClick={() => void load()}><RefreshCw size={14} /> Actualiser</Button>} />
+      <SectionHeading eyebrow="Suivi des paiements" title="Mouvements bancaires" description="Les encaissements certains sont rapprochés à l’import. Les autres mouvements restent à contrôler." action={<Button variant="ghost" size="small" disabled={busy} onClick={() => void load()}><RefreshCw size={14} /> Actualiser</Button>} />
       <div className="bank-filter-strip" role="tablist" aria-label="Filtrer les mouvements">
         {(Object.keys(filterLabels) as BankMovementFilter[]).map((item) => <button type="button" role="tab" aria-selected={filter === item} className={filter === item ? 'is-active' : ''} key={item} onClick={() => setFilter(item)}>{filterLabels[item]} <em>{counts[item]}</em></button>)}
       </div>

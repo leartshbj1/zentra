@@ -1,4 +1,5 @@
 import type { Attachment, Workspace } from './types';
+import { newestDocumentsFirst } from './documentOrder';
 
 export const PROJECT_FILE_MAX_BYTES = 25 * 1024 * 1024;
 export const PROJECT_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.txt,.csv,.docx,.xlsx,.pptx,.odt,.ods,.odp';
@@ -6,8 +7,8 @@ export const PROJECT_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.txt,
 export function projectDocuments(workspace: Workspace, projectId: string) {
   return {
     files: (workspace.attachments ?? []).filter((file) => file.projectId === projectId),
-    quotes: workspace.quotes.filter((quote) => quote.projectId === projectId),
-    invoices: workspace.invoices.filter((invoice) => invoice.projectId === projectId),
+    quotes: newestDocumentsFirst(workspace.quotes.filter((quote) => quote.projectId === projectId)),
+    invoices: newestDocumentsFirst(workspace.invoices.filter((invoice) => invoice.projectId === projectId)),
     orders: workspace.salesOrders.filter((order) => order.projectId === projectId),
     purchases: workspace.supplierInvoices.filter((invoice) => invoice.projectId === projectId),
   };

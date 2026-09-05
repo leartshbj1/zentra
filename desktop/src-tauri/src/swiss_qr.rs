@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 use crate::{
     audit::append_audit,
@@ -120,6 +121,84 @@ impl LocalStore {
         tx.commit()?;
         Ok(result)
     }
+}
+
+/// Called inside invoice issuance, before its immutable snapshot is captured.
+/// Explicit draft QR instructions remain authoritative; existing issued invoices
+/// are never rewritten by this helper.
+pub(crate) fn ensure_automatic_invoice_qr(
+    connection: &Connection,
+    snapshot: &Value,
+) -> AppResult<()> {
+    let document = &snapshot["document"];
+    if matches!(text_at(document, "type").as_str(), "avoir" | "credit_note") {
+        return Ok(());
+    }
+    let invoice_id = text_at(document, "id");
+    let exists: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM invoice_qr_bills WHERE invoice_id=?)",
+        params![invoice_id],
+        |row| row.get(0),
+    )?;
+    if exists {
+        return Ok(());
+    }
+    let issuer = &snapshot["issuer"];
+    let iban = text_at(issuer, "iban")
+        .replace(char::is_whitespace, "")
+        .to_uppercase();
+    let currency = text_at(document, "currency");
+    // The Swiss QR scheme has a defined account/currency scope.
+    if !matches!(currency.as_str(), "CHF" | "EUR")
+        || !(iban.starts_with("CH") || iban.starts_with("LI"))
+    {
+        return Ok(());
+    }
+    let qrr = qr_iid(&iban).is_some_and(|iid| (30_000..=31_999).contains(&iid));
+    if qrr && currency != "CHF" {
+        return Ok(());
+    }
+    let digest = Sha256::digest(invoice_id.as_bytes());
+    let (reference_type, reference) = if qrr {
+        let mut bytes = [0_u8; 16];
+        bytes.copy_from_slice(&digest[..16]);
+        let base = (u128::from_be_bytes(bytes) % 10_u128.pow(26))
+            .max(1)
+            .to_string();
+        ("QRR", generate_qrr(&base)?)
+    } else {
+        let body = format!("{:X}", digest);
+        ("SCOR", generate_scor(&body[..21])?)
+    };
+    let collision: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM invoice_qr_bills WHERE reference_type=? AND json_extract(input_json,'$.reference')=?)",
+        params![reference_type,reference], |row| row.get(0),
+    )?;
+    if collision {
+        return Err(AppError::Validation(
+            "La référence générée existe déjà; contrôlez la numérotation avant émission.".into(),
+        ));
+    }
+    let bill = SwissQrBillInput {
+        iban,
+        creditor: snapshot_party(issuer, true),
+        amount_cents: integer_at(document, "total_cents"),
+        currency,
+        debtor: Some(snapshot_party(&snapshot["customer"], false)),
+        reference_type: reference_type.into(),
+        reference,
+        unstructured_message: format!("Facture {}", text_at(document, "number")),
+        bill_information: String::new(),
+        alternative_procedures: Vec::new(),
+    };
+    let generated = generate(bill.clone())?;
+    validate_bill_against_final_snapshot(&bill, snapshot)?;
+    let now = now_iso();
+    connection.execute(
+        "INSERT INTO invoice_qr_bills(invoice_id,input_json,payload,reference_type,is_qr_iban,character_count,byte_count,frozen_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,NULL,?,?)",
+        params![invoice_id,serde_json::to_string(&normalize(bill))?,generated.payload,generated.reference_type,generated.is_qr_iban as i64,generated.character_count as i64,generated.byte_count as i64,now,now],
+    )?;
+    Ok(())
 }
 
 fn parse_final_snapshot(raw: Option<&str>, invoice_id: &str, number: &str) -> AppResult<Value> {

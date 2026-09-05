@@ -19,6 +19,7 @@ mod commands;
 mod database;
 mod error;
 mod fiduciary_closing;
+mod financial_pdf;
 mod installation;
 mod license;
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -191,6 +192,7 @@ pub fn run() {
             get_ledger,
             get_trial_balance,
             get_balance_sheet,
+            export_annual_accounts_pdf,
             get_income_statement,
             get_reminder_settings,
             update_reminder_settings,
@@ -3069,6 +3071,64 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
 
+        // Reproduce an invoice issued before automatic references existed, while
+        // restoring the production immutability guards before exercising the API.
+        let connection = store.connect().unwrap();
+        let guards: Vec<String> = [
+            "invoice_qr_bills_frozen_no_delete",
+            "invoices_issued_financial_no_update",
+            "audit_log_no_update",
+        ]
+        .iter()
+        .map(|name| {
+            connection
+                .query_row(
+                    "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?",
+                    [name],
+                    |row| row.get(0),
+                )
+                .unwrap()
+        })
+        .collect();
+        connection.execute_batch("DROP TRIGGER invoice_qr_bills_frozen_no_delete; DROP TRIGGER invoices_issued_financial_no_update; DROP TRIGGER audit_log_no_update;").unwrap();
+        connection
+            .execute(
+                "DELETE FROM invoice_qr_bills WHERE invoice_id=?",
+                [&invoice_id],
+            )
+            .unwrap();
+        connection.execute("UPDATE invoices SET snapshot_json=json_remove(snapshot_json,'$.qr_bill') WHERE id=?", [&invoice_id]).unwrap();
+        connection.execute("UPDATE audit_log SET payload_json=json_set(payload_json,'$.document.snapshot_json',(SELECT snapshot_json FROM invoices WHERE id=?1)) WHERE action='issue' AND entity_type='invoice' AND entity_id=?1", [&invoice_id]).unwrap();
+        let audit_fields: Vec<String> = connection.query_row(
+            "SELECT COALESCE(previous_hash,''),id,occurred_at,actor,action,entity_type,entity_id,payload_json FROM audit_log WHERE action='issue' AND entity_type='invoice' AND entity_id=?",
+            [&invoice_id], |row| (0..8).map(|index| row.get(index)).collect(),
+        ).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT id FROM audit_log ORDER BY rowid DESC LIMIT 1",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            audit_fields[1]
+        );
+        let legacy_hash = format!(
+            "{:x}",
+            sha2::Sha256::digest(audit_fields.join("\n").as_bytes())
+        );
+        connection
+            .execute(
+                "UPDATE audit_log SET entry_hash=? WHERE id=?",
+                rusqlite::params![legacy_hash, audit_fields[1]],
+            )
+            .unwrap();
+        for guard in guards {
+            connection.execute_batch(&guard).unwrap();
+        }
+        drop(connection);
+        assert!(store.get_invoice_qr_bill(&invoice_id).unwrap().is_null());
+
         let mut wrong_iban = test_invoice_qr_bill(&invoice_id, "IBAN altéré");
         wrong_iban.bill.iban = "CH9300762011623852957".into();
         assert!(store
@@ -3147,6 +3207,55 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap_err()
             .to_string()
             .contains("créancier"));
+    }
+
+    #[test]
+    fn annual_accounts_pdf_reads_the_ledger_and_keeps_the_existing_file_on_currency_error() {
+        let (temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        post_manual_pair(
+            &store,
+            "2026-02-15",
+            "Vente de recette",
+            &accounts["bank"],
+            &accounts["revenue"],
+            123_456,
+            "CHF",
+        );
+        let filter = PeriodFilter {
+            date_from: Some("2026-01-01".into()),
+            date_to: Some("2026-12-31".into()),
+        };
+        let path = temporary.path().join("bilan.pdf");
+        let exported = store
+            .export_annual_accounts_pdf(filter.clone(), path.to_str().unwrap())
+            .unwrap();
+        assert_eq!(exported["closed"], false);
+        assert_eq!(exported["balanced"], true);
+        let original = std::fs::read(&path).unwrap();
+        let document = lopdf::Document::load_mem(&original).unwrap();
+        let text = document
+            .extract_text(&document.get_pages().keys().copied().collect::<Vec<_>>())
+            .unwrap();
+        assert!(text.contains("1'234.56"));
+        assert!(text.contains("BÉNÉFICE / PERTE"));
+        assert_eq!(
+            exported["sha256"],
+            format!("{:x}", sha2::Sha256::digest(&original))
+        );
+        post_manual_pair(
+            &store,
+            "2026-02-16",
+            "Devise sans conversion",
+            &accounts["bank"],
+            &accounts["revenue"],
+            100,
+            "EUR",
+        );
+        assert!(store
+            .export_annual_accounts_pdf(filter, path.to_str().unwrap())
+            .is_err());
+        assert_eq!(std::fs::read(path).unwrap(), original);
     }
 
     #[test]

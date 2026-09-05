@@ -145,10 +145,16 @@ pub fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub fn import_camt_file(state: State<'_, LocalStore>, path: String) -> Result<Value, String> {
+pub fn import_camt_file(
+    state: State<'_, LocalStore>,
+    path: String,
+    auto_reconcile: Option<bool>,
+) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.import_camt_file(&path).map_err(command_error)
+    state
+        .import_camt_with_reconciliation(&path, auto_reconcile.unwrap_or(false))
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -1045,6 +1051,18 @@ pub fn get_balance_sheet(
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.get_balance_sheet(filter).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn export_annual_accounts_pdf(
+    state: State<'_, LocalStore>,
+    filter: PeriodFilter,
+    destination_path: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state
+        .export_annual_accounts_pdf(filter, &destination_path)
+        .map_err(command_error)
 }
 #[tauri::command]
 pub fn get_income_statement(

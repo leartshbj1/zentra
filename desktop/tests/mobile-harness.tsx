@@ -6,6 +6,7 @@ import { desktopApi } from '../src/bridge';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
+import { installFinanceFixture } from './finance-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -59,6 +60,7 @@ desktopApi.saveDocument = async (entity, input, lines, existing) => {
   data[entity] = [...data[entity].filter((item) => item.id !== id), document] as never;
   return structuredClone(data);
 };
+if (new URLSearchParams(location.search).has('finance')) installFinanceFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

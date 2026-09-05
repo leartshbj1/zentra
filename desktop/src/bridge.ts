@@ -5743,9 +5743,9 @@ export const desktopApi = {
       title: 'Importer un relevé bancaire CAMT',
       filters: [{ name: 'Relevé bancaire ISO 20022', extensions: ['xml'] }],
     }),
-  async importCamtFile(path: string) {
+  async importCamtFile(path: string, autoReconcile = true) {
     return camtImportResultFromRaw(
-      await invoke<RawRecord>('import_camt_file', { path }),
+      await invoke<RawRecord>('import_camt_file', { path, autoReconcile }),
     );
   },
   async getBankWorkspace(): Promise<BankWorkspace> {
@@ -6128,6 +6128,13 @@ export const desktopApi = {
       closingCreditBalanceCents: numberValue(raw.closing_credit_balance_cents),
       balanced: boolValue(raw.balanced),
     };
+  },
+  async exportAnnualAccountsPdf(filter: PeriodFilter) {
+    const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });
+    if (!selected) return null;
+    const raw = await invoke<RawRecord>('export_annual_accounts_pdf', { filter: periodFilterToRaw(filter), destinationPath: pdfDestinationPath(selected) });
+    await shareMobileExport(stringValue(raw.path));
+    return { path: stringValue(raw.path), pages: numberValue(raw.pages), closed: boolValue(raw.closed), balanced: boolValue(raw.balanced) };
   },
   async getBalanceSheet(filter: PeriodFilter): Promise<BalanceSheetReport> {
     const raw = await invoke<RawRecord>('get_balance_sheet', {

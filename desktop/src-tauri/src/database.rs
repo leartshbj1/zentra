@@ -3450,6 +3450,14 @@ impl LocalStore {
             "invoice"
         };
         let number = assign_document_number(&transaction, "invoices", id, number_type, &date)?;
+        let payment_snapshot = build_document_snapshot(
+            &transaction,
+            "invoices",
+            "invoice_items",
+            id,
+            &json!({"number":number.clone(),"issue_date":date.clone(),"due_date":due.clone(),"service_date_from":service_from.clone(),"service_date_to":service_to.clone()}),
+        )?;
+        crate::swiss_qr::ensure_automatic_invoice_qr(&transaction, &payment_snapshot)?;
         let qr_frozen_at = now_iso();
         transaction.execute(
             "UPDATE invoice_qr_bills SET frozen_at=COALESCE(frozen_at,?),updated_at=? WHERE invoice_id=?",

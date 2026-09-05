@@ -72,6 +72,7 @@ import {
 import { desktopApi, type CloudAccountState } from './bridge';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
+import { newestDocumentsFirst } from './documentOrder';
 import type { AgendaEventDraft } from './AgendaScreen';
 import { agendaNavigationTarget, type AgendaItem } from './agenda';
 import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
@@ -2894,12 +2895,12 @@ function ClientDetail({
   const projects = workspace.projects.filter(
     (project) => project.clientId === client.id,
   );
-  const quotes = workspace.quotes.filter(
+  const quotes = newestDocumentsFirst(workspace.quotes.filter(
     (quote) => quote.clientId === client.id,
-  );
-  const invoices = workspace.invoices.filter(
+  ));
+  const invoices = newestDocumentsFirst(workspace.invoices.filter(
     (invoice) => invoice.clientId === client.id,
-  );
+  ));
   const issuedInvoices = invoices.filter(
     (invoice) =>
       invoice.type !== 'credit_note' &&
@@ -3180,12 +3181,13 @@ type LooseDocumentsProps = {
 function DocumentsScreen(sourceProps: DocumentsProps) {
   let entity: 'quotes' | 'invoices' = sourceProps.entity;
   const { workspace, query, busy, onCreate } = sourceProps;
-  const documents = entity === 'quotes' ? workspace.quotes : workspace.invoices;
+  const documents = newestDocumentsFirst<Quote | Invoice>(entity === 'quotes' ? workspace.quotes : workspace.invoices);
   const filtered = documents.filter((document) =>
     searchText(
       [
         document.number,
         document.title,
+        'qrBill' in document ? document.qrBill?.input.reference : '',
         workspace.clients.find((client) => client.id === document.clientId)
           ?.name,
       ],
@@ -3512,6 +3514,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         {item.number || 'Numéro attribué à l’émission'}
                       </strong>
                       <small>{item.title}</small>
+                      {invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title="Référence à utiliser pour le virement">Réf. {invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()}</small> : null}
                     </div>
                   </div>
                 </td>

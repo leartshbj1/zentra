@@ -1018,6 +1018,53 @@ fn import_row(connection: &rusqlite::Connection, id: &str) -> AppResult<Value> {
 }
 
 impl LocalStore {
+    /// Import stays durable if an individual payment cannot be posted. Each payment
+    /// and its journal proof are committed atomically by the reconciliation path.
+    pub fn import_camt_with_reconciliation(&self, path: &str, automatic: bool) -> AppResult<Value> {
+        let mut imported = self.import_camt_file(path)?;
+        let mut paid = 0;
+        let mut partial = 0;
+        let mut review = 0;
+        let mut failures = Vec::new();
+        if automatic {
+            let import_id = imported["import"]["id"].as_str().unwrap_or_default();
+            let connection = self.connect()?;
+            let movements = query_all(
+                &connection,
+                "SELECT id FROM bank_movements m WHERE (import_id=?1 OR booked_import_id=?1) AND credit_debit='CRDT' AND NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) ORDER BY COALESCE(booking_date,value_date),created_at,id",
+                params![import_id],
+            )?;
+            for movement in movements {
+                let id = movement["id"].as_str().unwrap_or_default().to_owned();
+                match self.reconcile_customer_movement(
+                    ConfirmBankReconciliationInput {
+                        movement_id: id.clone(),
+                        invoice_id: String::new(),
+                    },
+                    true,
+                ) {
+                    Ok(result) if result.is_null() => review += 1,
+                    Ok(result) => {
+                        if result["invoice"]["status"] == "payee" {
+                            paid += 1;
+                        } else {
+                            partial += 1;
+                        }
+                    }
+                    Err(error) => {
+                        review += 1;
+                        failures.push(format!("Mouvement {id} laissé à contrôler : {error}"));
+                    }
+                }
+            }
+        }
+        imported["automatic_reconciliation"] = json!({
+            "enabled": automatic, "paid_count": paid, "partial_count": partial,
+            "review_count": review, "failures": failures,
+        });
+        Ok(imported)
+    }
+
     pub fn import_camt_file(&self, path: &str) -> AppResult<Value> {
         let path = path.trim();
         if path.is_empty() {
@@ -1534,7 +1581,7 @@ mod tests {
         qrr: &str,
         invoice_type: &str,
     ) -> String {
-        let invoice_id = create_open_invoice_of_type(store, amount_cents, "CHF", invoice_type);
+        let invoice_id = create_draft_invoice_of_type(store, amount_cents, "CHF", invoice_type);
         store
             .save_invoice_qr_bill(SaveInvoiceQrBillInput {
                 invoice_id: invoice_id.clone(),
@@ -1565,6 +1612,13 @@ mod tests {
                     alternative_procedures: Vec::new(),
                 },
             })
+            .unwrap();
+        store
+            .issue_invoice(
+                &invoice_id,
+                Some("2026-08-01".into()),
+                Some("2026-08-31".into()),
+            )
             .unwrap();
         invoice_id
     }
@@ -2730,6 +2784,182 @@ mod tests {
                 )
                 .unwrap(),
             10_000
+        );
+    }
+
+    #[test]
+    fn automatic_import_records_partial_then_final_payment_once_with_journal_proofs() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let invoice_id = create_open_invoice(&store, 10_000, "CHF");
+        let qr = store.get_invoice_qr_bill(&invoice_id).unwrap();
+        let reference = qr["input"]["reference"].as_str().unwrap();
+        assert!(validate_qrr(reference));
+        assert!(qr["frozen"].as_bool().unwrap());
+        for (name, paid, expected_partial, expected_paid) in
+            [("partial", "40.00", 1, 0), ("final", "60.00", 0, 1)]
+        {
+            let xml = fixture(
+                "053",
+                "08",
+                "BOOK",
+                paid,
+                &format!("C-{name}"),
+                Some(&format!("D-{name}")),
+                Some("QRR"),
+                Some(reference),
+                false,
+                true,
+            );
+            let path = write_xml(temporary.path(), &format!("{name}.xml"), &xml);
+            let result = store.import_camt_with_reconciliation(&path, true).unwrap();
+            assert_eq!(
+                result["automatic_reconciliation"]["partial_count"],
+                expected_partial
+            );
+            assert_eq!(
+                result["automatic_reconciliation"]["paid_count"],
+                expected_paid
+            );
+            assert_eq!(result["automatic_reconciliation"]["failures"], json!([]));
+            let retry = store.import_camt_with_reconciliation(&path, true).unwrap();
+            assert_eq!(retry["duplicate"], true);
+            assert_eq!(retry["automatic_reconciliation"]["paid_count"], 0);
+            assert_eq!(retry["automatic_reconciliation"]["partial_count"], 0);
+        }
+        let connection = store.connect().unwrap();
+        let counts:(i64,i64,i64)=connection.query_row("SELECT (SELECT COUNT(*) FROM payments),(SELECT COUNT(*) FROM bank_reconciliations),(SELECT COUNT(*) FROM journal_entries WHERE source_type='payment')",[],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).unwrap();
+        assert_eq!(counts, (2, 2, 2));
+        let invoice: (String, i64) = connection
+            .query_row(
+                "SELECT status,paid_cents FROM invoices WHERE id=?",
+                params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(invoice, ("payee".into(), 10_000));
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM audit_log WHERE action='auto_confirm' AND entity_type='bank_reconciliation'",[],|row|row.get::<_,i64>(0)).unwrap(),2);
+    }
+
+    #[test]
+    fn automatic_import_leaves_ambiguous_pending_excess_and_unlinked_movements_unpaid() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        let qrr = generate_qrr("9876001").unwrap();
+        create_invoice(&store, 10_000, &qrr);
+        let xml = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-auto-unlinked",
+            Some("D-auto-unlinked"),
+            Some("QRR"),
+            Some(&qrr),
+            false,
+            true,
+        );
+        let path = write_xml(temporary.path(), "auto-unlinked.xml", &xml);
+        let result = store.import_camt_with_reconciliation(&path, true).unwrap();
+        assert_eq!(result["automatic_reconciliation"]["review_count"], 1);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        // Disabling automatic handling is honored even on retry after linking.
+        assert_eq!(
+            store.import_camt_with_reconciliation(&path, false).unwrap()
+                ["automatic_reconciliation"]["enabled"],
+            false
+        );
+        for (name, status, amount) in [("pending", "PDNG", "100.00"), ("excess", "BOOK", "101.00")]
+        {
+            let xml = fixture(
+                "053",
+                "08",
+                status,
+                amount,
+                &format!("C-{name}"),
+                Some(&format!("D-{name}")),
+                Some("QRR"),
+                Some(&qrr),
+                false,
+                true,
+            );
+            let path = write_xml(temporary.path(), &format!("{name}.xml"), &xml);
+            assert_eq!(
+                store.import_camt_with_reconciliation(&path, true).unwrap()
+                    ["automatic_reconciliation"]["paid_count"],
+                0
+            );
+        }
+        create_invoice(&store, 10_000, &qrr);
+        let retry = store.import_camt_with_reconciliation(&path, true).unwrap();
+        assert_eq!(retry["automatic_reconciliation"]["review_count"], 1);
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM payments", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn automatic_scor_is_frozen_and_missing_accounting_keeps_import_without_payment() {
+        let (temporary, store) = store();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE settings SET iban=? WHERE id=1",
+                params![STATEMENT_IBAN],
+            )
+            .unwrap();
+        let invoice_id = create_open_invoice(&store, 10_000, "CHF");
+        let qr = store.get_invoice_qr_bill(&invoice_id).unwrap();
+        let reference = qr["input"]["reference"].as_str().unwrap();
+        assert_eq!(qr["reference_type"], "SCOR");
+        assert!(validate_scor(reference));
+        let xml = fixture(
+            "053",
+            "08",
+            "BOOK",
+            "100.00",
+            "C-scor",
+            Some("D-scor"),
+            Some("SCOR"),
+            Some(reference),
+            false,
+            true,
+        );
+        let path = write_xml(temporary.path(), "scor.xml", &xml);
+        let result = store.import_camt_with_reconciliation(&path, true).unwrap();
+        assert_eq!(result["imported_count"], 1);
+        assert_eq!(result["automatic_reconciliation"]["paid_count"], 0);
+        assert_eq!(
+            result["automatic_reconciliation"]["failures"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        enable_accounting(&store);
+        let result = store.import_camt_with_reconciliation(&path, true).unwrap();
+        assert_eq!(result["automatic_reconciliation"]["paid_count"], 1);
+        assert_eq!(
+            store.get_invoice_qr_bill(&invoice_id).unwrap()["payload"],
+            qr["payload"]
         );
     }
 
@@ -4653,11 +4883,19 @@ impl LocalStore {
         &self,
         input: ConfirmBankReconciliationInput,
     ) -> AppResult<Value> {
+        self.reconcile_customer_movement(input, false)
+    }
+
+    fn reconcile_customer_movement(
+        &self,
+        input: ConfirmBankReconciliationInput,
+        automatic: bool,
+    ) -> AppResult<Value> {
         let movement_id = Uuid::parse_str(input.movement_id.trim())
             .map_err(|_| AppError::Validation("movement_id est invalide.".into()))?
             .to_string();
-        let invoice_id = input.invoice_id.trim().to_owned();
-        if invoice_id.is_empty() {
+        let mut invoice_id = input.invoice_id.trim().to_owned();
+        if invoice_id.is_empty() && !automatic {
             return Err(AppError::Validation(
                 "Choisissez la facture à rapprocher.".into(),
             ));
@@ -4683,6 +4921,9 @@ impl LocalStore {
             )
             .optional()?
         {
+            if automatic {
+                return Ok(Value::Null);
+            }
             if existing_invoice_id != invoice_id {
                 return Err(AppError::Validation(
                     "Ce mouvement est déjà rapproché avec une autre facture.".into(),
@@ -4725,6 +4966,24 @@ impl LocalStore {
         .ok_or_else(|| AppError::NotFound(format!("bank_movements/{movement_id}")))?;
         let invoices = load_invoice_candidates(&transaction)?;
         let suggestion = suggestion_for_movement(&transaction, &movement, None, &invoices)?;
+        if automatic {
+            // Re-evaluate under the same write transaction as the payment: no
+            // stale UI suggestion, free-text match, ambiguous reference or excess.
+            if !matches!(
+                suggestion["kind"].as_str(),
+                Some("automatic_exact" | "automatic_partial")
+            ) || suggestion["confirmable"] != true
+                || suggestion["candidates"]
+                    .as_array()
+                    .is_none_or(|rows| rows.len() != 1)
+            {
+                return Ok(Value::Null);
+            }
+            invoice_id = suggestion["invoice_id"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned();
+        }
         let selected = suggestion["candidates"]
             .as_array()
             .and_then(|candidates| {
@@ -4768,7 +5027,12 @@ impl LocalStore {
                 method: Some("Virement bancaire CAMT".into()),
                 reference: payment_reference,
                 notes: Some(format!(
-                    "Rapprochement explicite du mouvement CAMT {movement_id}."
+                    "Rapprochement {} du mouvement CAMT {movement_id}.",
+                    if automatic {
+                        "automatique par référence structurée unique"
+                    } else {
+                        "explicite"
+                    }
                 )),
             },
         )?;
@@ -4788,7 +5052,7 @@ impl LocalStore {
         .unwrap();
         append_audit(
             &transaction,
-            "confirm",
+            if automatic { "auto_confirm" } else { "confirm" },
             "bank_reconciliation",
             &reconciliation_id,
             &json!({"movement_id":movement_id,"invoice_id":invoice_id,"payment_id":movement_id,"amount_cents":amount_cents}),

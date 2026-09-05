@@ -232,6 +232,7 @@ export function bankWorkspaceFromRaw(value: unknown): BankWorkspace {
 
 export function camtImportResultFromRaw(value: unknown): CamtImportResult {
   const row = record(value);
+  const automatic = record(row.automatic_reconciliation);
   return {
     duplicate: bool(row.duplicate),
     import: bankImportFromRaw(row.import),
@@ -239,6 +240,11 @@ export function camtImportResultFromRaw(value: unknown): CamtImportResult {
     skippedDuplicateCount: integer(row.skipped_duplicate_count),
     ignoredCount: integer(row.ignored_count),
     warnings: Array.isArray(row.warnings) ? row.warnings.map(text).filter(Boolean) : [],
+    automaticReconciliation: {
+      enabled: bool(automatic.enabled), paidCount: integer(automatic.paid_count),
+      partialCount: integer(automatic.partial_count), reviewCount: integer(automatic.review_count),
+      failures: Array.isArray(automatic.failures) ? automatic.failures.map(text).filter(Boolean) : [],
+    },
   };
 }
 

@@ -76,8 +76,8 @@ fn android_crypt(bytes: &[u8], encrypt: bool) -> AppResult<Vec<u8>> {
     let _guard = ANDROID_KEY_LOCK.lock().map_err(|_| fail())?;
     // Tauri uses Tao's Activity context, not ndk-context's NativeActivity global.
     // Tao initializes this context before invoking the Rust entry point.
-    let context = tauri::tao::platform::android::prelude::main_android_context()
-        .ok_or_else(fail)?;
+    let context =
+        tauri::tao::platform::android::prelude::main_android_context().ok_or_else(fail)?;
     let vm = unsafe { JavaVM::from_raw(context.java_vm.cast()) }.map_err(|_| fail())?;
     let mut env = vm.attach_current_thread().map_err(|_| fail())?;
     let result = env.with_local_frame(64, |env| -> jni::errors::Result<Vec<u8>> {

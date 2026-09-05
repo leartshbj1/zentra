@@ -299,3 +299,33 @@
 @media screen and (prefers-reduced-motion: reduce) {
   .desktop-app *, .modal * { scroll-behavior: auto; animation: none !important; transition: none !important; }
 }
+
+@media screen {
+  .section-navigation { min-width: 0; flex: 1; }
+  .section-navigation__tabs { flex-wrap: wrap; }
+  .section-navigation__mobile { display: none; }
+  .accounting-export-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; }
+  .accounting-export-bar p { margin: 5px 0 0; color: #53655b; }
+  .vat-overview { margin: 20px 0; }
+  .vat-overview__totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .vat-overview__totals article { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 20px; border: 1px solid #cfdfd5; border-radius: 14px; background: #f3f8f5; }
+  .vat-overview__totals strong { font-size: clamp(18px, 2.2vw, 25px); color: #174d35; overflow-wrap: anywhere; }
+  .vat-overview__totals small { color: #53655b; }
+  .vat-overview__pending { padding: 12px; background: #fff6dd; border-radius: 8px; color: #705214; }
+  .vat-practical-guide { margin-top: 14px; padding: 16px; border: 1px solid #dce6e0; border-radius: 12px; }
+  .vat-practical-guide summary { cursor: pointer; font-weight: 650; }
+  .vat-practical-guide p { line-height: 1.6; }
+  .vat-practical-guide a { color: #17623e; text-decoration: underline; }
+  .invoice-payment-reference { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; user-select: text; max-width: 270px; }
+  .bank-auto-reconcile { margin: 0; }
+}
+@media screen and (max-width: 800px) {
+  .section-navigation { width: 100%; }
+  .section-navigation__tabs { display: none !important; }
+  .section-navigation__mobile { display: flex; flex-direction: column; gap: 7px; width: 100%; color: #53655b; font-size: 13px; }
+  .section-navigation__mobile select { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; color: #174d35; }
+  .accounting-export-bar { align-items: stretch; flex-direction: column; }
+  .vat-overview__totals { grid-template-columns: 1fr; }
+  .vat-overview__totals article { padding: 16px; }
+  .vat-navigation, .accounting-toolbar { min-width: 0; }
+}
