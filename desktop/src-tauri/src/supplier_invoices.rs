@@ -577,6 +577,7 @@ pub(crate) fn record_supplier_payment_in_transaction(
         "INSERT INTO supplier_payments(id,supplier_invoice_id,request_id,date,amount_cents,method,reference,notes,journal_entry_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
         params![payment_id,invoice_id,request_id,payment_date,input.amount_cents,method,reference,notes,journal_id,now],
     )?;
+    crate::vat_reporting::validate_supplier_settlement_chronology(tx, false, &invoice_id)?;
     let result = supplier_invoice_bundle(tx, &invoice_id)?;
     append_audit(
         tx,

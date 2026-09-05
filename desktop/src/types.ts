@@ -2135,6 +2135,12 @@ export type VatReturnPreview = {
     grossCents: number;
     netCents: number;
     vatCents: number;
+    settlement?: {
+      kind: 'credit_application' | 'credit_reversal';
+      counterpartId: Identifier;
+      counterpartReference: string;
+      reversesAllocationId: Identifier | null;
+    };
   }>;
   sourceSha256: string;
   turnoverComputation: {

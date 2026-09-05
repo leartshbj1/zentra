@@ -14,6 +14,10 @@ use uuid::Uuid;
 #[path = "vat_received.rs"]
 mod received;
 
+#[path = "vat_received_supplier.rs"]
+mod received_supplier;
+pub(crate) use received_supplier::validate_chronology as validate_supplier_settlement_chronology;
+
 #[path = "vat_transition.rs"]
 mod transition;
 
@@ -217,6 +221,16 @@ pub struct VatReceivedPayment {
     pub gross_cents: i64,
     pub net_cents: i64,
     pub vat_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settlement: Option<VatReceivedSettlement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VatReceivedSettlement {
+    pub kind: String,
+    pub counterpart_id: String,
+    pub counterpart_reference: String,
+    pub reverses_allocation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -2308,25 +2322,6 @@ fn load_supplier_sources(
     date_to: &str,
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
-    let credit_note_count: i64 = if form == "agreed" {
-        0
-    } else {
-        connection.query_row(
-            "SELECT COUNT(*) FROM supplier_credit_notes WHERE status='validated' AND vat_cents<>0 AND document_date<=?",
-            params![date_to],
-            |row| row.get(0),
-        )?
-    };
-    if credit_note_count != 0 {
-        push_issue(
-            issues,
-            "unsupported_supplier_credit_tax",
-            "Mode reçu bloqué : les avoirs fournisseurs nécessitent une date d'imputation ou de remboursement fiscalement justifiée. La date du document ne suffit pas à les affecter à ce décompte."
-                .into(),
-            None,
-            None,
-        );
-    }
     if form == "agreed" {
         let mut statement = connection.prepare(
             "SELECT item.id,invoice.id,invoice.document_date,item.description,UPPER(TRIM(invoice.currency)),item.line_net_cents,item.line_vat_cents,item.line_total_cents,item.vat_bp,classification.id,classification.treatment,classification.note,classification.updated_at
@@ -2361,13 +2356,7 @@ fn load_supplier_sources(
         return rows.collect::<Result<Vec<_>, _>>().map_err(Into::into);
     }
 
-    received::load_sources(
-        connection,
-        "supplier_invoice_item",
-        date_from,
-        date_to,
-        issues,
-    )
+    received_supplier::load_sources(connection, date_from, date_to, issues)
 }
 
 fn load_supplier_credit_sources(

@@ -4,6 +4,9 @@ use rusqlite::params;
 use serde_json::json;
 use uuid::Uuid;
 
+#[path = "vat_received_credit_tests.rs"]
+mod received_credit_tests;
+
 use crate::{
     database::LocalStore,
     models::{

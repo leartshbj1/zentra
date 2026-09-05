@@ -8,7 +8,7 @@ fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
 
-fn allocate_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
+pub(super) fn allocate_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
     let total: i128 = remaining.iter().map(|value| i128::from(*value)).sum();
     if amount <= 0 || remaining.iter().any(|value| *value < 0) || i128::from(amount) > total {
         return Err(invalid(
@@ -38,7 +38,7 @@ fn allocate_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
     Ok(allocation)
 }
 
-fn proportional_vat(vat: i64, paid: i64, gross: i64) -> i64 {
+pub(super) fn proportional_vat(vat: i64, paid: i64, gross: i64) -> i64 {
     ((i128::from(vat) * i128::from(paid) + i128::from(gross) / 2) / i128::from(gross)) as i64
 }
 
@@ -178,6 +178,7 @@ pub(super) fn load_sources(
                     gross_cents: paid,
                     net_cents: paid - paid_vat,
                     vat_cents: paid_vat,
+                    settlement: None,
                 });
             }
         }

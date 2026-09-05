@@ -1,6 +1,7 @@
 // Synthetic data and RPCs used only by the browser acceptance harness.
 import { desktopApi } from '../src/bridge';
 import type { VatProfile, VatReturnPreview, Workspace } from '../src/types';
+import { seedReceivedCreditPreview } from './vat-received-credit-fixture';
 
 export function installFinanceFixture(workspace: Workspace) {
   workspace.settings.organization.vatRegistered = true;
@@ -49,6 +50,7 @@ export function installFinanceFixture(workspace: Workspace) {
     preview.exportable = false;
     preview.sourceCount += 1;
   }
+  if (new URLSearchParams(location.search).has('receivedCredits')) seedReceivedCreditPreview(preview);
   desktopApi.listVatAdjustments = async () => [];
   desktopApi.listVatReturnExports = async () => [];
   desktopApi.previewVatReturn = async (input) => ({ ...structuredClone(preview), ...input });

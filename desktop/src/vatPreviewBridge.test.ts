@@ -5,6 +5,11 @@ import { desktopApi } from './bridge';
 
 describe('détail des achats classés dans le décompte TVA', () => {
   const input = { dateFrom: '2026-01-01', dateTo: '2026-03-31', submissionType: 'initial' as const };
+  it('conserve les signes et la preuve de l’extourne avec sa pièce liée', async () => {
+    invokeMock.mockResolvedValueOnce({ received_allocations: [{ source_type: 'supplier_invoice_item', source_id: 'line', parent_id: 'invoice', description: 'FA · Marchandises', currency: 'CHF', payment_id: 'reversal', date: '2026-03-31', gross_cents: -1026, net_cents: -949, vat_cents: -77, settlement: { kind: 'credit_reversal', counterpart_id: 'credit', counterpart_reference: 'AV-2026-001', reverses_allocation_id: 'initial-application' } }] });
+    const preview = await desktopApi.previewVatReturn(input);
+    expect(preview.receivedAllocations?.[0]).toMatchObject({ grossCents: -1026, netCents: -949, vatCents: -77, settlement: { kind: 'credit_reversal', counterpartId: 'credit', counterpartReference: 'AV-2026-001', reversesAllocationId: 'initial-application' } });
+  });
   it('conserve l’identité, la devise et les montants signés des sources natives', async () => {
     invokeMock.mockResolvedValueOnce({ classified_sources: [{ source_type: 'supplier_invoice_item', source_id: 'line-1', parent_id: 'purchase-1', occurrence_date: '2026-02-10', description: 'Achat', amount_cents: 10000, vat_cents: 810, vat_rate_bp: 810, treatment: 'non_deductible', currency: 'EUR' }] });
     const preview = await desktopApi.previewVatReturn(input);

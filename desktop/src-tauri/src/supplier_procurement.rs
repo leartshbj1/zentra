@@ -1943,6 +1943,10 @@ impl LocalStore {
             "UPDATE supplier_credit_notes SET number=?,status='validated',snapshot_json=?,validation_journal_entry_id=?,validated_at=?,updated_at=? WHERE id=? AND status='draft'",
             params![number,snapshot,journal_id,now,now,id],
         )?;
+        crate::vat_reporting::validate_supplier_settlement_chronology(&tx, true, &id)?;
+        for allocation in &allocations {
+            crate::vat_reporting::validate_supplier_settlement_chronology(&tx, false, allocation["supplier_invoice_id"].as_str().unwrap_or_default())?;
+        }
         for item in &items {
             if item["line_vat_cents"].as_i64().unwrap_or(0) > 0 {
                 crate::input_vat_accounting::classify_non_registered_at_posting(
@@ -2003,6 +2007,8 @@ impl LocalStore {
             "INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,event_type,amount_cents,created_at,effective_date) VALUES(?,?,?,?, 'apply',?,?,?)",
             params![allocation_id,operation.request_id,credit_id,invoice_id,input.amount_cents,now,effective_date],
         )?;
+        crate::vat_reporting::validate_supplier_settlement_chronology(&tx, true, &credit_id)?;
+        crate::vat_reporting::validate_supplier_settlement_chronology(&tx, false, &invoice_id)?;
         let result = json!({
             "allocation":query_record_tx(&tx,"supplier_credit_allocations",&allocation_id)?,
             "credit":supplier_credit_bundle(&tx,&credit_id,false)?,
@@ -2074,6 +2080,8 @@ impl LocalStore {
             "INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,event_type,amount_cents,reverses_allocation_id,reason,created_at,effective_date) VALUES(?,?,?,?, 'reverse',?,?,?,?,?)",
             params![reversal_id,operation.request_id,credit_id,invoice_id,amount,original_id,reason,now,effective_date],
         )?;
+        crate::vat_reporting::validate_supplier_settlement_chronology(&tx, true, &credit_id)?;
+        crate::vat_reporting::validate_supplier_settlement_chronology(&tx, false, &invoice_id)?;
         let result = json!({
             "allocation":query_record_tx(&tx,"supplier_credit_allocations",&reversal_id)?,
             "credit":supplier_credit_bundle(&tx,&credit_id,false)?,
