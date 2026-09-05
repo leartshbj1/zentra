@@ -6,6 +6,17 @@ import type {
   VatSourceType,
 } from './types';
 
+export function vatBlockingIssueTitle(code: string): string {
+  if (code === 'vat_reporting_transition_open_balance') return 'Changement de mode TVA à préparer';
+  if (code === 'unclassified_sources') return 'Traitements TVA à compléter';
+  if (code === 'missing_uid' || code === 'invalid_uid') return 'Numéro IDE / TVA à vérifier';
+  if (code === 'foreign_currency_source' || code === 'non_chf_ledger') return 'Conversion en francs suisses à justifier';
+  if (code.includes('credit')) return 'Avoirs à vérifier';
+  if (code.includes('rate')) return 'Taux TVA à vérifier';
+  if (code.includes('received')) return 'Règlements à vérifier';
+  return 'Point à vérifier';
+}
+
 export const vatTreatmentLabels: Record<VatSourceTreatment, string> = {
   taxable: 'Imposable au taux de la ligne',
   supplies_to_foreign: 'Ch. 220 · prestations à l’étranger / exportations',

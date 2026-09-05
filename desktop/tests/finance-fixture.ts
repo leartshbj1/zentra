@@ -20,6 +20,11 @@ export function installFinanceFixture(workspace: Workspace) {
     simpleTaxRateMethod: null, payableTaxCents: 4050, payableCode: '500', otherFlowsOfFunds: { subsidiesCents: 0, donationsCents: 0 }, sourceCount: 2, adjustmentCount: 0, transmissionWording: 'Exemple de recette, aucune donnée réelle.',
   };
   desktopApi.listVatProfiles = async () => [profile];
+  if (new URLSearchParams(location.search).has('transitionVat')) {
+    preview.exportable = false;
+    preview.blockingIssues = [{ code: 'vat_reporting_transition_open_balance', sourceType: 'invoice_item', sourceId: 'transition-invoice', message: 'Au 2026-01-01, facture client F-2025-DECEMBRE-REFERENCE-DOCUMENTAIRE-TRES-LONGUE-001 : solde avant changement : 58.10 CHF. La reprise TVA prévue à l’art. 106 OTVA doit être documentée avant l’export; elle n’est pas encore automatisée.' }];
+    desktopApi.createVatProfile = async () => { throw new Error('Changement de mode TVA non enregistré : une reprise des soldes ouverts est nécessaire et n’est pas encore automatisée. Les profils précédents sont conservés. Facture F-2025-001 : 58.10 CHF.'); };
+  }
   if (new URLSearchParams(location.search).has('receivedVat')) {
     profile.formOfReporting = 'received';
     preview.receivedAllocations = Array.from({ length: 32 }, (_, index) => ({

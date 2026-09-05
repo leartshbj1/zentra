@@ -223,6 +223,42 @@ fn received_unpaid_purchases_can_be_classified_before_their_period_is_frozen() {
 }
 
 #[test]
+fn reporting_transition_checks_supplier_balances_with_native_payments_and_keeps_journal_unchanged()
+{
+    let (_temp, store, _accounts) = fixture();
+    store.create_vat_profile(profile(false)).unwrap();
+    let (invoice, lines) = draft(&store);
+    for line in &lines {
+        classify(&store, "supplier_invoice_item", line, "input_materials");
+    }
+    store.validate_supplier_invoice(&invoice).unwrap();
+    let pay = |date: &str| crate::models::RecordSupplierPaymentInput {
+        request_id: Uuid::new_v4().to_string(),
+        supplier_invoice_id: invoice.clone(),
+        amount_cents: 10810,
+        date: date.into(),
+        method: Some("bank".into()),
+        reference: None,
+        notes: None,
+    };
+    store.record_supplier_payment(pay("2026-06-30")).unwrap();
+    store.record_supplier_payment(pay("2026-07-01")).unwrap();
+    let before_journal_count = journal_count(&store);
+    let mut next = profile(false);
+    next.form_of_reporting = "received".into();
+    next.effective_from = "2026-07-01".into();
+    next.close_previous_open_profile = true;
+    let error = store.create_vat_profile(next.clone()).unwrap_err();
+    assert!(error.to_string().contains("108.10 CHF"), "{error}");
+    assert!(error.to_string().contains(&invoice), "{error}");
+    assert_eq!(journal_count(&store), before_journal_count);
+    assert_eq!(store.list_vat_profiles().unwrap().len(), 1);
+    next.effective_from = "2026-07-02".into();
+    store.create_vat_profile(next).unwrap();
+    assert_eq!(journal_count(&store), before_journal_count);
+}
+
+#[test]
 fn received_supplier_payments_split_rates_and_only_deduct_eligible_input_tax() {
     let (_temp, store, accounts) = fixture();
     let raw: String = store

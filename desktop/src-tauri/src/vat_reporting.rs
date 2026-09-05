@@ -14,6 +14,9 @@ use uuid::Uuid;
 #[path = "vat_received.rs"]
 mod received;
 
+#[path = "vat_transition.rs"]
+mod transition;
+
 use crate::{
     accounting::{closed_accounting_through, validate_received_vat_accounting_configuration},
     audit::append_audit,
@@ -593,6 +596,7 @@ impl LocalStore {
         )?;
         let result = load_profile_by_id(&transaction, &normalized.id)?
             .ok_or_else(|| AppError::NotFound(format!("vat_profiles/{}", normalized.id)))?;
+        transition::ensure_supported(&transaction)?;
         crate::input_vat_accounting::sync_period(
             &transaction,
             &normalized.effective_from,
@@ -2096,6 +2100,7 @@ fn load_raw_vat_sources(
     date_to: &str,
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
+    transition::append_period_issues(connection, profile, date_to, issues)?;
     let mut sources = load_sales_sources(
         connection,
         &profile.form_of_reporting,
@@ -3700,6 +3705,301 @@ mod tests {
                 .id,
             "received-version"
         );
+    }
+
+    #[test]
+    fn reporting_transition_rejects_unpaid_invoice_and_preserves_previous_profile() {
+        let (_temporary, store) = initialized_store("Transition TVA");
+        store
+            .create_vat_profile(effective_profile("agreed"))
+            .unwrap();
+        insert_issued_invoice(
+            &store,
+            "transition-invoice",
+            "transition-line",
+            "2026-12-01",
+            10_000,
+            810,
+            810,
+        );
+        classify_sale(&store, "transition-line");
+        let mut next = effective_profile("received");
+        next.effective_from = "2027-01-01".into();
+        next.close_previous_open_profile = true;
+        let error = store
+            .create_vat_profile(next)
+            .expect_err("an open debtor requires a documented transition correction");
+        assert!(error.to_string().contains("transition-invoice"), "{error}");
+        let profiles = store.list_vat_profiles().unwrap();
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(
+            profiles[0].effective_to, None,
+            "rejection must roll back the previous profile's closure"
+        );
+    }
+
+    fn next_reporting_profile(form: &str) -> VatProfileInput {
+        VatProfileInput {
+            id: Some(format!("next-{form}")),
+            effective_from: "2027-01-01".into(),
+            close_previous_open_profile: true,
+            ..effective_profile(form)
+        }
+    }
+
+    fn transition_payment(store: &LocalStore, id: &str, date: &str, amount: i64) {
+        store.connect().unwrap().execute(
+            "INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at) VALUES(?,'transition-invoice',?,?,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+            params![id,date,amount],
+        ).unwrap();
+    }
+
+    #[test]
+    fn reporting_transition_uses_balances_before_boundary_in_both_directions() {
+        for (before, after) in [("agreed", "received"), ("received", "agreed")] {
+            let (_temporary, store) = initialized_store("Transition TVA");
+            store.create_vat_profile(effective_profile(before)).unwrap();
+            insert_issued_invoice(
+                &store,
+                "transition-invoice",
+                "transition-line",
+                "2026-12-01",
+                10_000,
+                810,
+                810,
+            );
+            transition_payment(&store, "before", "2026-12-31", 5_000);
+            transition_payment(&store, "on-boundary", "2027-01-01", 5_810);
+            let error = store
+                .create_vat_profile(next_reporting_profile(after))
+                .unwrap_err();
+            assert!(error.to_string().contains("58.10 CHF"), "{error}");
+        }
+    }
+
+    #[test]
+    fn reporting_transition_allows_documents_fully_paid_before_boundary() {
+        for (before, after) in [("agreed", "received"), ("received", "agreed")] {
+            let (_temporary, store) = initialized_store("Transition TVA");
+            store.create_vat_profile(effective_profile(before)).unwrap();
+            insert_issued_invoice(
+                &store,
+                "transition-invoice",
+                "transition-line",
+                "2026-12-01",
+                10_000,
+                810,
+                810,
+            );
+            transition_payment(&store, "before", "2026-12-31", 10_810);
+            let next = next_reporting_profile(after);
+            store.create_vat_profile(next.clone()).unwrap();
+            store.create_vat_profile(next).unwrap();
+            assert_eq!(
+                store.list_vat_profiles().unwrap().len(),
+                2,
+                "retry is idempotent"
+            );
+        }
+    }
+
+    #[test]
+    fn reporting_transition_does_not_block_same_basis_versioning() {
+        let (_temporary, store) = initialized_store("Transition TVA");
+        store
+            .create_vat_profile(effective_profile("agreed"))
+            .unwrap();
+        insert_issued_invoice(
+            &store,
+            "transition-invoice",
+            "transition-line",
+            "2026-12-01",
+            10_000,
+            810,
+            810,
+        );
+        store
+            .create_vat_profile(next_reporting_profile("agreed"))
+            .unwrap();
+    }
+
+    #[test]
+    fn reporting_transition_restored_history_blocks_export_and_closure_but_not_previous_period() {
+        for (before, after) in [("agreed", "received"), ("received", "agreed")] {
+            let (_temporary, store) = initialized_store("Transition TVA");
+            store.create_vat_profile(effective_profile(before)).unwrap();
+            store
+                .create_vat_profile(next_reporting_profile(after))
+                .unwrap();
+            // Represents an existing profile from an older release, or a subsequently entered invoice.
+            insert_issued_invoice(
+                &store,
+                "transition-invoice",
+                "transition-line",
+                "2026-12-01",
+                10_000,
+                810,
+                810,
+            );
+            classify_sale(&store, "transition-line");
+            transition_payment(&store, "after", "2027-01-15", 10_810);
+            let input = VatReturnPreviewInput {
+                date_from: "2027-01-01".into(),
+                date_to: "2027-03-31".into(),
+                submission_type: "initial".into(),
+                profile_id: Some(format!("next-{after}")),
+            };
+            for submission in ["initial", "correction", "annual_reconciliation"] {
+                let preview = store
+                    .preview_vat_return(VatReturnPreviewInput {
+                        submission_type: submission.into(),
+                        date_to: if submission == "annual_reconciliation" {
+                            "2027-12-31".into()
+                        } else {
+                            input.date_to.clone()
+                        },
+                        ..input.clone()
+                    })
+                    .unwrap();
+                assert!(!preview.exportable, "{before} -> {after} / {submission}");
+                assert!(preview.blocking_issues.iter().any(|issue| issue.code
+                    == "vat_reporting_transition_open_balance"
+                    && issue.message.contains("108.10 CHF")));
+            }
+            let before_preview = store
+                .preview_vat_return(VatReturnPreviewInput {
+                    date_from: "2026-10-01".into(),
+                    date_to: "2026-12-31".into(),
+                    submission_type: "initial".into(),
+                    profile_id: Some(format!("effective-{before}")),
+                })
+                .unwrap();
+            assert!(
+                before_preview.exportable,
+                "{:?}",
+                before_preview.blocking_issues
+            );
+            assert!(store
+                .export_vat_return_xml(ExportVatReturnInput {
+                    date_from: input.date_from,
+                    date_to: input.date_to,
+                    submission_type: input.submission_type,
+                    profile_id: input.profile_id,
+                    business_reference_id: "transition-export".into(),
+                    file_name: None
+                })
+                .is_err());
+            assert!(
+                ensure_vat_sources_classified_through(&store.connect().unwrap(), "2027-03-31")
+                    .is_err()
+            );
+            // Even a later quarter with no transactions must not hide an unrecorded transition.
+            let later = store
+                .preview_vat_return(VatReturnPreviewInput {
+                    date_from: "2027-04-01".into(),
+                    date_to: "2027-06-30".into(),
+                    submission_type: "initial".into(),
+                    profile_id: None,
+                })
+                .unwrap();
+            assert!(!later.exportable);
+        }
+    }
+
+    #[test]
+    fn reporting_transition_inspects_pending_expenses_and_later_payment_dates() {
+        for paid_at in [None, Some("2027-02-01")] {
+            let (_temporary, store) = initialized_store("Transition TVA");
+            store
+                .create_vat_profile(effective_profile("agreed"))
+                .unwrap();
+            store.connect().unwrap().execute("INSERT INTO expenses(id,date,due_date,reference,net_cents,vat_cents,total_cents,payment_status,paid_at,created_at,updated_at) VALUES('transition-expense','2026-12-01','2027-02-01','Marchandises décembre',10000,810,10810,?,?,'2026-12-01','2026-12-01')", params![if paid_at.is_some() { "paid" } else { "pending" }, paid_at]).unwrap();
+            let error = store
+                .create_vat_profile(next_reporting_profile("received"))
+                .unwrap_err();
+            assert!(
+                error.to_string().contains("Marchandises décembre"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn reporting_transition_tdfn_inspects_sales_without_separate_input_tax() {
+        let (_temporary, store) = initialized_store("Transition TVA");
+        store.create_vat_profile(simple_profile()).unwrap();
+        store.connect().unwrap().execute("INSERT INTO expenses(id,date,due_date,net_cents,vat_cents,total_cents,payment_status,created_at,updated_at) VALUES('transition-expense','2026-12-01','2027-02-01',10000,810,10810,'pending','2026-12-01','2026-12-01')", []).unwrap();
+        let next = VatProfileInput {
+            id: Some("tdfn-next".into()),
+            effective_from: "2027-01-01".into(),
+            form_of_reporting: "received".into(),
+            close_previous_open_profile: true,
+            ..simple_profile()
+        };
+        store.create_vat_profile(next).unwrap();
+        insert_issued_invoice(
+            &store,
+            "transition-invoice",
+            "transition-line",
+            "2026-12-01",
+            10_000,
+            810,
+            810,
+        );
+        classify_sale(&store, "transition-line");
+        let preview = store
+            .preview_vat_return(VatReturnPreviewInput {
+                date_from: "2027-01-01".into(),
+                date_to: "2027-03-31".into(),
+                submission_type: "initial".into(),
+                profile_id: None,
+            })
+            .unwrap();
+        let issues: Vec<_> = preview
+            .blocking_issues
+            .iter()
+            .filter(|issue| issue.code == "vat_reporting_transition_open_balance")
+            .collect();
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].message.contains("art. 107 OTVA"));
+    }
+
+    #[test]
+    fn reporting_transition_combined_method_change_also_blocks_preceding_return() {
+        let (_temporary, store) = initialized_store("Transition TVA");
+        store
+            .create_vat_profile(effective_profile("agreed"))
+            .unwrap();
+        store
+            .create_vat_profile(VatProfileInput {
+                effective_from: "2027-01-01".into(),
+                form_of_reporting: "received".into(),
+                close_previous_open_profile: true,
+                ..simple_profile()
+            })
+            .unwrap();
+        insert_issued_invoice(
+            &store,
+            "transition-invoice",
+            "transition-line",
+            "2026-12-01",
+            10_000,
+            810,
+            810,
+        );
+        classify_sale(&store, "transition-line");
+        let preview = store
+            .preview_vat_return(VatReturnPreviewInput {
+                date_from: "2026-10-01".into(),
+                date_to: "2026-12-31".into(),
+                submission_type: "initial".into(),
+                profile_id: None,
+            })
+            .unwrap();
+        assert!(preview
+            .blocking_issues
+            .iter()
+            .any(|issue| issue.message.contains("art. 79 al. 4 OTVA")));
     }
 
     #[test]

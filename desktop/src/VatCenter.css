@@ -215,6 +215,7 @@
 .vat-issues { display: grid; gap: .55rem; }
 .vat-issues article { display: flex; align-items: flex-start; gap: .65rem; padding: .8rem .9rem; border-radius: 14px; background: #fff0f0; }
 .vat-issues svg { flex: 0 0 auto; color: #b03939; }
+.vat-issues article > div { min-width: 0; overflow-wrap: anywhere; }
 .vat-warnings { padding: .85rem 1rem; border-radius: 14px; background: #fff8e8; }
 .vat-warnings p { margin: .25rem 0; color: #725217; }
 .vat-export-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 340px) auto; }

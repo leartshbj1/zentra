@@ -37,6 +37,7 @@ import {
   suggestedVatBusinessReference,
   treatmentsForVatSource,
   vatAdjustmentLabels,
+  vatBlockingIssueTitle,
   vatGrossOrNetForMethod,
   vatPeriodicityLabels,
   vatProfileRequiresAfcConfirmation,
@@ -297,7 +298,7 @@ export function VatCenter({
     {notice ? <div className="notice notice--success" role="status" aria-live="polite"><CheckCircle2 size={17} />{notice}</div> : null}
 
     {tab === 'profile' ? <section id="vat-panel-profile" role="tabpanel" className="panel vat-profile-panel">
-      <SectionHeading eyebrow="Décision fiscale versionnée" title="Méthode déclarée par votre entreprise" description="Créez une nouvelle version à la date d’effet. Zentra ne bascule jamais une méthode rétroactivement et ne détermine ni votre éligibilité ni l’autorisation de l’AFC." />
+      <SectionHeading eyebrow="Configuration TVA" title="Méthode déclarée par votre entreprise" description="Créez une version à la date d’effet convenue avec l’AFC. Un changement entre facturation et encaissements nécessite une reprise des factures encore ouvertes; cette reprise n’est pas encore automatisée." />
       <form key={`vat-profile:${periodKey}`} className="vat-profile-form" onSubmit={submitForm(saveProfile)}>
         <div className="form-grid">
           <Field label="Début d’effet" required><input name="effectiveFrom" type="date" defaultValue={filter.dateFrom || `${new Date().getFullYear()}-01-01`} required /></Field>
@@ -332,7 +333,7 @@ export function VatCenter({
         <VatPurchaseReview sources={preview.classifiedSources ?? []} busy={busy} onClassify={classifySource} />
         <VatPreClosingReview key={`pre-close:${periodKey}`} sources={preview.preClosingSources ?? []} busy={busy} onClassify={classifySource} />
         {preview.unclassifiedSources.length ? <section className="vat-unclassified"><header><div><strong>Décisions nécessaires</strong><p>Ces lignes ne sont pas devinées. Choisissez leur traitement réel; l’export reste bloqué jusque-là.</p></div><span>{preview.unclassifiedSources.length}</span></header>{preview.unclassifiedSources.map((source) => <article key={`${source.sourceType}:${source.sourceId}`}><div><strong>{source.description}</strong><span>{formatDate(source.occurrenceDate)} · {formatMoney(source.amountCents)}{source.vatRateBp !== null ? ` · ${(source.vatRateBp / 100).toLocaleString('fr-CH')} %` : ''}</span><small>{vatSourceTypeLabels[source.sourceType]}</small></div><select defaultValue="" disabled={busy} aria-label={`Traitement TVA de ${source.description}`} onChange={(event) => { const treatment = event.currentTarget.value as VatSourceTreatment; event.currentTarget.value = ''; if (treatment) void classifySource(source.sourceId, source.sourceType, treatment); }}><option value="">Choisir le traitement</option>{treatmentsForVatSource(source.sourceType).map((treatment) => <option key={treatment} value={treatment}>{vatTreatmentLabels[treatment]}</option>)}</select></article>)}</section> : null}
-        {preview.blockingIssues.length ? <div className="vat-issues">{preview.blockingIssues.map((issue, index) => <article key={`${issue.code}:${issue.sourceId || index}`}><AlertTriangle size={17} /><div><strong>{issue.code}</strong><p>{issue.message}</p></div></article>)}</div> : null}
+        {preview.blockingIssues.length ? <div className="vat-issues" aria-label="Points à vérifier avant export">{preview.blockingIssues.map((issue, index) => <article key={`${issue.code}:${issue.sourceId || index}`}><AlertTriangle size={17} /><div><strong>{vatBlockingIssueTitle(issue.code)}</strong><p>{issue.message}</p></div></article>)}</div> : null}
         {preview.warnings.length ? <div className="vat-warnings">{preview.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}
         <form key={`vat-export:${periodKey}:${submissionType}`} className="vat-export-form" onSubmit={submitForm(exportXml)}><div><FileCode2 size={21} /><div><strong>Créer le fichier XML</strong><p>Vous l’importez ensuite manuellement dans Décompte TVA pro, contrôlez les champs, ajoutez les annexes nécessaires et soumettez vous-même.</p></div></div><Field label="Référence métier" hint="Identifiant unique de ce dépôt, 50 caractères maximum." required><input name="businessReferenceId" defaultValue={suggestedVatBusinessReference(filter.dateFrom!, filter.dateTo!, submissionType)} maxLength={50} required /></Field><Button type="submit" disabled={busy || !preview.exportable}><Download size={16} /> Générer l’XML</Button></form>
         {lastExport ? <div className="vat-export-success"><Fingerprint size={19} /><div><strong>{lastExport.fileName}</strong><p>Empreinte XML {lastExport.xmlSha256.slice(0, 16)}… · non transmis</p><small>{lastExport.filePath}</small></div></div> : null}
