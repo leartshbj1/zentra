@@ -2120,6 +2120,19 @@ export type VatReturnPreview = {
   warnings: string[];
   unclassifiedSources: VatUnclassifiedSource[];
   classifiedSources?: Array<VatUnclassifiedSource & { treatment: VatSourceTreatment; currency: string }>;
+  preClosingSources?: Array<VatUnclassifiedSource & { currency: string }>;
+  receivedAllocations?: Array<{
+    sourceType: VatSourceType;
+    sourceId: Identifier;
+    parentId: Identifier;
+    description: string;
+    currency: string;
+    paymentId: Identifier;
+    date: string;
+    grossCents: number;
+    netCents: number;
+    vatCents: number;
+  }>;
   sourceSha256: string;
   turnoverComputation: {
     totalConsiderationCents: number;

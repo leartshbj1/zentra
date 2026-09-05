@@ -15,7 +15,21 @@ describe('détail des achats classés dans le décompte TVA', () => {
     invokeMock.mockResolvedValueOnce({ source_sha256: 'historical-export' });
     const preview = await desktopApi.previewVatReturn(input);
     expect(preview.classifiedSources).toEqual([]);
+    expect(preview.receivedAllocations).toEqual([]);
+    expect(preview.preClosingSources).toEqual([]);
     expect(preview.sourceSha256).toBe('historical-export');
+  });
+  it('conserve la ventilation datée de chaque paiement et sa devise', async () => {
+    invokeMock.mockResolvedValueOnce({ received_allocations: [{ source_type: 'invoice_item', source_id: 'line', parent_id: 'invoice', description: 'F-26 · Conseil', currency: 'CHF', payment_id: 'payment', date: '2026-03-31', gross_cents: 5000, net_cents: 4625, vat_cents: 375 }] });
+    const preview = await desktopApi.previewVatReturn(input);
+    expect(preview.receivedAllocations).toEqual([{ sourceType: 'invoice_item', sourceId: 'line', parentId: 'invoice', description: 'F-26 · Conseil', currency: 'CHF', paymentId: 'payment', date: '2026-03-31', grossCents: 5000, netCents: 4625, vatCents: 375 }]);
+  });
+  it('sépare les documents à classer avant clôture des montants reçus', async () => {
+    invokeMock.mockResolvedValueOnce({ pre_closing_sources: [{ source_type: 'supplier_invoice_item', source_id: 'unpaid-line', parent_id: 'unpaid', occurrence_date: '2026-02-01', description: 'Machine à classer', currency: 'EUR', amount_cents: 10000, vat_cents: 810, vat_rate_bp: 810 }], payable_tax_cents: 0 });
+    const preview = await desktopApi.previewVatReturn(input);
+    expect(preview.preClosingSources?.[0]).toMatchObject({ sourceType: 'supplier_invoice_item', sourceId: 'unpaid-line', currency: 'EUR', amountCents: 10000, vatCents: 810 });
+    expect(preview.unclassifiedSources).toEqual([]);
+    expect(preview.payableTaxCents).toBe(0);
   });
   it('conserve la réduction signée d’un avoir fournisseur', async () => {
     invokeMock.mockResolvedValueOnce({ classified_sources: [{ source_type: 'supplier_credit_note_item', source_id: 'credit-line', parent_id: 'credit', amount_cents: -5000, vat_cents: -405, treatment: 'input_materials', currency: 'CHF' }] });

@@ -3793,6 +3793,20 @@ function vatPreviewFromRaw(value: unknown): VatReturnPreview {
       amountCents: numberValue(source.amount_cents), vatCents: numberValue(source.vat_cents), vatRateBp: optionalNumber(source.vat_rate_bp),
       treatment: stringValue(source.treatment) as VatSourceTreatment, currency: stringValue(source.currency) || 'CHF',
     })),
+    receivedAllocations: rawArray(row.received_allocations).map((allocation) => ({
+      sourceType: stringValue(allocation.source_type) as VatSourceType,
+      sourceId: stringValue(allocation.source_id), parentId: stringValue(allocation.parent_id),
+      description: stringValue(allocation.description), currency: stringValue(allocation.currency),
+      paymentId: stringValue(allocation.payment_id), date: stringValue(allocation.date),
+      grossCents: numberValue(allocation.gross_cents), netCents: numberValue(allocation.net_cents), vatCents: numberValue(allocation.vat_cents),
+    })),
+    preClosingSources: rawArray(row.pre_closing_sources).map((source) => ({
+      sourceType: stringValue(source.source_type) as VatSourceType,
+      sourceId: stringValue(source.source_id), parentId: stringValue(source.parent_id),
+      occurrenceDate: stringValue(source.occurrence_date), description: stringValue(source.description),
+      amountCents: numberValue(source.amount_cents), vatCents: numberValue(source.vat_cents),
+      vatRateBp: optionalNumber(source.vat_rate_bp), currency: stringValue(source.currency),
+    })),
     sourceSha256: stringValue(row.source_sha256),
     turnoverComputation: {
       totalConsiderationCents: numberValue(turnover.total_consideration_cents),

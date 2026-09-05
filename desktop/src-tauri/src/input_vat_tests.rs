@@ -161,6 +161,194 @@ fn period_preview(
 }
 
 #[test]
+fn received_unpaid_purchases_can_be_classified_before_their_period_is_frozen() {
+    let (_temp, store, accounts) = fixture();
+    let mut received = profile(false);
+    received.form_of_reporting = "received".into();
+    received.afc_authorization_confirmed = true;
+    store.create_vat_profile(received).unwrap();
+    let (invoice, lines) = draft(&store);
+    store.validate_supplier_invoice(&invoice).unwrap();
+    let before = period_preview(&store, "2026-01-01", "2026-03-31");
+    assert!(
+        before.exportable,
+        "unpaid amounts are not due in this received return"
+    );
+    assert_eq!(before.payable_tax_cents, 0);
+    assert_eq!(before.pre_closing_sources.len(), 2);
+    assert!(before.unclassified_sources.is_empty());
+    assert!(crate::vat_reporting::ensure_vat_sources_classified_through(
+        &store.connect().unwrap(),
+        "2026-03-31"
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("2 source(s)"));
+    classify(&store, "supplier_invoice_item", &lines[0], "non_deductible");
+    classify(
+        &store,
+        "supplier_invoice_item",
+        &lines[1],
+        "input_materials",
+    );
+    let after = period_preview(&store, "2026-01-01", "2026-03-31");
+    assert!(after.pre_closing_sources.is_empty());
+    assert_eq!(
+        after.source_sha256, before.source_sha256,
+        "pre-closing decisions do not change the tax bases of an unpaid period"
+    );
+    assert_eq!(
+        balance(&store, &accounts["vat_receivable"], "2026-03-31"),
+        810
+    );
+    crate::vat_reporting::ensure_vat_sources_classified_through(
+        &store.connect().unwrap(),
+        "2026-03-31",
+    )
+    .unwrap();
+    store
+        .record_supplier_payment(crate::models::RecordSupplierPaymentInput {
+            request_id: Uuid::new_v4().to_string(),
+            supplier_invoice_id: invoice,
+            amount_cents: 21620,
+            date: "2026-04-01".into(),
+            method: None,
+            reference: None,
+            notes: None,
+        })
+        .unwrap();
+    let q2 = period_preview(&store, "2026-04-01", "2026-06-30");
+    assert!(q2.exportable);
+    assert_eq!(q2.payable_tax_cents, -810);
+}
+
+#[test]
+fn received_supplier_payments_split_rates_and_only_deduct_eligible_input_tax() {
+    let (_temp, store, accounts) = fixture();
+    let raw: String = store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT extra_settings_json FROM settings WHERE id=1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let mut extra: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    extra["billing"]["vatRatesBp"] = json!([810, 260, 380]);
+    store
+        .update_settings(json!({"extra_settings_json":extra}))
+        .unwrap();
+    let mut received = profile(false);
+    received.form_of_reporting = "received".into();
+    received.afc_authorization_confirmed = true;
+    store.create_vat_profile(received).unwrap();
+    let supplier = store
+        .create_record("suppliers", json!({"name":"Achats multi-taux"}))
+        .unwrap();
+    let invoice = Uuid::new_v4().to_string();
+    let lines: Vec<String> = (0..3).map(|_| Uuid::new_v4().to_string()).collect();
+    store
+        .save_supplier_invoice_draft(SaveSupplierInvoiceDraftInput {
+            id: Some(invoice.clone()),
+            supplier_id: supplier["id"].as_str().unwrap().into(),
+            project_id: None,
+            date: "2026-02-10".into(),
+            due_date: "2026-04-30".into(),
+            reference: Some("MULTI-2026".into()),
+            note: None,
+            items: lines
+                .iter()
+                .zip([810, 260, 380])
+                .map(|(id, rate)| SupplierInvoiceLineInput {
+                    id: Some(id.clone()),
+                    description: format!("Achat au taux {rate}"),
+                    quantity_milli: 1000,
+                    unit: Some("pièce".into()),
+                    unit_price_cents: 10000,
+                    discount_bp: 0,
+                    vat_bp: rate,
+                    category: "Marchandises".into(),
+                    expense_account_id: None,
+                    project_id: None,
+                })
+                .collect(),
+        })
+        .unwrap();
+    for (id, treatment) in
+        lines
+            .iter()
+            .zip(["input_materials", "input_investments", "non_deductible"])
+    {
+        classify(&store, "supplier_invoice_item", id, treatment);
+    }
+    store.validate_supplier_invoice(&invoice).unwrap();
+    let pay = |date: &str| crate::models::RecordSupplierPaymentInput {
+        request_id: Uuid::new_v4().to_string(),
+        supplier_invoice_id: invoice.clone(),
+        amount_cents: 15725,
+        date: date.into(),
+        method: Some("bank".into()),
+        reference: Some("MULTI-2026".into()),
+        notes: None,
+    };
+    let first = pay("2026-03-31");
+    store.record_supplier_payment(first.clone()).unwrap();
+    store.record_supplier_payment(first).unwrap(); // a retried bank operation is not another receipt
+    let q1 = period_preview(&store, "2026-01-01", "2026-03-31");
+    assert!(q1.exportable, "{:?}", q1.blocking_issues);
+    assert_eq!(q1.payable_tax_cents, -535);
+    assert_eq!(q1.received_allocations.len(), 3);
+    assert_eq!(
+        q1.received_allocations
+            .iter()
+            .map(|row| row.payment.gross_cents)
+            .sum::<i64>(),
+        15725
+    );
+    let method = q1.effective_reporting_method.as_ref().unwrap();
+    assert_eq!(method.input_tax_material_and_services_cents, 405);
+    assert_eq!(method.input_tax_investments_cents, 130);
+    store.record_supplier_payment(pay("2026-04-01")).unwrap();
+    let q2 = period_preview(&store, "2026-04-01", "2026-06-30");
+    assert!(q2.exportable, "{:?}", q2.blocking_issues);
+    assert_eq!(q2.payable_tax_cents, -535);
+    assert_eq!(
+        period_preview(&store, "2026-01-01", "2026-03-31").source_sha256,
+        q1.source_sha256
+    );
+    for (id, expected_vat) in lines.iter().zip([810, 260, 380]) {
+        let allocations: Vec<_> = q1
+            .received_allocations
+            .iter()
+            .chain(&q2.received_allocations)
+            .filter(|row| &row.source_id == id)
+            .collect();
+        assert_eq!(
+            allocations
+                .iter()
+                .map(|row| row.payment.net_cents)
+                .sum::<i64>(),
+            10000
+        );
+        assert_eq!(
+            allocations
+                .iter()
+                .map(|row| row.payment.vat_cents)
+                .sum::<i64>(),
+            expected_vat
+        );
+        assert!(allocations
+            .iter()
+            .all(|row| row.payment.gross_cents == row.payment.net_cents + row.payment.vat_cents));
+    }
+    assert_eq!(
+        balance(&store, &accounts["vat_receivable"], "2026-06-30"),
+        1070
+    );
+}
+
+#[test]
 fn input_vat_credit_reduces_deduction_in_its_own_period_and_preserves_the_purchase() {
     let (_temp, store, accounts) = fixture();
     store.create_vat_profile(profile(false)).unwrap();
@@ -385,8 +573,18 @@ fn input_vat_mixed_purchase_matches_return_ledger_and_immutable_snapshot() {
     // Archived export payloads from 1.27 did not contain the review list.
     let mut legacy = serde_json::to_value(&preview).unwrap();
     legacy.as_object_mut().unwrap().remove("classified_sources");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("received_allocations");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("pre_closing_sources");
     let old: crate::vat_reporting::VatReturnPreview = serde_json::from_value(legacy).unwrap();
     assert!(old.classified_sources.is_empty());
+    assert!(old.received_allocations.is_empty());
+    assert!(old.pre_closing_sources.is_empty());
     assert_eq!(old.payable_tax_cents, preview.payable_tax_cents);
     assert_eq!(
         preview

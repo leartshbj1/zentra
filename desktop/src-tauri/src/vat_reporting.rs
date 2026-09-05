@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+#[path = "vat_received.rs"]
+mod received;
+
 use crate::{
     accounting::{closed_accounting_through, validate_received_vat_accounting_configuration},
     audit::append_audit,
@@ -205,6 +208,33 @@ pub struct VatClassifiedSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VatReceivedPayment {
+    pub payment_id: String,
+    pub date: String,
+    pub gross_cents: i64,
+    pub net_cents: i64,
+    pub vat_cents: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VatReceivedAllocation {
+    pub source_type: String,
+    pub source_id: String,
+    pub parent_id: String,
+    pub description: String,
+    pub currency: String,
+    #[serde(flatten)]
+    pub payment: VatReceivedPayment,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VatPreClosingSource {
+    #[serde(flatten)]
+    pub source: VatUnclassifiedSource,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VatRateLine {
     pub tax_rate_bp: i64,
     pub turnover_cents: i64,
@@ -283,6 +313,10 @@ pub struct VatReturnPreview {
     pub unclassified_sources: Vec<VatUnclassifiedSource>,
     #[serde(default)]
     pub classified_sources: Vec<VatClassifiedSource>,
+    #[serde(default)]
+    pub received_allocations: Vec<VatReceivedAllocation>,
+    #[serde(default)]
+    pub pre_closing_sources: Vec<VatPreClosingSource>,
     pub source_sha256: String,
     pub turnover_computation: VatTurnoverComputationPreview,
     pub effective_reporting_method: Option<VatEffectiveReportingMethodPreview>,
@@ -331,6 +365,8 @@ struct RawVatSource {
     classification_updated_at: Option<String>,
     reliable: bool,
     reliability_detail: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    received_payments: Vec<VatReceivedPayment>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1090,6 +1126,11 @@ pub(crate) fn ensure_vat_sources_classified_through(
             if !classification_is_valid {
                 unresolved.insert((source.source_type, source.source_id));
             }
+        }
+        // Classification changes also affect the original journal date. Do not
+        // freeze an unpaid purchase before the user can decide its treatment.
+        for source in load_received_pre_closing_sources(connection, &profile, range_to)? {
+            unresolved.insert((source.source_type, source.source_id));
         }
         reporting_issues.extend(profile_issues);
     }
@@ -1961,6 +2002,57 @@ fn build_vat_preview(
             .cmp(&left.source.occurrence_date)
             .then_with(|| left.source.source_id.cmp(&right.source.source_id))
     });
+    let current_source_ids: BTreeSet<_> = sources
+        .iter()
+        .map(|source| (source.source_type.as_str(), source.source_id.as_str()))
+        .collect();
+    let pre_closing_sources = load_received_pre_closing_sources(connection, &profile, &date_to)?
+        .into_iter()
+        .filter(|source| {
+            !current_source_ids.contains(&(source.source_type.as_str(), source.source_id.as_str()))
+        })
+        .map(|source| VatPreClosingSource {
+            currency: source.currency,
+            source: VatUnclassifiedSource {
+                source_type: source.source_type,
+                source_id: source.source_id,
+                parent_id: source.parent_id,
+                occurrence_date: source.occurrence_date,
+                description: source.description,
+                amount_cents: source.net_cents,
+                vat_cents: source.vat_cents,
+                vat_rate_bp: source.vat_rate_bp,
+            },
+        })
+        .collect();
+    let mut received_allocations = sources
+        .iter()
+        .flat_map(|source| {
+            source
+                .received_payments
+                .iter()
+                .map(|payment| VatReceivedAllocation {
+                    source_type: source.source_type.clone(),
+                    source_id: source.source_id.clone(),
+                    parent_id: source.parent_id.clone(),
+                    description: source.description.clone(),
+                    currency: source.currency.clone(),
+                    payment: payment.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    received_allocations.sort_by(|left, right| {
+        (
+            &left.payment.date,
+            &left.payment.payment_id,
+            &left.source_id,
+        )
+            .cmp(&(
+                &right.payment.date,
+                &right.payment.payment_id,
+                &right.source_id,
+            ))
+    });
     Ok(VatReturnPreview {
         standard: ECH_STANDARD.into(),
         standard_version: ECH_VERSION.into(),
@@ -1974,6 +2066,8 @@ fn build_vat_preview(
         warnings,
         unclassified_sources,
         classified_sources,
+        received_allocations,
+        pre_closing_sources,
         source_sha256,
         turnover_computation,
         effective_reporting_method,
@@ -2074,6 +2168,62 @@ fn load_raw_vat_sources(
     Ok(sources)
 }
 
+/// Unclassified issued documents may have no receipt yet, but their original
+/// accounting period must remain open until their classification is decided.
+/// These rows are never added to the received return's tax bases or fingerprint.
+fn load_received_pre_closing_sources(
+    connection: &Connection,
+    profile: &VatProfile,
+    date_to: &str,
+) -> AppResult<Vec<RawVatSource>> {
+    if profile.form_of_reporting != "received" {
+        return Ok(Vec::new());
+    }
+    let mut ignored_issues = Vec::new();
+    let mut sources = load_sales_sources(
+        connection,
+        "agreed",
+        &profile.effective_from,
+        date_to,
+        &mut ignored_issues,
+    )?;
+    if profile.reporting_method == "effective" {
+        sources.extend(load_supplier_sources(
+            connection,
+            "agreed",
+            &profile.effective_from,
+            date_to,
+            &mut ignored_issues,
+        )?);
+        sources.extend(load_expense_sources(
+            connection,
+            "agreed",
+            &profile.effective_from,
+            date_to,
+        )?);
+        sources.extend(load_supplier_credit_sources(
+            connection,
+            &profile.effective_from,
+            date_to,
+        )?);
+    }
+    sources.retain(|source| {
+        source.classification_id.is_none()
+            || !source.treatment.as_deref().is_some_and(|treatment| {
+                validate_source_type_and_treatment(&source.source_type, treatment).is_ok()
+            })
+    });
+    sources.sort_by(|left, right| {
+        right
+            .occurrence_date
+            .cmp(&left.occurrence_date)
+            .then_with(|| {
+                (&left.source_type, &left.source_id).cmp(&(&right.source_type, &right.source_id))
+            })
+    });
+    Ok(sources)
+}
+
 fn load_sales_sources(
     connection: &Connection,
     form: &str,
@@ -2110,6 +2260,7 @@ fn load_sales_sources(
                 classification_updated_at: row.get(12)?,
                 reliable: true,
                 reliability_detail: None,
+                received_payments: Vec::new(),
             })
         })?;
         return rows.collect::<Result<Vec<_>, _>>().map_err(Into::into);
@@ -2130,57 +2281,7 @@ fn load_sales_sources(
             None,
         );
     }
-    let mut statement = connection.prepare(
-        "SELECT item.id,invoice.id,payment.max_date,item.description,UPPER(TRIM(invoice.currency)),item.line_net_cents,item.line_vat_cents,item.line_total_cents,item.vat_bp,classification.id,classification.treatment,classification.note,classification.updated_at,invoice.total_cents,payment.paid_total,payment.min_date,payment.max_date,invoice.type,
-                (SELECT COUNT(*) FROM invoices credit WHERE credit.original_invoice_id=invoice.id AND credit.type='avoir' AND credit.number IS NOT NULL AND credit.status<>'annulee')
-         FROM invoice_items item
-         JOIN invoices invoice ON invoice.id=item.invoice_id
-         JOIN (
-           SELECT invoice_id,SUM(amount_cents) paid_total,MIN(date) min_date,MAX(date) max_date,
-                  SUM(CASE WHEN date BETWEEN ? AND ? THEN amount_cents ELSE 0 END) period_paid
-           FROM payments GROUP BY invoice_id
-         ) payment ON payment.invoice_id=invoice.id AND payment.period_paid<>0
-         LEFT JOIN vat_source_classifications classification ON classification.source_type='invoice_item' AND classification.source_id=item.id
-         WHERE invoice.number IS NOT NULL AND invoice.status IN ('emise','partiellement_payee','payee')
-           AND (item.line_net_cents<>0 OR item.line_vat_cents<>0 OR item.line_total_cents<>0)
-         ORDER BY payment.max_date,invoice.id,item.position,item.id",
-    )?;
-    let rows = statement.query_map(params![date_from, date_to], |row| {
-        let invoice_total: i64 = row.get(13)?;
-        let paid_total: i64 = row.get(14)?;
-        let min_date: String = row.get(15)?;
-        let max_date: String = row.get(16)?;
-        let invoice_type: String = row.get(17)?;
-        let credit_count: i64 = row.get(18)?;
-        let reliable = invoice_type != "avoir"
-            && credit_count == 0
-            && paid_total == invoice_total
-            && min_date.as_str() >= date_from
-            && max_date.as_str() <= date_to;
-        Ok(RawVatSource {
-            source_type: "invoice_item".into(),
-            source_id: row.get(0)?,
-            parent_id: row.get(1)?,
-            occurrence_date: row.get(2)?,
-            description: row.get(3)?,
-            currency: row.get(4)?,
-            net_cents: row.get(5)?,
-            vat_cents: row.get(6)?,
-            total_cents: row.get(7)?,
-            vat_rate_bp: Some(row.get(8)?),
-            classification_id: row.get(9)?,
-            treatment: row.get(10)?,
-            classification_note: row.get(11)?,
-            classification_updated_at: row.get(12)?,
-            reliable,
-            reliability_detail: (!reliable).then(|| {
-                format!(
-                    "Mode reçu bloqué pour la facture : paiements cumulés {paid_total} centimes sur {invoice_total}, répartis du {min_date} au {max_date}; Zentra ne dispose pas d'une allocation par ligne et par période."
-                )
-            }),
-        })
-    })?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    received::load_sources(connection, "invoice_item", date_from, date_to, issues)
 }
 
 fn load_supplier_sources(
@@ -2237,59 +2338,19 @@ fn load_supplier_sources(
                 classification_updated_at: row.get(12)?,
                 reliable: true,
                 reliability_detail: None,
+                received_payments: Vec::new(),
             })
         })?;
         return rows.collect::<Result<Vec<_>, _>>().map_err(Into::into);
     }
 
-    let mut statement = connection.prepare(
-        "SELECT item.id,invoice.id,payment.max_date,item.description,UPPER(TRIM(invoice.currency)),item.line_net_cents,item.line_vat_cents,item.line_total_cents,item.vat_bp,classification.id,classification.treatment,classification.note,classification.updated_at,invoice.total_cents,payment.paid_total,payment.min_date,payment.max_date,invoice.credited_cents
-         FROM supplier_invoice_items item
-         JOIN supplier_invoices invoice ON invoice.id=item.supplier_invoice_id
-         JOIN (
-           SELECT supplier_invoice_id,SUM(amount_cents) paid_total,MIN(date) min_date,MAX(date) max_date,
-                  SUM(CASE WHEN date BETWEEN ? AND ? THEN amount_cents ELSE 0 END) period_paid
-           FROM supplier_payments GROUP BY supplier_invoice_id
-         ) payment ON payment.supplier_invoice_id=invoice.id AND payment.period_paid<>0
-         LEFT JOIN vat_source_classifications classification ON classification.source_type='supplier_invoice_item' AND classification.source_id=item.id
-         WHERE invoice.status='validated'
-           AND (item.line_net_cents<>0 OR item.line_vat_cents<>0 OR item.line_total_cents<>0)
-         ORDER BY payment.max_date,invoice.id,item.position,item.id",
-    )?;
-    let rows = statement.query_map(params![date_from, date_to], |row| {
-        let invoice_total: i64 = row.get(13)?;
-        let paid_total: i64 = row.get(14)?;
-        let min_date: String = row.get(15)?;
-        let max_date: String = row.get(16)?;
-        let credited_cents: i64 = row.get(17)?;
-        let reliable = credited_cents == 0
-            && paid_total == invoice_total
-            && min_date.as_str() >= date_from
-            && max_date.as_str() <= date_to;
-        Ok(RawVatSource {
-            source_type: "supplier_invoice_item".into(),
-            source_id: row.get(0)?,
-            parent_id: row.get(1)?,
-            occurrence_date: row.get(2)?,
-            description: row.get(3)?,
-            currency: row.get(4)?,
-            net_cents: row.get(5)?,
-            vat_cents: row.get(6)?,
-            total_cents: row.get(7)?,
-            vat_rate_bp: Some(row.get(8)?),
-            classification_id: row.get(9)?,
-            treatment: row.get(10)?,
-            classification_note: row.get(11)?,
-            classification_updated_at: row.get(12)?,
-            reliable,
-            reliability_detail: (!reliable).then(|| {
-                format!(
-                    "Mode reçu bloqué pour la facture fournisseur : paiements cumulés {paid_total} centimes sur {invoice_total}, crédits {credited_cents}, répartis du {min_date} au {max_date}; aucune allocation fiscale exacte par ligne n'est disponible."
-                )
-            }),
-        })
-    })?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    received::load_sources(
+        connection,
+        "supplier_invoice_item",
+        date_from,
+        date_to,
+        issues,
+    )
 }
 
 fn load_supplier_credit_sources(
@@ -2322,6 +2383,7 @@ fn load_supplier_credit_sources(
             classification_updated_at: row.get(12)?,
             reliable: true,
             reliability_detail: None,
+            received_payments: Vec::new(),
         })
     })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -2369,6 +2431,7 @@ fn load_expense_sources(
             classification_updated_at: row.get(10)?,
             reliable: true,
             reliability_detail: None,
+            received_payments: Vec::new(),
         })
     })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -3850,7 +3913,7 @@ mod tests {
     }
 
     #[test]
-    fn received_mode_blocks_cross_period_payment_allocation() {
+    fn received_mode_allocates_partial_payments_to_their_own_period() {
         let (_temporary, store) = initialized_store("Zentra Tests");
         store
             .create_vat_profile(effective_profile("received"))
@@ -3872,6 +3935,16 @@ mod tests {
                 [],
             )
             .expect("first payment");
+        let q1 = store
+            .preview_vat_return(q1_preview("effective-received", "initial"))
+            .unwrap();
+        assert!(q1.exportable, "{:?}", q1.blocking_issues);
+        assert_eq!(q1.turnover_computation.total_consideration_cents, 4625);
+        assert_eq!(q1.payable_tax_cents, 375);
+        assert_eq!(q1.received_allocations.len(), 1);
+        assert_eq!(q1.received_allocations[0].payment.gross_cents, 5000);
+        assert_eq!(q1.received_allocations[0].payment.vat_cents, 375);
+        assert_eq!(q1.received_allocations[0].payment.date, "2026-03-31");
         connection
             .execute(
                 "INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at) VALUES('payment-2','invoice-2','2026-04-01',5810,'2026-04-01T00:00:00Z','2026-04-01T00:00:00Z')",
@@ -3881,12 +3954,24 @@ mod tests {
         let preview = store
             .preview_vat_return(q1_preview("effective-received", "initial"))
             .expect("preview");
-        assert!(!preview.exportable);
-        assert!(preview
-            .blocking_issues
-            .iter()
-            .any(|issue| issue.code == "unreliable_received_allocation"));
-        assert!(store
+        assert!(preview.exportable, "{:?}", preview.blocking_issues);
+        assert_eq!(
+            preview.source_sha256, q1.source_sha256,
+            "later payments cannot rewrite an earlier return"
+        );
+        let q2 = store
+            .preview_vat_return(VatReturnPreviewInput {
+                date_from: "2026-04-01".into(),
+                date_to: "2026-06-30".into(),
+                ..q1_preview("effective-received", "initial")
+            })
+            .unwrap();
+        assert!(q2.exportable, "{:?}", q2.blocking_issues);
+        assert_eq!(q2.turnover_computation.total_consideration_cents, 5375);
+        assert_eq!(q2.payable_tax_cents, 435);
+        assert_eq!(q2.received_allocations[0].payment.gross_cents, 5810);
+        assert_eq!(q2.received_allocations[0].payment.vat_cents, 435);
+        let export = store
             .export_vat_return_xml(ExportVatReturnInput {
                 date_from: "2026-01-01".into(),
                 date_to: "2026-03-31".into(),
@@ -3895,7 +3980,39 @@ mod tests {
                 business_reference_id: "Q1-2026".into(),
                 file_name: None,
             })
-            .is_err());
+            .expect("partial receipt XML export");
+        let xml = std::fs::read_to_string(export.file_path).unwrap();
+        assert!(xml.contains("<eCH-0217:payableTax>3.75</eCH-0217:payableTax>"));
+        if let Ok(path) = std::env::var("ZENTRA_QA_RECEIVED_XML_PATH") {
+            std::fs::write(path, &xml).unwrap();
+        }
+    }
+
+    #[test]
+    fn received_simple_method_uses_only_the_gross_amount_actually_paid() {
+        let (_temporary, store) = initialized_store("Zentra Tests");
+        let mut profile = simple_profile();
+        profile.form_of_reporting = "received".into();
+        store.create_vat_profile(profile).unwrap();
+        insert_issued_invoice(
+            &store,
+            "tdfn-partial",
+            "tdfn-line",
+            "2026-02-01",
+            10000,
+            810,
+            810,
+        );
+        classify_sale(&store, "tdfn-line");
+        store.connect().unwrap().execute("INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at) VALUES('tdfn-payment','tdfn-partial','2026-03-31',5000,'2026-03-31','2026-03-31')", []).unwrap();
+        let q1 = store
+            .preview_vat_return(q1_preview("tdfn-2026", "initial"))
+            .unwrap();
+        assert!(q1.exportable, "{:?}", q1.blocking_issues);
+        assert_eq!(q1.turnover_computation.total_consideration_cents, 5000);
+        assert_eq!(q1.payable_tax_cents, 310);
+        assert!(q1.effective_reporting_method.is_none());
+        assert_eq!(q1.received_allocations[0].payment.gross_cents, 5000);
     }
 
     #[test]

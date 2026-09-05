@@ -15,6 +15,8 @@ import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import { VatOverview } from './VatOverview';
 import { VatPurchaseReview } from './VatPurchaseReview';
+import { VatReceivedPayments } from './VatReceivedPayments';
+import { VatPreClosingReview } from './VatPreClosingReview';
 import type {
   PeriodFilter,
   VatAdjustment,
@@ -287,8 +289,8 @@ export function VatCenter({
 
   return <div className="vat-center stack-layout" aria-busy={busy}>
     <section className="panel vat-hero">
-      <div><span>TVA suisse · travail local</span><h2>Assistant de décompte eCH‑0217</h2><p>Classez uniquement les cas ambigus, contrôlez les chiffres, puis générez un XML pour import manuel dans Décompte TVA pro.</p></div>
-      <div className="vat-standard"><ShieldCheck size={20} /><div><strong>eCH‑0217 v2.0.0</strong><small>Export local · aucune transmission automatique</small></div></div>
+      <div><span>TVA suisse</span><h2>TVA due et récupérable</h2><p>Préparez et contrôlez votre décompte avant de le transmettre à l’AFC.</p></div>
+      <div className="vat-standard"><FileCode2 size={20} /><div><strong>Export XML</strong><small>À importer dans Décompte TVA pro</small></div></div>
     </section>
     <section className="panel vat-navigation"><SectionTabs items={tabItems} value={tab} onChange={setTab} label="Section TVA" /><Button size="small" variant="secondary" disabled={busy} onClick={() => void load(true)}>Actualiser</Button></section>
     {error ? <ErrorPanel message={error} /> : null}
@@ -326,7 +328,9 @@ export function VatCenter({
           <VatRateTable preview={preview} />
           <VatCalculationBreakdown preview={preview} />
         </details>
+        <VatReceivedPayments key={`payments:${periodKey}`} allocations={preview.receivedAllocations ?? []} />
         <VatPurchaseReview sources={preview.classifiedSources ?? []} busy={busy} onClassify={classifySource} />
+        <VatPreClosingReview key={`pre-close:${periodKey}`} sources={preview.preClosingSources ?? []} busy={busy} onClassify={classifySource} />
         {preview.unclassifiedSources.length ? <section className="vat-unclassified"><header><div><strong>Décisions nécessaires</strong><p>Ces lignes ne sont pas devinées. Choisissez leur traitement réel; l’export reste bloqué jusque-là.</p></div><span>{preview.unclassifiedSources.length}</span></header>{preview.unclassifiedSources.map((source) => <article key={`${source.sourceType}:${source.sourceId}`}><div><strong>{source.description}</strong><span>{formatDate(source.occurrenceDate)} · {formatMoney(source.amountCents)}{source.vatRateBp !== null ? ` · ${(source.vatRateBp / 100).toLocaleString('fr-CH')} %` : ''}</span><small>{vatSourceTypeLabels[source.sourceType]}</small></div><select defaultValue="" disabled={busy} aria-label={`Traitement TVA de ${source.description}`} onChange={(event) => { const treatment = event.currentTarget.value as VatSourceTreatment; event.currentTarget.value = ''; if (treatment) void classifySource(source.sourceId, source.sourceType, treatment); }}><option value="">Choisir le traitement</option>{treatmentsForVatSource(source.sourceType).map((treatment) => <option key={treatment} value={treatment}>{vatTreatmentLabels[treatment]}</option>)}</select></article>)}</section> : null}
         {preview.blockingIssues.length ? <div className="vat-issues">{preview.blockingIssues.map((issue, index) => <article key={`${issue.code}:${issue.sourceId || index}`}><AlertTriangle size={17} /><div><strong>{issue.code}</strong><p>{issue.message}</p></div></article>)}</div> : null}
         {preview.warnings.length ? <div className="vat-warnings">{preview.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}

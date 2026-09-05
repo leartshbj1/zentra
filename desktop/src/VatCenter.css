@@ -16,13 +16,11 @@
   overflow: hidden;
   position: relative;
   padding: 1.35rem;
-  background:
-    radial-gradient(circle at 85% 0%, color-mix(in srgb, #6b7cff 18%, transparent), transparent 38%),
-    linear-gradient(145deg, color-mix(in srgb, var(--surface, #fff) 92%, #eef1ff), var(--surface, #fff));
+  background: linear-gradient(145deg, #f0f7f3, var(--surface, #fff));
 }
 .vat-hero > div:first-child { max-width: 780px; }
 .vat-hero > div:first-child > span {
-  color: #5162c9;
+  color: #285843;
   font-size: .77rem;
   font-weight: 850;
   letter-spacing: .09em;
@@ -40,11 +38,11 @@
   gap: .65rem;
   min-width: 235px;
   padding: .85rem .95rem;
-  border: 1px solid color-mix(in srgb, #6b7cff 30%, var(--border, #d7dde5));
+  border: 1px solid var(--border, #d7dde5);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface, #fff) 80%, transparent);
 }
-.vat-standard svg { color: #5162c9; }
+.vat-standard svg { color: #285843; }
 .vat-standard strong,
 .vat-standard small { display: block; }
 .vat-standard small { margin-top: .15rem; color: var(--muted, #5f6b7a); }
@@ -245,7 +243,7 @@
   .vat-navigation,
   .vat-onboarding,
   .vat-export-success { align-items: stretch; flex-direction: column; }
-  .vat-standard { width: 100%; min-width: 0; }
+  .vat-standard { display: none; }
   .vat-navigation .button { width: 100%; justify-content: center; }
   .vat-summary { grid-template-columns: 1fr; }
   .vat-unclassified article { grid-template-columns: 1fr; }
@@ -294,5 +292,23 @@
 .vat-calculation-details > summary span { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; font-weight: 400; }
 .vat-calculation-details[open] > summary { margin-bottom: 16px; }
 .vat-calculation-details .vat-rate-table { margin-bottom: 16px; }
+.vat-received-payments { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); min-width: 0; }
+.vat-received-payments > summary { cursor: pointer; min-height: 44px; font-weight: 650; }
+.vat-received-payments > summary span { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 4px; }
+.vat-received-payments > p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.vat-received-payments__filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 16px 0; }
+.vat-received-payments__filters .field { min-width: 0; }
+.vat-received-payments__list { display: grid; gap: 10px; }
+.vat-received-payments__list article { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr); align-items: center; gap: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+.vat-received-payments__list article > div { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.vat-received-payments__list small { color: var(--muted); }
+.vat-received-payments__list dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.vat-received-payments__list dt { color: var(--muted); font-size: 12px; }
+.vat-received-payments__list dd { margin: 5px 0 0; font-weight: 650; font-size: 14px; overflow-wrap: anywhere; }
+@media screen and (max-width: 800px) {
+  .vat-received-payments__filters { grid-template-columns: minmax(0, 1fr); }
+  .vat-received-payments__list article { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  .vat-received-payments__list dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media screen and (max-width: 800px) { .vat-summary { display: none; } }
 @media screen and (max-width: 800px) { .vat-purchase-review .vat-unclassified article { display: flex; flex-direction: column; align-items: stretch; } }

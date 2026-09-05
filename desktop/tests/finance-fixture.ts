@@ -20,6 +20,25 @@ export function installFinanceFixture(workspace: Workspace) {
     simpleTaxRateMethod: null, payableTaxCents: 4050, payableCode: '500', otherFlowsOfFunds: { subsidiesCents: 0, donationsCents: 0 }, sourceCount: 2, adjustmentCount: 0, transmissionWording: 'Exemple de recette, aucune donnée réelle.',
   };
   desktopApi.listVatProfiles = async () => [profile];
+  if (new URLSearchParams(location.search).has('receivedVat')) {
+    profile.formOfReporting = 'received';
+    preview.receivedAllocations = Array.from({ length: 32 }, (_, index) => ({
+      sourceType: index % 2 ? 'supplier_invoice_item' as const : 'invoice_item' as const,
+      sourceId: `received-line-${index}`, parentId: `received-invoice-${index}`, paymentId: `payment-${String(index).padStart(2, '0')}`,
+      description: `${index % 2 ? 'ACH' : 'F'}-2026-${String(index).padStart(3, '0')} · ${index % 2 ? 'Matériaux pour la rénovation du séjour et de la salle de bains' : 'Étude et suivi du projet'}`,
+      date: `2026-03-${String(Math.floor(index / 2) + 1).padStart(2, '0')}`, currency: 'CHF', grossCents: 5000, netCents: 4625, vatCents: 375,
+    }));
+    preview.classifiedSources = preview.receivedAllocations.filter((row) => row.sourceType === 'supplier_invoice_item').map((row) => ({ ...row, occurrenceDate: row.date, amountCents: row.netCents, vatRateBp: 810, treatment: 'input_materials' }));
+    preview.preClosingSources = [{ sourceType: 'supplier_invoice_item', sourceId: 'unpaid-materials', parentId: 'unpaid-purchase', occurrenceDate: '2026-03-15', description: 'MAT-IMPAYÉE · Matériaux pour le prochain projet', amountCents: 50000, vatCents: 4050, vatRateBp: 810, currency: 'CHF' }];
+    preview.turnoverComputation.totalConsiderationCents = 74000;
+    preview.turnoverComputation.taxableTurnoverCents = 74000;
+    preview.effectiveReportingMethod!.suppliesPerTaxRate = [{ taxRateBp: 810, turnoverCents: 74000, calculatedTaxCents: 5994 }];
+    preview.effectiveReportingMethod!.outputTaxCents = 5994;
+    preview.effectiveReportingMethod!.inputTaxMaterialAndServicesCents = 6000;
+    preview.payableTaxCents = -6;
+    preview.payableCode = '510';
+    preview.sourceCount = 32;
+  }
   if (new URLSearchParams(location.search).has('creditVat')) {
     preview.unclassifiedSources = [{ sourceType: 'supplier_credit_note_item', sourceId: 'credit-line', parentId: 'credit-qa', occurrenceDate: '2026-03-10', description: 'Avoir fournisseur · Retour de vis', amountCents: -5000, vatCents: -405, vatRateBp: 810 }];
     preview.exportable = false;
@@ -56,6 +75,10 @@ export function installFinanceFixture(workspace: Workspace) {
   desktopApi.setVatSourceClassification = async (input) => {
     if (sessionStorage.getItem('qa-reject-classification') === '1') throw new Error('Le compte de TVA est inactif. Aucune modification enregistrée.');
     sessionStorage.setItem('qa-vat-classification', JSON.stringify(input));
+    if (preview.preClosingSources?.some((item) => item.sourceId === input.sourceId && item.sourceType === input.sourceType)) {
+      preview.preClosingSources = preview.preClosingSources.filter((item) => item.sourceId !== input.sourceId || item.sourceType !== input.sourceType);
+      return { id: 'qa-pre-close', ...input, note: input.note || '', createdAt: '', updatedAt: '' };
+    }
     const unclassified = preview.unclassifiedSources.find((item) => item.sourceId === input.sourceId && item.sourceType === input.sourceType);
     if (unclassified) {
       preview.classifiedSources!.push({ ...unclassified, treatment: input.treatment, currency: 'CHF' });
