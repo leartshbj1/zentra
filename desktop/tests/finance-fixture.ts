@@ -21,7 +21,7 @@ export function installFinanceFixture(workspace: Workspace) {
   desktopApi.previewVatReturn = async (input) => ({ ...structuredClone(preview), ...input });
   desktopApi.exportAnnualAccountsPdf = async () => ({ path: 'bilan-recette.pdf', pages: 3, closed: false, balanced: true, sha256: 'synthetic-qa' });
   workspace.suppliers = [{ id: 'supplier-qa', name: 'Fournitures du Léman', email: '', phone: '', address: '', notes: '', archivedAt: null }] as Workspace['suppliers'];
-  const line = { id: 'line-qa', description: 'Prestation', quantityMilli: 1000, unit: 'forfait', unitPriceCents: 100000, discountBp: 0, vatBp: 810 };
+  const line = { id: 'line-qa', description: 'Prestation', quantity: 1, unit: 'forfait', unitPriceCents: 100000, discountBp: 0, vatRateBp: 810 };
   const dates = ['2026-01-05', '2026-09-05', '2026-06-05'];
   workspace.quotes = dates.map((date, i) => ({ id: `quote-${i}`, number: `D-2026-00${i + 1}`, clientId: 'client-qa', projectId: null, title: `Devis ${date}`, issueDate: date, validUntil: '2026-12-31', currency: 'CHF', status: 'draft', lines: [line], notes: '', terms: '', createdAt: `${date}T10:00:00Z` })) as Workspace['quotes'];
   workspace.invoices = workspace.quotes.map((quote, i) => ({ ...quote, id: `invoice-${i}`, number: `F-2026-00${i + 1}`, title: `Facture ${quote.issueDate}`, quoteId: null, originalInvoiceId: null, type: 'standard', dueDate: '2026-12-31', serviceDateFrom: quote.issueDate, serviceDateTo: quote.issueDate, depositPercentageBp: null, depositBasisLines: null, qrBill: { input: { reference: `RF18539007547034${i}` } } })) as Workspace['invoices'];

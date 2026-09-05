@@ -1,15 +1,15 @@
 {
-  "version": "1.26.0",
-  "notes": "Zentra 1.26 : interface plus lisible, recherche mobile, accès rapide aux modules, paramètres par rubrique et dossiers de projets simplifiés.",
-  "pub_date": "2026-09-04T23:26:57.4344676+00:00",
+  "version": "1.27.0",
+  "notes": "Références de paiement automatiques, rapprochement bancaire, TVA sur les achats, bilan PDF et menus mobiles.",
+  "pub_date": "2026-09-05T00:59:26.5807214+00:00",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlhGdnkvVGhtSTROalE5MXlUOXJlWmVoNUJrTXc4OEp0c3gzcTdsb2RzZWpEa2FXbkUxSHVRdjVUaHQ5WjZCS3RqKzFmdEFBNzl4WDcyTkpLeTRxTVFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTYzMDUzCWZpbGU6WmVudHJhXzEuMjYuMF94NjQtc2V0dXAuZXhlCmo0SW0xY3JMa29laXNCYVdWckRxRng0S0Y2TXJoWGdUaXdoRU1UN0RZcHVFRjNZVzcvcnpBaCsreWFiMEJPSi9QQnVXYnZ5UHVCNnBLdDJvL1Q3MkNBPT0K",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.26.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmVUL3pBcXpqSitGVWxqTTI4SHhvTHRQbnVFMEtUZzhBTElMdTlSamdJTHhPd1RGQVE1MmxidzEvYnVhSDQzbHRpckpBcUV6T2FLVkNyMW9RVUNiMmdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTY4NTI4CWZpbGU6WmVudHJhXzEuMjcuMF94NjQtc2V0dXAuZXhlCkF3cExBTjR0WVI5OC9pbEYxekJkdXZvN3Y4MlZDaHQ4WFRoZFp0bjBEM011bUM3aGJjTU85QUhtbGNHYlF2NFJvQTNheHhRTlFNNlI5clgwcHdmUkRnPT0K",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.27.0_x64-setup.exe"
     },
     "macos-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlFyWDZVSjZaeXZIZVJLWWMxQlpvbmNKa3RrdXlTWDZOQlVoUW1UWUVVWlFGYlFFVk92a1A3RHNSZ0xEQVJ0VG1iUE9iQmJobFRYSHZwS1cxSitlMEFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTY0MzAxCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKTU4zTzdHejRuRmh6SWg0STZJWE4zMTBsaUZ5ZG5GcFhwSmEzM25vVXJ6eVdNSzlnT3JrRFVTcTFGeG44cmZXVEEvbGNMOG1BU2Z0ZFhlK3h6NTFmQXc9PQo=",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.26.0_macos-universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlJlbGE4cUl1WWVFVXZ2Slgvb01oc3lLd0tYandDOS83RGZlUUJWTEpBcUxkb0FVVXlMYitDL2kxNjA3c3pNWkp2OUd1a005NTJNbUZZaGs4QUFmbFFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTY5ODU5CWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKdnVSaHYwWmNYRlNJV2pjNVU1OUlJQ0ZsclZHVEJ4Z2hCZHRJcDIxclZIbXZmMmJwanRkVFM4dEZad0kxdW41YUZ5Sk1KdldMTmpJQnVHQ2R1V2hlQ2c9PQo=",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.27.0_macos-universal.app.tar.gz"
     }
   }
 }

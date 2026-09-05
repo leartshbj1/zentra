@@ -32,6 +32,7 @@ try {
     await go(label);
     const rows = await page.locator('.table-panel tbody tr').allTextContents();
     assert.equal(rows.length, 3);
+    assert.equal(rows.some((row) => row.includes('NaN')), false, 'Document amounts remain readable');
     assert.match(rows[0], /2026-09-05/);
     assert.match(rows[1], /2026-06-05/);
     assert.match(rows[2], /2026-01-05/);
