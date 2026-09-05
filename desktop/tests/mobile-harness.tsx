@@ -8,6 +8,7 @@ import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
 import { installFinanceFixture } from './finance-fixture';
 import { installBankFixture } from './bank-fixture';
+import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -88,6 +89,8 @@ if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => d
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
-  return <WorkspaceApp workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />;
+  return <><WorkspaceApp workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
+    {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
+  </>;
 }
 createRoot(document.getElementById('root')!).render(<Harness />);

@@ -19,6 +19,7 @@ import { AppUpdater } from './AppUpdater';
 import { BrandMark } from './BrandMark';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
+import { DevelopmentNotice } from './DevelopmentNotice';
 import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
   cloudAccountChangeNeedsFullRevalidation,
@@ -196,6 +197,7 @@ export function App() {
       {license && licenseNeedsAttention ? (
         <LicenseActivation
           license={license}
+          hasNavigation={workspaceReady}
           onInstall={async (token) => {
             const next = await desktopApi.installLicenseToken(token);
             setLicense(next);
@@ -278,9 +280,11 @@ const licenseLabels: Record<LicenseState['status'], string> = {
 
 function LicenseActivation({
   license,
+  hasNavigation,
   onInstall,
   onRefresh,
 }: {
+  hasNavigation: boolean;
   license: LicenseState;
   onInstall: (token: string) => Promise<void>;
   onRefresh: () => Promise<void>;
@@ -344,22 +348,7 @@ function LicenseActivation({
   );
   if (!license.enforcementConfigured) {
     return (
-      <aside className="license-banner" role="status">
-        <div className="license-banner__summary">
-          <span>
-            <ShieldCheck size={18} />
-          </span>
-          <div>
-            <strong>{licenseLabels.not_configured}</strong>
-            <small>
-              Cette indication doit uniquement apparaître pendant le
-              développement.
-            </small>
-          </div>
-        </div>
-        {identity}
-        <p>{license.reason}</p>
-      </aside>
+      <DevelopmentNotice identity={identity} hasNavigation={hasNavigation} />
     );
   }
   const form = (

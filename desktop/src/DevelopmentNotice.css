@@ -1,0 +1,41 @@
+.license-banner.license-banner--development {
+  width: max-content;
+  max-width: min(380px, calc(100vw - 24px));
+  padding: 0;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(12px + env(safe-area-inset-bottom));
+}
+.license-banner--development > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 10px 13px;
+  font-size: 14px;
+  font-weight: 650;
+  list-style: none;
+}
+.license-banner--development > summary::-webkit-details-marker { display: none; }
+.license-banner--development > summary:focus-visible {
+  outline: 2px solid var(--green-700);
+  outline-offset: 3px;
+  border-radius: inherit;
+}
+.license-banner--development > summary > svg { flex-shrink: 0; }
+.development-notice__chevron { margin-left: auto; }
+.license-banner--development[open] .development-notice__chevron { transform: rotate(180deg); }
+.development-notice__details {
+  padding: 0 13px 13px;
+  max-height: min(300px, 50dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.development-notice__details > p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.development-notice__details .license-banner__identity { font-size: 12px; }
+.development-notice__details .license-banner__identity span { font-size: 11px; }
+.development-notice__details .license-banner__identity code { font-size: 12px; }
+@media screen and (max-width: 860px) {
+  .license-banner.license-banner--development.license-banner--with-navigation { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .keyboard-open .license-banner.license-banner--development { display: none; }
+}
+@media print { .license-banner.license-banner--development { display: none; } }
