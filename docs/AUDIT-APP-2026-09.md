@@ -2,6 +2,8 @@
 
 Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corriger les erreurs observées et préparer une mise à jour commune. Ce document suit le travail ; il ne constitue pas une déclaration de conformité ni une recette complète de toutes les fonctions.
 
+Dernière publication vérifiée : **1.33.0**, site version 54, le 5 septembre 2026. Voir les [notes et limites de cette version](RELEASE-1.33.md). Les sections précédentes conservent la chronologie des lots.
+
 ## Lot 1.28.0 disponible dans le système de mise à jour
 
 Les améliorations ci-dessous sont figées dans la source `b107cb85fda7bf6ff42efa0771da4339a3a9548a` du lot 1.28.0. Le canal stable Windows/macOS a été activé après vérification des signatures Ed25519 et des fichiers publics. Le manifeste et les empreintes 1.27.0 sont conservés. La page de téléchargement est alignée sur ce même lot.
@@ -433,6 +435,16 @@ La création du remboursement, le rapprochement de remboursements existants, leu
 
 Cette ergonomie s’appuie sur le principe de traitement des pièces depuis le relevé présenté dans la [documentation officielle Odoo sur le rapprochement bancaire](https://www.odoo.com/documentation/19.0/applications/finance/accounting/bank/reconciliation.html), avec ici une confirmation explicite liée au moteur local existant.
 
-**Ce lot est postérieur aux installateurs publics 1.32.0 et attend la prochaine publication.** Les règlements regroupés ou répartis, les remboursements de factures fournisseurs distinctes des dépenses, le classement général des autres mouvements et les changements de méthode TVA restent à compléter. Les essais n’ont pas utilisé de données réelles ni de téléphone physique.
+**Ce lot est publié dans les installateurs 1.33.0, le canal signé Windows/macOS et les préversions mobiles.** Les règlements regroupés ou répartis, les remboursements de factures fournisseurs distinctes des dépenses, le classement général des autres mouvements et les changements de méthode TVA restent à compléter. Les essais n’ont pas utilisé de données réelles ni de téléphone physique.
 
 Preuves : `.qa/bank-refund-create-verified.json`, `.qa/bank-refund-create-native-full.log`, `.qa/bank-refund-create-clippy.log`, `.qa/bank-refund-create-ui-full.log`, `.qa/bank-refund-create-ui-final.log`, `.qa/bank-refund-create-fixture-typecheck.log`, `.qa/bank-refund-create-build-final.log`, `.qa/bank-refund-create/report.json`, `.qa/bank-refund/report.json`, `.qa/expense-refund/report.json`, `.qa/bank-create/report.json`, `.qa/bank-refund-create-customer-regression.log` et `.qa/bank-receipt-replacement-reproduction.log`.
+
+## Publication 1.33 et contrôle Android — 5 septembre 2026
+
+Les paquets finaux Windows et macOS démarrent sur des profils isolés au schéma 49 ; leurs signatures Ed25519 et les douze fichiers publics sont vérifiés. La construction macOS universelle réussit 536 tests natifs (un ignoré), 684 tests UI et Clippy. L’APK Android compact et le ZIP iOS simulateur correspondent au même code natif. Le site 54 est contrôlé sur quatre largeurs avec quatre liens de téléchargement, boutons tactiles et menu mobile ; les anciennes versions restent conservées.
+
+Le test Android 33989253615 a laissé l’ancienne fixture 1.32 sur le chargement après un arrêt très précoce, dès la création des fichiers locaux. Le scénario attend désormais un accueil utilisable avant le redémarrage. L’essai suivant 33989592330 a aussi échoué, dès le premier accueil : l’hypothèse d’un arrêt trop précoce ne suffit donc pas. Aucun crash natif n’a été capturé. Le diagnostic ajouté relève uniquement l’état des trois lectures de démarrage, sans enregistrer leurs réponses ni des secrets, et refuse un appareil autre qu’un émulateur.
+
+Les essais suivants ont réussi : démarrage et redémarrage de 1.33 compact (33989985689), puis remplacement d’une ancienne construction 1.32 re-signée avec la clé persistante par 1.33 (33990005351), avec client, projet, fichier et identité conservés. **Les deux blocages intermittents de l’ancienne fixture restent inexpliqués et ouverts.** Aucun résultat de cette publication ne démontre la récupération après interruption pendant l’initialisation, l’installation sur téléphone physique ou la publication dans les stores. La suite de l’audit doit isoler les appels natifs et le comportement de démarrage, sans considérer un succès ultérieur comme la correction du défaut.
+
+Preuves : `.qa/release-1.33-verified.json`, `.qa/workflows-1.33-verified.json`, `.qa/public-1.33-verified.json`, `.qa/site-1.33-browser/report.json`, `.qa/android-1.33-upgrade-failed.log`, `.qa/android-1.33-upgrade-attempt2.log`, `.qa/android-1.33-fresh.log`, `.qa/android-1.33-upgrade.log`, `.qa/next-audit-after-1.33.md`.
