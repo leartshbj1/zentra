@@ -8,6 +8,7 @@ import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
 import { installFinanceFixture } from './finance-fixture';
 import { installClosingFixture } from './closing-fixture';
+import { installPayrollFixture } from './payroll-fixture';
 import { installBankFixture } from './bank-fixture';
 import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
 import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixture';
@@ -68,6 +69,7 @@ desktopApi.saveDocument = async (entity, input, lines, existing) => {
 };
 if (['finance', 'browsing', 'volume'].some((name) => new URLSearchParams(location.search).has(name))) installFinanceFixture(data);
 if (new URLSearchParams(location.search).has('closing')) installClosingFixture();
+if (new URLSearchParams(location.search).has('payroll')) installPayrollFixture(data);
 if (new URLSearchParams(location.search).has('browsing')) {
   data.clients.push({ ...data.clients[0], id: 'client-other', name: 'Autre client', company: 'Autre entreprise' });
   data.projects = [

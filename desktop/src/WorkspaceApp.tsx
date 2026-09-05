@@ -71,6 +71,8 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { PayslipPostingRefreshError } from './payrollMutation';
+import { filterPayrollList } from './payrollList';
 import { useWorkspaceRecovery } from './useWorkspaceRecovery';
 import { WorkspaceRecoveryDialog } from './WorkspaceRecoveryDialog';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
@@ -1050,46 +1052,31 @@ export function WorkspaceApp({
   }
 
   async function postPayslip(item: Payslip) {
-    if (readOnly) {
+    let fallbacks: Awaited<ReturnType<typeof desktopApi.postPayslip>>['accountingFallbacks'] = [];
+    const saved = await act(
+      async () => {
+        try {
+          const result = await desktopApi.postPayslip(item.id);
+          fallbacks = result.accountingFallbacks;
+          return result.workspace;
+        } catch (reason) {
+          if (reason instanceof PayslipPostingRefreshError) {
+            fallbacks = reason.accountingFallbacks;
+          }
+          throw reason;
+        }
+      },
+      'La fiche a été comptabilisée et verrouillée.',
+      false,
+    );
+    if (saved && fallbacks.length) {
+      const details = fallbacks
+        .map((fallback) => `${fallback.contribution || 'Cotisation'} : compte de ${fallback.field === 'expense_account_id' ? 'charge' : 'dette'} général ${fallback.accountId}`)
+        .join(' · ');
       setNotice({
-        tone: 'error',
-        text: readOnlyMutationMessage,
+        tone: 'warning',
+        text: `La fiche a été comptabilisée et verrouillée. Des comptes généraux ont été utilisés pour ${fallbacks.length} liaison(s) : ${details}. Vérifiez l’écriture comptable.`,
       });
-      return;
-    }
-    setBusy(true);
-    setNotice(null);
-    try {
-      const result = await desktopApi.postPayslip(item.id);
-      setWorkspace(result.workspace);
-      if (result.accountingFallbacks.length) {
-        const details = result.accountingFallbacks
-          .map((fallback) => {
-            const accountKind =
-              fallback.field === 'expense_account_id' ? 'charge' : 'dette';
-            return `${fallback.contribution || 'Cotisation'} : compte de ${accountKind} général ${fallback.accountId}`;
-          })
-          .join(' · ');
-        setNotice({
-          tone: 'warning',
-          text: `La fiche a été comptabilisée et verrouillée, mais ${result.accountingFallbacks.length} compte${result.accountingFallbacks.length > 1 ? 's' : ''} non figé${result.accountingFallbacks.length > 1 ? 's ont' : ' a'} été remplacé${result.accountingFallbacks.length > 1 ? 's' : ''} par ${result.accountingFallbacks.length > 1 ? 'des comptes généraux' : 'un compte général'} : ${details}. Vérifiez l’écriture comptable.`,
-        });
-      } else {
-        setNotice({
-          tone: 'success',
-          text: 'La fiche a été comptabilisée et verrouillée.',
-        });
-      }
-    } catch (reason) {
-      setNotice({
-        tone: 'error',
-        text: errorMessage(
-          reason,
-          'La comptabilisation locale de la fiche a échoué.',
-        ),
-      });
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -1935,6 +1922,7 @@ export function WorkspaceApp({
           {view === 'team' ? (
             <TeamScreen
               workspace={workspace}
+              busy={busy || readOnly}
               query={search}
               onCreateEmployee={() => setModal({ type: 'employee' })}
               onEditEmployee={(item) => setModal({ type: 'employee', item })}
@@ -4076,6 +4064,7 @@ function TimeScreen({
 
 function TeamScreen({
   workspace,
+  busy,
   query,
   onCreateEmployee,
   onEditEmployee,
@@ -4089,6 +4078,7 @@ function TeamScreen({
   onArchivePayslip,
 }: {
   workspace: Workspace;
+  busy: boolean;
   query: string;
   onCreateEmployee: () => void;
   onEditEmployee: (item: Employee) => void;
@@ -4104,6 +4094,14 @@ function TeamScreen({
   const employees = workspace.employees.filter((employee) =>
     searchText([employee.name, employee.role, employee.email], query),
   );
+  const [payrollStatus, setPayrollStatus] = useState('all');
+  const filteredPayslips = useMemo(() => filterPayrollList(workspace.payslips, workspace.employees, query, payrollStatus), [workspace.payslips, workspace.employees, query, payrollStatus]);
+  const pageKey = JSON.stringify([query, payrollStatus]);
+  const [pagination, setPagination] = useState({ key: pageKey, page: 0 });
+  const pageCount = Math.max(1, Math.ceil(filteredPayslips.length / 25));
+  const page = pagination.key === pageKey ? Math.min(pagination.page, pageCount - 1) : 0;
+  const visiblePayslips = filteredPayslips.slice(page * 25, (page + 1) * 25);
+  const changePage = (next: number) => { setPagination({ key: pageKey, page: next }); document.querySelector('.payroll-list-toolbar')?.scrollIntoView({ block: 'start' }); };
   const payrollEnabled = workspace.settings?.payroll.enabled ?? false;
   const legacyPaymentToRepair = workspace.payslips.find(
     (payslip) =>
@@ -4138,17 +4136,17 @@ function TeamScreen({
       </div>
     );
   return (
-    <div className="stack-layout">
+    <div className="stack-layout team-screen">
       <SectionHeading
         title="Collaborateurs"
         description="Les coûts horaires sont utilisés uniquement lorsqu’ils ont été saisis."
         action={
-          <Button onClick={onCreateEmployee}>
+          <Button disabled={busy} onClick={onCreateEmployee}>
             <Plus size={16} /> Nouveau collaborateur
           </Button>
         }
       />
-      {workspace.employees.length ? (
+      {employees.length ? (
         <div className="employee-grid">
           {employees.map((employee) => (
             <article className="employee-card" key={employee.id}>
@@ -4185,6 +4183,8 @@ function TeamScreen({
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={busy}
+                  aria-label={`Modifier ${employee.name}`}
                   onClick={() => onEditEmployee(employee)}
                 >
                   <Pencil size={15} />
@@ -4192,6 +4192,8 @@ function TeamScreen({
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={busy}
+                  aria-label={`Supprimer ${employee.name}`}
                   onClick={() => onArchiveEmployee(employee)}
                 >
                   <Archive size={15} />
@@ -4203,8 +4205,8 @@ function TeamScreen({
       ) : (
         <EmptyState
           icon={<Users />}
-          title="Aucun collaborateur"
-          text="Ajoutez uniquement les personnes réellement employées ou suivies."
+          title={workspace.employees.length ? 'Aucun collaborateur correspondant' : 'Aucun collaborateur'}
+          text={workspace.employees.length ? 'Modifiez votre recherche pour retrouver un collaborateur.' : 'Ajoutez les personnes employées ou suivies.'}
           actionLabel="Ajouter un collaborateur"
           onAction={onCreateEmployee}
         />
@@ -4217,7 +4219,7 @@ function TeamScreen({
           action={
             payrollEnabled ? (
               <div className="payroll-heading-actions">
-                <Button variant="secondary" onClick={onImportPayslips}>
+                <Button variant="secondary" disabled={busy} onClick={onImportPayslips}>
                   <ScanLine size={16} /> Importer des fiches
                   {workspace.payrollImports.filter(
                     (item) => item.status === 'needs_review',
@@ -4232,7 +4234,7 @@ function TeamScreen({
                   ) : null}
                 </Button>
                 {workspace.employees.length ? (
-                  <Button onClick={onCreatePayslip}>
+                  <Button disabled={busy} onClick={onCreatePayslip}>
                     <Plus size={16} /> Nouvelle fiche
                   </Button>
                 ) : null}
@@ -4283,9 +4285,13 @@ function TeamScreen({
             </small>
           </button>
         ) : null}
-        {workspace.payslips.length ? (
+        {workspace.payslips.length ? <div className="sales-list-toolbar payroll-list-toolbar">
+          <label><span>État des fiches</span><select aria-label="État des fiches de salaire" value={payrollStatus} onChange={(event) => setPayrollStatus(event.target.value)}><option value="all">Tous les états</option><option value="incomplete">À contrôler</option><option value="validated">Validées</option><option value="posted">À payer</option><option value="paid">Payées</option></select></label>
+          <span role="status">{filteredPayslips.length} / {workspace.payslips.length} · Plus récentes d’abord</span>
+        </div> : null}
+        {filteredPayslips.length ? (
           <div className="payslip-list">
-            {workspace.payslips.map((payslip) => {
+            {visiblePayslips.map((payslip) => {
               const employee = workspace.employees.find(
                 (item) => item.id === payslip.employeeId,
               );
@@ -4293,7 +4299,7 @@ function TeamScreen({
               const locked =
                 payslip.status === 'posted' || payslip.status === 'paid';
               return (
-                <article key={payslip.id}>
+                <article key={payslip.id} data-payslip-id={payslip.id}>
                   <div>
                     <FileText size={17} />
                     <span>
@@ -4327,6 +4333,7 @@ function TeamScreen({
                       <Button
                         variant="ghost"
                         size="icon"
+                        disabled={busy}
                         onClick={() => onEditPayslip(payslip)}
                         title="Modifier"
                       >
@@ -4337,6 +4344,7 @@ function TeamScreen({
                       <Button
                         variant="secondary"
                         size="small"
+                        disabled={busy}
                         onClick={() => {
                           if (
                             window.confirm(
@@ -4353,6 +4361,7 @@ function TeamScreen({
                       <Button
                         variant="secondary"
                         size="small"
+                        disabled={busy}
                         onClick={() => onPayPayslip(payslip)}
                       >
                         <Banknote size={14} /> Marquer payé
@@ -4374,6 +4383,7 @@ function TeamScreen({
                       <Button
                         variant="ghost"
                         size="icon"
+                        disabled={busy}
                         onClick={() => onArchivePayslip(payslip)}
                         title="Supprimer"
                       >
@@ -4385,7 +4395,7 @@ function TeamScreen({
               );
             })}
           </div>
-        ) : payrollEnabled ? (
+        ) : workspace.payslips.length ? <EmptyState icon={<FileText />} title="Aucune fiche correspondante" text="Modifiez la recherche ou l’état sélectionné." /> : payrollEnabled ? (
           <div className="compact-empty">
             <FileText size={20} />
             <span>
@@ -4394,6 +4404,7 @@ function TeamScreen({
             </span>
           </div>
         ) : null}
+        {pageCount > 1 ? <nav className="sales-list-pagination" aria-label="Pages des fiches de salaire"><Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)}>Précédent</Button><span role="status">{page + 1} / {pageCount}</span><Button variant="secondary" disabled={page + 1 === pageCount} onClick={() => changePage(page + 1)}>Suivant</Button></nav> : null}
       </section>
     </div>
   );
@@ -6307,6 +6318,7 @@ type ActionRunner = (
   action: () => Promise<Workspace>,
   message: string,
   close?: boolean,
+  onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 
 function ProjectForm({
@@ -6713,6 +6725,7 @@ function EmployeeForm({
   const [smallSalarySector, setSmallSalarySector] = useState<
     '' | NonNullable<Employee['smallSalarySector']>
   >(item?.smallSalarySector ?? '');
+  const [localError, setLocalError] = useState('');
   return (
     <Modal
       title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
@@ -6721,146 +6734,153 @@ function EmployeeForm({
       wide
     >
       <form
+        className="employee-form"
         onSubmit={submitForm(async (form) => {
-          const allowanceChoice = String(form.get('avsAllowanceWaived') ?? '');
-          const contractualHours = String(
-            form.get('contractualWeeklyHours') ?? '',
-          ).trim();
-          const acOpeningYear = String(form.get('acOpeningYear') ?? '').trim();
-          const acOpeningBasis = String(
-            form.get('acOpeningBasis') ?? '',
-          ).trim();
-          const laaOpeningYear = String(
-            form.get('laaOpeningYear') ?? '',
-          ).trim();
-          const laaOpeningBasis = String(
-            form.get('laaOpeningBasis') ?? '',
-          ).trim();
-          const lppAssessmentYear = String(
-            form.get('lppAssessmentYear') ?? '',
-          ).trim();
-          const lppAnnualSalary = String(
-            form.get('lppAnnualSalary') ?? '',
-          ).trim();
-          const lppExceptionEvidenceReference = String(
-            form.get('lppExceptionEvidenceReference') ?? '',
-          ).trim();
-          const smallSalaryFields = parseSmallSalaryEmployeeForm({
-            assessmentYear: String(
-              form.get('smallSalaryAssessmentYear') ?? '',
-            ),
-            sector: String(form.get('smallSalarySector') ?? ''),
-            employeeRequestedContributions: String(
-              form.get('smallSalaryEmployeeRequestedContributions') ?? '',
-            ),
-            decisionDate: String(form.get('smallSalaryDecisionDate') ?? ''),
-            openingGross: String(
-              form.get('smallSalaryOpeningGross') ?? '',
-            ),
-            openingContributedBasis: String(
-              form.get('smallSalaryOpeningContributedBasis') ?? '',
-            ),
-            evidenceReference: String(
-              form.get('smallSalaryEvidenceReference') ?? '',
-            ),
-          });
-          if (Boolean(lppAssessmentYear) !== Boolean(lppAnnualSalary))
-            throw new Error(
-              'L’année et le salaire annuel LPP doivent être confirmés ensemble, zéro compris.',
-            );
-          if (Boolean(acOpeningYear) !== Boolean(acOpeningBasis))
-            throw new Error(
-              'L’année et la base d’ouverture AC doivent être confirmées ensemble, zéro compris.',
-            );
-          if (Boolean(laaOpeningYear) !== Boolean(laaOpeningBasis))
-            throw new Error(
-              'L’année et la base d’ouverture LAA doivent être confirmées ensemble, zéro compris.',
-            );
-          if (
-            employmentContractKind === 'fixed' &&
-            (!String(form.get('employmentStart')) ||
-              !String(form.get('employmentEnd')))
-          )
-            throw new Error(
-              'Un contrat à durée déterminée exige ses dates de début et de fin.',
-            );
-          if (
-            Boolean(lppExceptionCode) !==
-            Boolean(lppExceptionEvidenceReference)
-          )
-            throw new Error(
-              'Une exception LPP exige son motif et la référence de la preuve.',
-            );
-          const data = {
-            employeeNumber: String(form.get('employeeNumber')),
-            name: String(form.get('name')),
-            role: String(form.get('role')),
-            email: String(form.get('email')),
-            phone: String(form.get('phone')),
-            addressLine1: String(form.get('addressLine1')),
-            addressLine2: String(form.get('addressLine2')),
-            postalCode: String(form.get('postalCode')),
-            city: String(form.get('city')),
-            canton: String(form.get('canton')),
-            country: String(form.get('country')).trim().toUpperCase(),
-            birthDate: String(form.get('birthDate')),
-            socialSecurityNumber: String(form.get('avsNumber')),
-            iban: String(form.get('iban')),
-            employmentStartDate: String(form.get('employmentStart')),
-            employmentEndDate: String(form.get('employmentEnd')),
-            employmentContractKind: employmentContractKind || null,
-            referenceAgeDate:
-              String(form.get('referenceAgeDate') ?? '') || null,
-            avsAllowanceWaived: allowanceChoice
-              ? allowanceChoice === 'yes'
-              : null,
-            ...smallSalaryFields,
-            employmentRate: numberFromInput(form.get('employmentRate')),
-            contractualWeeklyMinutes: contractualHours
-              ? Math.round(
-                  numberFromInput(form.get('contractualWeeklyHours')) * 60,
-                )
-              : null,
-            acOpeningYear: acOpeningYear
-              ? numberFromInput(form.get('acOpeningYear'))
-              : null,
-            acOpeningBasisCents: acOpeningBasis
-              ? centsFromInput(form.get('acOpeningBasis'))
-              : null,
-            laaOpeningYear: laaOpeningYear
-              ? numberFromInput(form.get('laaOpeningYear'))
-              : null,
-            laaOpeningBasisCents: laaOpeningBasis
-              ? centsFromInput(form.get('laaOpeningBasis'))
-              : null,
-            lppAssessmentYear: lppAssessmentYear
-              ? numberFromInput(form.get('lppAssessmentYear'))
-              : null,
-            lppAnnualSalaryCents: lppAnnualSalary
-              ? centsFromInput(form.get('lppAnnualSalary'))
-              : null,
-            lppExceptionCode: lppExceptionCode || null,
-            lppExceptionEvidenceReference:
-              lppExceptionEvidenceReference || null,
-            hourlyRateCents: centsFromInput(form.get('hourlyCost')),
-            monthlySalaryCents:
-              salaryMode === 'monthly'
-                ? centsFromInput(form.get('grossSalary'))
-                : 0,
-            status: String(form.get('status')),
-            notes: String(form.get('notes')),
-          };
-          await act(
-            () =>
+          setLocalError('');
+          try {
+            const allowanceChoice = String(form.get('avsAllowanceWaived') ?? '');
+            const contractualHours = String(
+              form.get('contractualWeeklyHours') ?? '',
+            ).trim();
+            const acOpeningYear = String(form.get('acOpeningYear') ?? '').trim();
+            const acOpeningBasis = String(
+              form.get('acOpeningBasis') ?? '',
+            ).trim();
+            const laaOpeningYear = String(
+              form.get('laaOpeningYear') ?? '',
+            ).trim();
+            const laaOpeningBasis = String(
+              form.get('laaOpeningBasis') ?? '',
+            ).trim();
+            const lppAssessmentYear = String(
+              form.get('lppAssessmentYear') ?? '',
+            ).trim();
+            const lppAnnualSalary = String(
+              form.get('lppAnnualSalary') ?? '',
+            ).trim();
+            const lppExceptionEvidenceReference = String(
+              form.get('lppExceptionEvidenceReference') ?? '',
+            ).trim();
+            const smallSalaryFields = parseSmallSalaryEmployeeForm({
+              assessmentYear: String(
+                form.get('smallSalaryAssessmentYear') ?? '',
+              ),
+              sector: String(form.get('smallSalarySector') ?? ''),
+              employeeRequestedContributions: String(
+                form.get('smallSalaryEmployeeRequestedContributions') ?? '',
+              ),
+              decisionDate: String(form.get('smallSalaryDecisionDate') ?? ''),
+              openingGross: String(
+                form.get('smallSalaryOpeningGross') ?? '',
+              ),
+              openingContributedBasis: String(
+                form.get('smallSalaryOpeningContributedBasis') ?? '',
+              ),
+              evidenceReference: String(
+                form.get('smallSalaryEvidenceReference') ?? '',
+              ),
+            });
+            if (Boolean(lppAssessmentYear) !== Boolean(lppAnnualSalary))
+              throw new Error(
+                'L’année et le salaire annuel LPP doivent être confirmés ensemble, zéro compris.',
+              );
+            if (Boolean(acOpeningYear) !== Boolean(acOpeningBasis))
+              throw new Error(
+                'L’année et la base d’ouverture AC doivent être confirmées ensemble, zéro compris.',
+              );
+            if (Boolean(laaOpeningYear) !== Boolean(laaOpeningBasis))
+              throw new Error(
+                'L’année et la base d’ouverture LAA doivent être confirmées ensemble, zéro compris.',
+              );
+            if (
+              employmentContractKind === 'fixed' &&
+              (!String(form.get('employmentStart')) ||
+                !String(form.get('employmentEnd')))
+            )
+              throw new Error(
+                'Un contrat à durée déterminée exige ses dates de début et de fin.',
+              );
+            if (
+              Boolean(lppExceptionCode) !==
+              Boolean(lppExceptionEvidenceReference)
+            )
+              throw new Error(
+                'Une exception LPP exige son motif et la référence de la preuve.',
+              );
+            const data = {
+              employeeNumber: String(form.get('employeeNumber')),
+              name: String(form.get('name')),
+              role: String(form.get('role')),
+              email: String(form.get('email')),
+              phone: String(form.get('phone')),
+              addressLine1: String(form.get('addressLine1')),
+              addressLine2: String(form.get('addressLine2')),
+              postalCode: String(form.get('postalCode')),
+              city: String(form.get('city')),
+              canton: String(form.get('canton')),
+              country: String(form.get('country')).trim().toUpperCase(),
+              birthDate: String(form.get('birthDate')),
+              socialSecurityNumber: String(form.get('avsNumber')),
+              iban: String(form.get('iban')),
+              employmentStartDate: String(form.get('employmentStart')),
+              employmentEndDate: String(form.get('employmentEnd')),
+              employmentContractKind: employmentContractKind || null,
+              referenceAgeDate:
+                String(form.get('referenceAgeDate') ?? '') || null,
+              avsAllowanceWaived: allowanceChoice
+                ? allowanceChoice === 'yes'
+                : null,
+              ...smallSalaryFields,
+              employmentRate: numberFromInput(form.get('employmentRate')),
+              contractualWeeklyMinutes: contractualHours
+                ? Math.round(
+                    numberFromInput(form.get('contractualWeeklyHours')) * 60,
+                  )
+                : null,
+              acOpeningYear: acOpeningYear
+                ? numberFromInput(form.get('acOpeningYear'))
+                : null,
+              acOpeningBasisCents: acOpeningBasis
+                ? centsFromInput(form.get('acOpeningBasis'))
+                : null,
+              laaOpeningYear: laaOpeningYear
+                ? numberFromInput(form.get('laaOpeningYear'))
+                : null,
+              laaOpeningBasisCents: laaOpeningBasis
+                ? centsFromInput(form.get('laaOpeningBasis'))
+                : null,
+              lppAssessmentYear: lppAssessmentYear
+                ? numberFromInput(form.get('lppAssessmentYear'))
+                : null,
+              lppAnnualSalaryCents: lppAnnualSalary
+                ? centsFromInput(form.get('lppAnnualSalary'))
+                : null,
+              lppExceptionCode: lppExceptionCode || null,
+              lppExceptionEvidenceReference:
+                lppExceptionEvidenceReference || null,
+              hourlyRateCents: centsFromInput(form.get('hourlyCost')),
+              monthlySalaryCents:
+                salaryMode === 'monthly'
+                  ? centsFromInput(form.get('grossSalary'))
+                  : 0,
+              status: String(form.get('status')),
+              notes: String(form.get('notes')),
+            };
+            await act(
+              () =>
+                item
+                  ? desktopApi.updateEntity('employees', item.id, data)
+                  : desktopApi.createEntity('employees', data),
               item
-                ? desktopApi.updateEntity('employees', item.id, data)
-                : desktopApi.createEntity('employees', data),
-            item
-              ? 'Le collaborateur a été mis à jour.'
-              : 'Le collaborateur a été ajouté.',
-          );
+                ? 'Le collaborateur a été mis à jour.'
+                : 'Le collaborateur a été ajouté.',
+              true,
+              (reason) => setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.')),
+            );
+          } catch (reason) { setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.')); }
         })}
       >
+        {localError ? <ErrorPanel message={localError} reveal /> : null}
         <div className="form-grid">
           <Field label="Nom complet" required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
@@ -7817,6 +7837,7 @@ function PayslipPaymentForm({
     repairingLegacy &&
     paymentDateAssessment.blocked &&
     paymentDateAssessment.overrideAllowed;
+  const [localError, setLocalError] = useState('');
   return (
     <Modal
       title={
@@ -7828,33 +7849,40 @@ function PayslipPaymentForm({
       onClose={close}
     >
       <form
+        className="payroll-payment-form"
         onSubmit={submitForm(async (form) => {
-          if (!repairingLegacy && paymentDateAssessment.blocked)
-            throw new Error(paymentDateAssessment.reason);
-          if (
-            requiresRegulatoryOverride &&
-            (!regulatoryOverrideConfirmed ||
-              regulatoryOverrideReason.trim().length < 10)
-          )
-            throw new Error(
-              'Confirmez la dérogation et décrivez précisément le motif de cette régularisation historique.',
+          setLocalError('');
+          try {
+            if (!repairingLegacy && paymentDateAssessment.blocked)
+              throw new Error(paymentDateAssessment.reason);
+            if (
+              requiresRegulatoryOverride &&
+              (!regulatoryOverrideConfirmed ||
+                regulatoryOverrideReason.trim().length < 10)
+            )
+              throw new Error(
+                'Confirmez la dérogation et décrivez précisément le motif de cette régularisation historique.',
+              );
+            await act(
+              () =>
+                desktopApi.payPayslip(
+                  payslip.id,
+                  paymentDate,
+                  String(form.get('reference')),
+                  requiresRegulatoryOverride
+                    ? regulatoryOverrideReason
+                    : undefined,
+                ),
+              repairingLegacy
+                ? 'Le paiement historique a été relié à son écriture comptable sans modifier la fiche de salaire.'
+                : 'Le salaire a été marqué payé et l’écriture banque contre salaires dus a été créée.',
+              true,
+              (reason) => setLocalError(errorMessage(reason, 'Le paiement n’a pas pu être enregistré.')),
             );
-          await act(
-            () =>
-              desktopApi.payPayslip(
-                payslip.id,
-                paymentDate,
-                String(form.get('reference')),
-                requiresRegulatoryOverride
-                  ? regulatoryOverrideReason
-                  : undefined,
-              ),
-            repairingLegacy
-              ? 'Le paiement historique a été relié à son écriture comptable sans modifier la fiche de salaire.'
-              : 'Le salaire a été marqué payé et l’écriture banque contre salaires dus a été créée.',
-          );
+          } catch (reason) { setLocalError(errorMessage(reason, 'Le paiement n’a pas pu être enregistré.')); }
         })}
       >
+        {localError ? <ErrorPanel message={localError} reveal /> : null}
         <div className="payment-summary">
           <div>
             <span>Collaborateur</span>
@@ -8843,6 +8871,16 @@ function PayslipPrintSheet({
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
+  const [exportError, setExportError] = useState('');
+  const [exportedPdf, setExportedPdf] = useState<Awaited<ReturnType<typeof desktopApi.exportPayslipPdf>>>(null);
+  const [contributionReload, setContributionReload] = useState(0);
+  const exportInFlight = useRef(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previewRef.current?.focus({ preventScroll: true });
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  }, []);
   const settings = settingsForSnapshot(workspace.settings!, frozen?.issuer);
   const employee =
     frozen?.employee ??
@@ -8864,6 +8902,8 @@ function PayslipPrintSheet({
   useEffect(() => {
     if (frozen) return;
     let active = true;
+    setError('');
+    setContributions(null);
     void desktopApi
       .getPayslipContributions(payslip.id)
       .then((rows) => {
@@ -8881,7 +8921,7 @@ function PayslipPrintSheet({
     return () => {
       active = false;
     };
-  }, [frozen, payslip.id]);
+  }, [frozen, payslip.id, contributionReload]);
 
   const snapshots = new Map(
     (contributions ?? []).map((contribution) => [
@@ -8898,8 +8938,11 @@ function PayslipPrintSheet({
     ? `Document final figé le ${formatDateTime(frozen.capturedAt)}`
     : 'Aperçu à contrôler · non comptabilisé';
   const exportPdf = async () => {
+    if (exportInFlight.current) return;
+    exportInFlight.current = true;
     setExporting(true);
     setExportMessage('');
+    setExportError('');
     try {
       const safeEmployee = (employee?.name || 'collaborateur')
         .normalize('NFD')
@@ -8910,21 +8953,47 @@ function PayslipPrintSheet({
         payslip.id,
         `Fiche-salaire_${printedPayslip.period}_${safeEmployee}.pdf`,
       );
-      if (result)
+      if (result) {
+        setExportedPdf(result);
+        if (result.deliveryWarning) setExportError(result.deliveryWarning);
         setExportMessage(
           result.finalDocument
             ? `PDF final enregistré : ${result.path}`
             : `PDF de contrôle enregistré : ${result.path}`,
         );
+      }
     } catch (reason) {
-      setError(errorMessage(reason, "Le PDF local n'a pas pu être généré."));
+      setExportError(errorMessage(reason, "Le PDF local n'a pas pu être généré."));
     } finally {
+      exportInFlight.current = false;
       setExporting(false);
     }
   };
+  const sharePdf = async () => {
+    if (!exportedPdf || exportInFlight.current) return;
+    exportInFlight.current = true;
+    setExporting(true);
+    setExportError('');
+    try {
+      await desktopApi.shareExistingExport(exportedPdf.path);
+      setExportedPdf((current) => current ? { ...current, deliveryWarning: undefined } : null);
+      setExportMessage('Le PDF existant a été proposé au partage.');
+    } catch (reason) { setExportError(errorMessage(reason, 'Le partage n’a pas abouti. Le PDF existant est conservé.')); }
+    finally { exportInFlight.current = false; setExporting(false); }
+  };
 
   return (
-    <div className="print-preview">
+    <div className="print-preview payroll-print-preview" ref={previewRef} role="dialog" aria-label="Aperçu de la fiche de salaire" aria-modal="true" tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); }
+        if (event.key !== 'Tab') return;
+        const dialog = event.currentTarget;
+        const buttons = [...dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')].filter((button) => button.getClientRects().length);
+        const target = event.shiftKey ? buttons.at(-1) : buttons[0];
+        if (document.activeElement === dialog || document.activeElement === (event.shiftKey ? buttons[0] : buttons.at(-1))) {
+          event.preventDefault(); target?.focus({ preventScroll: true });
+        }
+      }}>
       <div className="print-preview__toolbar">
         <strong>Aperçu de la fiche détaillée</strong>
         <span>
@@ -8945,6 +9014,7 @@ function PayslipPrintSheet({
           )}{' '}
           {exporting ? 'Génération…' : 'Exporter le PDF'}
         </Button>
+        {exportedPdf && (isMobileRuntime() || exportedPdf.deliveryWarning) ? <Button variant="secondary" disabled={exporting} onClick={() => void sharePdf()}>Partager le PDF</Button> : null}
         <Button
           variant="secondary"
           disabled={contributions === null || Boolean(error)}
@@ -8952,11 +9022,12 @@ function PayslipPrintSheet({
         >
           <Printer size={16} /> Imprimer
         </Button>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fermer l’aperçu de la fiche de salaire">
           <X size={18} />
         </Button>
       </div>
-      {error ? <ErrorPanel message={error} /> : null}
+      {error ? <ErrorPanel message={error} reveal onRetry={() => setContributionReload((value) => value + 1)} /> : null}
+      {exportError ? <ErrorPanel message={exportError} reveal /> : null}
       <article
         className={`print-sheet print-payslip ${frozen ? 'print-payslip--final' : 'print-payslip--review'}`}
       >
@@ -9034,7 +9105,7 @@ function PayslipPrintSheet({
                     </tr>
                   ) : null}
                   <tr>
-                    <td>
+                    <td data-label="Élément">
                       <strong>{line.label}</strong>
                       {snapshot ? (
                         <small>
@@ -9049,7 +9120,7 @@ function PayslipPrintSheet({
                         <small>Saisie contrôlée</small>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Part / type">
                       {snapshot
                         ? snapshot.side === 'employee'
                           ? 'Part employé'
@@ -9062,7 +9133,7 @@ function PayslipPrintSheet({
                               ? 'Retenue manuelle'
                               : 'Charge manuelle'}
                     </td>
-                    <td>
+                    <td data-label="Base">
                       {snapshot ? (
                         <>
                           {formatMoney(snapshot.basisCents)}
@@ -9080,14 +9151,14 @@ function PayslipPrintSheet({
                         '—'
                       )}
                     </td>
-                    <td>
+                    <td data-label="Calcul figé">
                       {snapshot
                         ? snapshot.calculationKind === 'rate'
                           ? `${((snapshot.rateBp ?? 0) / 100).toLocaleString('fr-CH')} %`
                           : `Fixe ${formatMoney(snapshot.fixedAmountCents)}`
                         : 'Montant saisi'}
                     </td>
-                    <td>{formatMoney(line.amountCents)}</td>
+                    <td data-label="Montant">{formatMoney(line.amountCents)}</td>
                   </tr>
                 </Fragment>
               );

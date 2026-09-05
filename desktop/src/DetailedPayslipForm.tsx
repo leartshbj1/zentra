@@ -34,6 +34,7 @@ type ActionRunner = (
   action: () => Promise<Workspace>,
   message: string,
   close?: boolean,
+  onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 type SelectionDraft = { basisCents?: number; yearToDateBasisCents?: number };
 
@@ -83,6 +84,11 @@ export function DetailedPayslipForm({
   const [loadingRates, setLoadingRates] = useState(true);
   const [existingBlocked, setExistingBlocked] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [accountingError, setAccountingError] = useState('');
+  const [ratesError, setRatesError] = useState('');
+  const [configurationReload, setConfigurationReload] = useState(0);
+  const [calculating, setCalculating] = useState(false);
+  const calculationRequest = useRef(0);
   const hydratedPayslipIdRef = useRef<string | null>(null);
   const totals = payslipTotals({
     id: item?.id ?? '',
@@ -106,6 +112,7 @@ export function DetailedPayslipForm({
   useEffect(() => {
     let active = true;
     setLoadingAccounting(true);
+    setAccountingError('');
     void Promise.all([
       desktopApi.listAccounts(),
       desktopApi.getAccountingSettings(),
@@ -118,7 +125,7 @@ export function DetailedPayslipForm({
       .catch((reason) => {
         if (!active) return;
         setAccountingEnabled(null);
-        setLocalError(
+        setAccountingError(
           errorMessage(
             reason,
             'Les comptes de liaison de la paie n’ont pas pu être chargés.',
@@ -131,11 +138,12 @@ export function DetailedPayslipForm({
     return () => {
       active = false;
     };
-  }, []);
+  }, [configurationReload]);
 
   useEffect(() => {
     let active = true;
     setLoadingRates(true);
+    setRatesError('');
     const contributionDate =
       paymentDate || (period ? `${period}-01` : undefined);
     void Promise.all([
@@ -161,7 +169,8 @@ export function DetailedPayslipForm({
             ),
         );
         setDefinitions(available);
-        if (item && hydratedPayslipIdRef.current !== item.id) {
+        const hydrateItem = item && hydratedPayslipIdRef.current !== item.id;
+        if (hydrateItem) {
           setLines(
             item.lines
               .filter((line) => !linkedItems.has(line.id))
@@ -169,8 +178,7 @@ export function DetailedPayslipForm({
           );
           hydratedPayslipIdRef.current = item.id;
         }
-        setSelections(
-          Object.fromEntries(
+        setSelections((current) => hydrateItem ? Object.fromEntries(
             periodSnapshots.map((snapshot) => [
               snapshot.definitionId,
               {
@@ -179,19 +187,18 @@ export function DetailedPayslipForm({
                   snapshot.yearToDateBasisCents ?? undefined,
               },
             ]),
-          ),
-        );
+          ) : Object.fromEntries(Object.entries(current).filter(([id]) => available.some((definition) => definition.id === id))));
         setExistingBlocked(missing.length > 0);
         invalidateCalculation();
         if (missing.length)
-          setLocalError(
+          setRatesError(
             `Réactivez les définitions suivantes avant de modifier cette fiche : ${missing.map((snapshot) => snapshot.label).join(', ')}.`,
           );
       })
       .catch((reason) => {
         if (!active) return;
-        setExistingBlocked(Boolean(item));
-        setLocalError(
+        setExistingBlocked(true);
+        setRatesError(
           errorMessage(
             reason,
             'Les cotisations de la fiche n’ont pas pu être chargées.',
@@ -204,7 +211,9 @@ export function DetailedPayslipForm({
     return () => {
       active = false;
     };
-  }, [item, paymentDate, period]);
+  }, [item, paymentDate, period, configurationReload]);
+
+  useEffect(() => () => { calculationRequest.current += 1; }, []);
 
   const selectedItems = useMemo<PayrollContributionSelection[]>(
     () =>
@@ -241,6 +250,8 @@ export function DetailedPayslipForm({
       return;
     previousFingerprintRef.current = currentCalculationFingerprint;
     inputRevisionRef.current += 1;
+    calculationRequest.current += 1;
+    setCalculating(false);
     setCalculation(null);
     setCalculatedFingerprint(null);
     setCalculationError('');
@@ -317,6 +328,8 @@ export function DetailedPayslipForm({
 
   function invalidateCalculation() {
     inputRevisionRef.current += 1;
+    calculationRequest.current += 1;
+    setCalculating(false);
     setCalculation(null);
     setCalculatedFingerprint(null);
     setCalculationError('');
@@ -481,7 +494,6 @@ export function DetailedPayslipForm({
   function selectEmployee(id: string) {
     if (id !== employeeId) {
       setSelections({});
-      setExistingBlocked(false);
       invalidateCalculation();
     }
     setEmployeeId(id);
@@ -516,6 +528,7 @@ export function DetailedPayslipForm({
   }
 
   async function calculate() {
+    if (calculating || loadingRates || busy) return;
     setLocalError('');
     setCalculationError('');
     if (existingBlocked) {
@@ -538,7 +551,7 @@ export function DetailedPayslipForm({
         (definition.basisKind !== 'gross' &&
           selected.basisCents === undefined) ||
         (definition.annualCeilingCents &&
-          definition.category !== 'ac' &&
+          !['ac', 'aap', 'aanp'].includes(definition.category) &&
           selected.yearToDateBasisCents === undefined)
       ) {
         setCalculationError(
@@ -549,6 +562,8 @@ export function DetailedPayslipForm({
     }
     const requestFingerprint = currentCalculationFingerprint;
     const requestRevision = inputRevisionRef.current;
+    const request = ++calculationRequest.current;
+    setCalculating(true);
     try {
       const result = await desktopApi.calculatePayrollContributions({
         employeeId,
@@ -557,6 +572,7 @@ export function DetailedPayslipForm({
         grossCents: totals.earnings,
         items: selectedItems,
       });
+      if (request !== calculationRequest.current) return;
       if (
         inputRevisionRef.current !== requestRevision ||
         currentFingerprintRef.current !== requestFingerprint
@@ -571,11 +587,14 @@ export function DetailedPayslipForm({
       setCalculation(result);
       setCalculatedFingerprint(requestFingerprint);
     } catch (reason) {
+      if (request !== calculationRequest.current) return;
       setCalculation(null);
       setCalculatedFingerprint(null);
       setCalculationError(
         errorMessage(reason, 'Le calcul local des cotisations a échoué.'),
       );
+    } finally {
+      if (request === calculationRequest.current) setCalculating(false);
     }
   }
 
@@ -587,11 +606,12 @@ export function DetailedPayslipForm({
       wide
     >
       <form
+        className="payroll-form"
         onSubmit={submitForm(async (form) => {
           setLocalError('');
-          if (loadingRates || existingBlocked) {
+          if (loadingRates || loadingAccounting || existingBlocked || accountingError) {
             setLocalError(
-              'Le détail des cotisations doit être disponible avant l’enregistrement.',
+              'Les cotisations et les comptes de paie doivent être disponibles avant l’enregistrement.',
             );
             return;
           }
@@ -668,6 +688,8 @@ export function DetailedPayslipForm({
             item
               ? 'La fiche et ses cotisations ont été mises à jour.'
               : 'La fiche et ses cotisations explicites ont été enregistrées.',
+            true,
+            (reason) => setLocalError(errorMessage(reason, 'La fiche n’a pas pu être enregistrée.')),
           );
         })}
       >
@@ -694,7 +716,6 @@ export function DetailedPayslipForm({
               value={period}
               onChange={(event) => {
                 setPeriod(event.target.value);
-                setSelections({});
                 setExistingBlocked(false);
                 invalidateCalculation();
               }}
@@ -724,8 +745,9 @@ export function DetailedPayslipForm({
             </div>
           ) : null}
         </div>
-        {localError ? <ErrorPanel message={localError} /> : null}
-        {calculationError ? <ErrorPanel message={calculationError} /> : null}
+        {localError ? <ErrorPanel message={localError} reveal /> : null}
+        {calculationError ? <ErrorPanel message={calculationError} reveal /> : null}
+        {accountingError || ratesError ? <ErrorPanel message={[accountingError, ratesError].filter(Boolean).join(' ')} reveal onRetry={() => setConfigurationReload((value) => value + 1)} /> : null}
         <section className="pay-lines">
           <header>
             <div>
@@ -750,7 +772,7 @@ export function DetailedPayslipForm({
                 size="small"
                 onClick={() => addLine('deduction')}
               >
-                <Plus size={14} /> Retenue hors moteur
+                <Plus size={14} /> Retenue manuelle
               </Button>
               <Button
                 type="button"
@@ -766,15 +788,16 @@ export function DetailedPayslipForm({
                 size="small"
                 onClick={() => addLine('employer')}
               >
-                <Plus size={14} /> Charge hors moteur
+                <Plus size={14} /> Charge employeur
               </Button>
             </div>
           </header>
           {lines.length ? (
             <div className="pay-line-list">
-              {lines.map((line) => (
+              {lines.map((line, index) => (
                 <div key={line.id}>
                   <select
+                    aria-label={`Type de la ligne ${index + 1}`}
                     value={line.kind}
                     onChange={(event) =>
                       changeLineKind(
@@ -784,15 +807,16 @@ export function DetailedPayslipForm({
                     }
                   >
                     <option value="earning">Gain</option>
-                    <option value="deduction">Retenue hors moteur</option>
+                    <option value="deduction">Retenue manuelle</option>
                     <option value="reimbursement">
                       Remboursement hors brut
                     </option>
                     <option value="employer">
-                      Charge employeur hors moteur
+                      Charge employeur
                     </option>
                   </select>
                   <input
+                    aria-label={`Libellé de la ligne ${index + 1}`}
                     value={line.label}
                     onChange={(event) =>
                       updateLine(line.id, { label: event.target.value })
@@ -802,6 +826,7 @@ export function DetailedPayslipForm({
                   />
                   <label className="money-input">
                     <input
+                      aria-label={`Montant de la ligne ${index + 1} (CHF)`}
                       type="number"
                       min="0"
                       step="0.01"
@@ -821,6 +846,7 @@ export function DetailedPayslipForm({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    aria-label={`Supprimer la ligne ${index + 1}`}
                     onClick={() => {
                       setLines((current) =>
                         current.filter((candidate) => candidate.id !== line.id),
@@ -962,7 +988,7 @@ export function DetailedPayslipForm({
               type="button"
               variant="secondary"
               disabled={
-                loadingRates || existingBlocked || !selectedItems.length
+                loadingRates || calculating || busy || existingBlocked || !selectedItems.length
               }
               onClick={() => void calculate()}
             >
@@ -1046,10 +1072,7 @@ export function DetailedPayslipForm({
                                 ),
                               })
                             }
-                            readOnly={
-                              definition.category === 'lpp' &&
-                              definition.basisKind === 'coordinated'
-                            }
+                            readOnly={definition.basisKind === 'gross' || (definition.category === 'lpp' && definition.basisKind === 'coordinated')}
                             required
                           />
                         </Field>
@@ -1083,7 +1106,7 @@ export function DetailedPayslipForm({
                           <div className="info-strip">
                             <ShieldCheck size={16} />
                             <span>
-                              Le cumul {definition.category === 'ac' ? 'AC' : 'LAA'} est calculé côté Rust : base d’ouverture confirmée du collaborateur + bases {definition.category === 'ac' ? 'AC' : 'LAA'} des fiches Zentra antérieures de la même année.
+                              Le cumul {definition.category === 'ac' ? 'AC' : 'LAA'} reprend la base d’ouverture confirmée et les fiches antérieures de la même année.
                             </span>
                           </div>
                         ) : null}
@@ -1278,6 +1301,14 @@ export function DetailedPayslipForm({
               <span>Net avant cotisations calculées</span>
               <strong>{formatMoney(totals.net)}</strong>
             </div>
+            <div>
+              <span>Cotisations employé</span>
+              <strong>{selectedItems.length && !hasCurrentCalculation ? 'À recalculer' : formatMoney(calculation?.employeeDeductionsCents ?? 0)}</strong>
+            </div>
+            <div className="total-main" aria-live="polite">
+              <span>Net à payer</span>
+              <strong>{selectedItems.length && !hasCurrentCalculation ? 'À recalculer' : formatMoney(totals.net - (calculation?.employeeDeductionsCents ?? 0))}</strong>
+            </div>
           </div>
         </div>
         {workspace.settings?.payroll.fiduciaryValidated ? (
@@ -1311,9 +1342,8 @@ export function DetailedPayslipForm({
         )}
         <FormActions
           onCancel={close}
-          busy={
-            busy || loadingRates || loadingAccounting || existingBlocked
-          }
+          busy={busy}
+          disabled={loadingRates || loadingAccounting || existingBlocked || Boolean(accountingError)}
         />
       </form>
     </Modal>

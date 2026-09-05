@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { fileBase64 } from './projectDocuments';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
+import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
   OpenDialogOptions,
@@ -4753,7 +4754,7 @@ export const desktopApi = {
     data: T,
   ) {
     await createRecord(entityToBackend[entity], toBackendData(data));
-    return loadWorkspace();
+    return entity === 'employees' ? refreshWorkspaceAfterMutation(loadWorkspace) : loadWorkspace();
   },
   async saveProject(data: Record<string, unknown>, id?: string): Promise<string> {
     if (id) {
@@ -4785,7 +4786,7 @@ export const desktopApi = {
       id,
       data: toBackendData(data),
     });
-    return loadWorkspace();
+    return entity === 'employees' ? refreshWorkspaceAfterMutation(loadWorkspace) : loadWorkspace();
   },
   async saveProjectMilestone(input: {
     id?: string;
@@ -5721,7 +5722,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async startTimer(data: Record<string, unknown>) {
     await invoke('start_timer', { input: toBackendData(data) });
@@ -6687,10 +6688,12 @@ export const desktopApi = {
     const posted = await invoke<RawRecord>('post_payslip', {
       input: { payslip_id: payslipId, entry_date: entryDate || null },
     });
-    return {
-      workspace: await loadWorkspace(),
-      accountingFallbacks: accountingFallbacksFromPostPayslip(posted),
-    };
+    const accountingFallbacks = accountingFallbacksFromPostPayslip(posted);
+    try {
+      return { workspace: await loadWorkspace(), accountingFallbacks };
+    } catch (reason) {
+      throw new PayslipPostingRefreshError(reason, accountingFallbacks);
+    }
   },
   async payPayslip(
     payslipId: string,
@@ -6706,12 +6709,12 @@ export const desktopApi = {
         regulatory_override_reason: regulatoryOverrideReason?.trim() || null,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async exportPayslipPdf(
     payslipId: string,
     suggestedFileName: string,
-  ): Promise<{ path: string; pages: number; finalDocument: boolean } | null> {
+  ): Promise<{ path: string; pages: number; finalDocument: boolean; deliveryWarning?: string } | null> {
     const selected = await chooseSaveFile({
       title: 'Enregistrer la fiche de salaire PDF',
       defaultPath: suggestedFileName,
@@ -6724,12 +6727,14 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('generate_payslip_pdf', {
       input: { payslip_id: payslipId, destination_path: destinationPath },
     });
-    await shareMobileExport(stringValue(raw.path));
-    return {
+    const result: { path: string; pages: number; finalDocument: boolean; deliveryWarning?: string } = {
       path: stringValue(raw.path),
       pages: numberValue(raw.pages),
       finalDocument: boolValue(raw.final_document),
     };
+    try { await shareMobileExport(result.path); }
+    catch { result.deliveryWarning = 'Le PDF a été créé, mais le partage n’a pas abouti. Utilisez « Partager le PDF » pour réessayer.'; }
+    return result;
   },
   async exportSalesDocumentPdf(
     entity: SalesPdfEntity,
