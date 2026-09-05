@@ -1,0 +1,93 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = [];
+await mkdir('.qa/purchase-multi', { recursive: true });
+let activePage;
+try {
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    const page = activePage = await browser.newPage({ viewport: { width, height: 900 } });
+    page.setDefaultTimeout(10000);
+    page.on('pageerror', (error) => report.push({ error: error.stack }));
+    page.on('dialog', (dialog) => dialog.accept());
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?purchasing=1&multiOrders=1');
+    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
+    if (await tour.isVisible()) await tour.click();
+    await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Achats');
+    await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();
+    if (width <= 860) await page.getByRole('combobox', { name: 'Section des achats', exact: true }).selectOption('documents');
+    else await page.locator('#purchase-tab-documents').click();
+    const modal = page.getByRole('dialog', { name: 'Rapprocher commande, réception et facture', exact: true });
+    const mode = (value) => page.evaluate((value) => sessionStorage.setItem('qa-purchase-match-failure', value), value);
+    const state = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-persisted')));
+    const attempts = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-match-attempts') || '[]'));
+    const capture = async (name) => {
+      const geometry = await page.evaluate(() => ({ width: innerWidth, document: document.documentElement.scrollWidth, overflow: [...document.querySelectorAll('.modal,.modal__body')].some((node) => node.scrollWidth > node.clientWidth + 1) }));
+      assert.ok(geometry.width >= geometry.document && !geometry.overflow, `${name} fits ${width}`);
+      await page.screenshot({ path: `.qa/purchase-multi/${width}-${name}.png` });
+      report.push({ capture: name, ...geometry });
+    };
+    await page.getByRole('button', { name: 'Rapprocher avant validation', exact: true }).click();
+    await modal.getByText('2 commandes disponibles', { exact: true }).waitFor();
+    const panels = modal.getByRole('combobox', { name: /^Commande et ligne pour Panneaux/ });
+    const service = modal.getByRole('combobox', { name: 'Commande et ligne pour Pose et réglages', exact: true });
+    assert.equal(await panels.inputValue(), JSON.stringify(['order-multi-1', 'order-multi-1-line']));
+    assert.equal(await service.inputValue(), JSON.stringify(['order-multi-2', 'order-multi-2-line']));
+    assert.match(await panels.locator('option:checked').textContent(), /CF-2026-001/);
+    assert.match(await service.locator('option:checked').textContent(), /CF-2026-002/);
+    assert.doesNotMatch(await panels.locator('option').allTextContents().then((rows) => rows.join(' ')), /CF-EUR|CF-FUTURE|CF-AUTRE/);
+    await modal.getByText(/REC-2026-001.*REC-2026-002/).waitFor();
+    await capture('two-orders');
+    await service.selectOption(JSON.stringify(['order-multi-1', 'order-multi-1-line']));
+    await modal.getByText('Les allocations cumulées dépassent une ligne de commande.', { exact: true }).waitFor();
+    assert.equal(await modal.getByRole('button', { name: 'Enregistrer le rapprochement', exact: true }).isEnabled(), false);
+    await service.selectOption(JSON.stringify(['order-multi-2', 'order-multi-2-line']));
+    await mode('reject');
+    await modal.getByRole('button', { name: 'Enregistrer le rapprochement', exact: true }).click();
+    await modal.getByText('Refus match : la période comptable est fermée.', { exact: true }).waitFor();
+    await capture('refused');
+    await mode('refresh_twice');
+    await modal.getByRole('button', { name: 'Enregistrer le rapprochement', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Enregistrement effectué', exact: true }).waitFor();
+    assert.equal((await state()).matches.length, 3);
+    await page.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
+    await modal.waitFor({ state: 'detached' });
+    const sent = await attempts();
+    assert.equal(sent.length, 2); assert.equal(sent[0].requestId, sent[1].requestId);
+    assert.deepEqual(sent[1].allocations.map((row) => [row.supplierOrderId, row.supplierReceiptLineId, row.quantityMilli]), [
+      ['order-multi-1', 'receipt-multi-1-line', 1000], ['order-multi-1', 'receipt-multi-2-line', 1000], ['order-multi-2', null, 1000],
+    ]);
+    assert.equal((await state()).matches.reduce((sum, row) => sum + row.totalCents, 0), 37835);
+    assert.equal((await state()).stock, 7000);
+    await page.getByRole('button', { name: 'Modifier le rapprochement', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('.match-editor select')].every((select) => select.value));
+    assert.equal(await panels.inputValue(), JSON.stringify(['order-multi-1', 'order-multi-1-line']));
+    assert.equal(await service.inputValue(), JSON.stringify(['order-multi-2', 'order-multi-2-line']));
+    await modal.getByRole('button', { name: 'Retirer le rapprochement', exact: true }).click();
+    await modal.getByText(/3 allocations sur 2 commandes seront dissociées/).waitFor();
+    assert.equal(await modal.getByRole('button', { name: 'Enregistrer le rapprochement', exact: true }).isEnabled(), false);
+    await capture('remove-confirmation');
+    await modal.getByRole('button', { name: 'Oui, retirer les liens', exact: true }).click();
+    await modal.waitFor({ state: 'detached' });
+    assert.equal((await state()).matches.length, 0);
+    assert.equal((await state()).issued, 2); assert.equal((await state()).stock, 7000);
+    await page.getByRole('button', { name: 'Rapprocher avant validation', exact: true }).click();
+    await modal.getByRole('button', { name: 'Enregistrer le rapprochement', exact: true }).click();
+    await modal.waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Valider', exact: true }).click();
+    await page.getByRole('button', { name: 'Paiement', exact: true }).waitFor();
+    assert.equal((await state()).validated, 1); assert.equal((await state()).stock, 7000);
+    await capture('validated');
+    report.push({ width, journey: 'PASS two-order invoice, two partial receipts and direct service, incompatible orders excluded, over-allocation blocked, refusal/read recovery, reload, removal and validation' });
+    await page.close();
+  }
+  assert.deepEqual(report.filter((row) => row.error), []);
+} catch (error) {
+  report.push({ fatal: error.stack }); process.exitCode = 1;
+  if (activePage && !activePage.isClosed()) await activePage.screenshot({ path: '.qa/purchase-multi/failure.png' });
+} finally { await writeFile('.qa/purchase-multi/report.json', JSON.stringify(report, null, 2)); console.log(JSON.stringify(report.filter((row) => row.error || row.fatal || row.journey), null, 2)); await browser.close(); }

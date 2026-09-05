@@ -3798,12 +3798,13 @@ function SupplierInvoiceMatchModal({
                                 row.id,
                               )}
                             >
-                              {row.description}
+                              {orderName(candidateOrder)} · {row.description}
                             </option>
                           ))}
                       </optgroup>
                     ))}
                   </select>
+                  {order ? <small className="match-editor__order">{orderName(order)}</small> : null}
                 </label>
                 {!line ? (
                   <span

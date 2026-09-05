@@ -2,6 +2,7 @@
 import { desktopApi } from '../src/bridge';
 import { refreshWorkspaceAfterMutation } from '../src/workspaceMutation';
 import { supplierDraftLineTotals } from '../src/PurchaseOrdersScreen';
+import { seedMultiOrderPurchase } from './purchase-multi-fixture';
 import type { SupplierCreditNote, SupplierInvoice, SupplierOrder, SupplierReceipt, Workspace } from '../src/types';
 
 export function installPurchaseFulfillmentFixture(initial: Workspace) {
@@ -16,6 +17,7 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     lines: [{ id: 'invoice-line-purchase-qa', supplierInvoiceId: 'invoice-purchase-qa', position: 0, description: initial.catalogItems[0].name, quantityMilli: 2000, unit: 'pièces', unitPriceCents: 10000, discountBp: 0, vatBp: 810, netCents: 20000, vatCents: 1620, totalCents: 21620, category: 'Marchandises', expenseAccountId: 'expense', postedExpenseAccountId: null, projectId: null }],
   };
   initial.supplierInvoices = [invoice];
+  if (new URLSearchParams(location.search).has('multiOrders')) seedMultiOrderPurchase(initial, invoice);
   let persisted = structuredClone(initial);
   let readFailures = 0;
   const writes = new Set<string>();
@@ -54,7 +56,7 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   };
   desktopApi.saveSupplierInvoiceDraft = async (input) => {
     log('invoice-draft', input); const mode = failure('invoice-draft'); const id = input.id || crypto.randomUUID();
-    const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals(line), id: line.id || `${id}-line-${position}`, supplierInvoiceId: id, position, postedExpenseAccountId: null }));
+    const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals({ ...line, discountBp: line.discountBp ?? 0 }), id: line.id || `${id}-line-${position}`, supplierInvoiceId: id, position, postedExpenseAccountId: null }));
     const row = { ...structuredClone(invoice), id, supplierId: input.supplierId, documentDate: input.date, dueDate: input.dueDate, reference: input.reference || '', note: input.note || '', projectId: input.projectId || null, lines, netCents: lines.reduce((sum, line) => sum + line.netCents, 0), vatCents: lines.reduce((sum, line) => sum + line.vatCents, 0), totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0) } as SupplierInvoice;
     row.balanceCents = row.totalCents;
     persisted.supplierInvoices = [...persisted.supplierInvoices.filter((entry) => entry.id !== id), row];
@@ -63,7 +65,7 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   };
   desktopApi.saveSupplierCreditNoteDraft = async (input) => {
     log('credit-draft', input); const mode = failure('credit-draft'); const id = input.id || crypto.randomUUID();
-    const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals(line), id: line.id || `${id}-line-${position}`, supplierCreditNoteId: id, position, postedExpenseAccountId: null }));
+    const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals({ ...line, discountBp: line.discountBp ?? 0 }), id: line.id || `${id}-line-${position}`, supplierCreditNoteId: id, position, postedExpenseAccountId: null }));
     const credit = { id, supplierId: input.supplierId, documentDate: input.documentDate, number: '', reference: input.reference || '', note: input.note || '', status: 'draft', currency: 'CHF', supplierName: initial.suppliers[0].name, items: lines, netCents: lines.reduce((sum, line) => sum + line.netCents, 0), vatCents: lines.reduce((sum, line) => sum + line.vatCents, 0), totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0), allocations: [], allocatedCents: 0, validatedAt: null, validationJournalEntryId: null, createdAt: now, updatedAt: now } as SupplierCreditNote;
     persisted.supplierCreditNotes = [...persisted.supplierCreditNotes.filter((entry) => entry.id !== id), credit];
     sessionStorage.setItem('qa-purchase-saved-credit', JSON.stringify(credit));
@@ -107,8 +109,14 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   desktopApi.saveSupplierInvoiceMatch = async (input) => {
     log('match', input); const mode = failure('match');
     if (!writes.has(input.requestId)) {
-      persisted.supplierInvoiceMatches = [...persisted.supplierInvoiceMatches.filter((row) => row.supplierInvoiceId !== input.supplierInvoiceId), ...input.allocations.map((allocation) => ({ ...allocation, id: crypto.randomUUID(), requestId: input.requestId, supplierInvoiceId: input.supplierInvoiceId, supplierOrderId: allocation.supplierOrderId || input.supplierOrderId, supplierReceiptLineId: allocation.supplierReceiptLineId || null, netCents: 20000, vatCents: 1620, totalCents: 21620, createdAt: now }))];
-      persisted.supplierInvoices[0].matchStatus = input.allocations.length ? 'matched' : 'unmatched'; writes.add(input.requestId);
+      const invoice = persisted.supplierInvoices.find((row) => row.id === input.supplierInvoiceId)!;
+      persisted.supplierInvoiceMatches = [...persisted.supplierInvoiceMatches.filter((row) => row.supplierInvoiceId !== input.supplierInvoiceId), ...input.allocations.map((allocation) => {
+        const line = invoice.lines.find((row) => row.id === allocation.supplierInvoiceItemId)!;
+        const netCents = Math.round(line.netCents * allocation.quantityMilli / line.quantityMilli);
+        const vatCents = Math.round(line.vatCents * allocation.quantityMilli / line.quantityMilli);
+        return { ...allocation, id: crypto.randomUUID(), requestId: input.requestId, supplierInvoiceId: input.supplierInvoiceId, supplierOrderId: allocation.supplierOrderId || input.supplierOrderId, supplierReceiptLineId: allocation.supplierReceiptLineId || null, netCents, vatCents, totalCents: netCents + vatCents, createdAt: now };
+      })];
+      invoice.matchStatus = input.allocations.length ? 'matched' : 'unmatched'; writes.add(input.requestId);
     }
     return afterWrite(mode);
   };
