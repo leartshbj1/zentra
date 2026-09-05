@@ -1,0 +1,67 @@
+import {createRequire} from 'node:module';
+import {mkdir,writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const {chromium}=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const report=[];await mkdir('.qa/expense-journal',{recursive:true});
+try {
+  for(const width of [320,390,768,1024,1440]) {
+    const page=await browser.newPage({viewport:{width,height:900}});
+    page.on('pageerror',e=>report.push({width,error:e.message}));
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?expenseJournal=1',{waitUntil:'domcontentloaded'});
+    const tour=page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true});if(await tour.isVisible())await tour.click();
+    await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
+    await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Comptabilité');
+    await page.locator('.navigation-palette__results button').filter({has:page.getByText('Comptabilité',{exact:true})}).click();
+    await page.locator('.navigation-palette').waitFor({state:'detached'});
+    const tab=async(value,name)=>{if(width<=800)await page.getByRole('combobox',{name:'Section comptable',exact:true}).selectOption(value);else await page.getByRole('tab',{name,exact:true}).click();};
+    const capture=async(name)=>{assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${width} ${name} overflow`);await page.screenshot({path:`.qa/expense-journal/${width}-${name}.png`});};
+    await page.getByLabel('Date de début de la période',{exact:true}).fill('2026-04-01');
+    await page.getByLabel('Date de fin de la période',{exact:true}).fill('2026-06-30');
+    await tab('vat','TVA');
+    const issues=page.getByLabel('Points à vérifier avant export',{exact:true});
+    await issues.getByText('Dépense et journal à rétablir',{exact:true}).waitFor();
+    assert.ok(await page.getByRole('button',{name:'Générer l’XML',exact:false}).isDisabled());
+    await issues.scrollIntoViewIfNeeded();await capture('vat-issue');
+    await issues.getByRole('button',{name:'Contrôler l’écriture',exact:true}).click();
+    const tip=page.locator('[data-journal-entry-id="tip-qa"]');
+    await tip.getByRole('button',{name:'Rétablir la dépense',exact:true}).waitFor();
+    assert.equal(await page.locator('[data-journal-entry-id="active-qa"] button').count(),0);
+    await page.waitForFunction(()=>{const header=document.querySelector('[data-journal-entry-id="tip-qa"] header');if(!header)return false;const r=header.getBoundingClientRect();return r.top>=60 && r.top<innerHeight-100;});await capture('journal');
+    await tip.getByRole('button',{name:'Rétablir la dépense',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'Rétablir la dépense',exact:true});
+    await dialog.getByLabel('Date de correction',{exact:false}).fill('2026-05-10');
+    await dialog.getByLabel('Motif',{exact:false}).fill('Rétablissement de l’achat déjà payé, annulé par erreur dans le journal.');
+    await page.evaluate(()=>sessionStorage.setItem('qa-expense-refuse','1'));
+    await dialog.getByRole('button',{name:'Rétablir la dépense',exact:true}).click();
+    await dialog.getByRole('alert').filter({hasText:'clôturée'}).waitFor();
+    assert.equal(await dialog.locator('input[name="entryDate"]').inputValue(),'2026-05-10');
+    assert.match(await dialog.locator('textarea').inputValue(),/Rétablissement/);
+    assert.ok(await dialog.getByRole('alert').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}));
+    await capture('refusal');
+    await dialog.getByRole('button',{name:'Rétablir la dépense',exact:true}).click();
+    await dialog.getByRole('alert').filter({hasText:'Réponse perdue'}).waitFor();
+    await dialog.getByRole('button',{name:'Rétablir la dépense',exact:true}).click();
+    await dialog.waitFor({state:'hidden'});
+    const recovery=page.getByRole('button',{name:'Actualiser les états',exact:true});await recovery.waitFor();
+    await recovery.scrollIntoViewIfNeeded();await capture('read-recovery');
+    assert.ok(await page.getByRole('button',{name:'Saisir une écriture',exact:true}).isDisabled());
+    await recovery.click();await recovery.waitFor({state:'hidden'});
+    const restored=page.locator('[data-journal-entry-id="restored-qa"]');await restored.waitFor();
+    assert.equal(await restored.getByRole('button').count(),0);
+    await page.locator('[data-journal-entry-id="manual-qa"]').getByRole('button',{name:'Extourner',exact:true}).click();
+    const manual=page.getByRole('dialog',{name:'Extourner une écriture',exact:true});await manual.waitFor();
+    await page.waitForFunction(()=>document.querySelector('[role="dialog"]')?.contains(document.activeElement));
+    await page.keyboard.press('Escape');await manual.waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-attempts')),'3');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-commits')),'1');
+    await restored.scrollIntoViewIfNeeded();await capture('restored');
+    await page.getByLabel('Date de début de la période',{exact:true}).fill('2026-04-01');
+    await page.getByLabel('Date de fin de la période',{exact:true}).fill('2026-06-30');
+    await tab('vat','TVA');await page.getByText('Prêt pour export contrôlé',{exact:true}).waitFor();
+    report.push({width,result:'PASS VAT warning and exact journal access, paid expense protected, restored chain, refusal preserved, lost response replay, confirmed write read recovery, manual reversal dialog and Escape, no duplicate, no overflow',captures:5});await page.close();
+  }
+  assert.deepEqual(report.filter(r=>r.error),[]);
+} catch(error){report.push({fatal:error.stack});process.exitCode=1;const page=browser.contexts().flatMap(c=>c.pages()).at(-1);if(page){await page.screenshot({path:'.qa/expense-journal/failure.png'});await writeFile('.qa/expense-journal/failure.html',await page.content());}}
+finally{await writeFile('.qa/expense-journal/report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));await browser.close();}

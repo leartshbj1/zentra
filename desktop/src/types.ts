@@ -1827,6 +1827,7 @@ export type JournalEntry = {
   status: 'posted';
   reversalOf: Identifier | null;
   hasReversal: boolean;
+  reversalAction?: 'restore_expense' | 'blocked_expense';
 };
 
 export type JournalLine = {
@@ -2105,7 +2106,7 @@ export type VatAdjustment = {
 export type VatBlockingIssue = {
   code: string;
   message: string;
-  sourceType: VatSourceType | null;
+  sourceType: VatSourceType | 'journal_entry' | null;
   sourceId: Identifier | null;
 };
 

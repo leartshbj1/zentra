@@ -5,6 +5,15 @@ import { desktopApi } from './bridge';
 
 describe('détail des achats classés dans le décompte TVA', () => {
   const input = { dateFrom: '2026-01-01', dateTo: '2026-03-31', submissionType: 'initial' as const };
+  it('conserve le lien exact vers une extourne à rétablir sans autoriser la dépense active', async () => {
+    invokeMock.mockResolvedValueOnce({ entries: [{id:'root',source_type:'expense',reversal_action:'blocked_expense'},{id:'tip',source_type:'journal_reversal',reversal_action:'restore_expense'},{id:'manual',source_type:'manual'}],lines:[] });
+    const journal=await desktopApi.getJournal({});
+    expect(journal.entries.map(row=>[row.id,row.reversalAction])).toEqual([['root','blocked_expense'],['tip','restore_expense'],['manual',undefined]]);
+    invokeMock.mockResolvedValueOnce({exportable:false,blocking_issues:[{code:'expense_journal_inactive',message:'Dépense à rétablir',source_type:'journal_entry',source_id:'tip'}]});
+    const preview=await desktopApi.previewVatReturn(input);
+    expect(preview.exportable).toBe(false);
+    expect(preview.blockingIssues[0]).toMatchObject({sourceType:'journal_entry',sourceId:'tip'});
+  });
   it('conserve les signes et la preuve de l’extourne avec sa pièce liée', async () => {
     invokeMock.mockResolvedValueOnce({ received_allocations: [{ source_type: 'supplier_invoice_item', source_id: 'line', parent_id: 'invoice', description: 'FA · Marchandises', currency: 'CHF', payment_id: 'reversal', date: '2026-03-31', gross_cents: -1026, net_cents: -949, vat_cents: -77, settlement: { kind: 'credit_reversal', counterpart_id: 'credit', counterpart_reference: 'AV-2026-001', reverses_allocation_id: 'initial-application' } }] });
     const preview = await desktopApi.previewVatReturn(input);

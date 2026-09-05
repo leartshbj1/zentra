@@ -7,6 +7,7 @@ import type {
 } from './types';
 
 export function vatBlockingIssueTitle(code: string): string {
+  if (code === 'expense_journal_inactive') return 'Dépense et journal à rétablir';
   if (code === 'vat_reporting_transition_open_balance') return 'Changement de mode TVA à préparer';
   if (code === 'unclassified_sources') return 'Traitements TVA à compléter';
   if (code === 'missing_uid' || code === 'invalid_uid') return 'Numéro IDE / TVA à vérifier';

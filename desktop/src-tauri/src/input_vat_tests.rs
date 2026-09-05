@@ -6,6 +6,8 @@ use uuid::Uuid;
 
 #[path = "vat_received_credit_tests.rs"]
 mod received_credit_tests;
+#[path = "expense_journal_tests.rs"]
+mod expense_journal_tests;
 
 use crate::{
     database::LocalStore,
@@ -111,6 +113,7 @@ fn journal_count(store: &LocalStore) -> i64 {
         .query_row("SELECT COUNT(*) FROM journal_entries", [], |row| row.get(0))
         .unwrap()
 }
+
 
 fn credit_draft(store: &LocalStore, date: &str) -> (String, String) {
     let supplier = store

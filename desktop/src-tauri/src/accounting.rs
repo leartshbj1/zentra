@@ -860,18 +860,8 @@ impl LocalStore {
             if source_type == "supplier_expense_reclassification" {
                 return Err(AppError::Validation("Une imputation fournisseur ne peut pas être extournée isolément. Reclassez la ligne depuis les achats pour conserver le compte de charge et sa TVA cohérents.".into()));
             }
-            if source_type == "expense" {
-                let bank_linked: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE expense_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_unreconciliations WHERE expense_id=?1)", params![business_source_id], |row| row.get(0))?;
-                if bank_linked {
-                    return Err(AppError::Validation("Cette dépense possède un historique de rapprochement bancaire. La dissociation du relevé conserve son paiement et sa TVA ; ils ne peuvent pas être extournés isolément.".into()));
-                }
-                let correction: i64 = tx.query_row(
-                    "SELECT COALESCE(SUM(line.credit_cents-line.debit_cents),0) FROM journal_entries entry JOIN journal_lines line ON line.journal_entry_id=entry.id JOIN accounts account ON account.id=line.account_id WHERE entry.source_type='vat_input_reclassification' AND entry.source_id=? AND account.account_type='asset'",
-                    params![format!("expense:{business_source_id}")], |row| row.get(0),
-                )?;
-                if correction != 0 {
-                    return Err(AppError::Validation("Cette dépense comporte une correction de TVA non déductible. Corrigez son traitement TVA avant d'extourner l'achat.".into()));
-                }
+            if source_type == "expense" && crate::expense_journal::reversal_action(&tx,id)? != Some("restore_expense") {
+                return Err(AppError::Validation("Une dépense payée ne peut pas être annulée isolément dans le journal. Son achat, son paiement et sa TVA doivent être corrigés ensemble. Une ancienne extourne erronée peut être rétablie depuis sa dernière écriture ; cela ne constitue pas une annulation financière de l’achat.".into()));
             }
             // Avant ce garde, une ancienne version pouvait laisser une écriture
             // métier inactive en extournant sa racine. On autorise uniquement
@@ -879,7 +869,7 @@ impl LocalStore {
             // impaire : cette opération rétablit l'effet attendu. Toute action
             // qui rendrait une racine active inactive reste bloquée.
             let restorative_legacy_reversal =
-                if matches!(source_type.as_str(), "payment" | "invoice") {
+                if matches!(source_type.as_str(), "payment" | "invoice" | "expense") {
                     let (max_depth, entry_count): (i64, i64) = tx.query_row(
                         "WITH RECURSIVE reversal_chain(id,depth) AS (
                        SELECT ?1,0
@@ -967,11 +957,21 @@ impl LocalStore {
             &[(&date_from, &date_to)],
         )?;
         let (where_sql, values) = period_clause(&filter, "je.entry_date")?;
-        let entries = query_all(
+        let mut entries = query_all(
             &connection,
             &format!("SELECT je.*,EXISTS(SELECT 1 FROM journal_entries reversal WHERE reversal.reversal_of=je.id) AS has_reversal FROM journal_entries je {where_sql} ORDER BY je.entry_date,je.number"),
             params_from_iter(values),
         )?;
+        for entry in &mut entries {
+            if entry["source_type"] == "expense" {
+                entry["reversal_action"] = json!("blocked_expense");
+                continue;
+            }
+            if entry["source_type"] != "journal_reversal" || entry["has_reversal"].as_i64() == Some(1) { continue; }
+            if let Some(action) = crate::expense_journal::reversal_action(&connection,entry["id"].as_str().unwrap_or_default())? {
+                entry["reversal_action"] = json!(action);
+            }
+        }
         let lines = query_all(&connection,&format!("SELECT jl.*,a.code AS account_code,a.name AS account_name,je.number AS entry_number,je.entry_date FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id JOIN journal_entries je ON je.id=jl.journal_entry_id {} ORDER BY je.entry_date,je.number,jl.rowid", period_join_clause(&filter,"je.entry_date")?.0),params_from_iter(period_join_clause(&filter,"je.entry_date")?.1))?;
         Ok(json!({"entries":entries,"lines":lines,"currency":report_currency}))
     }

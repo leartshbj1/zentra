@@ -179,7 +179,7 @@ pub(crate) fn sync_source(
         params![source.journal_id],
         |row| row.get(0),
     )?;
-    if reversed {
+    if reversed && !(source_type == "expense" && crate::expense_journal::state(tx,&source.journal_id,"9999-12-31")?.active) {
         return Err(AppError::Validation("L'écriture de cet achat a été extournée. Rétablissez un achat cohérent avant de modifier sa TVA.".into()));
     }
     let vat_memo = match source_type {

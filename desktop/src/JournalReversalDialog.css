@@ -1,0 +1,17 @@
+.journal-reversal-dialog { display: grid; gap: 18px; min-width: 0; }
+.journal-reversal-dialog p { margin: 0; line-height: 1.6; }
+.journal-reversal-dialog .info-strip { overflow-wrap: anywhere; }
+.journal-reversal-dialog__error { color: var(--danger, #a32f2b); border: 1px solid #edc6c3; border-radius: 10px; background: #fff4f3; padding: 12px; scroll-margin-block: 20px; }
+.journal-reversal-dialog .form-actions { position: sticky; bottom: 0; margin: 0; padding-block: 12px 4px; background: var(--surface, #fff); }
+.journal-entry-list > article > header { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; padding: 16px; }
+.journal-entry-list > article > header > div, .journal-entry-list > article > header > p, .journal-entry-list > article > header > small { grid-column: 1; min-width: 0; overflow-wrap: anywhere; }
+.journal-entry-list > article > header > .button, .journal-entry-list > article > header > .locked-label { grid-column: 2; grid-row: 1 / 4; }
+.journal-entry-list > article > header strong { font-size: 13px; }
+.journal-entry-list > article > header span, .journal-entry-list > article > header small { font-size: 12px; }
+.journal-entry-list > article > header p { font-size: 14px; margin: 0; }
+@media(max-width: 650px) {
+  .journal-entry-list > article > header { grid-template-columns: minmax(0,1fr); padding: 14px; }
+  .journal-entry-list > article > header > .button, .journal-entry-list > article > header > .locked-label { grid-column: 1; grid-row: auto; min-height: 44px; }
+  .journal-reversal-dialog .form-actions { display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .journal-reversal-dialog .form-actions .button { min-height: 44px; }
+}

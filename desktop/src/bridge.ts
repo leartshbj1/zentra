@@ -3773,7 +3773,7 @@ function vatPreviewFromRaw(value: unknown): VatReturnPreview {
     blockingIssues: rawArray(row.blocking_issues).map((issue) => ({
       code: stringValue(issue.code),
       message: stringValue(issue.message),
-      sourceType: nullableString(issue.source_type) as VatSourceType | null,
+      sourceType: nullableString(issue.source_type) as VatReturnPreview['blockingIssues'][number]['sourceType'],
       sourceId: nullableString(issue.source_id),
     })),
     warnings: Array.isArray(row.warnings)
@@ -3963,6 +3963,7 @@ function journalEntryFromRaw(row: RawRecord): JournalEntry {
     status: 'posted',
     reversalOf: nullableString(row.reversal_of),
     hasReversal: boolValue(row.has_reversal),
+    ...(['restore_expense','blocked_expense'].includes(String(row.reversal_action)) ? { reversalAction: row.reversal_action as JournalEntry['reversalAction'] } : {}),
   };
 }
 

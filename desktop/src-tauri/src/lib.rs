@@ -21,6 +21,7 @@ mod error;
 mod fiduciary_closing;
 mod financial_pdf;
 mod input_vat_accounting;
+mod expense_journal;
 #[cfg(test)]
 mod input_vat_tests;
 mod installation;
@@ -5370,19 +5371,14 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             )
             .unwrap();
         drop(connection);
-        let reversal = store
-            .reverse_journal_entry(&expense_entry, "2026-07-07", None)
-            .unwrap();
-        assert_eq!(reversal["entry"]["reversal_of"], expense_entry);
-        let reversal_retry = store
-            .reverse_journal_entry(&expense_entry, "2026-07-07", None)
-            .unwrap();
-        assert_eq!(reversal_retry["id"], reversal["id"]);
+        // A paid expense and its VAT cannot be cancelled only in the ledger.
+        // Legacy restoration and exact replays are exercised in expense_journal_tests.
         assert!(store
-            .reverse_journal_entry(&expense_entry, "2026-07-08", None)
+            .reverse_journal_entry(&expense_entry, "2026-07-07", None)
             .unwrap_err()
             .to_string()
-            .contains("diffèrent"));
+            .contains("corrigés ensemble"));
+        assert_eq!(store.connect().unwrap().query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get::<_,i64>(0)).unwrap(),entries);
         assert_eq!(
             store
                 .get_trial_balance(PeriodFilter {

@@ -2138,6 +2138,7 @@ fn load_raw_vat_sources(
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
     transition::append_period_issues(connection, profile, date_to, issues)?;
+    crate::expense_journal::append_vat_issues(connection,date_to,issues)?;
     let mut sources = load_sales_sources(
         connection,
         &profile.form_of_reporting,
