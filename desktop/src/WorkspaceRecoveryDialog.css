@@ -1,0 +1,8 @@
+.workspace-recovery { font-size: 15px; line-height: 1.6; }
+.workspace-recovery > p { color: var(--muted); }
+.workspace-recovery__saved { display: flex; align-items: flex-start; gap: 14px; padding: 18px; border: 1px solid #bfd7c8; border-radius: 12px; background: #edf6f0; color: #205c3d; }
+.workspace-recovery__saved svg { flex: 0 0 auto; margin-top: 3px; }
+.workspace-recovery__saved p { margin: 0; }
+.workspace-recovery details { padding: 12px 0; font-size: 13px; overflow-wrap: anywhere; }
+.workspace-recovery summary { cursor: pointer; font-weight: 600; }
+.workspace-recovery .form-actions > .button { width: 100%; min-height: 46px; }

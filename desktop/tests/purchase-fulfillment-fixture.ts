@@ -19,6 +19,11 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   let persisted = structuredClone(initial);
   let readFailures = 0;
   const writes = new Set<string>();
+  const reminderSettings = desktopApi.getReminderSettings;
+  desktopApi.getReminderSettings = async () => {
+    sessionStorage.setItem('qa-purchase-reminder-checks', String(Number(sessionStorage.getItem('qa-purchase-reminder-checks') || 0) + 1));
+    return reminderSettings();
+  };
   const log = (operation: string, input: unknown) => {
     const key = `qa-purchase-${operation}-attempts`;
     sessionStorage.setItem(key, JSON.stringify([...JSON.parse(sessionStorage.getItem(key) || '[]'), structuredClone(input)]));
@@ -30,11 +35,20 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     return mode;
   };
   desktopApi.loadWorkspace = async () => {
-    if (readFailures > 0) { readFailures -= 1; throw new Error('Lecture temporairement indisponible.'); }
+    sessionStorage.setItem('qa-purchase-read-count', String(Number(sessionStorage.getItem('qa-purchase-read-count') || 0) + 1));
+    if (sessionStorage.getItem('qa-purchase-hold-next-read') === '1') {
+      sessionStorage.removeItem('qa-purchase-hold-next-read');
+      await new Promise<void>((resolve) => window.addEventListener('qa-release-workspace-read', () => resolve(), { once: true }));
+    }
+    if (readFailures > 0 || sessionStorage.getItem('qa-purchase-block-reads') === '1') {
+      readFailures = Math.max(0, readFailures - 1);
+      throw new Error('Lecture temporairement indisponible.');
+    }
     return structuredClone(persisted);
   };
   const afterWrite = async (mode: string | null) => {
-    readFailures = mode === 'refresh_twice' ? 2 : mode === 'refresh_once' ? 1 : 0;
+    readFailures = mode === 'refresh_twice' || mode === 'refresh_held' ? 2 : mode === 'refresh_once' ? 1 : 0;
+    if (mode === 'refresh_held') sessionStorage.setItem('qa-purchase-hold-next-read', '1');
     sessionStorage.setItem('qa-purchase-persisted', JSON.stringify({ orders: persisted.supplierOrders.length, receipts: persisted.supplierReceipts.length, issued: persisted.supplierReceipts.filter((receipt) => receipt.status === 'issued').length, stock: persisted.catalogItems[0].stockQuantityMilli, matches: persisted.supplierInvoiceMatches, validated: persisted.supplierInvoices.filter((row) => row.documentStatus === 'validated').length }));
     return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
   };

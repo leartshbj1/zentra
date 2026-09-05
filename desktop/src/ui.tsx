@@ -129,12 +129,14 @@ export function Modal({
   onClose,
   children,
   wide = false,
+  dismissible = true,
 }: {
   title: string;
   description?: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  dismissible?: boolean;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
   const titleId = useId();
@@ -171,7 +173,7 @@ export function Modal({
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      onClose();
+      if (dismissible) onClose();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -208,7 +210,7 @@ export function Modal({
   }
 
   const content = (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => dismissible && event.target === event.currentTarget && onClose()}>
       <section
         ref={dialogRef}
         className={`modal ${wide ? 'modal--wide' : ''}`}
@@ -224,9 +226,9 @@ export function Modal({
             <h2 id={titleId}>{title}</h2>
             {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={`Fermer « ${title} »`}>
+          {dismissible ? <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={`Fermer « ${title} »`}>
             <X size={19} />
-          </Button>
+          </Button> : null}
         </header>
         <div className="modal__body">{children}</div>
       </section>

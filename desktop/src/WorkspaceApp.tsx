@@ -71,6 +71,8 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { useWorkspaceRecovery } from './useWorkspaceRecovery';
+import { WorkspaceRecoveryDialog } from './WorkspaceRecoveryDialog';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import { newestDocumentsFirst } from './documentOrder';
@@ -449,6 +451,7 @@ export function WorkspaceApp({
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
+  const { reason: workspaceRecoveryReason, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
@@ -620,7 +623,7 @@ export function WorkspaceApp({
   }, [workspace.activeTimer]);
 
   const runRecurrenceScan = useCallback(async () => {
-    if (readOnly || recurrenceScanInFlight.current) return;
+    if (readOnly || recurrenceScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
       typeof document !== 'undefined' &&
       document.visibilityState === 'hidden'
@@ -704,7 +707,7 @@ export function WorkspaceApp({
     } finally {
       recurrenceScanInFlight.current = false;
     }
-  }, [readOnly, setWorkspace]);
+  }, [readOnly, setWorkspace, isWorkspaceRecoveryPending]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -727,7 +730,7 @@ export function WorkspaceApp({
   }, [readOnly, recurrenceScheduleSignal, runRecurrenceScan]);
 
   const runReminderScan = useCallback(async () => {
-    if (readOnly || reminderScanInFlight.current) return;
+    if (readOnly || reminderScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
       typeof document !== 'undefined' &&
       document.visibilityState === 'hidden'
@@ -771,7 +774,7 @@ export function WorkspaceApp({
     } finally {
       reminderScanInFlight.current = false;
     }
-  }, [readOnly]);
+  }, [readOnly, isWorkspaceRecoveryPending]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -806,28 +809,36 @@ export function WorkspaceApp({
       });
       return false;
     }
-    if (actionInFlight.current) return false;
+    if (actionInFlight.current || isWorkspaceRecoveryPending()) return false;
     actionInFlight.current = true;
     setBusy(true);
     setNotice(null);
     try {
-      setWorkspace(await action());
+      const nextWorkspace = await action();
+      workspaceRef.current = nextWorkspace;
+      setWorkspace(nextWorkspace);
       setNotice({ tone: 'success', text: message });
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      // Une commande locale peut avoir été validée juste avant qu'un
-      // rafraîchissement échoue. Relire au mieux évite alors une interface
-      // périmée et rend le prochain essai sûr.
+      let refreshedWorkspace: Workspace | null = null;
       try {
-        setWorkspace(await desktopApi.loadWorkspace());
+        refreshedWorkspace = await desktopApi.loadWorkspace();
+      } catch (refreshCause) {
+        // Once the native write is acknowledged, only retry reads. Keep this
+        // action pending even if its original form has already been closed.
+        if (reason instanceof WorkspaceRefreshAfterMutationError) {
+          refreshedWorkspace = await waitForRefresh(refreshCause);
+        }
+      }
+      if (refreshedWorkspace) {
+        workspaceRef.current = refreshedWorkspace;
+        setWorkspace(refreshedWorkspace);
         if (reason instanceof WorkspaceRefreshAfterMutationError) {
           setNotice({ tone: 'success', text: message });
           if (close) setModal(null);
           return true;
         }
-      } catch {
-        // Le message d'origine reste le plus utile lorsque la relecture échoue aussi.
       }
       onError?.(reason);
       if (!onError) setNotice({
@@ -1002,8 +1013,8 @@ export function WorkspaceApp({
     if (converted) {
       quoteOrderRequestIds.current.delete(item.id);
       const createdOrder = (
-        convertedWorkspace as Workspace | null
-      )?.salesOrders.find((order) => order.quoteId === item.id);
+        (convertedWorkspace as Workspace | null) ?? workspaceRef.current
+      ).salesOrders.find((order) => order.quoteId === item.id);
       setOrderToOpenId(createdOrder?.id ?? null);
       setView('orders');
       setSearch('');
@@ -2065,6 +2076,7 @@ export function WorkspaceApp({
         onClose={guidedTour.close}
         onNavigate={navigateTour}
       />
+      {workspaceRecoveryReason !== null ? <WorkspaceRecoveryDialog reason={workspaceRecoveryReason} onReload={retryWorkspaceRefresh} /> : null}
     </div>
   );
 }

@@ -58,14 +58,14 @@ try {
     await capture('save-refused');
     await mode('save', 'refresh_twice');
     await dialog.getByRole('button', { name: 'Enregistrer le bon brouillon', exact: true }).click();
-    await dialog.getByText(/L’opération a été enregistrée, mais l’actualisation/).waitFor();
+    await page.getByRole('dialog', { name: 'Enregistrement effectué', exact: true }).waitFor();
     assert.equal((await persisted()).deliveries, 1);
-    await capture('save-committed-read-failed');
-    await dialog.getByRole('button', { name: 'Enregistrer le bon brouillon', exact: true }).click();
+    await capture('save-awaiting-refresh');
+    await page.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
     await dialog.waitFor({ state: 'detached' });
     assert.equal((await persisted()).deliveries, 1, 'retry must not create another delivery');
     const saves = await attempts('save');
-    assert.equal(saves.length, 3);
+    assert.equal(saves.length, 2, 'manual refresh only rereads the acknowledged write');
     assert.ok(saves[0].id);
     assert.equal(new Set(saves.map((input) => input.id)).size, 1);
     assert.ok(saves.every((input) => input.lines[0].quantityMilli === 2000 && input.reference === 'Livraison bureau / lot 1'));
@@ -135,7 +135,7 @@ try {
     await page.waitForFunction(() => { const nav = document.querySelector('.sidebar__nav'); const active = nav.querySelector('[aria-current="page"]'); return active.getBoundingClientRect().bottom <= nav.getBoundingClientRect().bottom + 1; });
     assert.ok(await contained(), `active menu after height resize ${width}`);
     await capture('navigation');
-    report.push({ width, result: 'PASS partial delivery, rejection inside dialogs, saved draft plus two read failures and same-ID retry, issue and invoice creation recovered without second write, stable references and quantities, active navigation visible after resize, no overflow' });
+    report.push({ width, result: 'PASS partial delivery, rejection inside dialogs, saved draft plus two read failures and read-only recovery, issue and invoice creation recovered without second write, stable references and quantities, active navigation visible after resize, no overflow' });
     await page.close();
   }
   assert.deepEqual(report.filter((item) => item.error), []);
