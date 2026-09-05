@@ -83,17 +83,29 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
     assert after_version > before_version, "Upgrade must increase versionCode"
     adb("logcat", "-c")
     adb("shell", "am", "start", "-W", "-n", PACKAGE + "/.MainActivity")
-    for _ in range(20):
-        adb("shell", "uiautomator", "dump", "--compressed", "/sdcard/zentra-upgrade.xml")
-        ui = adb("exec-out", "cat", "/sdcard/zentra-upgrade.xml")
+    deadline = time.monotonic() + 80
+    ui = b""
+    while time.monotonic() < deadline:
+        adb("shell", "pidof", PACKAGE)
+        # A failed accessibility inspection must never reuse a prior XML file.
+        remote_ui = f"/sdcard/zentra-upgrade-{time.monotonic_ns()}.xml"
+        try:
+            adb("shell", "uiautomator", "dump", "--compressed", remote_ui)
+            ui = adb("exec-out", "cat", remote_ui)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            time.sleep(2)
+            continue
         if b"Restaurer une sauvegarde" in ui:
             break
         time.sleep(3)
     assert b"Restaurer une sauvegarde" in ui, "Welcome interface missing after upgrade"
-    adb("shell", "pidof", PACKAGE)
+    app_pid = adb("shell", "pidof", PACKAGE).decode().strip()
+    assert app_pid.isdigit(), "Expected one application process after upgrade"
     (OUT / "upgrade-ui.xml").write_bytes(ui)
     (OUT / "upgrade.png").write_bytes(adb("exec-out", "screencap", "-p"))
-    runtime = adb("logcat", "-d", "-s", "AndroidRuntime:E")
+    # Preserve emulator failures, but fail this app check only for its own PID.
+    (OUT / "upgrade-runtime-all.log").write_bytes(adb("logcat", "-d", "-s", "AndroidRuntime:E"))
+    runtime = adb("logcat", "-d", "--pid=" + app_pid, "-s", "AndroidRuntime:E")
     (OUT / "upgrade-runtime.log").write_bytes(runtime)
     assert b"FATAL EXCEPTION" not in runtime
     adb("shell", "am", "force-stop", PACKAGE)
