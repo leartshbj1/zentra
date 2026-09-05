@@ -2,7 +2,7 @@
 
 Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corriger les erreurs observées et préparer une mise à jour commune. Ce document suit le travail ; il ne constitue pas une déclaration de conformité ni une recette complète de toutes les fonctions.
 
-Dernière publication vérifiée : **1.33.0**, site version 54, le 5 septembre 2026. Voir les [notes et limites de cette version](RELEASE-1.33.md). Les sections précédentes conservent la chronologie des lots.
+Dernière publication vérifiée : **1.35.0**, site version 55, le 6 septembre 2026. Voir les [notes et limites de cette version](RELEASE-1.35.md). Le devis, l’acompte et le solde déduit partagent désormais un dossier ; les anciens acomptes disposent d’une création de solde sans doublon. La version 1.34 reste non publiée. Les sections suivantes conservent la chronologie des lots.
 
 ## Lot 1.28.0 disponible dans le système de mise à jour
 
