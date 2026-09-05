@@ -114,6 +114,8 @@ pub fn run() {
             confirm_expense_bank_reconciliation,
             create_bank_expense,
             unreconcile_bank_expense,
+            match_bank_expense_refund,
+            unmatch_bank_expense_refund,
             record_expense_refund,
             create_record,
             update_record,

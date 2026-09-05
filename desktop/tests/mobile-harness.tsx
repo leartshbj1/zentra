@@ -16,6 +16,7 @@ import { installBankFixture } from './bank-fixture';
 import { installBankExpenseFixture } from './bank-expense-fixture';
 import { installBankCreateFixture } from './bank-create-fixture';
 import { installBankUnlinkFixture } from './bank-unlink-fixture';
+import { installBankRefundFixture } from './bank-refund-fixture';
 import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
 import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixture';
 import { installRecurrenceFixture } from './recurrence-fixture';
@@ -105,6 +106,7 @@ if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => d
 if (new URLSearchParams(location.search).has('bankExpenses')) installBankExpenseFixture(() => data);
 if (new URLSearchParams(location.search).has('bankCreate')) installBankCreateFixture(() => data);
 if (new URLSearchParams(location.search).has('bankUnlink')) installBankUnlinkFixture(() => data);
+if (new URLSearchParams(location.search).has('bankRefund')) installBankRefundFixture(data);
 if (new URLSearchParams(location.search).has('expenseJournal')) installExpenseJournalFixture(data);
 if (new URLSearchParams(location.search).has('projectCosts')) installProjectCostFixture(data);
 if (new URLSearchParams(location.search).has('expenseRefund')) installExpenseRefundFixture(data);

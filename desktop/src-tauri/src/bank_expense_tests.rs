@@ -1,4 +1,5 @@
 mod expense_tests {
+    include!("bank_expense_refund_tests.rs");
     include!("bank_expense_creation_tests.rs");
     include!("bank_expense_correction_tests.rs");
     use super::*;

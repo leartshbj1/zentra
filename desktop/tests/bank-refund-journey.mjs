@@ -1,0 +1,62 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const { chromium } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = []; await mkdir('.qa/bank-refund', { recursive: true });
+try {
+  for (const width of [320,390,768,1024,1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    page.setDefaultTimeout(10000);
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?finance=1&bank=1&bankRefund=1');
+    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true }); if (await tour.isVisible()) await tour.click();
+    const navigate = async name => { await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click(); await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name); await page.locator('.navigation-palette__results button').filter({ has: page.getByText(name, { exact: true }) }).click(); await page.locator('.navigation-palette').waitFor({ state: 'hidden' }); };
+    const flag = async (name, enabled) => page.evaluate(({ name, enabled }) => enabled ? sessionStorage.setItem(name,'1') : sessionStorage.removeItem(name), { name: `qa-bank-refund-${name}`, enabled });
+    const capture = async name => { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `page overflow ${width} ${name}`); const dialog = page.getByRole('dialog'); if (await dialog.isVisible()) assert.ok(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `dialog overflow ${width} ${name}`); await page.screenshot({ path: `.qa/bank-refund/${width}-${name}.png` }); };
+    await navigate('Banque');
+    const movement = page.locator('.bank-movement');
+    const picker = movement.locator('.bank-refund-picker'); await picker.locator('summary').click();
+    assert.equal(await picker.getByRole('radio').count(), 2); assert.equal(await picker.locator('input:checked').count(), 0);
+    await picker.getByRole('searchbox').fill('RETOUR-MATERIEL'); assert.equal(await picker.getByRole('radio').count(), 1);
+    await picker.locator('.bank-candidate-option').click();
+    const submit = picker.getByRole('button', { name: 'Associer le remboursement', exact: true }); assert.ok(await submit.isDisabled());
+    const dateReason = picker.getByRole('textbox', { name: /Justification de l’écart de dates/ });
+    await dateReason.fill('Date de valeur du 31 août et comptabilisation bancaire du 1er septembre.');
+    await picker.getByRole('searchbox').fill('AV-AUTRE-54');
+    assert.ok(await submit.isDisabled(), 'Filtering out the selected refund must clear the choice');
+    await picker.getByRole('searchbox').fill('RETOUR-MATERIEL');
+    await picker.locator('.bank-candidate-option').click();
+    assert.match(await dateReason.inputValue(), /Date de valeur/);
+    await submit.scrollIntoViewIfNeeded(); if (width <= 768) assert.ok(await submit.evaluate(node => node.getBoundingClientRect().height >= 44)); await capture('choice');
+    await flag('deny', true); await submit.click(); await picker.getByRole('alert').waitFor(); assert.ok(await picker.getByRole('radio').isChecked()); assert.match(await dateReason.inputValue(), /Date de valeur/); await capture('refusal');
+    await flag('deny', false); await flag('lost', true); await submit.click(); await picker.getByRole('alert').filter({ hasText: 'Réponse interrompue' }).waitFor();
+    await flag('lost', false); await flag('fail-after-save', true); await submit.click(); await page.getByRole('button', { name: 'Actualiser les données', exact: true }).waitFor(); await capture('read-recovery');
+    const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-bank-refund-attempts'))); assert.equal(attempts.length, 3); assert.equal(new Set(attempts.map(row => row.requestId)).size,1); assert.equal(await page.evaluate(() => sessionStorage.getItem('qa-bank-refund-matches')),'1');
+    await flag('read-fail', false); await flag('fail-after-save', false); await page.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
+    await page.getByRole('tab', { name: /^Rapprochés/ }).click(); await movement.getByText(/Remboursement rapproché ·/).waitFor(); await movement.scrollIntoViewIfNeeded(); await capture('matched');
+    await movement.getByRole('button', { name: 'Dissocier du relevé', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Dissocier le remboursement du relevé', exact: true });
+    await page.waitForFunction(() => document.querySelector('[role="dialog"]')?.contains(document.activeElement));
+    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
+    await movement.getByRole('button', { name: 'Dissocier du relevé', exact: true }).click();
+    await dialog.getByRole('textbox', { name: /Motif de la dissociation/ }).fill('Ce crédit bancaire correspond à un autre remboursement fournisseur.');
+    const unlink = dialog.getByRole('button', { name: 'Dissocier le remboursement', exact: true });
+    await flag('unlink-deny', true); await unlink.click(); await dialog.getByRole('alert').waitFor();
+    await page.waitForFunction(() => { const error = document.querySelector('[role="dialog"] [role="alert"]'); const footer = document.querySelector('[role="dialog"] .form-actions'); if (!error || !footer) return false; const rect = error.getBoundingClientRect(); return rect.top >= 0 && rect.bottom <= footer.getBoundingClientRect().top; });
+    await capture('unlink-refusal');
+    await flag('unlink-deny', false); await flag('unlink-lost', true); await unlink.click(); await dialog.getByRole('alert').filter({ hasText: 'Réponse interrompue' }).waitFor();
+    await flag('unlink-lost', false); await flag('fail-after-save', true); await unlink.click(); await dialog.waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('qa-bank-refund-unlinks')),'1');
+    const unlinkAttempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-bank-refund-unlink-attempts'))); assert.equal(unlinkAttempts.length,3); assert.equal(new Set(unlinkAttempts.map(row => row.requestId)).size,1);
+    await flag('read-fail', false); await flag('fail-after-save', false); await page.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
+    const history = movement.locator('.bank-refund-history'); await history.locator('summary').click(); await history.locator('article').scrollIntoViewIfNeeded(); assert.match(await history.innerText(), /autre remboursement fournisseur/); assert.match(await history.innerText(), /remboursement conservé/); await capture('history');
+    await picker.locator('summary').click(); assert.equal(await picker.locator('input:checked').count(), 0);
+    await picker.locator('.bank-candidate-option').filter({ hasText: 'AV-AUTRE-54' }).click(); await picker.getByRole('textbox', { name: /Justification de l’écart de dates/ }).fill('Comptabilisation bancaire décalée d’un jour.'); await picker.getByRole('button', { name: 'Associer le remboursement', exact: true }).click();
+    await page.getByRole('tab', { name: /^Rapprochés/ }).click(); await movement.getByText('Remboursement rapproché · AV-AUTRE-54', { exact: true }).waitFor(); await movement.scrollIntoViewIfNeeded(); await capture('rematched');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('qa-bank-refund-matches')),'2');
+    assert.deepEqual(errors, []); report.push({ width, result: 'PASS: explicit choice among equal amounts, search, date justification, refusals preserved, same-request retry, confirmed-write read recovery, dated match history, unlink and fresh association, touch action and no overflow', screenshots: 7 }); await page.close();
+  }
+} catch (error) { process.exitCode = 1; report.push({ fatal: error.stack }); const page = browser.contexts().flatMap(context => context.pages()).at(-1); if (page) { await page.screenshot({ path: '.qa/bank-refund/failure.png' }); await writeFile('.qa/bank-refund/failure.html', await page.content()); } }
+finally { await writeFile('.qa/bank-refund/report.json', JSON.stringify(report,null,2)); console.log(JSON.stringify(report,null,2)); await browser.close(); }

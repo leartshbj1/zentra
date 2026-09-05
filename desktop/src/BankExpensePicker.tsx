@@ -36,7 +36,11 @@ export function BankExpensePicker({ movement, disabled, onConfirm, onCreate }: {
     {completed ? <p role="status"><CheckCircle2 size={16} /> Rapprochement enregistré. Actualisez les données si la liste n’a pas encore changé.</p> : <>
       <p>{movement.expenseSuggestion?.reason || 'Sélectionnez une dépense enregistrée dans les achats.'}</p>
       {candidates.length ? <>
-        <label className="bank-candidate-search"><Search size={14} /><span className="sr-only">Rechercher une dépense</span><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setLimit(25); }} placeholder="Référence, fournisseur, catégorie…" /></label>
+        <label className="bank-candidate-search"><Search size={14} /><span className="sr-only">Rechercher une dépense</span><input type="search" value={query} disabled={disabled} onChange={(event) => {
+          const value = event.target.value;
+          setQuery(value); setLimit(25);
+          if (selected && !searchText([selected.reference, selected.supplier, selected.category, selected.date], value)) { setChoice(''); setError(''); }
+        }} placeholder="Référence, fournisseur, catégorie…" /></label>
         <div className="bank-candidate-options" role="radiogroup" aria-label="Choisir la dépense à rapprocher">
           {filtered.slice(0, limit).map((candidate) => <label className={`bank-candidate-option ${choice === candidate.expenseId ? 'is-selected' : ''} ${candidate.confirmable ? '' : 'is-blocked'}`} key={candidate.expenseId}>
             <input type="radio" className="sr-only" name={`expense-${movement.id}`} checked={choice === candidate.expenseId} disabled={disabled || !candidate.confirmable} onChange={() => { setChoice(candidate.expenseId); setError(''); }} />

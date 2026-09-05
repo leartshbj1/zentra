@@ -334,7 +334,7 @@ fn expense_refund_v47_migration_preserves_the_existing_purchase_and_journal() {
             .unwrap()
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        47
+        crate::schema::SCHEMA_VERSION
     );
     assert_eq!(reopened.get_workspace().unwrap()["expenses"][0], original);
     assert_eq!(journal_count(&reopened), journals);

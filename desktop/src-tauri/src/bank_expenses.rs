@@ -30,6 +30,7 @@ pub(super) fn existing(connection: &Connection, movement: &str) -> AppResult<Opt
 }
 
 pub(super) fn reject_linked(connection: &Connection, movement: &str) -> AppResult<()> {
+    super::refunds::reject_linked(connection, movement)?;
     if existing(connection, movement)?.is_some() {
         return Err(reject("Ce mouvement est déjà rapproché avec une dépense."));
     }

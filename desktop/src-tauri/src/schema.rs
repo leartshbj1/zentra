@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 47;
+pub const SCHEMA_VERSION: i64 = 48;
+pub const MIGRATION_V48_SQL: &str = include_str!("bank_expense_refund_schema.sql");
 pub const MIGRATION_V47_SQL: &str = include_str!("expense_refund_schema.sql");
 pub const MIGRATION_V46_SQL: &str = include_str!("bank_expense_correction_schema.sql");
 

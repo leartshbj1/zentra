@@ -1,6 +1,7 @@
 import type {
   BankImport,
   BankMovement,
+  BankRefundMatch,
   BankReconciliation,
   BankReconciliationCandidate,
   BankReconciliationSuggestion,
@@ -43,6 +44,10 @@ const array = (value: unknown): RawRecord[] => Array.isArray(value) ? value.map(
 const text = (value: unknown): string => typeof value === 'string' ? value : '';
 const integer = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : 0;
 const bool = (value: unknown): boolean => value === true || value === 1 || value === '1';
+
+function refundMatchFromRaw(row: RawRecord): BankRefundMatch {
+  return { id: text(row.id), refundId: text(row.refund_id), expenseId: text(row.expense_id), reference: text(row.reference), supplier: text(row.supplier), amountCents: integer(row.amount_cents), paymentDate: text(row.payment_date), paymentJournalId: text(row.payment_journal_id), confirmedAt: text(row.confirmed_at), dateDifferenceReason: text(row.date_difference_reason) || undefined };
+}
 
 const suggestionKinds = new Set<BankSuggestionKind>(['automatic_exact', 'automatic_partial', 'manual', 'review', 'none']);
 const supplierSuggestionKinds = new Set<BankSupplierSuggestionKind>(['supplier_match', 'supplier_manual', 'review', 'none']);
@@ -187,6 +192,9 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
       journalEntryId: text(record(row.expense_reconciliation).journal_entry_id), confirmedAt: text(record(row.expense_reconciliation).confirmed_at),
       ...(text(record(row.expense_reconciliation).date_difference_reason) ? { dateDifferenceReason: text(record(row.expense_reconciliation).date_difference_reason) } : {}),
     } : null,
+    refundMatch: Object.keys(record(row.refund_match)).length ? refundMatchFromRaw(record(row.refund_match)) : null,
+    refundHistory: array(row.refund_history).map((entry) => ({ ...refundMatchFromRaw(entry), reason: text(entry.reason), unlinkedAt: text(entry.unlinked_at) })),
+    refundSuggestion: { reason: text(record(row.refund_suggestion).reason), candidates: array(record(row.refund_suggestion).candidates).map((candidate) => ({ refundId: text(candidate.refund_id), expenseId: text(candidate.expense_id), reference: text(candidate.reference), expenseReference: text(candidate.expense_reference), supplier: text(candidate.supplier), paymentDate: text(candidate.payment_date), totalCents: integer(candidate.total_cents), requiresDateReason: bool(candidate.requires_date_reason), confirmable: bool(candidate.confirmable), reason: text(candidate.reason) })) },
     expenseSuggestion: {
       canCreate: record(row.expense_suggestion).can_create === true,
       reason: text(record(row.expense_suggestion).reason),
@@ -327,7 +335,7 @@ export function bankSupplierReconciliationResultFromRaw(value: unknown): BankSup
 }
 
 export function movementHasReconciliation(movement: BankMovement): boolean {
-  return Boolean(movement.reconciliation || movement.supplierReconciliation || movement.expenseReconciliation);
+  return Boolean(movement.reconciliation || movement.supplierReconciliation || movement.expenseReconciliation || movement.refundMatch);
 }
 
 export function filterBankMovements(movements: BankMovement[], filter: BankMovementFilter, query = ''): BankMovement[] {
@@ -337,8 +345,8 @@ export function filterBankMovements(movements: BankMovement[], filter: BankMovem
     .filter((movement) => {
       if (!needle) return true;
       const amount = (Math.abs(movement.amountCents) / 100).toFixed(2);
-      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency, movement.expenseReconciliation?.reference, movement.expenseReconciliation?.supplier, ...(movement.expenseHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason])].join(' '));
-      const identifiers = [movement.reference, movement.accountId, movement.counterpartyIban, movement.expenseReconciliation?.reference, ...(movement.expenseHistory ?? []).map((entry) => entry.reference)];
+      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency, movement.expenseReconciliation?.reference, movement.expenseReconciliation?.supplier, movement.refundMatch?.reference, movement.refundMatch?.supplier, ...(movement.refundHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason]), ...(movement.expenseHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason])].join(' '));
+      const identifiers = [movement.reference, movement.accountId, movement.counterpartyIban, movement.expenseReconciliation?.reference, movement.refundMatch?.reference, ...(movement.refundHistory ?? []).map((entry) => entry.reference), ...(movement.expenseHistory ?? []).map((entry) => entry.reference)];
       return searchable.includes(needle) || (Boolean(compactNeedle) && identifiers.some((value) => normalizedCandidateQuery(value || '').replace(/[\s\p{P}]/gu, '').includes(compactNeedle)));
     })
     .filter((movement) => {

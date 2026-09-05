@@ -911,6 +911,7 @@ export type Expense = PurchaseCostEvidence & {
 };
 
 export type ExpenseRefund = {
+  bankMatchId?: string | null;
   id: Identifier;
   expenseId: Identifier;
   eventType: 'refund' | 'reverse';
@@ -1329,6 +1330,9 @@ export type BankMovement = {
   expenseReconciliation?: { id: string; expenseId: string; journalEntryId: string; confirmedAt: string; dateDifferenceReason?: string; reference?: string; supplier?: string } | null;
   expenseHistory?: { dateDifferenceReason?: string; id: string; expenseId: string; reference: string; supplier: string; amountCents: number; confirmedAt: string; unlinkedAt: string; reason: string }[];
   expenseSuggestion?: { reason: string; canCreate?: boolean; candidates: BankExpenseCandidate[] };
+  refundMatch?: BankRefundMatch | null;
+  refundHistory?: (BankRefundMatch & { reason: string; unlinkedAt: string })[];
+  refundSuggestion?: { reason: string; candidates: BankRefundCandidate[] };
   suggestion: BankReconciliationSuggestion;
   supplierSuggestion: BankSupplierReconciliationSuggestion;
 };
@@ -1361,6 +1365,9 @@ export type BankExpenseCandidate = {
   confirmable: boolean;
   reason: string;
 };
+
+export type BankRefundMatch = { id: string; refundId: string; expenseId: string; reference: string; supplier: string; amountCents: number; paymentDate: string; paymentJournalId: string; confirmedAt: string; dateDifferenceReason?: string };
+export type BankRefundCandidate = { refundId: string; expenseId: string; reference: string; expenseReference: string; supplier: string; paymentDate: string; totalCents: number; requiresDateReason: boolean; confirmable: boolean; reason: string };
 
 export type BankAccountLink = {
   accountId: string;

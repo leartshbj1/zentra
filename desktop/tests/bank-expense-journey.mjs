@@ -31,6 +31,9 @@ try {
     await search.fill('electricite'); assert.equal(await picker.getByRole('radio').count(),1);
     await picker.locator('.bank-candidate-option').click();
     const confirm=picker.getByRole('button',{name:'Confirmer la dépense'});
+    await search.fill('RECU-29'); assert.ok(await confirm.isDisabled());
+    await search.fill('electricite'); assert.ok(await confirm.isDisabled());
+    await picker.locator('.bank-candidate-option').click();
     await page.evaluate(()=>sessionStorage.setItem('qa-bank-reject','1'));
     await confirm.click(); await picker.getByRole('alert').waitFor();
     assert.ok(await picker.getByRole('radio').isChecked());

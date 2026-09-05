@@ -81,6 +81,7 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
         "02_ventes/occurrences_recurrentes.csv",
     ),
     ("expenses", "03_achats/depenses.csv"),
+    ("expense_refunds", "03_achats/remboursements_depenses.csv"),
     ("supplier_orders", "03_achats/commandes_fournisseurs.csv"),
     (
         "supplier_order_lines",
@@ -166,6 +167,8 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
     ("bank_expense_creation_requests", "06_banque/creations_depenses.csv"),
     ("bank_expense_unreconciliations", "06_banque/corrections_rapprochements_depenses.csv"),
     ("bank_expense_reconciliation_registry", "06_banque/registre_rapprochements_depenses.csv"),
+    ("bank_expense_refund_matches", "06_banque/rapprochements_remboursements.csv"),
+    ("bank_expense_refund_unlinks", "06_banque/dissociations_remboursements.csv"),
     ("bank_account_links", "06_banque/comptes_associes.csv"),
     ("projects", "07_projets/projets.csv"),
     ("project_milestones", "07_projets/jalons.csv"),
@@ -212,6 +215,9 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
 /// alourdir chaque rafraîchissement, mais indispensables dans un export CSV
 /// comptable complet.
 const CSV_EXPORT_DIRECT_COLLECTIONS: &[(&str, &str)] = &[
+    ("expense_refunds", "SELECT * FROM expense_refunds ORDER BY payment_date,created_at,id"),
+    ("bank_expense_refund_matches", "SELECT * FROM bank_expense_refund_matches ORDER BY confirmed_at,id"),
+    ("bank_expense_refund_unlinks", "SELECT * FROM bank_expense_refund_unlinks ORDER BY unlinked_at,id"),
     ("bank_expense_unreconciliations", "SELECT * FROM bank_expense_unreconciliations ORDER BY unlinked_at,id"),
     ("bank_expense_reconciliation_registry", "SELECT * FROM bank_expense_reconciliation_registry ORDER BY created_at,id"),
     ("bank_expense_reconciliations", "SELECT * FROM bank_expense_reconciliations ORDER BY confirmed_at,id"),

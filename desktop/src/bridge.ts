@@ -2632,6 +2632,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     createdAt: stringValue(row.created_at),
   }));
   const expenseRefunds: ExpenseRefund[] = (raw.expense_refunds ?? []).map((row) => ({
+    bankMatchId: nullableString(row.bank_match_id),
     id: stringValue(row.id), expenseId: stringValue(row.expense_id), eventType: row.event_type === 'reverse' ? 'reverse' : 'refund',
     reversesId: nullableString(row.reverses_id), creditDate: stringValue(row.credit_date), paymentDate: stringValue(row.payment_date),
     reference: stringValue(row.reference), reason: stringValue(row.reason), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents),
@@ -5867,6 +5868,12 @@ export const desktopApi = {
   async recordExpenseRefund(input: ExpenseRefundInput): Promise<Workspace> {
     await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId } });
     return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async matchBankExpenseRefund(requestId: string, movementId: string, refundId: string, dateDifferenceReason?: string): Promise<void> {
+    await invoke('match_bank_expense_refund', { input: { request_id: requestId, movement_id: movementId, refund_id: refundId, date_difference_reason: dateDifferenceReason ?? null } });
+  },
+  async unmatchBankExpenseRefund(requestId: string, matchId: string, reason: string): Promise<void> {
+    await invoke('unmatch_bank_expense_refund', { input: { request_id: requestId, match_id: matchId, reason } });
   },
   async createBankExpense(draft: import('./BankExpenseForm').BankExpenseDraft): Promise<void> {
     await invoke('create_bank_expense', { input: { request_id: draft.requestId, movement_id: draft.movementId, date: draft.date, supplier: draft.supplier, reference: draft.reference, category: draft.category, project_id: draft.projectId, vat_cents: draft.vatCents, vat_treatment: draft.vatTreatment, note: draft.note, original_name: draft.receipt.name, content_base64: await fileBase64(draft.receipt) } });

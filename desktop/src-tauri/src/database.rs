@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=46 => {}
+            28..=47 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1729,6 +1729,11 @@ impl LocalStore {
             let complete: bool = transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('expenses','vat_source_classifications')", [], |row| row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V47_SQL)?; }
             else { transaction.pragma_update(None,"user_version",47)?; }
+        }
+        if current < 48 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('expense_refunds','bank_movements')", [], |row| row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V48_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",48)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2575,7 +2580,7 @@ impl LocalStore {
         workspace["supplier_invoice_matches"] = json!(supplier_invoice_matches);
         workspace["supplier_credit_notes"] = json!(supplier_credit_notes);
         workspace["supplier_credit_note_items"] = json!(supplier_credit_note_items);
-        workspace["expense_refunds"] = json!(query_all(connection,"SELECT * FROM expense_refunds ORDER BY payment_date DESC,created_at DESC,id",[])?);
+        workspace["expense_refunds"] = json!(query_all(connection,"SELECT r.*,m.id AS bank_match_id FROM expense_refunds r LEFT JOIN active_bank_expense_refund_matches m ON m.refund_id=r.id ORDER BY r.payment_date DESC,r.created_at DESC,r.id",[])?);
         workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
         workspace["supplier_expense_reclassifications"] = json!(supplier_expense_reclassifications);
         workspace["supplier_expense_reclassification_lines"] =
