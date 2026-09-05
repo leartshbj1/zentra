@@ -67,6 +67,7 @@ type PurchaseWorkspaceAction = (
   action: () => Promise<Workspace>,
   successMessage: string,
   close?: boolean,
+  onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 
 type PurchaseSection =
@@ -455,7 +456,7 @@ export function purchaseVatOptions(
   const rates = configuredRatesBp.filter(
     (rate) => Number.isInteger(rate) && rate >= 0 && rate <= 10_000,
   );
-  return [...new Set(rates.length ? rates : [0])];
+  return [...new Set([...rates, 0])];
 }
 
 function emptyOrderLine(workspace: Workspace, projectId = ''): OrderDraftLine {
@@ -608,7 +609,13 @@ export function PurchaseOrdersScreen({
   onOpenAccounting: () => void;
 }) {
   const [section, setSection] = useState<PurchaseSection>('inbox');
-  const [modal, setModal] = useState<PurchaseModal>(null);
+  const [modal, setModalState] = useState<(NonNullable<PurchaseModal> & { requestId: string }) | null>(null);
+  const [modalFailure, setModalFailure] = useState<{ requestId: string; message: string } | null>(null);
+  const modalError = modal?.requestId === modalFailure?.requestId ? modalFailure?.message || '' : '';
+  const setModal = (next: PurchaseModal) => {
+    setModalState(next ? { ...next, requestId: createId() } : null);
+    setModalFailure(null);
+  };
   const today = todayIso();
   const activeSuppliers = workspace.suppliers.filter(
     (supplier) => !supplier.archivedAt,
@@ -711,7 +718,10 @@ export function PurchaseOrdersScreen({
     action: () => Promise<Workspace>,
     message: string,
   ) {
-    if (await runAction(action, message, false)) setModal(null);
+    setModalFailure(null);
+    if (await runAction(action, message, false, modal ? (reason) => {
+      setModalFailure({ requestId: modal.requestId, message: errorMessage(reason, 'L’opération n’a pas pu être enregistrée.') });
+    } : undefined)) setModal(null);
   }
 
   const sectionCount = (id: PurchaseSection) => {
@@ -1066,6 +1076,7 @@ export function PurchaseOrdersScreen({
 
       {modal?.type === 'order' ? (
         <SupplierOrderForm
+          actionError={modalError}
           workspace={workspace}
           order={modal.order}
           busy={busy}
@@ -1082,13 +1093,14 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'confirm_order' ? (
         <ConfirmOrderModal
+          actionError={modalError}
           workspace={workspace}
           order={modal.order}
           busy={busy}
           onClose={() => setModal(null)}
           onConfirm={() =>
             completeLocalAction(
-              () => desktopApi.confirmSupplierOrder(createId(), modal.order.id),
+              () => desktopApi.confirmSupplierOrder(modal.requestId, modal.order.id),
               'La commande fournisseur est confirmée. Les quantités attendent maintenant une réception ou un rapprochement direct.',
             )
           }
@@ -1096,6 +1108,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'cancel_remainder' ? (
         <CancelSupplierRemainderModal
+          actionError={modalError}
           workspace={workspace}
           order={modal.order}
           busy={busy}
@@ -1104,7 +1117,7 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () =>
                 desktopApi.cancelSupplierOrderRemainder(
-                  createId(),
+                  modal.requestId,
                   modal.order.id,
                   reason,
                   lines,
@@ -1116,6 +1129,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'receipt' ? (
         <SupplierReceiptForm
+          actionError={modalError}
           workspace={workspace}
           order={modal.order}
           receipt={modal.receipt}
@@ -1133,6 +1147,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'issue_receipt' ? (
         <IssueReceiptModal
+          actionError={modalError}
           workspace={workspace}
           receipt={modal.receipt}
           busy={busy}
@@ -1140,7 +1155,7 @@ export function PurchaseOrdersScreen({
           onConfirm={() =>
             completeLocalAction(
               () =>
-                desktopApi.issueSupplierReceipt(createId(), modal.receipt.id),
+                desktopApi.issueSupplierReceipt(modal.requestId, modal.receipt.id),
               'La réception est émise. Les entrées de stock concernées ont été enregistrées localement.',
             )
           }
@@ -1148,6 +1163,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'reverse_receipt' ? (
         <ReverseReceiptModal
+          actionError={modalError}
           workspace={workspace}
           receipt={modal.receipt}
           busy={busy}
@@ -1156,7 +1172,7 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () =>
                 desktopApi.reverseSupplierReceipt(
-                  createId(),
+                  modal.requestId,
                   modal.receipt.id,
                   reason,
                 ),
@@ -1167,6 +1183,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'match' ? (
         <SupplierInvoiceMatchModal
+          actionError={modalError}
           workspace={workspace}
           order={modal.order}
           initialInvoice={modal.invoice}
@@ -1184,6 +1201,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'credit' ? (
         <SupplierCreditNoteForm
+          actionError={modalError}
           workspace={workspace}
           invoice={modal.invoice}
           credit={modal.credit}
@@ -1201,6 +1219,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'validate_credit' ? (
         <ValidateCreditNoteModal
+          actionError={modalError}
           credit={modal.credit}
           workspace={workspace}
           busy={busy}
@@ -1209,7 +1228,7 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () =>
                 desktopApi.validateSupplierCreditNote(
-                  createId(),
+                  modal.requestId,
                   modal.credit.id,
                 ),
               'L’avoir fournisseur a été validé et comptabilisé. Ses allocations réduisent les soldes liés.',
@@ -1219,6 +1238,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'apply_credit' ? (
         <ApplySupplierCreditModal
+          actionError={modalError}
           credit={modal.credit}
           workspace={workspace}
           busy={busy}
@@ -1227,7 +1247,7 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () =>
                 desktopApi.applySupplierCredit(
-                  createId(),
+                  modal.requestId,
                   modal.credit.id,
                   invoiceId,
                   amountCents,
@@ -1239,6 +1259,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'reverse_credit' ? (
         <ReverseSupplierCreditAllocationModal
+          actionError={modalError}
           credit={modal.credit}
           allocation={modal.allocation}
           workspace={workspace}
@@ -1248,7 +1269,7 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () =>
                 desktopApi.reverseSupplierCreditAllocation(
-                  createId(),
+                  modal.requestId,
                   modal.allocation.id,
                   reason,
                 ),
@@ -1259,6 +1280,7 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'reclassify' ? (
         <SupplierExpenseReclassificationModal
+          actionError={modalError}
           workspace={workspace}
           invoice={modal.invoice}
           busy={busy}
@@ -2349,17 +2371,20 @@ function SupplierOrderForm({
   workspace,
   order,
   busy,
+  actionError,
   onClose,
   onSave,
 }: {
   workspace: Workspace;
   order?: SupplierOrder;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onSave: (
     input: Parameters<typeof desktopApi.saveSupplierOrderDraft>[0],
   ) => void;
 }) {
+  const [draftId] = useState(() => order?.id || createId());
   const [supplierId, setSupplierId] = useState(
     order?.supplierId ||
       workspace.suppliers.find((supplier) => !supplier.archivedAt)?.id ||
@@ -2445,9 +2470,11 @@ function SupplierOrderForm({
       return setError(
         'Une ligne « Réception + stock » doit viser un produit du catalogue dont le suivi de stock est activé.',
       );
+    if (lines.some((line) => !vatOptions.includes(line.vatBp)))
+      return setError('Vérifiez les taux TVA signalés avant d’enregistrer.');
     setError('');
     onSave({
-      id: order?.id,
+      id: draftId,
       supplierId,
       projectId: projectId || null,
       title: title.trim(),
@@ -2651,7 +2678,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="TVA %">
+                <Field label="TVA %" error={!vatOptions.includes(line.vatBp) ? "Ce taux n’est plus configuré. Choisissez un taux disponible." : undefined}>
                   <select
                     value={line.vatBp / 100}
                     onChange={(event) =>
@@ -2660,9 +2687,9 @@ function SupplierOrderForm({
                       })
                     }
                   >
-                    {vatOptions.map((rate) => (
+                    {[...new Set([...vatOptions, line.vatBp])].map((rate) => (
                       <option key={rate} value={rate / 100}>
-                        {(rate / 100).toLocaleString('fr-CH')} %
+                        {(rate / 100).toLocaleString('fr-CH')} %{!vatOptions.includes(rate) ? ' (à vérifier)' : ''}
                       </option>
                     ))}
                   </select>
@@ -2741,9 +2768,11 @@ function SupplierOrderForm({
           </div>
         </div>
         {error ? <ErrorPanel message={error} /> : null}
+        {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
         <FormActions
           onCancel={onClose}
           busy={busy}
+          disabled={lines.some((line) => !vatOptions.includes(line.vatBp))}
           submitLabel="Enregistrer le brouillon"
         />
       </form>
@@ -2755,12 +2784,14 @@ function ConfirmOrderModal({
   workspace,
   order,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   workspace: Workspace;
   order: SupplierOrder;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -2820,6 +2851,7 @@ function ConfirmOrderModal({
           quantités ci-dessus. La commande ne sera plus modifiable directement.
         </p>
       </div>
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" onClick={onClose} disabled={busy}>
           Retour au brouillon
@@ -2837,6 +2869,7 @@ function SupplierReceiptForm({
   order,
   receipt,
   busy,
+  actionError,
   onClose,
   onSave,
 }: {
@@ -2844,11 +2877,13 @@ function SupplierReceiptForm({
   order: SupplierOrder;
   receipt?: SupplierReceipt;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onSave: (
     input: Parameters<typeof desktopApi.saveSupplierReceiptDraft>[0],
   ) => void;
 }) {
+  const [draftId] = useState(() => receipt?.id || createId());
   const eligible = order.lines.filter(
     (line) => line.fulfillmentMode !== 'direct',
   );
@@ -2886,7 +2921,7 @@ function SupplierReceiptForm({
   function submit() {
     if (dateError || quantityError || !hasQuantity) return;
     onSave({
-      id: receipt?.id,
+      id: draftId,
       supplierOrderId: order.id,
       receiptDate,
       reference,
@@ -3001,6 +3036,7 @@ function SupplierReceiptForm({
         ) : !hasQuantity ? (
           <ErrorPanel message="Saisissez au moins une quantité reçue positive." />
         ) : null}
+        {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
         <FormActions
           onCancel={onClose}
           busy={busy}
@@ -3016,12 +3052,14 @@ function IssueReceiptModal({
   workspace,
   receipt,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   workspace: Workspace;
   receipt: SupplierReceipt;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -3085,6 +3123,7 @@ function IssueReceiptModal({
               indiquée.
             </p>
           </div>
+          {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
           <div className="form-actions">
             <Button variant="secondary" disabled={busy} onClick={onClose}>
               Retour
@@ -3106,12 +3145,14 @@ function ReverseReceiptModal({
   workspace,
   receipt,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   workspace: Workspace;
   receipt: SupplierReceipt;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
@@ -3150,6 +3191,7 @@ function ReverseReceiptModal({
           </small>
         ))}
       </div>
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
           Annuler
@@ -3170,12 +3212,14 @@ function CancelSupplierRemainderModal({
   workspace,
   order,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   workspace: Workspace;
   order: SupplierOrder;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: (
     reason: string,
@@ -3259,6 +3303,7 @@ function CancelSupplierRemainderModal({
             </small>
           ))}
       </div>
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
           Annuler
@@ -3290,6 +3335,7 @@ function SupplierInvoiceMatchModal({
   order: initialOrder,
   initialInvoice,
   busy,
+  actionError,
   onClose,
   onSave,
 }: {
@@ -3297,11 +3343,13 @@ function SupplierInvoiceMatchModal({
   order: SupplierOrder;
   initialInvoice?: SupplierInvoice;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onSave: (
     input: Parameters<typeof desktopApi.saveSupplierInvoiceMatch>[0],
   ) => void;
 }) {
+  const [requestId] = useState(createId);
   const supplierId = initialInvoice?.supplierId || initialOrder.supplierId;
   const eligibleOrders = workspace.supplierOrders.filter((candidate) => {
     if (candidate.supplierId !== supplierId || candidate.status !== 'confirmed')
@@ -3621,7 +3669,7 @@ function SupplierInvoiceMatchModal({
     const primaryOrderId =
       preview.allocations[0]?.supplierOrderId || initialOrder.id;
     onSave({
-      requestId: createId(),
+      requestId,
       supplierInvoiceId: invoice.id,
       supplierOrderId: primaryOrderId,
       allocations: preview.allocations,
@@ -3886,6 +3934,7 @@ function SupplierInvoiceMatchModal({
           </p>
         </div>
       )}
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
           Annuler
@@ -3898,7 +3947,7 @@ function SupplierInvoiceMatchModal({
               if (!confirmClear)
                 return setConfirmClear(nextMatchClearConfirmation('request'));
               onSave({
-                requestId: createId(),
+                requestId,
                 supplierInvoiceId: invoice.id,
                 supplierOrderId: existingOrderIds[0] || initialOrder.id,
                 allocations: [],
@@ -3926,6 +3975,7 @@ function SupplierCreditNoteForm({
   invoice,
   credit,
   busy,
+  actionError,
   onClose,
   onSave,
 }: {
@@ -3933,6 +3983,7 @@ function SupplierCreditNoteForm({
   invoice?: SupplierInvoice;
   credit?: SupplierCreditNote;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onSave: (
     input: Parameters<typeof desktopApi.saveSupplierCreditNoteDraft>[0],
@@ -4039,6 +4090,8 @@ function SupplierCreditNoteForm({
       return setError(
         'Les allocations ne peuvent dépasser ni l’avoir ni le solde des factures.',
       );
+    if (lines.some((line) => !vatOptions.includes(line.vatBp)))
+      return setError('Vérifiez les taux TVA signalés avant d’enregistrer.');
     setError('');
     onSave({
       id: draftId,
@@ -4202,7 +4255,7 @@ function SupplierCreditNoteForm({
                   }
                 />
               </Field>
-              <Field label="TVA %">
+              <Field label="TVA %" error={!vatOptions.includes(line.vatBp) ? "Ce taux n’est plus configuré. Choisissez un taux disponible." : undefined}>
                 <select
                   value={line.vatBp / 100}
                   onChange={(event) =>
@@ -4211,9 +4264,9 @@ function SupplierCreditNoteForm({
                     })
                   }
                 >
-                  {vatOptions.map((rate) => (
+                  {[...new Set([...vatOptions, line.vatBp])].map((rate) => (
                     <option key={rate} value={rate / 100}>
-                      {(rate / 100).toLocaleString('fr-CH')} %
+                      {(rate / 100).toLocaleString('fr-CH')} %{!vatOptions.includes(rate) ? ' (à vérifier)' : ''}
                     </option>
                   ))}
                 </select>
@@ -4293,9 +4346,11 @@ function SupplierCreditNoteForm({
           <strong>Alloué : {formatMoney(allocatedCents)}</strong>
         </div>
         {error ? <ErrorPanel message={error} /> : null}
+        {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
         <FormActions
           onCancel={onClose}
           busy={busy}
+          disabled={lines.some((line) => !vatOptions.includes(line.vatBp))}
           submitLabel="Enregistrer le brouillon"
         />
       </form>
@@ -4307,12 +4362,14 @@ function ValidateCreditNoteModal({
   credit,
   workspace,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   credit: SupplierCreditNote;
   workspace: Workspace;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -4404,6 +4461,7 @@ function ValidateCreditNoteModal({
           </p>
         </div>
       )}
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
           Retour au brouillon
@@ -4423,12 +4481,14 @@ function ApplySupplierCreditModal({
   credit,
   workspace,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   credit: SupplierCreditNote;
   workspace: Workspace;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: (invoiceId: string, amountCents: number) => void;
 }) {
@@ -4508,6 +4568,7 @@ function ApplySupplierCreditModal({
           </small>
         </div>
       )}
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
           Annuler
@@ -4528,6 +4589,7 @@ function ReverseSupplierCreditAllocationModal({
   allocation,
   workspace,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
@@ -4535,6 +4597,7 @@ function ReverseSupplierCreditAllocationModal({
   allocation: SupplierCreditAllocation;
   workspace: Workspace;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
@@ -4567,6 +4630,7 @@ function ReverseSupplierCreditAllocationModal({
           {formatMoney(allocation.amountCents)} à payer
         </small>
       </div>
+      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
           Annuler
@@ -4587,17 +4651,20 @@ function SupplierExpenseReclassificationModal({
   workspace,
   invoice,
   busy,
+  actionError,
   onClose,
   onConfirm,
 }: {
   workspace: Workspace;
   invoice: SupplierInvoice;
   busy: boolean;
+  actionError: string;
   onClose: () => void;
   onConfirm: (
     input: Parameters<typeof desktopApi.reclassifySupplierInvoiceExpense>[0],
   ) => void;
 }) {
+  const [requestId] = useState(createId);
   const reclassifications = workspace.supplierExpenseReclassifications
     .filter((row) => row.supplierInvoiceId === invoice.id)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
@@ -4762,6 +4829,7 @@ function SupplierExpenseReclassificationModal({
               </p>
             </div>
           )}
+          {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
           <div className="form-actions">
             <Button variant="secondary" disabled={busy} onClick={onClose}>
               Annuler
@@ -4770,7 +4838,7 @@ function SupplierExpenseReclassificationModal({
               disabled={busy || invalid}
               onClick={() =>
                 onConfirm({
-                  requestId: createId(),
+                  requestId,
                   supplierInvoiceId: invoice.id,
                   effectiveDate,
                   reason,

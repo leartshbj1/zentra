@@ -4999,7 +4999,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async confirmSupplierOrder(requestId: string, supplierOrderId: string) {
     await invoke('confirm_supplier_order', {
@@ -5008,7 +5008,7 @@ export const desktopApi = {
         supplier_order_id: supplierOrderId,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async cancelSupplierOrderRemainder(
     requestId: string,
@@ -5027,7 +5027,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierReceiptDraft(input: {
     id?: string;
@@ -5052,7 +5052,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async issueSupplierReceipt(requestId: string, supplierReceiptId: string) {
     await invoke('issue_supplier_receipt', {
@@ -5061,7 +5061,7 @@ export const desktopApi = {
         supplier_receipt_id: supplierReceiptId,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async reverseSupplierReceipt(
     requestId: string,
@@ -5075,7 +5075,7 @@ export const desktopApi = {
         reason: reason.trim(),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierInvoiceMatch(input: SaveSupplierInvoiceMatchDraftInput) {
     const allocationsByOrder = new Map<
@@ -5113,7 +5113,7 @@ export const desktopApi = {
           })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierCreditNoteDraft(input: {
     id?: string;
@@ -5160,7 +5160,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async validateSupplierCreditNote(
     requestId: string,
@@ -5172,11 +5172,11 @@ export const desktopApi = {
         supplier_credit_note_id: supplierCreditNoteId,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async deleteSupplierCreditNoteDraft(id: string) {
     await invoke('delete_supplier_credit_note_draft', { id });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async applySupplierCredit(
     requestId: string,
@@ -5192,7 +5192,7 @@ export const desktopApi = {
         amount_cents: amountCents,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async reverseSupplierCreditAllocation(
     requestId: string,
@@ -5206,7 +5206,7 @@ export const desktopApi = {
         reason: reason.trim(),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async reclassifySupplierInvoiceExpense(input: {
     requestId: string;
@@ -5230,7 +5230,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierInvoiceDraft(input: SupplierInvoiceDraftSaveInput) {
     await invoke('save_supplier_invoice_draft',
@@ -5258,7 +5258,7 @@ export const desktopApi = {
   },
   async validateSupplierInvoice(id: string) {
     await invoke('validate_supplier_invoice', { id });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async recordSupplierPayment(input: {
     requestId: string;

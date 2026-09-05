@@ -9,6 +9,7 @@ import type { Project, Workspace } from '../src/types';
 import { installFinanceFixture } from './finance-fixture';
 import { installBankFixture } from './bank-fixture';
 import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
+import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import '../src/styles.css';
 import '../src/workspace-design.css';
@@ -88,6 +89,7 @@ if (new URLSearchParams(location.search).has('volume')) {
 }
 if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
+if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

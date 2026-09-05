@@ -65,6 +65,9 @@ describe('supplierInvoiceNeedsAttention', () => {
 });
 
 describe('purchaseVatOptions', () => {
+  it('propose le taux nul autorisé même lorsqu’il ne figure pas dans les préférences', () => {
+    expect(purchaseVatOptions(true, [810])).toEqual([810, 0]);
+  });
   it('force 0 % pour une entreprise non assujettie', () => {
     expect(purchaseVatOptions(false, [810])).toEqual([0]);
   });

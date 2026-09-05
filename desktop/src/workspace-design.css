@@ -45,6 +45,7 @@
   .field__hint { color: var(--muted); }
   .form-grid { gap: 20px; }
   .form-actions { gap: 12px; padding-top: 20px; }
+  .modal__body > .form-grid > .form-actions { grid-column: 1 / -1; position: sticky; bottom: 0; z-index: 3; padding-block: 16px; background: var(--paper); }
 
   .sales-order-card__identity strong,
   .sales-order-card__client strong,
@@ -81,6 +82,62 @@
   .guided-line-row { padding-block: 14px; }
   .guided-line-row > span { min-width: 0; overflow-wrap: anywhere; }
   .guided-quantity-input input { min-height: 44px; }
+
+  .purchase-line-editor__row,
+  .purchase-line-editor__row--credit {
+    position: relative;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+    gap: 16px;
+    margin: 12px;
+    padding: 54px 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #f9fbfa;
+  }
+  .purchase-line-editor__row .field,
+  .purchase-line-editor__row .field:nth-of-type(n + 5),
+  .purchase-line-editor__row .purchase-line-editor__total { grid-column: auto; grid-row: auto; }
+  .purchase-line-editor__index { position: absolute; top: 18px; left: 16px; font-size: 14px; }
+  .purchase-line-editor__row > .button { position: absolute; top: 6px; right: 6px; grid-column: auto; grid-row: auto; min-height: 44px; min-width: 44px; }
+  .purchase-line-editor__row .field__label { font-size: 14px; }
+  .purchase-line-editor__row input,
+  .purchase-line-editor__row select,
+  .match-editor select,
+  .match-editor input,
+  .reclassification-preview select { min-height: 44px; font-size: 16px; }
+  .supplier-order-card > header h3,
+  .supplier-order-card__lines strong,
+  .receipt-card > div:nth-child(2) > strong,
+  .purchase-line-editor__heading strong,
+  .purchase-line-editor__total strong,
+  .purchase-preview__lines strong,
+  .receipt-quantity-grid__heading strong,
+  .receipt-quantity-grid > label strong,
+  .credit-allocation > label strong,
+  .correction-preview strong,
+  .match-editor > div:not(.match-editor__heading) strong { font-size: 14px; line-height: 1.45; }
+  .supplier-order-card > header small,
+  .supplier-order-card > header p,
+  .supplier-order-card > footer small,
+  .supplier-order-card__lines small,
+  .supplier-order-card__progress small,
+  .receipt-card small,
+  .receipt-card p,
+  .purchase-line-editor__heading small,
+  .purchase-line-editor__total small,
+  .purchase-line-editor__summary,
+  .purchase-preview > header small,
+  .purchase-preview > header p,
+  .purchase-preview__lines small,
+  .confirmation-callout p,
+  .receipt-quantity-grid__heading small,
+  .receipt-quantity-grid > label small,
+  .credit-allocation > label small,
+  .correction-preview p,
+  .correction-preview small,
+  .match-editor__heading,
+  .match-editor > div:not(.match-editor__heading),
+  .match-editor > div:not(.match-editor__heading) small { font-size: 12px; line-height: 1.5; }
 
   .sidebar { background: #173c2e; box-shadow: none; padding: 22px 14px 16px; }
   .sidebar__brand { padding: 0 12px; }

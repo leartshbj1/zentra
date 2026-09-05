@@ -10451,6 +10451,48 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn supplier_draft_retries_keep_one_order_and_receipt_without_moving_stock() {
+        let (_temporary, store) = initialized_store();
+        let supplier_id = value_id(&store.create_record("suppliers", json!({"name":"Fournisseur de reprise"})).unwrap());
+        let product_id = tracked_product(&store, "Marchandise de reprise", 0);
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order_input: SaveSupplierOrderDraftInput = serde_json::from_value(json!({
+            "order": {"id":order_id,"supplier_id":supplier_id,"title":"Commande partielle","order_date":"2026-09-01","currency":"CHF"},
+            "lines": [{"catalog_item_id":product_id,"position":0,"description":"Marchandise","quantity_milli":10000,"unit":"pièce","unit_price_cents":500,"discount_bp":0,"vat_bp":0,"category":"Marchandises","fulfillment_mode":"stocked_receipt"}]
+        })).unwrap();
+        store.save_supplier_order_draft(order_input.clone()).unwrap();
+        let saved_order = store.save_supplier_order_draft(order_input).unwrap();
+        let line_id = saved_order["lines"][0]["id"].as_str().unwrap();
+        let connection = store.connect().unwrap();
+        let count: i64 = connection.query_row("SELECT COUNT(*) FROM supplier_orders", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1, "retry updates the original order draft");
+        drop(connection);
+        store.confirm_supplier_order(ConfirmSupplierOrderInput {
+            request_id: uuid::Uuid::new_v4().to_string(), supplier_order_id: order_id.clone(),
+        }).unwrap();
+        let receipt_id = uuid::Uuid::new_v4().to_string();
+        let receipt_input: SaveSupplierReceiptDraftInput = serde_json::from_value(json!({
+            "receipt":{"id":receipt_id,"supplier_order_id":order_id,"receipt_date":"2026-09-02","reference":"BL-REPRISE-01","notes":"Livraison partielle"},
+            "lines":[{"supplier_order_line_id":line_id,"quantity_milli":2000}]
+        })).unwrap();
+        store.save_supplier_receipt_draft(receipt_input.clone()).unwrap();
+        store.save_supplier_receipt_draft(receipt_input).unwrap();
+        let connection = store.connect().unwrap();
+        let draft_state: (i64, i64, i64) = connection.query_row(
+            "SELECT (SELECT COUNT(*) FROM supplier_receipts),(SELECT SUM(quantity_milli) FROM supplier_receipt_lines),stock_quantity_milli FROM catalog_items WHERE id=?",
+            rusqlite::params![product_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        assert_eq!(draft_state, (1, 2000, 0), "draft retries preserve quantities and never change stock");
+        drop(connection);
+        let issue = IssueSupplierReceiptInput { request_id: uuid::Uuid::new_v4().to_string(), supplier_receipt_id: receipt_id };
+        store.issue_supplier_receipt(issue.clone()).unwrap();
+        assert_eq!(store.issue_supplier_receipt(issue).unwrap()["idempotent"], true);
+        let connection = store.connect().unwrap();
+        let stock: i64 = connection.query_row("SELECT stock_quantity_milli FROM catalog_items WHERE id=?", rusqlite::params![product_id], |row| row.get(0)).unwrap();
+        assert_eq!(stock, 2000, "replayed issuance creates only one stock entry");
+    }
+
+    #[test]
     fn supplier_procurement_receipts_matching_and_credit_events_are_atomic() {
         let (temporary, store) = initialized_store();
         let accounts = enable_accounting(&store);

@@ -314,7 +314,24 @@ export function ErrorPanel({
     const frame = requestAnimationFrame(() => {
       const panel = panelRef.current;
       if (!panel) return;
-      const actions = panel.closest('form')?.querySelector('.form-actions');
+      const body = panel.closest<HTMLElement>('.modal__body');
+      const actions = (panel.closest('form') || body)?.querySelector('.form-actions');
+      if (body) {
+        const modal = panel.closest<HTMLElement>('.modal');
+        const scroller = body.scrollHeight > body.clientHeight + 1 ? body : modal || body;
+        const frame = scroller.getBoundingClientRect();
+        const header = modal?.querySelector('.modal__header');
+        const top = Math.max(0, frame.top, header?.getBoundingClientRect().bottom || 0) + 8;
+        const bottom = Math.min(innerHeight, frame.bottom) - 8;
+        const contentBottom = Math.max(panel.getBoundingClientRect().bottom, actions?.getBoundingClientRect().bottom || 0);
+        if (contentBottom > bottom) scroller.scrollTop += contentBottom - bottom;
+        const visibleBottom = Math.min(bottom, actions?.getBoundingClientRect().top ?? bottom);
+        if (panel.getBoundingClientRect().bottom > visibleBottom - 8)
+          scroller.scrollTop += panel.getBoundingClientRect().bottom - visibleBottom + 8;
+        if (panel.getBoundingClientRect().top < top)
+          scroller.scrollTop += panel.getBoundingClientRect().top - top;
+        return;
+      }
       panel.style.scrollMarginBlockEnd = `${(actions?.getBoundingClientRect().height || 0) + 16}px`;
       panel.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
     });
