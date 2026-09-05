@@ -299,6 +299,22 @@ pub struct ConfirmExpenseBankReconciliationInput {
     pub date_difference_reason: Option<String>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CreateBankExpenseInput {
+    pub request_id: String,
+    pub movement_id: String,
+    pub date: String,
+    pub supplier: String,
+    pub reference: String,
+    pub category: String,
+    pub project_id: Option<String>,
+    pub vat_cents: i64,
+    pub vat_treatment: String,
+    pub note: String,
+    pub original_name: String,
+    pub content_base64: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssociateBankAccountInput {
     pub account_id: String,

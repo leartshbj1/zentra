@@ -4,10 +4,11 @@ import type { BankMovement } from './types';
 import { Button } from './ui';
 import { errorMessage, formatDate, formatMoney, searchText } from './utils';
 
-export function BankExpensePicker({ movement, disabled, onConfirm }: {
+export function BankExpensePicker({ movement, disabled, onConfirm, onCreate }: {
   movement: BankMovement;
   disabled: boolean;
   onConfirm: (expenseId: string, dateDifferenceReason?: string) => Promise<void>;
+  onCreate?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [choice, setChoice] = useState('');
@@ -50,7 +51,8 @@ export function BankExpensePicker({ movement, disabled, onConfirm }: {
         {selected?.requiresDateReason ? <label className="field bank-expense-picker__date-reason"><span>Motif de l’écart de dates</span><small>Paiement comptabilisé le {formatDate(selected.paidAt)} ; relevé du {formatDate(movement.bookingDate || movement.valueDate)}. Le journal et sa période TVA sont conservés.</small><textarea value={dateReason} maxLength={500} rows={3} placeholder="Ex. ordre de paiement émis avant son inscription au relevé" onChange={(event) => setDateReasons((current) => ({ ...current, [choice]: event.target.value }))} /><small>Au moins 5 caractères.</small></label> : null}
         {error ? <p className="bank-expense-picker__error" role="alert">{error}</p> : null}
         <Button size="small" disabled={disabled || !selected?.confirmable || reasonMissing} onClick={() => void confirm()}><Link2 size={14} /> Confirmer la dépense</Button>
-      </> : <p>Enregistrez la pièce dans Achats & fournisseurs, puis actualisez les mouvements. Seules les dépenses du même montant en CHF sont proposées.</p>}
+      </> : <p>Aucune dépense existante du même montant n’est proposée.</p>}
+      {movement.expenseSuggestion?.canCreate && onCreate ? <Button type="button" variant="secondary" disabled={disabled} onClick={onCreate}>Créer une dépense avec justificatif</Button> : null}
     </>}
   </details>;
 }

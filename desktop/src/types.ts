@@ -1288,7 +1288,7 @@ export type BankMovement = {
   reconciliation: BankReconciliation | null;
   supplierReconciliation: BankSupplierReconciliation | null;
   expenseReconciliation?: { id: string; expenseId: string; journalEntryId: string; confirmedAt: string; dateDifferenceReason?: string } | null;
-  expenseSuggestion?: { reason: string; candidates: BankExpenseCandidate[] };
+  expenseSuggestion?: { reason: string; canCreate?: boolean; candidates: BankExpenseCandidate[] };
   suggestion: BankReconciliationSuggestion;
   supplierSuggestion: BankSupplierReconciliationSuggestion;
 };

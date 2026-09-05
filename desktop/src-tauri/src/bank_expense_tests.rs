@@ -1,4 +1,5 @@
 mod expense_tests {
+    include!("bank_expense_creation_tests.rs");
     use super::*;
     use crate::models::ConfirmExpenseBankReconciliationInput;
     use crate::vat_reporting::{

@@ -37,6 +37,7 @@ import { errorMessage, formatDate, formatDateTime } from './utils';
 import { Button, EmptyState, ErrorPanel, SectionHeading } from './ui';
 import './BankScreen.css';
 import { BankExpensePicker } from './BankExpensePicker';
+import { BankExpenseForm, type BankExpenseDraft } from './BankExpenseForm';
 
 type Feedback = { tone: 'success' | 'warning' | 'error'; title: string; text: string; warnings?: string[] };
 
@@ -414,6 +415,18 @@ export function BankScreen({
     }
   }
 
+  const [newExpenseMovement, setNewExpenseMovement] = useState<BankMovement | null>(null);
+  async function createExpense(draft: BankExpenseDraft) {
+    if (writesDisabled) throw new Error('Actualisez les données avant de créer une dépense.');
+    setBusy(true); setFeedback(null);
+    try {
+      await desktopApi.createBankExpense(draft);
+      setNewExpenseMovement(null);
+      const warnings = await refreshBoth();
+      setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Dépense créée et rapprochée', text: 'Le justificatif, la dépense et son paiement sont enregistrés.' + (warnings.length ? ' Actualisation incomplète : rechargez les données.' : ''), warnings });
+    } finally { setBusy(false); }
+  }
+
   async function confirmExpenseMovement(movement: BankMovement, expenseId: string, dateDifferenceReason?: string) {
     if (writesDisabled) throw new Error('Actualisez les données avant un nouveau rapprochement.');
     setBusy(true);
@@ -430,6 +443,7 @@ export function BankScreen({
   if (!bank) return null;
 
   return <div className="stack-layout bank-screen">
+    {newExpenseMovement ? <BankExpenseForm movement={newExpenseMovement} workspace={workspace} busy={writesDisabled} onClose={() => setNewExpenseMovement(null)} onSave={createExpense} /> : null}
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
       <div><p className="eyebrow">Relevés bancaires</p><h2>Retrouvez les factures payées.</h2><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></div>
@@ -506,7 +520,7 @@ export function BankScreen({
                         /> : null}
                         <Button size="small" disabled={writesDisabled || Boolean(blockReason) || !canConfirmSupplierBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le règlement fournisseur après confirmation'} onClick={() => void confirmSupplierMovement(movement)}><Link2 size={14} /> Confirmer le règlement</Button>
                         {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
-                        <BankExpensePicker movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(expenseId, reason) => confirmExpenseMovement(movement, expenseId, reason)} />
+                        <BankExpensePicker movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(expenseId, reason) => confirmExpenseMovement(movement, expenseId, reason)} onCreate={() => setNewExpenseMovement(movement)} />
                       </> : <>
                         <div className={`bank-suggestion bank-suggestion--${movement.suggestion.kind}`}><span>{suggestionLabels[movement.suggestion.kind]}</span><p>{movement.suggestion.reason || (movement.suggestion.candidates.length ? 'Vérifiez la facture à laquelle rattacher ce règlement.' : 'Aucune facture correspondante.')}</p></div>
                         {movement.suggestion.candidates.length ? <BankCandidatePicker

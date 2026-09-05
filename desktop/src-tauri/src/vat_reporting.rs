@@ -645,24 +645,37 @@ impl LocalStore {
         &self,
         input: VatSourceClassificationInput,
     ) -> AppResult<VatSourceClassification> {
+        let _guard = self.lock()?;
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let result = self.set_vat_source_classification_in_transaction(&transaction, input)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+
+    pub(crate) fn set_vat_source_classification_in_transaction(
+        &self,
+        transaction: &rusqlite::Transaction<'_>,
+        input: VatSourceClassificationInput,
+    ) -> AppResult<VatSourceClassification> {
         let source_type = input.source_type.trim().to_string();
         let source_id = required_text(&input.source_id, "source_id", 255)?;
         let treatment = input.treatment.trim().to_string();
         validate_source_type_and_treatment(&source_type, &treatment)?;
         let note = optional_text(input.note, "note", 1_000)?;
 
-        let _guard = self.lock()?;
-        let mut connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if !vat_source_exists(&transaction, &source_type, &source_id)? {
+        if !vat_source_exists(transaction, &source_type, &source_id)? {
             return Err(AppError::NotFound(format!("{source_type}/{source_id}")));
         }
 
         if matches!(treatment.as_str(), "input_materials" | "input_investments") {
-            if let Some(date) = vat_source_fiscal_date(&transaction, &source_type, &source_id)? {
+            if let Some(date) = vat_source_fiscal_date(transaction, &source_type, &source_id)? {
                 if !crate::input_vat_accounting::purchase_input_deduction_permitted(
-                    &transaction, &source_type, &source_id, &date,
+                    transaction,
+                    &source_type,
+                    &source_id,
+                    &date,
                 )? {
                     return Err(AppError::Validation(
                         "L’assujettissement à la date de cet achat n’est pas établi. Pour corriger un achat comptabilisé sans assujettissement, un profil TVA doit couvrir sa date. La TVA fournisseur reste comprise dans son coût, sans déduction.".into(),
@@ -671,28 +684,27 @@ impl LocalStore {
             }
         }
 
-        let existing = load_classification(&transaction, &source_type, &source_id)?;
+        let existing = load_classification(transaction, &source_type, &source_id)?;
         if let Some(existing) = existing {
             if existing.treatment == treatment && existing.note == note {
-                let closed = closed_accounting_through(&transaction)?;
-                let fiscal_date = vat_source_fiscal_date(&transaction, &source_type, &source_id)?;
+                let closed = closed_accounting_through(transaction)?;
+                let fiscal_date = vat_source_fiscal_date(transaction, &source_type, &source_id)?;
                 if !matches!((closed, fiscal_date), (Some(closed), Some(date)) if date <= closed) {
                     crate::input_vat_accounting::sync_source(
-                        &transaction,
+                        transaction,
                         &source_type,
                         &source_id,
                     )?;
                 }
-                transaction.commit()?;
                 return Ok(existing);
             }
-            ensure_vat_source_open(&transaction, &source_type, &source_id)?;
+            ensure_vat_source_open(transaction, &source_type, &source_id)?;
             transaction.execute(
                 "UPDATE vat_source_classifications SET treatment=?,note=?,updated_at=? WHERE id=?",
                 params![treatment, note, now_iso(), existing.id],
             )?;
         } else {
-            ensure_vat_source_open(&transaction, &source_type, &source_id)?;
+            ensure_vat_source_open(transaction, &source_type, &source_id)?;
             let id = Uuid::new_v4().to_string();
             let now = now_iso();
             transaction.execute(
@@ -701,17 +713,16 @@ impl LocalStore {
             )?;
         }
 
-        let result = load_classification(&transaction, &source_type, &source_id)?
+        let result = load_classification(transaction, &source_type, &source_id)?
             .ok_or_else(|| AppError::NotFound(format!("{source_type}/{source_id}")))?;
-        crate::input_vat_accounting::sync_source(&transaction, &source_type, &source_id)?;
+        crate::input_vat_accounting::sync_source(transaction, &source_type, &source_id)?;
         append_audit(
-            &transaction,
+            transaction,
             "classify_vat",
             &source_type,
             &source_id,
             &serde_json::to_value(&result)?,
         )?;
-        transaction.commit()?;
         Ok(result)
     }
 

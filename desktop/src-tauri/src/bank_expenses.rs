@@ -6,6 +6,9 @@ use crate::{
 };
 use rusqlite::Connection;
 
+#[path = "bank_expense_creation.rs"]
+mod creation;
+
 fn reject(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
@@ -166,7 +169,7 @@ pub(super) fn suggestion(connection: &Connection, movement: &Value) -> AppResult
         candidates.push(json!({"expense_id":expense["id"],"supplier":expense["supplier"],"reference":expense["reference"],"category":expense["category"],"date":expense["date"],"paid_at":paid_date,"requires_date_reason":requires_reason,"payment_status":expense["payment_status"],"total_cents":amount,"confirmable":problem.is_none(),"reason":problem.unwrap_or_else(||if requires_reason {"Les dates du journal et du relevé diffèrent : un motif est requis.".into()} else if expense["payment_status"]=="paid" {"Paiement déjà comptabilisé : aucune nouvelle écriture.".into()} else {"Le relevé réglera cette dépense à la date bancaire.".into()})}));
     }
     Ok(
-        json!({"reason":"Choisissez une dépense du même montant ; vérifiez sa pièce justificative avant de confirmer.","candidates":candidates}),
+        json!({"reason":"Choisissez une dépense du même montant ; vérifiez sa pièce justificative avant de confirmer.","can_create":ensure_accounting_date_open(connection,&date).is_ok() && amount>0,"candidates":candidates}),
     )
 }
 

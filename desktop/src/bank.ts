@@ -186,6 +186,7 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
       ...(text(record(row.expense_reconciliation).date_difference_reason) ? { dateDifferenceReason: text(record(row.expense_reconciliation).date_difference_reason) } : {}),
     } : null,
     expenseSuggestion: {
+      canCreate: record(row.expense_suggestion).can_create === true,
       reason: text(record(row.expense_suggestion).reason),
       candidates: array(record(row.expense_suggestion).candidates).map((candidate) => ({
         expenseId: text(candidate.expense_id), supplier: text(candidate.supplier), reference: text(candidate.reference), category: text(candidate.category),

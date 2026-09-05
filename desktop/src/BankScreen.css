@@ -73,3 +73,14 @@
   .bank-screen .bank-candidate-option__amount strong { white-space: nowrap; }
   .bank-screen .bank-candidate-option__reason { grid-column: 1 / -1; }
 }
+.bank-expense-form { display: grid; gap: 16px; min-width: 0; }
+.bank-expense-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; min-width: 0; }
+.bank-expense-form__hint { margin: 0; font-size: 14px; line-height: 1.5; }
+.bank-expense-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.bank-expense-form input, .bank-expense-form select, .bank-expense-form textarea { min-width: 0; max-width: 100%; font-size: 16px; }
+.bank-expense-form input[type="file"] { width: 100%; padding: 10px; }
+.bank-expense-form__file { font-size: 13px; overflow-wrap: anywhere; }
+.bank-expense-form [role="alert"] { scroll-margin-top: 24px; scroll-margin-bottom: 100px; }
+.bank-expense-form__total { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 12px; background: var(--surface-soft, #f4f6f8); border-radius: 10px; }
+.bank-expense-form__total span { display: grid; gap: 4px; }
+@media (max-width: 600px) { .bank-expense-form__grid { grid-template-columns: minmax(0, 1fr); } .bank-expense-form .form-actions button { min-height: 44px; } }

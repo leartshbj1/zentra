@@ -53,9 +53,9 @@ use crate::{
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
         MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V35_SQL, MIGRATION_V36_SQL,
         MIGRATION_V37_SQL, MIGRATION_V38_SQL, MIGRATION_V39_SQL, MIGRATION_V3_SQL,
-        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V42_SQL, MIGRATION_V43_SQL, MIGRATION_V4_SQL,
-        MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
-        SCHEMA_SQL, SCHEMA_VERSION,
+        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V42_SQL, MIGRATION_V43_SQL,
+        MIGRATION_V4_SQL, MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL,
+        MIGRATION_V9_SQL, SCHEMA_SQL, SCHEMA_VERSION,
     },
     swiss_qr::normalize_and_validate_iban,
 };
@@ -1098,19 +1098,38 @@ fn migrate_v43(transaction: &Transaction<'_>) -> AppResult<()> {
     }
     // An old creation timestamp is not evidence of the effective settlement date.
     // Keep historical rows undated; all new allocations must carry an explicit date.
-    add_column_if_missing(transaction, "supplier_credit_allocations", "effective_date", "effective_date TEXT")?;
+    add_column_if_missing(
+        transaction,
+        "supplier_credit_allocations",
+        "effective_date",
+        "effective_date TEXT",
+    )?;
     transaction.execute_batch(MIGRATION_V43_SQL)?;
     Ok(())
 }
 
 fn migrate_v44(transaction: &Transaction<'_>) -> AppResult<()> {
-    let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='bank_movements')", [], |row| row.get(0))?;
+    let exists: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='bank_movements')",
+        [],
+        |row| row.get(0),
+    )?;
     // Like the earlier domain migrations, retain support for isolated legacy module stores.
     if !exists {
         transaction.pragma_update(None, "user_version", 44)?;
         return Ok(());
     }
     transaction.execute_batch(crate::schema::MIGRATION_V44_SQL)?;
+    Ok(())
+}
+
+fn migrate_v45(transaction: &Transaction<'_>) -> AppResult<()> {
+    let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='bank_expense_reconciliations')", [], |row| row.get(0))?;
+    if exists {
+        transaction.execute_batch(crate::schema::MIGRATION_V45_SQL)?;
+    } else {
+        transaction.pragma_update(None, "user_version", 45)?;
+    }
     Ok(())
 }
 
@@ -1620,7 +1639,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=43 => {}
+            28..=44 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1694,6 +1713,9 @@ impl LocalStore {
         }
         if current < 44 {
             migrate_v44(&transaction)?;
+        }
+        if current < 45 {
+            migrate_v45(&transaction)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {

@@ -1,4 +1,22 @@
-pub const SCHEMA_VERSION: i64 = 44;
+pub const SCHEMA_VERSION: i64 = 45;
+
+pub const MIGRATION_V45_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS bank_expense_creation_requests (
+  request_id TEXT PRIMARY KEY,
+  payload_sha256 TEXT NOT NULL CHECK(length(payload_sha256)=64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+  reconciliation_id TEXT NOT NULL UNIQUE REFERENCES bank_expense_reconciliations(id) ON DELETE RESTRICT,
+  attachment_id TEXT NOT NULL UNIQUE REFERENCES attachments(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS bank_expense_creation_immutable_update BEFORE UPDATE ON bank_expense_creation_requests
+BEGIN SELECT RAISE(ABORT,'La preuve de création bancaire est immuable.'); END;
+CREATE TRIGGER IF NOT EXISTS bank_expense_creation_immutable_delete BEFORE DELETE ON bank_expense_creation_requests
+BEGIN SELECT RAISE(ABORT,'La preuve de création bancaire est immuable.'); END;
+CREATE TRIGGER IF NOT EXISTS bank_expense_attachment_immutable_update BEFORE UPDATE ON attachments
+WHEN EXISTS(SELECT 1 FROM bank_expense_creation_requests WHERE attachment_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'Le justificatif bancaire comptabilisé est figé.'); END;
+PRAGMA user_version=45;
+"#;
 
 pub const MIGRATION_V44_SQL: &str = r#"
 CREATE INDEX IF NOT EXISTS idx_expenses_bank_amount ON expenses(total_cents,currency,date DESC,created_at DESC,id);

@@ -5832,6 +5832,9 @@ export const desktopApi = {
   async confirmExpenseBankReconciliation(movementId: string, expenseId: string, dateDifferenceReason?: string): Promise<void> {
     await invoke('confirm_expense_bank_reconciliation', { input: { movement_id: movementId, expense_id: expenseId, date_difference_reason: dateDifferenceReason || null } });
   },
+  async createBankExpense(draft: import('./BankExpenseForm').BankExpenseDraft): Promise<void> {
+    await invoke('create_bank_expense', { input: { request_id: draft.requestId, movement_id: draft.movementId, date: draft.date, supplier: draft.supplier, reference: draft.reference, category: draft.category, project_id: draft.projectId, vat_cents: draft.vatCents, vat_treatment: draft.vatTreatment, note: draft.note, original_name: draft.receipt.name, content_base64: await fileBase64(draft.receipt) } });
+  },
   chooseRestoreFile: () =>
     chooseFile({
       multiple: false,

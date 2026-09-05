@@ -11,6 +11,7 @@ import { installClosingFixture } from './closing-fixture';
 import { installPayrollFixture } from './payroll-fixture';
 import { installBankFixture } from './bank-fixture';
 import { installBankExpenseFixture } from './bank-expense-fixture';
+import { installBankCreateFixture } from './bank-create-fixture';
 import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
 import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixture';
 import { installRecurrenceFixture } from './recurrence-fixture';
@@ -98,6 +99,7 @@ if (new URLSearchParams(location.search).has('volume')) {
 }
 if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
 if (new URLSearchParams(location.search).has('bankExpenses')) installBankExpenseFixture(() => data);
+if (new URLSearchParams(location.search).has('bankCreate')) installBankCreateFixture(() => data);
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);

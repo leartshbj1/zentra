@@ -360,6 +360,29 @@ impl LocalStore {
         })
     }
 
+    pub(crate) fn insert_prepared_expense_attachment(
+        &self,
+        tx: &Transaction<'_>,
+        expense_id: &str,
+        prepared: &PreparedSupplierInvoiceAttachment,
+    ) -> AppResult<String> {
+        let project: Option<String> = tx.query_row(
+            "SELECT project_id FROM expenses WHERE id=?",
+            params![expense_id],
+            |row| row.get(0),
+        )?;
+        let now = now_iso();
+        tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'expense',?,?,?,?,?,?,?,?)", params![prepared.id,project,expense_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
+        append_audit(
+            tx,
+            "attachment_add",
+            "expense",
+            expense_id,
+            &json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes,"source":"bank_expense"}),
+        )?;
+        Ok(prepared.id.clone())
+    }
+
     pub fn delete_supplier_invoice_attachment(&self, id: &str) -> AppResult<Value> {
         let id = required_uuid(id, "justificatif")?;
         let mut connection = self.connect()?;
