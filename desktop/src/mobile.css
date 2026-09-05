@@ -28,6 +28,21 @@
 .mobile-navigation { display: none; }
 .mobile-checklist-toggle { display: none; }
 .document-line-field { display: contents; }
+.sales-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft); }
+.sales-list-toolbar label { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sales-list-toolbar label > span, .sales-list-toolbar > span { font-size: 13px; color: var(--muted); }
+.sales-list-toolbar select { min-height: 44px; width: auto; }
+.sales-list-toolbar { scroll-margin-top: 140px; }
+.sales-list-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px; border-top: 1px solid var(--line-soft); }
+.sales-list-pagination > span { text-align: center; color: var(--muted); font-size: 13px; }
+.purchase-workflow__mobile-section { display: none; }
+
+@media screen and (min-width: 861px) {
+  .sales-documents .document-actions { max-width: 210px; flex-wrap: wrap; }
+  .sales-documents td.sales-document__client { min-width: 110px; }
+  .sales-documents td.sales-document__date { min-width: 125px; }
+  .sales-documents td.sales-document__date > span { white-space: nowrap; }
+}
 
 @media screen and (max-width: 860px) {
   .app-main { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
@@ -68,7 +83,7 @@
   .catalog-line-picker { flex-wrap: wrap; }
   .catalog-line-picker input, .catalog-line-picker select { width: 100%; min-width: 0; }
   .catalog-line-picker:has(select:disabled) { display: none; }
-  .line-editor:has(.catalog-line-picker select:disabled) > header > div:first-child > small { display: none; }
+  .line-editor:has(.catalog-line-picker select:disabled) > header > div:first-child > small:not(.document-currency-hint) { display: none; }
   .table-panel table[data-mobile-cards] { display: block; min-width: 0; width: 100%; }
   table[data-mobile-cards] > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   table[data-mobile-cards] > tbody { display: grid; gap: 12px; }
@@ -78,6 +93,33 @@
   .table-panel table[data-mobile-cards] td small { font-size: 13px; line-height: 1.4; }
   table[data-mobile-cards] td[data-label]:not([data-label=''])::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; margin-bottom: 5px; }
   table[data-mobile-cards] .table-actions { flex-wrap: wrap; justify-content: flex-start; }
+  .sales-list-toolbar { flex-wrap: wrap; padding: 12px 0; border-bottom: 0; }
+  .sales-list-toolbar label { flex: 1; }
+  .sales-list-toolbar select { flex: 1; }
+  .sales-list-toolbar > span { width: 100%; }
+  .purchase-workflow__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .purchase-workflow__summary > div { padding: 12px; min-width: 0; }
+  .purchase-workflow__summary > div:nth-child(2) { border-top: 0; }
+  .purchase-workflow__summary > div:nth-child(even) { border-left: 1px solid var(--line-soft); }
+  .purchase-workflow__summary strong { font-size: 19px; overflow-wrap: anywhere; }
+  .purchase-workflow__summary small { display: none; }
+  .purchase-workflow__mobile-section { display: flex; width: 100%; flex-direction: column; gap: 6px; }
+  .purchase-workflow__mobile-section > span { font-size: 13px; color: var(--muted); }
+  .purchase-workflow__mobile-section select { width: 100%; min-height: 44px; }
+  .purchase-workflow__tabs { display: none; }
+  .sales-documents table[data-mobile-cards] > tbody > tr { background: var(--paper); padding: 14px; gap: 12px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'identity identity' 'client status' 'date total' 'actions actions'; }
+  .sales-documents--invoices table[data-mobile-cards] > tbody > tr { grid-template-areas: 'identity identity' 'client status' 'date date' 'total paid' 'actions actions'; }
+  .sales-documents table[data-mobile-cards] td { padding: 0; overflow-wrap: anywhere; }
+  .sales-document__identity { grid-area: identity; }
+  .sales-document__client { grid-area: client; }
+  .sales-document__date { grid-area: date; }
+  .sales-document__total { grid-area: total; }
+  .sales-document__paid { grid-area: paid; }
+  .sales-document__status { grid-area: status; align-self: center; text-align: right; }
+  .sales-document__actions { grid-area: actions; }
+  .sales-documents table[data-mobile-cards] td.sales-document__identity[data-label]::before, .sales-documents table[data-mobile-cards] td.sales-document__status[data-label]::before, .sales-documents table[data-mobile-cards] td.sales-document__actions[data-label]::before { display: none; }
+  .sales-documents .document-actions { justify-content: flex-start; flex-wrap: wrap; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+  .sales-documents .document-actions .button--icon { min-width: 44px; }
   html, body, #root { min-width: 0; }
   body { overflow-x: clip; }
   input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px; max-width: 100%; }

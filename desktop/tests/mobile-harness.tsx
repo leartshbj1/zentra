@@ -60,7 +60,29 @@ desktopApi.saveDocument = async (entity, input, lines, existing) => {
   data[entity] = [...data[entity].filter((item) => item.id !== id), document] as never;
   return structuredClone(data);
 };
-if (new URLSearchParams(location.search).has('finance')) installFinanceFixture(data);
+if (['finance', 'browsing', 'volume'].some((name) => new URLSearchParams(location.search).has(name))) installFinanceFixture(data);
+if (new URLSearchParams(location.search).has('browsing')) {
+  data.clients.push({ ...data.clients[0], id: 'client-other', name: 'Autre client', company: 'Autre entreprise' });
+  data.projects = [
+    { id: 'project-qa', clientId: 'client-qa', name: 'Projet du client de recette', status: 'planned' },
+    { id: 'project-other', clientId: 'client-other', name: 'Projet d’un autre client', status: 'planned' },
+  ] as Workspace['projects'];
+  data.quotes[1].currency = 'EUR';
+  data.quotes[1].number = '';
+  data.invoices[1].currency = 'EUR';
+  data.invoices[1].projectId = 'project-qa';
+  data.invoices[1].number = '';
+  data.invoices[0].status = 'issued';
+  data.invoices[0].dueDate = '2026-01-31';
+  data.invoices[2].status = 'paid';
+  data.invoices[2].currency = 'EUR';
+  data.invoices[2].clientId = 'client-other';
+  data.invoices[2].projectId = 'project-other';
+  data.payments = [{ id: 'paid-qa', invoiceId: data.invoices[2].id, amountCents: 108100, date: '2026-07-01', method: 'bank', reference: '' }] as Workspace['payments'];
+}
+if (new URLSearchParams(location.search).has('volume')) {
+  data.invoices = Array.from({ length: 80 }, (_, index) => ({ ...structuredClone(data.invoices[0]), id: `volume-${index}`, number: `F-2026-${String(index + 1).padStart(4, '0')}`, title: `Prestation ${index + 1}` }));
+}
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

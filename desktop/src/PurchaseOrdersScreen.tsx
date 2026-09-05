@@ -814,10 +814,16 @@ export function PurchaseOrdersScreen({
         <SectionHeading
           eyebrow="Cycle fournisseur local"
           title="Achats & fournisseurs"
-          description="De la commande au paiement, chaque étape reste contrôlable. Les prestations directes passent sans réception; les produits reçus exigent un bon émis."
+          description="Commandes, réceptions, factures et paiements réunis au même endroit."
           action={primaryAction}
         />
         <div className="purchase-workflow__toolbar">
+          <label className="purchase-workflow__mobile-section">
+            <span>Section des achats</span>
+            <select aria-label="Section des achats" value={section} onChange={(event) => setSection(event.target.value as PurchaseSection)}>
+              {sectionLabels.map(({ id, label }) => <option key={id} value={id}>{label} ({sectionCount(id)})</option>)}
+            </select>
+          </label>
           <div
             className="purchase-workflow__tabs"
             role="tablist"

@@ -85,7 +85,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       <header><h3>{kind === 'quotes' ? 'Devis' : 'Factures'}</h3><Button size="small" variant="secondary" disabled={readOnly || saving || busy} onClick={() => onCreateDocument(kind, project)}><Plus size={16} /> {kind === 'quotes' ? 'Nouveau devis' : 'Nouvelle facture'}</Button></header>
       <ul className="project-document-list">{contents[kind].map((document) => <li key={document.id}>
         <button type="button" className="project-document-list__open" onClick={() => onOpenDocument(kind, document)}>
-          <FileText size={22} /><span><strong>{document.number || 'Brouillon'} · {document.title}</strong><small>{formatDate(document.issueDate)} · {formatMoney(documentTotals(document.lines).totalCents)}</small></span><StatusBadge status={document.status} />
+          <FileText size={22} /><span><strong>{document.number || 'Brouillon'} · {document.title}</strong><small>{formatDate(document.issueDate)} · {formatMoney(documentTotals(document.lines).totalCents, document.currency)}</small></span><StatusBadge status={document.status} />
         </button>
       </li>)}</ul>
       {!contents[kind].length ? <p className="project-folder__empty">{kind === 'quotes' ? 'Les devis liés à ce projet apparaîtront ici.' : 'Les factures liées à ce projet apparaîtront ici.'}</p> : null}

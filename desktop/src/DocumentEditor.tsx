@@ -103,6 +103,7 @@ export function DocumentEditor({
   const [selectedClientId, setSelectedClientId] = useState(
     item?.clientId ?? quoteSource?.clientId ?? initialProject?.clientId ?? '',
   );
+  const [selectedProjectId, setSelectedProjectId] = useState(item?.projectId ?? quoteSource?.projectId ?? initialProject?.id ?? '');
   const [quickClientOpen, setQuickClientOpen] = useState(false);
   const [quickClient, setQuickClient] = useState({
     contactPerson: '',
@@ -143,6 +144,8 @@ export function DocumentEditor({
   const [originalInvoiceId, setOriginalInvoiceId] = useState(
     (item as Invoice | undefined)?.originalInvoiceId ?? '',
   );
+  const creditOriginal = invoiceType === 'credit_note' ? workspace.invoices.find((invoice) => invoice.id === originalInvoiceId) : undefined;
+  const currency = creditOriginal?.currency || current?.currency || settings.billing.currency || 'CHF';
   const [footerText, setFooterText] = useState(
     item?.terms ?? quoteSource?.terms ?? settings.billing.defaultFooter,
   );
@@ -186,6 +189,7 @@ export function DocumentEditor({
   }
 
   function addCatalogItem() {
+    if (currency !== 'CHF') return;
     const catalogItem = catalogItems.find(
       (candidate) => candidate.id === catalogItemId,
     );
@@ -222,6 +226,7 @@ export function DocumentEditor({
     );
     if (!saved) return;
     setSelectedClientId(id);
+    setSelectedProjectId('');
     setQuickClientOpen(false);
     setQuickClient({
       contactPerson: '',
@@ -368,12 +373,12 @@ export function DocumentEditor({
             return;
           }
           const data: Record<string, unknown> = {
-            clientId: String(form.get('clientId')),
-            projectId: String(form.get('projectId')) || null,
+            clientId: creditOriginal?.clientId || selectedClientId,
+            projectId: creditOriginal ? creditOriginal.projectId : selectedProjectId || null,
             title: String(form.get('title')),
             status: item?.status ?? 'draft',
             issueDate,
-            currency: 'CHF',
+            currency,
             subtotalCents: totals.subtotalCents,
             discountCents: totals.discountCents,
             vatCents: totals.vatCents,
@@ -421,7 +426,11 @@ export function DocumentEditor({
                 <select
                   name="clientId"
                   value={selectedClientId}
-                  onChange={(event) => setSelectedClientId(event.target.value)}
+                  disabled={Boolean(creditOriginal)}
+                  onChange={(event) => {
+                    setSelectedClientId(event.target.value);
+                    setSelectedProjectId('');
+                  }}
                   required
                 >
                   <option value="">Choisir un client</option>
@@ -430,7 +439,8 @@ export function DocumentEditor({
                       (client) =>
                         !client.archivedAt ||
                         client.id === item?.clientId ||
-                        client.id === quoteSource?.clientId,
+                        client.id === quoteSource?.clientId ||
+                        client.id === creditOriginal?.clientId,
                     )
                     .map((client) => (
                       <option value={client.id} key={client.id}>
@@ -443,6 +453,7 @@ export function DocumentEditor({
                   type="button"
                   variant="secondary"
                   size="small"
+                  disabled={Boolean(creditOriginal)}
                   onClick={() => setQuickClientOpen((open) => !open)}
                   aria-expanded={quickClientOpen}
                 >
@@ -454,10 +465,12 @@ export function DocumentEditor({
             <Field label={terminology.singularTitle}>
               <select
                 name="projectId"
-                defaultValue={item?.projectId ?? quoteSource?.projectId ?? initialProject?.id ?? ''}
+                value={selectedProjectId}
+                disabled={Boolean(creditOriginal)}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
               >
                 <option value="">Aucun {terminology.singular} lié</option>
-                {workspace.projects.map((project) => (
+                {workspace.projects.filter((project) => project.clientId === selectedClientId).map((project) => (
                   <option value={project.id} key={project.id}>
                     {project.name}
                   </option>
@@ -484,6 +497,7 @@ export function DocumentEditor({
                 </select>
               </Field>
             ) : null}
+            <Field label="Devise"><input value={currency} readOnly /></Field>
             <Field label="Date d’émission" required>
               <input
                 type="date"
@@ -542,7 +556,15 @@ export function DocumentEditor({
               <Field label="Facture originale" required wide>
                 <select
                   value={originalInvoiceId}
-                  onChange={(event) => setOriginalInvoiceId(event.target.value)}
+                  onChange={(event) => {
+                    setOriginalInvoiceId(event.target.value);
+                    const original = workspace.invoices.find((invoice) => invoice.id === event.target.value);
+                    if (original) {
+                      setSelectedClientId(original.clientId);
+                      setSelectedProjectId(original.projectId || '');
+                      setQuickClientOpen(false);
+                    }
+                  }}
                   required
                 >
                   <option value="">Choisir la facture à corriger</option>
@@ -642,8 +664,8 @@ export function DocumentEditor({
                 </label>
               </Field>
               <div className="deposit-builder__summary" aria-live="polite">
-                <span>Base TTC <strong>{formatMoney(baseTotals.totalCents)}</strong></span>
-                <span>Acompte TTC <strong>{formatMoney(totals.totalCents)}</strong></span>
+                <span>Base TTC <strong>{formatMoney(baseTotals.totalCents, currency)}</strong></span>
+                <span>Acompte TTC <strong>{formatMoney(totals.totalCents, currency)}</strong></span>
               </div>
             </section>
           ) : null}
@@ -660,9 +682,8 @@ export function DocumentEditor({
             <header>
               <div>
                 <strong>{invoiceType === 'deposit' ? 'Base de calcul de l’acompte' : 'Lignes du document'}</strong>
-                <small>
-                  Le catalogue accélère la saisie; chaque valeur reste
-                  modifiable dans ce brouillon.
+                <small className={currency !== 'CHF' ? 'document-currency-hint' : undefined}>
+                  {currency === 'CHF' ? 'Le catalogue accélère la saisie; chaque valeur reste modifiable dans ce brouillon.' : `Saisissez les prix en ${currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.`}
                 </small>
               </div>
               <div className="line-editor__actions">
@@ -677,13 +698,13 @@ export function DocumentEditor({
                     }}
                     placeholder="Référence ou désignation"
                     aria-label="Rechercher une référence du catalogue"
-                    disabled={!catalogItems.length}
+                    disabled={!catalogItems.length || currency !== 'CHF'}
                   />
                   <select
                     value={catalogItemId}
                     onChange={(event) => setCatalogItemId(event.target.value)}
                     aria-label="Référence du catalogue à ajouter"
-                    disabled={!catalogItems.length}
+                    disabled={!catalogItems.length || currency !== 'CHF'}
                   >
                     <option value="">
                       {!catalogItems.length
@@ -703,7 +724,7 @@ export function DocumentEditor({
                     type="button"
                     variant="secondary"
                     size="small"
-                    disabled={!catalogItemId}
+                    disabled={!catalogItemId || currency !== 'CHF'}
                     onClick={addCatalogItem}
                   >
                     Ajouter depuis le catalogue
@@ -941,21 +962,21 @@ export function DocumentEditor({
             <div className="document-totals">
               <div>
                 <span>Sous-total avant remise</span>
-                <strong>{formatMoney(totals.subtotalCents)}</strong>
+                <strong>{formatMoney(totals.subtotalCents, currency)}</strong>
               </div>
               {totals.discountCents ? (
                 <div>
                   <span>Remises</span>
-                  <strong>− {formatMoney(totals.discountCents)}</strong>
+                  <strong>− {formatMoney(totals.discountCents, currency)}</strong>
                 </div>
               ) : null}
               <div>
                 <span>Total net</span>
-                <strong>{formatMoney(totals.netCents)}</strong>
+                <strong>{formatMoney(totals.netCents, currency)}</strong>
               </div>
               <div>
                 <span>TVA</span>
-                <strong>{formatMoney(totals.vatCents)}</strong>
+                <strong>{formatMoney(totals.vatCents, currency)}</strong>
               </div>
               <div>
                 <span>
@@ -963,7 +984,7 @@ export function DocumentEditor({
                     ? 'Montant de l’avoir'
                     : 'Total TTC'}
                 </span>
-                <strong>{formatMoney(totals.totalCents)}</strong>
+                <strong>{formatMoney(totals.totalCents, currency)}</strong>
               </div>
             </div>
           </div>

@@ -115,10 +115,12 @@ export function accountingEntryFocusFilter(
 export function PaymentAccountingProofs({
   invoiceId,
   payments,
+  currency = 'CHF',
   onOpenJournal,
 }: {
   invoiceId: string;
   payments: Payment[];
+  currency?: string;
   onOpenJournal: (focus: AccountingEntryFocus) => void;
 }) {
   const state = invoicePaymentAccountingState(invoiceId, payments);
@@ -137,8 +139,8 @@ export function PaymentAccountingProofs({
           size="small"
           className={proof.accountingState === 'active' ? '' : `is-${proof.accountingState}`}
           title={proof.accountingState === 'active'
-            ? `Paiement du ${formatDate(proof.entryDate)} · ${formatMoney(proof.amountCents)}`
-            : `${proof.label} · paiement du ${formatDate(proof.entryDate)} · ${formatMoney(proof.amountCents)} · contrôle de la chaîne requis`}
+            ? `Paiement du ${formatDate(proof.entryDate)} · ${formatMoney(proof.amountCents, currency)}`
+            : `${proof.label} · paiement du ${formatDate(proof.entryDate)} · ${formatMoney(proof.amountCents, currency)} · contrôle de la chaîne requis`}
           aria-label={`${proof.accountingState === 'active' ? 'Ouvrir l’écriture comptable' : 'Contrôler la chaîne comptable de'} ${proof.entryNumber} liée au paiement du ${formatDate(proof.entryDate)}`}
           onClick={() => onOpenJournal(proof)}
         >

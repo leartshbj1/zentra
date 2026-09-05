@@ -14,10 +14,10 @@ export function normalizeLicenseToken(value: string): string {
   return value.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '');
 }
 
-export function formatMoney(cents: number | null | undefined): string {
+export function formatMoney(cents: number | null | undefined, currency = 'CHF'): string {
   return new Intl.NumberFormat('fr-CH', {
     style: 'currency',
-    currency: 'CHF',
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format((cents ?? 0) / 100);
@@ -159,6 +159,15 @@ export function projectFinancials(
   const invoicedNet = issued.reduce((total, invoice) => total + documentTotals(invoice.lines).netCents, 0);
   const invoicedTotal = issued.reduce((total, invoice) => total + documentTotals(invoice.lines).totalCents, 0);
   const paid = issued.reduce((total, invoice) => total + invoicePaid(invoice.id, payments), 0);
+  const currencyTotals = new Map<string, { net: number; total: number }>();
+  for (const invoice of issued) {
+    const currency = invoice.currency || 'CHF';
+    const amounts = documentTotals(invoice.lines);
+    const current = currencyTotals.get(currency) ?? { net: 0, total: 0 };
+    currencyTotals.set(currency, { net: current.net + amounts.netCents, total: current.total + amounts.totalCents });
+  }
+  const requiresCurrencyConversion = [...currencyTotals.keys()].some((currency) => currency !== 'CHF');
+  const revenueByCurrency = [...currencyTotals].sort(([left], [right]) => left.localeCompare(right));
   const projectEntries = entries.filter((entry) => entry.projectId === project.id);
   const minutes = projectEntries.reduce((total, entry) => total + entry.minutes, 0);
   const laborCost = projectEntries.reduce(
@@ -183,7 +192,10 @@ export function projectFinancials(
     minutes,
     laborCost,
     expenseNet,
-    margin: invoicedNet - laborCost - expenseNet,
+    invoicedNetLabel: revenueByCurrency.map(([currency, amount]) => formatMoney(amount.net, currency)).join(' · ') || formatMoney(0),
+    invoicedTotalLabel: revenueByCurrency.map(([currency, amount]) => formatMoney(amount.total, currency)).join(' · ') || formatMoney(0),
+    requiresCurrencyConversion,
+    margin: requiresCurrencyConversion ? null : invoicedNet - laborCost - expenseNet,
   };
 }
 
@@ -205,9 +217,10 @@ export function createId(): string {
 }
 
 export function searchText(values: Array<string | null | undefined>, query: string): boolean {
-  const normalized = query.trim().toLocaleLowerCase('fr-CH');
+  const normalize = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr-CH').replace(/\s+/g, ' ').trim();
+  const normalized = normalize(query);
   if (!normalized) return true;
-  return values.join(' ').toLocaleLowerCase('fr-CH').includes(normalized);
+  return normalize(values.join(' ')).includes(normalized);
 }
 
 export function countDocuments(quotes: Quote[], invoices: Invoice[]): number {

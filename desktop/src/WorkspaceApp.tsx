@@ -73,6 +73,8 @@ import { desktopApi, type CloudAccountState } from './bridge';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import { newestDocumentsFirst } from './documentOrder';
+import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesDocumentList';
+import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
 import type { AgendaEventDraft } from './AgendaScreen';
 import { agendaNavigationTarget, type AgendaItem } from './agenda';
 import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
@@ -2128,14 +2130,7 @@ function Dashboard({
   const issued = workspace.invoices.filter(
     (invoice) => invoice.status !== 'draft' && invoice.status !== 'cancelled',
   );
-  const invoiced = issued.reduce(
-    (total, invoice) => total + documentTotals(invoice.lines).totalCents,
-    0,
-  );
-  const paid = issued.reduce(
-    (total, invoice) => total + invoicePaid(invoice.id, workspace.payments),
-    0,
-  );
+  const financialTotals = salesTotalsByCurrency(workspace.invoices, workspace.payments);
   const minutes = workspace.timeEntries.reduce(
     (total, entry) => total + entry.minutes,
     0,
@@ -2204,7 +2199,7 @@ function Dashboard({
       <div className="metric-grid">
         <MetricCard
           label="Facturé TTC"
-          value={issued.length ? formatMoney(invoiced) : '—'}
+          value={formatSalesTotals(financialTotals, 'invoicedCents')}
           note={
             issued.length
               ? `${issued.length} facture${issued.length > 1 ? 's' : ''} émise${issued.length > 1 ? 's' : ''}`
@@ -2215,7 +2210,7 @@ function Dashboard({
         />
         <MetricCard
           label="Encaissé"
-          value={workspace.payments.length ? formatMoney(paid) : '—'}
+          value={formatSalesTotals(financialTotals, 'paidCents')}
           note={
             workspace.payments.length
               ? `${workspace.payments.length} paiement${workspace.payments.length > 1 ? 's' : ''}`
@@ -2227,7 +2222,7 @@ function Dashboard({
         <MetricCard
           label="Solde ouvert"
           value={
-            issued.length ? formatMoney(Math.max(0, invoiced - paid)) : '—'
+            formatSalesTotals(financialTotals, 'openCents')
           }
           note={
             issued.length ? 'Sur les factures émises' : 'Pas encore calculable'
@@ -2291,8 +2286,8 @@ function Dashboard({
                   <div>
                     <small>Facturé</small>
                     <strong>
-                      {stats.invoicedTotal
-                        ? formatMoney(stats.invoicedTotal)
+                      {stats.invoicedTotal || stats.requiresCurrencyConversion
+                        ? stats.invoicedTotalLabel
                         : '—'}
                     </strong>
                   </div>
@@ -2607,8 +2602,8 @@ function ProjectsScreen({
                   <div>
                     <span>Facturé TTC</span>
                     <strong>
-                      {stats.invoicedTotal
-                        ? formatMoney(stats.invoicedTotal)
+                      {stats.invoicedTotal || stats.requiresCurrencyConversion
+                        ? stats.invoicedTotalLabel
                         : '—'}
                     </strong>
                   </div>
@@ -2621,9 +2616,11 @@ function ProjectsScreen({
                   <div>
                     <span>Marge nette saisie</span>
                     <strong>
-                      {stats.invoicedNet || stats.laborCost || stats.expenseNet
-                        ? formatMoney(stats.margin)
-                        : '—'}
+                      {stats.requiresCurrencyConversion
+                        ? 'Conversion CHF requise'
+                        : stats.invoicedNet || stats.laborCost || stats.expenseNet
+                          ? formatMoney(stats.margin)
+                          : '—'}
                     </strong>
                   </div>
                 </div>
@@ -2906,21 +2903,8 @@ function ClientDetail({
       invoice.type !== 'credit_note' &&
       !['draft', 'cancelled'].includes(invoice.status),
   );
-  const invoicedCents = invoices
-    .filter((invoice) => !['draft', 'cancelled'].includes(invoice.status))
-    .reduce(
-      (total, invoice) => total + documentTotals(invoice.lines).totalCents,
-      0,
-    );
-  const paidCents = issuedInvoices.reduce(
-    (total, invoice) => total + invoicePaid(invoice.id, workspace.payments),
-    0,
-  );
-  const openCents = issuedInvoices.reduce(
-    (total, invoice) =>
-      total + invoiceOpenBalance(invoice, invoices, workspace.payments),
-    0,
-  );
+  const financialTotals = salesTotalsByCurrency(invoices, workspace.payments);
+  const hasOpenBalance = financialTotals.some((total) => total.openCents > 0);
   const overdue = issuedInvoices.filter(
     (invoice) =>
       invoiceOpenBalance(invoice, invoices, workspace.payments) > 0 &&
@@ -2936,6 +2920,7 @@ function ClientDetail({
       date: quote.issueDate,
       status: quote.status,
       totalCents: documentTotals(quote.lines).totalCents,
+      currency: quote.currency,
     })),
     ...invoices.map((invoice) => ({
       id: invoice.id,
@@ -2945,6 +2930,7 @@ function ClientDetail({
       date: invoice.issueDate,
       status: invoice.status,
       totalCents: documentTotals(invoice.lines).totalCents,
+      currency: invoice.currency,
     })),
   ].sort((left, right) => right.date.localeCompare(left.date));
 
@@ -2995,7 +2981,7 @@ function ClientDetail({
       <div className="client-360-metrics">
         <article>
           <span>Facturé net des avoirs</span>
-          <strong>{invoices.length ? formatMoney(invoicedCents) : '—'}</strong>
+          <strong>{formatSalesTotals(financialTotals, 'invoicedCents')}</strong>
           <small>
             {issuedInvoices.length} facture
             {issuedInvoices.length > 1 ? 's' : ''} émise
@@ -3004,13 +2990,13 @@ function ClientDetail({
         </article>
         <article>
           <span>Encaissé</span>
-          <strong>{paidCents ? formatMoney(paidCents) : '—'}</strong>
+          <strong>{formatSalesTotals(financialTotals, 'paidCents')}</strong>
           <small>Paiements enregistrés</small>
         </article>
-        <article className={openCents ? 'is-attention' : ''}>
+        <article className={hasOpenBalance ? 'is-attention' : ''}>
           <span>Solde ouvert</span>
           <strong>
-            {issuedInvoices.length ? formatMoney(openCents) : '—'}
+            {formatSalesTotals(financialTotals, 'openCents')}
           </strong>
           <small>
             {overdue.length
@@ -3095,7 +3081,7 @@ function ClientDetail({
                     <strong>{document.number}</strong>
                     <small>{document.title || formatDate(document.date)}</small>
                   </div>
-                  <strong>{formatMoney(document.totalCents)}</strong>
+                  <strong>{formatMoney(document.totalCents, document.currency)}</strong>
                   <StatusBadge status={document.status} />
                 </article>
               ))}
@@ -3181,19 +3167,36 @@ type LooseDocumentsProps = {
 function DocumentsScreen(sourceProps: DocumentsProps) {
   let entity: 'quotes' | 'invoices' = sourceProps.entity;
   const { workspace, query, busy, onCreate } = sourceProps;
-  const documents = newestDocumentsFirst<Quote | Invoice>(entity === 'quotes' ? workspace.quotes : workspace.invoices);
+  const documents = useMemo(() => newestDocumentsFirst<Quote | Invoice>(entity === 'quotes' ? workspace.quotes : workspace.invoices), [entity, workspace.quotes, workspace.invoices]);
+  const clientsById = useMemo(() => new Map(workspace.clients.map((client) => [client.id, client])), [workspace.clients]);
+  const [statuses, setStatuses] = useState({ quotes: 'all', invoices: 'all' });
+  const status = statuses[entity];
   const filtered = documents.filter((document) =>
-    searchText(
-      [
-        document.number,
-        document.title,
-        'qrBill' in document ? document.qrBill?.input.reference : '',
-        workspace.clients.find((client) => client.id === document.clientId)
-          ?.name,
-      ],
-      query,
-    ),
+    matchesSalesDocumentSearch(document, [clientsById.get(document.clientId)?.company, clientsById.get(document.clientId)?.name].filter(Boolean).join(' '), query)
+    && matchesSalesDocumentStatus(document, status, workspace.invoices, workspace.payments, todayIso()),
   );
+  const pageKey = JSON.stringify([entity, status, query]);
+  const [pagination, setPagination] = useState({ key: pageKey, page: 0 });
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 25));
+  const page = pagination.key === pageKey ? Math.min(pagination.page, pageCount - 1) : 0;
+  const visibleDocuments = filtered.slice(page * 25, (page + 1) * 25);
+  const changePage = (next: number) => {
+    setPagination({ key: pageKey, page: next });
+    document.querySelector('.sales-list-toolbar')?.scrollIntoView({ block: 'start' });
+  };
+  const pager = pageCount > 1 ? <nav className="sales-list-pagination" aria-label="Pages des documents">
+    <Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)} aria-label="Page précédente">Précédent</Button>
+    <span role="status">{page * 25 + 1}–{Math.min((page + 1) * 25, filtered.length)} sur {filtered.length}</span>
+    <Button variant="secondary" disabled={page === pageCount - 1} onClick={() => changePage(page + 1)} aria-label="Page suivante">Suivant</Button>
+  </nav> : null;
+  const filterBar = <div className="sales-list-toolbar">
+    <label><span>Afficher</span><select aria-label={entity === 'quotes' ? 'État des devis' : 'État des factures'} value={status} onChange={(event) => setStatuses({ ...statuses, [entity]: event.target.value })}>
+      <option value="all">Tous les états</option>
+      {entity === 'invoices' ? <><option value="open">À encaisser</option><option value="overdue">En retard</option><option value="partially_paid">Partiellement payées</option><option value="paid">Payées</option></> : <><option value="accepted">Acceptés</option><option value="refused">Refusés</option><option value="expired">Expirés</option></>}
+      <option value="draft">Brouillons</option><option value="issued">Émis</option><option value="cancelled">Annulés</option>
+    </select></label>
+    <span role="status">{filtered.length} / {documents.length} · Plus récents d’abord</span>
+  </div>;
   if (!documents.length) {
     return (
       <EmptyState
@@ -3208,7 +3211,8 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   if (entity === 'quotes') {
     const props = sourceProps as Extract<DocumentsProps, { entity: 'quotes' }>;
     return (
-      <div className="panel table-panel">
+      <div className={`panel table-panel sales-documents sales-documents--${entity}`}>
+        {filterBar}
         <table>
           <thead>
             <tr>
@@ -3221,7 +3225,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((document) => {
+            {visibleDocuments.map((document) => {
               const quote = document as Quote;
               const client = workspace.clients.find(
                 (candidate) => candidate.id === quote.clientId,
@@ -3238,7 +3242,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
               );
               return (
                 <tr key={quote.id}>
-                  <td>
+                  <td className="sales-document__identity">
                     <div className="document-cell">
                       <span>
                         <FileCheck2 size={16} />
@@ -3251,26 +3255,26 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td className="sales-document__client">
                     <strong className="table-subtle">
                       {client?.company || client?.name || '—'}
                     </strong>
                   </td>
-                  <td>
+                  <td className="sales-document__date">
                     <span>{formatDate(quote.issueDate)}</span>
                     <small>Valable au {formatDate(quote.validUntil)}</small>
                   </td>
-                  <td>
+                  <td className="sales-document__total">
                     <strong>
-                      {formatMoney(documentTotals(quote.lines).totalCents)}
+                      {formatMoney(documentTotals(quote.lines).totalCents, quote.currency)}
                     </strong>
                   </td>
-                  <td>
+                  <td className="sales-document__status">
                     <StatusBadge status={quote.status} />
                     {converted ? <small>Facture créée</small> : null}
                     {convertedOrder ? <small>Commande créée</small> : null}
                   </td>
-                  <td>
+                  <td className="sales-document__actions">
                     <div className="document-actions">
                       <Button
                         variant="ghost"
@@ -3420,6 +3424,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
             })}
           </tbody>
         </table>
+        {pager}
         {!filtered.length ? (
           <EmptyState
             title="Aucun résultat"
@@ -3432,7 +3437,8 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   const props = sourceProps as unknown as LooseDocumentsProps;
   entity = sourceProps.entity as 'quotes' | 'invoices';
   return (
-    <div className="panel table-panel">
+    <div className={`panel table-panel sales-documents sales-documents--${entity}`}>
+        {filterBar}
       <table>
         <thead>
           <tr>
@@ -3446,7 +3452,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((item) => {
+          {visibleDocuments.map((item) => {
             const client = workspace.clients.find(
               (candidate) => candidate.id === item.clientId,
             );
@@ -3500,7 +3506,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
             );
             return (
               <tr key={item.id}>
-                <td>
+                <td className="sales-document__identity">
                   <div className="document-cell">
                     <span>
                       {entity === 'quotes' ? (
@@ -3518,12 +3524,12 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     </div>
                   </div>
                 </td>
-                <td>
+                <td className="sales-document__client">
                   <strong className="table-subtle">
                     {client?.company || client?.name || '—'}
                   </strong>
                 </td>
-                <td>
+                <td className="sales-document__date">
                   <span>{formatDate(item.issueDate)}</span>
                   <small>
                     {entity === 'quotes'
@@ -3537,28 +3543,29 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         : `Échéance ${formatDate(invoice?.dueDate ?? '')}`}
                   </small>
                 </td>
-                <td>
-                  <strong>{formatMoney(totals.totalCents)}</strong>
+                <td className="sales-document__total">
+                  <strong>{formatMoney(totals.totalCents, item.currency)}</strong>
                 </td>
                 {entity === 'invoices' ? (
-                  <td>
+                  <td className="sales-document__paid">
                     <strong>
                       {invoice?.type === 'credit_note'
                         ? 'Non applicable'
                         : paid
-                          ? formatMoney(paid)
+                          ? formatMoney(paid, item.currency)
                           : '—'}
                     </strong>
                     {invoice?.type !== 'credit_note' ? (
                       <PaymentAccountingProofs
                         invoiceId={item.id}
+                        currency={item.currency}
                         payments={workspace.payments}
                         onOpenJournal={props.onOpenPaymentJournal}
                       />
                     ) : null}
                   </td>
                 ) : null}
-                <td>
+                <td className="sales-document__status">
                   <StatusBadge status={item.status} />
                   {linkedOrderDraftBatch ? (
                     <small>Géré depuis la commande</small>
@@ -3567,7 +3574,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     <small>Correction liée</small>
                   ) : null}
                 </td>
-                <td>
+                <td className="sales-document__actions">
                   <div className="document-actions">
                     <Button
                       variant="ghost"
@@ -3738,6 +3745,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
           })}
         </tbody>
       </table>
+      {pager}
       {!filtered.length ? (
         <EmptyState
           title="Aucun résultat"
@@ -4354,7 +4362,7 @@ function ReportsScreen({ workspace }: { workspace: Workspace }) {
   }));
   const withFinancialData = rows.filter(
     (row) =>
-      row.stats.invoicedNet || row.stats.laborCost || row.stats.expenseNet,
+      row.stats.invoicedNet || row.stats.requiresCurrencyConversion || row.stats.laborCost || row.stats.expenseNet,
   );
   return (
     <div className="stack-layout">
@@ -4382,7 +4390,7 @@ function ReportsScreen({ workspace }: { workspace: Workspace }) {
               <div className="report-card__figures">
                 <div>
                   <span>Facturé net</span>
-                  <strong>{formatMoney(stats.invoicedNet)}</strong>
+                  <strong>{stats.invoicedNetLabel}</strong>
                 </div>
                 <div>
                   <span>Main-d’œuvre</span>
@@ -4395,8 +4403,8 @@ function ReportsScreen({ workspace }: { workspace: Workspace }) {
               </div>
               <footer>
                 <span>Marge issue des saisies</span>
-                <strong className={stats.margin < 0 ? 'is-negative' : ''}>
-                  {formatMoney(stats.margin)}
+                <strong className={stats.margin !== null && stats.margin < 0 ? 'is-negative' : ''}>
+                  {stats.margin === null ? 'Conversion CHF requise' : formatMoney(stats.margin)}
                 </strong>
               </footer>
             </article>
@@ -7594,7 +7602,7 @@ function PaymentForm({
   return (
     <Modal
       title="Enregistrer un paiement"
-      description={`${invoice.number || 'Facture'} · solde ouvert ${formatMoney(balance)}`}
+      description={`${invoice.number || 'Facture'} · solde ouvert ${formatMoney(balance, invoice.currency)}`}
       onClose={close}
     >
       <form
@@ -7619,19 +7627,19 @@ function PaymentForm({
         <div className="payment-summary">
           <div>
             <span>Total facture</span>
-            <strong>{formatMoney(total)}</strong>
+            <strong>{formatMoney(total, invoice.currency)}</strong>
           </div>
           <div>
             <span>Avoirs déduits</span>
-            <strong>{formatMoney(credited)}</strong>
+            <strong>{formatMoney(credited, invoice.currency)}</strong>
           </div>
           <div>
             <span>Déjà encaissé</span>
-            <strong>{formatMoney(alreadyPaid)}</strong>
+            <strong>{formatMoney(alreadyPaid, invoice.currency)}</strong>
           </div>
           <div>
             <span>Solde</span>
-            <strong>{formatMoney(balance)}</strong>
+            <strong>{formatMoney(balance, invoice.currency)}</strong>
           </div>
         </div>
         {accountingState === 'enabled' ? (
@@ -8294,7 +8302,7 @@ function QrPrintForm({
           </section>
           <section>
             <span>PAYLOAD FIGÉ</span>
-            <strong>{formatMoney(input.amountCents)}</strong>
+            <strong>{formatMoney(input.amountCents, input.currency)}</strong>
             <p>
               {stored.referenceType} ·{' '}
               {stored.frozenAt
@@ -8430,7 +8438,7 @@ function QrPrintForm({
           </section>
           <section>
             <span>MONTANT FIGÉ</span>
-            <strong>{formatMoney(amountCents)}</strong>
+            <strong>{formatMoney(amountCents, printedInvoice.currency)}</strong>
             <p>{settings.billing.iban || 'IBAN manquant'}</p>
           </section>
         </div>
@@ -8704,7 +8712,7 @@ function PrintSheet({
                 <td>{line.description}</td>
                 <td>{line.quantity.toLocaleString('fr-CH')}</td>
                 <td>{line.unit}</td>
-                <td>{formatMoney(line.unitPriceCents)}</td>
+                <td>{formatMoney(line.unitPriceCents, document.currency)}</td>
                 <td>
                   {line.discountBp
                     ? `${(line.discountBp / 100).toLocaleString('fr-CH')} %`
@@ -8715,7 +8723,7 @@ function PrintSheet({
                     ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %`
                     : '—'}
                 </td>
-                <td>{formatMoney(documentLineTotals(line).netCents)}</td>
+                <td>{formatMoney(documentLineTotals(line).netCents, document.currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -8723,25 +8731,25 @@ function PrintSheet({
         <div className="print-totals">
           <div>
             <span>Sous-total avant remise</span>
-            <strong>{formatMoney(totals.subtotalCents)}</strong>
+            <strong>{formatMoney(totals.subtotalCents, document.currency)}</strong>
           </div>
           {totals.discountCents ? (
             <div>
               <span>Remises</span>
-              <strong>− {formatMoney(totals.discountCents)}</strong>
+              <strong>− {formatMoney(totals.discountCents, document.currency)}</strong>
             </div>
           ) : null}
           <div>
             <span>Total net</span>
-            <strong>{formatMoney(totals.netCents)}</strong>
+            <strong>{formatMoney(totals.netCents, document.currency)}</strong>
           </div>
           <div>
             <span>TVA</span>
-            <strong>{formatMoney(totals.vatCents)}</strong>
+            <strong>{formatMoney(totals.vatCents, document.currency)}</strong>
           </div>
           <div className="print-totals__grand">
             <span>Total TTC</span>
-            <strong>{formatMoney(totals.totalCents)}</strong>
+            <strong>{formatMoney(totals.totalCents, document.currency)}</strong>
           </div>
         </div>
         <footer className="print-footer">
@@ -9253,7 +9261,7 @@ function InvoicePrintSheet({
                   <td>{line.description}</td>
                   <td>{line.quantity.toLocaleString('fr-CH')}</td>
                   <td>{line.unit}</td>
-                  <td>{formatMoney(line.unitPriceCents)}</td>
+                  <td>{formatMoney(line.unitPriceCents, invoice.currency)}</td>
                   <td>
                     {line.discountBp
                       ? `${(line.discountBp / 100).toLocaleString('fr-CH')} %`
@@ -9264,7 +9272,7 @@ function InvoicePrintSheet({
                       ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %`
                       : 'Sans TVA'}
                   </td>
-                  <td>{formatMoney(documentLineTotals(line).netCents)}</td>
+                  <td>{formatMoney(documentLineTotals(line).netCents, invoice.currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -9272,26 +9280,26 @@ function InvoicePrintSheet({
           <div className="print-totals">
             <div>
               <span>Sous-total avant remise</span>
-              <strong>{formatMoney(totals.subtotalCents)}</strong>
+              <strong>{formatMoney(totals.subtotalCents, invoice.currency)}</strong>
             </div>
             {totals.discountCents ? (
               <div>
                 <span>Remises</span>
-                <strong>− {formatMoney(totals.discountCents)}</strong>
+                <strong>− {formatMoney(totals.discountCents, invoice.currency)}</strong>
               </div>
             ) : null}
             <div>
               <span>Total net</span>
-              <strong>{formatMoney(totals.netCents)}</strong>
+              <strong>{formatMoney(totals.netCents, invoice.currency)}</strong>
             </div>
             {settings.organization.vatRegistered ? (
               vatGroups.map((group) => (
                 <div key={group.rateBp}>
                   <span>
                     TVA {(group.rateBp / 100).toLocaleString('fr-CH')} % sur{' '}
-                    {formatMoney(group.baseCents)}
+                    {formatMoney(group.baseCents, invoice.currency)}
                   </span>
-                  <strong>{formatMoney(group.vatCents)}</strong>
+                  <strong>{formatMoney(group.vatCents, invoice.currency)}</strong>
                 </div>
               ))
             ) : (
@@ -9310,7 +9318,7 @@ function InvoicePrintSheet({
                       : 'Acompte · total TTC'
                   : 'Total TTC'}
               </span>
-              <strong>{formatMoney(totals.totalCents)}</strong>
+              <strong>{formatMoney(totals.totalCents, invoice.currency)}</strong>
             </div>
           </div>
           <footer className="print-footer">
