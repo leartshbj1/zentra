@@ -13,6 +13,10 @@ on:
         required: true
         type: string
         default: '33986301458'
+      case_filter:
+        description: Optional comma-separated case names (empty runs all eight)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -38,6 +42,7 @@ jobs:
       - name: Create an isolated emulator and audit startup
         env:
           ZENTRA_STARTUP_AUDIT: ${{ github.run_id }}
+          ZENTRA_AUDIT_CASES: ${{ inputs.case_filter }}
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
           export ANDROID_USER_HOME="$RUNNER_TEMP/zentra-startup-audit"

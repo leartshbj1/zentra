@@ -130,11 +130,17 @@ if __name__ == '__main__':
     OUT.mkdir(parents=True, exist_ok=True)
     Path('desktop/artifacts/android').mkdir(parents=True, exist_ok=True)
     records = []
+    selected = set(filter(None, os.environ.get('ZENTRA_AUDIT_CASES', '').split(',')))
+    known_cases = {f'{label}-{mode}-{scenario}' for label in ['previous', 'current']
+                   for mode in ['default', 'full'] for scenario in ['cold', 'interrupted']}
+    assert selected <= known_cases, 'Unknown startup case requested'
     for label, folder in zip(['previous', 'current'], map(Path, sys.argv[1:])):
         apk, digest = verify_apk(folder)
         for mode in ['default', 'full']:
             for scenario in ['cold', 'interrupted']:
+                if selected and f'{label}-{mode}-{scenario}' not in selected:
+                    continue
                 run_case(apk, digest, label, mode, scenario, records)
-    assert len(records) == 8
+    assert len(records) == (len(selected) or 8)
     if not all(r['passed'] for r in records):
         raise SystemExit('Android startup audit found incomplete or failed journeys; inspect report.json')

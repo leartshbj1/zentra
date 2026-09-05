@@ -36,12 +36,29 @@ try {
       socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
     });
   }
-  proof.page = await evaluate(`({readyState:document.readyState, nativeBridge:typeof window.__TAURI_INTERNALS__?.invoke==='function', loadingVisible:document.body.innerText.includes('Ouverture de votre espace local sécurisé'), resources:performance.getEntriesByType('resource').map(r=>({path:new URL(r.name).pathname,duration:Math.round(r.duration)}))})`);
+  proof.page = await evaluate(`({readyState:document.readyState, visibility:document.visibilityState, focused:document.hasFocus(), nativeBridge:typeof window.__TAURI_INTERNALS__?.invoke==='function', pendingCallbacks:window.__TAURI_INTERNALS__?.callbacks?.size, loadingVisible:document.body.innerText.includes('Ouverture de votre espace local sécurisé'), resources:performance.getEntriesByType('resource').map(r=>({path:new URL(r.name).pathname,duration:Math.round(r.duration)}))})`);
+  // Inspect only hook kinds, never workspace values or account details. This
+  // distinguishes an unstarted React effect from an outstanding native call.
+  proof.react = await evaluate(`(() => {
+    const root=document.getElementById('root');
+    const key=Object.keys(root||{}).find(key=>key.startsWith('__reactContainer$'));
+    let fiber=key && root[key]?.stateNode?.current?.child;
+    while(fiber && typeof fiber.type!=='function') fiber=fiber.child;
+    if(!fiber) return {available:false};
+    let hook=fiber.memoizedState;
+    const hooks=[];
+    for(let index=0;hook && index<24;index++,hook=hook.next){
+      const value=hook.memoizedState;
+      hooks.push({index,kind:value===null?'null':typeof value,...(typeof value==='boolean'?{value}:{}),pending:!!hook.queue?.pending});
+    }
+    return {available:true,hooks};
+  })()`);
   for (const command of ['get_app_state', 'get_cloud_account_state', 'get_license_state']) {
     // Record only completion, never the returned settings, identities or tokens.
     const state = await evaluate(`Promise.race([window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}).then(()=> 'resolved',()=> 'rejected'),new Promise(resolve=>setTimeout(()=>resolve('pending_after_8s'),8000))])`);
     proof.commands.push({ command, state });
   }
+  proof.afterProbes = await evaluate(`({pendingCallbacks:window.__TAURI_INTERNALS__?.callbacks?.size, loadingVisible:document.body.innerText.includes('Ouverture de votre espace local sécurisé')})`);
 } catch (error) {
   proof.diagnosticError = error instanceof Error ? error.name : 'unknown';
 } finally {
