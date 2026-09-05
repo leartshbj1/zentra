@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AppUpdater } from './AppUpdater';
+import { withinAppOpeningDeadline } from './appOpening';
 import { BrandMark } from './BrandMark';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
@@ -40,6 +41,7 @@ export function App() {
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const openingAttempt = useRef(0);
   const automaticRefreshStarted = useRef(false);
   const cloudAccessRevalidator = useRef<
     ReturnType<typeof createSingleFlightCloudAccessRevalidator> | undefined
@@ -61,25 +63,29 @@ export function App() {
   }, []);
 
   const load = useCallback(async () => {
+    const attempt = ++openingAttempt.current;
     setLoading(true);
     setError('');
     try {
       const [nextWorkspace, nextAccess] = await Promise.all([
-        desktopApi.loadWorkspace(),
+        withinAppOpeningDeadline(desktopApi.loadWorkspace()),
         cloudAccessRevalidator.current!(),
       ]);
+      if (attempt !== openingAttempt.current) return;
       setWorkspace(nextWorkspace);
       setLicense(nextAccess.license);
       setCloudAccount(nextAccess.account);
     } catch (reason) {
+      if (attempt !== openingAttempt.current) return;
       setError(errorMessage(reason, 'L’espace local n’a pas pu être ouvert.'));
     } finally {
-      setLoading(false);
+      if (attempt === openingAttempt.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
+    return () => { openingAttempt.current += 1; };
   }, [load]);
 
   useEffect(() => {
@@ -124,13 +130,13 @@ export function App() {
 
   if (loading) {
     return (
-      <main className="splash-screen">
+      <main className="splash-screen" aria-busy="true">
         <div className="splash-logo">
           <BrandMark size={58} />
         </div>
         <h1>Zentra</h1>
-        <p>Ouverture de votre espace local sécurisé…</p>
-        <LoaderCircle className="spin" size={22} />
+        <p role="status">Ouverture de votre espace local sécurisé…</p>
+        <LoaderCircle className="spin" size={22} aria-hidden="true" />
       </main>
     );
   }
@@ -142,9 +148,10 @@ export function App() {
           <BrandMark size={58} />
         </div>
         <ErrorPanel
+          title="Espace indisponible"
           message={error || 'Aucune donnée locale n’a été retournée.'}
         />
-        <Button onClick={() => void load()}>Réessayer</Button>
+        <Button autoFocus onClick={() => void load()}>Réessayer</Button>
         <StandaloneUpdaterAccess />
       </main>
     );

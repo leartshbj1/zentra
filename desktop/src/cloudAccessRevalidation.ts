@@ -1,5 +1,6 @@
 import type { CloudAccountState } from './bridge';
 import type { LicenseState } from './types';
+import { withinAppOpeningDeadline } from './appOpening';
 
 export const CLOUD_ACCESS_REVALIDATION_INTERVAL_MS = 15 * 60 * 1_000;
 
@@ -54,8 +55,8 @@ export function createSingleFlightCloudAccessRevalidator(
   return () => {
     if (pending) return pending;
 
-    const request = Promise.resolve().then(() =>
-      readRevalidatedCloudAccess(api),
+    const request = withinAppOpeningDeadline(
+      Promise.resolve().then(() => readRevalidatedCloudAccess(api)),
     );
     pending = request;
     request.then(

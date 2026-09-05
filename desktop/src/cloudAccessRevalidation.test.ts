@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { APP_OPEN_TIMEOUT_MS } from './appOpening';
 import type { CloudAccountState } from './bridge';
 import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
@@ -34,6 +35,8 @@ const ownerLicense: LicenseState = {
   installationId: '55af29dd-fdaa-4993-ae78-17f9ca220e51',
   tokenVersion: 2,
 };
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe('revalidation périodique du compte cloud', () => {
   it('utilise un intervalle raisonnable sans contrôle agressif', () => {
@@ -168,5 +171,37 @@ describe('revalidation périodique du compte cloud', () => {
 
     await revalidate();
     expect(api.getCloudAccountState).toHaveBeenCalledTimes(2);
+  });
+
+  it('autorise un nouvel essai après blocage et garde le nouveau contrôle partagé malgré une ancienne réponse', async () => {
+    vi.useFakeTimers();
+    let finishOld!: (value: CloudAccountState) => void;
+    let finishNew!: (value: CloudAccountState) => void;
+    const api = {
+      getCloudAccountState: vi.fn()
+        .mockReturnValueOnce(new Promise<CloudAccountState>((resolve) => { finishOld = resolve; }))
+        .mockReturnValueOnce(new Promise<CloudAccountState>((resolve) => { finishNew = resolve; })),
+      getLicenseState: vi.fn().mockResolvedValue(ownerLicense),
+      refreshLicense: vi.fn(),
+    };
+    const revalidate = createSingleFlightCloudAccessRevalidator(api);
+    const first = revalidate();
+    const expired = expect(first).rejects.toThrow('L’ouverture prend trop de temps');
+    await vi.advanceTimersByTimeAsync(APP_OPEN_TIMEOUT_MS);
+    await expired;
+
+    const retry = revalidate();
+    await Promise.resolve();
+    expect(api.getCloudAccountState).toHaveBeenCalledTimes(2);
+    finishOld(connectedAccount);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(revalidate()).toBe(retry);
+    finishNew({ ...connectedAccount, role: 'read_only' });
+    api.refreshLicense.mockResolvedValue({ ...ownerLicense, accessRole: 'read_only', readOnly: true });
+    await expect(retry).resolves.toMatchObject({
+      account: { role: 'read_only' },
+      license: { accessRole: 'read_only', readOnly: true },
+    });
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
