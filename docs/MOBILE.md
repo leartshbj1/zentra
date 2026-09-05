@@ -42,7 +42,7 @@ le checkout macOS préparé ci-dessus :
 ```sh
 rustup target add aarch64-apple-ios
 pnpm --dir desktop mobile:ios:ipa
-python3 desktop/scripts/verify-ios-ipa.py desktop/src-tauri/target/aarch64-apple-ios/release/Zentra.ipa --output-dir desktop/artifacts/iphone
+python3 desktop/scripts/verify-ios-ipa.py desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa --output-dir desktop/artifacts/iphone
 ```
 
 Le fichier ZIP du simulateur ne fonctionne pas sur un iPhone. Voir
