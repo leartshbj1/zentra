@@ -17,12 +17,26 @@ PACKAGE = "ch.zentra.mobile"
 OUT = Path("desktop/artifacts/android")
 
 
-def adb(*args, data=None):
-    return subprocess.check_output(["adb", *args], input=data, timeout=45)
+def adb(*args):
+    return subprocess.check_output(["adb", *args], timeout=45)
 
 
-def private(*args, data=None):
-    return adb("exec-out", "run-as", PACKAGE, *args, data=data)
+def private(*args):
+    return adb("exec-out", "run-as", PACKAGE, *args)
+
+
+def write_private(path, data):
+    # exec-out is output-only and does not close a remote tee's input. Transfer
+    # fixture bytes with adb push, then copy them as the application's UID.
+    remote = "/data/local/tmp/zentra-upgrade-transfer"
+    with tempfile.TemporaryDirectory(prefix="zentra-upgrade-transfer-") as folder:
+        local = Path(folder) / "fixture"
+        local.write_bytes(data)
+        adb("push", str(local), remote)
+        try:
+            private("cp", remote, path)
+        finally:
+            adb("shell", "rm", "-f", remote)
 
 
 def version():
@@ -47,7 +61,7 @@ before_version = version()
 adb("shell", "am", "force-stop", PACKAGE)
 identity_before = private("cat", "./installation-identity.protected")
 fixture = b"Zentra isolated Android upgrade file fixture\n"
-private("tee", "./files/zentra-update-fixture.txt", data=fixture)
+write_private("./files/zentra-update-fixture.txt", fixture)
 with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
     temp = Path(temp)
     before = temp / "before"
@@ -62,7 +76,7 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
         connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     # Only this owned emulator fixture is changed; no real device/profile is used.
-    private("tee", "./helvichantier.sqlite3", data=db.read_bytes())
+    write_private("./helvichantier.sqlite3", db.read_bytes())
     private("rm", "-f", "./helvichantier.sqlite3-wal", "./helvichantier.sqlite3-shm")
     adb("install", "-r", str(Path(sys.argv[1]).resolve()))
     after_version = version()
