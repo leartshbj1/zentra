@@ -88,6 +88,18 @@ const rawWorkspace = {
 };
 
 describe('mapping CAMT local', () => {
+  it('retrouve les mouvements par nom accentué, référence espacée et montant décimal sans changer le filtre', () => {
+    const workspace = bankWorkspaceFromRaw(rawWorkspace);
+    workspace.movements[0].counterpartyName = 'Électricité du Léman';
+    expect(filterBankMovements(workspace.movements, 'unreconciled', 'electricite du leman').map((row) => row.id)).toEqual(['movement-booked']);
+    expect(filterBankMovements(workspace.movements, 'unreconciled', 'RF18 5390 0754 7034').map((row) => row.id)).toEqual(['movement-supplier']);
+    expect(filterBankMovements(workspace.movements, 'unreconciled', '108,10').map((row) => row.id)).toEqual(['movement-supplier']);
+    expect(filterBankMovements(workspace.movements, 'reconciled', 'electricite')).toEqual([]);
+  });
+  it('déduit l’avoir déjà imputé dans le solde renvoyé après règlement fournisseur', () => {
+    const result = bankSupplierReconciliationResultFromRaw({ supplier_invoice: { id: 'credited', total_cents: 10810, credited_cents: 2810, paid_cents: 8000 } });
+    expect(result.supplierInvoice).toMatchObject({ totalCents: 10810, paidCents: 8000, creditedCents: 2810, balanceCents: 0 });
+  });
   it('convertit systématiquement le snake_case du backend en types UI', () => {
     const workspace = bankWorkspaceFromRaw(rawWorkspace);
     expect(workspace.summary).toEqual({ importCount: 1, movementCount: 5, unreconciledCount: 1, unreconciledSupplierCount: 1, pendingCount: 1, bookedCreditCount: 2, bookedDebitCount: 2 });

@@ -1359,6 +1359,7 @@ export type BankSupplierReconciliationResult = {
     | 'documentStatus'
     | 'totalCents'
     | 'paidCents'
+    | 'creditedCents'
     | 'balanceCents'
   >;
   idempotent: boolean;

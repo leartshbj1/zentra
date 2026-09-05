@@ -7,13 +7,14 @@ import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
 import { installFinanceFixture } from './finance-fixture';
+import { installBankFixture } from './bank-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
 let data = {
-  ...Object.fromEntries(collectionNames.map((name) => [name, []])), schemaVersion: 41,
+  ...Object.fromEntries(collectionNames.map((name) => [name, []])), schemaVersion: 42,
   onboardingCompleted: true, activityProfileRequired: false, activeTimer: null, accountingSettings: null,
   backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
   settings: {
@@ -83,6 +84,7 @@ if (new URLSearchParams(location.search).has('browsing')) {
 if (new URLSearchParams(location.search).has('volume')) {
   data.invoices = Array.from({ length: 80 }, (_, index) => ({ ...structuredClone(data.invoices[0]), id: `volume-${index}`, number: `F-2026-${String(index + 1).padStart(4, '0')}`, title: `Prestation ${index + 1}` }));
 }
+if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

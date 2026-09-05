@@ -275,6 +275,7 @@ export function bankSupplierReconciliationResultFromRaw(value: unknown): BankSup
   const invoice = record(row.supplier_invoice);
   const totalCents = integer(invoice.total_cents);
   const paidCents = Math.max(0, Math.min(totalCents, integer(invoice.paid_cents)));
+  const creditedCents = Math.max(0, Math.min(totalCents, integer(invoice.credited_cents)));
   const supplierReconciliation = bankSupplierReconciliationFromRaw(row.supplier_reconciliation);
   const movement = bankMovementFromRaw(row.movement);
   movement.supplierReconciliation = supplierReconciliation.id ? supplierReconciliation : null;
@@ -300,7 +301,8 @@ export function bankSupplierReconciliationResultFromRaw(value: unknown): BankSup
       documentStatus: text(invoice.status) === 'validated' ? 'validated' : 'draft',
       totalCents,
       paidCents,
-      balanceCents: Math.max(0, totalCents - paidCents),
+      creditedCents,
+      balanceCents: Math.max(0, totalCents - paidCents - creditedCents),
     },
     idempotent: bool(row.idempotent),
   };
@@ -310,8 +312,16 @@ export function movementHasReconciliation(movement: BankMovement): boolean {
   return Boolean(movement.reconciliation || movement.supplierReconciliation);
 }
 
-export function filterBankMovements(movements: BankMovement[], filter: BankMovementFilter): BankMovement[] {
+export function filterBankMovements(movements: BankMovement[], filter: BankMovementFilter, query = ''): BankMovement[] {
+  const needle = normalizedCandidateQuery(query);
+  const compactNeedle = needle.replace(/\s/g, '');
   return movements
+    .filter((movement) => {
+      if (!needle) return true;
+      const amount = (Math.abs(movement.amountCents) / 100).toFixed(2);
+      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency].join(' '));
+      return searchable.includes(needle) || [movement.reference, movement.accountId, movement.counterpartyIban].some((value) => normalizedCandidateQuery(value).replace(/\s/g, '').includes(compactNeedle));
+    })
     .filter((movement) => {
       if (filter === 'pending') return movement.status === 'PDNG' && !movementHasReconciliation(movement);
       if (filter === 'reconciled') return movementHasReconciliation(movement);
@@ -348,7 +358,7 @@ export function candidateForSupplierInvoice(movement: BankMovement, supplierInvo
 }
 
 function normalizedCandidateQuery(value: string): string {
-  return value.trim().toLocaleLowerCase('fr-CH').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return value.trim().toLocaleLowerCase('fr-CH').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, '').replace(/\s+/g, ' ');
 }
 
 export function filterBankCandidates(
