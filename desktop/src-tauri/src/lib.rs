@@ -10429,6 +10429,10 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(replay["invoice"]["id"], invoice_id);
     }
 
+    mod supplier_credit_settlement_tests {
+        include!("supplier_credit_settlement_tests.rs");
+    }
+
     fn tracked_product(store: &LocalStore, name: &str, reorder_level_milli: i64) -> String {
         value_id(
             &store
@@ -10833,6 +10837,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             supplier_credit_note_id: credit_id.clone(),
             supplier_invoice_id: invoice_id.into(),
             amount_cents: 200,
+            effective_date: "2026-09-03".into(),
         };
         let applied = store.apply_supplier_credit(apply_input.clone()).unwrap();
         let allocation_id = applied["allocation"]["id"].as_str().unwrap().to_owned();
@@ -10852,6 +10857,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 request_id: uuid::Uuid::new_v4().to_string(),
                 supplier_credit_allocation_id: allocation_id.clone(),
                 reason: "Imputation sélectionnée par erreur".into(),
+                effective_date: "2026-09-04".into(),
             })
             .unwrap();
         assert_eq!(reversed["invoice"]["credited_cents"], 0);
@@ -10860,6 +10866,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 request_id: uuid::Uuid::new_v4().to_string(),
                 supplier_credit_allocation_id: allocation_id,
                 reason: "Deuxième extourne interdite".into(),
+                effective_date: "2026-09-04".into(),
             })
             .is_err());
         assert!(
@@ -10869,6 +10876,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     supplier_credit_note_id: credit_id,
                     supplier_invoice_id: invoice_id.into(),
                     amount_cents: 201,
+                    effective_date: "2026-09-04".into(),
                 })
                 .is_err(),
             "une imputation ne peut pas dépasser le solde de l’avoir"

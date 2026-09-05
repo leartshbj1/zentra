@@ -113,7 +113,7 @@
   .purchase-preview__lines strong,
   .receipt-quantity-grid__heading strong,
   .receipt-quantity-grid > label strong,
-  .credit-allocation > label strong,
+  .credit-allocation__row > label:not(.field) strong,
   .correction-preview strong,
   .match-editor > div:not(.match-editor__heading) strong { font-size: 14px; line-height: 1.45; }
   .supplier-order-card > header small,
@@ -132,7 +132,7 @@
   .confirmation-callout p,
   .receipt-quantity-grid__heading small,
   .receipt-quantity-grid > label small,
-  .credit-allocation > label small,
+  .credit-allocation__row > label:not(.field) small,
   .correction-preview p,
   .correction-preview small,
   .match-editor__heading,

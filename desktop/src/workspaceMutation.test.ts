@@ -24,8 +24,8 @@ const operations = [
   { command: 'save_supplier_credit_note_draft', run: () => desktopApi.saveSupplierCreditNoteDraft({ id: request, supplierId: 'supplier', documentDate: '2026-09-02', items: [], allocations: [] }) },
   { command: 'validate_supplier_credit_note', run: () => desktopApi.validateSupplierCreditNote(request, 'credit') },
   { command: 'delete_supplier_credit_note_draft', run: () => desktopApi.deleteSupplierCreditNoteDraft('credit') },
-  { command: 'apply_supplier_credit', run: () => desktopApi.applySupplierCredit(request, 'credit', 'invoice', 1000) },
-  { command: 'reverse_supplier_credit_allocation', run: () => desktopApi.reverseSupplierCreditAllocation(request, 'allocation', 'Correction de facture') },
+  { command: 'apply_supplier_credit', run: () => desktopApi.applySupplierCredit(request, 'credit', 'invoice', 1000, '2026-09-02') },
+  { command: 'reverse_supplier_credit_allocation', run: () => desktopApi.reverseSupplierCreditAllocation(request, 'allocation', 'Correction de facture', '2026-09-03') },
   { command: 'reclassify_supplier_invoice_expense', run: () => desktopApi.reclassifySupplierInvoiceExpense({ requestId: request, supplierInvoiceId: 'invoice', effectiveDate: '2026-09-02', reason: 'Correction de compte', lines: [] }) },
   { command: 'validate_supplier_invoice', run: () => desktopApi.validateSupplierInvoice('invoice') },
 ];

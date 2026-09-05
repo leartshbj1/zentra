@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { creditSettlementDateError } from './supplierCreditSettlement';
 import { purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
 export { purchaseVatOptions } from './purchaseVat';
 import { SupplierEmailIntake } from './SupplierEmailIntake';
@@ -1234,7 +1235,7 @@ export function PurchaseOrdersScreen({
           workspace={workspace}
           busy={busy}
           onClose={() => setModal(null)}
-          onConfirm={(invoiceId, amountCents) =>
+          onConfirm={(invoiceId, amountCents, effectiveDate) =>
             completeLocalAction(
               () =>
                 desktopApi.applySupplierCredit(
@@ -1242,6 +1243,7 @@ export function PurchaseOrdersScreen({
                   modal.credit.id,
                   invoiceId,
                   amountCents,
+                  effectiveDate,
                 ),
               'L’avoir a été imputé sur la facture sélectionnée.',
             )
@@ -1256,13 +1258,14 @@ export function PurchaseOrdersScreen({
           workspace={workspace}
           busy={busy}
           onClose={() => setModal(null)}
-          onConfirm={(reason) =>
+          onConfirm={(reason, effectiveDate) =>
             completeLocalAction(
               () =>
                 desktopApi.reverseSupplierCreditAllocation(
                   modal.requestId,
                   modal.allocation.id,
                   reason,
+                  effectiveDate,
                 ),
               'L’imputation de l’avoir a été extournée avec son motif.',
             )
@@ -2200,6 +2203,7 @@ function SupplierCreditDocumentCard({
                   <small>
                     {invoice?.reference || allocation.supplierInvoiceId} ·{' '}
                     {formatMoney(allocation.amountCents)}
+                    {' · '}{allocation.effectiveDate ? formatDate(allocation.effectiveDate) : 'Date de compensation non renseignée'}
                   </small>
                   {credit.status === 'validated' ? (
                     <Button
@@ -2217,6 +2221,21 @@ function SupplierCreditDocumentCard({
               );
             })}
           </div>
+        ) : null}
+        {credit.status === 'validated' && credit.allocations.length > 0 ? (
+          <details className="credit-application-history">
+            <summary>Historique des compensations ({credit.allocations.length})</summary>
+            <ol>
+              {[...credit.allocations].sort((left, right) => right.sequence - left.sequence).map((allocation) => {
+                const invoice = workspace.supplierInvoices.find((row) => row.id === allocation.supplierInvoiceId);
+                return <li key={allocation.id}>
+                  <strong>{allocation.eventType === 'reverse' ? 'Extourne' : 'Compensation'} · {formatMoney(allocation.amountCents, credit.currency)}</strong>
+                  <span>{invoice?.reference || allocation.supplierInvoiceId} · {allocation.effectiveDate ? formatDate(allocation.effectiveDate) : 'Date effective non renseignée'}</span>
+                  {allocation.reason ? <span>{allocation.reason}</span> : null}
+                </li>;
+              })}
+            </ol>
+          </details>
         ) : null}
       </div>
       <div>
@@ -4039,6 +4058,9 @@ function SupplierCreditNoteForm({
       ]),
     ),
   );
+  const [allocationDates, setAllocationDates] = useState<Record<string, string>>(() =>
+    Object.fromEntries((credit?.allocations || []).map((allocation) => [allocation.supplierInvoiceId, allocation.effectiveDate || ''])),
+  );
   const [error, setError] = useState('');
   const totals = orderDraftTotals(lines);
   const vatOptions = purchaseVatOptions(
@@ -4049,6 +4071,7 @@ function SupplierCreditNoteForm({
     (row) =>
       row.supplierId === supplierId &&
       row.documentStatus === 'validated' &&
+      row.currency === 'CHF' &&
       (row.balanceCents > 0 || (allocations[row.id] || 0) > 0),
   );
   const allocatedCents = Object.values(allocations).reduce(
@@ -4085,6 +4108,13 @@ function SupplierCreditNoteForm({
       );
     if (lines.some((line) => !vatOptions.includes(line.vatBp)))
       return setError('Vérifiez les taux TVA signalés avant d’enregistrer.');
+    for (const [invoiceId, amount] of Object.entries(allocations)) {
+      if (amount <= 0) continue;
+      const selected = invoices.find((row) => row.id === invoiceId);
+      if (!selected) return setError('Une facture sélectionnée n’est plus disponible. Vérifiez les compensations.');
+      const dateError = creditSettlementDateError(allocationDates[invoiceId] ?? todayIso(), [documentDate, selected.documentDate].sort().at(-1)!);
+      if (dateError) return setError(`${selected.reference || invoiceId} : ${dateError}`);
+    }
     setError('');
     onSave({
       id: draftId,
@@ -4109,6 +4139,7 @@ function SupplierCreditNoteForm({
         .map(([supplierInvoiceId, amountCents]) => ({
           supplierInvoiceId,
           amountCents,
+          effectiveDate: allocationDates[supplierInvoiceId] ?? todayIso(),
         })),
     });
   }
@@ -4135,6 +4166,7 @@ function SupplierCreditNoteForm({
             onChange={(event) => {
               setSupplierId(event.target.value);
               setAllocations({});
+              setAllocationDates({});
             }}
           >
             <option value="">Choisir…</option>
@@ -4314,7 +4346,8 @@ function SupplierCreditNoteForm({
           </div>
           {invoices.length ? (
             invoices.map((row) => (
-              <label key={row.id}>
+              <div className="credit-allocation__row" key={row.id}>
+                <label>
                 <span>
                   <strong>{row.reference || row.id}</strong>
                   <small>Solde {formatMoney(row.balanceCents)}</small>
@@ -4332,7 +4365,11 @@ function SupplierCreditNoteForm({
                     }))
                   }
                 />
-              </label>
+                </label>
+                {(allocations[row.id] || 0) > 0 ? <Field label={`Date de compensation · ${row.reference || row.id}`} required hint="Date à laquelle l’avoir compense réellement cette facture.">
+                  <input type="date" required value={allocationDates[row.id] ?? todayIso()} min={[documentDate, row.documentDate].sort().at(-1)} onChange={(event) => setAllocationDates((values) => ({ ...values, [row.id]: event.target.value }))} />
+                </Field> : null}
+              </div>
             ))
           ) : (
             <p>Aucune facture validée avec un solde pour ce fournisseur.</p>
@@ -4379,6 +4416,8 @@ function ValidateCreditNoteModal({
       !invoice ||
       invoice.supplierId !== credit.supplierId ||
       invoice.documentStatus !== 'validated' ||
+      invoice.currency !== credit.currency ||
+      Boolean(creditSettlementDateError(allocation.effectiveDate, [credit.documentDate, invoice.documentDate].sort().at(-1)!, todayIso())) ||
       allocation.amountCents <= 0 ||
       allocation.amountCents > invoice.balanceCents
     );
@@ -4387,7 +4426,7 @@ function ValidateCreditNoteModal({
     allocatedCents > credit.totalCents
       ? 'Les factures compensées dépassent le total de l’avoir. Revenez au brouillon pour corriger les montants.'
       : invalidAllocation
-        ? 'Une facture compensée n’existe plus, n’est plus validée ou son solde est devenu insuffisant. Revenez au brouillon pour corriger l’allocation.'
+        ? 'Vérifiez les factures compensées, leur solde et la date effective de chaque compensation dans le brouillon.'
         : '';
   return (
     <Modal
@@ -4434,6 +4473,7 @@ function ValidateCreditNoteModal({
                 <p key={allocation.id}>
                   <span>
                     {invoice?.reference || allocation.supplierInvoiceId}
+                    <small>{allocation.effectiveDate ? `Compensation le ${formatDate(allocation.effectiveDate)}` : 'Date de compensation à renseigner'}</small>
                   </span>
                   <strong>{formatMoney(allocation.amountCents)}</strong>
                 </p>
@@ -4484,17 +4524,21 @@ function ApplySupplierCreditModal({
   busy: boolean;
   actionError: string;
   onClose: () => void;
-  onConfirm: (invoiceId: string, amountCents: number) => void;
+  onConfirm: (invoiceId: string, amountCents: number, effectiveDate: string) => void;
 }) {
   const availableCents = Math.max(0, credit.totalCents - credit.allocatedCents);
   const invoices = workspace.supplierInvoices.filter(
     (invoice) =>
       invoice.supplierId === credit.supplierId &&
       invoice.documentStatus === 'validated' &&
+      invoice.currency === credit.currency &&
       invoice.balanceCents > 0,
   );
   const [invoiceId, setInvoiceId] = useState(invoices[0]?.id || '');
+  const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const invoice = invoices.find((row) => row.id === invoiceId);
+  const minimumDate = [credit.documentDate, invoice?.documentDate || ''].sort().at(-1)!;
+  const dateError = creditSettlementDateError(effectiveDate, minimumDate, todayIso());
   const [amountCents, setAmountCents] = useState(
     Math.min(availableCents, invoices[0]?.balanceCents || 0),
   );
@@ -4510,7 +4554,7 @@ function ApplySupplierCreditModal({
         ? 'Le montant dépasse le solde disponible de l’avoir.'
         : amountCents > invoice.balanceCents
           ? 'Le montant dépasse le solde de la facture.'
-          : '';
+          : dateError;
   return (
     <Modal
       title="Imputer l’avoir sur une facture"
@@ -4547,6 +4591,9 @@ function ApplySupplierCreditModal({
             }
           />
         </Field>
+        <Field label="Date de compensation" required hint="Date à laquelle l’avoir compense réellement la facture.">
+          <input type="date" required value={effectiveDate} min={minimumDate} max={todayIso()} onChange={(event) => setEffectiveDate(event.target.value)} />
+        </Field>
       </div>
       {error ? (
         <ErrorPanel message={error} />
@@ -4569,7 +4616,7 @@ function ApplySupplierCreditModal({
         </Button>
         <Button
           disabled={busy || Boolean(error)}
-          onClick={() => onConfirm(invoiceId, amountCents)}
+          onClick={() => onConfirm(invoiceId, amountCents, effectiveDate)}
         >
           Confirmer l’imputation
         </Button>
@@ -4593,12 +4640,15 @@ function ReverseSupplierCreditAllocationModal({
   busy: boolean;
   actionError: string;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, effectiveDate: string) => void;
 }) {
   const [reason, setReason] = useState('');
+  const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const invoice = workspace.supplierInvoices.find(
     (row) => row.id === allocation.supplierInvoiceId,
   );
+  const minimumDate = [credit.documentDate, invoice?.documentDate || '', allocation.effectiveDate || ''].sort().at(-1)!;
+  const dateError = creditSettlementDateError(effectiveDate, minimumDate, todayIso());
   return (
     <Modal
       title="Extourner l’imputation de l’avoir"
@@ -4613,6 +4663,10 @@ function ReverseSupplierCreditAllocationModal({
           onChange={(event) => setReason(event.target.value)}
         />
       </Field>
+      <Field label="Date de l’extourne" required hint="L’imputation initiale reste conservée avec sa date.">
+        <input type="date" required value={effectiveDate} min={minimumDate} max={todayIso()} onChange={(event) => setEffectiveDate(event.target.value)} />
+      </Field>
+      {dateError ? <ErrorPanel message={dateError} /> : null}
       <div className="correction-preview">
         <strong>Aperçu de l’extourne</strong>
         <small>
@@ -4631,8 +4685,8 @@ function ReverseSupplierCreditAllocationModal({
         </Button>
         <Button
           variant="danger"
-          disabled={busy || reason.trim().length < 8}
-          onClick={() => onConfirm(reason)}
+          disabled={busy || reason.trim().length < 8 || Boolean(dateError)}
+          onClick={() => onConfirm(reason, effectiveDate)}
         >
           Confirmer l’extourne
         </Button>

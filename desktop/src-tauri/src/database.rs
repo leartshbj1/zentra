@@ -53,7 +53,7 @@ use crate::{
         MIGRATION_V2_SQL, MIGRATION_V30_SQL, MIGRATION_V31_SQL, MIGRATION_V32_SQL,
         MIGRATION_V33_SQL, MIGRATION_V34_SQL, MIGRATION_V35_SQL, MIGRATION_V36_SQL,
         MIGRATION_V37_SQL, MIGRATION_V38_SQL, MIGRATION_V39_SQL, MIGRATION_V3_SQL,
-        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V42_SQL, MIGRATION_V4_SQL,
+        MIGRATION_V40_SQL, MIGRATION_V41_SQL, MIGRATION_V42_SQL, MIGRATION_V43_SQL, MIGRATION_V4_SQL,
         MIGRATION_V5_SQL, MIGRATION_V6_SQL, MIGRATION_V7_SQL, MIGRATION_V8_SQL, MIGRATION_V9_SQL,
         SCHEMA_SQL, SCHEMA_VERSION,
     },
@@ -1090,6 +1090,19 @@ fn migrate_v42(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v43(transaction: &Transaction<'_>) -> AppResult<()> {
+    let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='supplier_credit_allocations')", [], |row| row.get(0))?;
+    if !exists {
+        transaction.pragma_update(None, "user_version", 43)?;
+        return Ok(());
+    }
+    // An old creation timestamp is not evidence of the effective settlement date.
+    // Keep historical rows undated; all new allocations must carry an explicit date.
+    add_column_if_missing(transaction, "supplier_credit_allocations", "effective_date", "effective_date TEXT")?;
+    transaction.execute_batch(MIGRATION_V43_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1596,7 +1609,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=41 => {}
+            28..=42 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1664,6 +1677,9 @@ impl LocalStore {
         }
         if current < 42 {
             migrate_v42(&transaction)?;
+        }
+        if current < 43 {
+            migrate_v43(&transaction)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {

@@ -1121,6 +1121,7 @@ export type SupplierCreditAllocation = {
   eventType: 'apply' | 'reverse';
   reversesAllocationId: Identifier | null;
   amountCents: number;
+  effectiveDate: string | null;
   reason: string;
   createdAt: string;
 };

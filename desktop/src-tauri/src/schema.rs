@@ -1,4 +1,41 @@
-pub const SCHEMA_VERSION: i64 = 42;
+pub const SCHEMA_VERSION: i64 = 43;
+
+pub const MIGRATION_V43_SQL: &str = r#"
+CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_date_guard
+BEFORE INSERT ON supplier_credit_allocations
+WHEN NEW.effective_date IS NULL
+  OR LENGTH(NEW.effective_date)<>10
+  OR DATE(NEW.effective_date,'+0 days') IS NOT NEW.effective_date
+  OR NEW.effective_date < (SELECT document_date FROM supplier_credit_notes WHERE id=NEW.supplier_credit_note_id)
+  OR NEW.effective_date < (SELECT document_date FROM supplier_invoices WHERE id=NEW.supplier_invoice_id)
+  OR (NEW.event_type='reverse' AND NEW.effective_date < (SELECT effective_date FROM supplier_credit_allocations WHERE id=NEW.reverses_allocation_id))
+  OR ((SELECT status FROM supplier_credit_notes WHERE id=NEW.supplier_credit_note_id)='validated' AND (
+    NEW.effective_date > DATE('now','localtime')
+    OR NEW.effective_date <= COALESCE((SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),'0000-00-00')
+  ))
+BEGIN SELECT RAISE(ABORT,'supplier credit settlement requires a valid explicit date in an open period'); END;
+
+CREATE TRIGGER IF NOT EXISTS supplier_credit_validation_settlement_date_guard
+BEFORE UPDATE OF status ON supplier_credit_notes
+WHEN OLD.status='draft' AND NEW.status='validated' AND EXISTS(
+  SELECT 1 FROM supplier_credit_allocations allocation
+  JOIN supplier_invoices invoice ON invoice.id=allocation.supplier_invoice_id
+  WHERE allocation.supplier_credit_note_id=NEW.id AND (
+    allocation.effective_date IS NULL
+    OR LENGTH(allocation.effective_date)<>10
+    OR DATE(allocation.effective_date,'+0 days') IS NOT allocation.effective_date
+    OR allocation.effective_date<NEW.document_date
+    OR allocation.effective_date<invoice.document_date
+    OR allocation.effective_date>DATE('now','localtime')
+    OR allocation.effective_date<=COALESCE((SELECT MAX(date_to) FROM accounting_periods WHERE status='closed'),'0000-00-00')
+  )
+)
+BEGIN SELECT RAISE(ABORT,'supplier credit draft contains an undated, future or closed settlement'); END;
+
+CREATE INDEX IF NOT EXISTS idx_supplier_credit_allocations_effective_date
+ON supplier_credit_allocations(effective_date,sequence);
+PRAGMA user_version=43;
+"#;
 
 #[cfg(test)]
 pub const BUSINESS_TABLES: &[&str] = &[

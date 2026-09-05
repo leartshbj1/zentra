@@ -113,6 +113,31 @@ fn valid_date(value: &str, field: &str) -> AppResult<String> {
     Ok(value)
 }
 
+fn validate_credit_settlement_date(
+    tx: &Transaction<'_>,
+    value: &str,
+    credit_date: &str,
+    invoice_id: &str,
+    original_date: Option<&str>,
+    posting: bool,
+) -> AppResult<String> {
+    let date = valid_date(value, "La date de compensation")?;
+    if date.len() != 10 {
+        return Err(AppError::Validation("La date de compensation doit utiliser le format AAAA-MM-JJ.".into()));
+    }
+    let invoice_date: String = tx.query_row("SELECT document_date FROM supplier_invoices WHERE id=?", params![invoice_id], |row| row.get(0))?;
+    if date.as_str() < credit_date || date < invoice_date || original_date.is_some_and(|original| date.as_str() < original) {
+        return Err(AppError::Validation("La compensation ne peut pas précéder l’avoir ou la facture ; une extourne ne peut pas précéder l’imputation initiale.".into()));
+    }
+    if posting {
+        if date > chrono::Local::now().format("%Y-%m-%d").to_string() {
+            return Err(AppError::Validation("La date de compensation ne peut pas être dans le futur. Enregistrez l’opération lorsqu’elle a effectivement eu lieu.".into()));
+        }
+        ensure_accounting_date_open(tx, &date)?;
+    }
+    Ok(date)
+}
+
 fn normalized_uuid(value: &str, field: &str) -> AppResult<String> {
     Uuid::parse_str(value.trim())
         .map(|value| value.to_string())
@@ -1727,6 +1752,7 @@ impl LocalStore {
                     open as f64 / 100.0
                 )));
             }
+            validate_credit_settlement_date(&tx, &allocation.effective_date, &document_date, &allocation.supplier_invoice_id, None, false)?;
         }
         let now = now_iso();
         if let Some((status, _)) = existing {
@@ -1759,8 +1785,8 @@ impl LocalStore {
         }
         for allocation in input.allocations {
             tx.execute(
-                "INSERT INTO supplier_credit_allocations(id,supplier_credit_note_id,supplier_invoice_id,amount_cents,created_at) VALUES(?,?,?,?,?)",
-                params![Uuid::new_v4().to_string(),id,allocation.supplier_invoice_id,allocation.amount_cents,now],
+                "INSERT INTO supplier_credit_allocations(id,supplier_credit_note_id,supplier_invoice_id,amount_cents,created_at,effective_date) VALUES(?,?,?,?,?,?)",
+                params![Uuid::new_v4().to_string(),id,allocation.supplier_invoice_id,allocation.amount_cents,now,allocation.effective_date.trim()],
             )?;
         }
         let result = supplier_credit_bundle(&tx, &id, false)?;
@@ -1834,6 +1860,10 @@ impl LocalStore {
             ));
         }
         let allocations = query_all(&tx, "SELECT * FROM supplier_credit_allocations WHERE supplier_credit_note_id=? ORDER BY created_at,id", params![id])?;
+        for allocation in &allocations {
+            let effective_date = allocation["effective_date"].as_str().ok_or_else(|| AppError::Validation("Une compensation ancienne n’a pas de date confirmée. Revenez au brouillon pour renseigner sa date effective.".into()))?;
+            validate_credit_settlement_date(&tx, effective_date, date, allocation["supplier_invoice_id"].as_str().unwrap_or_default(), None, true)?;
+        }
         let total = credit["total_cents"].as_i64().unwrap_or(0);
         let vat = credit["vat_cents"].as_i64().unwrap_or(0);
         let mut journal_lines = vec![EntryLine {
@@ -1965,11 +1995,13 @@ impl LocalStore {
             255,
         )?;
         let invoice_id = required_text(&input.supplier_invoice_id, "supplier_invoice_id", 255)?;
+        let credit = query_record_tx(&tx, "supplier_credit_notes", &credit_id)?;
+        let effective_date = validate_credit_settlement_date(&tx, &input.effective_date, credit["document_date"].as_str().unwrap_or_default(), &invoice_id, None, true)?;
         let allocation_id = Uuid::new_v4().to_string();
         let now = now_iso();
         tx.execute(
-            "INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,event_type,amount_cents,created_at) VALUES(?,?,?,?, 'apply',?,?)",
-            params![allocation_id,operation.request_id,credit_id,invoice_id,input.amount_cents,now],
+            "INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,event_type,amount_cents,created_at,effective_date) VALUES(?,?,?,?, 'apply',?,?,?)",
+            params![allocation_id,operation.request_id,credit_id,invoice_id,input.amount_cents,now,effective_date],
         )?;
         let result = json!({
             "allocation":query_record_tx(&tx,"supplier_credit_allocations",&allocation_id)?,
@@ -2019,14 +2051,14 @@ impl LocalStore {
             "supplier_credit_allocation_id",
             255,
         )?;
-        let original: Option<(String, String, String, i64)> = tx
+        let original: Option<(String, String, String, i64, Option<String>)> = tx
             .query_row(
-                "SELECT event_type,supplier_credit_note_id,supplier_invoice_id,amount_cents FROM supplier_credit_allocations WHERE id=?",
+                "SELECT event_type,supplier_credit_note_id,supplier_invoice_id,amount_cents,effective_date FROM supplier_credit_allocations WHERE id=?",
                 params![original_id],
-                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?)),
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
             )
             .optional()?;
-        let (event_type, credit_id, invoice_id, amount) = original.ok_or_else(|| {
+        let (event_type, credit_id, invoice_id, amount, original_date) = original.ok_or_else(|| {
             AppError::NotFound(format!("supplier_credit_allocations/{original_id}"))
         })?;
         if event_type != "apply" {
@@ -2034,11 +2066,13 @@ impl LocalStore {
                 "Seule une imputation positive peut être extournée.".into(),
             ));
         }
+        let credit = query_record_tx(&tx, "supplier_credit_notes", &credit_id)?;
+        let effective_date = validate_credit_settlement_date(&tx, &input.effective_date, credit["document_date"].as_str().unwrap_or_default(), &invoice_id, original_date.as_deref(), true)?;
         let reversal_id = Uuid::new_v4().to_string();
         let now = now_iso();
         tx.execute(
-            "INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,event_type,amount_cents,reverses_allocation_id,reason,created_at) VALUES(?,?,?,?, 'reverse',?,?,?,?)",
-            params![reversal_id,operation.request_id,credit_id,invoice_id,amount,original_id,reason,now],
+            "INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,event_type,amount_cents,reverses_allocation_id,reason,created_at,effective_date) VALUES(?,?,?,?, 'reverse',?,?,?,?,?)",
+            params![reversal_id,operation.request_id,credit_id,invoice_id,amount,original_id,reason,now,effective_date],
         )?;
         let result = json!({
             "allocation":query_record_tx(&tx,"supplier_credit_allocations",&reversal_id)?,

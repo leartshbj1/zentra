@@ -770,6 +770,7 @@ pub struct SaveSupplierInvoiceMatchInput {
 pub struct SupplierCreditAllocationInput {
     pub supplier_invoice_id: String,
     pub amount_cents: i64,
+    pub effective_date: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -798,6 +799,7 @@ pub struct ApplySupplierCreditInput {
     pub supplier_credit_note_id: String,
     pub supplier_invoice_id: String,
     pub amount_cents: i64,
+    pub effective_date: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -805,6 +807,7 @@ pub struct ReverseSupplierCreditAllocationInput {
     pub request_id: String,
     pub supplier_credit_allocation_id: String,
     pub reason: String,
+    pub effective_date: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

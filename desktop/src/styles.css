@@ -12513,7 +12513,7 @@ select[aria-invalid='true']:focus {
   color: var(--muted);
 }
 .receipt-quantity-grid > label,
-.credit-allocation > label {
+.credit-allocation__row > label:not(.field) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(100px, 0.25fr);
   align-items: center;
@@ -12526,16 +12526,16 @@ select[aria-invalid='true']:focus {
 }
 .receipt-quantity-grid > label strong,
 .receipt-quantity-grid > label small,
-.credit-allocation > label strong,
-.credit-allocation > label small {
+.credit-allocation__row > label:not(.field) strong,
+.credit-allocation__row > label:not(.field) small {
   display: block;
 }
 .receipt-quantity-grid > label strong,
-.credit-allocation > label strong {
+.credit-allocation__row > label:not(.field) strong {
   font-size: 9px;
 }
 .receipt-quantity-grid > label small,
-.credit-allocation > label small {
+.credit-allocation__row > label:not(.field) small {
   margin-top: 2px;
   color: var(--muted);
   font-size: 7px;
@@ -12644,6 +12644,41 @@ select[aria-invalid='true']:focus {
 }
 .credit-allocation {
   padding-bottom: 10px;
+}
+.credit-allocation__row > .field {
+  min-width: 0;
+  margin: 0 12px 12px;
+}
+.credit-preview-allocations small {
+  display: block;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.credit-application-history {
+  margin-top: 8px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.credit-application-history summary {
+  display: list-item;
+  align-content: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.credit-application-history ol {
+  display: grid;
+  gap: 10px;
+  padding-left: 20px;
+  margin: 6px 0;
+}
+.credit-application-history li > strong,
+.credit-application-history li > span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .credit-allocation > div:first-child {
   padding: 11px 12px;
@@ -12765,7 +12800,7 @@ select[aria-invalid='true']:focus {
 .confirmation-callout p,
 .receipt-quantity-grid__heading small,
 .receipt-quantity-grid > label small,
-.credit-allocation > label small,
+.credit-allocation__row > label:not(.field) small,
 .correction-preview p,
 .correction-preview small,
 .match-editor__heading,
@@ -12792,7 +12827,7 @@ select[aria-invalid='true']:focus {
 .purchase-preview__lines strong,
 .receipt-quantity-grid__heading strong,
 .receipt-quantity-grid > label strong,
-.credit-allocation > label strong,
+.credit-allocation__row > label:not(.field) strong,
 .correction-preview strong,
 .match-editor > div:not(.match-editor__heading) strong,
 .credit-allocation > div:first-child strong,
@@ -13047,7 +13082,7 @@ select[aria-invalid='true']:focus {
     gap: 5px;
   }
   .receipt-quantity-grid > label,
-  .credit-allocation > label {
+  .credit-allocation__row > label:not(.field) {
     grid-template-columns: 1fr;
     gap: 7px;
   }

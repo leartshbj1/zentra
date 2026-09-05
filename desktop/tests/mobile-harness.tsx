@@ -16,13 +16,14 @@ import { installRecurrenceFixture } from './recurrence-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import { StandaloneUpdaterAccess } from '../src/App';
 import { installUpdaterFixture } from './updater-fixture';
+import { installCreditSettlementFixture } from './credit-settlement-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
 let data = {
-  ...Object.fromEntries(collectionNames.map((name) => [name, []])), schemaVersion: 42,
+  ...Object.fromEntries(collectionNames.map((name) => [name, []])), schemaVersion: 43,
   onboardingCompleted: true, activityProfileRequired: false, activeTimer: null, accountingSettings: null,
   backupStatus: { lastSuccessAt: null, lastPath: null, nextScheduledAt: null },
   settings: {
@@ -97,6 +98,7 @@ if (new URLSearchParams(location.search).has('volume')) {
 if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
+if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);
 if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
 function Harness() {

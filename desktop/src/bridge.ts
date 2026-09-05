@@ -2124,6 +2124,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     reversesAllocationId: nullableString(row.reverses_allocation_id),
     amountCents: numberValue(row.amount_cents),
     reason: stringValue(row.reason),
+    effectiveDate: nullableString(row.effective_date),
     createdAt: stringValue(row.created_at),
   }));
   const supplierExpenseReclassificationLines: SupplierExpenseReclassificationLine[] =
@@ -5134,7 +5135,7 @@ export const desktopApi = {
       expenseAccountId?: string | null;
       projectId?: string | null;
     }>;
-    allocations: Array<{ supplierInvoiceId: string; amountCents: number }>;
+    allocations: Array<{ supplierInvoiceId: string; amountCents: number; effectiveDate: string }>;
   }) {
     await invoke('save_supplier_credit_note_draft', {
       input: {
@@ -5158,6 +5159,7 @@ export const desktopApi = {
         allocations: input.allocations.map((allocation) => ({
           supplier_invoice_id: allocation.supplierInvoiceId,
           amount_cents: allocation.amountCents,
+          effective_date: allocation.effectiveDate,
         })),
       },
     });
@@ -5184,6 +5186,7 @@ export const desktopApi = {
     supplierCreditNoteId: string,
     supplierInvoiceId: string,
     amountCents: number,
+    effectiveDate: string,
   ) {
     await invoke('apply_supplier_credit', {
       input: {
@@ -5191,6 +5194,7 @@ export const desktopApi = {
         supplier_credit_note_id: supplierCreditNoteId,
         supplier_invoice_id: supplierInvoiceId,
         amount_cents: amountCents,
+        effective_date: effectiveDate,
       },
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
@@ -5199,12 +5203,14 @@ export const desktopApi = {
     requestId: string,
     supplierCreditAllocationId: string,
     reason: string,
+    effectiveDate: string,
   ) {
     await invoke('reverse_supplier_credit_allocation', {
       input: {
         request_id: requestId,
         supplier_credit_allocation_id: supplierCreditAllocationId,
         reason: reason.trim(),
+        effective_date: effectiveDate,
       },
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
