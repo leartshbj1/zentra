@@ -29,6 +29,9 @@ import { MobileDownloadDock } from '@/components/mobile-download-dock';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import {
+  ZENTRA_ANDROID_PREVIEW_PATH,
+  ZENTRA_GITHUB_RELEASE_PATH,
+  ZENTRA_IOS_PREVIEW_PATH,
   ZENTRA_INSTALLER_CHECKSUM_PATH,
   ZENTRA_INSTALLER_NAME,
   ZENTRA_INSTALLER_SHA256,
@@ -101,7 +104,7 @@ const capabilities = [
   {
     icon: Landmark,
     title: 'Import CAMT local',
-    text: 'Rapprochez les règlements clients par référence exacte ou après contrôle. Associez les débits aux achats et les crédits aux remboursements déjà saisis.',
+    text: 'Rapprochez les règlements clients par référence exacte ou après contrôle. Créez les dépenses et les remboursements reçus depuis le relevé, avec leurs justificatifs.',
   },
   {
     icon: Package,
@@ -176,7 +179,10 @@ export default function DownloadPage() {
             <p className="mt-4 max-w-xl rounded-xl border border-[#d5dad5] bg-white/70 p-4 text-sm leading-6 text-[#496054]">
               Les versions iOS et Android sont en préparation. Les applications
               mobiles seront distribuées et mises à jour depuis l’App Store et
-              Google Play après leur validation.
+              Google Play après leur validation.{' '}
+              <a href="#mobile-previews" className="inline-flex min-h-11 items-center font-semibold text-[#315f47] underline underline-offset-4">
+                Voir les préversions de test
+              </a>
             </p>
           </div>
 
@@ -330,12 +336,11 @@ export default function DownloadPage() {
                   Zentra pour macOS — accès anticipé
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-[#607068]">
-                  GitHub Actions compile un `.app` et un `.dmg` universels Intel
-                  et Apple Silicon avec une signature ad hoc. Vous pouvez le
-                  télécharger maintenant. Au premier lancement, Gatekeeper peut
-                  demander « Ouvrir quand même » dans Réglages système &gt;
-                  Confidentialité et sécurité. La signature Developer ID et la
-                  notarisation Apple viendront simplifier cette étape.
+                  Version universelle pour Mac Intel et Apple Silicon. La
+                  signature Developer ID et la notarisation Apple restent en
+                  préparation. Au premier lancement, macOS peut demander une
+                  autorisation dans Réglages système &gt; Confidentialité et
+                  sécurité.
                 </p>
                 <p className="mt-2 break-all text-xs leading-5 text-[#718079]">
                   {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio ·
@@ -356,6 +361,49 @@ export default function DownloadPage() {
                   Vérifier l’empreinte
                 </a>
               </div>
+            </div>
+            <div id="mobile-previews" className="mt-8 scroll-mt-24">
+              <h3 className="text-xl font-semibold text-[#254333]">
+                Préversions mobiles {ZENTRA_VERSION}
+              </h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#607068]">
+                Pour les essais : les versions App Store et Google Play restent
+                en préparation. La synchronisation entre appareils et les mises
+                à jour automatiques mobiles ne sont pas encore disponibles.
+              </p>
+              <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
+                <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
+                  <h4 className="font-semibold text-[#263a2e]">Android — APK de test</h4>
+                  <p className="mt-3 text-sm leading-6 text-[#607068]">
+                    Installation manuelle sur Android ARM64. La signature de
+                    test est conservée depuis 1.32.0 pour permettre le
+                    remplacement des préversions compatibles.
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-[#607068]">
+                    Depuis 1.31.0 ou une version antérieure, une sauvegarde
+                    complète vérifiée est nécessaire avant la migration :
+                    l’ancienne signature diffère et désinstaller efface les
+                    données locales.
+                  </p>
+                  <a href={ZENTRA_ANDROID_PREVIEW_PATH} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]">
+                    Télécharger l’APK Android de test
+                  </a>
+                </article>
+                <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
+                  <h4 className="font-semibold text-[#263a2e]">iOS — simulateur sur Mac</h4>
+                  <p className="mt-3 text-sm leading-6 text-[#607068]">
+                    Application ARM64 pour le simulateur iOS sur Mac Apple
+                    Silicon. Ce ZIP ne s’installe pas directement sur iPhone.
+                    La distribution sur iPhone attend la validation Apple.
+                  </p>
+                  <a href={ZENTRA_IOS_PREVIEW_PATH} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl border border-[#bdcfc2] px-4 py-3 text-center text-sm font-semibold text-[#254333] hover:bg-[#edf4ee] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47] md:mt-auto">
+                    Télécharger pour le simulateur iOS
+                  </a>
+                </article>
+              </div>
+              <a href={ZENTRA_GITHUB_RELEASE_PATH} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4">
+                Notes de version et fichiers vérifiés
+              </a>
             </div>
           </div>
         </section>
