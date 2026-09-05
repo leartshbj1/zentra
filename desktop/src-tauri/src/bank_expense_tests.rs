@@ -1,5 +1,6 @@
 mod expense_tests {
     include!("bank_expense_creation_tests.rs");
+    include!("bank_expense_correction_tests.rs");
     use super::*;
     use crate::models::ConfirmExpenseBankReconciliationInput;
     use crate::vat_reporting::{
@@ -86,6 +87,7 @@ mod expense_tests {
                 .clone();
             assert_eq!(candidates[0]["confirmable"], true);
             let input = ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: None,
                 movement_id: movement_id.clone(),
                 expense_id: expense_id.clone(),
@@ -207,6 +209,7 @@ mod expense_tests {
             assert!(
                 store
                     .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                        request_id: None,
                         date_difference_reason: None,
                         movement_id,
                         expense_id: expense_id.clone()
@@ -219,6 +222,7 @@ mod expense_tests {
         let movement_id = debit(&store, dir.path(), "VALID", None);
         store
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: None,
                 movement_id: movement_id.clone(),
                 expense_id: expense_id.clone(),
@@ -230,6 +234,7 @@ mod expense_tests {
         for (movement, expense) in [(movement_id, other_expense), (other_movement, expense_id)] {
             assert!(store
                 .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                    request_id: None,
                     date_difference_reason: None,
                     movement_id: movement,
                     expense_id: expense
@@ -260,6 +265,7 @@ mod expense_tests {
         assert_eq!(before_vat.payable_tax_cents, -810);
         let movement_id = debit(&store, dir.path(), "DIFFERENT-DATE", None);
         let input = ConfirmExpenseBankReconciliationInput {
+            request_id: None,
             movement_id,
             expense_id: expense_id.clone(),
             date_difference_reason: Some(
@@ -269,6 +275,7 @@ mod expense_tests {
         let before = counts(&store);
         assert!(store
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: Some("ok".into()),
                 ..input.clone()
             })
@@ -290,6 +297,7 @@ mod expense_tests {
         assert_eq!(counts(&store), after);
         assert!(store
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: Some("Autre motif changé".into()),
                 ..input
             })
@@ -308,6 +316,7 @@ mod expense_tests {
         let movement_id = debit(&store, dir.path(), "FROZEN", None);
         store
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: None,
                 movement_id: movement_id.clone(),
                 expense_id,
@@ -379,6 +388,7 @@ mod expense_tests {
         assert_eq!(counts(&reopened).1, 0);
         reopened
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: None,
                 movement_id,
                 expense_id,
@@ -395,6 +405,7 @@ mod expense_tests {
         let before = counts(&store);
         assert!(store
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: None,
                 movement_id: movement.clone(),
                 expense_id: paid
@@ -429,6 +440,7 @@ mod expense_tests {
         let before = counts(&store);
         assert!(store
             .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+                request_id: None,
                 date_difference_reason: None,
                 movement_id: movement,
                 expense_id: pending.clone()

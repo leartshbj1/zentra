@@ -1133,6 +1133,13 @@ fn migrate_v45(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v46(transaction: &Transaction<'_>) -> AppResult<()> {
+    let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='bank_expense_reconciliations')", [], |row| row.get(0))?;
+    if exists { transaction.execute_batch(crate::schema::MIGRATION_V46_SQL)?; }
+    else { transaction.pragma_update(None, "user_version", 46)?; }
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1639,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=44 => {}
+            28..=45 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1717,6 +1724,7 @@ impl LocalStore {
         if current < 45 {
             migrate_v45(&transaction)?;
         }
+        if current < 46 { migrate_v46(&transaction)?; }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM

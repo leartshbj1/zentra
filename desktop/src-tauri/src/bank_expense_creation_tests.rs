@@ -46,11 +46,24 @@ fn bank_creation_atomic_receipt_payment_vat_project_and_read_only_replay() {
     let files = store.get_workspace().unwrap()["attachments"].clone();
     assert_eq!(files[0]["project_id"], project["id"]);
     assert_eq!(files[0]["entity_type"], "expense");
-    let csv = store.export_csv_archive(Some(dir.path().join("bank-expense.zip").to_string_lossy().into_owned()), "test").unwrap();
+    let csv = store
+        .export_csv_archive(
+            Some(
+                dir.path()
+                    .join("bank-expense.zip")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            "test",
+        )
+        .unwrap();
     let mut archive = zip::ZipArchive::new(fs::File::open(csv).unwrap()).unwrap();
     for (name, expected) in [
         ("06_banque/rapprochements_depenses.csv", movement.as_str()),
-        ("06_banque/creations_depenses.csv", input.request_id.as_str()),
+        (
+            "06_banque/creations_depenses.csv",
+            input.request_id.as_str(),
+        ),
         ("10_documents/index_pieces_jointes.csv", attachment),
     ] {
         let mut content = String::new();
@@ -207,6 +220,7 @@ fn bank_creation_migration_from_v44_preserves_existing_match() {
     let expense_id = expense(&store, false, "2026-08-31");
     store
         .confirm_expense_bank_reconciliation(ConfirmExpenseBankReconciliationInput {
+            request_id: None,
             movement_id: movement,
             expense_id,
             date_difference_reason: None,

@@ -230,6 +230,13 @@ pub fn create_bank_expense(
 }
 
 #[tauri::command]
+pub fn unreconcile_bank_expense(state: State<'_, LocalStore>, input: crate::models::UnreconcileBankExpenseInput) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.unreconcile_bank_expense(input).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn create_record(
     state: State<'_, LocalStore>,
     entity: String,

@@ -84,3 +84,17 @@
 .bank-expense-form__total { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 12px; background: var(--surface-soft, #f4f6f8); border-radius: 10px; }
 .bank-expense-form__total span { display: grid; gap: 4px; }
 @media (max-width: 600px) { .bank-expense-form__grid { grid-template-columns: minmax(0, 1fr); } .bank-expense-form .form-actions button { min-height: 44px; } }
+.bank-expense-correction__summary { display: grid; gap: 6px; overflow-wrap: anywhere; }
+.bank-expense-form .info-strip > svg { flex: 0 0 20px; }
+.bank-expense-correction__ack { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 1.5; cursor: pointer; }
+.bank-expense-correction__ack input { width: 20px; height: 20px; flex: 0 0 20px; margin-top: 2px; }
+.bank-match-confirmed { flex-wrap: wrap; }
+.bank-match-confirmed > span { flex: 1 1 220px; }
+.bank-expense-history { grid-column: 2 / -1; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line, #dce5e0); font-size: 14px; }
+.bank-expense-history summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; cursor: pointer; min-height: 44px; }
+.bank-expense-history summary > span { margin-left: auto; }
+.bank-expense-history[open] .bank-history-chevron { transform: rotate(180deg); }
+.bank-expense-history__entries { display: grid; gap: 12px; margin: 12px 0; }
+.bank-expense-history article { display: grid; gap: 4px; padding: 12px; background: var(--surface-soft, #f4f6f8); border-radius: 8px; overflow-wrap: anywhere; }
+.bank-expense-history p { margin: 6px 0 0; white-space: pre-wrap; }
+@media (max-width: 600px) { .bank-expense-history { grid-column: 1 / -1; } .bank-match-confirmed > button { width: 100%; min-height: 44px; } }

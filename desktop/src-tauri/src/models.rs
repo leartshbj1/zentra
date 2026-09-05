@@ -293,10 +293,19 @@ pub struct ConfirmSupplierBankReconciliationInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfirmExpenseBankReconciliationInput {
+    #[serde(default)]
+    pub request_id: Option<String>,
     pub movement_id: String,
     pub expense_id: String,
     #[serde(default)]
     pub date_difference_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnreconcileBankExpenseInput {
+    pub request_id: String,
+    pub reconciliation_id: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -6,8 +6,14 @@ use crate::{
 };
 use rusqlite::Connection;
 
+#[path = "bank_expense_corrections.rs"]
+mod corrections;
 #[path = "bank_expense_creation.rs"]
 mod creation;
+
+pub(super) fn correction_history(connection: &Connection, movement: &str) -> AppResult<Vec<Value>> {
+    query_all(connection,"SELECT h.*,e.reference,e.supplier FROM bank_expense_unreconciliations h JOIN expenses e ON e.id=h.expense_id WHERE h.movement_id=? ORDER BY h.unlinked_at DESC,h.id",params![movement])
+}
 
 fn reject(message: &str) -> AppError {
     AppError::Validation(message.into())
@@ -16,7 +22,7 @@ fn reject(message: &str) -> AppError {
 pub(super) fn existing(connection: &Connection, movement: &str) -> AppResult<Option<Value>> {
     Ok(query_all(
         connection,
-        "SELECT * FROM bank_expense_reconciliations WHERE movement_id=?",
+        "SELECT r.*,e.reference,e.supplier FROM bank_expense_reconciliations r JOIN expenses e ON e.id=r.expense_id WHERE r.movement_id=?",
         params![movement],
     )?
     .into_iter()
@@ -196,9 +202,35 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let request_id = input
+            .request_id
+            .as_deref()
+            .map(|value| {
+                Uuid::parse_str(value.trim())
+                    .map(|id| id.to_string())
+                    .map_err(|_| reject("Identifiant de tentative invalide."))
+            })
+            .transpose()?;
+        if let Some(id) = &request_id {
+            let previous: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM bank_expense_reconciliation_registry WHERE id=?)",
+                params![id],
+                |r| r.get(0),
+            )?;
+            if previous && !tx.query_row("SELECT EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE id=?1 AND movement_id=?2 AND expense_id=?3 AND date_difference_reason IS ?4)",params![id,movement_id,expense_id,reason],|r|r.get::<_,bool>(0))? {
+                return Err(reject("Cette tentative a déjà été utilisée ou son rapprochement a été dissocié. Actualisez les mouvements avant un nouveau choix."));
+            }
+        } else if !correction_history(&tx, &movement_id)?.is_empty() {
+            return Err(reject(
+                "Ce mouvement a déjà été corrigé. Une nouvelle tentative explicite est requise.",
+            ));
+        }
         let expense = query_record_tx(&tx, "expenses", expense_id)?;
         // Replay is read-only and remains possible after closing or unlinking the bank account.
         if let Some(link) = existing(&tx, &movement_id)? {
+            if request_id.as_deref().is_some_and(|id| link["id"] != id) {
+                return Err(reject("Ce mouvement a déjà été rapproché par une autre tentative. Actualisez les données."));
+            }
             if link["expense_id"] != expense_id {
                 return Err(reject(
                     "Ce mouvement est déjà rapproché avec une autre dépense.",
@@ -258,7 +290,7 @@ impl LocalStore {
             &date
         };
         let journal = paid_journal(&tx, expense_id, amount, accounting_date)?;
-        let id = Uuid::new_v4().to_string();
+        let id = request_id.unwrap_or_else(|| Uuid::new_v4().to_string());
         tx.execute("INSERT INTO bank_expense_reconciliations(id,movement_id,expense_id,journal_entry_id,amount_cents,date_difference_reason,confirmed_at) VALUES(?,?,?,?,?,?,?)",params![id,movement_id,expense_id,journal,amount,reason,now])?;
         let link = existing(&tx, &movement_id)?
             .ok_or_else(|| reject("La preuve du rapprochement est manquante."))?;

@@ -1159,7 +1159,7 @@ impl LocalStore {
                 for (key, _, _) in &stable_keys {
                     let existing = transaction
                         .query_row(
-                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations r WHERE r.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
+                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_unreconciliations h WHERE h.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
                             params![key],
                             |row| {
                                 Ok(ExistingMovement {
@@ -3728,6 +3728,12 @@ mod tests {
                  DROP TRIGGER bank_expense_journal_no_isolated_reversal;
                  DROP TRIGGER bank_reconciliations_exclusive_expense;
                  DROP TRIGGER bank_supplier_reconciliations_exclusive_expense;
+                 DROP TRIGGER bank_expense_reconciliations_no_delete;
+                 DROP TRIGGER bank_expense_register;
+                 DROP TRIGGER bank_expense_attachment_immutable_update;
+                 DROP TABLE bank_expense_creation_requests;
+                 DROP TABLE bank_expense_unreconciliations;
+                 DROP TABLE bank_expense_reconciliation_registry;
                  DROP TABLE bank_expense_reconciliations;
                  DROP TRIGGER bank_reconciliations_exclusive_supplier;
                  DROP TRIGGER bank_movements_guarded_update;
@@ -4625,6 +4631,7 @@ impl LocalStore {
             let reconciliation = reconciliations_by_movement.get(movement_id);
             let supplier_reconciliation = supplier_reconciliations_by_movement.get(movement_id);
             let expense_reconciliation = expenses::existing(&connection, movement_id)?;
+            let expense_history = expenses::correction_history(&connection, movement_id)?;
             let expense_suggestion = expenses::suggestion(&connection, movement)?;
             let suggestion = if movement_field(movement, "credit_debit") == Some("DBIT") {
                 suggestion_for_supplier_movement(
@@ -4652,6 +4659,7 @@ impl LocalStore {
                 json!({"entity_type":"supplier_invoice","kind":"none","confirmable":false,"requires_confirmation":true,"reason":"Ce mouvement est déjà rapproché avec une dépense.","candidates":[]})
             } else { suggestion };
             object.insert("expense_reconciliation".into(), expense_reconciliation.unwrap_or(Value::Null));
+            object.insert("expense_history".into(), json!(expense_history));
             object.insert("expense_suggestion".into(), expense_suggestion);
             object.insert("suggestion".into(), suggestion);
         }

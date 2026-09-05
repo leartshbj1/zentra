@@ -182,6 +182,8 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
     supplierReconciliation: Object.keys(supplierReconciliation).length ? bankSupplierReconciliationFromRaw(supplierReconciliation) : null,
     expenseReconciliation: Object.keys(record(row.expense_reconciliation)).length ? {
       id: text(record(row.expense_reconciliation).id), expenseId: text(record(row.expense_reconciliation).expense_id),
+      ...(text(record(row.expense_reconciliation).reference) ? {reference: text(record(row.expense_reconciliation).reference)} : {}),
+      ...(text(record(row.expense_reconciliation).supplier) ? {supplier: text(record(row.expense_reconciliation).supplier)} : {}),
       journalEntryId: text(record(row.expense_reconciliation).journal_entry_id), confirmedAt: text(record(row.expense_reconciliation).confirmed_at),
       ...(text(record(row.expense_reconciliation).date_difference_reason) ? { dateDifferenceReason: text(record(row.expense_reconciliation).date_difference_reason) } : {}),
     } : null,
@@ -195,6 +197,7 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
         totalCents: integer(candidate.total_cents), confirmable: bool(candidate.confirmable), reason: text(candidate.reason),
       })),
     },
+    expenseHistory: array(row.expense_history).map((entry) => ({dateDifferenceReason:text(entry.date_difference_reason),id:text(entry.id),expenseId:text(entry.expense_id),reference:text(entry.reference),supplier:text(entry.supplier),amountCents:integer(entry.amount_cents),confirmedAt:text(entry.confirmed_at),unlinkedAt:text(entry.unlinked_at),reason:text(entry.reason)})),
     suggestion: customerRawSuggestion === undefined ? emptyCustomerSuggestion() : suggestionFromRaw(customerRawSuggestion),
     supplierSuggestion: supplierRawSuggestion === undefined ? emptySupplierSuggestion() : supplierSuggestionFromRaw(supplierRawSuggestion),
   };
@@ -329,13 +332,14 @@ export function movementHasReconciliation(movement: BankMovement): boolean {
 
 export function filterBankMovements(movements: BankMovement[], filter: BankMovementFilter, query = ''): BankMovement[] {
   const needle = normalizedCandidateQuery(query);
-  const compactNeedle = needle.replace(/\s/g, '');
+  const compactNeedle = needle.replace(/[\s\p{P}]/gu, '');
   return movements
     .filter((movement) => {
       if (!needle) return true;
       const amount = (Math.abs(movement.amountCents) / 100).toFixed(2);
-      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency].join(' '));
-      return searchable.includes(needle) || [movement.reference, movement.accountId, movement.counterpartyIban].some((value) => normalizedCandidateQuery(value).replace(/\s/g, '').includes(compactNeedle));
+      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency, movement.expenseReconciliation?.reference, movement.expenseReconciliation?.supplier, ...(movement.expenseHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason])].join(' '));
+      const identifiers = [movement.reference, movement.accountId, movement.counterpartyIban, movement.expenseReconciliation?.reference, ...(movement.expenseHistory ?? []).map((entry) => entry.reference)];
+      return searchable.includes(needle) || (Boolean(compactNeedle) && identifiers.some((value) => normalizedCandidateQuery(value || '').replace(/[\s\p{P}]/gu, '').includes(compactNeedle)));
     })
     .filter((movement) => {
       if (filter === 'pending') return movement.status === 'PDNG' && !movementHasReconciliation(movement);

@@ -164,6 +164,8 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
     ("bank_movement_keys", "06_banque/cles_mouvements.csv"),
     ("bank_expense_reconciliations", "06_banque/rapprochements_depenses.csv"),
     ("bank_expense_creation_requests", "06_banque/creations_depenses.csv"),
+    ("bank_expense_unreconciliations", "06_banque/corrections_rapprochements_depenses.csv"),
+    ("bank_expense_reconciliation_registry", "06_banque/registre_rapprochements_depenses.csv"),
     ("bank_account_links", "06_banque/comptes_associes.csv"),
     ("projects", "07_projets/projets.csv"),
     ("project_milestones", "07_projets/jalons.csv"),
@@ -210,6 +212,8 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
 /// alourdir chaque rafraîchissement, mais indispensables dans un export CSV
 /// comptable complet.
 const CSV_EXPORT_DIRECT_COLLECTIONS: &[(&str, &str)] = &[
+    ("bank_expense_unreconciliations", "SELECT * FROM bank_expense_unreconciliations ORDER BY unlinked_at,id"),
+    ("bank_expense_reconciliation_registry", "SELECT * FROM bank_expense_reconciliation_registry ORDER BY created_at,id"),
     ("bank_expense_reconciliations", "SELECT * FROM bank_expense_reconciliations ORDER BY confirmed_at,id"),
     ("bank_expense_creation_requests", "SELECT * FROM bank_expense_creation_requests ORDER BY created_at,request_id"),
     (

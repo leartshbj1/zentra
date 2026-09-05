@@ -73,6 +73,14 @@ impl LocalStore {
             if previous["payload_sha256"] != hash {
                 return Err(reject("Cet essai a déjà été enregistré avec d’autres données. Actualisez les mouvements."));
             }
+            let corrected: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM bank_expense_unreconciliations WHERE id=?)",
+                params![previous["reconciliation_id"].as_str()],
+                |r| r.get(0),
+            )?;
+            if corrected {
+                return Err(reject("Cette dépense est déjà enregistrée, mais son association bancaire a été retirée. Actualisez les données puis rapprochez la pièce existante."));
+            }
             let link = existing(&tx, &movement_id)?
                 .ok_or_else(|| reject("La preuve bancaire est manquante."))?;
             if link["id"] != previous["reconciliation_id"] {

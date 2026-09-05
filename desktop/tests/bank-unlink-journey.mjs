@@ -1,0 +1,75 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const { chromium }=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const report=[];await mkdir('.qa/bank-unlink',{recursive:true});
+try {
+  for (const width of [320,390,768,1024,1440]) {
+    const page=await browser.newPage({viewport:{width,height:900}});
+    page.on('pageerror',error=>report.push({width,error:error.message}));
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?finance=1&bank=1&bankUnlink=1',{waitUntil:'domcontentloaded'});
+    const tour=page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true});if(await tour.isVisible())await tour.click();
+    await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
+    await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Banque');
+    await page.locator('.navigation-palette__results button').filter({has:page.getByText('Banque',{exact:true})}).click();
+    await page.getByRole('tab',{name:/^Rapprochés/}).click();
+    const movement=page.locator('.bank-movement').filter({hasText:'Dépense en attente'});
+    await movement.getByRole('button',{name:'Dissocier du relevé',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'Dissocier la dépense du relevé',exact:true});
+    const submit=dialog.getByRole('button',{name:'Dissocier du relevé',exact:true});
+    const reason=dialog.getByRole('textbox',{name:/Motif de la correction/});
+    const capture=async(name)=>{
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);
+      if(await dialog.isVisible())assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth+1),`dialog overflow ${width}`);
+      await page.screenshot({path:`.qa/bank-unlink/${width}-${name}.png`});
+    };
+    assert.ok(await submit.isDisabled());await reason.fill('Non');await dialog.getByRole('checkbox').check();assert.ok(await submit.isDisabled());
+    await reason.fill('Ce débit concerne une autre pièce. Le paiement enregistré est correct.');
+    await capture('review');
+    await page.evaluate(()=>sessionStorage.setItem('qa-unlink-reject','1'));
+    await submit.click();await dialog.getByRole('alert').waitFor();
+    assert.equal(await reason.inputValue(),'Ce débit concerne une autre pièce. Le paiement enregistré est correct.');
+    assert.ok(await dialog.getByRole('checkbox').isChecked());
+    await page.waitForFunction(()=>{const alert=document.querySelector('.bank-expense-form [role=alert]');if(!alert)return false;const box=alert.getBoundingClientRect();return box.top>=0 && box.bottom<=innerHeight;});
+    await capture('refusal');
+    await page.evaluate(()=>{sessionStorage.removeItem('qa-unlink-reject');sessionStorage.setItem('qa-unlink-lost-response','1');});
+    await submit.click();await dialog.getByRole('alert').filter({hasText:'Réponse interrompue'}).waitFor();
+    await capture('lost-response');
+    await page.evaluate(()=>{sessionStorage.removeItem('qa-unlink-lost-response');sessionStorage.setItem('qa-unlink-refresh-fail','1');});
+    await submit.click();await dialog.waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-unlink-writes')),'1');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-unlink-attempts')),'3');
+    assert.equal(new Set(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('qa-unlink-ids')))).size,1);
+    await page.evaluate(()=>sessionStorage.removeItem('qa-bank-refresh-fail'));
+    await page.getByRole('button',{name:'Actualiser les données',exact:true}).click();
+    await movement.waitFor();
+    const history=movement.locator('.bank-expense-history');await history.locator('summary').click();
+    assert.equal(await history.locator('article').count(),5);await history.getByRole('button',{name:'Afficher les corrections suivantes'}).click();assert.equal(await history.locator('article').count(),6);
+    assert.match(await history.innerText(),/paiement conservé/);
+    assert.match(await history.innerText(),/Ce débit concerne une autre pièce/);
+    await history.locator('article').first().scrollIntoViewIfNeeded();await capture('history');
+    const picker=movement.locator('.bank-expense-picker');await picker.locator('summary').click();await picker.locator('.bank-candidate-option').click();assert.ok(await picker.getByRole('radio').isChecked());
+    await page.evaluate(()=>sessionStorage.setItem('qa-unlink-rematch-read-fail','1'));
+    await picker.getByRole('button',{name:'Confirmer la dépense',exact:true}).click();
+    await picker.getByRole('status').waitFor();
+    await page.evaluate(()=>{sessionStorage.removeItem('qa-bank-refresh-fail');sessionStorage.removeItem('qa-unlink-rematch-read-fail');sessionStorage.setItem('qa-unlink-external-correction','1');});
+    await page.getByRole('button',{name:'Actualiser les données',exact:true}).click();
+    await picker.getByRole('status').waitFor({state:'hidden'});
+    await picker.locator('summary').click();assert.ok(!await picker.getByRole('radio').isChecked());
+    await picker.locator('.bank-candidate-option').click();
+    await capture('new-choice-after-correction');
+    await picker.getByRole('button',{name:'Confirmer la dépense',exact:true}).click();
+    await page.getByRole('tab',{name:/^Rapprochés/}).click();await movement.locator('.bank-match-confirmed').waitFor();
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-unlink-rematched')),'1');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-unlink-attempts')),'3');
+    assert.equal(new Set(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('qa-unlink-confirm-ids')))).size,2);
+    assert.match(await movement.innerText(),/Historique des associations/);
+    await movement.scrollIntoViewIfNeeded();await capture('rematched');
+    report.push({width,result:'PASS explicit review, reason and acknowledgement retained, late-response retry uses one request, refresh recovery without writes, history paging, stale picker reset after intervening correction, fresh rematch, no overflow',captures:6});
+    await page.close();
+  }
+  assert.deepEqual(report.filter(row=>row.error),[]);
+}catch(error){report.push({fatal:error.stack});process.exitCode=1;const page=browser.contexts().flatMap(c=>c.pages()).at(-1);if(page){await page.screenshot({path:'.qa/bank-unlink/failure.png'});await writeFile('.qa/bank-unlink/failure.html',await page.content());}}
+finally{await writeFile('.qa/bank-unlink/report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));await browser.close();}

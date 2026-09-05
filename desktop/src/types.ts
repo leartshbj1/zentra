@@ -1287,7 +1287,8 @@ export type BankMovement = {
   createdAt: string;
   reconciliation: BankReconciliation | null;
   supplierReconciliation: BankSupplierReconciliation | null;
-  expenseReconciliation?: { id: string; expenseId: string; journalEntryId: string; confirmedAt: string; dateDifferenceReason?: string } | null;
+  expenseReconciliation?: { id: string; expenseId: string; journalEntryId: string; confirmedAt: string; dateDifferenceReason?: string; reference?: string; supplier?: string } | null;
+  expenseHistory?: { dateDifferenceReason?: string; id: string; expenseId: string; reference: string; supplier: string; amountCents: number; confirmedAt: string; unlinkedAt: string; reason: string }[];
   expenseSuggestion?: { reason: string; canCreate?: boolean; candidates: BankExpenseCandidate[] };
   suggestion: BankReconciliationSuggestion;
   supplierSuggestion: BankSupplierReconciliationSuggestion;

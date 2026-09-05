@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 45;
+pub const SCHEMA_VERSION: i64 = 46;
+pub const MIGRATION_V46_SQL: &str = include_str!("bank_expense_correction_schema.sql");
 
 pub const MIGRATION_V45_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS bank_expense_creation_requests (

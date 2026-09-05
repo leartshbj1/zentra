@@ -253,6 +253,18 @@ describe('triage et choix de facture', () => {
   });
 });
 
+it('retrouve une dépense par sa référence et garde les corrections consultables après dissociation', () => {
+  const raw = {id:'corrected-bank',status:'BOOK',credit_debit:'DBIT',amount_cents:10810,expense_history:[{id:'old-link',expense_id:'expense',reference:'TICKET-ÉTÉ-81',supplier:'Matériaux Léman',amount_cents:10810,confirmed_at:'2026-08-31T10:00:00Z',unlinked_at:'2026-09-05T10:00:00Z',reason:'Association à corriger'}]};
+  const movement = bankWorkspaceFromRaw({movements:[raw]}).movements[0];
+  expect(filterBankMovements([movement],'unreconciled','ticket ete')).toHaveLength(1);
+  expect(filterBankMovements([movement],'unreconciled','TICKET-ETE')).toHaveLength(1);
+  expect(filterBankMovements([movement],'all','association a corriger')).toHaveLength(1);
+  expect(filterBankMovements([movement],'reconciled')).toHaveLength(0);
+  const matched = bankWorkspaceFromRaw({movements:[{...raw,expense_reconciliation:{id:'new-link',expense_id:'expense',reference:'AUTRE-PIECE-81',supplier:'Atelier Léman',journal_entry_id:'journal',confirmed_at:'2026-09-05T11:00:00Z'}}]}).movements[0];
+  expect(filterBankMovements([matched],'reconciled','autre-piece')).toHaveLength(1);
+  expect(matched.expenseHistory?.[0].reason).toBe('Association à corriger');
+});
+
 describe('actions explicites', () => {
   it('n’importe rien lorsque le dialogue local est annulé', async () => {
     const importer = vi.fn<() => Promise<CamtImportResult>>();

@@ -2,15 +2,16 @@ import { useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, Link2, Receipt, Search } from 'lucide-react';
 import type { BankMovement } from './types';
 import { Button } from './ui';
-import { errorMessage, formatDate, formatMoney, searchText } from './utils';
+import { createId, errorMessage, formatDate, formatMoney, searchText } from './utils';
 
 export function BankExpensePicker({ movement, disabled, onConfirm, onCreate }: {
   movement: BankMovement;
   disabled: boolean;
-  onConfirm: (expenseId: string, dateDifferenceReason?: string) => Promise<void>;
+  onConfirm: (expenseId: string, dateDifferenceReason: string | undefined, requestId: string) => Promise<void>;
   onCreate?: () => void;
 }) {
   const [query, setQuery] = useState('');
+  const [requestId] = useState(createId);
   const [choice, setChoice] = useState('');
   const [limit, setLimit] = useState(25);
   const [error, setError] = useState('');
@@ -26,7 +27,7 @@ export function BankExpensePicker({ movement, disabled, onConfirm, onCreate }: {
     if (disabled || !selected?.confirmable || completed || submitting.current || reasonMissing) return;
     submitting.current = true;
     setError('');
-    try { await onConfirm(selected.expenseId, selected.requiresDateReason ? dateReason.trim() : undefined); setCompleted(true); }
+    try { await onConfirm(selected.expenseId, selected.requiresDateReason ? dateReason.trim() : undefined, requestId); setCompleted(true); }
     catch (reason) { setError(errorMessage(reason, 'Le rapprochement a été refusé. Votre sélection est conservée.')); }
     finally { submitting.current = false; }
   }
