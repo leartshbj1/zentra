@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { creditSettlementDateError } from './supplierCreditSettlement';
+import { expenseRefundTotals } from './expenseRefunds';
 import { purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
 export { purchaseVatOptions } from './purchaseVat';
 import { SupplierEmailIntake } from './SupplierEmailIntake';
@@ -2101,10 +2102,11 @@ function DocumentsSection({
           <div>
             <strong>{formatMoney(expense.totalCents)}</strong>
             <small>TVA {formatMoney(expense.vatCents)}</small>
+            {expenseRefundTotals(expense).totalCents ? <small>Remboursé : {formatMoney(expenseRefundTotals(expense).totalCents)}</small> : null}
           </div>
           <StatusBadge
             status={expense.paymentStatus === 'paid' ? 'paid' : 'draft'}
-            label={expense.paymentStatus === 'paid' ? 'Payé' : 'À payer'}
+            label={expenseRefundTotals(expense).totalCents >= expense.totalCents ? 'Remboursé' : expenseRefundTotals(expense).totalCents > 0 ? 'Remboursé en partie' : expense.paymentStatus === 'paid' ? 'Payé' : 'À payer'}
           />
           <div className="row-actions">
             {expense.paymentStatus === 'pending' ? (

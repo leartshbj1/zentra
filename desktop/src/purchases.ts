@@ -1,3 +1,4 @@
+import { expenseRefundTotals } from './expenseRefunds';
 import type {
   AccountingSettings,
   Expense,
@@ -116,7 +117,7 @@ export function purchaseSummary(
         current.overdueCount += 1;
       }
     } else {
-      current.paidCents += expense.totalCents;
+      current.paidCents += expense.totalCents - expenseRefundTotals(expense).totalCents;
       current.paidCount += 1;
     }
     return current;

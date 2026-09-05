@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=45 => {}
+            28..=46 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1725,6 +1725,11 @@ impl LocalStore {
             migrate_v45(&transaction)?;
         }
         if current < 46 { migrate_v46(&transaction)?; }
+        if current < 47 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('expenses','vat_source_classifications')", [], |row| row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V47_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",47)?; }
+        }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM
@@ -2570,6 +2575,7 @@ impl LocalStore {
         workspace["supplier_invoice_matches"] = json!(supplier_invoice_matches);
         workspace["supplier_credit_notes"] = json!(supplier_credit_notes);
         workspace["supplier_credit_note_items"] = json!(supplier_credit_note_items);
+        workspace["expense_refunds"] = json!(query_all(connection,"SELECT * FROM expense_refunds ORDER BY payment_date DESC,created_at DESC,id",[])?);
         workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
         workspace["supplier_expense_reclassifications"] = json!(supplier_expense_reclassifications);
         workspace["supplier_expense_reclassification_lines"] =

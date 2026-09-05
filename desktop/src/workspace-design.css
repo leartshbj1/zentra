@@ -291,6 +291,24 @@
   .project-cost-review > div { min-width: 0; }
   .project-cost-review p { margin-block: 6px 10px; font-size: 13px; line-height: 1.5; }
   .project-cost-review .button { min-height: 44px; white-space: normal; }
+  .supplier-document-summary span, .supplier-invoice-total span { font-size: 13px; line-height: 1.5; }
+  .supplier-document-summary strong { font-size: 14px; line-height: 1.5; }
+  .supplier-invoice-total strong { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+  .supplier-document-summary.expense-detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .expense-detail-summary > div:first-child, .expense-detail-summary > div:nth-child(4) { grid-column: 1 / -1; }
+  .supplier-invoice-total.expense-detail-total { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 480px) {
+    .supplier-invoice-total.expense-detail-total { grid-template-columns: 1fr; }
+    .expense-detail-total > div { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+    .expense-detail-total strong { margin-top: 0; }
+  }
+  .expense-refund-history { margin-top: 20px; }
+  .expense-refund-history h3 { font-size: 16px; margin-bottom: 12px; }
+  .expense-refund-history article { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 10px; min-width: 0; }
+  .expense-refund-history header { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .expense-refund-history strong { font-size: 14px; overflow-wrap: anywhere; }
+  .expense-refund-history p { font-size: 13px; line-height: 1.5; margin-block: 8px; overflow-wrap: anywhere; }
+  .expense-refund-history .button { min-height: 44px; white-space: normal; }
   .settings-copy, .settings-section-description { font-size: 14px; line-height: 1.6; }
   .settings-categories { display: grid; gap: 12px; min-width: 0; }
   .settings-category { min-width: 0; border: 1px solid var(--line-soft); border-radius: 12px; background: #fff; }

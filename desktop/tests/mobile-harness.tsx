@@ -1,5 +1,6 @@
 import { installExpenseJournalFixture } from './expense-journal-fixture';
 import { installProjectCostFixture } from './project-cost-fixture';
+import { installExpenseRefundFixture } from './expense-refund-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -106,6 +107,7 @@ if (new URLSearchParams(location.search).has('bankCreate')) installBankCreateFix
 if (new URLSearchParams(location.search).has('bankUnlink')) installBankUnlinkFixture(() => data);
 if (new URLSearchParams(location.search).has('expenseJournal')) installExpenseJournalFixture(data);
 if (new URLSearchParams(location.search).has('projectCosts')) installProjectCostFixture(data);
+if (new URLSearchParams(location.search).has('expenseRefund')) installExpenseRefundFixture(data);
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);

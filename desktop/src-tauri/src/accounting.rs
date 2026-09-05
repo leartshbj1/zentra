@@ -845,7 +845,7 @@ impl LocalStore {
                    JOIN journal_entries parent ON parent.id=ancestry.reversal_of
                  )
                  SELECT source_type,source_id,id,depth FROM ancestry
-                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note')
+                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note')
                  ORDER BY depth DESC LIMIT 1",
                 params![id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
@@ -854,6 +854,9 @@ impl LocalStore {
         if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
             protected_business_source
         {
+            if source_type == "expense_refund" {
+                return Err(AppError::Validation("Corrigez le remboursement depuis la dépense afin de rétablir ensemble son coût, sa TVA et son paiement.".into()));
+            }
             if source_type == "vat_input_reclassification" {
                 return Err(AppError::Validation("Une correction de TVA d'achat ne peut pas être extournée isolément. Modifiez la classification dans le centre TVA afin de conserver le décompte et le bilan cohérents.".into()));
             }
@@ -963,6 +966,10 @@ impl LocalStore {
             params_from_iter(values),
         )?;
         for entry in &mut entries {
+            if entry["source_type"] == "expense_refund" {
+                entry["reversal_action"] = json!("blocked_refund");
+                continue;
+            }
             if entry["source_type"] == "expense" {
                 entry["reversal_action"] = json!("blocked_expense");
                 continue;

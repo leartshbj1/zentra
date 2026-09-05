@@ -890,6 +890,7 @@ export type PurchaseCostEvidence = {
 };
 
 export type Expense = PurchaseCostEvidence & {
+  refunds?: ExpenseRefund[];
   id: Identifier;
   projectId: Identifier | null;
   supplierId?: Identifier | null;
@@ -907,6 +908,38 @@ export type Expense = PurchaseCostEvidence & {
   note: string;
   receiptPath?: string;
   archivedAt?: string | null;
+};
+
+export type ExpenseRefund = {
+  id: Identifier;
+  expenseId: Identifier;
+  eventType: 'refund' | 'reverse';
+  reversesId: Identifier | null;
+  creditDate: string;
+  paymentDate: string;
+  reference: string;
+  reason: string;
+  netCents: number;
+  vatCents: number;
+  totalCents: number;
+  costCents: number;
+  costReviewRequired?: boolean;
+  treatment: string;
+  creditJournalId: Identifier;
+  paymentJournalId: Identifier;
+  createdAt: string;
+};
+
+export type ExpenseRefundInput = {
+  requestId: string;
+  expenseId: string;
+  creditDate: string;
+  paymentDate: string;
+  reference: string;
+  reason: string;
+  netCents: number;
+  vatCents: number;
+  reversesId: string | null;
 };
 
 export type SupplierInvoiceItem = PurchaseCostEvidence & {
@@ -1833,7 +1866,7 @@ export type JournalEntry = {
   status: 'posted';
   reversalOf: Identifier | null;
   hasReversal: boolean;
-  reversalAction?: 'restore_expense' | 'blocked_expense';
+  reversalAction?: 'restore_expense' | 'blocked_expense' | 'blocked_refund';
 };
 
 export type JournalLine = {
@@ -2040,6 +2073,7 @@ export type VatSourceType =
   | 'invoice_item'
   | 'supplier_credit_note_item'
   | 'supplier_invoice_item'
+  | 'expense_refund'
   | 'expense';
 export type VatSourceTreatment =
   | 'taxable'

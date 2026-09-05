@@ -1,4 +1,4 @@
-import type { DocumentLine, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, Quote, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
+import type { DocumentLine, ExpenseRefund, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, Quote, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
 
 export function errorMessage(reason: unknown, fallback: string): string {
   if (typeof reason === 'string' && reason.trim()) return reason.trim();
@@ -150,7 +150,7 @@ export function projectFinancials(
   invoices: Invoice[],
   payments: Payment[],
   entries: TimeEntry[],
-  expenses: ({ projectId?: string | null; netCents: number } & PurchaseCostEvidence)[],
+  expenses: ({ projectId?: string | null; netCents: number; refunds?: ExpenseRefund[] } & PurchaseCostEvidence)[],
   supplierInvoices: SupplierInvoice[] = [],
   supplierCreditNotes: SupplierCreditNote[] = [],
 ) {
@@ -185,10 +185,14 @@ export function projectFinancials(
   const cost = (line: { netCents: number } & PurchaseCostEvidence) => line.costCents ?? line.netCents;
   const purchaseGrossCost = purchases.reduce((total, line) => total + cost(line), 0);
   const purchaseCreditCost = credits.reduce((total, line) => total + cost(line), 0);
-  const expenseNet = purchaseGrossCost - purchaseCreditCost;
+  const refunds = expenses.filter((expense) => expense.projectId === project.id).flatMap((expense) => expense.refunds ?? []);
+  const refundSign = (refund: ExpenseRefund) => refund.eventType === 'reverse' ? -1 : 1;
+  const expenseRefundCost = refunds.reduce((total, refund) => total + refundSign(refund) * refund.costCents, 0);
+  const expenseNet = purchaseGrossCost - purchaseCreditCost - expenseRefundCost;
   const nonDeductibleVatCost = purchases.reduce((total, line) => total + cost(line) - line.netCents, 0)
-    - credits.reduce((total, line) => total + cost(line) - line.netCents, 0);
-  const purchaseCostReviewCount = [...purchases, ...credits].filter((line) => line.costReviewRequired).length;
+    - credits.reduce((total, line) => total + cost(line) - line.netCents, 0)
+    - refunds.reduce((total, refund) => total + refundSign(refund) * (refund.costCents - refund.netCents), 0);
+  const purchaseCostReviewCount = [...purchases, ...credits, ...refunds].filter((line) => line.costReviewRequired).length;
   const marginUnavailableReason = requiresCurrencyConversion ? 'Conversion CHF requise'
     : purchaseCostReviewCount ? 'Coût des achats à contrôler' : null;
   return {
@@ -201,6 +205,7 @@ export function projectFinancials(
     expenseNet,
     purchaseGrossCost,
     purchaseCreditCost,
+    expenseRefundCost,
     nonDeductibleVatCost,
     purchaseCostReviewCount,
     marginUnavailableReason,

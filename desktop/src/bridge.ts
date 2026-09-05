@@ -33,6 +33,8 @@ import type {
   EmployeePayrollTemplate,
   EntityKind,
   Expense,
+  ExpenseRefund,
+  ExpenseRefundInput,
   FiduciaryClosingReview,
   FiduciaryPackageExport,
   FiduciaryPeriodFinalization,
@@ -254,6 +256,7 @@ type RawWorkspace = {
   time_billing_batches?: RawRecord[];
   time_billing_entries?: RawRecord[];
   expenses?: RawRecord[];
+  expense_refunds?: RawRecord[];
   supplier_orders?: RawRecord[];
   supplier_order_lines?: RawRecord[];
   supplier_order_cancellation_lines?: RawRecord[];
@@ -2628,8 +2631,16 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     note: stringValue(row.note_snapshot),
     createdAt: stringValue(row.created_at),
   }));
+  const expenseRefunds: ExpenseRefund[] = (raw.expense_refunds ?? []).map((row) => ({
+    id: stringValue(row.id), expenseId: stringValue(row.expense_id), eventType: row.event_type === 'reverse' ? 'reverse' : 'refund',
+    reversesId: nullableString(row.reverses_id), creditDate: stringValue(row.credit_date), paymentDate: stringValue(row.payment_date),
+    reference: stringValue(row.reference), reason: stringValue(row.reason), netCents: numberValue(row.net_cents), vatCents: numberValue(row.vat_cents), totalCents: numberValue(row.total_cents),
+    costCents: numberValue(row.cost_cents), costReviewRequired: !['refund','reverse'].includes(String(row.event_type)) || !Number.isSafeInteger(Number(row.cost_cents)),
+    treatment: stringValue(row.treatment), creditJournalId: stringValue(row.credit_journal_id), paymentJournalId: stringValue(row.payment_journal_id), createdAt: stringValue(row.created_at),
+  }));
   const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({
     ...purchaseCostFromRaw(row, 'vat_cents'),
+    refunds: expenseRefunds.filter((refund) => refund.expenseId === row.id),
     id: stringValue(row.id),
     projectId: stringValue(row.project_id) || null,
     supplierId: stringValue(row.supplier_id) || null,
@@ -3980,7 +3991,7 @@ function journalEntryFromRaw(row: RawRecord): JournalEntry {
     status: 'posted',
     reversalOf: nullableString(row.reversal_of),
     hasReversal: boolValue(row.has_reversal),
-    ...(['restore_expense','blocked_expense'].includes(String(row.reversal_action)) ? { reversalAction: row.reversal_action as JournalEntry['reversalAction'] } : {}),
+    ...(['restore_expense','blocked_expense','blocked_refund'].includes(String(row.reversal_action)) ? { reversalAction: row.reversal_action as JournalEntry['reversalAction'] } : {}),
   };
 }
 
@@ -5852,6 +5863,10 @@ export const desktopApi = {
   },
   async unreconcileBankExpense(requestId: string, reconciliationId: string, reason: string): Promise<void> {
     await invoke('unreconcile_bank_expense', { input: { request_id: requestId, reconciliation_id: reconciliationId, reason } });
+  },
+  async recordExpenseRefund(input: ExpenseRefundInput): Promise<Workspace> {
+    await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createBankExpense(draft: import('./BankExpenseForm').BankExpenseDraft): Promise<void> {
     await invoke('create_bank_expense', { input: { request_id: draft.requestId, movement_id: draft.movementId, date: draft.date, supplier: draft.supplier, reference: draft.reference, category: draft.category, project_id: draft.projectId, vat_cents: draft.vatCents, vat_treatment: draft.vatTreatment, note: draft.note, original_name: draft.receipt.name, content_base64: await fileBase64(draft.receipt) } });

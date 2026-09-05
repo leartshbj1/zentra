@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, ShieldCheck, Trash2, Upload, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { ExpenseRefundForm, ExpenseRefundHistory } from './ExpenseRefundForm';
+import { expenseRefundTotals } from './expenseRefunds';
 import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
 import {
   filterPurchaseExpenses,
@@ -17,7 +19,7 @@ import {
   type SupplierVisibility,
 } from './purchases';
 import { projectTerminology } from './terminology';
-import type { Attachment, Expense, Supplier, SupplierInvoice, Workspace } from './types';
+import type { Attachment, Expense, ExpenseRefund, Supplier, SupplierInvoice, Workspace } from './types';
 import { centsFromInput, createId, errorMessage, formatDate, formatMoney, numberFromInput, todayIso } from './utils';
 import { Button, EmptyState, Field, FormActions, Modal, SectionHeading, StatusBadge, submitForm } from './ui';
 
@@ -107,7 +109,7 @@ export function PurchasesScreen({
     <div className="summary-strip purchase-summary" aria-label="Résumé des achats">
       <div><span>À payer · {summary.pendingCount}</span><strong>{formatMoney(summary.pendingCents)}</strong></div>
       <div><span>Échu · {summary.overdueCount}</span><strong className={summary.overdueCount ? 'is-negative' : ''}>{formatMoney(summary.overdueCents)}</strong></div>
-      <div><span>Déjà payé · {summary.paidCount}</span><strong>{formatMoney(summary.paidCents)}</strong></div>
+      <div><span>Payé après remboursements · {summary.paidCount}</span><strong>{formatMoney(summary.paidCents)}</strong></div>
     </div>
     {!supplierAccountingReady && (summary.pendingCount > 0 || summary.draftCount > 0) ? <div className="report-callout is-warning"><WalletCards size={20} /><div><strong>Terminez la liaison des dettes fournisseurs</strong><p>La validation et le paiement restent bloqués tant que la comptabilité et le compte « Dettes fournisseurs » ne sont pas prêts. Les brouillons restent modifiables.</p></div><Button variant="secondary" onClick={onOpenAccounting}>Ouvrir Plan & liaisons</Button></div> : null}
 
@@ -149,7 +151,8 @@ export function PurchasesScreen({
           {legacyExpenses.map((expense) => {
             const project = workspace.projects.find((candidate) => candidate.id === expense.projectId);
             const overdue = isExpenseOverdue(expense, today);
-            return <tr key={`legacy-${expense.id}`}><td>{formatDate(expense.date)}<small>{expense.reference || 'Sans référence'}</small></td><td><strong>{expense.supplier || 'Fournisseur non renseigné'}</strong><small>Dépense · montant saisi directement</small></td><td>{project?.name || `Aucun ${terminology.singular}`}</td><td><strong className={overdue ? 'is-negative' : ''}>{expense.paymentStatus === 'paid' && !expense.paidAt ? 'Date inconnue' : formatDate(expense.paymentStatus === 'pending' ? expense.dueDate : expense.paidAt)}</strong></td><td><strong>{formatMoney(expense.totalCents)}</strong><small>TVA {formatMoney(expense.vatCents)}</small></td><td><StatusBadge status={overdue ? 'expired' : expense.paymentStatus === 'paid' ? 'paid' : 'draft'} label={overdue ? 'Échu' : expense.paymentStatus === 'paid' ? 'Payé' : 'À payer'} /></td><td><div className="row-actions">{expense.paymentStatus === 'pending' ? <><Button variant="secondary" size="small" disabled={busy || !accountingEnabled} onClick={() => onMarkLegacyExpensePaid(expense)} title={accountingEnabled ? 'Marquer payé aujourd’hui et comptabiliser' : 'Activez d’abord la comptabilité'}><Banknote size={14} /> Marquer payé</Button><Button variant="ghost" size="icon" onClick={() => onEditLegacyExpense(expense)} title="Modifier" aria-label={`Modifier l’achat ${expense.supplier}`}><Pencil size={15} /></Button><Button variant="ghost" size="icon" onClick={() => onArchiveLegacyExpense(expense)} title="Supprimer" aria-label={`Supprimer l’achat ${expense.supplier}`}><Archive size={15} /></Button></> : <Button variant="ghost" size="small" onClick={() => onOpenLegacyExpense(expense)}><Eye size={14} /> Consulter</Button>}</div></td></tr>;
+            const refunded = expenseRefundTotals(expense).totalCents;
+            return <tr key={`legacy-${expense.id}`}><td>{formatDate(expense.date)}<small>{expense.reference || 'Sans référence'}</small></td><td><strong>{expense.supplier || 'Fournisseur non renseigné'}</strong><small>Dépense · montant saisi directement</small></td><td>{project?.name || `Aucun ${terminology.singular}`}</td><td><strong className={overdue ? 'is-negative' : ''}>{expense.paymentStatus === 'paid' && !expense.paidAt ? 'Date inconnue' : formatDate(expense.paymentStatus === 'pending' ? expense.dueDate : expense.paidAt)}</strong></td><td><strong>{formatMoney(expense.totalCents)}</strong><small>TVA {formatMoney(expense.vatCents)}</small>{refunded ? <small>Remboursé : {formatMoney(refunded)}</small> : null}</td><td><StatusBadge status={overdue ? 'expired' : expense.paymentStatus === 'paid' ? 'paid' : 'draft'} label={overdue ? 'Échu' : refunded >= expense.totalCents ? 'Remboursé' : refunded > 0 ? 'Remboursé en partie' : expense.paymentStatus === 'paid' ? 'Payé' : 'À payer'} /></td><td><div className="row-actions">{expense.paymentStatus === 'pending' ? <><Button variant="secondary" size="small" disabled={busy || !accountingEnabled} onClick={() => onMarkLegacyExpensePaid(expense)} title={accountingEnabled ? 'Marquer payé aujourd’hui et comptabiliser' : 'Activez d’abord la comptabilité'}><Banknote size={14} /> Marquer payé</Button><Button variant="ghost" size="icon" onClick={() => onEditLegacyExpense(expense)} title="Modifier" aria-label={`Modifier l’achat ${expense.supplier}`}><Pencil size={15} /></Button><Button variant="ghost" size="icon" onClick={() => onArchiveLegacyExpense(expense)} title="Supprimer" aria-label={`Supprimer l’achat ${expense.supplier}`}><Archive size={15} /></Button></> : <Button variant="ghost" size="small" onClick={() => onOpenLegacyExpense(expense)}><Eye size={14} /> Consulter</Button>}</div></td></tr>;
           })}
         </tbody></table></div> : <EmptyState icon={tab === 'draft' ? <ReceiptText /> : tab === 'paid' ? <CheckCircle2 /> : <Clock3 />} title={query.trim() ? 'Aucun résultat' : tab === 'draft' ? 'Aucun brouillon' : tab === 'partial' ? 'Aucun paiement partiel' : tab === 'pending' ? 'Aucune facture à payer' : 'Aucune facture payée'} text={query.trim() ? 'Aucun achat ne correspond à cette recherche.' : invoiceBlockReason || (tab === 'draft' ? 'Créez une facture fournisseur, vérifiez-la, puis validez-la pour figer son écriture.' : 'Les documents réels apparaîtront ici au fil de leur traitement.')} actionLabel={invoiceBlockReason ? undefined : 'Créer une facture fournisseur'} onAction={invoiceBlockReason ? undefined : onCreateSupplierInvoice} />}
     </section>
@@ -436,13 +439,16 @@ export function SupplierPaymentForm({ invoice, busy, close, act }: { invoice: Su
   </Modal>;
 }
 
-export function LegacyExpenseDetail({ expense, workspace, close }: { expense: Expense; workspace: Workspace; close: () => void }) {
+export function LegacyExpenseDetail({ expense, workspace, close, busy, act }: { expense: Expense; workspace: Workspace; close: () => void; busy: boolean; act: ActionRunner }) {
   const [attachmentError, setAttachmentError] = useState('');
+  const [refundForm, setRefundForm] = useState<ExpenseRefund | 'new' | null>(null);
+  const refunded = expenseRefundTotals(expense);
   const attachments = (workspace.attachments ?? []).filter((file) => file.entityType === 'expense' && file.entityId === expense.id);
   const terminology = projectTerminology(workspace.settings!.business.nogaSection);
   const project = workspace.projects.find((candidate) => candidate.id === expense.projectId);
+  if (refundForm) return <ExpenseRefundForm expense={expense} reverse={refundForm === 'new' ? undefined : refundForm} busy={busy} close={() => setRefundForm(null)} act={act} />;
   return <Modal title="Dépense" description="Achat comptabilisé, conservé en lecture seule." onClose={close}>
-    <div className="supplier-document-summary">
+    <div className="supplier-document-summary expense-detail-summary">
       <div><span>Fournisseur</span><strong>{expense.supplier || 'Non renseigné'}</strong></div>
       <div><span>Date</span><strong>{formatDate(expense.date)}</strong></div>
       <div><span>Référence</span><strong>{expense.reference || '—'}</strong></div>
@@ -450,11 +456,14 @@ export function LegacyExpenseDetail({ expense, workspace, close }: { expense: Ex
       <div><span>Catégorie</span><strong>{expense.category || 'Non classé'}</strong></div>
       <div><span>Paiement</span><strong>{expense.paidAt ? formatDate(expense.paidAt) : 'Date inconnue'}</strong></div>
     </div>
-    <div className="supplier-invoice-total"><div><span>Net</span><strong>{formatMoney(expense.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(expense.vatCents)}</strong></div><div><span>Total</span><strong>{formatMoney(expense.totalCents)}</strong></div></div>
+    <div className="supplier-invoice-total expense-detail-total"><div><span>Net</span><strong>{formatMoney(expense.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(expense.vatCents)}</strong></div><div><span>Total</span><strong>{formatMoney(expense.totalCents)}</strong></div></div>
     {expense.note ? <div className="info-strip"><ReceiptText size={17} /><span>{expense.note}</span></div> : null}
     {attachments.length ? <section className="supplier-attachments"><header><strong><Paperclip size={16} /> Justificatifs</strong></header><div className="supplier-attachments__list">{attachments.map((file) => <article key={file.id}><div><strong>{file.originalName}</strong><small>{formatAttachmentSize(file.sizeBytes)}</small></div><Button type="button" variant="secondary" size="small" onClick={async () => { setAttachmentError(''); try { await desktopApi.openAttachment(file.id); } catch (error) { setAttachmentError(errorMessage(error, 'Le justificatif ne peut pas être ouvert.')); } }}><FolderOpen size={14} /> Ouvrir</Button></article>)}</div></section> : null}
     {attachmentError ? <p role="alert">{attachmentError}</p> : null}
-    <div className="form-actions"><Button type="button" variant="secondary" onClick={close}>Fermer</Button></div>
+    {refunded.totalCents ? <div className="info-strip"><RotateCcw size={17} /><span>{formatMoney(refunded.totalCents)} remboursés · Coût conservé après remboursement : {formatMoney((expense.costCents ?? expense.netCents) - refunded.costCents)}</span></div> : null}
+    <ExpenseRefundHistory expense={expense} disabled={busy} onReverse={setRefundForm} />
+    {expense.costReviewRequired ? <p className="field__hint">Contrôlez la TVA et le journal dans Comptabilité avant d’enregistrer un remboursement.</p> : null}
+    <div className="form-actions"><Button type="button" variant="secondary" onClick={close}>Fermer</Button>{expense.totalCents > refunded.totalCents ? <Button type="button" disabled={busy || Boolean(expense.costReviewRequired) || !expense.paidAt} onClick={() => setRefundForm('new')}><RotateCcw size={16} /> Enregistrer un remboursement</Button> : null}</div>
   </Modal>;
 }
 

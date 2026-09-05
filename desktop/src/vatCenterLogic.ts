@@ -61,6 +61,7 @@ export const vatSourceTypeLabels: Record<VatSourceType, string> = {
   supplier_invoice_item: 'Facture fournisseur',
   supplier_credit_note_item: 'Avoir fournisseur',
   expense: 'Dépense',
+  expense_refund: 'Remboursement de dépense',
 };
 
 const salesTreatments: VatSourceTreatment[] = [

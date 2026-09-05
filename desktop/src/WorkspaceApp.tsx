@@ -6048,6 +6048,8 @@ function WorkspaceModal({
         expense={state.expense}
         workspace={workspace}
         close={close}
+        busy={busy}
+        act={act}
       />
     );
   if (state.type === 'supplierInvoice')

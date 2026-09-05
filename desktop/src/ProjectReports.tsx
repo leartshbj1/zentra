@@ -25,6 +25,7 @@ export function ReportsScreen({ workspace, onOpenAccounting }: { workspace: Work
         <dl>
           <div><dt>Achats avant avoirs</dt><dd>{formatMoney(stats.purchaseGrossCost)}</dd></div>
           <div><dt>Avoirs fournisseurs déduits</dt><dd>− {formatMoney(stats.purchaseCreditCost)}</dd></div>
+          {stats.expenseRefundCost ? <div><dt>Remboursements de dépenses</dt><dd>− {formatMoney(stats.expenseRefundCost)}</dd></div> : null}
           <div><dt>Dont TVA non déductible</dt><dd>{formatMoney(stats.nonDeductibleVatCost)}</dd></div>
         </dl>
         <p>Un avoir validé réduit le coût une seule fois. Sa compensation avec une facture n’ajoute pas une deuxième réduction.</p>

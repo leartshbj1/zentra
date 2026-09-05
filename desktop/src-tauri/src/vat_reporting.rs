@@ -20,6 +20,8 @@ pub(crate) use received_supplier::validate_chronology as validate_supplier_settl
 
 #[path = "vat_transition.rs"]
 mod transition;
+#[path = "expense_refund_vat.rs"]
+mod expense_refund_vat;
 
 use crate::{
     accounting::{closed_accounting_through, validate_received_vat_accounting_configuration},
@@ -1006,7 +1008,7 @@ fn load_classification(
 fn validate_source_type(source_type: &str) -> AppResult<()> {
     if matches!(
         source_type,
-        "invoice_item" | "supplier_invoice_item" | "supplier_credit_note_item" | "expense"
+        "invoice_item" | "supplier_invoice_item" | "supplier_credit_note_item" | "expense" | "expense_refund"
     ) {
         Ok(())
     } else {
@@ -1027,7 +1029,7 @@ fn validate_source_type_and_treatment(source_type: &str, treatment: &str) -> App
                 | "out_of_scope"
                 | "opted"
         ),
-        "supplier_invoice_item" | "supplier_credit_note_item" | "expense" => matches!(
+        "supplier_invoice_item" | "supplier_credit_note_item" | "expense" | "expense_refund" => matches!(
             treatment,
             "input_materials" | "input_investments" | "non_deductible"
         ),
@@ -1047,6 +1049,7 @@ fn vat_source_exists(
     source_type: &str,
     source_id: &str,
 ) -> AppResult<bool> {
+    if source_type == "expense_refund" { return Err(AppError::Validation("La TVA du remboursement reprend le traitement figé de la dépense. Corrigez une saisie erronée depuis son historique.".into())); }
     let sql = match source_type {
         "invoice_item" => "SELECT EXISTS(SELECT 1 FROM invoice_items WHERE id=?)",
         "supplier_invoice_item" => "SELECT EXISTS(SELECT 1 FROM supplier_invoice_items WHERE id=?)",
@@ -2139,6 +2142,7 @@ fn load_raw_vat_sources(
 ) -> AppResult<Vec<RawVatSource>> {
     transition::append_period_issues(connection, profile, date_to, issues)?;
     crate::expense_journal::append_vat_issues(connection,date_to,issues)?;
+    expense_refund_vat::append_issues(connection,profile,date_from,date_to,issues)?;
     let mut sources = load_sales_sources(
         connection,
         &profile.form_of_reporting,
@@ -2147,6 +2151,7 @@ fn load_raw_vat_sources(
         issues,
     )?;
     if profile.reporting_method == "effective" {
+        sources.extend(expense_refund_vat::load(connection,&profile.form_of_reporting,date_from,date_to)?);
         sources.extend(load_supplier_sources(
             connection,
             &profile.form_of_reporting,
@@ -2521,7 +2526,7 @@ fn apply_classified_source(
                 }
             }
         }
-        "supplier_invoice_item" | "supplier_credit_note_item" | "expense" => match treatment {
+        "supplier_invoice_item" | "supplier_credit_note_item" | "expense" | "expense_refund" => match treatment {
             "input_materials" => add_money(
                 &mut calculation.input_materials,
                 i128::from(source.vat_cents),

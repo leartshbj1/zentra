@@ -50,4 +50,9 @@ describe('détail des achats classés dans le décompte TVA', () => {
     const preview = await desktopApi.previewVatReturn(input);
     expect(preview.classifiedSources?.[0]).toMatchObject({ sourceType: 'supplier_credit_note_item', amountCents: -5000, vatCents: -405, treatment: 'input_materials' });
   });
+  it('conserve le remboursement daté et sa TVA négative sans perdre le type de source', async () => {
+    invokeMock.mockResolvedValueOnce({ classified_sources: [{ source_type: 'expense_refund', source_id: 'refund', parent_id: 'expense', occurrence_date: '2026-07-05', amount_cents: -5000, vat_cents: -405, treatment: 'input_materials', currency: 'CHF' }] });
+    const preview = await desktopApi.previewVatReturn(input);
+    expect(preview.classifiedSources?.[0]).toMatchObject({ sourceType: 'expense_refund', sourceId: 'refund', parentId: 'expense', occurrenceDate: '2026-07-05', amountCents: -5000, vatCents: -405 });
+  });
 });

@@ -22,6 +22,7 @@ mod fiduciary_closing;
 mod financial_pdf;
 mod input_vat_accounting;
 mod expense_journal;
+mod expense_refunds;
 #[cfg(test)]
 mod input_vat_tests;
 mod installation;
@@ -113,6 +114,7 @@ pub fn run() {
             confirm_expense_bank_reconciliation,
             create_bank_expense,
             unreconcile_bank_expense,
+            record_expense_refund,
             create_record,
             update_record,
             delete_record,
