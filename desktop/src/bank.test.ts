@@ -87,6 +87,21 @@ const rawWorkspace = {
   supplier_reconciliations: [{ id: 'supplier-rec-1', movement_id: 'movement-supplier-reconciled', supplier_invoice_id: 'supplier-invoice-2', supplier_payment_id: 'supplier-payment-1', amount_cents: 4_500, confirmed_at: '2026-08-29T09:00:00Z', created_at: '2026-08-29T09:00:00Z' }],
 };
 
+it('preserves expense payment proof and removes that movement from invoice choices and open counts', () => {
+  const workspace = bankWorkspaceFromRaw({ movements: [{
+    id: 'expense-bank', status: 'BOOK', credit_debit: 'DBIT', amount_cents: 10810,
+    expense_reconciliation: { id: 'link', expense_id: 'expense', journal_entry_id: 'journal', confirmed_at: '2026-08-31T10:00:00Z' },
+    expense_suggestion: { reason: 'Déjà rapproché', candidates: [] },
+    suggestion: { entity_type: 'supplier_invoice', kind: 'supplier_match', confirmable: true, requires_confirmation: true, supplier_invoice_id: 'invoice', candidates: [{ supplier_invoice_id: 'invoice', confirmable: true, remaining_cents: 10810 }] },
+  }] });
+  const movement = workspace.movements[0];
+  expect(movement.expenseReconciliation).toEqual({ id: 'link', expenseId: 'expense', journalEntryId: 'journal', confirmedAt: '2026-08-31T10:00:00Z' });
+  expect(filterBankMovements([movement], 'unreconciled')).toEqual([]);
+  expect(filterBankMovements([movement], 'reconciled')).toEqual([movement]);
+  expect(canConfirmSupplierBankReconciliation(movement, 'invoice')).toBe(false);
+  expect(canConfirmBankReconciliation(movement, 'invoice')).toBe(false);
+});
+
 describe('mapping CAMT local', () => {
   it('retrouve les mouvements par nom accentué, référence espacée et montant décimal sans changer le filtre', () => {
     const workspace = bankWorkspaceFromRaw(rawWorkspace);

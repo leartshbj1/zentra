@@ -1,0 +1,78 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const { chromium } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report=[];
+await mkdir('.qa/bank-expense',{recursive:true});
+try {
+  for(const width of [320,390,768,1024,1440]) {
+    const page=await browser.newPage({viewport:{width,height:900}});
+    page.on('pageerror',(error)=>report.push({width,error:error.message}));
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?finance=1&bank=1&bankExpenses=1',{waitUntil:'domcontentloaded'});
+    const tour=page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true}); if(await tour.isVisible()) await tour.click();
+    await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
+    await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Banque');
+    await page.locator('.navigation-palette__results button').filter({has:page.getByText('Banque',{exact:true})}).click();
+    const capture=async(name,target)=>{
+      if(target) await target.evaluate((element)=>window.scrollBy(0,element.getBoundingClientRect().top-95));
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'horizontal overflow');
+      await page.screenshot({path:`.qa/bank-expense/${width}-${name}.png`});
+    };
+    const pending=page.locator('.bank-movement').filter({hasText:'Dépense en attente'});
+    const picker=pending.locator('.bank-expense-picker');
+    await picker.locator('summary').click();
+    assert.equal(await picker.getByRole('radio').count(),25);
+    await picker.getByRole('button',{name:'Afficher les dépenses suivantes'}).click();
+    assert.equal(await picker.getByRole('radio').count(),30);
+    const search=picker.getByRole('searchbox',{name:'Rechercher une dépense'});
+    await search.fill('RECU-29'); assert.ok(await picker.getByRole('radio').isDisabled());
+    await search.fill('electricite'); assert.equal(await picker.getByRole('radio').count(),1);
+    await picker.locator('.bank-candidate-option').click();
+    const confirm=picker.getByRole('button',{name:'Confirmer la dépense'});
+    await page.evaluate(()=>sessionStorage.setItem('qa-bank-reject','1'));
+    await confirm.click(); await picker.getByRole('alert').waitFor();
+    assert.ok(await picker.getByRole('radio').isChecked());
+    assert.equal(await search.inputValue(),'electricite');
+    await capture('refusal',picker);
+    await page.evaluate(()=>{sessionStorage.removeItem('qa-bank-reject');sessionStorage.setItem('qa-bank-fail-after-save','1');});
+    await confirm.click(); await picker.getByRole('status').waitFor();
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-postings')),'1');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-attempts')),'2');
+    assert.ok(await page.getByRole('button',{name:'Confirmer le règlement',exact:true}).first().isDisabled());
+    await capture('saved-refresh-pending',picker);
+    await page.evaluate(()=>{sessionStorage.removeItem('qa-bank-fail-after-save');sessionStorage.removeItem('qa-bank-refresh-fail');});
+    await page.getByRole('button',{name:'Actualiser les données',exact:true}).click();
+    await page.getByText('Données actualisées',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-attempts')),'2');
+    const paid=page.locator('.bank-movement').filter({hasText:'Dépense déjà payée'}).locator('.bank-expense-picker');
+    await paid.locator('summary').click();
+    await paid.getByRole('searchbox',{name:'Rechercher une dépense'}).fill('RECU-1');
+    await paid.locator('.bank-candidate-option').filter({has:page.getByText('RECU-1',{exact:true})}).click();
+    const paidConfirm=paid.getByRole('button',{name:'Confirmer la dépense'});
+    assert.ok(await paidConfirm.isDisabled());
+    const dateReason=paid.getByRole('textbox',{name:'Motif de l’écart de dates',exact:false});
+    await dateReason.fill('ok'); assert.ok(await paidConfirm.isDisabled());
+    await dateReason.fill('Ordre émis le 30 août, inscrit au relevé le 31 août.');
+    await capture('existing-payment',paid);
+    assert.match(await paid.locator('.bank-expense-picker__confirmation').textContent(),/sans nouvelle écriture/);
+    await page.evaluate(()=>sessionStorage.setItem('qa-bank-reject','1'));
+    await paidConfirm.click(); await paid.getByRole('alert').waitFor();
+    assert.equal(await dateReason.inputValue(),'Ordre émis le 30 août, inscrit au relevé le 31 août.');
+    await capture('date-reason-refusal',paid.locator('.bank-expense-picker__date-reason'));
+    await page.evaluate(()=>sessionStorage.removeItem('qa-bank-reject'));
+    await paidConfirm.click();
+    await page.getByRole('tab',{name:/^Rapprochés/}).click();
+    assert.equal(await page.locator('.bank-movement').count(),2);
+    assert.equal(await page.locator('.bank-match-confirmed').count(),2);
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-postings')),'1');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-attempts')),'4');
+    assert.match(await page.locator('.bank-match-confirmed').allTextContents().then(rows=>rows.join(' ')),/Ordre émis le 30 août/);
+    await capture('reconciled',page.locator('.bank-movement').first());
+    report.push({width,result:'PASS pending expense, existing payment without new posting, documented date difference with preserved reason after refusal, committed write with refresh failure, read-only recovery, paging/search, blocked candidate, no overflow',captures:5});
+    await page.close();
+  }
+  assert.deepEqual(report.filter(row=>row.error),[]);
+} catch(error) { report.push({fatal:error.stack}); process.exitCode=1; const page=browser.contexts().flatMap(context=>context.pages()).at(-1); if(page){await page.screenshot({path:'.qa/bank-expense/failure.png'});await writeFile('.qa/bank-expense/failure.html',await page.content());} }
+finally {await writeFile('.qa/bank-expense/report.json',JSON.stringify(report,null,2)); console.log(JSON.stringify(report,null,2));await browser.close();}

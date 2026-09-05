@@ -180,6 +180,20 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
     createdAt: text(row.created_at),
     reconciliation: Object.keys(reconciliation).length ? bankReconciliationFromRaw(reconciliation) : null,
     supplierReconciliation: Object.keys(supplierReconciliation).length ? bankSupplierReconciliationFromRaw(supplierReconciliation) : null,
+    expenseReconciliation: Object.keys(record(row.expense_reconciliation)).length ? {
+      id: text(record(row.expense_reconciliation).id), expenseId: text(record(row.expense_reconciliation).expense_id),
+      journalEntryId: text(record(row.expense_reconciliation).journal_entry_id), confirmedAt: text(record(row.expense_reconciliation).confirmed_at),
+      ...(text(record(row.expense_reconciliation).date_difference_reason) ? { dateDifferenceReason: text(record(row.expense_reconciliation).date_difference_reason) } : {}),
+    } : null,
+    expenseSuggestion: {
+      reason: text(record(row.expense_suggestion).reason),
+      candidates: array(record(row.expense_suggestion).candidates).map((candidate) => ({
+        expenseId: text(candidate.expense_id), supplier: text(candidate.supplier), reference: text(candidate.reference), category: text(candidate.category),
+        date: text(candidate.date), paymentStatus: text(candidate.payment_status) === 'paid' ? 'paid' : 'pending',
+        paidAt: text(candidate.paid_at), requiresDateReason: bool(candidate.requires_date_reason),
+        totalCents: integer(candidate.total_cents), confirmable: bool(candidate.confirmable), reason: text(candidate.reason),
+      })),
+    },
     suggestion: customerRawSuggestion === undefined ? emptyCustomerSuggestion() : suggestionFromRaw(customerRawSuggestion),
     supplierSuggestion: supplierRawSuggestion === undefined ? emptySupplierSuggestion() : supplierSuggestionFromRaw(supplierRawSuggestion),
   };
@@ -309,7 +323,7 @@ export function bankSupplierReconciliationResultFromRaw(value: unknown): BankSup
 }
 
 export function movementHasReconciliation(movement: BankMovement): boolean {
-  return Boolean(movement.reconciliation || movement.supplierReconciliation);
+  return Boolean(movement.reconciliation || movement.supplierReconciliation || movement.expenseReconciliation);
 }
 
 export function filterBankMovements(movements: BankMovement[], filter: BankMovementFilter, query = ''): BankMovement[] {

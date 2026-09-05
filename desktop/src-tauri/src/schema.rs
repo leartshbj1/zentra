@@ -1,4 +1,51 @@
-pub const SCHEMA_VERSION: i64 = 43;
+pub const SCHEMA_VERSION: i64 = 44;
+
+pub const MIGRATION_V44_SQL: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_expenses_bank_amount ON expenses(total_cents,currency,date DESC,created_at DESC,id);
+CREATE TABLE IF NOT EXISTS bank_expense_reconciliations (
+ id TEXT PRIMARY KEY,
+ movement_id TEXT NOT NULL UNIQUE REFERENCES bank_movements(id),
+ expense_id TEXT NOT NULL UNIQUE REFERENCES expenses(id),
+ journal_entry_id TEXT NOT NULL UNIQUE REFERENCES journal_entries(id),
+ amount_cents INTEGER NOT NULL CHECK(amount_cents>0),
+ date_difference_reason TEXT,
+ confirmed_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS bank_expense_reconciliations_no_update BEFORE UPDATE ON bank_expense_reconciliations
+BEGIN SELECT RAISE(ABORT,'bank expense reconciliation is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_expense_reconciliations_no_delete BEFORE DELETE ON bank_expense_reconciliations
+BEGIN SELECT RAISE(ABORT,'bank expense reconciliation is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_movements_expense_frozen BEFORE UPDATE ON bank_movements
+WHEN EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'reconciled bank expense movement is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bank_expense_journal_no_isolated_reversal BEFORE INSERT ON journal_entries
+WHEN EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE journal_entry_id=NEW.reversal_of)
+BEGIN SELECT RAISE(ABORT,'reconciled expense payment cannot be reversed in isolation'); END;
+CREATE TRIGGER IF NOT EXISTS bank_expense_reconciliations_exclusive BEFORE INSERT ON bank_expense_reconciliations
+WHEN EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=NEW.movement_id)
+ OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=NEW.movement_id)
+BEGIN SELECT RAISE(ABORT,'bank movement is already reconciled'); END;
+CREATE TRIGGER IF NOT EXISTS bank_reconciliations_exclusive_expense BEFORE INSERT ON bank_reconciliations
+WHEN EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=NEW.movement_id)
+BEGIN SELECT RAISE(ABORT,'bank movement is already reconciled to an expense'); END;
+CREATE TRIGGER IF NOT EXISTS bank_supplier_reconciliations_exclusive_expense BEFORE INSERT ON bank_supplier_reconciliations
+WHEN EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=NEW.movement_id)
+BEGIN SELECT RAISE(ABORT,'bank movement is already reconciled to an expense'); END;
+CREATE TRIGGER IF NOT EXISTS bank_expense_reconciliation_proof BEFORE INSERT ON bank_expense_reconciliations
+WHEN NOT EXISTS (
+ SELECT 1 FROM bank_movements m JOIN expenses e ON e.id=NEW.expense_id
+ JOIN journal_entries j ON j.id=NEW.journal_entry_id
+ WHERE m.id=NEW.movement_id AND m.status='BOOK' AND m.credit_debit='DBIT' AND m.reversal=0
+ AND m.amount_cents=NEW.amount_cents AND e.total_cents=NEW.amount_cents
+ AND m.currency='CHF' AND m.account_currency='CHF' AND e.currency='CHF'
+ AND e.payment_status='paid' AND (COALESCE(e.paid_at,e.date)=COALESCE(m.booking_date,m.value_date) OR LENGTH(TRIM(NEW.date_difference_reason)) BETWEEN 5 AND 500)
+ AND j.source_type='expense' AND j.source_id=e.id AND j.source_event='create'
+ AND j.entry_date=COALESCE(e.paid_at,e.date)
+ AND NOT EXISTS(SELECT 1 FROM journal_entries r WHERE r.reversal_of=j.id)
+)
+BEGIN SELECT RAISE(ABORT,'bank expense reconciliation requires a matching paid expense and journal'); END;
+PRAGMA user_version=44;
+"#;
 
 pub const MIGRATION_V43_SQL: &str = r#"
 CREATE TRIGGER IF NOT EXISTS supplier_credit_allocations_date_guard

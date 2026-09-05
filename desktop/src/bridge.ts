@@ -5829,6 +5829,9 @@ export const desktopApi = {
       ),
     );
   },
+  async confirmExpenseBankReconciliation(movementId: string, expenseId: string, dateDifferenceReason?: string): Promise<void> {
+    await invoke('confirm_expense_bank_reconciliation', { input: { movement_id: movementId, expense_id: expenseId, date_difference_reason: dateDifferenceReason || null } });
+  },
   chooseRestoreFile: () =>
     chooseFile({
       multiple: false,

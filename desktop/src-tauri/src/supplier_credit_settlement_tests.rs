@@ -206,7 +206,7 @@ fn supplier_credit_v42_migration_preserves_legacy_rows_without_inventing_settlem
         connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
             .unwrap(),
-        43
+        crate::schema::SCHEMA_VERSION
     );
     assert_eq!(
         connection

@@ -861,6 +861,10 @@ impl LocalStore {
                 return Err(AppError::Validation("Une imputation fournisseur ne peut pas être extournée isolément. Reclassez la ligne depuis les achats pour conserver le compte de charge et sa TVA cohérents.".into()));
             }
             if source_type == "expense" {
+                let bank_linked: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE expense_id=?)", params![business_source_id], |row| row.get(0))?;
+                if bank_linked {
+                    return Err(AppError::Validation("Cette dépense est rapprochée avec le relevé bancaire. Son paiement ne peut pas être extourné isolément.".into()));
+                }
                 let correction: i64 = tx.query_row(
                     "SELECT COALESCE(SUM(line.credit_cents-line.debit_cents),0) FROM journal_entries entry JOIN journal_lines line ON line.journal_entry_id=entry.id JOIN accounts account ON account.id=line.account_id WHERE entry.source_type='vat_input_reclassification' AND entry.source_id=? AND account.account_type='asset'",
                     params![format!("expense:{business_source_id}")], |row| row.get(0),

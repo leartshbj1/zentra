@@ -108,6 +108,7 @@ pub fn run() {
             dissociate_bank_account,
             confirm_bank_reconciliation,
             confirm_supplier_bank_reconciliation,
+            confirm_expense_bank_reconciliation,
             create_record,
             update_record,
             delete_record,

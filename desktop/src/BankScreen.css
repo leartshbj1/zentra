@@ -38,6 +38,24 @@
 .bank-refresh-state { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid #e2c78a; border-radius: 12px; background: #fff8e9; position: sticky; top: 90px; z-index: 12; }
 .bank-refresh-state p { font-size: 14px; line-height: 1.5; margin: 5px 0 0; }
 .bank-screen .bank-pagination { margin-top: 14px; max-width: 100%; white-space: normal; }
+.bank-expense-picker { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--line, #dce5df); padding-top: 12px; }
+.bank-expense-picker summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: 14px; font-weight: 650; }
+.bank-expense-picker summary span { margin-left: auto; }
+.bank-expense-picker__chevron { flex-shrink: 0; }
+.bank-expense-picker[open] .bank-expense-picker__chevron { transform: rotate(180deg); }
+.bank-expense-picker p { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.bank-expense-picker .bank-candidate-options { margin: 12px 0; }
+.bank-expense-picker .button { min-height: 44px; max-width: 100%; white-space: normal; }
+.bank-expense-picker input[type=search] { font-size: 16px; min-height: 44px; }
+.bank-expense-picker__confirmation { padding: 12px; border-radius: 10px; background: #eff6f1; }
+.bank-expense-picker__error { color: #9d2727; border-left: 3px solid currentColor; padding: 10px 12px; background: #fff3f1; }
+.bank-expense-picker__date-reason { display: grid; gap: 6px; margin: 12px 0; }
+.bank-expense-picker__date-reason textarea { font-size: 16px; font-weight: 400; width: 100%; }
+.bank-expense-picker__date-reason small { font-size: 13px; font-weight: 400; line-height: 1.5; }
+@media screen and (max-width: 420px) {
+  .bank-screen .bank-expense-picker .bank-candidate-option { grid-template-columns: minmax(0, 1fr); }
+  .bank-screen .bank-expense-picker .bank-candidate-option__amount { display: flex; align-items: baseline; gap: 8px; text-align: left; }
+}
 @media screen and (max-width: 1100px) {
   .bank-screen .bank-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .bank-screen .bank-movement__match { grid-template-columns: minmax(0, 1fr); }

@@ -28,6 +28,9 @@ use crate::{
 
 const MAX_CAMT_BYTES: u64 = 10 * 1024 * 1024;
 
+#[path = "bank_expenses.rs"]
+mod expenses;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CamtProfile {
     message_type: &'static str,
@@ -1156,7 +1159,7 @@ impl LocalStore {
                 for (key, _, _) in &stable_keys {
                     let existing = transaction
                         .query_row(
-                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
+                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations r WHERE r.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
                             params![key],
                             |row| {
                                 Ok(ExistingMovement {
@@ -1387,6 +1390,7 @@ mod tests {
     };
 
     const STATEMENT_IBAN: &str = "CH9300762011623852957";
+    include!("bank_expense_tests.rs");
 
     fn onboarding() -> OnboardingInput {
         OnboardingInput {
@@ -3720,7 +3724,12 @@ mod tests {
             .connect()
             .unwrap()
             .execute_batch(
-                "DROP TRIGGER bank_reconciliations_exclusive_supplier;
+                "DROP TRIGGER bank_movements_expense_frozen;
+                 DROP TRIGGER bank_expense_journal_no_isolated_reversal;
+                 DROP TRIGGER bank_reconciliations_exclusive_expense;
+                 DROP TRIGGER bank_supplier_reconciliations_exclusive_expense;
+                 DROP TABLE bank_expense_reconciliations;
+                 DROP TRIGGER bank_reconciliations_exclusive_supplier;
                  DROP TRIGGER bank_movements_guarded_update;
                  DROP TABLE bank_supplier_reconciliations;
                  ALTER TABLE bank_movements DROP COLUMN counterparty_iban;
@@ -4615,6 +4624,8 @@ impl LocalStore {
             let movement_id = movement_field(movement, "id").unwrap_or_default();
             let reconciliation = reconciliations_by_movement.get(movement_id);
             let supplier_reconciliation = supplier_reconciliations_by_movement.get(movement_id);
+            let expense_reconciliation = expenses::existing(&connection, movement_id)?;
+            let expense_suggestion = expenses::suggestion(&connection, movement)?;
             let suggestion = if movement_field(movement, "credit_debit") == Some("DBIT") {
                 suggestion_for_supplier_movement(
                     &connection,
@@ -4637,6 +4648,11 @@ impl LocalStore {
                 "supplier_reconciliation".into(),
                 supplier_reconciliation.cloned().unwrap_or(Value::Null),
             );
+            let suggestion = if expense_reconciliation.is_some() {
+                json!({"entity_type":"supplier_invoice","kind":"none","confirmable":false,"requires_confirmation":true,"reason":"Ce mouvement est déjà rapproché avec une dépense.","candidates":[]})
+            } else { suggestion };
+            object.insert("expense_reconciliation".into(), expense_reconciliation.unwrap_or(Value::Null));
+            object.insert("expense_suggestion".into(), expense_suggestion);
             object.insert("suggestion".into(), suggestion);
         }
 
@@ -4674,6 +4690,7 @@ impl LocalStore {
             .iter()
             .filter(|movement| {
                 movement["reconciliation"].is_null()
+                    && movement["expense_reconciliation"].is_null()
                     && movement_field(movement, "status") == Some("BOOK")
                     && movement_field(movement, "credit_debit") == Some("CRDT")
                     && !movement
@@ -4690,6 +4707,7 @@ impl LocalStore {
             .iter()
             .filter(|movement| {
                 movement["supplier_reconciliation"].is_null()
+                    && movement["expense_reconciliation"].is_null()
                     && movement["reconciliation"].is_null()
                     && movement_field(movement, "status") == Some("BOOK")
                     && movement_field(movement, "credit_debit") == Some("DBIT")
@@ -4908,6 +4926,7 @@ impl LocalStore {
             params![movement_id],
             |row| row.get(0),
         )?;
+        expenses::reject_linked(&transaction, &movement_id)?;
         if supplier_link_exists {
             return Err(AppError::Validation(
                 "Ce mouvement est déjà rapproché avec une facture fournisseur.".into(),
@@ -5090,6 +5109,7 @@ impl LocalStore {
                 "Ce mouvement est déjà rapproché avec une facture client.".into(),
             ));
         }
+        expenses::reject_linked(&transaction, &movement_id)?;
         if let Some((existing_invoice_id, payment_id)) = transaction
             .query_row(
                 "SELECT supplier_invoice_id,supplier_payment_id FROM bank_supplier_reconciliations WHERE movement_id=?",

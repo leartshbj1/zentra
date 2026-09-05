@@ -208,6 +208,16 @@ pub fn confirm_supplier_bank_reconciliation(
 }
 
 #[tauri::command]
+pub fn confirm_expense_bank_reconciliation(
+    state: State<'_, LocalStore>,
+    input: crate::models::ConfirmExpenseBankReconciliationInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.confirm_expense_bank_reconciliation(input).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn create_record(
     state: State<'_, LocalStore>,
     entity: String,

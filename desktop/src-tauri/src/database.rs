@@ -1103,6 +1103,17 @@ fn migrate_v43(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+fn migrate_v44(transaction: &Transaction<'_>) -> AppResult<()> {
+    let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='bank_movements')", [], |row| row.get(0))?;
+    // Like the earlier domain migrations, retain support for isolated legacy module stores.
+    if !exists {
+        transaction.pragma_update(None, "user_version", 44)?;
+        return Ok(());
+    }
+    transaction.execute_batch(crate::schema::MIGRATION_V44_SQL)?;
+    Ok(())
+}
+
 fn onboarding_issue(step: u8, field: &str, label: &str, message: String) -> OnboardingIssue {
     OnboardingIssue {
         step,
@@ -1609,7 +1620,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=42 => {}
+            28..=43 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1680,6 +1691,9 @@ impl LocalStore {
         }
         if current < 43 {
             migrate_v43(&transaction)?;
+        }
+        if current < 44 {
+            migrate_v44(&transaction)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {

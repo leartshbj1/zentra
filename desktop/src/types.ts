@@ -1287,6 +1287,8 @@ export type BankMovement = {
   createdAt: string;
   reconciliation: BankReconciliation | null;
   supplierReconciliation: BankSupplierReconciliation | null;
+  expenseReconciliation?: { id: string; expenseId: string; journalEntryId: string; confirmedAt: string; dateDifferenceReason?: string } | null;
+  expenseSuggestion?: { reason: string; candidates: BankExpenseCandidate[] };
   suggestion: BankReconciliationSuggestion;
   supplierSuggestion: BankSupplierReconciliationSuggestion;
 };
@@ -1304,6 +1306,20 @@ export type BankImport = {
   importedCount: number;
   ignoredCount: number;
   createdAt: string;
+};
+
+export type BankExpenseCandidate = {
+  expenseId: string;
+  supplier: string;
+  reference: string;
+  category: string;
+  date: string;
+  paymentStatus: 'pending' | 'paid';
+  paidAt: string;
+  requiresDateReason: boolean;
+  totalCents: number;
+  confirmable: boolean;
+  reason: string;
 };
 
 export type BankAccountLink = {
