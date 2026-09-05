@@ -20,6 +20,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
+export { purchaseVatOptions } from './purchaseVat';
 import { SupplierEmailIntake } from './SupplierEmailIntake';
 import { formatCatalogQuantity } from './catalog';
 import {
@@ -446,17 +448,6 @@ function orderDraftTotals(lines: OrderDraftLine[] | CreditDraftLine[]) {
     },
     { netCents: 0, vatCents: 0, totalCents: 0 },
   );
-}
-
-export function purchaseVatOptions(
-  vatRegistered: boolean,
-  configuredRatesBp: number[],
-) {
-  if (!vatRegistered) return [0];
-  const rates = configuredRatesBp.filter(
-    (rate) => Number.isInteger(rate) && rate >= 0 && rate <= 10_000,
-  );
-  return [...new Set([...rates, 0])];
 }
 
 function emptyOrderLine(workspace: Workspace, projectId = ''): OrderDraftLine {
@@ -2519,6 +2510,7 @@ function SupplierOrderForm({
           submit();
         }}
       >
+        {!workspace.settings?.organization.vatRegistered ? <div className="info-strip field--wide"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
         <Field label="Fournisseur" required>
           <select
             value={supplierId}
@@ -4135,6 +4127,7 @@ function SupplierCreditNoteForm({
           save();
         }}
       >
+        {!workspace.settings?.organization.vatRegistered ? <div className="info-strip field--wide"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
         <Field label="Fournisseur" required>
           <select
             value={supplierId}

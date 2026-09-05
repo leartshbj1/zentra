@@ -2491,7 +2491,14 @@ pub(crate) fn post_expense_if_enabled(
         None,
         "Paiement dépense",
     );
+    let already_posted: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='expense' AND source_id=? AND source_event='create')",
+        params![expense_id], |row| row.get(0),
+    )?;
     let journal = post_entry(tx, &date, "Dépense", "expense", expense_id, "create", lines)?;
+    if vat != 0 && !already_posted {
+        crate::input_vat_accounting::classify_non_registered_at_posting(tx, "expense", expense_id, &date)?;
+    }
     crate::input_vat_accounting::sync_source(tx, "expense", expense_id)?;
     Ok(Some(journal))
 }

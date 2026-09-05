@@ -2,14 +2,14 @@
 import { desktopApi } from '../src/bridge';
 import { refreshWorkspaceAfterMutation } from '../src/workspaceMutation';
 import { supplierDraftLineTotals } from '../src/PurchaseOrdersScreen';
-import type { SupplierInvoice, SupplierOrder, SupplierReceipt, Workspace } from '../src/types';
+import type { SupplierCreditNote, SupplierInvoice, SupplierOrder, SupplierReceipt, Workspace } from '../src/types';
 
 export function installPurchaseFulfillmentFixture(initial: Workspace) {
   const now = '2026-09-05T10:00:00Z';
-  initial.settings!.organization.vatRegistered = true;
+  initial.settings!.organization.vatRegistered = !new URLSearchParams(location.search).has('nonRegistered');
   initial.settings!.billing.vatRatesBp = new URLSearchParams(location.search).has('oldVat') ? [0] : [810, 260, 0];
   initial.suppliers = [{ id: 'supplier-purchase-qa', name: 'Fournitures du Léman SA', contactName: '', email: '', phone: '', address: 'Rue du Lac 4, Lausanne', uidNumber: '', iban: '', currency: 'CHF', paymentTermsDays: 30, notes: '', archivedAt: null, createdAt: now, updatedAt: now }];
-  initial.catalogItems = [{ id: 'product-purchase-qa', kind: 'product', sku: 'MAT-001', name: 'Panneaux acoustiques en bois pour la salle de réunion', description: '', unit: 'pièces', salesPriceCents: 15000, purchaseCostCents: 10000, vatBp: 810, trackStock: true, stockQuantityMilli: 5000, reorderLevelMilli: 1000, archivedAt: null, createdAt: now, updatedAt: now }];
+  initial.catalogItems = [{ id: 'product-purchase-qa', kind: 'product', sku: 'MAT-001', name: 'Panneaux acoustiques en bois pour la salle de réunion', description: '', unit: 'pièces', salesPriceCents: 15000, purchaseCostCents: 10000, vatBp: new URLSearchParams(location.search).has('oldVat') ? 770 : 810, trackStock: true, stockQuantityMilli: 5000, reorderLevelMilli: 1000, archivedAt: null, createdAt: now, updatedAt: now }];
   initial.accountingSettings = { enabled: true, arAccountId: 'ar', revenueAccountId: 'revenue', vatPayableAccountId: 'vat-out', vatDeferredPayableAccountId: 'vat-deferred', bankAccountId: 'bank', expenseAccountId: 'expense', vatReceivableAccountId: 'vat-in', wagesExpenseAccountId: 'wages', wagesPayableAccountId: 'wages-payable', socialExpenseAccountId: 'social', socialPayableAccountId: 'social-payable', supplierPayableAccountId: 'ap' };
   const invoice: SupplierInvoice = {
     id: 'invoice-purchase-qa', supplierId: initial.suppliers[0].id, projectId: null, documentDate: '2026-09-05', dueDate: '2026-10-05', supplierName: initial.suppliers[0].name, reference: 'FA-F-2026-0092', currency: 'CHF', documentStatus: 'draft', paymentStatus: 'pending', netCents: 20000, vatCents: 1620, totalCents: 21620, paidCents: 0, creditedCents: 0, balanceCents: 21620, matchStatus: 'unmatched', validatedAt: null, validationJournalEntryId: null, note: 'Première livraison partielle', payments: [], attachments: [], createdAt: now, updatedAt: now,
@@ -51,6 +51,23 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     if (mode === 'refresh_held') sessionStorage.setItem('qa-purchase-hold-next-read', '1');
     sessionStorage.setItem('qa-purchase-persisted', JSON.stringify({ orders: persisted.supplierOrders.length, receipts: persisted.supplierReceipts.length, issued: persisted.supplierReceipts.filter((receipt) => receipt.status === 'issued').length, stock: persisted.catalogItems[0].stockQuantityMilli, matches: persisted.supplierInvoiceMatches, validated: persisted.supplierInvoices.filter((row) => row.documentStatus === 'validated').length }));
     return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
+  };
+  desktopApi.saveSupplierInvoiceDraft = async (input) => {
+    log('invoice-draft', input); const mode = failure('invoice-draft'); const id = input.id || crypto.randomUUID();
+    const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals(line), id: line.id || `${id}-line-${position}`, supplierInvoiceId: id, position, postedExpenseAccountId: null }));
+    const row = { ...structuredClone(invoice), id, supplierId: input.supplierId, documentDate: input.date, dueDate: input.dueDate, reference: input.reference || '', note: input.note || '', projectId: input.projectId || null, lines, netCents: lines.reduce((sum, line) => sum + line.netCents, 0), vatCents: lines.reduce((sum, line) => sum + line.vatCents, 0), totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0) } as SupplierInvoice;
+    row.balanceCents = row.totalCents;
+    persisted.supplierInvoices = [...persisted.supplierInvoices.filter((entry) => entry.id !== id), row];
+    sessionStorage.setItem('qa-purchase-saved-invoice', JSON.stringify(row));
+    return afterWrite(mode);
+  };
+  desktopApi.saveSupplierCreditNoteDraft = async (input) => {
+    log('credit-draft', input); const mode = failure('credit-draft'); const id = input.id || crypto.randomUUID();
+    const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals(line), id: line.id || `${id}-line-${position}`, supplierCreditNoteId: id, position, postedExpenseAccountId: null }));
+    const credit = { id, supplierId: input.supplierId, documentDate: input.documentDate, number: '', reference: input.reference || '', note: input.note || '', status: 'draft', currency: 'CHF', supplierName: initial.suppliers[0].name, items: lines, netCents: lines.reduce((sum, line) => sum + line.netCents, 0), vatCents: lines.reduce((sum, line) => sum + line.vatCents, 0), totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0), allocations: [], allocatedCents: 0, validatedAt: null, validationJournalEntryId: null, createdAt: now, updatedAt: now } as SupplierCreditNote;
+    persisted.supplierCreditNotes = [...persisted.supplierCreditNotes.filter((entry) => entry.id !== id), credit];
+    sessionStorage.setItem('qa-purchase-saved-credit', JSON.stringify(credit));
+    return afterWrite(mode);
   };
   desktopApi.saveSupplierOrderDraft = async (input) => {
     log('order', input); const mode = failure('order'); const id = input.id || crypto.randomUUID();

@@ -422,3 +422,16 @@
   .vat-overview__totals article { padding: 16px; }
   .vat-navigation, .accounting-toolbar { min-width: 0; }
 }
+
+@media screen {
+  .notice--floating.notice--success { z-index: 90; }
+  .supplier-invoice-lines > header small,
+  .supplier-invoice-line__footer,
+  .supplier-invoice-total span,
+  .supplier-attachments > header small,
+  .supplier-attachments__list small,
+  .supplier-attachments__empty { font-size: 12px; line-height: 1.5; }
+  .supplier-attachments > header strong,
+  .supplier-invoice-line__title strong { font-size: 14px; }
+  .supplier-invoice-total strong { font-size: 16px; }
+}

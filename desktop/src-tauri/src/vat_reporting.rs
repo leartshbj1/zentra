@@ -645,6 +645,18 @@ impl LocalStore {
             return Err(AppError::NotFound(format!("{source_type}/{source_id}")));
         }
 
+        if matches!(treatment.as_str(), "input_materials" | "input_investments") {
+            if let Some(date) = vat_source_fiscal_date(&transaction, &source_type, &source_id)? {
+                if !crate::input_vat_accounting::purchase_input_deduction_permitted(
+                    &transaction, &source_type, &source_id, &date,
+                )? {
+                    return Err(AppError::Validation(
+                        "L’assujettissement à la date de cet achat n’est pas établi. Pour corriger un achat comptabilisé sans assujettissement, un profil TVA doit couvrir sa date. La TVA fournisseur reste comprise dans son coût, sans déduction.".into(),
+                    ));
+                }
+            }
+        }
+
         let existing = load_classification(&transaction, &source_type, &source_id)?;
         if let Some(existing) = existing {
             if existing.treatment == treatment && existing.note == note {

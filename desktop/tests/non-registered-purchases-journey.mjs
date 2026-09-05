@@ -1,0 +1,90 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = [];
+await mkdir('.qa/non-registered-purchases', { recursive: true });
+try {
+  for (const width of [320,390,768,1024,1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    page.setDefaultTimeout(10000);
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?purchasing=1&nonRegistered=1');
+    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
+    if (await tour.isVisible()) await tour.click();
+    await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Achats');
+    await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();
+    const section = async (id) => {
+      if (width <= 860) await page.getByRole('combobox', { name: 'Section des achats', exact: true }).selectOption(id);
+      else await page.locator(`#purchase-tab-${id}`).click();
+    };
+    const capture = async (name) => {
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}-${name}: page overflow`);
+      const dialog = page.getByRole('dialog');
+      assert.ok(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth + 1 && node.querySelector('.modal__body').scrollWidth <= node.querySelector('.modal__body').clientWidth + 1), `${width}-${name}: form overflow`);
+      const footer = await dialog.locator('.form-actions').evaluate((node) => ({ top: node.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom, viewport: innerHeight }));
+      assert.ok(footer.top >= 0 && footer.bottom <= footer.viewport + 1, `${width}-${name}: action footer outside viewport ${JSON.stringify(footer)}`);
+      await page.screenshot({ path: `.qa/non-registered-purchases/${width}-${name}.png` });
+    };
+    await page.getByRole('button', { name: 'Nouvelle commande', exact: true }).click();
+    let dialog = page.getByRole('dialog');
+    await dialog.getByText(/Recopiez le prix hors taxe/).waitFor();
+    await capture('order-guidance');
+    await dialog.getByRole('combobox', { name: 'Article du catalogue', exact: true }).selectOption('product-purchase-qa');
+    assert.equal(await dialog.getByRole('combobox', { name: 'TVA %', exact: true }).inputValue(), '8.1');
+    await dialog.locator('.purchase-line-editor__summary').scrollIntoViewIfNeeded();
+    assert.match(await dialog.locator('.purchase-line-editor__summary').innerText(), /108.10/);
+    await capture('order-total');
+    await dialog.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    const order = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-order-attempts'))[0]);
+    assert.equal(order.lines[0].vatBp, 810);
+    assert.equal(order.lines[0].unitPriceCents, 10000);
+
+    await section('documents');
+    await page.getByRole('button', { name: 'Nouvelle facture', exact: true }).click();
+    dialog = page.getByRole('dialog');
+    await dialog.getByText(/Recopiez le prix hors taxe/).waitFor();
+    await dialog.getByRole('combobox', { name: /^Fournisseur/ }).selectOption('supplier-purchase-qa');
+    await dialog.getByRole('textbox', { name: /^Description/ }).fill('Prestation fournisseur au taux spécial');
+    await dialog.getByRole('spinbutton', { name: /^Prix unitaire net/ }).fill('100');
+    await dialog.getByRole('combobox', { name: /^TVA/ }).selectOption('380');
+    await dialog.locator('input[name="reference"]').fill('FAC-HOTEL-2026-01');
+    assert.equal(await dialog.getByRole('combobox', { name: 'Traitement TVA de ces achats', exact: false }).count(), 0);
+    await dialog.locator('.supplier-invoice-total').scrollIntoViewIfNeeded();
+    assert.match(await dialog.locator('.supplier-invoice-total').innerText(), /103.80/);
+    await capture('invoice-total');
+    await dialog.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Mettre à jour le brouillon', exact: true }).waitFor();
+    const invoice = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-saved-invoice')));
+    assert.equal(invoice.netCents, 10000); assert.equal(invoice.vatCents, 380); assert.equal(invoice.totalCents, 10380);
+    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'detached' });
+
+    await section('documents');
+    await page.getByRole('button', { name: 'Nouvel avoir', exact: true }).click();
+    dialog = page.getByRole('dialog');
+    await dialog.getByText(/Recopiez le prix hors taxe/).waitFor();
+    await dialog.getByRole('combobox', { name: /^Fournisseur/ }).selectOption('supplier-purchase-qa');
+    await dialog.getByRole('textbox', { name: /^Référence/ }).fill('AV-2026-01');
+    await dialog.getByRole('textbox', { name: /^Description/ }).fill('Retour de marchandises');
+    await dialog.getByRole('spinbutton', { name: 'Prix HT', exact: true }).fill('50');
+    await dialog.getByRole('combobox', { name: 'TVA %', exact: true }).selectOption('2.6');
+    await dialog.locator('.purchase-line-editor__summary').scrollIntoViewIfNeeded();
+    assert.match(await dialog.locator('.purchase-line-editor__summary').innerText(), /51.30/);
+    await capture('credit-total');
+    await dialog.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    const credit = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-saved-credit')));
+    assert.equal(credit.netCents, 5000); assert.equal(credit.vatCents, 130); assert.equal(credit.totalCents, 5130);
+    assert.deepEqual(errors, []);
+    report.push({ width, result: 'PASS non-registered order at 8.1%, invoice at 3.8%, credit at 2.6%, original HT/TVA/TTC preserved, explanation visible, no overflow' });
+    console.log(JSON.stringify(report.at(-1)));
+    await page.close();
+  }
+  await writeFile('.qa/non-registered-purchases/report.json', JSON.stringify(report, null, 2));
+} finally { await browser.close(); }

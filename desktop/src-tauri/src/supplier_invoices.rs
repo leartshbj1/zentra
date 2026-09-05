@@ -215,10 +215,10 @@ impl LocalStore {
         }
         validate_optional_project(tx, project_id.as_deref())?;
 
-        let (vat_registered, default_vat_bp, extra_settings): (bool, i64, String) = tx.query_row(
-            "SELECT vat_registered,default_vat_bp,extra_settings_json FROM settings WHERE id=1",
+        let (default_vat_bp, extra_settings): (i64, String) = tx.query_row(
+            "SELECT default_vat_bp,extra_settings_json FROM settings WHERE id=1",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         let allowed_vat_rates = configured_vat_rates(default_vat_bp, &extra_settings);
         let mut lines = Vec::with_capacity(input.items.len());
@@ -229,7 +229,6 @@ impl LocalStore {
                 tx,
                 line,
                 project_id.as_deref(),
-                vat_registered,
                 &allowed_vat_rates,
             )?;
             net_cents = net_cents.checked_add(prepared.net_cents).ok_or_else(|| {
@@ -844,6 +843,13 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         "UPDATE supplier_invoices SET status='validated',reference_normalized=?,validated_at=?,validation_journal_entry_id=?,snapshot_json=?,updated_at=? WHERE id=? AND status='draft'",
         params![normalized,now,journal_id,serde_json::to_string(&snapshot)?,now,id],
     )?;
+    for item in &items {
+        if item["line_vat_cents"].as_i64().unwrap_or(0) > 0 {
+            crate::input_vat_accounting::classify_non_registered_at_posting(
+                tx, "supplier_invoice_item", item["id"].as_str().unwrap_or_default(), &document_date,
+            )?;
+        }
+    }
     crate::input_vat_accounting::sync_supplier_invoice(tx, id)?;
     let order_ids = {
         let mut statement = tx.prepare(
@@ -941,7 +947,6 @@ fn prepare_line(
     tx: &Transaction<'_>,
     input: SupplierInvoiceLineInput,
     invoice_project_id: Option<&str>,
-    vat_registered: bool,
     allowed_vat_rates: &HashSet<i64>,
 ) -> AppResult<PreparedLine> {
     let description = required(&input.description, "description de ligne", 1_000)?;
@@ -961,12 +966,7 @@ fn prepare_line(
             "La remise et le taux TVA doivent être compris entre 0 et 100 %.".into(),
         ));
     }
-    if !vat_registered && input.vat_bp != 0 {
-        return Err(AppError::Validation(
-            "L’entreprise n’est pas déclarée assujettie à la TVA; utilisez un taux nul.".into(),
-        ));
-    }
-    if vat_registered && input.vat_bp != 0 && !allowed_vat_rates.contains(&input.vat_bp) {
+    if !allowed_vat_rates.contains(&input.vat_bp) {
         return Err(AppError::Validation(format!(
             "Le taux TVA {:.2} % n’est pas configuré dans les paramètres de l’entreprise.",
             input.vat_bp as f64 / 100.0
@@ -1130,8 +1130,9 @@ fn validate_optional_project(tx: &Transaction<'_>, id: Option<&str>) -> AppResul
     Ok(())
 }
 
-fn configured_vat_rates(default_rate: i64, extra_settings: &str) -> HashSet<i64> {
-    let mut rates = HashSet::from([0, default_rate]);
+pub(crate) fn configured_vat_rates(default_rate: i64, extra_settings: &str) -> HashSet<i64> {
+    // Supplier VAT is independent of the buyer's own sales rates or registration.
+    let mut rates = HashSet::from([0, 260, 380, 810, default_rate]);
     if let Ok(value) = serde_json::from_str::<Value>(extra_settings) {
         if let Some(configured) = value
             .get("billing")
@@ -1151,10 +1152,10 @@ fn validate_stored_lines_for_current_tax_rules(
     expected_vat_cents: i64,
     expected_total_cents: i64,
 ) -> AppResult<()> {
-    let (vat_registered, default_vat_bp, extra_settings): (bool, i64, String) = tx.query_row(
-        "SELECT vat_registered,default_vat_bp,extra_settings_json FROM settings WHERE id=1",
+    let (default_vat_bp, extra_settings): (i64, String) = tx.query_row(
+        "SELECT default_vat_bp,extra_settings_json FROM settings WHERE id=1",
         [],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let allowed_vat_rates = configured_vat_rates(default_vat_bp, &extra_settings);
     let mut net_cents = 0_i64;
@@ -1179,9 +1180,7 @@ fn validate_stored_lines_for_current_tax_rules(
                     .into(),
             ));
         }
-        if (!vat_registered && vat_bp != 0)
-            || (vat_registered && vat_bp != 0 && !allowed_vat_rates.contains(&vat_bp))
-        {
+        if !allowed_vat_rates.contains(&vat_bp) {
             return Err(AppError::Validation(format!(
                 "Le taux TVA {:.2} % d’une ligne n’est plus compatible avec la configuration actuelle. Corrigez le brouillon ou les taux avant validation.",
                 vat_bp as f64 / 100.0

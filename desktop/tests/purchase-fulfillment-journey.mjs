@@ -164,8 +164,8 @@ try {
     await dialog.getByRole('combobox', { name: 'Article du catalogue', exact: true }).selectOption('product-purchase-qa');
     await dialog.getByRole('spinbutton', { name: /^Quantité/ }).fill('10');
     const rate = dialog.getByRole('combobox', { name: /^TVA %/ });
-    assert.equal(await rate.inputValue(), '8.1');
-    assert.match(await rate.locator('option:checked').innerText(), /8,1 % \(à vérifier\)/);
+    assert.equal(await rate.inputValue(), '7.7');
+    assert.match(await rate.locator('option:checked').innerText(), /7,7 % \(à vérifier\)/);
     await dialog.getByText('Ce taux n’est plus configuré. Choisissez un taux disponible.', { exact: true }).waitFor();
     assert.ok(await dialog.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).isDisabled());
     await rate.scrollIntoViewIfNeeded();
@@ -176,7 +176,7 @@ try {
     const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-order-attempts') || '[]'));
     assert.equal(attempts.length, 1); assert.equal(attempts[0].lines[0].vatBp, 0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    report.push({ width, result: 'PASS unconfigured catalog VAT stays visible at 8.1%, explicit field warning, save disabled until the user selects an allowed rate, submitted rate matches the selection' });
+    report.push({ width, result: 'PASS unconfigured catalog VAT stays visible at 7.7%, explicit field warning, save disabled until the user selects an allowed rate, submitted rate matches the selection' });
     await page.close();
   }
   assert.deepEqual(report.filter((item) => item.error), []);

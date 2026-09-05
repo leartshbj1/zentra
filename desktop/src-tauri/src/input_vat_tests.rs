@@ -14,12 +14,16 @@ use crate::{
 };
 
 fn fixture() -> (tempfile::TempDir, LocalStore, HashMap<&'static str, String>) {
+    fixture_with_registration(true)
+}
+
+fn fixture_with_registration(registered: bool) -> (tempfile::TempDir, LocalStore, HashMap<&'static str, String>) {
     let temp = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
     let mut settings = crate::tests::test_onboarding();
-    settings.vat_registered = true;
-    settings.vat_number = Some("CHE-123.456.789 TVA".into());
-    settings.default_vat_bp = Some(810);
+    settings.vat_registered = registered;
+    settings.vat_number = registered.then(|| "CHE-123.456.789 TVA".into());
+    settings.default_vat_bp = Some(if registered { 810 } else { 0 });
     store.complete_onboarding(settings, "1.27.0").unwrap();
     let accounts = crate::tests::enable_accounting(&store);
     (temp, store, accounts)
@@ -815,4 +819,105 @@ fn input_vat_simple_method_posts_gross_costs_and_closed_history_stays_frozen() {
         })
         .is_err());
     assert_eq!(journal_count(&store), count);
+}
+
+#[test]
+fn non_registered_supplier_invoice_and_credit_keep_gross_cost_and_zero_input_vat() {
+    let (_temp, store, accounts) = fixture_with_registration(false);
+    let (invoice, lines) = draft(&store);
+    assert!(store.set_vat_source_classification(VatSourceClassificationInput {
+        source_type: "supplier_invoice_item".into(), source_id: lines[0].clone(),
+        treatment: "input_materials".into(), note: None,
+    }).unwrap_err().to_string().contains("L’assujettissement à la date de cet achat n’est pas établi"));
+    store.validate_supplier_invoice(&invoice).unwrap();
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), 21620);
+    assert_eq!(balance(&store, &accounts["vat_receivable"], "2026-03-31"), 0);
+    for line in &lines {
+        let treatment: String = store.connect().unwrap().query_row(
+            "SELECT treatment FROM vat_source_classifications WHERE source_type='supplier_invoice_item' AND source_id=?", params![line], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(treatment, "non_deductible");
+    }
+    let count = journal_count(&store);
+    assert!(store.validate_supplier_invoice(&invoice).is_err());
+    assert_eq!(journal_count(&store), count, "rejected second validation must not duplicate corrections");
+    let (credit, line) = credit_draft(&store, "2026-03-15");
+    validate_credit(&store, &credit);
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), 16215);
+    assert_eq!(balance(&store, &accounts["vat_receivable"], "2026-03-31"), 0);
+    classify(&store, "supplier_credit_note_item", &line, "non_deductible");
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), 16215);
+    let rows: i64 = store.connect().unwrap().query_row(
+        "SELECT COUNT(*) FROM supplier_invoice_items WHERE supplier_invoice_id=? AND vat_bp=810 AND line_net_cents=10000 AND line_vat_cents=810 AND line_total_cents=10810", params![invoice], |row| row.get(0),
+    ).unwrap();
+    assert_eq!(rows, 2, "source HT/TVA/TTC amounts must stay intact");
+    assert_eq!(store.get_accounting_continuity().unwrap()["semantic_posting_mismatches"], 0);
+}
+
+#[test]
+fn non_registered_expense_stays_gross_when_registration_is_enabled_later() {
+    let (_temp, store, accounts) = fixture_with_registration(false);
+    let expense = store.create_record("expenses", json!({"date":"2026-02-01","due_date":"2026-02-28","supplier":"Marchandises","currency":"CHF","net_cents":10000,"vat_cents":810,"payment_status":"pending"})).unwrap();
+    let id = expense["id"].as_str().unwrap();
+    assert_eq!(journal_count(&store), 0);
+    classify(&store, "expense", id, "non_deductible");
+    store.update_record("expenses", id, json!({"payment_status":"paid","paid_at":"2026-02-20"})).unwrap();
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), 10810);
+    assert_eq!(balance(&store, &accounts["vat_receivable"], "2026-03-31"), 0);
+    assert_eq!(balance(&store, &accounts["bank"], "2026-03-31"), -10810);
+    let count = journal_count(&store);
+    store.connect().unwrap().execute("UPDATE settings SET vat_registered=1,vat_number='CHE-123.456.789 TVA' WHERE id=1", []).unwrap();
+    let mut new_profile = profile(false);
+    new_profile.effective_from = "2026-03-01".into();
+    store.create_vat_profile(new_profile).unwrap();
+    classify(&store, "expense", id, "non_deductible");
+    let result = store.set_vat_source_classification(VatSourceClassificationInput {
+        source_type: "expense".into(), source_id: id.into(),
+        treatment: "input_materials".into(), note: None,
+    });
+    assert!(result.is_err(), "a later registration must not establish a past input deduction");
+    let mut connection = store.connect().unwrap();
+    let tx = connection.transaction().unwrap();
+    crate::accounting::post_expense_if_enabled(&tx, id).unwrap();
+    tx.commit().unwrap();
+    assert_eq!(journal_count(&store), count);
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), 10810);
+    assert_eq!(balance(&store, &accounts["vat_receivable"], "2026-03-31"), 0);
+}
+
+#[test]
+fn dated_vat_profile_preserves_registered_purchases_after_current_setting_is_disabled() {
+    let (_temp, store, accounts) = fixture();
+    let mut past = profile(false);
+    past.effective_to = Some("2026-03-31".into());
+    store.create_vat_profile(past).unwrap();
+    store.connect().unwrap().execute("UPDATE settings SET vat_registered=0,vat_number=NULL WHERE id=1", []).unwrap();
+    let (invoice, lines) = draft(&store);
+    for line in &lines { classify(&store, "supplier_invoice_item", line, "input_materials"); }
+    store.validate_supplier_invoice(&invoice).unwrap();
+    assert_eq!(balance(&store, &accounts["expense"], "2026-03-31"), 20000);
+    assert_eq!(balance(&store, &accounts["vat_receivable"], "2026-03-31"), 1620);
+}
+
+
+#[test]
+fn supplier_rates_do_not_depend_on_the_buyers_registration_or_sales_rate_choices() {
+    let (_temp, store, _accounts) = fixture_with_registration(false);
+    let supplier = store.create_record("suppliers", json!({"name":"Fournisseur taxé"})).unwrap();
+    let input: crate::models::SaveSupplierOrderDraftInput = serde_json::from_value(json!({
+        "order":{"id":Uuid::new_v4().to_string(),"supplier_id":supplier["id"],"title":"Achats à plusieurs taux","order_date":"2026-02-01","currency":"CHF"},
+        "lines":([260,380,810].iter().enumerate().map(|(index,rate)| json!({"id":Uuid::new_v4().to_string(),"position":index,"description":"Prestation fournisseur","quantity_milli":1000,"unit":"forfait","unit_price_cents":10000,"discount_bp":0,"vat_bp":rate,"category":"Achats","fulfillment_mode":"direct"})).collect::<Vec<_>>())
+    })).unwrap();
+    let order_id = input.order.id.clone().unwrap();
+    store.save_supplier_order_draft(input.clone()).unwrap();
+    let amounts: (i64,i64,i64) = store.connect().unwrap().query_row(
+        "SELECT subtotal_cents,vat_cents,total_cents FROM supplier_orders WHERE id=?", params![order_id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+    ).unwrap();
+    assert_eq!(amounts, (30000,1450,31450));
+    assert_eq!(journal_count(&store), 0, "a purchase order has no accounting impact");
+    let mut old_rate = input;
+    old_rate.lines[0].vat_bp = 770;
+    assert!(store.save_supplier_order_draft(old_rate.clone()).is_err(), "historical rates must be explicitly configured");
+    store.connect().unwrap().execute("UPDATE settings SET extra_settings_json=json_set(extra_settings_json,'$.billing.vatRatesBp',json('[770]')) WHERE id=1", []).unwrap();
+    store.save_supplier_order_draft(old_rate).unwrap();
 }

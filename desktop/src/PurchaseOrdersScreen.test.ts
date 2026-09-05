@@ -66,15 +66,15 @@ describe('supplierInvoiceNeedsAttention', () => {
 
 describe('purchaseVatOptions', () => {
   it('propose le taux nul autorisé même lorsqu’il ne figure pas dans les préférences', () => {
-    expect(purchaseVatOptions(true, [810])).toEqual([810, 0]);
+    expect(purchaseVatOptions(true, [810])).toEqual([810, 0, 260, 380]);
   });
-  it('force 0 % pour une entreprise non assujettie', () => {
-    expect(purchaseVatOptions(false, [810])).toEqual([0]);
+  it('propose les taux du fournisseur sans imposer la récupération de TVA', () => {
+    expect(purchaseVatOptions(false, [810])).toEqual([0, 810, 260, 380]);
   });
 
-  it('conserve uniquement les taux TVA configurés et valides', () => {
+  it('ajoute les taux suisses aux taux historiques configurés valides', () => {
     expect(purchaseVatOptions(true, [260, 810, 0, 810, -1])).toEqual([
-      260, 810, 0,
+      260, 810, 0, 380,
     ]);
   });
 });

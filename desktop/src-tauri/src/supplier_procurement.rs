@@ -354,26 +354,13 @@ fn require_account(tx: &Transaction<'_>, account_id: &str, account_type: &str) -
 }
 
 fn validate_vat_rate(tx: &Transaction<'_>, vat_bp: i64) -> AppResult<()> {
-    let (registered, default_bp, extra): (bool, i64, String) = tx.query_row(
-        "SELECT vat_registered,default_vat_bp,extra_settings_json FROM settings WHERE id=1",
+    let (default_bp, extra): (i64, String) = tx.query_row(
+        "SELECT default_vat_bp,extra_settings_json FROM settings WHERE id=1",
         [],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
-    if !registered && vat_bp != 0 {
-        return Err(AppError::Validation(
-            "L’entreprise n’est pas assujettie à la TVA; utilisez un taux nul.".into(),
-        ));
-    }
-    let mut allowed = HashSet::from([0_i64, default_bp]);
-    if let Ok(value) = serde_json::from_str::<Value>(&extra) {
-        if let Some(rates) = value
-            .pointer("/billing/vatRatesBp")
-            .and_then(Value::as_array)
-        {
-            allowed.extend(rates.iter().filter_map(Value::as_i64));
-        }
-    }
-    if registered && vat_bp != 0 && !allowed.contains(&vat_bp) {
+    let allowed = crate::supplier_invoices::configured_vat_rates(default_bp, &extra);
+    if !allowed.contains(&vat_bp) {
         return Err(AppError::Validation(format!(
             "Le taux TVA {:.2} % n’est pas configuré.",
             vat_bp as f64 / 100.0
@@ -1927,6 +1914,11 @@ impl LocalStore {
             params![number,snapshot,journal_id,now,now,id],
         )?;
         for item in &items {
+            if item["line_vat_cents"].as_i64().unwrap_or(0) > 0 {
+                crate::input_vat_accounting::classify_non_registered_at_posting(
+                    &tx, "supplier_credit_note_item", item["id"].as_str().unwrap_or_default(), date,
+                )?;
+            }
             crate::input_vat_accounting::sync_source(
                 &tx,
                 "supplier_credit_note_item",

@@ -1,17 +1,79 @@
 //! Accounting counterpart of purchase VAT classifications. Original postings stay immutable.
 use std::collections::BTreeMap;
 
-use rusqlite::{params, OptionalExtension, Transaction};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
     accounting::{post_entry, EntryLine},
     audit::append_audit,
+    database::now_iso,
     error::{AppError, AppResult},
 };
 
 const SOURCE: &str = "vat_input_reclassification";
+
+/// Dated profiles preserve a past registration after the current company setting changes.
+pub(crate) fn registered_for_purchase_date(connection: &Connection, date: &str) -> AppResult<bool> {
+    connection.query_row(
+        "SELECT vat_registered OR EXISTS(SELECT 1 FROM vat_profiles WHERE effective_from<=?1 AND COALESCE(effective_to,'9999-12-31')>=?1) FROM settings WHERE id=1",
+        params![date], |row| row.get(0),
+    ).map_err(Into::into)
+}
+
+/// A later change to the current setting cannot override a recorded historical decision.
+/// Correcting that decision requires a registration profile covering the purchase date.
+pub(crate) fn purchase_input_deduction_permitted(
+    connection: &Connection,
+    source_type: &str,
+    source_id: &str,
+    date: &str,
+) -> AppResult<bool> {
+    if !registered_for_purchase_date(connection, date)? {
+        return Ok(false);
+    }
+    connection.query_row(
+        "SELECT NOT EXISTS(SELECT 1 FROM audit_log WHERE action='classify_non_registered_purchase' AND entity_type=?1 AND entity_id=?2) OR EXISTS(SELECT 1 FROM vat_profiles WHERE effective_from<=?3 AND COALESCE(effective_to,'9999-12-31')>=?3)",
+        params![source_type, source_id, date], |row| row.get(0),
+    ).map_err(Into::into)
+}
+
+/// Record the non-recoverable treatment with the original posting, in the same transaction.
+/// Keeping this decision avoids changing old costs merely by enabling VAT registration later.
+pub(crate) fn classify_non_registered_at_posting(
+    tx: &Transaction<'_>,
+    source_type: &str,
+    source_id: &str,
+    date: &str,
+) -> AppResult<()> {
+    if registered_for_purchase_date(tx, date)? {
+        return Ok(());
+    }
+    let previous: Option<String> = tx
+        .query_row(
+            "SELECT treatment FROM vat_source_classifications WHERE source_type=? AND source_id=?",
+            params![source_type, source_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let now = now_iso();
+    let note = "TVA fournisseur comprise dans le coût : entreprise non assujettie lors de la comptabilisation, sans profil TVA couvrant cette date.";
+    if previous.as_deref() != Some("non_deductible") {
+        tx.execute(
+        "INSERT INTO vat_source_classifications(id,source_type,source_id,treatment,note,created_at,updated_at) VALUES(?,?,?,'non_deductible',?,?,?) ON CONFLICT(source_type,source_id) DO UPDATE SET treatment='non_deductible',note=excluded.note,updated_at=excluded.updated_at",
+        params![Uuid::new_v4().to_string(),source_type,source_id,note,now,now],
+    )?;
+    }
+    append_audit(
+        tx,
+        "classify_non_registered_purchase",
+        source_type,
+        source_id,
+        &json!({"treatment":"non_deductible","previous_treatment":previous,"date":date,"note":note}),
+    )?;
+    Ok(())
+}
 
 struct PurchasePosting {
     journal_id: String,

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, ShieldCheck, Trash2, Upload, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
 import {
   filterPurchaseExpenses,
   filterSupplierInvoices,
@@ -169,9 +170,7 @@ export type SupplierInvoiceDraftLine = {
 };
 
 function newSupplierInvoiceLine(workspace: Workspace, projectId = ''): SupplierInvoiceDraftLine {
-  const vatRates = workspace.settings!.organization.vatRegistered
-    ? workspace.settings!.billing.vatRatesBp
-    : [0];
+  const vatRates = purchaseVatOptions(workspace.settings!.organization.vatRegistered, workspace.settings!.billing.vatRatesBp);
   return {
     id: createId(),
     description: '',
@@ -180,7 +179,7 @@ function newSupplierInvoiceLine(workspace: Workspace, projectId = ''): SupplierI
     unitPriceCents: 0,
     discountBp: 0,
     vatBp: vatRates[0] ?? 0,
-    category: workspace.settings!.work.costCategories[0] ?? '',
+    category: purchaseCostCategories(workspace.settings!.work.costCategories)[0],
     expenseAccountId: '',
     projectId,
   };
@@ -246,7 +245,7 @@ function SupplierInvoiceAttachments({ invoice, canEdit, busy, act }: { invoice?:
   }
 
   return <section className="supplier-attachments">
-    <header><div><strong><Paperclip size={16} /> Justificatifs</strong><small>PDF ou image · 25 Mio maximum · conservé uniquement sur cet ordinateur</small></div>{canEdit && invoice ? <Button type="button" variant="secondary" size="small" disabled={busy || invoice.attachments.length >= 20} onClick={() => void addAttachment()}><Upload size={14} /> Ajouter un justificatif</Button> : null}</header>
+    <header><div><strong><Paperclip size={16} /> Justificatifs</strong><small>PDF ou image · 25 Mio maximum · conservé sur cet appareil</small></div>{canEdit && invoice ? <Button type="button" variant="secondary" size="small" disabled={busy || invoice.attachments.length >= 20} onClick={() => void addAttachment()}><Upload size={14} /> Ajouter un justificatif</Button> : null}</header>
     {!invoice ? <div className="supplier-attachments__empty"><Paperclip size={20} /><span>Enregistrez d’abord le brouillon pour joindre le document original.</span></div> : invoice.attachments.length ? <div className="supplier-attachments__list">{invoice.attachments.map((attachment) => <article key={attachment.id}><span className="supplier-attachments__icon"><ReceiptText size={17} /></span><div><strong>{attachment.originalName}</strong><small>{attachmentTypeLabel(attachment)} · {formatAttachmentSize(attachment.sizeBytes)}</small><em title={attachment.sha256}>Empreinte SHA-256 vérifiée localement · {attachment.sha256.slice(0, 12)}…</em></div><div className="row-actions"><Button type="button" variant="ghost" size="small" onClick={() => void openAttachment(attachment)}><FolderOpen size={14} /> Ouvrir</Button>{canEdit ? <Button type="button" variant="ghost" size="icon" disabled={busy} onClick={() => void deleteAttachment(attachment)} title="Supprimer le justificatif" aria-label={`Supprimer ${attachment.originalName}`}><Trash2 size={15} /></Button> : null}</div></article>)}</div> : <div className="supplier-attachments__empty"><Paperclip size={20} /><span>Aucun justificatif joint.{canEdit ? ' Vous pourrez valider sans pièce après une confirmation explicite.' : ''}</span></div>}
     {invoice && invoice.attachments.length >= 20 && canEdit ? <div className="info-strip"><ShieldCheck size={16} /><span>La limite de 20 justificatifs pour cette facture est atteinte.</span></div> : null}
     {localError ? <p className="field-error" role="alert">{localError}</p> : null}
@@ -279,7 +278,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
     }))
     : [newSupplierInvoiceLine(workspace)]);
   const currentInvoice = workspace.supplierInvoices.find((invoice) => invoice.id === draftId);
-  const vatRates = Array.from(new Set(settings.organization.vatRegistered ? [0, ...settings.billing.vatRatesBp] : [0]));
+  const vatRates = purchaseVatOptions(settings.organization.vatRegistered, settings.billing.vatRatesBp);
   const totals = lines.reduce((sum, line) => {
     const amount = supplierInvoiceLineTotals(line);
     return {
@@ -301,6 +300,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
 
   return <Modal title={item ? 'Modifier le brouillon fournisseur' : 'Nouvelle facture fournisseur'} description="Enregistrez d’abord un brouillon. La validation comptable se fait ensuite, après votre contrôle." onClose={close} wide>
     <form onSubmit={submitForm(async (form) => {
+      if (lines.some((line) => !vatRates.includes(line.vatBp))) return;
       await act(
         async () => {
           const saved = await desktopApi.saveSupplierInvoiceDraft({
@@ -341,6 +341,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
         false,
       );
     })}>
+      {!settings.organization.vatRegistered ? <div className="info-strip"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
       <div className="form-grid">
         <Field label="Fournisseur" required wide><select value={supplierId} onChange={(event) => chooseSupplier(event.target.value)} required autoFocus><option value="">Choisir un fournisseur</option>{supplierChoices.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.archivedAt ? ' · archivé (historique)' : ''}</option>)}</select></Field>
         <Field label="Numéro / référence fournisseur" hint="Le brouillon peut être enregistré sans numéro; celui-ci devient obligatoire avant validation."><input name="reference" defaultValue={item?.reference} maxLength={200} /></Field>
@@ -363,8 +364,8 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
               <Field label="Unité" required><input value={line.unit} onChange={(event) => patchLine(line.id, { unit: event.target.value })} maxLength={50} required /></Field>
               <Field label="Prix unitaire net (CHF)" required><input type="number" min="0" step="0.01" value={line.unitPriceCents ? line.unitPriceCents / 100 : ''} onChange={(event) => patchLine(line.id, { unitPriceCents: centsFromInput(event.target.value) })} required /></Field>
               <Field label="Remise (%)"><input type="number" min="0" max="100" step="0.01" value={line.discountBp / 100} onChange={(event) => patchLine(line.id, { discountBp: Math.round(numberFromInput(event.target.value) * 100) })} /></Field>
-              <Field label="TVA" required><select value={line.vatBp} onChange={(event) => patchLine(line.id, { vatBp: Number(event.target.value) })} required>{vatRates.map((rate) => <option key={rate} value={rate}>{(rate / 100).toLocaleString('fr-CH', { maximumFractionDigits: 2 })} %</option>)}</select></Field>
-              <Field label="Catégorie" required><select value={line.category} onChange={(event) => patchLine(line.id, { category: event.target.value })} required><option value="">Choisir</option>{settings.work.costCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
+              <Field label="TVA" required error={!vatRates.includes(line.vatBp) ? "Ce taux historique n’est pas configuré. Choisissez un taux disponible ou ajoutez-le dans les paramètres." : undefined}><select value={line.vatBp} onChange={(event) => patchLine(line.id, { vatBp: Number(event.target.value) })} required>{Array.from(new Set([...vatRates, line.vatBp])).map((rate) => <option key={rate} value={rate}>{(rate / 100).toLocaleString('fr-CH', { maximumFractionDigits: 2 })} %{!vatRates.includes(rate) ? " (à vérifier)" : ""}</option>)}</select></Field>
+              <Field label="Catégorie" required><select value={line.category} onChange={(event) => patchLine(line.id, { category: event.target.value })} required><option value="">Choisir</option>{Array.from(new Set([...purchaseCostCategories(settings.work.costCategories), ...(line.category ? [line.category] : [])])).map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
               <Field label={terminology.singularTitle}><select value={line.projectId} onChange={(event) => patchLine(line.id, { projectId: event.target.value })}><option value="">Reprendre le document</option>{workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
             </div>
             <div className="supplier-invoice-line__footer"><span>Net {formatMoney(amount.netCents)}</span><span>TVA {formatMoney(amount.vatCents)}</span>{lines.length > 1 ? <Button type="button" variant="ghost" size="small" onClick={() => setLines((current) => current.filter((candidate) => candidate.id !== line.id))}><Trash2 size={14} /> Retirer</Button> : null}</div>
@@ -376,7 +377,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
       <div className="form-grid"><Field label="Note interne" wide><textarea name="note" rows={3} defaultValue={item?.note} maxLength={10_000} /></Field></div>
       <SupplierInvoiceAttachments invoice={currentInvoice} canEdit busy={busy} act={act} />
       <div className="info-strip"><ReceiptText size={17} /><span>Un brouillon reste modifiable et n’entre pas dans les comptes. Après validation, le document et ses montants seront figés.</span></div>
-      <FormActions onCancel={close} busy={busy} disabled={!supplierId || totals.totalCents <= 0} submitLabel={currentInvoice ? 'Mettre à jour le brouillon' : 'Enregistrer le brouillon'} />
+      <FormActions onCancel={close} busy={busy} disabled={!supplierId || totals.totalCents <= 0 || lines.some((line) => !vatRates.includes(line.vatBp))} submitLabel={currentInvoice ? 'Mettre à jour le brouillon' : 'Enregistrer le brouillon'} />
     </form>
   </Modal>;
 }
