@@ -145,11 +145,12 @@ jobs:
       - name: Initialize iOS project
         run: pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
       - name: Build unsigned iPhone IPA
+        id: build_ipa
         run: pnpm --dir desktop mobile:ios:ipa
       - name: Verify and package the iPhone IPA
         run: |
           python3 desktop/scripts/verify-ios-ipa.py \
-            desktop/src-tauri/target/aarch64-apple-ios/release/Zentra.ipa \
+            desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa \
             --output-dir desktop/artifacts/iphone \
             --source-revision "$GITHUB_SHA"
           cp docs/INSTALL-IPHONE.md desktop/artifacts/iphone/INSTALL-IPHONE.md
@@ -159,3 +160,11 @@ jobs:
           path: desktop/artifacts/iphone/*
           if-no-files-found: error
           retention-days: 30
+      - name: Preserve the native IPA if packaging fails
+        if: failure() && steps.build_ipa.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Zentra-iPhone-unverified-${{ github.sha }}
+          path: desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa
+          if-no-files-found: error
+          retention-days: 7
