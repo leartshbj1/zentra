@@ -55,11 +55,17 @@ mod vat_reporting;
 use commands::*;
 use database::LocalStore;
 
+#[tauri::command]
+fn is_native_ready(app: tauri::AppHandle) -> bool {
+    use tauri::Manager;
+    app.try_state::<LocalStore>().is_some()
+}
+
 fn announce_native_ready(webview: tauri::Webview) {
     // On Android the document may execute while the automatic window is still
     // being attached. Never send business commands until both attachment and
-    // LocalStore initialization have completed. The two call sites cover either
-    // ordering of native setup and page loading, including a page reload.
+    // LocalStore initialization have completed. These notifications are a fast
+    // path; the frontend also probes readiness if Android misses a notification.
     tauri::async_runtime::spawn(async move {
         let _ = webview.eval(
             r#"(() => {
@@ -127,6 +133,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            is_native_ready,
             add_project_document,
             delete_project_document,
             read_project_document,
