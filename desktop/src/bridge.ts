@@ -5866,7 +5866,12 @@ export const desktopApi = {
     await invoke('unreconcile_bank_expense', { input: { request_id: requestId, reconciliation_id: reconciliationId, reason } });
   },
   async recordExpenseRefund(input: ExpenseRefundInput): Promise<Workspace> {
-    await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId } });
+    const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt) } : null;
+    await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId }, ...(attachment ? { attachment } : {}) });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async addExpenseRefundAttachment(refundId: string, receipt: File): Promise<Workspace> {
+    await invoke('add_expense_refund_attachment', { refundId, attachment: { original_name: receipt.name, content_base64: await fileBase64(receipt) } });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async matchBankExpenseRefund(requestId: string, movementId: string, refundId: string, dateDifferenceReason?: string): Promise<void> {

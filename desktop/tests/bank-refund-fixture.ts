@@ -10,9 +10,15 @@ export function installBankRefundFixture(initial: Workspace) {
     const refund: ExpenseRefund = { id: `refund-${index}`, expenseId: `expense-${index}`, eventType: 'refund', reversesId: null, creditDate: '2026-08-21', paymentDate: '2026-08-31', reference: index ? 'AV-AUTRE-54' : reference, reason: 'Retour partiel de marchandises', netCents: 5000, vatCents: 405, totalCents: 5405, costCents: 5000, treatment: 'input_materials', creditJournalId: `credit-${index}`, paymentJournalId: `payment-${index}`, createdAt: '2026-08-31T10:00:00Z' };
     return { id: refund.expenseId, projectId: initial.projects[0]?.id, date: '2026-08-20', supplier: index ? 'Autre fournisseur' : 'Électricité du Léman', category: 'Marchandises', reference: `RECU-${index}`, netCents: 10000, vatCents: 810, totalCents: 10810, paymentStatus: 'paid', paidAt: '2026-08-20', note: '', costCents: 10000, costReviewRequired: false, costBasis: 'accounted', refunds: [refund] };
   });
+  const readOnly = new URLSearchParams(location.search).has('readOnly');
+  if (readOnly) {
+    initial.expenses[0].refunds![0].bankMatchId = 'read-only-match';
+    initial.attachments = [{ id: 'read-only-receipt', projectId: initial.expenses[0].projectId || null, entityType: 'expense_refund', entityId: 'refund-0', originalName: 'avoir-consultable.pdf', mimeType: 'application/pdf', sizeBytes: 64, sha256: 'a'.repeat(64), createdAt: '2026-09-05', updatedAt: '2026-09-05' }];
+    desktopApi.openAttachment = async id => { sessionStorage.setItem('qa-read-only-opened', id); return id; };
+  }
   const persisted = structuredClone(initial);
   desktopApi.loadWorkspace = async () => structuredClone(persisted);
-  let active: Record<string, unknown> | null = null;
+  let active: Record<string, unknown> | null = readOnly ? { id: 'read-only-match', refund_id: 'refund-0', expense_id: 'expense-0', reference, supplier: initial.expenses[0].supplier, amount_cents: 5405, payment_date: '2026-08-31', payment_journal_id: 'payment-0', confirmed_at: '2026-09-05T12:00:00Z' } : null;
   const history: Record<string, unknown>[] = [];
   const requests = new Map<string,string>();
   const unlinks = new Map<string,string>();

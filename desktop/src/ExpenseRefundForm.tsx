@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { RotateCcw, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { expenseRefundTotals } from './expenseRefunds';
-import type { Expense, ExpenseRefund, Workspace } from './types';
+import type { Attachment, Expense, ExpenseRefund, Workspace } from './types';
+import { RefundAttachmentList, RefundReceiptPicker } from './RefundAttachments';
 import { Button, ErrorPanel, Field, FormActions, Modal } from './ui';
 import { createId, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
@@ -20,6 +21,7 @@ export function ExpenseRefundForm({ expense, reverse, busy, close, act }: { expe
   const [gross, setGross] = useState(((reverse?.totalCents ?? expense.totalCents - totals.totalCents) / 100).toFixed(2));
   const [tax, setTax] = useState(((reverse?.vatCents ?? expense.vatCents - totals.vatCents) / 100).toFixed(2));
   const [error, setError] = useState('');
+  const [receipt, setReceipt] = useState<File | null>(null);
   const grossCents = amount(gross);
   const vatCents = amount(tax);
   const netCents = grossCents - vatCents;
@@ -32,7 +34,7 @@ export function ExpenseRefundForm({ expense, reverse, busy, close, act }: { expe
       if (invalidAmounts || (!reverse && (netCents > expense.netCents - totals.netCents || vatCents > expense.vatCents - totals.vatCents))) { setError('Le remboursement dépasse le solde HT ou TVA de cet achat, ou ses montants sont incohérents.'); return; }
       if (paymentDate < creditDate) { setError('La date du remboursement ne peut pas précéder celle de l’avoir.'); return; }
       await act(async () => {
-        try { return await desktopApi.recordExpenseRefund({ requestId, expenseId: expense.id, creditDate, paymentDate, reference: reference.trim(), reason: reason.trim(), netCents, vatCents, reversesId: reverse?.id ?? null }); }
+        try { return await desktopApi.recordExpenseRefund({ requestId, expenseId: expense.id, creditDate, paymentDate, reference: reference.trim(), reason: reason.trim(), netCents, vatCents, reversesId: reverse?.id ?? null, ...(receipt ? { receipt } : {}) }); }
         catch (failure) { if (!(failure instanceof WorkspaceRefreshAfterMutationError)) setError(errorMessage(failure, 'Le remboursement n’a pas pu être confirmé. Réessayez cette même saisie.')); throw failure; }
       }, reverse ? 'La saisie du remboursement a été corrigée. L’historique est conservé.' : 'Le remboursement reçu a été enregistré et les coûts du projet ont été actualisés.', true, () => {});
     }}>
@@ -46,17 +48,30 @@ export function ExpenseRefundForm({ expense, reverse, busy, close, act }: { expe
         <Field label="Montant hors TVA"><output className="field-output">{invalidAmounts ? 'Montants à vérifier' : formatMoney(netCents)}</output></Field>
         <Field label={reverse ? 'Motif de la correction' : 'Motif du remboursement'} required wide><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={1000} rows={3} disabled={busy} required placeholder={reverse ? 'Expliquez pourquoi la saisie était erronée' : 'Ex. retour de marchandises ou réduction de prix'} /></Field>
       </div>
+      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy} onError={setError} />
+      {!receipt ? <p className="field__hint">Vous pourrez aussi joindre la pièce depuis l’historique après l’enregistrement.</p> : null}
       {error ? <ErrorPanel title="Remboursement à contrôler" message={error} reveal /> : null}
       <FormActions onCancel={close} busy={busy} submitLabel={reverse ? 'Corriger la saisie' : 'Enregistrer le remboursement reçu'} />
     </form>
   </Modal>;
 }
 
-export function ExpenseRefundHistory({ expense, disabled, onReverse }: { expense: Expense; disabled: boolean; onReverse: (refund: ExpenseRefund) => void }) {
+export function ExpenseRefundHistory({ expense, disabled, onReverse, attachments = [], onAttach }: { expense: Expense; disabled: boolean; onReverse: (refund: ExpenseRefund) => void; attachments?: Attachment[]; onAttach?: (refund: ExpenseRefund) => void }) {
   const refunds = expense.refunds ?? [];
   if (!refunds.length) return null;
   return <section className="expense-refund-history" aria-label="Historique des remboursements"><h3>Remboursements et corrections</h3>{refunds.map((refund) => {
     const corrected = refunds.some((row) => row.reversesId === refund.id);
-    return <article key={refund.id}><header><strong>{refund.eventType === 'reverse' ? 'Correction' : corrected ? 'Remboursement corrigé' : 'Remboursement reçu'} · {refund.reference}</strong><strong>{formatMoney(refund.totalCents)}</strong></header><p>Avoir : {formatDate(refund.creditDate)} · Banque : {formatDate(refund.paymentDate)}</p><p>{refund.reason}</p>{refund.bankMatchId ? <p>Rapprochement bancaire actif. Dissociez ce remboursement dans Banque avant de corriger une saisie erronée.</p> : null}{refund.eventType === 'refund' && !corrected && !refund.bankMatchId ? <Button type="button" variant="secondary" size="small" disabled={disabled} onClick={() => onReverse(refund)}><RotateCcw size={14} /> Corriger une saisie erronée</Button> : null}</article>;
+    const files = attachments.filter((file) => file.entityType === 'expense_refund' && file.entityId === refund.id);
+    return <article key={refund.id}>
+      <header><strong>{refund.eventType === 'reverse' ? 'Correction' : corrected ? 'Remboursement corrigé' : 'Remboursement reçu'} · {refund.reference}</strong><strong>{formatMoney(refund.totalCents)}</strong></header>
+      <p>Avoir : {formatDate(refund.creditDate)} · Banque : {formatDate(refund.paymentDate)}</p><p>{refund.reason}</p>
+      {refund.bankMatchId ? <p>Rapprochement bancaire actif. Dissociez ce remboursement dans Banque avant de corriger une saisie erronée.</p> : null}
+      <RefundAttachmentList attachments={files} />
+      {files.length ? <p className="field__hint">Pièces conservées avec l’historique.</p> : <p className="field__hint">Aucun justificatif joint à ce remboursement.</p>}
+      <div className="expense-refund-history__actions">
+        {onAttach ? <Button type="button" variant="secondary" size="small" disabled={disabled || files.length >= 20} onClick={() => onAttach(refund)}>Joindre un justificatif</Button> : null}
+        {refund.eventType === 'refund' && !corrected && !refund.bankMatchId ? <Button type="button" variant="secondary" size="small" disabled={disabled} onClick={() => onReverse(refund)}><RotateCcw size={14} /> Corriger une saisie erronée</Button> : null}
+      </div>
+    </article>;
   })}</section>;
 }

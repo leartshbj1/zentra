@@ -932,6 +932,7 @@ export type ExpenseRefund = {
 };
 
 export type ExpenseRefundInput = {
+  receipt?: File;
   requestId: string;
   expenseId: string;
   creditDate: string;

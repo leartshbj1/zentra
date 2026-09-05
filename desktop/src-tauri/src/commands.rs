@@ -250,10 +250,20 @@ pub fn unmatch_bank_expense_refund(state: State<'_, LocalStore>, input: crate::b
 }
 
 #[tauri::command]
-pub fn record_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput) -> Result<Value, String> {
+pub fn record_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput, attachment: Option<crate::expense_refund_attachments::RefundAttachmentInput>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.record_expense_refund(input).map_err(command_error)
+    match attachment {
+        Some(file) => state.record_expense_refund_with_attachment(input, Some(file)),
+        None => state.record_expense_refund(input),
+    }.map_err(command_error)
+}
+
+#[tauri::command]
+pub fn add_expense_refund_attachment(state: State<'_, LocalStore>, refund_id: String, attachment: crate::expense_refund_attachments::RefundAttachmentInput) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.add_expense_refund_attachment(&refund_id, attachment).map_err(command_error)
 }
 
 #[tauri::command]

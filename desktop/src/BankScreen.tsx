@@ -192,11 +192,13 @@ export function BankScreen({
   readOnly,
   onWorkspaceChange,
   onOpenAccounting,
+  onOpenExpense,
 }: {
   workspace: Workspace;
   readOnly: boolean;
   onWorkspaceChange: (workspace: Workspace) => void;
   onOpenAccounting: () => void;
+  onOpenExpense?: (expenseId: string) => void;
 }) {
   const [bank, setBank] = useState<BankWorkspace | null>(null);
   const [filter, setFilter] = useState<BankMovementFilter>('unreconciled');
@@ -536,7 +538,7 @@ export function BankScreen({
               {movement.reconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Rapproché avec {reconciledInvoice?.number || 'une facture'}</strong><small>Confirmé le {formatDateTime(movement.reconciliation.confirmedAt)}</small></span></div>
                 : movement.supplierReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Réglé avec {reconciledSupplierInvoice?.reference || 'une facture fournisseur'}</strong><small>Confirmé le {formatDateTime(movement.supplierReconciliation.confirmedAt)}</small></span></div>
                   : movement.expenseReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Dépense rapprochée · {workspace.expenses.find((expense) => expense.id === movement.expenseReconciliation?.expenseId)?.reference || movement.expenseReconciliation.reference || 'Pièce enregistrée'}</strong><small>Confirmé le {formatDateTime(movement.expenseReconciliation.confirmedAt)}</small>{movement.expenseReconciliation.dateDifferenceReason ? <small>Écart de dates documenté : {movement.expenseReconciliation.dateDifferenceReason}</small> : null}</span><Button type="button" variant="secondary" size="small" disabled={writesDisabled} onClick={() => setCorrectionMovement(movement)}>Dissocier du relevé</Button></div>
-                  : movement.refundMatch ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Remboursement rapproché · {movement.refundMatch.reference}</strong><small>{movement.refundMatch.supplier} · confirmé le {formatDateTime(movement.refundMatch.confirmedAt)}</small>{movement.refundMatch.dateDifferenceReason ? <small>Écart de dates documenté : {movement.refundMatch.dateDifferenceReason}</small> : null}</span><Button type="button" variant="secondary" size="small" disabled={writesDisabled} onClick={() => setRefundToUnlink(movement)}>Dissocier du relevé</Button></div>
+                  : movement.refundMatch ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Remboursement rapproché · {movement.refundMatch.reference}</strong><small>{movement.refundMatch.supplier} · confirmé le {formatDateTime(movement.refundMatch.confirmedAt)}</small>{movement.refundMatch.dateDifferenceReason ? <small>Écart de dates documenté : {movement.refundMatch.dateDifferenceReason}</small> : null}</span>{onOpenExpense ? <Button size="small" variant="ghost" onClick={() => onOpenExpense(movement.refundMatch!.expenseId)}>Voir la dépense d’origine</Button> : null}<Button type="button" variant="secondary" size="small" disabled={writesDisabled} onClick={() => setRefundToUnlink(movement)}>Dissocier du relevé</Button></div>
                   : movement.reversal ? <div className="bank-match-muted"><span>Extourne conservée pour contrôle; aucun paiement proposé.</span></div>
                   : movement.status === 'PDNG' ? <div className="bank-match-muted"><Clock3 size={15} /><span>Ce mouvement pourra être rapproché lorsque la banque le confirmera.</span></div>
                     : !account?.linked ? <div className="bank-match-warning"><Unlink size={15} /><span>Compte non associé. Confirmez d’abord qu’il appartient à votre entreprise.</span></div>
@@ -575,11 +577,11 @@ export function BankScreen({
                         /> : null}
                         <Button size="small" disabled={writesDisabled || Boolean(blockReason) || !canConfirmBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le paiement après confirmation'} onClick={() => void confirmMovement(movement)}><Link2 size={14} /> Confirmer l’encaissement</Button>
                         {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
-                        <BankRefundPicker key={`${movement.id}:${movement.refundHistory?.length || 0}:${movement.refundHistory?.[0]?.id || ''}`} movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(requestId, refundId, reason) => confirmRefund(movement, requestId, refundId, reason)} />
+                        <BankRefundPicker onOpenExpense={onOpenExpense} key={`${movement.id}:${movement.refundHistory?.length || 0}:${movement.refundHistory?.[0]?.id || ''}`} movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(requestId, refundId, reason) => confirmRefund(movement, requestId, refundId, reason)} />
                       </>}
             </div>
             <BankExpenseHistory movement={movement} />
-            <BankRefundHistory movement={movement} />
+            <BankRefundHistory movement={movement} onOpenExpense={onOpenExpense} />
           </article>;
         })}
       </div> : <EmptyState

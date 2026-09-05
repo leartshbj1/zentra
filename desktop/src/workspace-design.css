@@ -309,6 +309,22 @@
   .expense-refund-history strong { font-size: 14px; overflow-wrap: anywhere; }
   .expense-refund-history p { font-size: 13px; line-height: 1.5; margin-block: 8px; overflow-wrap: anywhere; }
   .expense-refund-history .button { min-height: 44px; white-space: normal; }
+  .expense-refund-history__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .refund-attachments { display: grid; gap: 8px; margin-top: 12px; min-width: 0; }
+  .refund-attachments__file { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; min-width: 0; }
+  .refund-attachments__file > svg { flex: 0 0 auto; }
+  .refund-attachments__file > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+  .refund-attachments__file strong, .refund-attachments__file small { display: block; }
+  .refund-attachments__file small { color: var(--muted); margin-top: 3px; }
+  .refund-attachments__file .button { flex: 0 0 auto; min-height: 44px; }
+  .refund-receipt-selection { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .refund-receipt-selection > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .refund-receipt-selection .button { min-width: 44px; min-height: 44px; }
+  @media (max-width: 480px) {
+    .refund-attachments__file { flex-wrap: wrap; }
+    .refund-attachments__file > span { flex-basis: calc(100% - 26px); }
+    .refund-attachments__file .button, .expense-refund-history__actions .button { width: 100%; }
+  }
   .settings-copy, .settings-section-description { font-size: 14px; line-height: 1.6; }
   .settings-categories { display: grid; gap: 12px; min-width: 0; }
   .settings-category { min-width: 0; border: 1px solid var(--line-soft); border-radius: 12px; background: #fff; }

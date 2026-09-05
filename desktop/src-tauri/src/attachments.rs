@@ -383,6 +383,33 @@ impl LocalStore {
         Ok(prepared.id.clone())
     }
 
+    pub(crate) fn insert_prepared_expense_refund_attachment(
+        &self,
+        tx: &Transaction<'_>,
+        refund_id: &str,
+        prepared: &PreparedSupplierInvoiceAttachment,
+    ) -> AppResult<AttachmentInsertResult> {
+        let project: Option<String> = tx.query_row(
+            "SELECT e.project_id FROM expense_refunds r JOIN expenses e ON e.id=r.expense_id WHERE r.id=?",
+            params![refund_id], |row| row.get(0),
+        ).optional()?.ok_or_else(|| AppError::NotFound(format!("expense_refunds/{refund_id}")))?;
+        if let Some(record) = query_all(tx,
+            "SELECT * FROM attachments WHERE entity_type='expense_refund' AND entity_id=? AND sha256=?",
+            params![refund_id, prepared.sha256],
+        )?.into_iter().next() {
+            return Ok(AttachmentInsertResult { record, created: false });
+        }
+        let count: i64 = tx.query_row("SELECT COUNT(*) FROM attachments WHERE entity_type='expense_refund' AND entity_id=?", params![refund_id], |row| row.get(0))?;
+        if count >= 20 { return Err(AppError::Validation("Ce remboursement contient déjà 20 justificatifs.".into())); }
+        let now = now_iso();
+        tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'expense_refund',?,?,?,?,?,?,?,?)", params![prepared.id,project,refund_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
+        append_audit(tx, "attachment_add", "expense_refund", refund_id,
+            &json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}))?;
+        let record = query_all(tx,"SELECT * FROM attachments WHERE id=?",params![prepared.id])?
+            .into_iter().next().ok_or_else(|| AppError::NotFound(format!("attachments/{}",prepared.id)))?;
+        Ok(AttachmentInsertResult { record, created: true })
+    }
+
     pub fn delete_supplier_invoice_attachment(&self, id: &str) -> AppResult<Value> {
         let id = required_uuid(id, "justificatif")?;
         let mut connection = self.connect()?;

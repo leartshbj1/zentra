@@ -408,7 +408,7 @@ fn bank_refund_v48_migration_preserves_existing_refund_and_journals() {
             .unwrap()
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        48
+        crate::schema::SCHEMA_VERSION
     );
     let movement = debit(
         &reopened,

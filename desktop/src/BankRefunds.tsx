@@ -4,8 +4,9 @@ import type { BankMovement } from './types';
 import { Button, ErrorPanel, Field, FormActions, Modal } from './ui';
 import { createId, errorMessage, formatDate, formatDateTime, formatMoney, searchText } from './utils';
 
-export function BankRefundPicker({ movement, disabled, onConfirm }: {
+export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense }: {
   movement: BankMovement; disabled: boolean;
+  onOpenExpense?: (expenseId: string) => void;
   onConfirm: (requestId: string, refundId: string, dateReason?: string) => Promise<void>;
 }) {
   const [requestId] = useState(createId);
@@ -38,6 +39,7 @@ export function BankRefundPicker({ movement, disabled, onConfirm }: {
         </label>)}</div>
         {!filtered.length ? <p role="status">Aucun remboursement ne correspond à cette recherche.</p> : null}
         {filtered.length > limit ? <Button type="button" variant="ghost" onClick={() => setLimit(limit + 25)}>Afficher les remboursements suivants</Button> : null}
+        {selected && onOpenExpense ? <Button type="button" variant="ghost" onClick={() => onOpenExpense(selected.expenseId)}>Voir la dépense d’origine</Button> : null}
         {selected?.requiresDateReason ? <Field label="Justification de l’écart de dates" required hint={`Remboursement enregistré le ${formatDate(selected.paymentDate)} ; relevé du ${formatDate(movement.bookingDate || movement.valueDate)}. Les dates comptables seront conservées.`}><textarea value={note} onChange={(event) => setNotes((previous) => ({ ...previous, [choice]: event.target.value }))} maxLength={500} minLength={5} rows={3} disabled={disabled} /></Field> : null}
         {error ? <ErrorPanel title="Association à contrôler" message={error} reveal /> : null}
         <Button type="button" size="small" disabled={disabled || invalid} onClick={async () => {
@@ -80,9 +82,9 @@ export function BankRefundUnlink({ movement, busy, close, onConfirm }: {
   </Modal>;
 }
 
-export function BankRefundHistory({ movement }: { movement: BankMovement }) {
+export function BankRefundHistory({ movement, onOpenExpense }: { movement: BankMovement; onOpenExpense?: (expenseId: string) => void }) {
   const [limit, setLimit] = useState(5);
   const history = movement.refundHistory ?? [];
   if (!history.length) return null;
-  return <details className="bank-expense-history bank-refund-history"><summary><History size={16} /> Historique des remboursements rapprochés <span>{history.length}</span><ChevronDown className="bank-history-chevron" size={14} /></summary><div className="bank-expense-history__entries">{history.slice(0, limit).map((entry) => <article key={entry.id}><strong>{entry.reference} · {formatMoney(entry.amountCents)}</strong><span>{entry.supplier}</span><small>Associé le {formatDateTime(entry.confirmedAt)}</small><small>Dissocié le {formatDateTime(entry.unlinkedAt)} · remboursement conservé</small><p>{entry.reason}</p>{entry.dateDifferenceReason ? <small>Écart de dates documenté : {entry.dateDifferenceReason}</small> : null}</article>)}</div>{history.length > limit ? <Button variant="ghost" size="small" onClick={() => setLimit(limit + 5)}>Afficher les dissociations suivantes</Button> : null}</details>;
+  return <details className="bank-expense-history bank-refund-history"><summary><History size={16} /> Historique des remboursements rapprochés <span>{history.length}</span><ChevronDown className="bank-history-chevron" size={14} /></summary><div className="bank-expense-history__entries">{history.slice(0, limit).map((entry) => <article key={entry.id}><strong>{entry.reference} · {formatMoney(entry.amountCents)}</strong><span>{entry.supplier}</span><small>Associé le {formatDateTime(entry.confirmedAt)}</small><small>Dissocié le {formatDateTime(entry.unlinkedAt)} · remboursement conservé</small><p>{entry.reason}</p>{onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(entry.expenseId)}>Voir la dépense d’origine</Button> : null}{entry.dateDifferenceReason ? <small>Écart de dates documenté : {entry.dateDifferenceReason}</small> : null}</article>)}</div>{history.length > limit ? <Button variant="ghost" size="small" onClick={() => setLimit(limit + 5)}>Afficher les dissociations suivantes</Button> : null}</details>;
 }

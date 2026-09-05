@@ -1,6 +1,9 @@
 use super::*;
 use crate::expense_refunds::ExpenseRefundInput;
 
+#[path = "expense_refund_attachment_tests.rs"]
+mod attachments;
+
 fn purchase(store: &LocalStore, classified: bool) -> String {
     let row=store.create_record("expenses",json!({"date":"2026-02-10","paid_at":"2026-02-10","payment_status":"paid","supplier":"Fournisseur retours","reference":"EXP-001","net_cents":10000,"vat_cents":810})).unwrap();
     let id = row["id"].as_str().unwrap().to_owned();

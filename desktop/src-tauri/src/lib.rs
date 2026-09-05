@@ -23,6 +23,7 @@ mod financial_pdf;
 mod input_vat_accounting;
 mod expense_journal;
 mod expense_refunds;
+mod expense_refund_attachments;
 #[cfg(test)]
 mod input_vat_tests;
 mod installation;
@@ -117,6 +118,7 @@ pub fn run() {
             match_bank_expense_refund,
             unmatch_bank_expense_refund,
             record_expense_refund,
+            add_expense_refund_attachment,
             create_record,
             update_record,
             delete_record,

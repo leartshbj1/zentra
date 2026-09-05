@@ -437,6 +437,11 @@ export function WorkspaceApp({
   );
   const [orderToOpenId, setOrderToOpenId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  function openExpenseSource(expenseId: string) {
+    const expense = workspace.expenses.find((item) => item.id === expenseId);
+    if (expense) setModal({ type: 'legacyExpenseDetail', expense });
+    else setNotice({ tone: 'error', text: 'Cette dépense est indisponible. Actualisez les données puis réessayez.' });
+  }
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const [accountingEntryFocus, setAccountingEntryFocus] =
@@ -1648,6 +1653,7 @@ export function WorkspaceApp({
               onCreate={() => setModal({ type: 'project' })}
               onArchive={(item) => void deleteEmptyProject(item)}
               onWorkspaceChange={setWorkspace}
+              onOpenExpense={openExpenseSource}
               onOpenDocument={(entity, item) => setModal({ type: 'document', entity, item })}
               onCreateDocument={(entity, initialProject) => setModal({ type: 'document', entity, initialProject })}
               onSaveTask={(input) =>
@@ -2000,6 +2006,7 @@ export function WorkspaceApp({
           {view === 'bank' ? (
             <Suspense fallback={<ViewLoading label="Ouverture de la banque…" />}>
               <BankScreen
+                onOpenExpense={openExpenseSource}
                 workspace={workspace}
                 readOnly={readOnly}
                 onWorkspaceChange={(next) => setWorkspace(next)}
@@ -2055,6 +2062,7 @@ export function WorkspaceApp({
       {modal ? (
         <WorkspaceModal
           state={modal}
+          readOnly={readOnly}
           workspace={workspace}
           busy={busy}
           close={() => setModal(null)}
@@ -2470,6 +2478,7 @@ function ProjectsScreen({
   onArchive,
   onWorkspaceChange,
   onOpenDocument,
+  onOpenExpense,
   onCreateDocument,
   onSaveTask,
   onSaveMilestone,
@@ -2490,6 +2499,7 @@ function ProjectsScreen({
   onArchive: (item: Project) => void;
   onWorkspaceChange: (workspace: Workspace) => void;
   onOpenDocument: (entity: 'quotes' | 'invoices', item: Quote | Invoice) => void;
+  onOpenExpense: (expenseId: string) => void;
   onCreateDocument: (entity: 'quotes' | 'invoices', project: Project) => void;
   onSaveTask: (input: ProjectTaskDraft) => Promise<boolean>;
   onSaveMilestone: (input: ProjectMilestoneDraft) => Promise<boolean>;
@@ -2534,7 +2544,7 @@ function ProjectsScreen({
     (client) => !client.archivedAt,
   );
   const folder = workspace.projects.find((project) => project.id === folderId);
-  if (folder) return <ProjectFolder project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
+  if (folder) return <ProjectFolder onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
   if (!workspace.projects.length)
     return (
       <EmptyState
@@ -5891,6 +5901,7 @@ function InvoiceCorrectionModal({
 
 function WorkspaceModal({
   state,
+  readOnly,
   workspace,
   busy,
   close,
@@ -5902,6 +5913,7 @@ function WorkspaceModal({
   onQrReady,
 }: {
   state: Exclude<ModalState, null>;
+  readOnly: boolean;
   workspace: Workspace;
   busy: boolean;
   close: () => void;
@@ -6048,7 +6060,7 @@ function WorkspaceModal({
         expense={state.expense}
         workspace={workspace}
         close={close}
-        busy={busy}
+        busy={busy || readOnly}
         act={act}
       />
     );

@@ -3,12 +3,14 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
+use sha2::{Digest, Sha256};
 
 use crate::{
     accounting::{ensure_accounting_date_open, post_entry, validate_date, EntryLine},
     audit::append_audit,
     database::{now_iso, query_all, query_record_tx, LocalStore},
     error::{AppError, AppResult},
+    expense_refund_attachments::RefundAttachmentInput,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +61,11 @@ fn line(account: &str, amount: i64, memo: &str, project: &Option<String>) -> Ent
 }
 
 impl LocalStore {
-    pub fn record_expense_refund(&self, mut input: ExpenseRefundInput) -> AppResult<Value> {
+    pub fn record_expense_refund(&self, input: ExpenseRefundInput) -> AppResult<Value> {
+        self.record_expense_refund_with_attachment(input, None)
+    }
+
+    pub fn record_expense_refund_with_attachment(&self, mut input: ExpenseRefundInput, attachment: Option<RefundAttachmentInput>) -> AppResult<Value> {
         input.request_id = Uuid::parse_str(input.request_id.trim())
             .map_err(|_| reject("Identifiant de tentative invalide."))?
             .to_string();
@@ -105,7 +111,11 @@ impl LocalStore {
                 "Le remboursement doit être déjà reçu et ne peut pas précéder l’avoir.",
             ));
         }
-        let request_json = serde_json::to_string(&input)?;
+        let attachment_bytes = attachment.as_ref().map(RefundAttachmentInput::decode).transpose()?;
+        let request_json = match (&attachment, &attachment_bytes) {
+            (Some(file), Some(bytes)) => serde_json::to_string(&json!({"refund":input,"attachment":{"original_name":file.original_name.trim(),"sha256":format!("{:x}",Sha256::digest(bytes))}}))?,
+            _ => serde_json::to_string(&input)?,
+        };
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -332,6 +342,14 @@ impl LocalStore {
         )?;
         tx.execute("INSERT INTO expense_refunds(id,request_id,request_json,expense_id,event_type,reverses_id,credit_date,payment_date,reference,reason,net_cents,vat_cents,total_cents,cost_cents,treatment,expense_account_id,vat_account_id,bank_account_id,clearing_account_id,credit_journal_id,payment_journal_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![id,input.request_id,request_json,input.expense_id,if sign==1{"refund"}else{"reverse"},input.reverses_id,input.credit_date,input.payment_date,input.reference,input.reason,input.net_cents,input.vat_cents,total,cost,treatment,expense_account,vat_account,bank_account,clearing_account,credit["entry"]["id"].as_str(),payment["entry"]["id"].as_str(),now_iso()])?;
         let refund = query_record_tx(&tx, "expense_refunds", &id)?;
+        let mut prepared = match (&attachment, &attachment_bytes) {
+            (Some(file), Some(bytes)) => Some(self.prepare_supplier_invoice_attachment_bytes(&file.original_name, bytes)?),
+            _ => None,
+        };
+        if let Some(file) = &mut prepared {
+            self.insert_prepared_expense_refund_attachment(&tx, &id, file)?;
+            file.install()?;
+        }
         append_audit(
             &tx,
             if sign == 1 {
@@ -344,6 +362,7 @@ impl LocalStore {
             &refund,
         )?;
         tx.commit()?;
+        if let Some(file) = &mut prepared { file.retain(); }
         Ok(json!({"refund":refund,"already_recorded":false}))
     }
 }

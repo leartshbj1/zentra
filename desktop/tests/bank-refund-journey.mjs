@@ -21,6 +21,11 @@ try {
     assert.equal(await picker.getByRole('radio').count(), 2); assert.equal(await picker.locator('input:checked').count(), 0);
     await picker.getByRole('searchbox').fill('RETOUR-MATERIEL'); assert.equal(await picker.getByRole('radio').count(), 1);
     await picker.locator('.bank-candidate-option').click();
+    await picker.getByRole('button', { name: 'Voir la dépense d’origine', exact: true }).click();
+    await page.getByRole('dialog').getByText('RECU-0', { exact: true }).waitFor();
+    await capture('candidate-source');
+    await page.keyboard.press('Escape');
+    assert.equal(await picker.locator('input:checked').count(),1);
     const submit = picker.getByRole('button', { name: 'Associer le remboursement', exact: true }); assert.ok(await submit.isDisabled());
     const dateReason = picker.getByRole('textbox', { name: /Justification de l’écart de dates/ });
     await dateReason.fill('Date de valeur du 31 août et comptabilisation bancaire du 1er septembre.');
@@ -36,6 +41,10 @@ try {
     const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-bank-refund-attempts'))); assert.equal(attempts.length, 3); assert.equal(new Set(attempts.map(row => row.requestId)).size,1); assert.equal(await page.evaluate(() => sessionStorage.getItem('qa-bank-refund-matches')),'1');
     await flag('read-fail', false); await flag('fail-after-save', false); await page.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
     await page.getByRole('tab', { name: /^Rapprochés/ }).click(); await movement.getByText(/Remboursement rapproché ·/).waitFor(); await movement.scrollIntoViewIfNeeded(); await capture('matched');
+    await movement.getByRole('button', { name: 'Voir la dépense d’origine', exact: true }).click();
+    await page.getByRole('dialog').getByText('RECU-0', { exact: true }).waitFor();
+    await page.getByRole('dialog').getByText(/Dissociez ce remboursement dans Banque/).waitFor();
+    await capture('matched-source'); await page.keyboard.press('Escape');
     await movement.getByRole('button', { name: 'Dissocier du relevé', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Dissocier le remboursement du relevé', exact: true });
     await page.waitForFunction(() => document.querySelector('[role="dialog"]')?.contains(document.activeElement));
@@ -52,11 +61,15 @@ try {
     const unlinkAttempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-bank-refund-unlink-attempts'))); assert.equal(unlinkAttempts.length,3); assert.equal(new Set(unlinkAttempts.map(row => row.requestId)).size,1);
     await flag('read-fail', false); await flag('fail-after-save', false); await page.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
     const history = movement.locator('.bank-refund-history'); await history.locator('summary').click(); await history.locator('article').scrollIntoViewIfNeeded(); assert.match(await history.innerText(), /autre remboursement fournisseur/); assert.match(await history.innerText(), /remboursement conservé/); await capture('history');
+    await history.getByRole('button', { name: 'Voir la dépense d’origine', exact: true }).click();
+    await page.getByRole('dialog').getByText('RECU-0', { exact: true }).waitFor();
+    await page.getByRole('dialog').getByRole('button', { name: 'Corriger une saisie erronée', exact: true }).waitFor();
+    await page.keyboard.press('Escape');
     await picker.locator('summary').click(); assert.equal(await picker.locator('input:checked').count(), 0);
     await picker.locator('.bank-candidate-option').filter({ hasText: 'AV-AUTRE-54' }).click(); await picker.getByRole('textbox', { name: /Justification de l’écart de dates/ }).fill('Comptabilisation bancaire décalée d’un jour.'); await picker.getByRole('button', { name: 'Associer le remboursement', exact: true }).click();
     await page.getByRole('tab', { name: /^Rapprochés/ }).click(); await movement.getByText('Remboursement rapproché · AV-AUTRE-54', { exact: true }).waitFor(); await movement.scrollIntoViewIfNeeded(); await capture('rematched');
     assert.equal(await page.evaluate(() => sessionStorage.getItem('qa-bank-refund-matches')),'2');
-    assert.deepEqual(errors, []); report.push({ width, result: 'PASS: explicit choice among equal amounts, search, date justification, refusals preserved, same-request retry, confirmed-write read recovery, dated match history, unlink and fresh association, touch action and no overflow', screenshots: 7 }); await page.close();
+    assert.deepEqual(errors, []); report.push({ width, result: 'PASS: source expense accessible from candidate, active match and history with preserved selection, explicit choice among equal amounts, search, date justification, refusals preserved, same-request retry, confirmed-write read recovery, dated match history, unlink and fresh association, touch action and no overflow', screenshots: 9 }); await page.close();
   }
 } catch (error) { process.exitCode = 1; report.push({ fatal: error.stack }); const page = browser.contexts().flatMap(context => context.pages()).at(-1); if (page) { await page.screenshot({ path: '.qa/bank-refund/failure.png' }); await writeFile('.qa/bank-refund/failure.html', await page.content()); } }
 finally { await writeFile('.qa/bank-refund/report.json', JSON.stringify(report,null,2)); console.log(JSON.stringify(report,null,2)); await browser.close(); }

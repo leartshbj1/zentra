@@ -8,11 +8,12 @@ import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
 import { Button, EmptyState, ErrorPanel, Modal, StatusBadge } from './ui';
 import { documentTotals, errorMessage, formatDate, formatMoney } from './utils';
 
-export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange }: {
+export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense }: {
   project: Project; workspace: Workspace; busy: boolean; readOnly: boolean; onBack: () => void;
   onOpenDocument: (entity: 'quotes' | 'invoices', item: Quote | Invoice) => void;
   onCreateDocument: (entity: 'quotes' | 'invoices', project: Project) => void;
   onWorkspaceChange: (workspace: Workspace) => void;
+  onOpenExpense?: (expenseId: string) => void;
 }) {
   const [tab, setTab] = useState<'all' | 'files' | 'quotes' | 'invoices'>('all');
   const [files, setFiles] = useState<File[]>([]);
@@ -72,13 +73,16 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       <h3>Documents et photos</h3>
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy} />
       {files.length ? <Button onClick={() => void upload()} disabled={saving || busy}>{saving ? progress : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}
-      <ul className="project-document-list">{contents.files.map((file) => <li key={file.id}>
+      <ul className="project-document-list">{contents.files.map((file) => {
+        const expenseId = file.entityType === 'expense' ? file.entityId : file.entityType === 'expense_refund' ? workspace.expenses.find((expense) => expense.refunds?.some((refund) => refund.id === file.entityId))?.id : undefined;
+        return <li key={file.id} className={expenseId && onOpenExpense ? 'project-document-list__with-source' : undefined}>
         <button type="button" className="project-document-list__open" onClick={() => void open(file)} disabled={saving}>
           {file.mimeType.startsWith('image/') ? <Image size={22} /> : <FileText size={22} />}
-          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : ''}</small></span>
+          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small></span>
         </button>
+        {expenseId && onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(expenseId)} aria-label={`Voir la dépense liée à ${file.originalName}`}>Voir la dépense</Button> : null}
         {!readOnly && isProjectFile(file) ? <Button size="icon" variant="ghost" disabled={saving || busy} aria-label={`Supprimer ${file.originalName}`} onClick={() => setRemoving(file)}><Trash2 size={17} /></Button> : null}
-      </li>)}</ul>
+      </li>; })}</ul>
       {!contents.files.length && !files.length ? <p className="project-folder__empty">Aucun fichier ajouté à ce projet.</p> : null}
     </section> : null}
     {(['quotes', 'invoices'] as const).filter((kind) => tab === 'all' || tab === kind).map((kind) => <section className="panel project-folder__section" key={kind}>
