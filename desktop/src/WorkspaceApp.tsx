@@ -451,6 +451,7 @@ export function WorkspaceApp({
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
+  const workspaceMounted = useRef(true);
   const { reason: workspaceRecoveryReason, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
@@ -622,8 +623,13 @@ export function WorkspaceApp({
     return () => window.clearInterval(interval);
   }, [workspace.activeTimer]);
 
+  useEffect(() => {
+    workspaceMounted.current = true;
+    return () => { workspaceMounted.current = false; };
+  }, []);
+
   const runRecurrenceScan = useCallback(async () => {
-    if (readOnly || recurrenceScanInFlight.current || isWorkspaceRecoveryPending()) return;
+    if (readOnly || actionInFlight.current || recurrenceScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
       typeof document !== 'undefined' &&
       document.visibilityState === 'hidden'
@@ -638,6 +644,8 @@ export function WorkspaceApp({
     if (!dueSchedules.length) return;
 
     recurrenceScanInFlight.current = true;
+    actionInFlight.current = true;
+    setBusy(true);
     const previousOccurrenceIds = new Set(
       initialWorkspace.recurrenceOccurrences.map((item) => item.id),
     );
@@ -654,13 +662,30 @@ export function WorkspaceApp({
           }
           return requestId;
         },
-        generate: (input) => desktopApi.generateRecurrenceOccurrences(input),
+        shouldContinue: () => workspaceMounted.current,
+        generate: async (input) => {
+          try {
+            return await desktopApi.generateRecurrenceOccurrences(input);
+          } catch (reason) {
+            if (!workspaceMounted.current || !(reason instanceof WorkspaceRefreshAfterMutationError)) throw reason;
+            try {
+              return await desktopApi.loadWorkspace();
+            } catch (refreshCause) {
+              if (!workspaceMounted.current) throw reason;
+              const recovered = await waitForRefresh(refreshCause);
+              if (recovered) return recovered;
+              throw reason;
+            }
+          }
+        },
         onSuccess: (nextWorkspace, schedule) => {
+          if (!workspaceMounted.current) return;
           workspaceRef.current = nextWorkspace;
           setWorkspace(nextWorkspace);
           recurrenceRequestIds.current.delete(`${schedule.id}:${throughDate}`);
         },
       });
+      if (!workspaceMounted.current) return;
       const latestWorkspace = batch.latestResult ?? initialWorkspace;
       const createdCount = latestWorkspace.recurrenceOccurrences.filter(
         (item) => !previousOccurrenceIds.has(item.id),
@@ -706,8 +731,10 @@ export function WorkspaceApp({
       });
     } finally {
       recurrenceScanInFlight.current = false;
+      actionInFlight.current = false;
+      if (workspaceMounted.current) setBusy(false);
     }
-  }, [readOnly, setWorkspace, isWorkspaceRecoveryPending]);
+  }, [readOnly, setWorkspace, isWorkspaceRecoveryPending, waitForRefresh]);
 
   useEffect(() => {
     if (readOnly) return;

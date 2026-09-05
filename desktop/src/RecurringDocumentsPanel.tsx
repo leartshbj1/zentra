@@ -21,7 +21,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { Button, StatusBadge } from './ui';
+import { Button, ErrorPanel, StatusBadge } from './ui';
 import { createId } from './utils';
 import './RecurringDocumentsPanel.css';
 
@@ -347,7 +347,8 @@ export function RecurringDocumentsPanel({
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
-  const [statusRequestIds, setStatusRequestIds] = useState<
+  const actionInFlight = useRef(false);
+  const statusRequestIds = useRef<
     Partial<Record<'active' | 'paused' | 'completed', string>>
   >({});
   const [localError, setLocalError] = useState('');
@@ -372,7 +373,7 @@ export function RecurringDocumentsPanel({
     );
     setShowErrors(false);
     setLocalError('');
-    setStatusRequestIds({});
+    statusRequestIds.current = {};
   }, [
     defaultCreateOpen,
     defaultPaymentTermsDays,
@@ -386,14 +387,17 @@ export function RecurringDocumentsPanel({
   useEffect(() => {
     if (showErrors && validationErrorCount > 0) {
       errorSummaryRef.current?.focus({ preventScroll: true });
+      errorSummaryRef.current?.scrollIntoView({ block: 'center', behavior: 'instant' });
     }
   }, [showErrors, validationErrorCount]);
 
   async function submitSchedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabled || readOnly || actionInFlight.current || schedule) return;
     setShowErrors(true);
     setLocalError('');
     if (orderBlockers.length || validationErrorCount) return;
+    actionInFlight.current = true;
     setSubmitting(true);
     try {
       await onCreate({
@@ -405,6 +409,7 @@ export function RecurringDocumentsPanel({
     } catch (reason) {
       setLocalError(callbackError(reason));
     } finally {
+      actionInFlight.current = false;
       setSubmitting(false);
     }
   }
@@ -415,7 +420,7 @@ export function RecurringDocumentsPanel({
       'active' | 'paused' | 'completed'
     >,
   ) {
-    if (!schedule) return;
+    if (!schedule || disabled || readOnly || actionInFlight.current || schedule.sourceSalesOrderId !== order.id) return;
     if (
       nextStatus === 'completed' &&
       !window.confirm(
@@ -424,13 +429,9 @@ export function RecurringDocumentsPanel({
     )
       return;
     const requestId =
-      statusRequestIds[nextStatus] ?? createRecurringRequestId();
-    if (!statusRequestIds[nextStatus]) {
-      setStatusRequestIds((current) => ({
-        ...current,
-        [nextStatus]: requestId,
-      }));
-    }
+      statusRequestIds.current[nextStatus] ?? createRecurringRequestId();
+    statusRequestIds.current[nextStatus] = requestId;
+    actionInFlight.current = true;
     setStatusBusy(true);
     setLocalError('');
     try {
@@ -440,14 +441,11 @@ export function RecurringDocumentsPanel({
         status: nextStatus,
         endDate: schedule.endDate,
       });
-      setStatusRequestIds((current) => {
-        const next = { ...current };
-        delete next[nextStatus];
-        return next;
-      });
+      delete statusRequestIds.current[nextStatus];
     } catch (reason) {
       setLocalError(callbackError(reason));
     } finally {
+      actionInFlight.current = false;
       setStatusBusy(false);
     }
   }
@@ -500,15 +498,7 @@ export function RecurringDocumentsPanel({
           <span>Mode lecture seule : la planification reste consultable.</span>
         </div>
       ) : null}
-      {error || localError ? (
-        <div
-          className="recurring-documents__message recurring-documents__message--danger"
-          role="alert"
-        >
-          <TriangleAlert size={18} aria-hidden="true" />
-          <span>{error || localError}</span>
-        </div>
-      ) : null}
+      {(error || localError) && !createOpen ? <ErrorPanel message={error || localError} reveal /> : null}
       {notice ? (
         <div
           className="recurring-documents__message recurring-documents__message--success"
@@ -659,14 +649,14 @@ export function RecurringDocumentsPanel({
                 min="0"
                 max="365"
                 step="1"
-                value={draft.paymentTermsDays}
+                value={Number.isNaN(draft.paymentTermsDays) ? '' : draft.paymentTermsDays}
                 aria-describedby={`${formHeadingId}-payment-terms-description`}
                 aria-invalid={Boolean(
                   showErrors && validationErrors.paymentTermsDays,
                 )}
                 onChange={(event) =>
                   updateDraft({
-                    paymentTermsDays: Number(event.target.value),
+                    paymentTermsDays: event.target.valueAsNumber,
                   })
                 }
                 disabled={disabled || readOnly}
@@ -675,24 +665,30 @@ export function RecurringDocumentsPanel({
             </RecurringField>
           </div>
 
-          <div className="recurring-documents__anchor-note" role="note">
-            <CalendarClock size={18} aria-hidden="true" />
-            <p>
-              Le jour de la date de début devient l’ancrage. Si elle est le
-              dernier jour du mois, les échéances suivantes restent en fin de
-              mois.
-            </p>
-          </div>
+          <details className="recurring-documents__rules">
+            <summary>Règles de planification et de rattrapage</summary>
+            <div className="recurring-documents__anchor-note" role="note">
+              <CalendarClock size={18} aria-hidden="true" />
+              <p>
+                Le jour de la date de début devient l’ancrage. Si elle est le
+                dernier jour du mois, les échéances suivantes restent en fin de
+                mois.
+              </p>
+            </div>
 
-          <div className="recurring-documents__catch-up-note" role="note">
-            <FileClock size={18} aria-hidden="true" />
-            <p>
-              La limite de rattrapage est de <strong>{safeCatchUpLimit}</strong>{' '}
-              échéances par lot. Après une période hors ligne, chaque lot
-              prépare uniquement des factures brouillon à contrôler ; au-delà,
-              une revue et une reprise explicite sont exigées.
-            </p>
-          </div>
+            <div className="recurring-documents__catch-up-note" role="note">
+              <FileClock size={18} aria-hidden="true" />
+              <p>
+                La limite de rattrapage est de <strong>{safeCatchUpLimit}</strong>{' '}
+                échéances par lot. Après une période hors ligne, chaque lot
+                prépare uniquement des factures brouillon à contrôler ; au-delà,
+                une revue et une reprise explicite sont exigées.
+              </p>
+            </div>
+
+          </details>
+
+          {error || localError ? <ErrorPanel message={error || localError} reveal /> : null}
 
           <div className="recurring-documents__actions">
             <Button
@@ -803,6 +799,8 @@ function RecurringScheduleView({
     catchUpLimit,
   );
   const occurrences = sortedRecurringOccurrences(schedule.occurrences);
+  const [historyLimit, setHistoryLimit] = useState(10);
+  useEffect(() => { setHistoryLimit(10); }, [schedule.id]);
   const canResume =
     (schedule.status === 'paused' || schedule.status === 'review_required') &&
     !mismatch;
@@ -955,7 +953,7 @@ function RecurringScheduleView({
         </summary>
         {occurrences.length ? (
           <ol>
-            {occurrences.map((occurrence) => (
+            {occurrences.slice(0, historyLimit).map((occurrence) => (
               <li key={occurrence.id}>
                 <span
                   className={`recurring-documents__occurrence-marker recurring-documents__occurrence-marker--${
@@ -1001,6 +999,11 @@ function RecurringScheduleView({
             Aucune occurrence n’a encore été préparée.
           </p>
         )}
+        {occurrences.length > historyLimit ? <div className="recurring-documents__history-more">
+          <Button type="button" variant="secondary" onClick={() => setHistoryLimit((limit) => limit + 10)}>
+            Afficher les échéances précédentes ({historyLimit} sur {occurrences.length})
+          </Button>
+        </div> : null}
       </details>
     </div>
   );

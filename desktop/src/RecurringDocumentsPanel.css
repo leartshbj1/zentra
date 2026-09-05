@@ -1,7 +1,9 @@
 .recurring-documents {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .recurring-documents__header {
@@ -229,7 +231,7 @@
 
 .recurring-documents__choices label > span small {
   color: #728078;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -273,7 +275,7 @@
 
 .recurring-documents__field-label em {
   color: #8b6a33;
-  font-size: 9px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 750;
   letter-spacing: 0.07em;
@@ -289,6 +291,8 @@
 .recurring-documents__field-control input {
   min-width: 0;
   flex: 1;
+  min-height: 44px;
+  font-size: 16px;
 }
 
 .recurring-documents__field-control > span {
@@ -299,7 +303,7 @@
 
 .recurring-documents__field-hint,
 .recurring-documents__field-error {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -327,6 +331,18 @@
   margin: 0;
 }
 
+.recurring-documents__rules > summary {
+  padding: 12px 0;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.recurring-documents__rules[open] > div + div {
+  margin-top: 10px;
+}
+
 .recurring-documents__actions,
 .recurring-documents__schedule-actions {
   display: flex;
@@ -336,8 +352,20 @@
   gap: 9px;
 }
 
+.recurring-documents .button {
+  white-space: normal;
+  min-height: 44px;
+}
+
+.recurring-documents .eyebrow { font-size: 12px !important; }
+
+.recurring-documents__history-more { padding: 12px; }
+.recurring-documents__history-more .button { width: 100%; }
+
 .recurring-documents__schedule {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 16px;
 }
 
@@ -365,7 +393,7 @@
 
 .recurring-documents__fact > span {
   color: #778179;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -399,6 +427,7 @@
 }
 
 .recurring-documents__history {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid #dfe3de;
   border-radius: 14px;
@@ -493,7 +522,7 @@
 .recurring-documents__occurrence-heading time,
 .recurring-documents__history li p {
   color: #727d76;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .recurring-documents__history li p {

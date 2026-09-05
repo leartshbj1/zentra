@@ -102,11 +102,13 @@ export async function processRecurrenceScheduleBatch<T>({
   requestIdFor,
   generate,
   onSuccess,
+  shouldContinue,
 }: {
   schedules: readonly RecurrenceSchedule[];
   throughDate: string;
   requestIdFor: (schedule: RecurrenceSchedule) => string;
   generate: (input: RecurrenceScheduleBatchInput) => Promise<T>;
+  shouldContinue?: () => boolean;
   onSuccess?: (
     result: T,
     schedule: RecurrenceSchedule,
@@ -116,6 +118,7 @@ export async function processRecurrenceScheduleBatch<T>({
   const succeededScheduleIds: string[] = [];
   const failures: RecurrenceScheduleBatchFailure[] = [];
   for (const schedule of schedules) {
+    if (shouldContinue && !shouldContinue()) break;
     try {
       const result = await generate({
         requestId: requestIdFor(schedule),

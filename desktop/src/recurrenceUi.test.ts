@@ -143,6 +143,25 @@ describe('récurrence côté interface', () => {
     });
   });
 
+  it('arrête le lot avant la planification suivante si l’espace a été fermé', async () => {
+    let mounted = true;
+    const generated: string[] = [];
+    const result = await processRecurrenceScheduleBatch({
+      schedules: [schedule, { ...schedule, id: 'schedule-2' }],
+      throughDate: '2028-01-31',
+      requestIdFor: (item) => `request-${item.id}`,
+      shouldContinue: () => mounted,
+      generate: async (input) => {
+        generated.push(input.scheduleId);
+        mounted = false;
+        throw new Error('Espace fermé pendant la reprise de lecture');
+      },
+    });
+    expect(generated).toEqual(['schedule-1']);
+    expect(result.failures).toHaveLength(1);
+    expect(result.succeededScheduleIds).toEqual([]);
+  });
+
   it('explique les conflits de livraison, stock, facture et annulation', () => {
     const result = recurrenceOrderEligibility(
       {

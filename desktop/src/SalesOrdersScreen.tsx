@@ -675,8 +675,8 @@ function SalesOrderDetail({
           title={recurrenceSchedule ? 'Montants par occurrence' : 'Articles et exécution'}
           description={
             recurrenceSchedule
-              ? 'Chaque brouillon reprend ce contenu figé. Les compteurs ci-dessous concernent la planification, pas le flux de livraison standard.'
-              : 'Le stock physique, les réservations et les quantités disponibles restent distincts. Le backend revalide chaque action.'
+              ? 'Chaque échéance reprend ces prestations et ces montants. Contrôlez le brouillon avant de l’émettre.'
+              : 'Retrouvez les quantités commandées, livrées et facturées pour chaque article.'
           }
         />
         <div className="order-line-list">

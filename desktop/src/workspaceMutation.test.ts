@@ -6,6 +6,9 @@ import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
 const request = '39c85c22-7fc0-42d0-95f9-c1ad536fe2cf';
 const operations = [
+  { command: 'create_recurrence_schedule', run: () => desktopApi.createRecurrenceSchedule({ requestId: request, sourceSalesOrderId: 'order', frequency: 'monthly', startDate: '2026-09-01', endDate: null, paymentTermsDays: 30 }) },
+  { command: 'update_recurrence_schedule', run: () => desktopApi.updateRecurrenceSchedule({ requestId: request, scheduleId: 'schedule', status: 'paused', endDate: null }) },
+  { command: 'generate_recurrence_occurrences', run: () => desktopApi.generateRecurrenceOccurrences({ requestId: request, scheduleId: 'schedule', throughDate: '2026-09-05' }) },
   { command: 'save_delivery_note_draft', run: () => desktopApi.saveDeliveryNoteDraft({ id: request, salesOrderId: 'order', deliveryDate: '2026-09-05', lines: [{ salesOrderLineId: 'line', quantityMilli: 2000 }] }) },
   { command: 'issue_delivery_note', run: () => desktopApi.issueDeliveryNote(request, 'delivery') },
   { command: 'reverse_delivery_note', run: () => desktopApi.reverseDeliveryNote(request, 'delivery', 'Retour client') },
@@ -50,7 +53,7 @@ describe('reprise des ventes et achats après écriture locale confirmée', () =
   });
   it('renvoie directement les données lorsque l’écriture et la lecture réussissent', async () => {
     invokeMock.mockImplementation(async (command: string) => command === 'get_app_state' ? { onboarding_completed: 0 } : {});
-    const workspace = await operations[0].run();
+    const workspace = await operations.find((operation) => operation.command === 'save_delivery_note_draft')!.run();
     expect(workspace.onboardingCompleted).toBe(false);
     expect(invokeMock.mock.calls.map(([name]) => name)).toEqual(['save_delivery_note_draft', 'get_app_state']);
   });
