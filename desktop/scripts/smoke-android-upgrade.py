@@ -83,6 +83,8 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
     assert after_version > before_version, "Upgrade must increase versionCode"
     adb("logcat", "-c")
     adb("shell", "am", "start", "-W", "-n", PACKAGE + "/.MainActivity")
+    initial_pid = adb("shell", "pidof", PACKAGE).decode().strip()
+    assert initial_pid.isdigit(), "Expected one application process at upgrade launch"
     deadline = time.monotonic() + 80
     ui = b""
     while time.monotonic() < deadline:
@@ -100,7 +102,7 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
         time.sleep(3)
     assert b"Restaurer une sauvegarde" in ui, "Welcome interface missing after upgrade"
     app_pid = adb("shell", "pidof", PACKAGE).decode().strip()
-    assert app_pid.isdigit(), "Expected one application process after upgrade"
+    assert app_pid == initial_pid, "Application process changed while opening after upgrade"
     (OUT / "upgrade-ui.xml").write_bytes(ui)
     (OUT / "upgrade.png").write_bytes(adb("exec-out", "screencap", "-p"))
     # Preserve emulator failures, but fail this app check only for its own PID.
