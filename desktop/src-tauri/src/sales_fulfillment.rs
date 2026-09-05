@@ -1929,6 +1929,42 @@ macro_rules! sales_fulfillment_tests {
     }
 
     #[test]
+    fn delivery_draft_retry_with_the_same_id_does_not_duplicate_stock_or_documents() {
+        let (_temporary, store) = initialized_store();
+        let (_, catalog_id, order_id, line_id) = tracked_order(&store, 10_000, 20_000);
+        let draft_id = Uuid::new_v4().to_string();
+        let input = SaveDeliveryNoteDraftInput {
+            delivery_note: crate::models::DeliveryNoteDraftInput {
+                id: Some(draft_id.clone()),
+                sales_order_id: order_id,
+                delivery_date: "2026-02-01".into(),
+                reference: Some("Livraison partielle".into()),
+                notes: Some("Entrée côté cour".into()),
+            },
+            lines: vec![DeliveryNoteLineInput {
+                sales_order_line_id: line_id,
+                quantity_milli: 2_000,
+            }],
+        };
+        store.save_delivery_note_draft(input.clone()).unwrap();
+        store.save_delivery_note_draft(input).unwrap();
+        let connection = store.connect().unwrap();
+        let count: i64 = connection.query_row("SELECT COUNT(*) FROM delivery_notes", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1);
+        let quantity: i64 = connection.query_row("SELECT SUM(quantity_milli) FROM delivery_note_lines WHERE delivery_note_id=?", params![draft_id], |row| row.get(0)).unwrap();
+        assert_eq!(quantity, 2_000);
+        let stock: i64 = connection.query_row("SELECT stock_quantity_milli FROM catalog_items WHERE id=?", params![catalog_id], |row| row.get(0)).unwrap();
+        assert_eq!(stock, 20_000, "draft saves never move stock");
+        drop(connection);
+        let issue = IssueDeliveryNoteInput { request_id: Uuid::new_v4().to_string(), delivery_note_id: draft_id };
+        store.issue_delivery_note(issue.clone()).unwrap();
+        assert_eq!(store.issue_delivery_note(issue).unwrap()["idempotent"], true);
+        let connection = store.connect().unwrap();
+        let stock: i64 = connection.query_row("SELECT stock_quantity_milli FROM catalog_items WHERE id=?", params![catalog_id], |row| row.get(0)).unwrap();
+        assert_eq!(stock, 18_000, "replayed issue moves stock only once");
+    }
+
+    #[test]
     fn confirmed_order_and_issued_delivery_freeze_the_company_logo_and_parties() {
         let (temporary, store) = initialized_store();
         let stage_logo = |name: &str, width: u32| {

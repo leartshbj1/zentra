@@ -8,6 +8,7 @@ import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
 import { installFinanceFixture } from './finance-fixture';
 import { installBankFixture } from './bank-fixture';
+import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import '../src/styles.css';
 import '../src/workspace-design.css';
@@ -86,6 +87,7 @@ if (new URLSearchParams(location.search).has('volume')) {
   data.invoices = Array.from({ length: 80 }, (_, index) => ({ ...structuredClone(data.invoices[0]), id: `volume-${index}`, number: `F-2026-${String(index + 1).padStart(4, '0')}`, title: `Prestation ${index + 1}` }));
 }
 if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
+if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

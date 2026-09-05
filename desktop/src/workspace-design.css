@@ -46,6 +46,42 @@
   .form-grid { gap: 20px; }
   .form-actions { gap: 12px; padding-top: 20px; }
 
+  .sales-order-card__identity strong,
+  .sales-order-card__client strong,
+  .sales-order-card__total,
+  .order-line-card__identity strong,
+  .order-history-card article strong,
+  .order-correction-panel > div strong,
+  .guided-lines-section > header strong,
+  .guided-line-row > span:first-child strong,
+  .order-progress > div,
+  .order-correction-impact > div { font-size: 14px; line-height: 1.45; }
+  .sales-order-card__identity small,
+  .sales-order-card__client small,
+  .sales-order-card__progress small,
+  .sales-order-hero > div > p:last-child,
+  .sales-order-hero__meta > small,
+  .order-progress > small,
+  .order-next-action > div > p:last-child,
+  .order-line-card__identity small,
+  .order-line-stock span,
+  .order-line-stock strong,
+  .order-line-progress-facts span,
+  .order-line-progress-facts strong,
+  .order-line-stock--direct,
+  .order-history-card article small,
+  .order-history-empty,
+  .order-correction-panel > div small,
+  .guided-lines-section > header p,
+  .guided-line-row > span:first-child small,
+  .guided-quantity-input small,
+  .invoice-preview-card small { font-size: 12px; line-height: 1.5; }
+  .order-next-action h3 { font-size: 17px; line-height: 1.4; }
+  .invoice-preview-card strong { font-size: 16px; line-height: 1.4; }
+  .guided-line-row { padding-block: 14px; }
+  .guided-line-row > span { min-width: 0; overflow-wrap: anywhere; }
+  .guided-quantity-input input { min-height: 44px; }
+
   .sidebar { background: #173c2e; box-shadow: none; padding: 22px 14px 16px; }
   .sidebar__brand { padding: 0 12px; }
   .sidebar__brand small { font-size: 11px; letter-spacing: .04em; color: #b3c8bd; }

@@ -70,6 +70,7 @@ import {
   X,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
+import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
 import { newestDocumentsFirst } from './documentOrder';
@@ -452,6 +453,23 @@ export function WorkspaceApp({
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
   const sidebarHidden = compactSidebarHidden(compactNavigation, menuOpen);
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation || sidebarHidden) return;
+    const revealActive = () => {
+      const active = navigation.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!active) return;
+      const frame = navigation.getBoundingClientRect();
+      const item = active.getBoundingClientRect();
+      if (item.top < frame.top + 4) navigation.scrollTop += item.top - frame.top - 4;
+      else if (item.bottom > frame.bottom - 4) navigation.scrollTop += item.bottom - frame.bottom + 4;
+    };
+    revealActive();
+    const observer = new ResizeObserver(revealActive);
+    observer.observe(navigation);
+    return () => observer.disconnect();
+  }, [view, sidebarHidden]);
   const readOnlyMutationMessage = readOnlySource === 'cloud'
     ? 'Votre rôle « Lecture seule » bloque les modifications sur ce poste. La consultation et les exports restent disponibles.'
     : 'La licence doit être active pour modifier les données. Lecture, sauvegarde et export restent disponibles.';
@@ -798,16 +816,21 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      onError?.(reason);
       // Une commande locale peut avoir été validée juste avant qu'un
       // rafraîchissement échoue. Relire au mieux évite alors une interface
       // périmée et rend le prochain essai sûr.
       try {
         setWorkspace(await desktopApi.loadWorkspace());
+        if (reason instanceof WorkspaceRefreshAfterMutationError) {
+          setNotice({ tone: 'success', text: message });
+          if (close) setModal(null);
+          return true;
+        }
       } catch {
         // Le message d'origine reste le plus utile lorsque la relecture échoue aussi.
       }
-      setNotice({
+      onError?.(reason);
+      if (!onError) setNotice({
         tone: 'error',
         text: errorMessage(reason, 'L’action locale a échoué.'),
       });
@@ -1335,7 +1358,7 @@ export function WorkspaceApp({
             <X size={18} />
           </Button>
         </div>
-        <nav className="sidebar__nav" aria-label="Navigation principale">
+        <nav ref={navigationRef} className="sidebar__nav" aria-label="Navigation principale">
           {navigation.map((item) => {
             const Icon =
               item.id === 'projects' && terminology.icon === 'hard-hat'

@@ -1,5 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { fileBase64 } from './projectDocuments';
+import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
   OpenDialogOptions,
@@ -5392,7 +5393,7 @@ export const desktopApi = {
     await invoke('convert_quote_to_sales_order', {
       input: { request_id: requestId, quote_id: quoteId },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSalesOrderDraft(input: {
     id?: string;
@@ -5442,30 +5443,30 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async confirmSalesOrder(requestId: string, salesOrderId: string) {
     await invoke('confirm_sales_order', {
       input: { request_id: requestId, sales_order_id: salesOrderId },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createRecurrenceSchedule(input: CreateRecurrenceScheduleInput) {
     const mutation = createRecurrenceScheduleMutation(input);
     await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async updateRecurrenceSchedule(input: UpdateRecurrenceScheduleInput) {
     const mutation = updateRecurrenceScheduleMutation(input);
     await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async generateRecurrenceOccurrences(
     input: GenerateRecurrenceOccurrencesInput,
   ) {
     const mutation = generateRecurrenceOccurrencesMutation(input);
     await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async cancelSalesOrder(
     requestId: string,
@@ -5479,7 +5480,7 @@ export const desktopApi = {
         reason: reason.trim(),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async cancelSalesOrderRemainder(
     requestId: string,
@@ -5498,7 +5499,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveDeliveryNoteDraft(input: {
     id?: string;
@@ -5523,13 +5524,13 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async issueDeliveryNote(requestId: string, deliveryNoteId: string) {
     await invoke('issue_delivery_note', {
       input: { request_id: requestId, delivery_note_id: deliveryNoteId },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async reverseDeliveryNote(
     requestId: string,
@@ -5543,7 +5544,7 @@ export const desktopApi = {
         reason: reason.trim(),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async previewSalesOrderInvoice(input: {
     salesOrderId: string;
@@ -5608,7 +5609,7 @@ export const desktopApi = {
         })),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async cancelSalesOrderInvoiceDraft(
     requestId: string,
@@ -5622,7 +5623,7 @@ export const desktopApi = {
         reason: reason.trim(),
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async addPayment(
     invoiceId: string,

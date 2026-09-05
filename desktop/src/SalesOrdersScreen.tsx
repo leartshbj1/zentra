@@ -146,6 +146,13 @@ export function SalesOrdersScreen({
   onPrintDelivery: (note: DeliveryNote) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const previousQuery = useRef(query);
+  useEffect(() => {
+    if (query !== previousQuery.current) {
+      previousQuery.current = query;
+      setSelectedId(null);
+    }
+  }, [query]);
   const selected = workspace.salesOrders.find(
     (order) => order.id === selectedId,
   );
@@ -418,7 +425,7 @@ function SalesOrderDetail({
     !canCancelOrder &&
     cancellableRemainder.length > 0;
 
-  const issueDelivery = async (note: DeliveryNote) => {
+  const issueDelivery = async (note: DeliveryNote, onError?: (reason: unknown) => void) => {
     let requestId = issueRequestIds.current.get(note.id);
     if (!requestId) {
       requestId = createId();
@@ -428,6 +435,7 @@ function SalesOrderDetail({
       () => desktopApi.issueDeliveryNote(requestId!, note.id),
       'Le bon de livraison a été émis. La réservation et le stock ont été mis à jour ensemble.',
       false,
+      onError,
     );
     if (ok) issueRequestIds.current.delete(note.id);
     return ok;
@@ -994,10 +1002,7 @@ function SalesOrderDetail({
           workspace={workspace}
           busy={busy}
           close={() => setDeliveryIssueTarget(null)}
-          onIssue={async () => {
-            const ok = await issueDelivery(deliveryIssueTarget);
-            if (ok) setDeliveryIssueTarget(null);
-          }}
+          onIssue={(onError) => issueDelivery(deliveryIssueTarget, onError)}
         />
       ) : null}
       {invoiceOpen ? (
@@ -1058,8 +1063,9 @@ function DeliveryNoteIssueReview({
   workspace: Workspace;
   busy: boolean;
   close: () => void;
-  onIssue: () => Promise<void>;
+  onIssue: (onError: (reason: unknown) => void) => Promise<boolean>;
 }) {
+  const [issueError, setIssueError] = useState('');
   const client = workspace.clients.find((item) => item.id === order.clientId);
   const project = workspace.projects.find(
     (item) => item.id === order.projectId,
@@ -1068,11 +1074,15 @@ function DeliveryNoteIssueReview({
   return (
     <Modal
       title="Contrôler le bon avant émission"
-      description="Vérifiez le destinataire et chaque quantité. La confirmation numérotera le bon et mouvementera définitivement le stock."
+      description="Vérifiez le destinataire et les quantités. L’émission attribue un numéro au bon et met à jour le stock des articles suivis."
       onClose={close}
       wide
     >
-      <form onSubmit={submitForm(onIssue)}>
+      <form onSubmit={submitForm(async () => {
+        setIssueError('');
+        const ok = await onIssue((reason) => setIssueError(errorMessage(reason, 'Le bon n’a pas pu être émis.')));
+        if (ok) close();
+      })}>
         <div className="info-strip">
           <UserRound size={17} />
           <span>
@@ -1117,6 +1127,7 @@ function DeliveryNoteIssueReview({
             <span>{note.notes}</span>
           </div>
         ) : null}
+        {issueError ? <ErrorPanel message={issueError} reveal /> : null}
         {!client ? (
           <ErrorPanel message="Le client lié à cette commande est introuvable. Corrigez les données avant d’émettre le bon." />
         ) : null}
@@ -1230,6 +1241,7 @@ function OrderCorrectionModal({
             },
             copy.success,
             false,
+            (reason) => setClientError(errorMessage(reason, 'La correction n’a pas pu être enregistrée.')),
           );
           if (ok) close();
         })}
@@ -1266,10 +1278,7 @@ function OrderCorrectionModal({
             onChange={() => setClientError('')}
           />
         </Field>
-        <p className="stock-request-id">
-          Requête idempotente · {requestId.current}
-        </p>
-        {clientError ? <ErrorPanel message={clientError} /> : null}
+        {clientError ? <ErrorPanel message={clientError} reveal /> : null}
         <FormActions onCancel={close} busy={busy} submitLabel={copy.submit} />
       </form>
     </Modal>
@@ -1314,7 +1323,7 @@ const nextActionCopy: Record<
   create_final_invoice: {
     title: 'Créer la facture finale',
     description:
-      'Toutes les livraisons requises sont terminées. Le backend vérifiera qu’aucun reliquat ne manque.',
+      'Toutes les livraisons requises sont terminées. Le solde restant sera vérifié avant la création.',
     button: 'Créer la facture finale',
   },
   issue_invoice: {
@@ -1346,6 +1355,7 @@ function DeliveryNoteForm({
   act: ActionRunner;
   close: () => void;
 }) {
+  const draftId = useRef(note?.id || createId());
   const available = useMemo(
     () => defaultDeliveryAllocations(order, workspace),
     [order, workspace],
@@ -1431,7 +1441,7 @@ function DeliveryNoteForm({
           const ok = await act(
             () =>
               desktopApi.saveDeliveryNoteDraft({
-                id: note?.id,
+                id: draftId.current,
                 salesOrderId: order.id,
                 deliveryDate,
                 reference: String(form.get('reference') ?? ''),
@@ -1442,6 +1452,7 @@ function DeliveryNoteForm({
               ? 'Le bon de livraison brouillon a été corrigé. Contrôlez-le avant émission.'
               : 'Le bon de livraison brouillon est prêt. Contrôlez-le puis émettez-le pour mouvementer le stock.',
             false,
+            (reason) => setClientError(errorMessage(reason, 'Le brouillon n’a pas pu être enregistré.')),
           );
           if (ok) close();
         })}
@@ -1532,11 +1543,11 @@ function DeliveryNoteForm({
         <div className="info-strip">
           <ShieldCheck size={17} />
           <span>
-            Ce brouillon ne modifie aucun stock. Seule son émission contrôlée
-            consommera les réservations et créera les sorties.
+            Ce brouillon prépare les quantités à livrer. Le stock des articles
+            suivis est mis à jour à l’émission du bon.
           </span>
         </div>
-        {clientError ? <ErrorPanel message={clientError} /> : null}
+        {clientError ? <ErrorPanel message={clientError} reveal /> : null}
         <FormActions
           onCancel={close}
           busy={busy}
@@ -1585,6 +1596,7 @@ function OrderInvoiceWizard({
   const [preview, setPreview] = useState<SalesOrderInvoicePreview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [clientError, setClientError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [dateError, setDateError] = useState('');
   const [issueDate, setIssueDate] = useState(initialIssueDate);
   const [dueDate, setDueDate] = useState('');
@@ -1655,6 +1667,7 @@ function OrderInvoiceWizard({
     setPreview(null);
     setPreviewBusy(false);
     setClientError('');
+    setSaveError('');
   };
 
   useEffect(() => {
@@ -1697,12 +1710,13 @@ function OrderInvoiceWizard({
           ? `Créer la ${previewDocumentLabel.toLowerCase()}`
           : 'Créer la facture suivante'
       }
-      description="Le type n’est jamais choisi manuellement. Zentra décide entre situation et finale après contrôle des livraisons et allocations."
+      description="Le type de facture dépend des livraisons et des quantités déjà facturées."
       onClose={close}
       wide
     >
       <form
         onSubmit={submitForm(async () => {
+          setSaveError('');
           const nextDateError =
             salesOrderInvoiceDateValidationError(invoiceDates);
           setDateError(nextDateError);
@@ -1730,6 +1744,7 @@ function OrderInvoiceWizard({
               ? 'La facture finale brouillon a été créée. Contrôlez-la puis émettez-la.'
               : 'La facture de situation brouillon a été créée. Contrôlez-la puis émettez-la.',
             false,
+            (reason) => setSaveError(errorMessage(reason, 'La facture n’a pas pu être créée.')),
           );
           if (ok) close();
         })}
@@ -1912,12 +1927,9 @@ function OrderInvoiceWizard({
             rien. Le stock a déjà été mouvementé par le bon de livraison.
           </span>
         </div>
-        {dateError || clientError ? (
-          <ErrorPanel message={dateError || clientError} />
+        {dateError || clientError || saveError ? (
+          <ErrorPanel message={dateError || clientError || saveError} reveal />
         ) : null}
-        <p className="stock-request-id">
-          Requête idempotente · {requestId.current}
-        </p>
         <FormActions
           onCancel={close}
           busy={busy || previewBusy}

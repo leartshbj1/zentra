@@ -301,13 +301,27 @@ export function ErrorPanel({
   message,
   onRetry,
   title = 'Action impossible',
+  reveal = false,
 }: {
   message: string;
   onRetry?: () => void;
   title?: string;
+  reveal?: boolean;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!reveal) return;
+    const frame = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const actions = panel.closest('form')?.querySelector('.form-actions');
+      panel.style.scrollMarginBlockEnd = `${(actions?.getBoundingClientRect().height || 0) + 16}px`;
+      panel.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [message, reveal]);
   return (
-    <div className="error-panel" role="alert">
+    <div ref={panelRef} className="error-panel" role="alert">
       <AlertTriangle size={22} />
       <div>
         <strong>{title}</strong>
