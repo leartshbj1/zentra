@@ -723,6 +723,13 @@ pub fn convert_quote_to_invoice(
 }
 
 #[tauri::command]
+pub fn create_quote_balance_invoice(state: State<'_, LocalStore>, quote_id: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.create_quote_balance_invoice(&quote_id).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn convert_quote_to_sales_order(
     state: State<'_, LocalStore>,
     input: ConvertQuoteToSalesOrderInput,

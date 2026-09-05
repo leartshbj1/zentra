@@ -109,7 +109,7 @@ fn refund_attachment_schema_48_migrates_and_preserves_legacy_request_replay() {
     let result=store.record_expense_refund(request.clone()).unwrap();
     store.connect().unwrap().execute_batch("DROP TRIGGER expense_refund_attachment_insert_guard; DROP TRIGGER expense_refund_attachment_no_delete; PRAGMA user_version=48;").unwrap();
     let migrated=LocalStore::initialize(dir.path().join("profile")).unwrap();
-    assert_eq!(migrated.connect().unwrap().query_row("PRAGMA user_version",[],|r|r.get::<_,i64>(0)).unwrap(),49);
+    assert_eq!(migrated.connect().unwrap().query_row("PRAGMA user_version",[],|r|r.get::<_,i64>(0)).unwrap(),crate::schema::SCHEMA_VERSION);
     assert_eq!(migrated.record_expense_refund(request).unwrap()["already_recorded"],true);
     migrated.add_expense_refund_attachment(result["refund"]["id"].as_str().unwrap(),receipt(1)).unwrap();
     assert!(migrated.connect().unwrap().execute("UPDATE attachments SET entity_id='invalid' WHERE entity_type='expense_refund'",[]).is_err());

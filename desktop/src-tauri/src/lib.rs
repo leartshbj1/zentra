@@ -201,6 +201,7 @@ pub fn run() {
             update_quote_status,
             create_quote_revision,
             convert_quote_to_invoice,
+            create_quote_balance_invoice,
             convert_quote_to_sales_order,
             save_sales_order_draft,
             confirm_sales_order,
@@ -4596,6 +4597,21 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(converted["invoice"]["discount_cents"], 0);
         assert_eq!(converted["invoice"]["vat_cents"], 457);
         assert_eq!(converted["invoice"]["total_cents"], 6_607);
+        assert_eq!(converted["balance_invoice"]["type"], "finale");
+        assert_eq!(converted["balance_invoice"]["total_cents"], 15_416);
+        assert_eq!(converted["balance_invoice"]["vat_cents"], 1_066);
+        let balance_id = converted["balance_invoice"]["id"].as_str().unwrap();
+        let deposit_id = converted["invoice"]["id"].as_str().unwrap();
+        assert_eq!(store.create_quote_balance_invoice(&quote_id).unwrap()["id"], balance_id);
+        assert!(store.issue_invoice(balance_id, Some("2026-09-02".into()), None).unwrap_err().to_string().contains("d’abord"));
+        assert!(store.update_record("invoices", deposit_id, json!({"deposit_percentage_bp":4000})).is_err());
+        assert!(store.update_record("invoices", balance_id, json!({"quote_id":null})).is_err());
+        enable_accounting(&store);
+        let deposit_issued = store.issue_invoice(deposit_id, Some("2026-09-02".into()), None).unwrap();
+        let balance_issued = store.issue_invoice(balance_id, Some("2026-09-03".into()), None).unwrap();
+        assert_ne!(deposit_issued["number"], balance_issued["number"]);
+        let snapshot: serde_json::Value = serde_json::from_str(balance_issued["snapshot_json"].as_str().unwrap()).unwrap();
+        assert!(snapshot["document"]["notes"].as_str().unwrap().contains(deposit_issued["number"].as_str().unwrap()));
 
         let basis: serde_json::Value =
             serde_json::from_str(converted["invoice"]["deposit_basis_json"].as_str().unwrap())
@@ -4643,9 +4659,101 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     row.get::<_, i64>(0)
                 })
                 .unwrap(),
-            2
+            6
         );
         assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+    }
+
+    #[test]
+    fn quote_invoice_pair_rounding_payment_pdf_and_backup() {
+        for percentage in [1, 3_333, 9_999, 10_000] {
+          for form in ["agreed", "received"] {
+            let (temporary, store) = initialized_store();
+            enable_accounting(&store);
+            store.connect().unwrap().execute("UPDATE settings SET vat_number='CHE-123.456.789 TVA' WHERE id=1",[]).unwrap();
+            store.create_vat_profile(crate::vat_reporting::VatProfileInput { id:None,effective_from:"2026-01-01".into(),effective_to:None,reporting_method:"effective".into(),form_of_reporting:form.into(),periodicity:"quarterly".into(),gross_or_net:"net".into(),tdfn_activity_id:None,tdfn_rate_bp:None,afc_authorization_confirmed:true,notes:None,close_previous_open_profile:false }).unwrap();
+            let client = value_id(&store.create_record("clients", test_client("Client dossier")).unwrap());
+            let quote = value_id(&store.create_record("quotes", json!({"client_id":client,"title":"Dossier arrondis"})).unwrap());
+            for (price, vat) in [(10_001,810),(17_777,260),(12_345,0)] {
+                store.create_record("quote_items",json!({"quote_id":quote,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":price,"discount_bp":333,"vat_bp":vat})).unwrap();
+            }
+            store.issue_quote(&quote,Some("2026-05-01".into()),Some("2026-06-01".into())).unwrap();
+            store.update_quote_status(&quote,"accepted").unwrap();
+            let result = store.convert_quote_to_invoice(ConvertQuoteInput{quote_id:quote.clone(),title:None,deposit_percentage_bp:Some(percentage),issue_date:Some("2026-05-02".into()),due_date:Some("2026-06-01".into()),service_date_from:Some("2026-05-01".into()),service_date_to:Some("2026-05-31".into())}).unwrap();
+            let deposit = result["invoice"]["id"].as_str().unwrap();
+            let balance = result["balance_invoice"]["id"].as_str().unwrap();
+            for field in ["total_cents","vat_cents"] {
+                assert_eq!(result["invoice"][field].as_i64().unwrap()+result["balance_invoice"][field].as_i64().unwrap(),result["quote"][field].as_i64().unwrap());
+            }
+            let connection = store.connect().unwrap();
+            assert!(connection.execute("DELETE FROM invoice_items WHERE invoice_id=?",rusqlite::params![balance]).is_err());
+            assert!(store.delete_record("invoices",balance).is_err());
+            store.update_record("invoices",balance,json!({"service_date_from":"2026-05-02","service_date_to":"2026-05-31"})).unwrap();
+            let issued_deposit = store.issue_invoice(deposit,Some("2026-05-02".into()),None).unwrap();
+            let issued_balance = store.issue_invoice(balance,Some("2026-05-03".into()),None).unwrap();
+            assert_ne!(issued_deposit["number"],issued_balance["number"]);
+            for line in store.get_workspace().unwrap()["invoice_items"].as_array().unwrap() {
+                store.set_vat_source_classification(crate::vat_reporting::VatSourceClassificationInput { source_type:"invoice_item".into(),source_id:line["id"].as_str().unwrap().into(),treatment:if line["vat_bp"]==0 {"exempt"}else{"taxable"}.into(),note:Some("Qualification fiscale explicite de recette".into()) }).unwrap();
+            }
+            for (id,record) in [(deposit,&result["invoice"]),(balance,&result["balance_invoice"])] {
+                let pdf = store.generate_sales_document_pdf(crate::models::GenerateSalesDocumentPdfInput{entity:"invoices".into(),document_id:id.into(),destination_path:temporary.path().join(format!("{id}.pdf")).to_string_lossy().into_owned()}).unwrap();
+                assert_eq!(pdf["final_document"],true);
+                if percentage == 3_333 && form == "agreed" {
+                    if let Ok(folder) = std::env::var("ZENTRA_PAIR_QA_OUTPUT") {
+                        std::fs::create_dir_all(&folder).unwrap();
+                        std::fs::copy(pdf["path"].as_str().unwrap(),std::path::Path::new(&folder).join(if id==deposit {"acompte.pdf"}else{"solde.pdf"})).unwrap();
+                    }
+                }
+                let amount = record["total_cents"].as_i64().unwrap();
+                for part in [amount/3, amount-amount/3] {
+                  if part > 0 { store.record_payment(RecordPaymentInput{request_id:uuid::Uuid::new_v4().to_string(),invoice_id:id.into(),amount_cents:part,date:Some("2026-05-04".into()),method:Some("bank".into()),reference:None,notes:None}).unwrap(); }
+                }
+            }
+            let vat = store.preview_vat_return(crate::vat_reporting::VatReturnPreviewInput { date_from:"2026-04-01".into(),date_to:"2026-06-30".into(),submission_type:"initial".into(),profile_id:None }).unwrap();
+            assert!(vat.blocking_issues.is_empty(),"{form}: {:?}",vat.blocking_issues);
+            assert_eq!(vat.payable_tax_cents,result["quote"]["vat_cents"].as_i64().unwrap(),"{form}, acompte {percentage}");
+            let paid: i64 = connection.query_row("SELECT SUM(amount_cents) FROM payments",[],|r|r.get(0)).unwrap();
+            assert_eq!(paid,result["quote"]["total_cents"].as_i64().unwrap());
+            let posted: i64 = connection.query_row("SELECT SUM(l.debit_cents) FROM journal_lines l JOIN journal_entries e ON e.id=l.journal_entry_id WHERE e.source_type='invoice'",[],|r|r.get(0)).unwrap();
+            assert_eq!(posted,paid);
+            let continuity = store.get_accounting_continuity().unwrap();
+            assert_eq!(continuity["missing_invoices"],0,"{continuity}");
+            assert_eq!(continuity["semantic_posting_mismatches"],0,"{continuity}");
+            if percentage == 10_000 { assert_eq!(issued_balance["status"],"payee"); }
+            let archive = temporary.path().join("dossier.zentra").to_string_lossy().into_owned();
+            drop(connection);
+            store.create_backup(Some(archive.clone()),"1.34.0").unwrap();
+            store.restore_backup(&archive,"1.34.0").unwrap();
+            assert_eq!(store.get_workspace().unwrap()["quote_invoice_pairs"][0]["balance_invoice_id"],balance);
+          }
+        }
+    }
+
+    #[test]
+    fn quote_invoice_pair_completes_legacy_deposit_once_after_v49_migration() {
+        let (_temporary, store) = initialized_store();
+        let client = value_id(&store.create_record("clients",test_client("Historique")).unwrap());
+        let quote = value_id(&store.create_record("quotes",json!({"client_id":client,"title":"Ancien acompte"})).unwrap());
+        store.create_record("quote_items",json!({"quote_id":quote,"description":"Mandat","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":810})).unwrap();
+        store.issue_quote(&quote,Some("2026-05-01".into()),Some("2026-06-01".into())).unwrap();
+        store.update_quote_status(&quote,"accepted").unwrap();
+        let pair = store.convert_quote_to_invoice(ConvertQuoteInput{quote_id:quote.clone(),title:None,deposit_percentage_bp:Some(3000),issue_date:None,due_date:None,service_date_from:None,service_date_to:None}).unwrap();
+        let connection = store.connect().unwrap();
+        // Reconstruct an isolated v49 database that only contains the deposit.
+        let triggers = connection.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'quote_invoice_pair%'").unwrap().query_map([],|r|r.get::<_,String>(0)).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
+        for name in triggers { connection.execute_batch(&format!("DROP TRIGGER {name};")).unwrap(); }
+        connection.execute_batch("DROP TABLE quote_invoice_pairs;").unwrap();
+        let balance = pair["balance_invoice"]["id"].as_str().unwrap();
+        connection.execute("DELETE FROM invoice_items WHERE invoice_id=?",rusqlite::params![balance]).unwrap();
+        connection.execute("DELETE FROM invoices WHERE id=?",rusqlite::params![balance]).unwrap();
+        connection.pragma_update(None,"user_version",49).unwrap();
+        store.migrate().unwrap();
+        assert_eq!(store.get_workspace().unwrap()["invoices"].as_array().unwrap().len(),1);
+        let recovered = store.create_quote_balance_invoice(&quote).unwrap();
+        assert_eq!(recovered["total_cents"],7567);
+        assert_eq!(store.create_quote_balance_invoice(&quote).unwrap()["id"],recovered["id"]);
+        assert_eq!(store.get_workspace().unwrap()["invoices"].as_array().unwrap().len(),2);
+        assert_eq!(store.get_workspace().unwrap()["invoices"].as_array().unwrap().iter().find(|invoice| invoice["id"]==pair["invoice"]["id"]).unwrap()["deposit_percentage_bp"],3000);
     }
 
     #[test]

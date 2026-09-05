@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 49;
+pub const SCHEMA_VERSION: i64 = 50;
+pub const MIGRATION_V50_SQL: &str = include_str!("quote_invoice_pair_schema.sql");
 pub const MIGRATION_V49_SQL: &str = include_str!("expense_refund_attachment_schema.sql");
 pub const MIGRATION_V48_SQL: &str = include_str!("bank_expense_refund_schema.sql");
 pub const MIGRATION_V47_SQL: &str = include_str!("expense_refund_schema.sql");
@@ -145,6 +146,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "company_brand_assets",
     "active_timers",
     "quote_conversions",
+    "quote_invoice_pairs",
     "sales_orders",
     "sales_order_lines",
     "sales_order_cancellation_lines",

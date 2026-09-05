@@ -1,4 +1,5 @@
 import { installExpenseJournalFixture } from './expense-journal-fixture';
+import { installQuotePairFixture } from './quote-pair-fixture';
 import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
@@ -117,6 +118,7 @@ if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfi
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);
 if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
+if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

@@ -467,6 +467,7 @@ export type InvoiceType =
   | 'credit_note';
 
 export type Invoice = {
+  billingPair?: { depositInvoiceId: Identifier; balanceInvoiceId: Identifier } | null;
   id: Identifier;
   number: string;
   clientId: Identifier;

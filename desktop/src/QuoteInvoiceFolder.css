@@ -1,0 +1,30 @@
+.quote-invoice-folder { display: grid; gap: 1.25rem; }
+.quote-invoice-folder .quote-conversion-note { font-size: .875rem; line-height: 1.5; margin: 0; }
+.quote-invoice-folder__totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; }
+.quote-invoice-folder__totals div { display: grid; gap: .4rem; }
+.quote-invoice-folder__totals span { font-size: .875rem; color: var(--muted); }
+.quote-invoice-folder__totals strong { font-size: 1.125rem; overflow-wrap: anywhere; }
+.quote-invoice-folder__document { display: flex; align-items: center; gap: 1rem; padding: 1rem; min-height: 64px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.quote-invoice-folder__document > span:first-of-type { display: grid; gap: .3rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.quote-invoice-folder__document small { font-size: .875rem; }
+.quote-invoice-folder__invoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.quote-invoice-folder__invoices article { display: flex; flex-direction: column; align-items: flex-start; gap: .8rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: 12px; }
+.quote-invoice-folder__invoices h3, .quote-invoice-folder__invoices p { margin: 0; overflow-wrap: anywhere; }
+.quote-invoice-folder__invoices p { font-size: .875rem; }
+.quote-invoice-folder__invoices .button { margin-top: auto; min-height: 44px; width: 100%; }
+.quote-invoice-folder__amount { font-size: 1.5rem; }
+.quote-invoice-folder__lines { list-style: none; padding: 0; margin: 1rem 0; }
+.quote-invoice-folder__lines li { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid var(--line); }
+.quote-invoice-folder__lines span { overflow-wrap: anywhere; min-width: 0; }
+.quote-invoice-folder__lines strong { white-space: nowrap; }
+@media (max-width: 600px) {
+  .quote-invoice-folder__invoices, .quote-invoice-folder__totals { grid-template-columns: 1fr; }
+  .quote-invoice-folder__totals div { grid-template-columns: 1fr auto; gap: .8rem; align-items: center; }
+  .quote-invoice-folder__document { flex-wrap: wrap; }
+  .quote-invoice-folder .info-strip { flex-wrap: wrap; }
+  .quote-invoice-folder__invoices article { display: grid; grid-template-columns: 1fr auto; padding: 1rem; gap: .5rem; }
+  .quote-invoice-folder__invoices article > svg { display: none; }
+  .quote-invoice-folder__invoices h3, .quote-invoice-folder__invoices p, .quote-invoice-folder__invoices .button { grid-column: 1 / -1; }
+  .quote-invoice-folder__invoices article > p:last-of-type { display: none; }
+  .paired-invoice-editor .info-strip { flex-direction: column; align-items: stretch; gap: .75rem; }
+}

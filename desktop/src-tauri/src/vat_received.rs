@@ -42,6 +42,27 @@ pub(super) fn proportional_vat(vat: i64, paid: i64, gross: i64) -> i64 {
     ((i128::from(vat) * i128::from(paid) + i128::from(gross) / 2) / i128::from(gross)) as i64
 }
 
+// A managed balance contains the full quote and the exact negative deposit.
+// Allocate both signs at the same paid fraction; their sum is the actual cash
+// movement. Euclidean remainders preserve every cent, including partial payments.
+fn allocate_signed_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
+    let total: i128 = remaining.iter().map(|value| i128::from(*value)).sum();
+    if amount <= 0 || i128::from(amount) > total { return Err(invalid("Paiement supérieur au solde du dossier.")); }
+    let mut allocation = Vec::with_capacity(remaining.len());
+    let mut fractions = Vec::new();
+    let mut left = i128::from(amount);
+    for (index, value) in remaining.iter().enumerate() {
+        let product = i128::from(amount) * i128::from(*value);
+        let part = product.div_euclid(total);
+        allocation.push(i64::try_from(part).map_err(|_| invalid("Ventilation hors capacité."))?);
+        left -= part;
+        fractions.push((product.rem_euclid(total), index));
+    }
+    fractions.sort_by(|a,b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    for (_, index) in fractions.into_iter().take(left as usize) { allocation[index] += 1; }
+    Ok(allocation)
+}
+
 pub(super) fn load_sources(
     connection: &Connection,
     source_type: &str,
@@ -72,6 +93,7 @@ pub(super) fn load_sources(
     };
     let mut sources = Vec::new();
     for (parent_id, total, document_reference, credits) in documents {
+        let paired_balance = source_type == "invoice_item" && connection.query_row("SELECT EXISTS(SELECT 1 FROM quote_invoice_pairs WHERE balance_invoice_id=?)",params![parent_id],|row|row.get::<_,bool>(0))?;
         if total <= 0 || credits != 0 {
             push_issue(issues, "unreliable_received_allocation", format!("La facture {document_reference} comporte un avoir ou une base non positive. Sa ventilation exige une imputation fiscale documentée."), Some(source_type.into()), Some(parent_id));
             continue;
@@ -105,8 +127,8 @@ pub(super) fn load_sources(
             rows
         };
         let valid_lines = originals.iter().all(|line| {
-            line.net_cents >= 0
-                && line.vat_cents >= 0
+            ((line.net_cents >= 0 && line.vat_cents >= 0)
+                || (paired_balance && line.net_cents <= 0 && line.vat_cents <= 0))
                 && i128::from(line.net_cents) + i128::from(line.vat_cents)
                     == i128::from(line.total_cents)
         });
@@ -154,14 +176,15 @@ pub(super) fn load_sources(
             source.vat_cents = 0;
         }
         for (payment_id, date, amount) in payments {
-            let allocation = allocate_gross(amount, &remaining)?;
+            let allocation = if paired_balance { allocate_signed_gross(amount, &remaining)? } else { allocate_gross(amount, &remaining)? };
             for (index, paid) in allocation.into_iter().enumerate() {
                 if paid == 0 {
                     continue;
                 }
                 remaining[index] -= paid;
-                let target_vat =
-                    proportional_vat(vat[index], gross[index] - remaining[index], gross[index]);
+                let target_vat = if gross[index] < 0 {
+                    -proportional_vat(-vat[index], -(gross[index] - remaining[index]), -gross[index])
+                } else { proportional_vat(vat[index], gross[index] - remaining[index], gross[index]) };
                 let paid_vat = target_vat - vat_released[index];
                 vat_released[index] = target_vat;
                 if date.as_str() < from {
@@ -194,6 +217,20 @@ pub(super) fn load_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn signed_balance_payments_conserve_cents_and_end_at_exact_deduction() {
+        let original = vec![10811, 10261, -3243, -3078];
+        let mut remaining = original.clone();
+        for amount in [1, 17, 10000, 7, 2983, 1743] {
+            let parts = allocate_signed_gross(amount, &remaining).unwrap();
+            assert_eq!(parts.iter().sum::<i64>(), amount);
+            for (rest, part) in remaining.iter_mut().zip(parts) {
+                assert!(part >= (*rest).min(0) && part <= (*rest).max(0));
+                *rest -= part;
+            }
+        }
+        assert_eq!(remaining,vec![0;4]);
+    }
     #[test]
     fn gross_allocation_conserves_every_cent_and_finishes_without_residue() {
         let original = vec![10810, 10260, 10380, 1, 0];

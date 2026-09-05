@@ -1400,7 +1400,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
     let journal_entry_count: i64 =
         connection.query_row("SELECT COUNT(*) FROM journal_entries", [], |row| row.get(0))?;
     let missing_invoices: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)",
+        "SELECT COUNT(*) FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)",
         [],
         |row| row.get(0),
     )?;
@@ -1453,7 +1453,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         + missing_payslip_payments;
     let closed_history_requires_opening = closed_history_unposted_count(connection)?;
     let skipped_cancelled_invoices: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM invoices i WHERE i.number IS NOT NULL AND i.status='annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue')",
+        "SELECT COUNT(*) FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status='annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue')",
         [],
         |row| row.get(0),
     )?;
@@ -1576,7 +1576,7 @@ struct HistoricalEvent {
 fn closed_history_unposted_count(connection: &Connection) -> AppResult<i64> {
     Ok(connection.query_row(
         "SELECT COUNT(*) FROM (
-            SELECT 'invoice:'||i.id AS source FROM invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
+            SELECT 'invoice:'||i.id AS source FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
             UNION ALL
             SELECT 'expense:'||e.id FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)
             UNION ALL
@@ -1621,7 +1621,7 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
     let events = {
         let mut statement = tx.prepare(
             "SELECT kind,id,original_date,reference FROM (
-                SELECT 'invoice' AS kind,i.id AS id,i.issue_date AS original_date,NULL AS reference,i.issue_date AS sort_date,i.created_at AS created_at,10 AS priority FROM invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'invoice' AS kind,i.id AS id,i.issue_date AS original_date,NULL AS reference,i.issue_date AS sort_date,i.created_at AS created_at,10 AS priority FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
                 UNION ALL
                 SELECT 'expense',e.id,COALESCE(e.paid_at,e.date),NULL,COALESCE(e.paid_at,e.date),e.created_at,20 FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)
                 UNION ALL
@@ -3467,7 +3467,7 @@ fn financial_sources_without_effective_posting_in_range(
             SELECT source_type,source_id,source_event FROM chain GROUP BY root_id,source_type,source_id,source_event HAVING MAX(depth)%2=0
         )
         SELECT COUNT(*) FROM (
-            SELECT 'invoice:'||i.id FROM invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND i.issue_date BETWEEN ? AND ? AND NOT EXISTS(SELECT 1 FROM effective_sources e WHERE e.source_type='invoice' AND e.source_id=i.id AND e.source_event='issue')
+            SELECT 'invoice:'||i.id FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND i.issue_date BETWEEN ? AND ? AND NOT EXISTS(SELECT 1 FROM effective_sources e WHERE e.source_type='invoice' AND e.source_id=i.id AND e.source_event='issue')
             UNION ALL
             SELECT 'payment:'||p.id FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND p.date BETWEEN ? AND ? AND NOT EXISTS(SELECT 1 FROM effective_sources e WHERE e.source_type='payment' AND e.source_id=p.id)
             UNION ALL
@@ -3483,7 +3483,7 @@ fn financial_sources_without_effective_posting_in_range(
             UNION ALL
             SELECT 'undated_payslip_payment:'||p.id FROM payslips p WHERE p.status='paye' AND p.payment_date IS NULL AND p.period||'-01' BETWEEN ? AND ?
             UNION ALL
-            SELECT 'cancelled_invoice_posting:'||i.id FROM invoices i WHERE i.status='annulee' AND i.issue_date BETWEEN ? AND ? AND EXISTS(SELECT 1 FROM effective_sources e WHERE e.source_type='invoice' AND e.source_id=i.id AND e.source_event='issue')
+            SELECT 'cancelled_invoice_posting:'||i.id FROM accountable_invoices i WHERE i.status='annulee' AND i.issue_date BETWEEN ? AND ? AND EXISTS(SELECT 1 FROM effective_sources e WHERE e.source_type='invoice' AND e.source_id=i.id AND e.source_event='issue')
             UNION ALL
             SELECT 'cancelled_invoice_payment:'||p.id FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status='annulee' AND p.date BETWEEN ? AND ?
         )",
@@ -3719,7 +3719,7 @@ fn semantic_posting_mismatches_in_range(
 
     let invoices = {
         let mut statement = connection.prepare(
-            "SELECT id,type,total_cents,vat_cents,currency,issue_date,original_invoice_id FROM invoices WHERE number IS NOT NULL AND status<>'annulee' AND issue_date BETWEEN ? AND ?",
+            "SELECT id,type,total_cents,vat_cents,currency,issue_date,original_invoice_id FROM accountable_invoices WHERE number IS NOT NULL AND status<>'annulee' AND issue_date BETWEEN ? AND ?",
         )?;
         let rows = statement.query_map(params![date_from, date_to], |row| {
             Ok((

@@ -85,6 +85,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       </li>; })}</ul>
       {!contents.files.length && !files.length ? <p className="project-folder__empty">Aucun fichier ajouté à ce projet.</p> : null}
     </section> : null}
+    {tab === 'all' || tab === 'invoices' ? <section className="panel project-folder__section"><header><h3>Dossiers de facturation</h3></header><ul className="project-document-list">{contents.quotes.filter((quote) => contents.invoices.some((invoice) => invoice.quoteId === quote.id)).map((quote) => <li key={quote.id}><button className="project-document-list__open" onClick={() => onOpenDocument('quotes', quote)}><FileText size={22}/><span><strong>{quote.number || quote.title}</strong><small>{contents.invoices.filter((invoice) => invoice.quoteId === quote.id).length} factures liées · {quote.title}</small></span></button></li>)}</ul></section> : null}
     {(['quotes', 'invoices'] as const).filter((kind) => tab === 'all' || tab === kind).map((kind) => <section className="panel project-folder__section" key={kind}>
       <header><h3>{kind === 'quotes' ? 'Devis' : 'Factures'}</h3><Button size="small" variant="secondary" disabled={readOnly || saving || busy} onClick={() => onCreateDocument(kind, project)}><Plus size={16} /> {kind === 'quotes' ? 'Nouveau devis' : 'Nouvelle facture'}</Button></header>
       <ul className="project-document-list">{contents[kind].map((document) => <li key={document.id}>

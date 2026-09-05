@@ -45,6 +45,7 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
     ("quotes", "02_ventes/devis.csv"),
     ("quote_items", "02_ventes/lignes_devis.csv"),
     ("quote_conversions", "02_ventes/conversions_devis.csv"),
+    ("quote_invoice_pairs", "02_ventes/dossiers_acompte_solde.csv"),
     ("sales_orders", "02_ventes/commandes_clients.csv"),
     (
         "sales_order_lines",

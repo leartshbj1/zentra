@@ -42,7 +42,7 @@ export function QuoteConversionModal({
   return (
     <Modal
       title="Créer la facture"
-      description={`Le devis ${quote.number || quote.title} est accepté. Choisissez une facture complète ou un acompte.`}
+      description={`Devis ${quote.number || quote.title} : une facture complète ou un dossier avec acompte et solde.`}
       onClose={close}
     >
       <form
@@ -53,7 +53,7 @@ export function QuoteConversionModal({
       >
         <div className="quote-conversion-intro">
           <span>Montant du devis</span>
-          <strong>{formatMoney(preview.quoteTotalCents)}</strong>
+          <strong>{formatMoney(preview.quoteTotalCents, quote.currency)}</strong>
         </div>
 
         <label className="module-toggle quote-conversion-toggle">
@@ -68,7 +68,7 @@ export function QuoteConversionModal({
             <CircleDollarSign size={20} />
             <strong>Créer une facture d’acompte</strong>
             <small>
-              Activez cette option pour ne facturer qu’un pourcentage du devis.
+              Crée deux factures liées : l’acompte et le solde après déduction.
             </small>
           </span>
         </label>
@@ -101,28 +101,27 @@ export function QuoteConversionModal({
 
         <div className="quote-conversion-summary" aria-live="polite">
           <div>
-            <span>Facture créée</span>
+            <span>{depositEnabled ? 'Facture d’acompte' : 'Facture créée'}</span>
             <strong>
               {depositEnabled && selection.error
                 ? '—'
-                : formatMoney(preview.invoiceTotalCents)}
+                : formatMoney(preview.invoiceTotalCents, quote.currency)}
             </strong>
           </div>
           <div>
-            <span>{depositEnabled ? 'Solde indicatif' : 'Type'}</span>
+            <span>{depositEnabled ? 'Facture de solde' : 'Type'}</span>
             <strong>
               {depositEnabled
                 ? selection.error
                   ? '—'
-                  : formatMoney(preview.remainingCents)
+                  : formatMoney(preview.remainingCents, quote.currency)
                 : 'Facture complète'}
             </strong>
           </div>
         </div>
 
         <p className="quote-conversion-note">
-          La facture sera créée en brouillon. Vous pourrez vérifier ses dates,
-          ses lignes et son montant avant de l’émettre.
+          {depositEnabled ? 'Les deux factures seront créées en brouillon dans le même dossier. Complétez leurs dates puis émettez l’acompte avant le solde. Les montants restent liés au devis.' : 'La facture sera créée en brouillon. Vérifiez ses dates, ses lignes et son montant avant de l’émettre.'}
         </p>
         {amountError ? (
           <p className="form-error" role="alert">
@@ -136,7 +135,7 @@ export function QuoteConversionModal({
           disabled={Boolean(validationError)}
           submitLabel={
             depositEnabled
-              ? 'Créer la facture d’acompte'
+              ? 'Créer les deux factures'
               : 'Créer la facture complète'
           }
         />

@@ -225,6 +225,7 @@ export type InvoiceArchiveResult = {
   alreadyStored: boolean;
 };
 type RawWorkspace = {
+  quote_invoice_pairs?: RawRecord[];
   schema_version?: unknown;
   settings?: RawRecord | null;
   clients?: RawRecord[];
@@ -2450,6 +2451,10 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       clientId: stringValue(row.client_id),
       projectId: stringValue(row.project_id) || null,
       quoteId: stringValue(row.quote_id) || null,
+      billingPair: (() => {
+        const pair = raw.quote_invoice_pairs?.find((pair) => pair.deposit_invoice_id === row.id || pair.balance_invoice_id === row.id);
+        return pair ? { depositInvoiceId: stringValue(pair.deposit_invoice_id), balanceInvoiceId: stringValue(pair.balance_invoice_id) } : null;
+      })(),
       originalInvoiceId: stringValue(row.original_invoice_id) || null,
       title: stringValue(row.title),
       type:
@@ -5433,6 +5438,10 @@ export const desktopApi = {
   async convertQuote(quote: Quote, depositPercentageBp: number | null = null) {
     const mutation = convertQuoteMutation(quote, depositPercentageBp);
     await invoke(mutation.command, mutation.args);
+    return loadWorkspace();
+  },
+  async createQuoteBalance(quoteId: string) {
+    await invoke('create_quote_balance_invoice', { quoteId });
     return loadWorkspace();
   },
   async convertQuoteToSalesOrder(requestId: string, quoteId: string) {

@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import sqlite3
 import subprocess
 import sys
@@ -22,6 +23,7 @@ def main():
     assert os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GITHUB_RUN_ID", "").isdigit(), "Only disposable GitHub Actions runners are allowed"
     archive = Path(sys.argv[1]).resolve()
     expected_sha = os.environ["ZENTRA_IOS_ARCHIVE_SHA256"].lower()
+    expected_schema = int(re.search(r"pub const SCHEMA_VERSION: i64 = (\d+);", Path("desktop/src-tauri/src/schema.rs").read_text()).group(1))
     assert len(expected_sha) == 64 and hashlib.sha256(archive.read_bytes()).hexdigest() == expected_sha
     with zipfile.ZipFile(archive) as bundle:
         assert bundle.testzip() is None
@@ -70,7 +72,7 @@ def main():
             schema = connection.execute("PRAGMA user_version").fetchone()[0]
             integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
             settings = connection.execute("SELECT COUNT(*) FROM settings").fetchone()[0]
-            assert (schema, integrity, settings) == (49, "ok", 0)
+            assert (schema, integrity, settings) == (expected_schema, "ok", 0)
             assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         report["checks"].append({"phase": phase, "processAliveBeforeCapture": True, "identityPreserved": True, "schema": schema, "integrity": integrity, "settings": settings, "screenshot": phase + ".png"})
         (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")

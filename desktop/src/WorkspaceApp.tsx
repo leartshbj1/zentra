@@ -95,6 +95,7 @@ import { assessPayrollPaymentDate } from './payrollPaymentDate';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
 import { QuoteConversionModal } from './QuoteConversionModal';
+import { PairedInvoiceEditor, QuoteInvoiceFolder } from './QuoteInvoiceFolder';
 import {
   CatalogItemForm,
   CatalogScreen,
@@ -311,6 +312,7 @@ type ModalState =
       initialProject?: Project;
     }
   | { type: 'quoteConversion'; quote: Quote }
+  | { type: 'quoteInvoiceFolder'; quoteId: string }
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
   | { type: 'timeBilling' }
@@ -956,11 +958,11 @@ export function WorkspaceApp({
       () => desktopApi.convertQuote(item, depositPercentageBp),
       depositPercentageBp === null
         ? 'La facture complète a été créée en brouillon. Complétez ses dates de prestation puis contrôlez-la avant émission.'
-        : `La facture d’acompte de ${(depositPercentageBp / 100).toLocaleString('fr-CH', { maximumFractionDigits: 2 })} % a été créée en brouillon. Contrôlez-la avant émission.`,
+        : 'Les factures d’acompte et de solde ont été créées en brouillon dans le dossier du devis.',
       false,
     );
     if (converted) {
-      setModal(null);
+      setModal(depositPercentageBp === null ? null : { type: 'quoteInvoiceFolder', quoteId: item.id });
       setView('invoices');
       setSearch('');
       setMenuOpen(false);
@@ -1654,7 +1656,7 @@ export function WorkspaceApp({
               onArchive={(item) => void deleteEmptyProject(item)}
               onWorkspaceChange={setWorkspace}
               onOpenExpense={openExpenseSource}
-              onOpenDocument={(entity, item) => setModal({ type: 'document', entity, item })}
+              onOpenDocument={(entity, item) => setModal(entity === 'quotes' && workspace.invoices.some((invoice) => invoice.quoteId === item.id) ? { type: 'quoteInvoiceFolder', quoteId: item.id } : { type: 'document', entity, item })}
               onCreateDocument={(entity, initialProject) => setModal({ type: 'document', entity, initialProject })}
               onSaveTask={(input) =>
                 act(
@@ -1769,6 +1771,7 @@ export function WorkspaceApp({
           ) : null}
           {view === 'quotes' ? (
             <DocumentsScreen
+              onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="quotes"
               workspace={workspace}
               query={search}
@@ -1860,6 +1863,7 @@ export function WorkspaceApp({
           ) : null}
           {view === 'invoices' ? (
             <DocumentsScreen
+              onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="invoices"
               workspace={workspace}
               query={search}
@@ -3170,7 +3174,7 @@ function ClientDetail({
   );
 }
 
-type DocumentsProps =
+type DocumentsProps = { onOpenFolder: (quoteId: string) => void } & (
   | {
       entity: 'quotes';
       workspace: Workspace;
@@ -3210,7 +3214,7 @@ type DocumentsProps =
       onConvert?: never;
       onStatus?: never;
       onRevise?: never;
-    };
+    });
 
 type LooseDocumentsProps = {
   entity: 'quotes' | 'invoices';
@@ -3335,7 +3339,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   </td>
                   <td className="sales-document__status">
                     <StatusBadge status={quote.status} />
-                    {converted ? <small>Facture créée</small> : null}
+                    {converted ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(quote.id)}>Voir le dossier · {workspace.invoices.filter((invoice) => invoice.quoteId === quote.id).length} facture(s)</Button> : null}
                     {convertedOrder ? <small>Commande créée</small> : null}
                   </td>
                   <td className="sales-document__actions">
@@ -3584,6 +3588,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         {item.number || 'Numéro attribué à l’émission'}
                       </strong>
                       <small>{item.title}</small>
+                      {invoice?.quoteId ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(invoice.quoteId!)}>Voir le dossier du devis</Button> : null}
                       {invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title="Référence à utiliser pour le virement">Réf. {invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()}</small> : null}
                     </div>
                   </div>
@@ -3701,6 +3706,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         size="small"
                         disabled={busy}
                         onClick={() => {
+                          if (invoice?.billingPair) { props.onEdit(invoice); return; }
                           if (!modificationAction) return;
                           if (
                             modificationAction.kind === 'edit' ||
@@ -3720,7 +3726,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         }
                       >
                         <Pencil size={14} />
-                        {modificationUsesReplacement
+                        {invoice?.billingPair ? 'Consulter' : modificationUsesReplacement
                           ? modificationAction?.kind === 'edit'
                             ? 'Ouvrir la version modifiable'
                             : modificationAction?.kind === 'view'
@@ -5978,6 +5984,15 @@ function WorkspaceModal({
         act={act}
       />
     );
+  if (state.type === 'quoteInvoiceFolder') {
+    const quote = workspace.quotes.find((quote) => quote.id === state.quoteId);
+    if (!quote) return null;
+    return <QuoteInvoiceFolder quote={quote} workspace={workspace} busy={busy || readOnly} close={close} act={act} onOpen={(entity, item) => replace({ type: 'document', entity, item })}/>;
+  }
+  if (state.type === 'document' && state.entity === 'invoices' && (state.item as Invoice | undefined)?.billingPair && state.item?.status === 'draft') {
+    const invoice = workspace.invoices.find((invoice) => invoice.id === state.item?.id) ?? state.item as Invoice;
+    return <PairedInvoiceEditor invoice={invoice} workspace={workspace} busy={busy || readOnly} close={close} act={act} onFolder={() => replace({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId! })}/>;
+  }
   if (state.type === 'document')
     return (
       <DocumentEditor

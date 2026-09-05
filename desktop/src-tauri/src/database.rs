@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=48 => {}
+            28..=49 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1739,6 +1739,11 @@ impl LocalStore {
             let complete: bool = transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('expense_refunds','attachments')", [], |row| row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V49_SQL)?; }
             else { transaction.pragma_update(None,"user_version",49)?; }
+        }
+        if current < 50 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=3 FROM sqlite_master WHERE type='table' AND name IN ('quotes','invoices','invoice_items')", [], |row| row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V50_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",50)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2561,6 +2566,7 @@ impl LocalStore {
             "audit_log":audit_log,
         });
         workspace["agenda_events"] = json!(agenda_events);
+        workspace["quote_invoice_pairs"] = json!(query_all(connection, "SELECT * FROM quote_invoice_pairs ORDER BY created_at", [])?);
         workspace["backup_status"] = backup_status;
         workspace["reminder_deliveries"] = json!(reminder_deliveries);
         workspace["time_billing_batches"] = json!(time_billing_batches);
@@ -3413,6 +3419,14 @@ impl LocalStore {
             .and_then(Value::as_str)
             .filter(|v| !v.is_empty())
             .map(ToOwned::to_owned);
+        let paired_balance: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM quote_invoice_pairs WHERE balance_invoice_id=?)", params![id], |r| r.get(0))?;
+        if paired_balance {
+            let ready: bool = transaction.query_row("SELECT d.number IS NOT NULL AND d.status<>'annulee' FROM quote_invoice_pairs p JOIN invoices d ON d.id=p.deposit_invoice_id WHERE p.balance_invoice_id=?", params![id], |r| r.get(0))?;
+            if !ready { return Err(AppError::Validation("Émettez d’abord la facture d’acompte liée avant d’émettre le solde.".into())); }
+        }
+        if invoice_type == "avoir" && transaction.query_row("SELECT EXISTS(SELECT 1 FROM quote_invoice_pairs WHERE deposit_invoice_id=?)", params![original_invoice_id], |r| r.get::<_,bool>(0))? {
+            return Err(AppError::Validation("L’acompte est déduit d’une facture de solde liée et ne peut pas être crédité isolément. Corrigez le montant du dossier avec un avoir sur le solde.".into()));
+        }
         let mut original_credit_limit = None;
         if invoice_type == "avoir" {
             let original = original_invoice_id.as_deref().ok_or_else(|| {
@@ -3471,7 +3485,7 @@ impl LocalStore {
             recompute_invoice(&transaction, id)?;
         } else {
             let negative:bool=transaction.query_row("SELECT EXISTS(SELECT 1 FROM invoice_items WHERE invoice_id=? AND (unit_price_cents<0 OR line_total_cents<0))",params![id],|r|r.get(0))?;
-            if negative {
+            if negative && !paired_balance {
                 return Err(AppError::Validation(
                     "Les montants négatifs sont réservés aux avoirs.".into(),
                 ));
@@ -3482,8 +3496,9 @@ impl LocalStore {
             params![id],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )?;
+        let zero_balance = paired_balance && totals.1 == 0 && totals.2 == 0;
         if (invoice_type == "avoir" && (totals.0 >= 0 || totals.1 > 0 || totals.2 >= 0))
-            || (invoice_type != "avoir" && (totals.0 < 0 || totals.1 < 0 || totals.2 <= 0))
+            || (invoice_type != "avoir" && !zero_balance && (totals.0 < 0 || totals.1 < 0 || totals.2 <= 0))
         {
             return Err(AppError::Validation(
                 "Le signe des montants ne correspond pas au type de document.".into(),
@@ -3549,6 +3564,10 @@ impl LocalStore {
             "invoice"
         };
         let number = assign_document_number(&transaction, "invoices", id, number_type, &date)?;
+        if paired_balance {
+            let reference: String = transaction.query_row("SELECT d.number FROM quote_invoice_pairs p JOIN invoices d ON d.id=p.deposit_invoice_id WHERE p.balance_invoice_id=?",params![id],|r|r.get(0))?;
+            transaction.execute("UPDATE invoices SET notes=TRIM(COALESCE(notes,'')||char(10)||?) WHERE id=?",params![format!("Facture d’acompte déduite : {reference}. Son encaissement reste suivi séparément dans le dossier du devis."),id])?;
+        }
         let payment_snapshot = build_document_snapshot(
             &transaction,
             "invoices",
@@ -3556,7 +3575,7 @@ impl LocalStore {
             id,
             &json!({"number":number.clone(),"issue_date":date.clone(),"due_date":due.clone(),"service_date_from":service_from.clone(),"service_date_to":service_to.clone()}),
         )?;
-        crate::swiss_qr::ensure_automatic_invoice_qr(&transaction, &payment_snapshot)?;
+        if !zero_balance { crate::swiss_qr::ensure_automatic_invoice_qr(&transaction, &payment_snapshot)?; }
         let qr_frozen_at = now_iso();
         transaction.execute(
             "UPDATE invoice_qr_bills SET frozen_at=COALESCE(frozen_at,?),updated_at=? WHERE invoice_id=?",
@@ -3571,12 +3590,12 @@ impl LocalStore {
         )?;
         crate::sales_pdf::validate_document_snapshot_legal_fields("invoices", &snapshot)?;
         transaction.execute(
-            "UPDATE invoices SET number = ?, status = CASE WHEN status = 'brouillon' THEN 'emise' ELSE status END, issue_date = ?, due_date = ?,service_date_from=?,service_date_to=?,snapshot_json=?, updated_at = ? WHERE id = ?",
+            "UPDATE invoices SET number = ?, status = CASE WHEN total_cents=0 THEN 'payee' WHEN status = 'brouillon' THEN 'emise' ELSE status END, issue_date = ?, due_date = ?,service_date_from=?,service_date_to=?,snapshot_json=?, updated_at = ? WHERE id = ?",
             params![number, date, due,service_from,service_to,serde_json::to_string(&snapshot)?, now_iso(), id],
         )?;
         let stock_movements = crate::stock::apply_invoice_stock_movements(&transaction, id)?;
         let record = query_record_tx(&transaction, "invoices", id)?;
-        let journal = post_invoice_if_enabled(&transaction, id)?;
+        let journal = if zero_balance { None } else { post_invoice_if_enabled(&transaction, id)? };
         let linked_sales_order: Option<(String, String)> = transaction
             .query_row(
                 "SELECT sales_order_id,role FROM sales_order_invoice_batches WHERE invoice_id=?",
@@ -3662,6 +3681,10 @@ impl LocalStore {
                 "Cette facture n’est pas dans un état corrigeable.".into(),
             ));
         }
+        let active_workflow: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM quote_invoice_pairs WHERE ? IN (deposit_invoice_id,balance_invoice_id))", params![original_id], |row| row.get(0),
+        )?;
+        if active_workflow { return Err(AppError::Validation("Cette facture appartient à un dossier acompte et solde. Pour réduire le montant facturé, créez un avoir sur la facture de solde depuis Factures > Nouveau document.".into())); }
         let active_workflow: bool = transaction.query_row(
             "SELECT EXISTS(
                SELECT 1 FROM invoice_correction_workflows workflow
@@ -4578,13 +4601,16 @@ impl LocalStore {
             "INSERT INTO quote_conversions(quote_id,invoice_id,created_at) VALUES(?,?,?)",
             params![input.quote_id, invoice_id, now],
         )?;
+        let balance = if deposit_percentage_bp.is_some() {
+            Some(create_quote_balance_in_transaction(&transaction, &input.quote_id)?)
+        } else { None };
         let invoice = query_record_tx(&transaction, "invoices", &invoice_id)?;
         let invoice_items = query_all(
             &transaction,
             "SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY position,rowid",
             params![invoice_id],
         )?;
-        let result = json!({"quote":quote,"invoice":invoice,"invoice_items":invoice_items});
+        let result = json!({"quote":quote,"invoice":invoice,"invoice_items":invoice_items,"balance_invoice":balance});
         append_audit(&transaction, "convert", "quote", &input.quote_id, &result)?;
         transaction.commit()?;
         Ok(result)
@@ -4597,6 +4623,15 @@ impl LocalStore {
         let record = record_payment_in_transaction(&transaction, input)?;
         transaction.commit()?;
         Ok(record)
+    }
+
+    pub fn create_quote_balance_invoice(&self, quote_id: &str) -> AppResult<Value> {
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let result = create_quote_balance_in_transaction(&transaction, quote_id)?;
+        transaction.commit()?;
+        Ok(result)
     }
 
     pub fn start_timer(&self, input: TimerInput) -> AppResult<Value> {
@@ -5131,6 +5166,63 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
         }
     };
     Ok(spec)
+}
+
+/// Create both documents in the conversion transaction, or complete a legacy
+/// deposit explicitly. Copy the exact original and negative deposit lines:
+/// recalculating a percentage of the remainder would lose VAT rounding cents.
+fn create_quote_balance_in_transaction(tx: &Transaction<'_>, quote_id: &str) -> AppResult<Value> {
+    let existing: Option<String> = tx.query_row(
+        "SELECT balance_invoice_id FROM quote_invoice_pairs WHERE quote_id=?", params![quote_id], |r| r.get(0),
+    ).optional()?;
+    if let Some(id) = existing { return query_record_tx(tx, "invoices", &id); }
+    let deposit_id: String = tx.query_row(
+        "SELECT i.id FROM quote_conversions c JOIN invoices i ON i.id=c.invoice_id JOIN quotes q ON q.id=c.quote_id
+         WHERE c.quote_id=? AND q.status='accepte' AND i.type='acompte' AND i.status<>'annulee'
+           AND i.quote_id=q.id AND i.client_id IS q.client_id AND i.project_id IS q.project_id AND i.currency=q.currency",
+        params![quote_id], |r| r.get(0),
+    ).optional()?.ok_or_else(|| AppError::Validation("Ce devis ne possède pas de facture d’acompte active à compléter.".into()))?;
+    let conflicts: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM invoices WHERE (quote_id=?1 AND id<>?2) OR original_invoice_id=?2)",
+        params![quote_id,deposit_id], |r| r.get(0),
+    )?;
+    if conflicts { return Err(AppError::Validation("Ce devis possède déjà d’autres factures ou un avoir. Vérifiez son dossier avant de créer un solde.".into())); }
+    validate_deposit_basis_matches_items(tx, &deposit_id)?;
+    let invoice_id = Uuid::new_v4().to_string();
+    let now = now_iso();
+    tx.execute(
+        "INSERT INTO invoices(id,client_id,project_id,quote_id,title,type,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,terms,created_at,updated_at)
+         SELECT ?1,q.client_id,q.project_id,q.id,'Solde — '||q.title,'finale','brouillon',d.issue_date,d.due_date,d.service_date_from,d.service_date_to,q.currency,q.notes,q.terms,?2,?2
+         FROM quotes q JOIN invoices d ON d.id=?3 WHERE q.id=?4",
+        params![invoice_id,now,deposit_id,quote_id],
+    )?;
+    let originals = query_all(tx, "SELECT id FROM quote_items WHERE quote_id=? ORDER BY position,rowid", params![quote_id])?;
+    if originals.is_empty() { return Err(AppError::Validation("Le devis ne contient aucune ligne.".into())); }
+    for (position,item) in originals.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at)
+             SELECT ?1,?2,NULL,?3,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,?4,?4 FROM quote_items WHERE id=?5",
+            params![Uuid::new_v4().to_string(),invoice_id,position as i64,now,item["id"].as_str()],
+        )?;
+    }
+    let deductions = query_all(tx, "SELECT id FROM invoice_items WHERE invoice_id=? ORDER BY position,rowid", params![deposit_id])?;
+    for (position,item) in deductions.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at)
+             SELECT ?1,?2,NULL,?3,'Déduction — '||description,quantity,unit,-unit_price_cents,discount_bp,vat_bp,-line_net_cents,-line_vat_cents,-line_total_cents,?4,?4 FROM invoice_items WHERE id=?5",
+            params![Uuid::new_v4().to_string(),invoice_id,(originals.len()+position) as i64,now,item["id"].as_str()],
+        )?;
+    }
+    let invalid: bool = tx.query_row(
+        "SELECT EXISTS(SELECT vat_bp FROM invoice_items WHERE invoice_id=? GROUP BY vat_bp HAVING SUM(line_net_cents)<0 OR SUM(line_vat_cents)<0 OR SUM(line_total_cents)<0)",
+        params![invoice_id], |r| r.get(0),
+    )?;
+    if invalid { return Err(AppError::Validation("L’acompte dépasse le devis pour au moins un taux de TVA. Vérifiez les montants avant de créer le solde.".into())); }
+    recompute_invoice(tx, &invoice_id)?;
+    tx.execute("INSERT INTO quote_invoice_pairs(quote_id,deposit_invoice_id,balance_invoice_id,created_at) VALUES(?,?,?,?)", params![quote_id,deposit_id,invoice_id,now])?;
+    let invoice = query_record_tx(tx,"invoices",&invoice_id)?;
+    append_audit(tx,"create_balance","quote",quote_id,&json!({"deposit_invoice_id":deposit_id,"balance_invoice":invoice}))?;
+    Ok(invoice)
 }
 
 fn ensure_record_mutable(
