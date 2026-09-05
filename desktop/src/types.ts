@@ -1978,6 +1978,7 @@ export type FiduciaryClosingReview = {
 };
 
 export type FiduciaryPackageExport = {
+  deliveryWarning?: string;
   schema: 'elyko.fiduciary-package-export.v1';
   exportId: Identifier;
   reviewId: Identifier;

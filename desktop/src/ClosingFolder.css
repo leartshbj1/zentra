@@ -1,7 +1,30 @@
 .closing-folder {
   display: grid;
   gap: 1.25rem;
+  min-width: 0;
 }
+
+.closing-folder > *,
+.closing-folder article > div,
+.closing-workflow > header > div,
+.closing-review-head > div,
+.closing-export-card > div { min-width: 0; }
+.closing-folder p,
+.closing-folder small,
+.closing-folder strong,
+.closing-folder .notice { overflow-wrap: anywhere; }
+.closing-folder p { font-size: 14px; line-height: 1.5; }
+.closing-folder small { font-size: 12px; line-height: 1.5; }
+.closing-folder .button { min-height: 44px; white-space: normal; }
+.closing-workflow .notice { justify-content: flex-start; align-items: flex-start; text-align: left; }
+.closing-details { border: 1px solid var(--border, #d7dde5); border-radius: 16px; padding: 0 1rem 1rem; }
+.closing-details > summary { min-height: 48px; padding: .9rem 0; cursor: pointer; font-size: 14px; font-weight: 750; }
+.closing-details:not([open]) { padding-bottom: 0; }
+.closing-details .closing-checks { margin-top: 1rem; }
+.closing-details .closing-comparison-grid { margin-top: 1rem; }
+.closing-export-card details { margin: .75rem 0; }
+.closing-export-card summary { cursor: pointer; min-height: 44px; padding: .6rem 0; font-size: 13px; }
+.closing-confirmation input { font-size: 16px; min-height: 44px; }
 
 .closing-readiness {
   display: flex;

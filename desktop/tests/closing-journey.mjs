@@ -1,0 +1,153 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = [];
+const destination = '.qa/closing';
+await mkdir(destination, { recursive: true });
+const base = process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5175';
+async function open(width) {
+  const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width < 800 });
+  page.setDefaultTimeout(10000);
+  page.on('pageerror', (error) => report.push({ error: error.stack }));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`${base}/tests/mobile-harness.html?closing=1`);
+  const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
+  if (await tour.isVisible()) await tour.click();
+  await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Comptabilité');
+  await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Comptabilité', { exact: true }) }).click();
+  await page.getByLabel('Exercice ou période comptable').selectOption('year-2026');
+  if (width <= 800) await page.getByRole('combobox', { name: 'Section comptable', exact: true }).selectOption('closing');
+  else await page.getByRole('tab', { name: 'Dossier de clôture', exact: true }).click();
+  await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).waitFor();
+  return page;
+}
+async function set(page, key, value = '1') { await page.evaluate(([key, value]) => sessionStorage.setItem(`qa-closing-${key}`, value), [key, value]); }
+async function calls(page, name) { return page.evaluate((name) => JSON.parse(sessionStorage.getItem(`qa-closing-${name}`) || '[]'), name); }
+async function capture(page, name) {
+  await page.screenshot({ path: `${destination}/${name}.png`, fullPage: true });
+  const geometry = await page.evaluate(() => ({ width: innerWidth, document: document.documentElement.scrollWidth }));
+  assert.ok(geometry.document <= geometry.width, `${name}: page overflow`);
+  report.push({ capture: name, ...geometry });
+}
+try {
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    const page = await open(width);
+    await set(page, 'hold-prepare');
+    await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).click();
+    await page.waitForFunction(() => sessionStorage.getItem('qa-closing-waiting-prepare') === '1');
+    await page.getByLabel('Exercice ou période comptable').selectOption('year-2025');
+    await set(page, 'hold-prepare', '0');
+    await page.waitForFunction(() => !sessionStorage.getItem('qa-closing-waiting-prepare'));
+    await page.waitForTimeout(70);
+    assert.equal(await page.locator('.closing-review-card').count(), 0, 'A late review for 2026 must not appear under 2025');
+    await capture(page, `${width}-scope-change`);
+    await page.locator('.closing-details > summary').click();
+    await capture(page, `${width}-comparative-states`);
+    assert.match(await page.locator('.closing-statement-card').first().textContent(), /124.?567[.,]89/);
+    await page.locator('.closing-details > summary').click();
+    await page.getByLabel('Exercice ou période comptable').selectOption('year-2026');
+    await set(page, 'blocked');
+    await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).click();
+    await page.locator('.closing-attachment-issues').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).count(), 0);
+    await capture(page, `${width}-blocked`);
+    await set(page, 'blocked', '0');
+    await page.getByRole('button', { name: 'Repréparer le contrôle', exact: true }).click();
+    await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).waitFor();
+    await page.getByRole('button', { name: /Exporter.*dossier (DRAFT|provisoire)/ }).click();
+    await page.locator('.closing-export-card').waitFor();
+    assert.equal(await page.locator('.closing-review-card').count(), 0, 'A consumed review is not offered again');
+    assert.equal((await calls(page, 'export')).length, 1);
+    await capture(page, `${width}-draft-export`);
+    await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).click();
+    await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).click();
+    const confirm = page.locator('.closing-confirmation input');
+    await confirm.fill('Exercice 2025');
+    assert.equal(await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).isEnabled(), false);
+    await confirm.fill('Exercice 2026');
+    await set(page, 'stale');
+    await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).click();
+    await page.getByText(/Les données ont changé depuis le contrôle/).waitFor();
+    assert.equal(await confirm.inputValue(), 'Exercice 2026', 'A rejected closure preserves the confirmation');
+    await capture(page, `${width}-stale-refusal`);
+    await set(page, 'stale', '0');
+    await page.getByRole('button', { name: 'Repréparer le contrôle', exact: true }).click();
+    await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).click();
+    await confirm.fill('Exercice 2026');
+    await set(page, 'hold-finalize');
+    await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).click();
+    await page.waitForFunction(() => sessionStorage.getItem('qa-closing-waiting-finalize') === '1');
+    assert.equal(await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).isEnabled(), false);
+    await set(page, 'fail-refresh');
+    await set(page, 'hold-finalize', '0');
+    await page.getByText(/La période est bien verrouillée, mais les états/).waitFor();
+    assert.equal(await page.getByRole('button', { name: /Exporter le dossier définitif/ }).isEnabled(), false);
+    assert.equal(await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).count(), 0);
+    await capture(page, `${width}-closed-refresh-failure`);
+    await set(page, 'fail-refresh', '0');
+    await page.getByRole('button', { name: 'Actualiser les états', exact: true }).click();
+    await page.getByRole('button', { name: /Exporter le dossier (FINAL|définitif)/ }).waitFor();
+    await set(page, 'share-failure');
+    await page.getByRole('button', { name: /Exporter le dossier (FINAL|définitif)/ }).click();
+    await page.locator('.closing-export-card').waitFor();
+    assert.match(await page.getByLabel('Exercice ou période comptable').locator('option:checked').textContent(), /clôturé/);
+    assert.equal((await calls(page, 'export')).length, 2);
+    assert.equal((await calls(page, 'finalize')).length, 2, 'One refusal and one confirmed closure');
+    await page.getByRole('button', { name: 'Partager le dossier', exact: true }).click();
+    await page.getByText(/Le partage est momentanément indisponible/).waitFor();
+    await set(page, 'share-failure', '0');
+    await page.getByRole('button', { name: 'Partager le dossier', exact: true }).click();
+    await page.getByText('Le dossier existant a été proposé au partage.', { exact: true }).waitFor();
+    assert.equal((await calls(page, 'export')).length, 2, 'A delivery retry never regenerates the ZIP');
+    const shares = await calls(page, 'share');
+    assert.equal(shares.length, 2);
+    assert.equal(shares[0].path, shares[1].path);
+    await capture(page, `${width}-final-export`);
+    await page.locator('.closing-export-card').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${destination}/${width}-final-export-viewport.png` });
+    report.push({ journey: 'PASS closing scope isolation, blockers, DRAFT, stale refusal, exact confirmation, acknowledged close/read-only recovery, FINAL, sharing retry without ZIP recreation', width });
+    await page.close();
+  }
+  for (const width of [320, 1440]) {
+    const page = await open(width);
+    await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).click();
+    await page.getByRole('button', { name: /Exporter un dossier provisoire/ }).waitFor();
+    await set(page, 'hold-export');
+    await page.getByRole('button', { name: /Exporter un dossier provisoire/ }).click();
+    await page.waitForFunction(() => sessionStorage.getItem('qa-closing-waiting-export') === '1');
+    await page.getByLabel('Exercice ou période comptable').selectOption('year-2025');
+    await set(page, 'hold-export', '0');
+    await page.waitForFunction(() => !sessionStorage.getItem('qa-closing-waiting-export'));
+    await page.waitForTimeout(70);
+    assert.equal(await page.locator('.closing-export-card').count(), 0, 'An old export is not displayed under another exercise');
+    await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).click();
+    await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).click();
+    await page.locator('.closing-confirmation input').fill('Exercice 2025');
+    await set(page, 'hold-finalize');
+    await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).click();
+    await page.waitForFunction(() => sessionStorage.getItem('qa-closing-waiting-finalize') === '1');
+    await page.getByLabel('Exercice ou période comptable').selectOption('year-2026');
+    await set(page, 'hold-finalize', '0');
+    await page.waitForFunction(() => !sessionStorage.getItem('qa-closing-waiting-finalize'));
+    await page.waitForTimeout(70);
+    assert.equal(await page.locator('.closing-review-card').count(), 0, 'An old finalization cannot replace the new exercise review');
+    await page.getByRole('button', { name: 'Actualiser', exact: true }).click();
+    assert.match(await page.getByLabel('Exercice ou période comptable').locator('option[value="year-2025"]').textContent(), /clôturé/);
+    assert.match(await page.getByLabel('Exercice ou période comptable').locator('option:checked').textContent(), /2026.*ouvert/);
+    assert.equal((await calls(page, 'finalize')).length, 1);
+    await capture(page, `${width}-late-export-and-finalization`);
+    report.push({ journey: 'PASS late export/finalization scope changes and full read-only status refresh', width });
+    await page.close();
+  }
+  assert.deepEqual(report.filter((item) => item.error), []);
+} catch (error) {
+  report.push({ fatal: error.stack }); process.exitCode = 1;
+} finally {
+  await writeFile(`${destination}/report.json`, JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(report.filter((item) => item.error || item.fatal || item.journey), null, 2));
+  await browser.close();
+}

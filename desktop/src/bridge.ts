@@ -6014,8 +6014,7 @@ export const desktopApi = {
     const row = recordValue(
       await invoke('export_fiduciary_closing_zip', { reviewId }),
     );
-    await shareMobileExport(stringValue(row.path));
-    return {
+    const result: FiduciaryPackageExport = {
       schema: 'elyko.fiduciary-package-export.v1',
       exportId: stringValue(row.export_id),
       reviewId: stringValue(row.review_id),
@@ -6031,6 +6030,15 @@ export const desktopApi = {
       fileCount: numberValue(row.file_count),
       disclaimer: stringValue(row.disclaimer),
     };
+    try {
+      await shareMobileExport(result.path);
+    } catch {
+      result.deliveryWarning = 'Le dossier a été créé, mais le partage n’a pas abouti. Utilisez « Partager le dossier » pour réessayer.';
+    }
+    return result;
+  },
+  async shareExistingExport(path: string): Promise<void> {
+    await shareMobileExport(path);
   },
   async configureAccounting(settings: AccountingSettings) {
     return accountingConfigurationFromRaw(
