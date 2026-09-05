@@ -67,7 +67,12 @@ Les identifiants de production diffèrent selon le système : `ch.helvichantier.
 3. **Avoirs en mode reçu.** Le mode « convenues » des avoirs fournisseurs est couvert dans le nouveau lot. Le mode « reçues » signale encore `unsupported_supplier_credit_tax` et `received_credit_note_timing_unknown`, car les avoirs ne portent pas de date fiscale d'imputation ou de remboursement. Ajouter ces preuves avant d'automatiser le traitement de ce mode.
 4. **Parcours de gestion avancés.** La recette bancaire avec documents actifs, erreurs et reprises est maintenant exécutée. Compléter les essais UI des commandes, livraisons, récurrences, paie et clôture. Examiner aussi le classement des opérations bancaires sans facture correspondante (frais, apports et autres mouvements) ; la recette actuelle porte sur les rapprochements clients et fournisseurs.
 5. **Distribution mobile.** Les paquets de test Android et iOS sont préparés. L'adhésion Apple Developer, le compte Google Play et la recette sur appareils physiques restent nécessaires pour la distribution mobile de production.
-6. **Bandeau des versions mobiles de test.** Les captures natives 1.28 montrent que le diagnostic de licence de développement occupe une grande partie du bas de l'écran. Replier ses détails pour libérer le contenu, tout en conservant un accès clair aux informations et aux éventuelles actions d'activation.
+
+## Correction préparée après la publication 1.28
+
+Le bandeau des versions de développement est replié par défaut sous « Version de test ». Les détails et l'identifiant restent accessibles ; sur téléphone, le bandeau se place au-dessus de la navigation et se masque pendant l'ouverture du clavier. Les contrôles d'activation restent présents pour les installations qui nécessitent une licence.
+
+Cette correction n'est pas incluse dans les binaires 1.28 déjà publiés. La compilation de l'interface réussit et les 575 tests UI passent. `desktop/tests/development-notice-journey.mjs` vérifie cinq largeurs : bandeau replié d'environ 46 px, ouverture/fermeture au clavier, absence de débordement et de recouvrement des menus, masquage avec le clavier et à l'impression. Les dix captures et `.qa/development-notice/report.json` documentent la recette ; les vues 320 px ouvertes et fermées ont été inspectées.
 
 ## Références produit
 
