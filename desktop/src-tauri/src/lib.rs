@@ -55,6 +55,26 @@ mod vat_reporting;
 use commands::*;
 use database::LocalStore;
 
+fn announce_native_ready(webview: tauri::Webview) {
+    // On Android the document may execute while the automatic window is still
+    // being attached. Never send business commands until both attachment and
+    // LocalStore initialization have completed. The two call sites cover either
+    // ordering of native setup and page loading, including a page reload.
+    tauri::async_runtime::spawn(async move {
+        let _ = webview.eval(
+            r#"(() => {
+                const ready = () => {
+                    if (window.__ZENTRA_NATIVE_READY__ === true) return;
+                    window.__ZENTRA_NATIVE_READY__ = true;
+                    window.dispatchEvent(new Event('zentra:native-ready'));
+                };
+                if (document.readyState === 'complete') ready();
+                else window.addEventListener('load', ready, { once: true });
+            })()"#,
+        );
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -80,6 +100,15 @@ pub fn run() {
         .plugin(tauri_plugin_zentra_mobile::init());
 
     builder
+        .on_page_load(|webview, payload| {
+            use tauri::Manager;
+            if payload.event() == tauri::webview::PageLoadEvent::Finished
+                && webview.label() == "main"
+                && webview.try_state::<LocalStore>().is_some()
+            {
+                announce_native_ready(webview.clone());
+            }
+        })
         .setup(|app| {
             use tauri::Manager;
             app_updater::initialize(app)?;
@@ -92,6 +121,9 @@ pub fn run() {
             app.asset_protocol_scope()
                 .allow_directory(store.attachments_dir.join("branding"), false)?;
             app.manage(store);
+            if let Some(window) = app.get_webview_window("main") {
+                announce_native_ready(window.as_ref().clone());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

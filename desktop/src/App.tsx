@@ -15,7 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AppUpdater } from './AppUpdater';
-import { withinAppOpeningDeadline } from './appOpening';
+import { waitForNativeStartup, withinAppOpeningDeadline } from './appOpening';
 import { BrandMark } from './BrandMark';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
@@ -67,6 +67,8 @@ export function App() {
     setLoading(true);
     setError('');
     try {
+      await waitForNativeStartup();
+      if (attempt !== openingAttempt.current) return;
       const [nextWorkspace, nextAccess] = await Promise.all([
         withinAppOpeningDeadline(desktopApi.loadWorkspace()),
         cloudAccessRevalidator.current!(),

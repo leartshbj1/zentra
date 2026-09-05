@@ -36,7 +36,7 @@ try {
       socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
     });
   }
-  proof.page = await evaluate(`({readyState:document.readyState, visibility:document.visibilityState, focused:document.hasFocus(), nativeBridge:typeof window.__TAURI_INTERNALS__?.invoke==='function', pendingCallbacks:window.__TAURI_INTERNALS__?.callbacks?.size, loadingVisible:document.body.innerText.includes('Ouverture de votre espace local sécurisé'), resources:performance.getEntriesByType('resource').map(r=>({path:new URL(r.name).pathname,duration:Math.round(r.duration)}))})`);
+  proof.page = await evaluate(`({readyState:document.readyState, visibility:document.visibilityState, focused:document.hasFocus(), nativeBridge:typeof window.__TAURI_INTERNALS__?.invoke==='function', nativeReady:window.__ZENTRA_NATIVE_READY__===true, pendingCallbacks:window.__TAURI_INTERNALS__?.callbacks?.size, loadingVisible:document.body.innerText.includes('Ouverture de votre espace local sécurisé'), resources:performance.getEntriesByType('resource').map(r=>({path:new URL(r.name).pathname,duration:Math.round(r.duration)}))})`);
   // Inspect only hook kinds, never workspace values or account details. This
   // distinguishes an unstarted React effect from an outstanding native call.
   proof.react = await evaluate(`(() => {

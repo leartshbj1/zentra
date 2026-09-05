@@ -9,7 +9,7 @@ const browser = await chromium.launch({ headless: true, ...(process.platform ===
 const reports = [];
 try {
   for (const width of [320, 390, 1440]) {
-    for (const blocked of ['get_app_state', 'get_cloud_account_state', 'get_license_state']) {
+    for (const blocked of ['native_ready', 'get_app_state', 'get_cloud_account_state', 'get_license_state']) {
       const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width < 500 });
       await page.emulateMedia({ reducedMotion: 'reduce' });
       const errors = [];
@@ -17,6 +17,7 @@ try {
       await page.clock.install();
       await page.addInitScript(({ blocked }) => {
         window.qaOpening = { blocked, calls: [], release: [], retry: false };
+        window.__ZENTRA_NATIVE_READY__ = blocked !== 'native_ready';
         window.__TAURI_INTERNALS__ = {
           invoke: async (command) => {
             const qa = window.qaOpening;
@@ -34,7 +35,8 @@ try {
       }, { blocked });
       await page.goto('http://127.0.0.1:5186/', { waitUntil: 'networkidle' });
       await page.getByRole('status').filter({ hasText: 'Ouverture de votre espace' }).waitFor();
-      assert.ok(await page.evaluate(() => window.qaOpening.release.length > 0));
+      assert.ok(await page.evaluate(() => window.qaOpening.blocked === 'native_ready'
+        ? window.qaOpening.calls.length === 0 : window.qaOpening.release.length > 0));
       await page.clock.fastForward(75_001);
       await page.getByText(/L’ouverture prend trop de temps/).waitFor();
       const retry = page.getByRole('button', { name: 'Réessayer', exact: true });
@@ -43,7 +45,7 @@ try {
       assert.ok(box.height >= 44, `Touch target too small: ${box.height}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: `${out}/${width}-${blocked}.png`, fullPage: true });
-      await page.evaluate(() => { window.qaOpening.retry = true; });
+      await page.evaluate(() => { window.qaOpening.retry = true; window.__ZENTRA_NATIVE_READY__ = true; });
       await retry.click();
       await page.getByText('Restaurer une sauvegarde', { exact: true }).waitFor();
       // A late failure from the expired native call must not replace the recovered UI.
