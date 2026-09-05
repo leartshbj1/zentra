@@ -281,3 +281,12 @@
     to { opacity: 1; transform: translateY(0); }
   }
 }
+.vat-purchase-review { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.vat-purchase-review > summary { cursor: pointer; min-height: 44px; font-weight: 650; }
+.vat-purchase-review > summary span { color: var(--muted); margin-left: 8px; }
+.vat-purchase-review > p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.vat-purchase-review .vat-unclassified { border: 0; padding: 0; }
+.vat-purchase-review .vat-unclassified article { border-color: var(--border, #d7dde5); background: var(--surface, #fff); }
+.vat-purchase-review__actions { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.vat-purchase-review__actions select { width: 100%; }
+@media screen and (max-width: 800px) { .vat-purchase-review .vat-unclassified article { display: flex; flex-direction: column; align-items: stretch; } }

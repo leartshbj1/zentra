@@ -1,0 +1,64 @@
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = [];
+await mkdir('.qa/vat-purchases', { recursive: true });
+try {
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    page.on('pageerror', (error) => report.push({ width, error: error.message }));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?finance=1');
+    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
+    if (await tour.isVisible()) await tour.click();
+    await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Comptabilité');
+    await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Comptabilité', { exact: true }) }).click();
+    await page.getByLabel('Date de début de la période', { exact: true }).fill('2026-01-01');
+    await page.getByLabel('Date de fin de la période', { exact: true }).fill('2026-03-31');
+    if (width <= 800) await page.getByRole('combobox', { name: 'Section comptable', exact: true }).selectOption('vat');
+    else await page.getByRole('tab', { name: 'TVA', exact: true }).click();
+    const review = page.locator('.vat-purchase-review');
+    await review.locator('summary').click();
+    const source = page.getByRole('combobox', { name: 'Traitement enregistré de Vis et fixations' });
+    await source.waitFor();
+    const refreshCount = await page.evaluate(() => Number(sessionStorage.getItem('qa-balance-refresh')));
+    await source.selectOption('non_deductible');
+    await page.getByText('Le traitement TVA est enregistré.', { exact: true }).waitFor();
+    assert.equal(await source.inputValue(), 'non_deductible');
+    let totals = await page.locator('.vat-overview__totals strong').allTextContents();
+    assert.match(totals[1], /32[.,]40/);
+    assert.match(totals[2], /48[.,]60/);
+    assert.ok(await page.evaluate(() => Number(sessionStorage.getItem('qa-balance-refresh'))) > refreshCount, 'Balance refreshes after a classification changes accounting');
+    await page.getByRole('searchbox', { name: 'Rechercher un achat' }).fill('VIS');
+    assert.equal(await review.locator('article').count(), 1);
+    await review.getByRole('button', { name: 'Appliquer au journal' }).click();
+    await source.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => !document.querySelector('.vat-purchase-review select')?.disabled);
+    await page.evaluate(() => sessionStorage.setItem('qa-reject-classification', '1'));
+    await source.selectOption('input_investments');
+    await page.getByText('Le compte de TVA est inactif. Aucune modification enregistrée.', { exact: true }).waitFor();
+    assert.equal(await source.inputValue(), 'non_deductible', 'Rejected change keeps the persisted category');
+    totals = await page.locator('.vat-overview__totals strong').allTextContents();
+    assert.match(totals[1], /32[.,]40/);
+    await page.screenshot({ path: `.qa/vat-purchases/${width}-error.png`, fullPage: true });
+    await page.evaluate(() => sessionStorage.removeItem('qa-reject-classification'));
+    await source.selectOption('input_investments');
+    await page.getByText('Le traitement TVA est enregistré.', { exact: true }).waitFor();
+    assert.equal(await source.inputValue(), 'input_investments');
+    totals = await page.locator('.vat-overview__totals strong').allTextContents();
+    assert.match(totals[1], /40[.,]50/);
+    await page.getByRole('searchbox', { name: 'Rechercher un achat' }).fill('');
+    assert.equal(await review.locator('article').count(), 2);
+    const dimensions = await page.evaluate(() => ({ width: innerWidth, document: document.documentElement.scrollWidth }));
+    assert.ok(dimensions.document <= width, `Horizontal overflow at ${width}px`);
+    await review.screenshot({ path: `.qa/vat-purchases/${width}-review.png` });
+    report.push({ ...dimensions, journey: 'PASS classification + totals + balance refresh + search + failure atomicity + retry' });
+    await page.close();
+  }
+  assert.deepEqual(report.filter((item) => item.error), []);
+} catch (error) { report.push({ fatal: error.stack }); process.exitCode = 1; }
+finally { await writeFile('.qa/vat-purchases/report.json', JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2)); await browser.close(); }

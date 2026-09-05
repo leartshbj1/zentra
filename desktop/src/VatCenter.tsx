@@ -14,6 +14,7 @@ import {
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import { VatOverview } from './VatOverview';
+import { VatPurchaseReview } from './VatPurchaseReview';
 import type {
   PeriodFilter,
   VatAdjustment,
@@ -48,9 +49,11 @@ type VatTab = 'return' | 'profile' | 'adjustments' | 'history';
 export function VatCenter({
   filter,
   workspace,
+  onAccountingChanged,
 }: {
   filter: PeriodFilter;
   workspace: Workspace;
+  onAccountingChanged?: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<VatTab>('return');
   const [profiles, setProfiles] = useState<VatProfile[]>([]);
@@ -166,6 +169,7 @@ export function VatCenter({
         closePreviousOpenProfile: form.get('closePrevious') === 'on',
       });
       setTab('return');
+      await onAccountingChanged?.();
       await load();
       setNotice('Le nouveau profil TVA daté a été enregistré. Les anciens décomptes restent liés à leur profil d’origine.');
     } catch (reason) {
@@ -180,8 +184,9 @@ export function VatCenter({
     setNotice('');
     try {
       await desktopApi.setVatSourceClassification({ sourceId, sourceType, treatment });
+      await onAccountingChanged?.();
       await load();
-      setNotice('La décision fiscale est enregistrée localement et reste liée à la source.');
+      setNotice('Le traitement TVA est enregistré.');
     } catch (reason) {
       setError(errorMessage(reason, 'La classification n’a pas pu être enregistrée.'));
       setBusy(false);
@@ -318,6 +323,7 @@ export function VatCenter({
         <VatOverview preview={preview} />
         <VatRateTable preview={preview} />
         <VatCalculationBreakdown preview={preview} />
+        <VatPurchaseReview sources={preview.classifiedSources ?? []} busy={busy} onClassify={classifySource} />
         {preview.unclassifiedSources.length ? <section className="vat-unclassified"><header><div><strong>Décisions nécessaires</strong><p>Ces lignes ne sont pas devinées. Choisissez leur traitement réel; l’export reste bloqué jusque-là.</p></div><span>{preview.unclassifiedSources.length}</span></header>{preview.unclassifiedSources.map((source) => <article key={`${source.sourceType}:${source.sourceId}`}><div><strong>{source.description}</strong><span>{formatDate(source.occurrenceDate)} · {formatMoney(source.amountCents)}{source.vatRateBp !== null ? ` · ${(source.vatRateBp / 100).toLocaleString('fr-CH')} %` : ''}</span><small>{vatSourceTypeLabels[source.sourceType]}</small></div><select defaultValue="" disabled={busy} aria-label={`Traitement TVA de ${source.description}`} onChange={(event) => { const treatment = event.currentTarget.value as VatSourceTreatment; event.currentTarget.value = ''; if (treatment) void classifySource(source.sourceId, source.sourceType, treatment); }}><option value="">Choisir le traitement</option>{treatmentsForVatSource(source.sourceType).map((treatment) => <option key={treatment} value={treatment}>{vatTreatmentLabels[treatment]}</option>)}</select></article>)}</section> : null}
         {preview.blockingIssues.length ? <div className="vat-issues">{preview.blockingIssues.map((issue, index) => <article key={`${issue.code}:${issue.sourceId || index}`}><AlertTriangle size={17} /><div><strong>{issue.code}</strong><p>{issue.message}</p></div></article>)}</div> : null}
         {preview.warnings.length ? <div className="vat-warnings">{preview.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}

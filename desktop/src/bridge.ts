@@ -3786,6 +3786,13 @@ function vatPreviewFromRaw(value: unknown): VatReturnPreview {
       vatCents: numberValue(source.vat_cents),
       vatRateBp: optionalNumber(source.vat_rate_bp),
     })),
+    classifiedSources: rawArray(row.classified_sources).map((source) => ({
+      sourceType: stringValue(source.source_type) as VatSourceType,
+      sourceId: stringValue(source.source_id), parentId: stringValue(source.parent_id),
+      occurrenceDate: stringValue(source.occurrence_date), description: stringValue(source.description),
+      amountCents: numberValue(source.amount_cents), vatCents: numberValue(source.vat_cents), vatRateBp: optionalNumber(source.vat_rate_bp),
+      treatment: stringValue(source.treatment) as VatSourceTreatment, currency: stringValue(source.currency) || 'CHF',
+    })),
     sourceSha256: stringValue(row.source_sha256),
     turnoverComputation: {
       totalConsiderationCents: numberValue(turnover.total_consideration_cents),

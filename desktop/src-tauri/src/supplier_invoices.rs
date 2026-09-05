@@ -844,6 +844,7 @@ fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> A
         "UPDATE supplier_invoices SET status='validated',reference_normalized=?,validated_at=?,validation_journal_entry_id=?,snapshot_json=?,updated_at=? WHERE id=? AND status='draft'",
         params![normalized,now,journal_id,serde_json::to_string(&snapshot)?,now,id],
     )?;
+    crate::input_vat_accounting::sync_supplier_invoice(tx, id)?;
     let order_ids = {
         let mut statement = tx.prepare(
             "SELECT DISTINCT supplier_order_id FROM supplier_invoice_matches WHERE supplier_invoice_id=? ORDER BY supplier_order_id",

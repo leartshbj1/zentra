@@ -20,6 +20,9 @@ mod database;
 mod error;
 mod fiduciary_closing;
 mod financial_pdf;
+mod input_vat_accounting;
+#[cfg(test)]
+mod input_vat_tests;
 mod installation;
 mod license;
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -310,7 +313,7 @@ mod tests {
         vat_reporting::VatProfileInput,
     };
 
-    fn test_onboarding() -> OnboardingInput {
+    pub(super) fn test_onboarding() -> OnboardingInput {
         OnboardingInput {
             company_name: "Entreprise de test".into(),
             legal_form: Some("Sàrl".into()),
@@ -942,7 +945,7 @@ mod tests {
         result
     }
 
-    fn enable_accounting(store: &LocalStore) -> HashMap<&'static str, String> {
+    pub(super) fn enable_accounting(store: &LocalStore) -> HashMap<&'static str, String> {
         let a = accounting_accounts(store);
         store
             .configure_accounting(AccountingSettingsInput {

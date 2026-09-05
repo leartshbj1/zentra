@@ -2167,9 +2167,19 @@ impl LocalStore {
                     "Une ligne sans montant net ne peut pas être reclassée.".into(),
                 ));
             }
+            let latest_reclassification_date: Option<String> = tx.query_row(
+                "SELECT MAX(header.effective_date) FROM supplier_expense_reclassification_lines line JOIN supplier_expense_reclassifications header ON header.id=line.reclassification_id WHERE line.supplier_invoice_item_id=?",
+                params![item_id], |row| row.get(0),
+            )?;
+            if latest_reclassification_date
+                .as_deref()
+                .is_some_and(|date| date > effective_date.as_str())
+            {
+                return Err(AppError::Validation("La nouvelle imputation ne peut pas précéder une imputation déjà enregistrée pour cette ligne.".into()));
+            }
             let current_account: Option<String> = tx
                 .query_row(
-                    "SELECT line.new_expense_account_id FROM supplier_expense_reclassification_lines line JOIN supplier_expense_reclassifications header ON header.id=line.reclassification_id WHERE line.supplier_invoice_item_id=? ORDER BY header.created_at DESC,header.id DESC LIMIT 1",
+                    "SELECT line.new_expense_account_id FROM supplier_expense_reclassification_lines line JOIN supplier_expense_reclassifications header ON header.id=line.reclassification_id WHERE line.supplier_invoice_item_id=? ORDER BY header.rowid DESC,line.rowid DESC LIMIT 1",
                     params![item_id],
                     |row| row.get(0),
                 )
@@ -2228,6 +2238,7 @@ impl LocalStore {
                 params![Uuid::new_v4().to_string(),reclassification_id,item_id,old_account,new_account,amount,project_id,now],
             )?;
         }
+        crate::input_vat_accounting::sync_supplier_invoice(&tx, &invoice_id)?;
         let result = json!({
             "reclassification":query_record_tx(&tx,"supplier_expense_reclassifications",&reclassification_id)?,
             "lines":query_all(&tx,"SELECT * FROM supplier_expense_reclassification_lines WHERE reclassification_id=? ORDER BY created_at,id",params![reclassification_id])?,

@@ -197,6 +197,14 @@ pub struct VatUnclassifiedSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VatClassifiedSource {
+    #[serde(flatten)]
+    pub source: VatUnclassifiedSource,
+    pub treatment: String,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VatRateLine {
     pub tax_rate_bp: i64,
     pub turnover_cents: i64,
@@ -273,6 +281,8 @@ pub struct VatReturnPreview {
     pub blocking_issues: Vec<VatBlockingIssue>,
     pub warnings: Vec<String>,
     pub unclassified_sources: Vec<VatUnclassifiedSource>,
+    #[serde(default)]
+    pub classified_sources: Vec<VatClassifiedSource>,
     pub source_sha256: String,
     pub turnover_computation: VatTurnoverComputationPreview,
     pub effective_reporting_method: Option<VatEffectiveReportingMethodPreview>,
@@ -547,6 +557,11 @@ impl LocalStore {
         )?;
         let result = load_profile_by_id(&transaction, &normalized.id)?
             .ok_or_else(|| AppError::NotFound(format!("vat_profiles/{}", normalized.id)))?;
+        crate::input_vat_accounting::sync_period(
+            &transaction,
+            &normalized.effective_from,
+            normalized.effective_to.as_deref().unwrap_or("9999-12-31"),
+        )?;
         transaction.commit()?;
         Ok(result)
     }
@@ -593,6 +608,15 @@ impl LocalStore {
         let existing = load_classification(&transaction, &source_type, &source_id)?;
         if let Some(existing) = existing {
             if existing.treatment == treatment && existing.note == note {
+                let closed = closed_accounting_through(&transaction)?;
+                let fiscal_date = vat_source_fiscal_date(&transaction, &source_type, &source_id)?;
+                if !matches!((closed, fiscal_date), (Some(closed), Some(date)) if date <= closed) {
+                    crate::input_vat_accounting::sync_source(
+                        &transaction,
+                        &source_type,
+                        &source_id,
+                    )?;
+                }
                 transaction.commit()?;
                 return Ok(existing);
             }
@@ -613,6 +637,14 @@ impl LocalStore {
 
         let result = load_classification(&transaction, &source_type, &source_id)?
             .ok_or_else(|| AppError::NotFound(format!("{source_type}/{source_id}")))?;
+        crate::input_vat_accounting::sync_source(&transaction, &source_type, &source_id)?;
+        append_audit(
+            &transaction,
+            "classify_vat",
+            &source_type,
+            &source_id,
+            &serde_json::to_value(&result)?,
+        )?;
         transaction.commit()?;
         Ok(result)
     }
@@ -1896,6 +1928,38 @@ fn build_vat_preview(
     unclassified_sources.sort_by(|left, right| {
         (&left.source_type, &left.source_id).cmp(&(&right.source_type, &right.source_id))
     });
+    let mut classified_sources = sources
+        .iter()
+        .filter_map(|source| {
+            if source.source_type == "invoice_item" {
+                return None;
+            }
+            source
+                .treatment
+                .as_ref()
+                .map(|treatment| VatClassifiedSource {
+                    source: VatUnclassifiedSource {
+                        source_type: source.source_type.clone(),
+                        source_id: source.source_id.clone(),
+                        parent_id: source.parent_id.clone(),
+                        occurrence_date: source.occurrence_date.clone(),
+                        description: source.description.clone(),
+                        amount_cents: source.net_cents,
+                        vat_cents: source.vat_cents,
+                        vat_rate_bp: source.vat_rate_bp,
+                    },
+                    treatment: treatment.clone(),
+                    currency: source.currency.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    classified_sources.sort_by(|left, right| {
+        right
+            .source
+            .occurrence_date
+            .cmp(&left.source.occurrence_date)
+            .then_with(|| left.source.source_id.cmp(&right.source.source_id))
+    });
     Ok(VatReturnPreview {
         standard: ECH_STANDARD.into(),
         standard_version: ECH_VERSION.into(),
@@ -1908,6 +1972,7 @@ fn build_vat_preview(
         blocking_issues,
         warnings,
         unclassified_sources,
+        classified_sources,
         source_sha256,
         turnover_computation,
         effective_reporting_method,

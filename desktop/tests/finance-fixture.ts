@@ -11,6 +11,10 @@ export function installFinanceFixture(workspace: Workspace) {
     standard: 'eCH-0217', standardVersion: '2.0.0', currency: 'CHF', profile,
     dateFrom: '2026-01-01', dateTo: '2026-03-31', submissionType: 'initial', exportable: true,
     blockingIssues: [], warnings: [], unclassifiedSources: [], sourceSha256: 'synthetic-qa',
+    classifiedSources: [
+      { sourceType: 'supplier_invoice_item', sourceId: 'purchase-one', parentId: 'purchase-qa', occurrenceDate: '2026-02-10', description: 'Vis et fixations', amountCents: 10000, vatCents: 810, vatRateBp: 810, treatment: 'input_materials', currency: 'CHF' },
+      { sourceType: 'expense', sourceId: 'purchase-two', parentId: 'purchase-two', occurrenceDate: '2026-01-15', description: 'Fournitures d’atelier', amountCents: 40000, vatCents: 3240, vatRateBp: 810, treatment: 'input_materials', currency: 'CHF' },
+    ],
     turnoverComputation: { totalConsiderationCents: 100000, suppliesToForeignCountriesCents: 0, suppliesAbroadCents: 0, transferNotificationProcedureCents: 0, suppliesExemptFromTaxCents: 0, reductionOfConsiderationCents: 0, variousDeduction: null, taxableTurnoverCents: 100000 },
     effectiveReportingMethod: { grossOrNet: 'net', grossOrNetCode: 1, optedCents: 0, suppliesPerTaxRate: [{ taxRateBp: 810, turnoverCents: 100000, calculatedTaxCents: 8100 }], acquisitionTax: [], inputTaxMaterialAndServicesCents: 4050, inputTaxInvestmentsCents: 0, subsequentInputTaxDeductionCents: 0, inputTaxCorrectionsCents: 0, inputTaxReductionsCents: 0, outputTaxCents: 8100, acquisitionTaxCents: 0 },
     simpleTaxRateMethod: null, payableTaxCents: 4050, payableCode: '500', otherFlowsOfFunds: { subsidiesCents: 0, donationsCents: 0 }, sourceCount: 2, adjustmentCount: 0, transmissionWording: 'Exemple de recette, aucune donnée réelle.',
@@ -19,6 +23,11 @@ export function installFinanceFixture(workspace: Workspace) {
   desktopApi.listVatAdjustments = async () => [];
   desktopApi.listVatReturnExports = async () => [];
   desktopApi.previewVatReturn = async (input) => ({ ...structuredClone(preview), ...input });
+  const originalBalance = desktopApi.getBalanceSheet;
+  desktopApi.getBalanceSheet = async (input) => {
+    sessionStorage.setItem('qa-balance-refresh', String(Number(sessionStorage.getItem('qa-balance-refresh') || 0) + 1));
+    return originalBalance(input);
+  };
   desktopApi.exportAnnualAccountsPdf = async () => ({ path: 'bilan-recette.pdf', pages: 3, closed: false, balanced: true, sha256: 'synthetic-qa' });
   workspace.suppliers = [{ id: 'supplier-qa', name: 'Fournitures du Léman', email: '', phone: '', address: '', notes: '', archivedAt: null }] as Workspace['suppliers'];
   const line = { id: 'line-qa', description: 'Prestation', quantity: 1, unit: 'forfait', unitPriceCents: 100000, discountBp: 0, vatRateBp: 810 };
@@ -31,7 +40,16 @@ export function installFinanceFixture(workspace: Workspace) {
     return saved;
   };
   desktopApi.setVatSourceClassification = async (input) => {
+    if (sessionStorage.getItem('qa-reject-classification') === '1') throw new Error('Le compte de TVA est inactif. Aucune modification enregistrée.');
     sessionStorage.setItem('qa-vat-classification', JSON.stringify(input));
+    const source = preview.classifiedSources?.find((item) => item.sourceId === input.sourceId && item.sourceType === input.sourceType);
+    if (source && preview.effectiveReportingMethod) {
+      source.treatment = input.treatment;
+      const amounts = (treatment: string) => preview.classifiedSources!.filter((item) => item.treatment === treatment).reduce((sum, item) => sum + item.vatCents, 0);
+      preview.effectiveReportingMethod.inputTaxMaterialAndServicesCents = amounts('input_materials');
+      preview.effectiveReportingMethod.inputTaxInvestmentsCents = amounts('input_investments');
+      preview.payableTaxCents = 8100 - amounts('input_materials') - amounts('input_investments');
+    }
     return { ...input, id: 'classification-qa', createdAt: '', updatedAt: '' };
   };
 }

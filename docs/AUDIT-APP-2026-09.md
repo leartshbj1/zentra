@@ -11,6 +11,8 @@ Les améliorations ci-dessous sont dans le code en cours de validation. Les inst
 - Devises : le brouillon conserve sa devise à l'enregistrement ; montants des listes, dossiers, formulaires, paiements et aperçus affichés dans la devise du document. Tableau de bord et dossier client séparent les totaux par devise. Les projets présentent les recettes par devise et suspendent la marge CHF lorsqu'une conversion justifiée manque.
 - Éditeur : les projets proposés appartiennent au client sélectionné ; changer de client retire l'ancien projet. Un avoir reprend les coordonnées de rattachement et la devise de sa facture originale. Les prix CHF du catalogue ne sont pas recopiés automatiquement dans un document en devise étrangère.
 - Achats : sélecteur mobile donnant accès aux cinq sections ; résumé en deux colonnes ; intitulé du parcours simplifié. Navigation au clavier conservée sur ordinateur.
+- TVA des achats : une classification non déductible passe une correction équilibrée au journal, liée à sa source. Une nouvelle classification compense cette correction sans modifier l'écriture ni la facture d'origine. Les corrections suivent les changements datés du compte de charge ; les périodes clôturées restent protégées. La méthode TDFN porte la TVA des achats en charge.
+- Centre TVA : les achats déjà classés peuvent être recherchés et corrigés. Le décompte et les états comptables sont actualisés après la décision. Les corrections manuelles antérieures ne sont pas identifiées automatiquement : vérifier leur existence avant « Appliquer au journal » sur un ancien achat.
 
 ## Preuves locales
 
@@ -18,8 +20,10 @@ Environnement : Windows, Edge headless, largeurs 320, 390, 768, 1024 et 1440 px.
 
 | Contrôle | Preuve |
 | --- | --- |
-| Moteur natif existant : ventes, stock, achats, banque, paie, TVA, clôture, sauvegardes et documents | `cargo test --lib` : 451 tests réussis, 0 échec, 1 ignoré ; `.qa/audit-128-native.log` |
-| Interface et logique TypeScript | `pnpm --dir desktop test:ui` : 568 tests réussis / 83 fichiers ; `.qa/audit-128-ui-final.log` |
+| Moteur natif : ventes, stock, achats, banque, paie, TVA, clôture, sauvegardes et documents | `cargo test --lib` : 455 tests réussis, 0 échec, 1 ignoré ; `.qa/input-vat-full-tests.log` |
+| Interface et logique TypeScript | `pnpm --dir desktop test:ui` : 570 tests réussis / 84 fichiers ; `.qa/input-vat-ui-final.log` |
+| TVA non déductible, achats mixtes, changement de classification, TDFN, reclassement daté, transaction refusée, clôture, sauvegarde et ancien payload d'export | 4 tests d'intégration natifs ; `.qa/input-vat-final-focused.log` |
+| Contrôle et correction des achats classés, total TVA et rafraîchissement du bilan, recherche, refus puis reprise | `desktop/tests/vat-purchase-journey.mjs` : cinq largeurs ; `.qa/vat-purchases/report.json` |
 | Navigation dans les 16 modules et 7 catégories de paramètres ; projet, fichier, devis et facture | `desktop/tests/workspace-journey.mjs` : 120 captures ; `.qa/design/report.json` |
 | TVA, références, ordre des documents, action d'export PDF et classification d'un achat | `desktop/tests/finance-journey.mjs` : 28 captures ; `.qa/finance/report.json` |
 | Recherche de référence, filtres, devis/facture EUR enregistrés, projet lié au client, avoir lié, pagination de 80 factures | `desktop/tests/sales-browsing-journey.mjs` ; `.qa/sales/report.json` |
@@ -29,7 +33,7 @@ Les tests navigateur vérifient le parcours UI et les paramètres transmis aux f
 
 ## Points encore ouverts dans l'audit
 
-1. **Cohérence de la TVA non déductible avec le bilan.** `supplier_invoices.rs` comptabilise la TVA de la facture au compte de TVA préalable lors de la validation ; `accounting.rs::post_expense_if_enabled` fait de même pour les dépenses. `vat_reporting.rs` exclut correctement une source classée `non_deductible` du décompte, mais `set_vat_source_classification` ne passe pas d'écriture corrective. La reclassification comptable manuelle décrite dans le guide 1.27 reste donc nécessaire. Préparer une correction native atomique et auditée, y compris lorsque la classification change après la comptabilisation, avant d'annoncer cette opération automatique.
+1. **Reprise des corrections manuelles de TVA.** Le nouveau moteur couvre les factures fournisseurs et dépenses, mais ne rattache pas automatiquement les anciens reclassements saisis à la main. Ne pas appliquer une seconde correction à un achat déjà corrigé manuellement ; prévoir une reprise documentée de ces cas avant d'annoncer une migration automatique de tout l'historique.
 2. **Contre-prestations reçues.** Le moteur bloque les allocations partielles ou sur plusieurs périodes qu'il ne sait pas justifier (`received_mode_blocks_cross_period_payment_allocation`). Examiner les allocations par taux et les corrections avant d'élargir le calcul. Ne pas retirer le blocage sans modèle et tests comptables.
 3. **Avoirs fournisseurs avec TVA.** Le décompte signale encore `unsupported_supplier_credit_tax`. Vérifier la date fiscale, l'imputation et l'extourne pour automatiser ces cas sans double déduction.
 4. **Parcours de gestion avancés.** Les tests natifs couvrent les commandes, livraisons, récurrences, rapprochements, paie et clôture. Compléter les essais UI avec des documents actifs, des erreurs et des reprises de ces parcours ; les seules vues vides et ouvertures de formulaires ne suffisent pas à conclure.

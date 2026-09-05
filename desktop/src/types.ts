@@ -2118,6 +2118,7 @@ export type VatReturnPreview = {
   blockingIssues: VatBlockingIssue[];
   warnings: string[];
   unclassifiedSources: VatUnclassifiedSource[];
+  classifiedSources?: Array<VatUnclassifiedSource & { treatment: VatSourceTreatment; currency: string }>;
   sourceSha256: string;
   turnoverComputation: {
     totalConsiderationCents: number;

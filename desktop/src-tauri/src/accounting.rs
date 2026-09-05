@@ -845,7 +845,7 @@ impl LocalStore {
                    JOIN journal_entries parent ON parent.id=ancestry.reversal_of
                  )
                  SELECT source_type,source_id,id,depth FROM ancestry
-                 WHERE source_type IN ('payment','vat_cash_reclassification','invoice','supplier_invoice','supplier_payment')
+                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification')
                  ORDER BY depth DESC LIMIT 1",
                 params![id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
@@ -854,6 +854,21 @@ impl LocalStore {
         if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
             protected_business_source
         {
+            if source_type == "vat_input_reclassification" {
+                return Err(AppError::Validation("Une correction de TVA d'achat ne peut pas être extournée isolément. Modifiez la classification dans le centre TVA afin de conserver le décompte et le bilan cohérents.".into()));
+            }
+            if source_type == "supplier_expense_reclassification" {
+                return Err(AppError::Validation("Une imputation fournisseur ne peut pas être extournée isolément. Reclassez la ligne depuis les achats pour conserver le compte de charge et sa TVA cohérents.".into()));
+            }
+            if source_type == "expense" {
+                let correction: i64 = tx.query_row(
+                    "SELECT COALESCE(SUM(line.credit_cents-line.debit_cents),0) FROM journal_entries entry JOIN journal_lines line ON line.journal_entry_id=entry.id JOIN accounts account ON account.id=line.account_id WHERE entry.source_type='vat_input_reclassification' AND entry.source_id=? AND account.account_type='asset'",
+                    params![format!("expense:{business_source_id}")], |row| row.get(0),
+                )?;
+                if correction != 0 {
+                    return Err(AppError::Validation("Cette dépense comporte une correction de TVA non déductible. Corrigez son traitement TVA avant d'extourner l'achat.".into()));
+                }
+            }
             // Avant ce garde, une ancienne version pouvait laisser une écriture
             // métier inactive en extournant sa racine. On autorise uniquement
             // l'extourne de la dernière compensation d'une chaîne linéaire et
@@ -901,7 +916,7 @@ impl LocalStore {
                             .into(),
                     ));
                 }
-            } else if source_type != "payment" {
+            } else if source_type != "payment" && source_type != "expense" {
                 return Err(AppError::Validation(
                     "Une écriture fournisseur ne peut pas être extournée isolément. Utilisez le futur flux d’avoir ou de remboursement afin que le document, la dette et le journal restent cohérents."
                         .into(),
@@ -2476,9 +2491,9 @@ pub(crate) fn post_expense_if_enabled(
         None,
         "Paiement dépense",
     );
-    Ok(Some(post_entry(
-        tx, &date, "Dépense", "expense", expense_id, "create", lines,
-    )?))
+    let journal = post_entry(tx, &date, "Dépense", "expense", expense_id, "create", lines)?;
+    crate::input_vat_accounting::sync_source(tx, "expense", expense_id)?;
+    Ok(Some(journal))
 }
 
 pub(crate) fn post_payslip_if_enabled(
