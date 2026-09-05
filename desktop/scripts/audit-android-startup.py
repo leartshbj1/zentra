@@ -42,12 +42,14 @@ def wait_for_welcome(folder):
         if not adb('shell', 'pidof', PACKAGE, check=False).strip():
             return False, round(time.monotonic() - start, 2)
         try:
-            adb('shell', 'uiautomator', 'dump', '--compressed', '/sdcard/zentra-audit.xml', timeout=15, check=False)
-            ui = adb('exec-out', 'cat', '/sdcard/zentra-audit.xml', check=False)
+            # A failed dump must never reuse a previous process's welcome XML.
+            ui_path = f'/sdcard/zentra-audit-{time.monotonic_ns()}.xml'
+            adb('shell', 'uiautomator', 'dump', '--compressed', ui_path, timeout=15)
+            ui = adb('exec-out', 'cat', ui_path)
             (folder / 'ui.xml').write_bytes(ui)
             if b'Restaurer une sauvegarde' in ui:
                 return True, round(time.monotonic() - start, 2)
-        except subprocess.TimeoutExpired:
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             pass
         time.sleep(2)
     return False, round(time.monotonic() - start, 2)
