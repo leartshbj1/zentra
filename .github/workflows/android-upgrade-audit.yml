@@ -1,0 +1,80 @@
+name: Zentra Android exact APK upgrade audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      current_run:
+        description: Artifact run containing the exact signed current APK
+        required: true
+        type: string
+      previous_run:
+        description: Artifact run containing the exact signed previous APK
+        required: true
+        type: string
+      current_sha256:
+        description: SHA-256 of the current x86_64 APK
+        required: true
+        type: string
+      previous_sha256:
+        description: SHA-256 of the previous x86_64 APK
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Retrieve and verify exact previously signed APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_RUN: ${{ inputs.current_run }}
+          PREVIOUS_RUN: ${{ inputs.previous_run }}
+          CURRENT_SHA256: ${{ inputs.current_sha256 }}
+          PREVIOUS_SHA256: ${{ inputs.previous_sha256 }}
+        run: |
+          gh run download "$CURRENT_RUN" --repo "$GITHUB_REPOSITORY" --name "Android-startup-$CURRENT_RUN" --dir /tmp/zentra-current
+          gh run download "$PREVIOUS_RUN" --repo "$GITHUB_REPOSITORY" --name "Android-startup-$PREVIOUS_RUN" --dir /tmp/zentra-previous
+          python3 -B - <<'PY'
+          import hashlib, os, pathlib, re
+          for name in ('current', 'previous'):
+              expected = os.environ[name.upper() + '_SHA256'].lower()
+              assert re.fullmatch('[0-9a-f]{64}', expected)
+              path = pathlib.Path('/tmp/zentra-' + name) / 'app-x86_64-debug.apk'
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == expected, name
+          PY
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
+          pin="$(tr -d '\r\n' < desktop/android-preview-certificate.sha256)"
+          for apk in /tmp/zentra-{previous,current}/app-x86_64-debug.apk; do
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > /tmp/zentra-cert.txt
+            grep -Fx "Signer #1 certificate SHA-256 digest: $pin" /tmp/zentra-cert.txt
+          done
+      - name: Upgrade an initialized previous native profile without requiring its old UI
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/zentra-upgrade-audit"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME" desktop/artifacts/android
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n zentra-upgrade -k "system-images;android-35;google_apis;x86_64" --device pixel_6
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd zentra-upgrade -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 > desktop/artifacts/android/emulator.log 2>&1 &
+          python3 -B desktop/scripts/prepare-android-upgrade-profile.py /tmp/zentra-previous/app-x86_64-debug.apk
+          bash desktop/scripts/smoke-android-upgrade.sh /tmp/zentra-current/app-x86_64-debug.apk
+      - name: Capture emulator diagnostics
+        if: always()
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          mkdir -p desktop/artifacts/android
+          timeout 10 adb logcat -d > desktop/artifacts/android/upgrade-logcat.log 2>&1 || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: Android-upgrade-audit-${{ github.run_id }}
+          path: desktop/artifacts/android/*
+          retention-days: 14
