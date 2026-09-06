@@ -618,6 +618,12 @@ pub fn reverse_customer_credit_settlement(state: State<'_,LocalStore>,input:crat
 }
 
 #[tauri::command]
+pub fn add_customer_credit_settlement_attachment(state:State<'_,LocalStore>,settlement_id:String,attachment:crate::expense_refund_attachments::RefundAttachmentInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?; require_write(&state)?;
+    state.add_customer_credit_settlement_attachment(&settlement_id,attachment).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn match_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::credit_refunds::MatchInput)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
     state.match_bank_supplier_credit_refund(input).map_err(command_error)

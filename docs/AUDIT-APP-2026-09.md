@@ -4,7 +4,7 @@ Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corr
 
 Dernière publication vérifiée : **1.37.0**, site version 56, le 6 septembre 2026. Voir les [notes et limites de cette version](RELEASE-1.37.md). La refonte ordinateur/mobile, les aperçus de documents et les remboursements d’avoirs fournisseurs avec leurs justificatifs bancaires sont publiés. Le dossier devis/acompte/solde est conservé. Les versions 1.34 et 1.36 restent non publiées. Les règlements datés des avoirs clients et leur TVA reçue restent à compléter ; les sections suivantes conservent la chronologie des lots.
 
-Les corrections locales sur les avoirs clients sont décrites dans [l'audit dédié](AUDIT-AVOIRS-CLIENTS.md) : plafond par taux, taux historiques, règlements et extournes datés, TVA reçue par événement et consultation adaptée au mobile. La reprise des anciens avoirs, les justificatifs et le rapprochement bancaire client restent à terminer. Ces changements ne sont pas inclus dans la version publique 1.37.0.
+Les corrections locales sur les avoirs clients sont décrites dans [l'audit dédié](AUDIT-AVOIRS-CLIENTS.md) : plafond par taux, taux historiques, règlements et extournes datés, TVA reçue par événement, consultation mobile, justificatifs reliés aux projets et exports vérifiés avec restauration. La reprise des anciens avoirs et le rapprochement bancaire client restent à terminer. Ces changements, au schéma 54, ne sont pas inclus dans la version publique 1.37.0.
 
 ## Lot 1.28.0 disponible dans le système de mise à jour
 

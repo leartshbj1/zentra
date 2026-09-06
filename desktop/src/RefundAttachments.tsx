@@ -9,12 +9,13 @@ import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void) => Promise<boolean>;
 
-export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supplierCredit = false }: {
+export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supplierCredit = false, label = 'Justificatif de l’avoir', hint }: {
   receipt: File | null; onChange: (file: File | null) => void; disabled: boolean; onError: (message: string) => void;
   supplierCredit?: boolean;
+  label?: string; hint?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  return <div className="refund-receipt-picker"><Field label="Justificatif de l’avoir" wide hint={supplierCredit ? 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce rejoint le projet lorsque toutes les lignes de l’avoir lui sont rattachées.' : 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce sera aussi classée dans le projet de la dépense.'}>
+  return <div className="refund-receipt-picker"><Field label={label} wide hint={hint ?? (supplierCredit ? 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce rejoint le projet lorsque toutes les lignes de l’avoir lui sont rattachées.' : 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce sera aussi classée dans le projet de la dépense.')}>
     <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" disabled={disabled} onChange={(event) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -28,11 +29,11 @@ export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supp
   </div>;
 }
 
-export function RefundAttachmentList({ attachments }: { attachments: Attachment[] }) {
+export function RefundAttachmentList({ attachments, label = 'Justificatifs du remboursement' }: { attachments: Attachment[]; label?: string }) {
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState('');
   if (!attachments.length) return null;
-  return <div className="refund-attachments" aria-label="Justificatifs du remboursement">
+  return <div className="refund-attachments" aria-label={label}>
     {attachments.map((file) => <div className="refund-attachments__file" key={file.id}>
       <Paperclip size={16} /><span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)}</small></span>
       <Button type="button" variant="secondary" size="small" disabled={opening !== null} aria-label={`Ouvrir ${file.originalName}`} onClick={async () => {

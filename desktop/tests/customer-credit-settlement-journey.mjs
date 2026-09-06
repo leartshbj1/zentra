@@ -38,12 +38,24 @@ try {
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('customer-settlement-count')),'1');
     assert.equal(await page.evaluate(()=>localStorage.getItem('zentra.customer-credit-request.v1.customer-settlement-credit')),null);
     await panel.locator('summary').click();
+    await panel.getByRole('button',{name:'Joindre une pièce',exact:true}).click();
+    await panel.getByLabel('Fichier à joindre').setInputFiles({name:'preuve-client.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlqUAAAAASUVORK5CYII=','base64')});
+    await panel.getByRole('button',{name:'Ajouter le justificatif',exact:true}).click();
+    await panel.getByText('Réponse interrompue après archivage de la pièce.',{exact:true}).waitFor();
+    await panel.getByRole('button',{name:'Ajouter le justificatif',exact:true}).click();
+    await panel.locator('form').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('customer-receipt-count')),'1');
+    await panel.getByRole('button',{name:'Ouvrir preuve-client.png',exact:true}).click();
+    assert.ok(await page.evaluate(()=>sessionStorage.getItem('customer-receipt-opened')));
     await panel.getByRole('button',{name:'Corriger',exact:true}).click();
     await panel.getByLabel('Date de correction').fill('2026-04-02');
     await panel.getByLabel(/^Motif/).fill('Virement retourné par la banque');
     await panel.getByRole('button',{name:'Enregistrer la correction',exact:true}).click();
     await panel.locator('form').waitFor({state:'detached'});
     assert.equal(await panel.getByText('Remboursement annulé',{exact:true}).count(),1);
+    assert.equal(await panel.getByRole('button',{name:'Ouvrir preuve-client.png',exact:true}).count(),1);
+    await panel.getByRole('button',{name:'Ouvrir preuve-client.png',exact:true}).click();
+    await page.screenshot({path:new URL(`receipt-history-${width}.png`,out).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
     await panel.getByRole('button',{name:'Déduire d’une facture',exact:true}).click();
     await panel.getByLabel('Facture à régler').selectOption('customer-target');
     await panel.getByLabel('Montant (CHF)').fill('27.03');
@@ -61,7 +73,20 @@ try {
       return rect.top>=document.querySelector('.modal__header').getBoundingClientRect().bottom && rect.bottom<=innerHeight;
     });
     await page.screenshot({path:new URL(`history-${width}.png`,out).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
-    assert.deepEqual(errors,[]);report.push({width,refund:true,sameRequestRetry:true,reversal:true,application:true,noOverflow:true,pageErrors:errors});await page.close();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
+    await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Projets');
+    await page.locator('.navigation-palette__results button').filter({has:page.getByText('Projets',{exact:true})}).click();
+    await page.getByRole('button',{name:'Projet règlements client',exact:true}).click();
+    const source=page.getByRole('button',{name:'Voir l’avoir lié à preuve-client.png',exact:true});
+    await source.waitFor();
+    assert.equal(await page.getByRole('button',{name:'Supprimer preuve-client.png',exact:true}).count(),0);
+    await source.scrollIntoViewIfNeeded();
+    await page.screenshot({path:new URL(`project-receipt-${width}.png`,out).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await source.click();
+    await panel.getByText('AVO-2026-101',{exact:true}).waitFor();
+    assert.deepEqual(errors,[]);report.push({width,refund:true,sameRequestRetry:true,receiptRetryDeduplicated:true,receiptOpensAfterReversal:true,projectSourceOpens:true,reversal:true,application:true,noOverflow:true,pageErrors:errors});await page.close();
   }
   for(const width of [320,1440]) {
     const page=await browser.newPage({viewport:{width,height:900}});
@@ -74,6 +99,11 @@ try {
     const panel=page.getByRole('region',{name:'Avoirs et règlements liés'});
     assert.equal(await panel.getByRole('button',{name:'Enregistrer un remboursement',exact:true}).isDisabled(),true);
     assert.equal(await panel.getByRole('button',{name:'Déduire d’une facture',exact:true}).isDisabled(),true);
-    report.push({width,readOnly:true});await page.close();
+    await panel.locator('summary').click();
+    assert.equal(await panel.getByRole('button',{name:'Joindre une pièce',exact:true}).isDisabled(),true);
+    assert.equal(await panel.getByRole('button',{name:'Ouvrir preuve-lecture.png',exact:true}).isEnabled(),true);
+    await panel.getByRole('button',{name:'Ouvrir preuve-lecture.png',exact:true}).click();
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('customer-receipt-opened')),'readonly-file');
+    report.push({width,readOnly:true,receiptUploadDisabled:true,existingReceiptOpens:true});await page.close();
   }
 } finally {await writeFile(new URL('report.json',out),JSON.stringify(report,null,2));await browser.close();}

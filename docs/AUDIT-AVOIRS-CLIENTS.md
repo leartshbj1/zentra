@@ -40,8 +40,23 @@ Preuves du second lot :
 - 706 tests UI passent et la construction TypeScript/Vite réussit. Voir `.qa/customer-credit-final-all-ui.log`, `.qa/customer-credit-release-candidate-build.log` et les journaux Clippy sur toutes les cibles natives.
 - Douze cas compilés Edge/WebKit passent : huit parcours à 320, 390, 768 et 1440 px couvrent remboursement, réponse perdue, fermeture/réouverture, reprise identique, correction et déduction ; quatre autres vérifient la lecture seule avec animations réduites. Les assertions vérifient aussi l'absence de débordement horizontal et le retour du montant disponible dans la zone visible après enregistrement. Les captures finales mobile et ordinateur sont inspectées. Les données du navigateur sont simulées ; les effets financiers sont vérifiés séparément en SQLite/Rust. Rapports et captures : `.qa/customer-credit-settlement-edge/` et `.qa/customer-credit-settlement-webkit/`.
 
-## Limites de ce lot non publié
+## Justificatifs et exports — schéma 54, non publié
 
-Il reste à terminer la reprise documentée des avoirs historiques, les justificatifs, les liens aux débits bancaires et leur dissociation, l'index des preuves dans le dossier de clôture, ainsi que la recette de sauvegarde/restauration et d'export du nouveau registre. Les tables figurent déjà dans la liste CSV, mais cela ne constitue pas une vérification complète du dossier exporté. Les changements de méthode TVA restent bloqués lorsqu'un avoir lié exige un rapprochement.
+Les règlements clients peuvent recevoir des PDF, JPG, PNG ou WebP. Les fichiers sont validés, limités à 25 Mo et dédupliqués par événement et empreinte. Ils restent conservés après une correction. Un échec de transaction après installation du fichier nettoie la copie sans toucher aux montants. La migration 53 vers 54 préserve les événements, leurs écritures et les pièces existantes.
+
+L'historique permet de joindre et d'ouvrir une pièce, y compris en lecture seule pour les pièces existantes. Un fichier déjà enregistré peut être renvoyé après une réponse interrompue sans seconde copie. Dans le dossier du projet, le justificatif porte son origine et donne accès à l'avoir. Une déduction entre deux projets différents ne reçoit aucun projet arbitraire. Le bloc des dossiers de facturation n'apparaît que lorsqu'il contient des documents.
+
+L'export CSV comprend maintenant les quatre registres du modèle client, des règlements, des ventilations et des preuves de comptabilisation. Le dossier de clôture indexe les événements et leurs ventilations, contrôle les empreintes des pièces et conserve aussi les justificatifs des règlements non encore comptabilisés dans un export provisoire. Ce cas reste bloquant pour une clôture définitive. Les périodes sans règlement client conservent leur structure d'index précédente.
+
+Validation de ce troisième lot :
+
+- Six tests natifs ciblés : copie concurrente dédupliquée, migration 53, immutabilité et conservation après extourne, fichier altéré, échec au commit avec nettoyage, absence de projet deviné, dossier de clôture provisoire avec règlement non comptabilisé, contenu CSV et restauration réelle d'une sauvegarde avec comparaison des registres et octets. `.qa/customer-credit-receipt-final-native.log`.
+- Dix tests de clôture et douze tests de sauvegarde existants passent : `.qa/customer-credit-closing-regression.log`, `.qa/customer-credit-backup-regression.log`. Clippy sur toutes les cibles passe avec `-D warnings`.
+- 709 tests UI passent et la construction TypeScript/Vite réussit. Le pont natif distingue une copie enregistrée suivie d'une lecture interrompue d'un refus de copie. `.qa/customer-credit-receipt-ui.log`, `.qa/customer-credit-receipt-build.log`.
+- Edge et WebKit : ajout, réponse interrompue, reprise sans doublon, consultation après correction et accès à l'avoir depuis le projet à 320, 390, 768 et 1440 px ; lecture seule et ouverture des pièces existantes à 320 et 1440 px. Rapports et captures dans `.qa/customer-credit-settlement-edge/` et `.qa/customer-credit-settlement-webkit/`. Ces parcours utilisent des données simulées ; les écritures et les fichiers réels sont vérifiés par les tests natifs.
+
+## Limites des lots non publiés
+
+Il reste à terminer la reprise documentée des avoirs historiques, les liens aux débits bancaires et leur dissociation, ainsi que l'ajout facultatif d'une pièce au moment même d'enregistrer le remboursement. L'ajout séparé à un règlement existant, les exports et la restauration du nouveau registre sont vérifiés ci-dessus. Les changements de méthode TVA restent bloqués lorsqu'un avoir lié exige un rapprochement.
 
 Compléter les essais de concurrence des règlements, les dates closes/futures, les bases signées d'acompte avec règlement/extourne et le rapprochement des anciennes ventilations par ligne. Aucune publication, aucun paquet signé ni mise à jour distante n'est effectué pour ce lot. La version distribuée reste 1.37.0.

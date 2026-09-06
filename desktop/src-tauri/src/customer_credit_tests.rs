@@ -4,6 +4,9 @@ use crate::{
 };
 use serde_json::{json, Value};
 
+#[path = "customer_credit_attachment_tests.rs"]
+mod attachment_tests;
+
 fn fixture() -> (tempfile::TempDir, LocalStore, String) {
     let temporary = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();

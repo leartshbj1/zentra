@@ -5,6 +5,7 @@ vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: invokeMock }
 import { desktopApi } from './bridge';
 import { ExpenseRefundHistory } from './ExpenseRefundForm';
 import { ProjectFolder } from './ProjectFolder';
+import { RefundReceiptPicker } from './RefundAttachments';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 import type { Attachment, Expense, ExpenseRefund, Workspace } from './types';
 
@@ -41,6 +42,27 @@ describe('justificatifs des remboursements', () => {
     expect(html).toContain('Remboursement corrigé'); expect(html).toContain('Ouvrir avoir.pdf'); expect(html).not.toContain('autre.pdf');
     expect(html).toMatch(/disabled=""[^>]*>Joindre un justificatif/);
     expect(html).not.toMatch(/disabled=""[^>]*aria-label="Ouvrir avoir.pdf"/);
+  });
+  it('lie le justificatif au règlement client et permet de reconnaître une copie réussie suivie d’une lecture interrompue', async () => {
+    fileReader();
+    invokeMock.mockImplementation(async command => { if (command === 'get_app_state') throw new Error('Lecture interrompue'); return {}; });
+    await expect(desktopApi.addCustomerCreditSettlementAttachment('customer-event', new File(['%PDF-client'], 'client.pdf'))).rejects.toBeInstanceOf(WorkspaceRefreshAfterMutationError);
+    expect(invokeMock.mock.calls.filter(([command]) => command === 'add_customer_credit_settlement_attachment')).toEqual([['add_customer_credit_settlement_attachment', { settlementId: 'customer-event', attachment: { original_name: 'client.pdf', content_base64: Buffer.from('%PDF-client').toString('base64') } }]]);
+    invokeMock.mockReset();
+    const denied = new Error('Copie impossible'); invokeMock.mockRejectedValue(denied);
+    await expect(desktopApi.addCustomerCreditSettlementAttachment('customer-event', new File(['%PDF-client'], 'client.pdf'))).rejects.toBe(denied);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+  it('explique la pièce client sans promettre un classement dans un projet de dépense', () => {
+    const html = renderToStaticMarkup(<RefundReceiptPicker receipt={null} onChange={vi.fn()} disabled={false} onError={vi.fn()} label="Fichier à joindre" hint="PDF, JPG, PNG ou WebP · 25 Mo maximum." />);
+    expect(html).toContain('Fichier à joindre'); expect(html).not.toContain('projet de la dépense');
+  });
+  it('relie la preuve client à son avoir depuis le projet et ne propose aucune suppression', () => {
+    const project = { id: 'project', name: 'Projet test', clientId: 'client', status: 'in_progress' } as Workspace['projects'][number];
+    const customerFile = { ...file, entityType: 'customer_credit_settlement', entityId: 'customer-event', originalName: 'preuve-client.pdf' };
+    const workspace = { attachments: [customerFile], expenses: [], clients: [], quotes: [], invoices: [{ id: 'credit', type: 'credit_note', creditSettlements: [{ id: 'customer-event' }] }], salesOrders: [], supplierInvoices: [] } as unknown as Workspace;
+    const html = renderToStaticMarkup(<ProjectFolder project={project} workspace={workspace} busy={false} readOnly={false} onBack={vi.fn()} onOpenDocument={vi.fn()} onCreateDocument={vi.fn()} onWorkspaceChange={vi.fn()} />);
+    expect(html).toContain('Règlement d’un avoir client'); expect(html).toContain('Voir l’avoir lié à preuve-client.pdf'); expect(html).not.toContain('Supprimer preuve-client.pdf');
   });
   it('classe le fichier dans le projet avec un accès à la dépense et conserve son caractère non supprimable', () => {
     const project = { id: 'project', name: 'Projet test', clientId: 'client', status: 'in_progress' } as Workspace['projects'][number];

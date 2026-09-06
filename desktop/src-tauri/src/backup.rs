@@ -39,6 +39,10 @@ const MAX_BACKUP_STATUS_BYTES: u64 = 16 * 1024;
 /// ou un document brut soit exportée automatiquement. Les fichiers binaires ne
 /// sont jamais copiés dans cette archive.
 const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
+    ("customer_credit_documents", "02_ventes/modeles_avoirs_clients.csv"),
+    ("customer_credit_settlements", "02_ventes/reglements_avoirs_clients.csv"),
+    ("customer_credit_settlement_lines", "02_ventes/ventilations_reglements_avoirs_clients.csv"),
+    ("customer_credit_settlement_postings", "02_ventes/preuves_reglements_avoirs_clients.csv"),
     ("bank_supplier_credit_refund_matches", "03_achats/rapprochements_remboursements_avoirs.csv"),
     ("bank_supplier_credit_refund_unlinks", "03_achats/dissociations_remboursements_avoirs.csv"),
     ("bank_supplier_credit_refund_requests", "03_achats/creations_bancaires_remboursements_avoirs.csv"),
@@ -220,6 +224,10 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
 /// alourdir chaque rafraîchissement, mais indispensables dans un export CSV
 /// comptable complet.
 const CSV_EXPORT_DIRECT_COLLECTIONS: &[(&str, &str)] = &[
+    ("customer_credit_documents", "SELECT * FROM customer_credit_documents ORDER BY credit_note_id"),
+    ("customer_credit_settlements", "SELECT * FROM customer_credit_settlements ORDER BY date,sequence"),
+    ("customer_credit_settlement_lines", "SELECT * FROM customer_credit_settlement_lines ORDER BY settlement_id,side,invoice_item_id"),
+    ("customer_credit_settlement_postings", "SELECT * FROM customer_credit_settlement_postings ORDER BY settlement_id"),
     ("expense_refunds", "SELECT * FROM expense_refunds ORDER BY payment_date,created_at,id"),
     ("bank_expense_refund_matches", "SELECT * FROM bank_expense_refund_matches ORDER BY confirmed_at,id"),
     ("bank_expense_refund_unlinks", "SELECT * FROM bank_expense_refund_unlinks ORDER BY unlinked_at,id"),

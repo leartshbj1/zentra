@@ -19,6 +19,7 @@ mod commands;
 mod customer_credit_validation;
 mod customer_credit_math;
 mod customer_credit_settlements;
+mod customer_credit_attachments;
 mod database;
 #[cfg(test)]
 mod customer_credit_tests;
@@ -200,6 +201,7 @@ pub fn run() {
             record_supplier_credit_refund,
             record_customer_credit_settlement,
             reverse_customer_credit_settlement,
+            add_customer_credit_settlement_attachment,
             reverse_supplier_credit_refund,
             match_bank_supplier_credit_refund,
             unmatch_bank_supplier_credit_refund,

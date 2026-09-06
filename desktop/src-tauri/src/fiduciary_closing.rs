@@ -531,9 +531,14 @@ impl LocalStore {
             connection,
             r#"SELECT DISTINCT a.id,a.project_id,a.entity_type,a.entity_id,a.original_name,
                       a.stored_name,a.mime_type,a.size_bytes,a.sha256,a.created_at,a.updated_at
-               FROM attachments a JOIN journal_entries je
-                 ON je.source_type=a.entity_type AND je.source_id=a.entity_id
-               WHERE je.entry_date BETWEEN ? AND ? ORDER BY a.created_at,a.id"#,
+               FROM attachments a
+               WHERE EXISTS(SELECT 1 FROM journal_entries je
+                   WHERE je.source_type=a.entity_type AND je.source_id=a.entity_id
+                     AND je.entry_date BETWEEN ?1 AND ?2)
+                  OR (a.entity_type='customer_credit_settlement' AND EXISTS(
+                   SELECT 1 FROM customer_credit_settlements e WHERE e.id=a.entity_id
+                     AND e.date BETWEEN ?1 AND ?2))
+               ORDER BY a.created_at,a.id"#,
             params![date_from, date_to],
         )?;
         let mut indexed = Vec::with_capacity(attachments.len());
@@ -601,13 +606,24 @@ impl LocalStore {
                 "updated_at": attachment["updated_at"],
             }));
         }
-        Ok(json!({
+        let mut index=json!({
             "period": {"date_from": date_from, "date_to": date_to},
             "attachments_total": indexed.len(),
             "attachments_verified": verified,
             "attachment_issues": issues,
             "attachments": indexed,
-        }))
+        });
+        let mut settlements=query_all(connection,"SELECT e.id,e.credit_note_id,c.number AS credit_note_number,c.original_invoice_id,e.invoice_id,i.number AS invoice_number,e.event_type,e.reverses_id,e.date,e.amount_cents,e.bank_account_id,e.reference,e.reason,p.journal_entry_id FROM customer_credit_settlements e JOIN invoices c ON c.id=e.credit_note_id LEFT JOIN invoices i ON i.id=e.invoice_id LEFT JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id WHERE e.date BETWEEN ? AND ? ORDER BY e.date,e.sequence",params![date_from,date_to])?;
+        // Omit empty additions so periods with no customer settlement keep their
+        // previously recorded fingerprint across this additive schema migration.
+        if !settlements.is_empty() {
+            for settlement in &mut settlements {
+                settlement["journal_proof_valid"]=json!(crate::customer_credit_settlements::journal_proof_valid(connection,settlement["id"].as_str().unwrap_or_default())?);
+            }
+            index["customer_credit_settlements"]=json!(settlements);
+            index["customer_credit_settlement_lines"]=json!(query_all(connection,"SELECT l.settlement_id,l.side,l.invoice_item_id,i.description,i.vat_bp,l.gross_cents,l.vat_cents FROM customer_credit_settlement_lines l JOIN customer_credit_settlements e ON e.id=l.settlement_id JOIN invoice_items i ON i.id=l.invoice_item_id WHERE e.date BETWEEN ? AND ? ORDER BY e.date,e.sequence,l.side,i.position,i.id",params![date_from,date_to])?);
+        }
+        Ok(index)
     }
 }
 
@@ -1021,6 +1037,14 @@ fn build_payload_members(
             ],
         ),
     });
+    if snapshot.piece_index.get("customer_credit_settlements").is_some() {
+        members.push(ArchiveMember {path:"02_pieces/reglements_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_settlements"]),&[
+            ("id","settlement_id"),("credit_note_id","credit_note_id"),("credit_note_number","credit_note_number"),("original_invoice_id","original_invoice_id"),("invoice_id","invoice_id"),("invoice_number","invoice_number"),("event_type","event_type"),("reverses_id","reverses_id"),("date","date"),("amount_cents","amount_cents"),("bank_account_id","bank_account_id"),("reference","reference"),("reason","reason"),("journal_entry_id","journal_entry_id"),("journal_proof_valid","journal_proof_valid")
+        ])});
+        members.push(ArchiveMember {path:"02_pieces/ventilations_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_settlement_lines"]),&[
+            ("settlement_id","settlement_id"),("side","side"),("invoice_item_id","invoice_item_id"),("description","description"),("vat_bp","vat_bp"),("gross_cents","gross_cents"),("vat_cents","vat_cents")
+        ])});
+    }
     let audit = json!({
         "schema": "elyko.audit-export.v1",
         "snapshot_timing": "immediately_before_export_registration",

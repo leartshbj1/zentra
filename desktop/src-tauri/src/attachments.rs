@@ -427,6 +427,21 @@ impl LocalStore {
         Ok(AttachmentInsertResult {record,created:true})
     }
 
+    pub(crate) fn insert_prepared_customer_credit_attachment(
+        &self, tx:&Transaction<'_>, settlement_id:&str, prepared:&PreparedSupplierInvoiceAttachment,
+    ) -> AppResult<AttachmentInsertResult> {
+        let project:Option<String>=tx.query_row("SELECT project_id FROM customer_credit_settlement_projects WHERE settlement_id=?",[settlement_id],|row|row.get(0)).optional()?.ok_or_else(||AppError::NotFound(format!("customer_credit_settlements/{settlement_id}")))?;
+        if let Some(record)=query_all(tx,"SELECT * FROM attachments WHERE entity_type='customer_credit_settlement' AND entity_id=? AND sha256=?",params![settlement_id,prepared.sha256])?.into_iter().next() {
+            self.verified_attachment_path(record["id"].as_str().unwrap_or_default())?;
+            return Ok(AttachmentInsertResult {record,created:false});
+        }
+        let now=now_iso();
+        tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'customer_credit_settlement',?,?,?,?,?,?,?,?)",params![prepared.id,project,settlement_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
+        append_audit(tx,"attachment_add","customer_credit_settlement",settlement_id,&json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}))?;
+        let record=query_all(tx,"SELECT * FROM attachments WHERE id=?",[&prepared.id])?.into_iter().next().ok_or_else(||AppError::NotFound(format!("attachments/{}",prepared.id)))?;
+        Ok(AttachmentInsertResult {record,created:true})
+    }
+
     pub fn delete_supplier_invoice_attachment(&self, id: &str) -> AppResult<Value> {
         let id = required_uuid(id, "justificatif")?;
         let mut connection = self.connect()?;
