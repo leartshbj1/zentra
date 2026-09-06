@@ -47,25 +47,37 @@ try {
   await page.getByRole('button', { name: 'Nouveau devis', exact: true }).click();
   await page.getByRole('textbox', { name: 'Titre du document' }).fill('Étude du bureau');
   assert.ok(await page.locator('select[name=projectId]').inputValue());
+  await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Étude du projet');
   await page.getByRole('spinbutton', { name: 'Quantité', exact: true }).fill('1');
   await page.getByRole('textbox', { name: 'Unité', exact: true }).fill('forfait');
   await page.getByRole('spinbutton', { name: 'Prix unitaire', exact: true }).fill('200');
   await page.locator('.line-editor').scrollIntoViewIfNeeded();
   await capture('390-quote-editor');
+  await page.getByRole('button', { name: 'Continuer', exact: true }).click();
+  if (await page.getByLabel('Début de la prestation').isVisible()) {
+    await page.getByLabel('Début de la prestation').fill('2026-09-05');
+    await page.getByLabel('Fin de la prestation').fill('2026-09-05');
+  }
+  await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('button', { name: /Enregistrer.*brouillon/i }).click();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   assert.match(await page.locator('.project-document-list').allTextContents().then(x=>x.join(' ')), /200/);
   await page.getByRole('button', { name: 'Nouvelle facture', exact: true }).click();
   await page.getByRole('textbox', { name: 'Titre du document' }).fill('Prestation bureau');
   await page.getByLabel('Type de document').selectOption('standard');
-  await page.getByLabel('Début de la prestation').fill('2026-09-05');
-  await page.getByLabel('Fin de la prestation').fill('2026-09-05');
   assert.ok(await page.locator('select[name=projectId]').inputValue());
+  await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Prestation du projet');
   await page.getByRole('spinbutton', { name: 'Quantité', exact: true }).fill('1');
   await page.getByRole('textbox', { name: 'Unité', exact: true }).fill('forfait');
   await page.getByRole('spinbutton', { name: 'Prix unitaire', exact: true }).fill('250');
+  await page.getByRole('button', { name: 'Continuer', exact: true }).click();
+  if (await page.getByLabel('Début de la prestation').isVisible()) {
+    await page.getByLabel('Début de la prestation').fill('2026-09-05');
+    await page.getByLabel('Fin de la prestation').fill('2026-09-05');
+  }
+  await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('button', { name: /Enregistrer.*brouillon/i }).click();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   await capture('390-project-documents');

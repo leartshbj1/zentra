@@ -1,9 +1,6 @@
 /// <reference types="vite/client" />
 
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+import { getDocument } from './pdfRuntime';
 
 export type LocalPdfPreview = { pages: string[]; pageCount: number };
 

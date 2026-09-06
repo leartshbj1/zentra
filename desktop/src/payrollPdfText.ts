@@ -1,10 +1,8 @@
 /// <reference types="vite/client" />
 
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { getDocument } from './pdfRuntime';
 import { normalizePayrollPdfTextItems } from './payrollPdfTextUtils';
 
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export type PayrollPdfTextByPage = {
   pageCount: number;

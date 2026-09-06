@@ -25,11 +25,18 @@ const protectedPdf = await readFile(new URL('./fixtures/project-protected.pdf', 
 const imageFixture = await readFile(new URL('../src/assets/zentra-wordmark.png', import.meta.url));
 const browser = await (useWebKit ? webkit : chromium).launch({ headless: true, ...(!useWebKit && process.platform === 'win32' ? { channel: 'msedge' } : {}) });
 const results = [];
+const pageErrors = [];
 try {
   for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
     const page = await browser.newPage({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 900 });
     page.setDefaultTimeout(15000);
-    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const errors = []; page.on('pageerror', error => { errors.push(error.message); pageErrors.push({ viewport, message: error.message }); });
+    if (process.env.ZENTRA_QA_MISSING_PDF_BUILTINS) {
+      await page.addInitScript(mode => {
+        if (mode === 'unsupported') delete Promise.withResolvers;
+        delete Promise.try;
+      }, process.env.ZENTRA_QA_MISSING_PDF_BUILTINS);
+    }
     await page.addInitScript(() => {
       window.__qaPolicyViolations = [];
       document.addEventListener('securitypolicyviolation', event => window.__qaPolicyViolations.push({ directive: event.violatedDirective, resource: event.blockedURI }));
@@ -64,7 +71,21 @@ try {
       assert.ok((await page.locator('.attachment-preview__content').boundingBox()).height >= 100, 'usable reading area');
     };
     await upload({ name: 'Plans et documents du projet.pdf', mimeType: 'application/pdf', buffer: pdf });
-    await open('Plans et documents'); await ready(1);
+    await open('Plans et documents');
+    if (process.env.ZENTRA_QA_MISSING_PDF_BUILTINS === 'unsupported') {
+      await page.getByRole('dialog').getByText('Aperçu indisponible', { exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Réessayer', exact: true }).click();
+      await page.getByRole('dialog').getByText('Aperçu indisponible', { exact: true }).waitFor();
+      assert.ok(await page.getByRole('button', { name: /Ouvrir avec une application|Enregistrer ou partager/ }).isEnabled());
+      await capture('unsupported-reader');
+      await close();
+      await page.locator('.project-folder').waitFor();
+      assert.deepEqual(errors, []);
+      results.push({ viewport, status: 'passed', scope: 'unsupported API keeps reader controls and project accessible', errors });
+      await page.close();
+      continue;
+    }
+    await ready(1);
     assert.equal(await page.locator('iframe').count(), 0);
     assert.ok(await page.getByRole('button', { name: 'Page précédente', exact: true }).isDisabled());
     const firstPixel = await page.locator('canvas').evaluate(canvas => Array.from(canvas.getContext('2d').getImageData(10, 10, 1, 1).data));
@@ -129,4 +150,11 @@ try {
   }
   await writeFile(`${root}/report.json`, JSON.stringify(results, null, 2));
   console.log(JSON.stringify(results));
+} catch (error) {
+  const page = browser.contexts().flatMap(context => context.pages()).at(-1);
+  if (page) {
+    await page.screenshot({ path: `${root}/failure.png` });
+    await writeFile(`${root}/failure.json`, JSON.stringify({ pageErrors, text: await page.locator('body').innerText() }, null, 2));
+  }
+  throw error;
 } finally { await browser.close(); }

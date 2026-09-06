@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Scan, ZoomIn, ZoomOut } from 'lucide-react';
-import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { getDocument, type PDFDocumentLoadingTask, type PDFDocumentProxy, type RenderTask } from './pdfRuntime';
 import { Button, ErrorPanel } from './ui';
-
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function previewError(reason: unknown) {
   const protectedPdf = reason instanceof Error && reason.name === 'PasswordException';
@@ -30,10 +27,15 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
     setDocument(null); setPage(1); setError(null); setLoading(true);
     // PDF.js transfers its data buffer to the worker. Keep the original bytes for
     // retry/download and destroy the worker when the reader is closed.
-    const task = getDocument({ data: bytes.slice() });
-    void task.promise.then(pdf => { if (!cancelled) setDocument(pdf); })
-      .catch(reason => { if (!cancelled) { setError(previewError(reason)); setLoading(false); } });
-    return () => { cancelled = true; void task.destroy().catch(() => {}); };
+    let task: PDFDocumentLoadingTask | undefined;
+    try {
+      task = getDocument({ data: bytes.slice() });
+      void task.promise.then(pdf => { if (!cancelled) setDocument(pdf); })
+        .catch(reason => { if (!cancelled) { setError(previewError(reason)); setLoading(false); } });
+    } catch (reason) {
+      setError(previewError(reason)); setLoading(false);
+    }
+    return () => { cancelled = true; void task?.destroy().catch(() => {}); };
   }, [bytes, attempt]);
 
   useEffect(() => {

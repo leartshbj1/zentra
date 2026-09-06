@@ -251,18 +251,20 @@ export function FormActions({
   busy,
   disabled = false,
   submitLabel = 'Enregistrer',
+  cancelLabel = 'Annuler',
 }: {
   onCancel: () => void;
   busy: boolean;
   disabled?: boolean;
   submitLabel?: string;
+  cancelLabel?: string;
 }) {
   const readOnly = useContext(ReadOnlyFormContext);
   return (
     <div className={`form-actions${readOnly ? ' form-actions--read-only' : ''}`}>
       {readOnly ? <p className="form-actions__read-only" role="status">Mode lecture seule : les modifications ne peuvent pas être enregistrées.</p> : null}
       <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
-        Annuler
+        {cancelLabel}
       </Button>
       <Button type="submit" disabled={busy || disabled || readOnly}>
         {busy ? <LoaderCircle className="spin" size={17} /> : null}

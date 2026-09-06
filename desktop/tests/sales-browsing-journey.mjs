@@ -24,7 +24,7 @@ async function capture(name) {
   report.push({ screen: name, ...geometry });
 }
 try {
-  await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?browsing=1');
+  await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5175'}/tests/mobile-harness.html?browsing=1`);
   const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
   if (await tour.isVisible()) await tour.click();
   for (const width of [320, 390, 768, 1024, 1440]) {
@@ -60,6 +60,7 @@ try {
   assert.equal(await page.locator('select[name=projectId] option[value=project-qa]').count(), 0);
   await page.locator('select[name=clientId]').selectOption('client-qa');
   await page.locator('select[name=projectId]').selectOption('project-qa');
+  for (let step = 0; step < 3; step++) await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('button', { name: /Enregistrer.*brouillon/i }).click();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   const saved = page.locator('.sales-documents tbody tr').filter({ hasText: 'Brouillon conservé en EUR' });
@@ -69,6 +70,7 @@ try {
   await go('Devis');
   await page.locator('.sales-documents tbody tr').first().getByRole('button', { name: /Modifier le devis/ }).click();
   await page.getByRole('textbox', { name: 'Titre du document' }).fill('Devis conservé en EUR');
+  for (let step = 0; step < 3; step++) await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('button', { name: /Enregistrer.*brouillon/i }).click();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   assert.match(await page.locator('.sales-documents tbody tr').filter({ hasText: 'Devis conservé en EUR' }).locator('.sales-document__total').innerText(), /EUR|€/);
@@ -83,7 +85,7 @@ try {
   await capture('390-avoir-lie');
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({ state: 'detached' });
-  await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?volume=1');
+  await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5175'}/tests/mobile-harness.html?volume=1`);
   await go('Factures');
   assert.equal(await page.locator('.sales-documents tbody tr').count(), 25);
   assert.match(await page.locator('.sales-documents tbody tr').first().innerText(), /F-2026-0080/);

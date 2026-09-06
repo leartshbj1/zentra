@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Archive,
   Check,
@@ -18,6 +18,7 @@ import {
   addDaysIso,
   createId,
   documentTotals,
+  formatDate,
   formatMoney,
   invoicePaid,
   todayIso,
@@ -160,6 +161,12 @@ export function DocumentEditor({
   const [footerTemplateName, setFooterTemplateName] = useState('');
   const [localError, setLocalError] = useState('');
   const [saveAttempt, setSaveAttempt] = useState(0);
+  const [step, setStep] = useState(0);
+  const [documentTitle, setDocumentTitle] = useState(current?.title ?? '');
+  const [documentNotes, setDocumentNotes] = useState(current?.notes ?? '');
+  const formRef = useRef<HTMLFormElement>(null);
+  const pendingFocus = useRef<HTMLElement | null>(null);
+  const previousStep = useRef(step);
   const depositPercentageBp = Math.round(
     Number(depositPercentage.replace(',', '.')) * 100,
   );
@@ -187,6 +194,67 @@ export function DocumentEditor({
         : invoiceType === 'deposit'
           ? 'facture d’acompte'
           : 'facture';
+
+  const steps = ['Client', 'Prestations', 'Conditions', 'Vérification'];
+  const stepTitles = ['Pour qui préparez-vous ce document ?', 'Qu’allez-vous réaliser ?', 'Les derniers détails.', 'Tout est prêt ?'];
+  const stepHints = ['Choisissez votre client et retrouvez tous ses documents dans le même projet.', 'Ajoutez vos prestations ou retrouvez-les dans votre catalogue.', 'Précisez les dates et le message qui accompagnera votre document.', 'Relisez votre document. Vous pourrez encore le modifier avant de l’émettre.'];
+
+  useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
+    const panel = formRef.current?.querySelector<HTMLElement>(`[data-document-step="${step}"]`);
+    const scroller = formRef.current?.querySelector('.document-form');
+    if (scroller) scroller.scrollTop = 0;
+    (pendingFocus.current || panel?.querySelector<HTMLElement>('h3'))?.focus({ preventScroll: true });
+    pendingFocus.current?.scrollIntoView({ block: 'nearest' });
+    pendingFocus.current = null;
+  }, [step]);
+
+  function showStepError(index: number, message: string, field?: HTMLElement) {
+    setLocalError(message);
+    setSaveAttempt((attempt) => attempt + 1);
+    if (step !== index) {
+      pendingFocus.current = field || null;
+      setStep(index);
+    } else if (field) {
+      field.focus();
+      field.scrollIntoView({ block: 'nearest' });
+    }
+    return false;
+  }
+
+  function validateStep(index: number) {
+    const fields = formRef.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`[data-document-step="${index}"] input, [data-document-step="${index}"] select, [data-document-step="${index}"] textarea`);
+    const invalid = [...(fields || [])].find((field) => !field.checkValidity());
+    if (invalid) return showStepError(index, 'Complétez le champ indiqué pour continuer.', invalid);
+    if (index === 0 && quickClientOpen) return showStepError(0, 'Ajoutez le nouveau contact ou fermez sa fiche pour continuer.');
+    if (index === 0 && !documentTitle.trim()) return showStepError(0, 'Donnez un titre à votre document.', formRef.current?.querySelector<HTMLInputElement>('[name="title"]') || undefined);
+    if (index === 1) {
+      const error = documentLinesValidationError(lines);
+      if (error) return showStepError(1, error);
+    }
+    if (index === 2) {
+      const error = entity === 'quotes' || invoiceType !== 'credit_note' ? salesDocumentDateError(entity, issueDate, dueDate) : '';
+      if (error) return showStepError(2, error);
+      if (entity === 'invoices' && (!serviceDateFrom || !serviceDateTo || serviceDateFrom > serviceDateTo)) return showStepError(2, 'Choisissez une période de prestation valide.');
+      if (creditOriginal?.issueDate && issueDate < creditOriginal.issueDate) return showStepError(2, 'La date de l’avoir ne peut pas précéder celle de la facture originale.');
+      if (invoiceType === 'deposit' && !validDepositPercentageBp(depositPercentageBp)) return showStepError(2, 'Saisissez un acompte compris entre 0,01 et 100 %.');
+    }
+    return true;
+  }
+
+  function goToStep(next: number) {
+    if (busy) return;
+    if (next > step) {
+      for (let index = step; index < next; index += 1) if (!validateStep(index)) return;
+    }
+    setLocalError('');
+    setStep(next);
+  }
+
+  function stepHeading(index: number) {
+    return isLocked ? null : <header className="document-step__heading"><span className="eyebrow">{String(index + 1).padStart(2, '0')} / 04 · {steps[index]}</span><h3 tabIndex={-1}>{stepTitles[index]}</h3><p>{stepHints[index]}</p></header>;
+  }
 
   function updateLine(id: string, patch: Partial<DocumentLine>) {
     setLines((currentLines) =>
@@ -331,15 +399,22 @@ export function DocumentEditor({
           ? readOnlyReason
           : isLocked
           ? 'Le document émis est verrouillé et ne peut pas être supprimé.'
-          : 'Le numéro définitif est attribué uniquement lors de l’émission.'
+          : 'Un document clair, en quatre étapes.'
       }
       onClose={close}
+      className={!isLocked ? "document-editor-dialog" : undefined}
       wide
     >
       {currentInvoice && currentInvoice.status !== 'draft' && <CustomerCreditPanel invoice={currentInvoice} workspace={workspace} busy={busy} readOnly={readOnly} act={act}/>}
       <CreditDocumentDetails collapse={hasCustomerCredit}>
       <form
+        ref={formRef}
+        noValidate={!isLocked}
+        onChange={() => { if (localError) setLocalError(''); }}
         onSubmit={submitForm(async (form) => {
+          if (busy || isLocked || readOnly) return;
+          if (step < 3) { goToStep(step + 1); return; }
+          for (let index = 0; index < 3; index += 1) if (!validateStep(index)) return;
           setSaveAttempt((attempt) => attempt + 1);
           setLocalError('');
           const lineError = documentLinesValidationError(lines);
@@ -426,12 +501,21 @@ export function DocumentEditor({
           );
         })}
       >
+        {!isLocked && <nav className="document-stepper" aria-label="Étapes de création">
+          <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-current={step === index ? 'step' : undefined} disabled={busy} onClick={() => goToStep(index)}><span className="document-stepper__number">{index < step ? <Check size={14} /> : index + 1}</span><span>{label}</span></button></li>)}</ol>
+          <div className="document-stepper__track"><span style={{ transform: `scaleX(${(step + 1) / 4})` }} /></div>
+        </nav>}
+        {localError ? <ErrorPanel key={saveAttempt} title="Encore un détail" message={localError} /> : null}
         <fieldset disabled={busy || isLocked} className="document-form">
+          <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
+            {stepHeading(0)}
           <div className="form-grid">
             <Field label="Titre du document" required wide>
               <input
                 name="title"
-                defaultValue={item?.title ?? quoteSource?.title}
+                placeholder="Ex. Aménagement du séjour"
+                value={documentTitle}
+                onChange={(event) => setDocumentTitle(event.target.value)}
                 required
                 autoFocus
               />
@@ -513,61 +597,6 @@ export function DocumentEditor({
               </Field>
             ) : null}
             <Field label="Devise"><input value={currency} readOnly /></Field>
-            <Field label="Date d’émission" required>
-              <input
-                type="date"
-                value={issueDate}
-                min={creditOriginal?.issueDate || undefined}
-                onChange={(event) => {
-                  setIssueDate(event.target.value);
-                  if (!item)
-                    setDueDate(
-                      addDaysIso(
-                        event.target.value,
-                        entity === 'quotes'
-                          ? settings.billing.quoteValidityDays
-                          : settings.billing.paymentTermsDays,
-                      ),
-                    );
-                }}
-                required
-              />
-            </Field>
-            {entity === 'quotes' || invoiceType !== 'credit_note' ? (
-              <Field
-                label={entity === 'quotes' ? 'Valable jusqu’au' : 'Échéance'}
-                required
-              >
-                <input
-                  type="date"
-                  min={issueDate}
-                  value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
-                  required
-                />
-              </Field>
-            ) : null}
-            {entity === 'invoices' ? (
-              <>
-                <Field label="Début de la prestation" required>
-                  <input
-                    type="date"
-                    value={serviceDateFrom}
-                    onChange={(event) => setServiceDateFrom(event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field label="Fin de la prestation" required>
-                  <input
-                    type="date"
-                    min={serviceDateFrom}
-                    value={serviceDateTo}
-                    onChange={(event) => setServiceDateTo(event.target.value)}
-                    required
-                  />
-                </Field>
-              </>
-            ) : null}
             {invoiceType === 'credit_note' ? (
               <Field label="Facture originale" required wide>
                 <select
@@ -656,39 +685,9 @@ export function DocumentEditor({
               </span>
             </div>
           ) : null}
-          {invoiceType === 'deposit' ? (
-            <section className="deposit-builder" aria-label="Calcul de l’acompte">
-              <div className="deposit-builder__copy">
-                <strong>Calculer l’acompte sur les lignes ci-dessous</strong>
-                <small>
-                  Saisissez la base complète. Zentra facture uniquement le pourcentage indiqué,
-                  par taux de TVA, sans déclencher de sortie de stock.
-                </small>
-              </div>
-              <Field label="Pourcentage de l’acompte" required>
-                <label className="percent-input">
-                  <input
-                    type="number"
-                    min="0.01"
-                    max="100"
-                    step="0.01"
-                    value={depositPercentage}
-                    onChange={(event) => setDepositPercentage(event.target.value)}
-                    aria-label="Pourcentage de l’acompte"
-                    required
-                  />
-                  <span>%</span>
-                </label>
-              </Field>
-              <div className="deposit-builder__summary" aria-live="polite">
-                <span>Base TTC <strong>{formatMoney(baseTotals.totalCents, currency)}</strong></span>
-                <span>Acompte TTC <strong>{formatMoney(totals.totalCents, currency)}</strong></span>
-              </div>
-            </section>
-          ) : null}
-          {localError ? (
-            <ErrorPanel key={saveAttempt} title="Enregistrement bloqué" message={localError} reveal />
-          ) : null}
+          </section>
+          <section className="document-step" data-document-step="1" hidden={!isLocked && step !== 1}>
+            {stepHeading(1)}
           <section className="line-editor">
             <header>
               <div>
@@ -832,7 +831,7 @@ export function DocumentEditor({
                     aria-label="Prix unitaire"
                     required
                   />
-                  <span>CHF</span>
+                  <span>{currency}</span>
                 </label>
                 <label className="percent-input" data-label="Remise">
                   <input
@@ -900,13 +899,104 @@ export function DocumentEditor({
               </div>
             ))}
           </section>
+          </section>
+          <section className="document-step" data-document-step="2" hidden={!isLocked && step !== 2}>
+            {stepHeading(2)}
+          <div className="form-grid">
+            <Field label="Date d’émission" required>
+              <input
+                type="date"
+                value={issueDate}
+                min={creditOriginal?.issueDate || undefined}
+                onChange={(event) => {
+                  setIssueDate(event.target.value);
+                  if (!item)
+                    setDueDate(
+                      addDaysIso(
+                        event.target.value,
+                        entity === 'quotes'
+                          ? settings.billing.quoteValidityDays
+                          : settings.billing.paymentTermsDays,
+                      ),
+                    );
+                }}
+                required
+              />
+            </Field>
+            {entity === 'quotes' || invoiceType !== 'credit_note' ? (
+              <Field
+                label={entity === 'quotes' ? 'Valable jusqu’au' : 'Échéance'}
+                required
+              >
+                <input
+                  type="date"
+                  min={issueDate}
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                  required
+                />
+              </Field>
+            ) : null}
+            {entity === 'invoices' ? (
+              <>
+                <Field label="Début de la prestation" required>
+                  <input
+                    type="date"
+                    value={serviceDateFrom}
+                    onChange={(event) => setServiceDateFrom(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Fin de la prestation" required>
+                  <input
+                    type="date"
+                    min={serviceDateFrom}
+                    value={serviceDateTo}
+                    onChange={(event) => setServiceDateTo(event.target.value)}
+                    required
+                  />
+                </Field>
+              </>
+            ) : null}
+          </div>
+          {invoiceType === 'deposit' ? (
+            <section className="deposit-builder" aria-label="Calcul de l’acompte">
+              <div className="deposit-builder__copy">
+                <strong>Calculer l’acompte sur vos prestations</strong>
+                <small>
+                  Saisissez la base complète. Zentra facture uniquement le pourcentage indiqué,
+                  par taux de TVA, sans déclencher de sortie de stock.
+                </small>
+              </div>
+              <Field label="Pourcentage de l’acompte" required>
+                <label className="percent-input">
+                  <input
+                    type="number"
+                    min="0.01"
+                    max="100"
+                    step="0.01"
+                    value={depositPercentage}
+                    onChange={(event) => setDepositPercentage(event.target.value)}
+                    aria-label="Pourcentage de l’acompte"
+                    required
+                  />
+                  <span>%</span>
+                </label>
+              </Field>
+              <div className="deposit-builder__summary" aria-live="polite">
+                <span>Base TTC <strong>{formatMoney(baseTotals.totalCents, currency)}</strong></span>
+                <span>Acompte TTC <strong>{formatMoney(totals.totalCents, currency)}</strong></span>
+              </div>
+            </section>
+          ) : null}
           <div className="document-bottom">
             <div className="document-copy-fields">
               <Field label="Notes / texte complémentaire">
                 <textarea
                   name="notes"
                   rows={4}
-                  defaultValue={item?.notes ?? quoteSource?.notes}
+                  value={documentNotes}
+                  onChange={(event) => setDocumentNotes(event.target.value)}
                 />
               </Field>
               <Field
@@ -920,6 +1010,8 @@ export function DocumentEditor({
                   onChange={(event) => setFooterText(event.target.value)}
                 />
               </Field>
+              <details className="document-templates-details">
+                <summary>Réutiliser un texte de bas de page</summary>
               <div className="document-footer-templates">
                 <label>
                   <span>Appliquer un modèle</span>
@@ -972,6 +1064,7 @@ export function DocumentEditor({
                   </Button>
                 ) : null}
               </div>
+              </details>
             </div>
             <div className="document-totals">
               <div>
@@ -1002,6 +1095,27 @@ export function DocumentEditor({
               </div>
             </div>
           </div>
+          </section>
+          {!isLocked && <section className="document-step" data-document-step="3" hidden={step !== 3}>
+            {stepHeading(3)}
+            <article className="document-review" aria-label="Récapitulatif du brouillon">
+              <header className="document-review__header"><span>{settings.organization.legalName}</span><span className="document-review__draft">Brouillon</span></header>
+              <p className="document-review__kind">{documentLabel}</p>
+              <h4>{documentTitle}</h4>
+              <div className="document-review__parties">
+                <div><span>Préparé pour</span><strong>{workspace.clients.find(client => client.id === selectedClientId)?.company || workspace.clients.find(client => client.id === selectedClientId)?.name}</strong><p>{workspace.projects.find(project => project.id === selectedProjectId)?.name || 'Sans projet associé'}</p></div>
+                <div><span>Date du document</span><strong>{formatDate(issueDate)}</strong>{invoiceType !== 'credit_note' && <p>{entity === 'quotes' ? 'Valable jusqu’au' : 'À régler avant le'} {formatDate(dueDate)}</p>}</div>
+              </div>
+              {entity === 'invoices' && <p className="document-review__period">Prestation du {formatDate(serviceDateFrom)} au {formatDate(serviceDateTo)}{creditOriginal ? ` · Avoir lié à ${creditOriginal.number}` : ''}</p>}
+              {invoiceType === 'deposit' && <p className="document-review__period">Acompte de {depositPercentage} % sur une base TTC de {formatMoney(baseTotals.totalCents, currency)}</p>}
+              <div className="document-review__lines">
+                {depositLines.map(line => <div key={line.id}><div><strong>{line.description}</strong><small>{line.quantity.toLocaleString('fr-CH')} {line.unit} × {formatMoney(line.unitPriceCents, currency)}{line.discountBp ? ` · Remise ${(line.discountBp / 100).toLocaleString('fr-CH')} %` : ''} · TVA {(line.vatRateBp / 100).toLocaleString('fr-CH')} %</small></div><span>{formatMoney(documentTotals([line]).netCents, currency)}</span></div>)}
+              </div>
+              <dl className="document-review__totals"><div><dt>Total net</dt><dd>{formatMoney(totals.netCents, currency)}</dd></div><div><dt>TVA</dt><dd>{formatMoney(totals.vatCents, currency)}</dd></div><div><dt>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</dt><dd>{formatMoney(totals.totalCents, currency)}</dd></div></dl>
+              {(documentNotes || footerText) && <footer>{documentNotes && <p>{documentNotes}</p>}{footerText && <p>{footerText}</p>}</footer>}
+            </article>
+            <p className="document-review__hint">Enregistrez le brouillon pour ouvrir son aperçu et exporter un PDF. Le numéro définitif sera attribué à l’émission.</p>
+          </section>}
         </fieldset>
         {isLocked ? (
           <div className="warning-card">
@@ -1019,11 +1133,16 @@ export function DocumentEditor({
             </div>
           </div>
         ) : (
-          <FormActions
-            onCancel={close}
-            busy={busy}
-            submitLabel="Enregistrer le brouillon"
-          />
+          <div className="document-wizard-footer">
+            <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</span><strong>{formatMoney(totals.totalCents, currency)}</strong></div>
+            <FormActions
+              onCancel={step ? () => goToStep(step - 1) : close}
+              cancelLabel={step ? 'Retour' : 'Annuler'}
+              busy={busy}
+              disabled={readOnly}
+              submitLabel={step === 3 ? 'Enregistrer le brouillon' : 'Continuer'}
+            />
+          </div>
         )}
       </form>
       </CreditDocumentDetails>

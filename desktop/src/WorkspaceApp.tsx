@@ -1466,7 +1466,7 @@ export function WorkspaceApp({
             </Button>
             <div>
               <p>{settings.organization.legalName || 'Mon entreprise'}</p>
-              <h1>{title[0]}</h1>
+              <h1 key={view}>{title[0]}</h1>
             </div>
           </div>
           <div className="topbar__tools">
@@ -2269,6 +2269,14 @@ function Dashboard({
     );
   return (
     <div className="dashboard-grid">
+      <section className="workspace-welcome" aria-label="Votre activité aujourd’hui">
+        <div>
+          <span className="eyebrow">{new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+          <h2>Une belle journée pour avancer.</h2>
+          <p>Vos projets, vos clients et les prochaines étapes. Tout est ici.</p>
+        </div>
+        <Button disabled={readOnly || Boolean(quoteBlock)} title={quoteBlock || undefined} onClick={() => onCreate({ type: 'document', entity: 'quotes' })}>Préparer un devis <ArrowRight size={16} /></Button>
+      </section>
       {!gettingStarted.complete ? (
         <GettingStartedChecklist
           workspace={workspace}
@@ -3347,7 +3355,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       </span>
                       <div>
                         <strong>
-                          {quote.number || 'Numéro attribué à l’émission'}
+                          {quote.number || 'Devis en préparation'}
                         </strong>
                         <small>{quote.title}</small>
                       </div>
@@ -3617,7 +3625,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     </span>
                     <div>
                       <strong>
-                        {item.number || 'Numéro attribué à l’émission'}
+                        {item.number || (entity === 'quotes' ? 'Devis en préparation' : invoice?.type === 'credit_note' ? 'Avoir en préparation' : invoice?.type === 'deposit' ? 'Acompte en préparation' : 'Facture en préparation')}
                       </strong>
                       <small>{item.title}</small>
                       {invoice?.quoteId ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(invoice.quoteId!)}>Voir le dossier du devis</Button> : null}
