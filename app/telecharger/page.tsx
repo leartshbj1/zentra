@@ -589,18 +589,18 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Le devis, l’acompte et le solde restent dans le même dossier.
+                Une interface plus fluide, des documents plus simples à consulter.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
-                  'Un dossier par projet, avec ajout de documents et photos dès sa création ou à tout moment',
-                  'La conversion avec acompte prépare les deux factures liées : acompte et solde avec déduction exacte',
-                  'Retrouvez le devis, les deux factures et les paiements depuis Devis, Factures ou le projet',
-                  'Un ancien acompte isolé peut être complété avec sa facture de solde sans recréer l’acompte',
-                  'Avoirs et remboursements validés intégrés aux coûts du projet, avec prise en compte de la TVA non récupérable',
-                  'Création de devis et factures depuis un projet avec son client déjà sélectionné',
-                  'Fichiers contrôlés, doublons détectés et documents inclus dans les sauvegardes locales',
-                  'Navigation tactile, formulaires simplifiés et tableaux adaptés aux petits écrans',
+                  'Navigation modernisée sur ordinateur et mobile, avec animations courtes et respect de la réduction des animations',
+                  'Aperçus des devis et factures en mode Lecture ou Mise en page, avec zoom et accès direct aux totaux',
+                  'Documents longs et QR de paiement consultables jusqu’au bout, y compris sur les petits écrans',
+                  'Remboursement total ou partiel des avoirs fournisseurs, selon leur montant disponible',
+                  'Depuis le relevé bancaire, associez un remboursement existant ou créez-le avec son justificatif',
+                  'Dissociez un rapprochement tout en conservant le paiement, ses pièces et son historique',
+                  'Le devis, l’acompte et le solde déduit restent reliés au projet, à ses documents et à ses photos',
+                  'Justificatifs conservés dans les sauvegardes et indexés dans le dossier comptable',
                   'Recherche des mises à jour après le démarrage et installation signée sur Windows et macOS',
                 ].map((item) => (
                   <div

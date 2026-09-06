@@ -1,15 +1,15 @@
 {
-  "version": "1.35.0",
-  "notes": "La conversion d’un devis avec acompte crée les deux factures liées : acompte et solde, avec déduction exacte de l’acompte. Un dossier commun regroupe le devis, les factures et les encaissements depuis Devis, Factures et le projet. Les anciens acomptes isolés proposent une action pour créer leur solde sans doublon.\n\nChaque facture reçoit son numéro et sa référence bancaire lors de son émission. Le solde cite l’acompte dans le PDF. Les arrondis de TVA, les paiements partiels, les sauvegardes et le cas d’un acompte à 100 % sont pris en compte. Les dates et notes restent modifiables sur les brouillons liés.\n\nCette version comprend également une correction du démarrage natif lorsque sa notification de disponibilité manque.\n\nValidation : 538 tests natifs Windows, 696 tests d’interface, huit parcours de facturation sur mobile et ordinateur, 21 parcours de démarrage dans le navigateur et relecture visuelle des PDF.\n\nWindows et macOS : les fichiers de mise à jour sont signés avec la clé de mise à jour Zentra. Ils ne disposent pas de signature Authenticode ni de notarisation Apple.\n\nAndroid : APK de test ARM64 avec certificat de préversion persistant. iOS : archive pour simulateur ARM64 uniquement. Ces fichiers ne constituent pas une publication App Store ou Google Play ; aucune mise à jour automatique mobile ni synchronisation des données entre appareils n’est annoncée.\n",
-  "pub_date": "2026-09-05T23:31:37.7241562+00:00",
+  "version": "1.37.0",
+  "notes": "Interface modernisée sur ordinateur et mobile, nouveaux aperçus des devis et factures, remboursements des avoirs fournisseurs et justificatifs bancaires.",
+  "pub_date": "2026-09-06T02:45:45.5515853+00:00",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlpCUUN4S1h5U2RrZVNSU0tqMTNmbE0wZSthVFpoWXpndUlqS24wdXdPRS9JVTZjYzl3dkk5aDdxOWhVL1RSb0ZxanR4a3pqMm1YSUdOMkxLaE9KM2dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjQ5NDc4CWZpbGU6WmVudHJhXzEuMzUuMF94NjQtc2V0dXAuZXhlCnhidzY0V1BhS1BYU1hzVVlXVzZWV0hqMUtVSnY0Zk9RQVg2MU5xSzhuZnJYeE9WaWczcmxOWjh1NmlJT05mM3pHVFpUVnJSdno3cDg3NklOb0dYNkRBPT0K",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.35.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlhMZ3dCd25FbEZIQWI4VGhUeDVuM00zbDZHV2NmRmtBVlZ0VzZnczdQZVNBc0VidEZQNW9aNU9KZkhnaC8xbndXN3k0dmVEemxJY2lnaFNnZ210RUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjU5ODMyCWZpbGU6WmVudHJhXzEuMzcuMF94NjQtc2V0dXAuZXhlCkFSZk5vSkNBc1VQWUJ4OTY4SXZWMDdBSy95SzFlKzkwYWhmcmxvK09wUFgyNUt2dEE4aUJHWGkyRWJUNm8wcTROYnlvMmJYR3lCQTFZQ3dHb01rMUFBPT0K",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.37.0_x64-setup.exe"
     },
     "macos-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlo2TU9MV2VMZEZxU3RMVGtwTHZ2VmNwYzlsRG9pNjNJU3RYY1lLMVRQbWZEQytmNWc0NFZMVnp6QkZ4LzJ6RGlWMTJ6bjR5dmxIU3oyWU5jT3ZwQ1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjUwOTQyCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKQ1dXVy93RnZpUFladjBkY2h3bEFiOTRGOEJtMW11aWFRNk11b1ZHY3NidTRTYVVBVlIveHBUV1N1ZGhCVTY1Yk56d0p4bGxmOVIrNnlDaGp6cU14RFE9PQo=",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.35.0_macos-universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlNDSnJENzlkWGdJYlA5UEFhOE1xa0ZHckdESWFxNTcvaDFmemlJbDNFTkZ3TlJic01MV1JXQm16ZWZYbHlacXV4QVMwOWo0WGxpWGhOVjdrTnc1OEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjYyNTg1CWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKQldJdXF6ZUhRRTZhVW1BbXVzank3eTdVZlMyRFNzRWtPK3NoQlVVYTFMK3lUaDFRYmRFMGVzU0RoK3lMbUo0V29hb1JnWGN3dkFBSFZDYkpnKytQRHc9PQo=",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.37.0_macos-universal.app.tar.gz"
     }
   }
 }
