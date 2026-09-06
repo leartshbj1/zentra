@@ -1,7 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
 function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
-  return {request_id:input.requestId,original_invoice_id:input.originalInvoiceId,source_token:input.sourceToken,reference:input.reference,reason:input.reason,no_prior_refund:input.noPriorRefund,
+  return {request_id:input.requestId,original_invoice_id:input.originalInvoiceId,source_token:input.sourceToken,reference:input.reference,reason:input.reason,no_prior_refund:input.noPriorRefund,...(input.confirmVatReconciliation?{confirm_vat_reconciliation:true}:{}),
     credits:input.credits.map(credit=>({credit_note_id:credit.creditNoteId,applied_cents:credit.appliedCents,application_date:credit.applicationDate}))};
 }
 import { fileBase64 } from './projectDocuments';
@@ -2104,7 +2104,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   for(const saved of raw.customer_credit_recoveries ?? []) {
     try {
       const request=recordValue(JSON.parse(stringValue(saved.request_json)));
-      const proof={recordedAt:stringValue(saved.created_at),reference:stringValue(request.reference),reason:stringValue(request.reason)};
+      const proof:NonNullable<Invoice['creditRecovery']>={recordedAt:stringValue(saved.created_at),reference:stringValue(request.reference),reason:stringValue(request.reason)};
+      try {const result=recordValue(JSON.parse(stringValue(saved.result_json)||'{}'));if(result.received_vat===true){proof.receivedVat=true;proof.vatAdjustments=rawArray(result.vat_adjustments).map(value=>{const a=recordValue(value);return {date:stringValue(a.date),reference:stringValue(a.reference),dueChangeCents:numberValue(a.due_change_cents)};});}}catch{/* Preserve the reference even if the saved result cannot be displayed. */}
       for(const credit of rawArray(request.credits)) {
         const id=stringValue(recordValue(credit).credit_note_id);
         if(id)creditRecoveryById.set(id,proof);
@@ -4046,6 +4047,7 @@ function journalEntryFromRaw(row: RawRecord): JournalEntry {
     reversalOf: nullableString(row.reversal_of),
     hasReversal: boolValue(row.has_reversal),
     ...(['restore_expense','blocked_expense','blocked_refund'].includes(String(row.reversal_action)) ? { reversalAction: row.reversal_action as JournalEntry['reversalAction'] } : {}),
+    ...(row.customer_recovery_protected===true || row.customer_recovery_protected===1 ? {customerRecoveryProtected:true}:{}),
   };
 }
 
@@ -5933,13 +5935,13 @@ export const desktopApi = {
   },
   async getCustomerCreditRecovery(originalInvoiceId:string):Promise<CustomerCreditRecoveryPlan> {
     const row=recordValue(await invoke('get_customer_credit_recovery',{originalInvoiceId}));
-    return {sourceToken:stringValue(row.source_token),originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceTotalCents:numberValue(row.invoice_total_cents),paidCents:numberValue(row.paid_cents),blocker:nullableString(row.blocker),credits:rawArray(row.credits).map(value=>{
+    return {receivedVat:row.received_vat===true,sourceToken:stringValue(row.source_token),originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceTotalCents:numberValue(row.invoice_total_cents),paidCents:numberValue(row.paid_cents),blocker:nullableString(row.blocker),credits:rawArray(row.credits).map(value=>{
       const c=recordValue(value);return {id:stringValue(c.id),number:stringValue(c.number),totalCents:numberValue(c.total_cents),issueDate:stringValue(c.issue_date),earliestApplicationDate:stringValue(c.earliest_application_date)};
     })};
   },
   async previewCustomerCreditRecovery(input:CustomerCreditRecoveryInput):Promise<CustomerCreditRecoveryPreview> {
     const row=recordValue(await invoke('preview_customer_credit_recovery',{input:customerRecoveryNativeInput(input)}));
-    return {originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceRemainingCents:numberValue(row.invoice_remaining_cents),credits:rawArray(row.credits).map(value=>{
+    return {...(row.received_vat===true?{receivedVat:true,vatAdjustments:rawArray(row.vat_adjustments).map(value=>{const a=recordValue(value);return {sourceType:stringValue(a.source_type),sourceId:stringValue(a.source_id),date:stringValue(a.date),reference:stringValue(a.reference),expectedVatCents:numberValue(a.expected_vat_cents),dueChangeCents:numberValue(a.due_change_cents)};})}:{}),originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceRemainingCents:numberValue(row.invoice_remaining_cents),credits:rawArray(row.credits).map(value=>{
       const c=recordValue(value);return {creditNoteId:stringValue(c.credit_note_id),number:stringValue(c.number),allocatedCents:numberValue(c.allocated_cents),remainingCents:numberValue(c.remaining_cents)};
     })};
   },

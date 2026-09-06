@@ -22,6 +22,9 @@ fn recovery_detects_a_legacy_line_tax_that_disagrees_with_its_issued_header() {
 }
 use uuid::Uuid;
 
+#[path = "customer_credit_recovery_vat_tests.rs"]
+mod received_tests;
+
 fn legacy() -> (tempfile::TempDir, LocalStore, String, Vec<String>) {
     let (dir, store, client) = fixture();
     let mut settings = store.get_accounting_settings().unwrap();
@@ -70,6 +73,7 @@ fn input(store: &LocalStore, invoice: &str, credits: &[String]) -> RecoveryInput
         reference: "Accord client 2026-03".into(),
         reason: "Déductions rapprochées avec le client, aucun remboursement effectué".into(),
         no_prior_refund: true,
+        confirm_vat_reconciliation: false,
         credits: credits
             .iter()
             .enumerate()
@@ -96,6 +100,8 @@ fn financial_snapshot(store: &LocalStore) -> Value {
         "customer_credit_settlement_lines",
         "customer_credit_settlement_postings",
         "customer_credit_recoveries",
+        "customer_credit_recovery_tax_models",
+        "customer_credit_recovery_postings",
         "journal_entries",
         "journal_lines",
         "audit_log",
@@ -283,7 +289,7 @@ fn recovery_blockers_preserve_closed_received_and_damaged_histories() {
         store2.get_customer_credit_recovery(&invoice2).unwrap()["blocker"]
             .as_str()
             .unwrap()
-            .contains("encaissement")
+            .contains("journal")
     );
     let (_dir3, store3, invoice3, _credits3) = legacy();
     let period = store3
@@ -362,7 +368,7 @@ fn recovery_v54_migration_preserves_legacy_rows_and_exports_retain_the_proof() {
             .unwrap()
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        55
+        crate::schema::SCHEMA_VERSION
     );
     let request = input(&store, &invoice, &credits);
     store

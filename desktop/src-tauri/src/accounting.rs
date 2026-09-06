@@ -785,6 +785,9 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let original = one_json(&tx, "SELECT * FROM journal_entries WHERE id=?", params![id])?;
+        if original["source_type"]=="invoice" && crate::customer_credit_recovery_vat::original_for(&tx,original["source_id"].as_str().unwrap_or_default())?.is_some() {
+            return Err(AppError::Validation("Ce document appartient à une reprise TVA documentée. Son écriture d’origine doit rester liée aux corrections et règlements conservés.".into()));
+        }
         let rows = query_all(
             &tx,
             "SELECT * FROM journal_lines WHERE journal_entry_id=? ORDER BY rowid",
@@ -845,7 +848,7 @@ impl LocalStore {
                    JOIN journal_entries parent ON parent.id=ancestry.reversal_of
                  )
                  SELECT source_type,source_id,id,depth FROM ancestry
-                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note','supplier_credit_refund','customer_credit_settlement')
+                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note','supplier_credit_refund','customer_credit_settlement','customer_credit_recovery')
                  ORDER BY depth DESC LIMIT 1",
                 params![id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
@@ -854,7 +857,7 @@ impl LocalStore {
         if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
             protected_business_source
         {
-            if source_type == "customer_credit_settlement" {
+            if matches!(source_type.as_str(),"customer_credit_settlement"|"customer_credit_recovery") {
                 return Err(AppError::Validation("Corrigez ce règlement depuis l’avoir client afin de conserver ses soldes, sa TVA et son historique.".into()));
             }
             if source_type == "supplier_credit_refund" {
@@ -972,6 +975,9 @@ impl LocalStore {
             params_from_iter(values),
         )?;
         for entry in &mut entries {
+            if entry["source_type"]=="invoice" && crate::customer_credit_recovery_vat::original_for(&connection,entry["source_id"].as_str().unwrap_or_default())?.is_some() {
+                entry["customer_recovery_protected"]=json!(true);
+            }
             if entry["source_type"] == "expense_refund" || entry["source_type"] == "supplier_credit_refund" {
                 entry["reversal_action"] = json!("blocked_refund");
                 continue;
@@ -1923,6 +1929,7 @@ impl CashVatState {
 }
 
 fn cash_vat_state(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<CashVatState>> {
+    crate::customer_credit_recovery_vat::ensure_proof(tx,invoice_id)?;
     let Some(deferred_account) =
         posted_invoice_account(tx, invoice_id, VAT_DEFERRED_MEMO, "liability")?
     else {
@@ -1938,34 +1945,21 @@ fn cash_vat_state(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Ca
             "La facture en mode reçu ne possède pas une base TVA positive cohérente.".into(),
         ));
     }
-    let released_cents: i64 = tx.query_row(
-        "SELECT COALESCE(SUM(line.debit_cents),0)
-           FROM journal_entries entry
-           JOIN payments payment ON payment.id=entry.source_id AND entry.source_type='vat_cash_reclassification'
-           JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
-          WHERE entry.reversal_of IS NULL AND payment.invoice_id=?",
-        params![VAT_CASH_RELEASE_MEMO, invoice_id],
-        |row| row.get(0),
-    )?;
-    let event_released: i64=tx.query_row("SELECT COALESCE(SUM(l.debit_cents-l.credit_cents),0) FROM customer_credit_settlements e JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id JOIN journal_lines l ON l.journal_entry_id=p.journal_entry_id WHERE e.invoice_id=?1 AND l.memo=?2",params![invoice_id,VAT_CASH_RELEASE_MEMO],|row|row.get(0))?;
-    let released_cents=released_cents.checked_add(event_released).ok_or_else(||AppError::Validation("La TVA réglée dépasse la capacité locale.".into()))?;
+    let released_cents=crate::customer_credit_recovery_vat::released(tx,invoice_id,"9999-12-31")?;
     let credit_deferred_cents: i64 = tx.query_row(
         "SELECT COALESCE(SUM(line.debit_cents),0)
            FROM invoices credit
            JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL
            JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
-          WHERE credit.type='avoir' AND credit.original_invoice_id=? AND credit.number IS NOT NULL AND credit.status<>'annulee'",
+          WHERE credit.type='avoir' AND credit.original_invoice_id=? AND credit.number IS NOT NULL AND credit.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM customer_credit_recovery_postings r WHERE r.source_type='credit' AND r.source_id=credit.id)",
         params![VAT_CREDIT_DEFERRED_MEMO, invoice_id],
         |row| row.get(0),
     )?;
     let mut due_by_account = BTreeMap::new();
     {
         let mut statement = tx.prepare(
-            "SELECT line.account_id,COALESCE(SUM(line.credit_cents),0)
-               FROM journal_entries entry
-               JOIN payments payment ON payment.id=entry.source_id AND entry.source_type='vat_cash_reclassification'
-               JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
-              WHERE entry.reversal_of IS NULL AND payment.invoice_id=?
+            "SELECT line.account_id,COALESCE(SUM(line.credit_cents-line.debit_cents),0)
+               FROM customer_cash_vat_lines line WHERE line.memo=? AND line.invoice_id=?
               GROUP BY line.account_id ORDER BY line.account_id",
         )?;
         let rows = statement.query_map(params![VAT_CASH_DUE_MEMO, invoice_id], |row| {
@@ -1982,7 +1976,7 @@ fn cash_vat_state(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Ca
                FROM invoices credit
                JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL
                JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?
-              WHERE credit.type='avoir' AND credit.original_invoice_id=? AND credit.number IS NOT NULL AND credit.status<>'annulee'
+              WHERE credit.type='avoir' AND credit.original_invoice_id=? AND credit.number IS NOT NULL AND credit.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM customer_credit_recovery_postings r WHERE r.source_type='credit' AND r.source_id=credit.id)
               GROUP BY line.account_id ORDER BY line.account_id",
         )?;
         let rows = statement.query_map(params![VAT_CREDIT_DUE_MEMO, invoice_id], |row| {
@@ -2322,14 +2316,15 @@ fn post_cash_vat_reclassification(
         return Ok(None);
     };
     let deferred_remaining = state.deferred_remaining()?;
-    if deferred_remaining == 0 && !tx.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[&invoice_id],|r|r.get::<_,bool>(0))? {
+    let recovered=crate::customer_credit_recovery_vat::is_received(tx,&invoice_id)?;
+    if deferred_remaining == 0 && !recovered && !tx.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[&invoice_id],|r|r.get::<_,bool>(0))? {
         return Ok(None);
     }
     let settled = paid_total
         .checked_add(credited_total)
         .is_some_and(|settled_total| settled_total >= state.invoice_total_cents);
     let dated_settlements: bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[&invoice_id],|row|row.get(0))?;
-    let allocation = if dated_settlements {
+    let allocation = if dated_settlements || recovered {
         let projection=crate::customer_credit_math::project_until(tx,&invoice_id,&date,Some(payment_id))?;
         let part=projection.parts.get(payment_id).ok_or_else(||AppError::Validation("L’encaissement n’apparaît pas dans la ventilation datée de la facture.".into()))?;
         let tax=part.iter().map(|part|part.vat_cents).sum::<i64>();
@@ -3231,7 +3226,7 @@ fn post_entry_with_reversal(
             "Écriture déséquilibrée : débits {debit}, crédits {credit}."
         )));
     }
-    if !matches!(source_type,"manual"|"customer_credit_settlement") && reversal_of.is_none() {
+    if !matches!(source_type,"manual"|"customer_credit_settlement"|"customer_credit_recovery") && reversal_of.is_none() {
         let mut sides = std::collections::BTreeMap::<&str, (i64, i64)>::new();
         for line in &lines {
             let totals = sides.entry(line.account_id.as_str()).or_default();
@@ -3670,6 +3665,7 @@ pub(crate) fn cash_vat_invoice_is_consistent(
     connection: &Connection,
     invoice_id: &str,
 ) -> AppResult<bool> {
+    if !crate::customer_credit_recovery_vat::proof_valid(connection,invoice_id)? {return Ok(false);}
     let original = effective_postings(connection, "invoice", invoice_id, "issue")?;
     let deferred_account = original.first().and_then(|posting| {
         posting
@@ -3687,14 +3683,14 @@ pub(crate) fn cash_vat_invoice_is_consistent(
         return Ok(reclassification_count == 0);
     };
     let dated_settlements: bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[invoice_id],|row|row.get(0))?;
-    if dated_settlements {
+    if dated_settlements || crate::customer_credit_recovery_vat::is_received(connection,invoice_id)? {
         let projection=match crate::customer_credit_math::project(connection,invoice_id,"9999-12-31") {
             Ok(value)=>value,
             Err(AppError::Validation(_))=>return Ok(false),
             Err(error)=>return Err(error),
         };
         let expected=projection.parts.values().flatten().map(|part|part.vat_cents).sum::<i64>();
-        let (released,due):(i64,i64)=connection.query_row("SELECT COALESCE(SUM(CASE l.memo WHEN ?2 THEN l.debit_cents-l.credit_cents ELSE 0 END),0),COALESCE(SUM(CASE l.memo WHEN ?3 THEN l.credit_cents-l.debit_cents ELSE 0 END),0) FROM journal_entries j JOIN journal_lines l ON l.journal_entry_id=j.id WHERE (j.source_type='vat_cash_reclassification' AND EXISTS(SELECT 1 FROM payments p WHERE p.id=j.source_id AND p.invoice_id=?1)) OR (j.source_type='customer_credit_settlement' AND EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE e.id=j.source_id AND e.invoice_id=?1))",params![invoice_id,VAT_CASH_RELEASE_MEMO,VAT_CASH_DUE_MEMO],|r|Ok((r.get(0)?,r.get(1)?)))?;
+        let (released,due):(i64,i64)=connection.query_row("SELECT COALESCE(SUM(CASE memo WHEN ?2 THEN debit_cents-credit_cents ELSE 0 END),0),COALESCE(SUM(CASE memo WHEN ?3 THEN credit_cents-debit_cents ELSE 0 END),0) FROM customer_cash_vat_lines WHERE invoice_id=?1",params![invoice_id,VAT_CASH_RELEASE_MEMO,VAT_CASH_DUE_MEMO],|r|Ok((r.get(0)?,r.get(1)?)))?;
         return Ok(released==expected && due==expected);
     }
     let (
@@ -3862,11 +3858,12 @@ fn non_customer_semantic_posting_mismatches_in_range(
                         .find(|line| line.memo.as_deref() == Some(VAT_DEFERRED_MEMO))
                 });
                 let dated_credit: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_documents WHERE credit_note_id=?)", [&id], |row| row.get(0))?;
+                let recovered:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_recovery_postings WHERE source_type='credit' AND source_id=?)",[&id],|r|r.get(0))?;
                 let credit_basis_valid = if vat == 0 {
                     true
                 } else if let Some(deferred_line) = original_deferred {
                     vat_lines.iter().all(|line| {
-                        if dated_credit {
+                        if dated_credit && !recovered {
                             return line.memo.as_deref() == Some(crate::customer_credit_settlements::PENDING_VAT)
                                 && line.account_id == deferred_line.account_id;
                         }
@@ -3881,6 +3878,7 @@ fn non_customer_semantic_posting_mismatches_in_range(
                 };
                 valid &= original.len() == 1
                     && credit_basis_valid
+                    && (!recovered || crate::customer_credit_recovery_vat::proof_valid(connection,original_id)?)
                     && ar
                         == original_posting.and_then(|entry| {
                             entry

@@ -17,7 +17,7 @@ export function CustomerCreditAccountingIssues({issues=[],busy,onOpenJournal}: {
     <summary><ShieldAlert size={20}/><span>Contrôles des avoirs clients <small>{issues.length} point{issues.length>1?'s':''} à vérifier</small></span><ChevronDown size={18}/></summary>
     <div className="customer-credit-checks__body">
       <p>Retrouvez les règlements concernés avant de poursuivre la clôture. Les montants et les dates restent conservés.</p>
-      <ol aria-label="Anomalies des règlements clients">{ordered.slice(0,visible).map((issue)=><li key={`${issue.kind}:${issue.settlementId}:${issue.journalEntryId}`}>
+      <ol aria-label="Anomalies des règlements clients">{ordered.slice(0,visible).map((issue)=><li key={`${issue.kind}:${issue.creditNoteId}:${issue.settlementId}:${issue.journalEntryId}`}>
         <div className="customer-credit-checks__identity"><strong>{issue.creditNoteNumber||issue.journalNumber||'Règlement client'}</strong><span>{formatDate(issue.date)}</span></div>
         <span className="customer-credit-checks__state">{issue.kind==='missing_posting'&&issue.closedPeriod?'Reprise historique à valider':labels[issue.kind]||'À vérifier'}</span>
         {issue.reference&&<p>{issue.reference}</p>}

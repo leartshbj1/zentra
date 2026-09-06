@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=54 => {}
+            28..=55 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1769,6 +1769,11 @@ impl LocalStore {
             let complete: bool=transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('customer_credit_documents','invoices')",[],|row|row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V55_SQL)?; }
             else { transaction.pragma_update(None,"user_version",55)?; }
+        }
+        if current < 56 {
+            let complete: bool=transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('customer_credit_recoveries','payments')",[],|row|row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V56_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",56)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2625,7 +2630,7 @@ impl LocalStore {
             event["journal_valid"]=json!(crate::customer_credit_settlements::journal_proof_valid(connection,id)?);
         }
         workspace["customer_credit_settlements"]=json!(customer_settlements);
-        workspace["customer_credit_recoveries"]=json!(query_all(connection,"SELECT id,original_invoice_id,request_json,created_at FROM customer_credit_recoveries ORDER BY created_at,id",[])?);
+        workspace["customer_credit_recoveries"]=json!(query_all(connection,"SELECT id,original_invoice_id,request_json,result_json,created_at FROM customer_credit_recoveries ORDER BY created_at,id",[])?);
         for table in ["bank_supplier_credit_refund_matches","bank_supplier_credit_refund_unlinks","bank_supplier_credit_refund_requests"] {
             workspace[table] = json!(query_all(connection,&format!("SELECT * FROM {table} ORDER BY rowid"),[])?);
         }

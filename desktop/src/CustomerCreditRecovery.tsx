@@ -29,7 +29,8 @@ export function CustomerCreditRecovery({originalInvoiceId,busy,readOnly,act}: {
   const heading=useRef<HTMLHeadingElement>(null);
   const root=useRef<HTMLElement>(null);
   const disabled=busy||working;
-  useEffect(()=>{if(open)requestAnimationFrame(()=>revealInDialog(heading.current));},[open,review]);
+  const reviewing=Boolean(review);
+  useEffect(()=>{if(open)requestAnimationFrame(()=>revealInDialog(heading.current));},[open,reviewing]);
   const load=async()=>{
     if(lock.current)return; lock.current=true;setWorking(true);setError('');setOpen(true);setAttempt(n=>n+1);
     try {
@@ -58,7 +59,7 @@ export function CustomerCreditRecovery({originalInvoiceId,busy,readOnly,act}: {
     finally{setWorking(false);lock.current=false;}
   };
   const commit=async()=>{
-    if(disabled||readOnly||lock.current||!review)return;
+    if(disabled||readOnly||lock.current||!review||(review.preview.receivedVat&&!review.input.confirmVatReconciliation))return;
     try{saveCreditRecovery(review);}catch{setError('La demande ne peut pas être conservée. Libérez du stockage local avant de continuer.');return;}
     lock.current=true;setWorking(true);setError('');setAttempt(n=>n+1);
     try {
@@ -89,6 +90,7 @@ export function CustomerCreditRecovery({originalInvoiceId,busy,readOnly,act}: {
       {!review&&plan?.blocker&&<div className="credit-recovery__notice"><strong>Rapprochement nécessaire</strong><p>{plan.blocker}</p></div>}
       {!review&&plan&&!plan.blocker&&<form onSubmit={e=>{e.preventDefault();void preview();}}>
         <p>Pour chaque avoir, indiquez ce qui a été déduit de {plan.number}. Le reste deviendra disponible pour une future déduction ou un remboursement.</p>
+        {plan.receivedVat&&<p className="credit-recovery__notice">TVA sur encaissements : la simulation rapproche les paiements et les déductions à leurs dates réelles. Vous pourrez vérifier les corrections proposées avant de les enregistrer.</p>}
         <div className="credit-recovery__invoice"><span>Total facturé <strong>{formatMoney(plan.invoiceTotalCents,plan.currency)}</strong></span><span>Paiements enregistrés <strong>{formatMoney(plan.paidCents,plan.currency)}</strong></span></div>
         <fieldset disabled={disabled||readOnly}>
           {plan.credits.map(c=>{const d=drafts[c.id]??{choice:'',amount:'',date:''};
@@ -110,9 +112,15 @@ export function CustomerCreditRecovery({originalInvoiceId,busy,readOnly,act}: {
         <div className="credit-recovery__balance"><span>Reste à régler sur {review.preview.number}</span><strong>{formatMoney(review.preview.invoiceRemainingCents,review.preview.currency)}</strong></div>
         <ul>{review.preview.credits.map(c=><li key={c.creditNoteId}><strong>{c.number}</strong><span>Déduit <b>{formatMoney(c.allocatedCents,review.preview.currency)}</b></span><span>Disponible <b>{formatMoney(c.remainingCents,review.preview.currency)}</b></span>{review.input.credits.find(i=>i.creditNoteId===c.creditNoteId)?.applicationDate&&<small>Déduction du {formatDate(review.input.credits.find(i=>i.creditNoteId===c.creditNoteId)!.applicationDate!)}</small>}</li>)}</ul>
         <p><strong>{review.input.reference}</strong><br/>{review.input.reason}</p>
-        <p>La reprise conserve les documents émis et leur TVA. Elle n’enregistre aucun virement. Les déductions confirmées apparaîtront dans l’historique et le solde disponible pourra ensuite être utilisé.</p>
+        {review.preview.receivedVat&&<section className="credit-recovery__tax" aria-label="Corrections de TVA">
+          <h5>TVA sur encaissements</h5><p>Les écritures d’origine restent conservées. Les corrections ci-dessous replacent la TVA aux dates des opérations documentées.</p>
+          <ul aria-label="Détail des corrections TVA">{review.preview.vatAdjustments?.map(a=><li key={`${a.sourceType}:${a.sourceId}`}><strong>{a.reference}</strong><small>{formatDate(a.date)} · {a.sourceType==='credit'?'TVA remise en attente':a.sourceType==='application'?'Déduction documentée':'TVA de l’encaissement rapprochée'}</small><span>Variation de TVA due <b>{a.dueChangeCents>0?'+':''}{formatMoney(a.dueChangeCents,review.preview.currency)}</b></span></li>)}</ul>
+          <p>Si une période a déjà été déclarée, reportez les écarts dans son décompte rectificatif. <a href="https://www.estv.admin.ch/fr/decompter-la-tva" target="_blank" rel="noreferrer">Consignes de l’AFC</a></p>
+          <label className="credit-recovery__confirm"><input type="checkbox" checked={Boolean(review.input.confirmVatReconciliation)} disabled={disabled||readOnly||pending} onChange={e=>setReview({...review,input:{...review.input,confirmVatReconciliation:e.target.checked}})}/><span>J’ai vérifié les dates et les corrections de TVA de cette reprise.</span></label>
+        </section>}
+        <p>{review.preview.receivedVat?'Les corrections de TVA et leurs preuves seront conservées avec la reprise.':'La reprise conserve les documents émis et leur TVA.'} Elle n’enregistre aucun virement. Les déductions confirmées apparaîtront dans l’historique et le solde disponible pourra ensuite être utilisé.</p>
         {pending&&<p className="credit-recovery__notice" role="status">La réponse précédente a été interrompue. Vérifiez cette même demande pour retrouver son résultat sans créer une seconde reprise.</p>}
-        <div className="form-actions">{!pending&&<Button variant="secondary" disabled={disabled} onClick={()=>{if(plan)setReview(undefined);else void load();}}><ArrowLeft size={16}/>Modifier</Button>}<Button disabled={disabled||readOnly} onClick={()=>void commit()}>{pending?'Vérifier la même reprise':'Confirmer la reprise'}<Check size={16}/></Button></div>
+        <div className="form-actions">{!pending&&<Button variant="secondary" disabled={disabled} onClick={()=>{if(plan)setReview(undefined);else void load();}}><ArrowLeft size={16}/>Modifier</Button>}<Button disabled={disabled||readOnly||Boolean(review.preview.receivedVat&&!review.input.confirmVatReconciliation)} onClick={()=>void commit()}>{pending?'Vérifier la même reprise':'Confirmer la reprise'}<Check size={16}/></Button></div>
       </div>}
       {error&&<ErrorPanel key={attempt} message={error} reveal/>}
       {!pending&&!review&&<Button variant="ghost" disabled={disabled} onClick={()=>void load()}><RefreshCw size={15}/>Actualiser le dossier</Button>}

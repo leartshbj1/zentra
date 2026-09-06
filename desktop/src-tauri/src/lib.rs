@@ -21,6 +21,7 @@ mod customer_credit_math;
 mod customer_credit_settlements;
 mod customer_credit_attachments;
 mod customer_credit_recovery;
+mod customer_credit_recovery_vat;
 mod database;
 #[cfg(test)]
 mod customer_credit_tests;

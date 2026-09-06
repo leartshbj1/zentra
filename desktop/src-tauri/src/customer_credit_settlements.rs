@@ -142,7 +142,7 @@ pub(crate) fn journal_proof_valid(connection: &Connection, id: &str) -> AppResul
             1,
         ),
     ] {
-        let tax:i64=connection.query_row("SELECT CASE WHEN EXISTS(SELECT 1 FROM customer_credit_settlements e JOIN journal_entries j ON j.source_type='invoice' AND j.source_id=CASE ?2 WHEN 'credit' THEN e.credit_note_id ELSE e.invoice_id END AND j.source_event='issue' JOIN journal_lines l ON l.journal_entry_id=j.id AND l.memo=?3 WHERE e.id=?1) THEN COALESCE((SELECT SUM(vat_cents) FROM customer_credit_settlement_lines WHERE settlement_id=?1 AND side=?2),0) ELSE 0 END",params![id,side,deferred_memo],|row|row.get(0))?;
+        let tax:i64=connection.query_row("SELECT CASE WHEN EXISTS(SELECT 1 FROM customer_credit_settlements e JOIN journal_entries j ON j.source_type='invoice' AND j.source_id=CASE ?2 WHEN 'credit' THEN e.credit_note_id ELSE e.invoice_id END AND j.source_event='issue' JOIN journal_lines l ON l.journal_entry_id=j.id AND l.memo=?3 WHERE e.id=?1) OR (?2='credit' AND EXISTS(SELECT 1 FROM customer_credit_settlements e JOIN customer_credit_recovery_postings p ON p.source_type='credit' AND p.source_id=e.credit_note_id JOIN journal_lines l ON l.journal_entry_id=p.journal_entry_id AND l.memo=?3 WHERE e.id=?1)) THEN COALESCE((SELECT SUM(vat_cents) FROM customer_credit_settlement_lines WHERE settlement_id=?1 AND side=?2),0) ELSE 0 END",params![id,side,deferred_memo],|row|row.get(0))?;
         if delta(release) != i128::from(tax) * sign || delta(due) != -i128::from(tax) * sign {
             return Ok(false);
         }
@@ -154,7 +154,7 @@ pub(crate) fn journal_proof_valid(connection: &Connection, id: &str) -> AppResul
 /// A financial correction is a separate settlement, never a generic journal reversal.
 pub(crate) fn accounting_issues(connection:&Connection,from:&str,to:&str)->AppResult<Vec<Value>> {
     let events=query_all(connection,"SELECT e.id AS settlement_id,e.credit_note_id,c.number AS credit_note_number,e.date,e.reference,p.journal_entry_id,EXISTS(SELECT 1 FROM journal_entries actual WHERE actual.id=p.journal_entry_id) AS journal_available,EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date<=a.date_to) AS closed_period FROM customer_credit_settlements e JOIN invoices c ON c.id=e.credit_note_id LEFT JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id WHERE e.date BETWEEN ?1 AND ?2 OR EXISTS(SELECT 1 FROM journal_entries j WHERE j.id=p.journal_entry_id AND j.entry_date BETWEEN ?1 AND ?2) ORDER BY e.date DESC,e.sequence DESC",params![from,to])?;
-    let mut issues=Vec::new();
+    let mut issues=crate::customer_credit_recovery_vat::accounting_issues(connection,from,to)?;
     for mut event in events {
         let (kind,reason)=if event["journal_entry_id"].is_null() {
             ("missing_posting","Le règlement ne dispose pas encore d’une preuve de comptabilisation.")
@@ -355,6 +355,15 @@ pub(crate) fn record(
     reverses: Option<&str>,
     payload: Option<String>,
 ) -> AppResult<Value> {
+    record_inner(tx,input,reverses,payload,false)
+}
+
+/// Only the atomic legacy recovery may insert verified applications before old payments.
+pub(crate) fn record_recovery(tx:&Transaction<'_>,input:CustomerCreditSettlementInput,reverses:Option<&str>,payload:Option<String>)->AppResult<Value> {
+    if input.event_type!="apply" || reverses.is_some() || input.invoice_id.as_deref().is_none_or(|i|!crate::customer_credit_recovery_vat::is_received(tx,i).unwrap_or(false)) {return Err(invalid("La reprise historique doit être une imputation documentée."));}
+    record_inner(tx,input,reverses,payload,true)
+}
+fn record_inner(tx:&Transaction<'_>,input:CustomerCreditSettlementInput,reverses:Option<&str>,payload:Option<String>,recovery:bool)->AppResult<Value> {
     let input = CustomerCreditSettlementInput {
         request_id: request(&input.request_id)?,
         credit_note_id: text(&input.credit_note_id, "L’avoir", 1, 255)?,
@@ -395,15 +404,20 @@ pub(crate) fn record(
         return Err(invalid("Cet avoir historique nécessite une reprise documentée avant d’enregistrer son règlement."));
     }
     ensure_accounting_date_open(tx, &input.date)?;
-    ensure_chronology(tx, &input.credit_note_id, &input.date)?;
-    if let Some(invoice) = input.invoice_id.as_deref() {
-        ensure_chronology(tx, invoice, &input.date)?;
+    if !recovery {
+        crate::customer_credit_recovery_vat::ensure_proof(tx,&input.credit_note_id)?;
+        ensure_chronology(tx, &input.credit_note_id, &input.date)?;
+        if let Some(invoice) = input.invoice_id.as_deref() {
+            crate::customer_credit_recovery_vat::ensure_proof(tx,invoice)?;
+            ensure_chronology(tx, invoice, &input.date)?;
+        }
     }
-    let credit = project(tx, &input.credit_note_id, "9999-12-31")?;
+    let through=if recovery {input.date.as_str()} else {"9999-12-31"};
+    let credit = project(tx, &input.credit_note_id, through)?;
     let credit_parts = parts(&credit, input.amount_cents, reverses)?;
     let invoice_parts = if let Some(invoice) = input.invoice_id.as_deref() {
         Some(parts(
-            &project(tx, invoice, "9999-12-31")?,
+            &project(tx, invoice, through)?,
             input.amount_cents,
             reverses,
         )?)
@@ -418,6 +432,7 @@ pub(crate) fn record(
         &credit_parts,
         invoice_parts.as_deref(),
         reverses,
+        recovery,
     )?;
     let journal_id = journal.as_ref().and_then(|value| value["id"].as_str());
     tx.execute("INSERT INTO customer_credit_settlements(id,request_id,request_json,credit_note_id,event_type,reverses_id,invoice_id,date,amount_cents,reference,reason,bank_account_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -476,6 +491,7 @@ pub(crate) fn post_existing(tx: &Transaction<'_>, id: &str) -> AppResult<Value> 
         credit_parts,
         invoice_parts,
         event["reverses_id"].as_str(),
+        false,
     )?
     .ok_or_else(|| invalid("Activez la comptabilité avant de comptabiliser ce règlement."))?;
     let journal_id = journal["id"]
@@ -520,6 +536,7 @@ fn post_settlement(
     credit_parts: &[Part],
     invoice_parts: Option<&[Part]>,
     reverses: Option<&str>,
+    recovery: bool,
 ) -> AppResult<Option<Value>> {
     let enabled: bool = tx.query_row(
         "SELECT COALESCE((SELECT enabled FROM accounting_settings WHERE id=1),0)",
@@ -660,7 +677,8 @@ fn post_settlement(
         let (Some(doc), Some(parts)) = (doc, parts) else {
             continue;
         };
-        if let Some(deferred) = posted_invoice_account(tx, doc, memo, "liability")? {
+        let deferred=if invert {crate::customer_credit_recovery_vat::pending_account(tx,doc)?} else {posted_invoice_account(tx,doc,memo,"liability")?};
+        if let Some(deferred) = deferred {
             let tax: i64 = parts.iter().map(|part| part.vat_cents).sum();
             if !invert {
                 let stored: bool = tx.query_row(
@@ -676,7 +694,7 @@ fn post_settlement(
                 )?;
                 let expected = before.lines.iter().map(|line| line.released).sum::<i64>()
                     - if stored { tax } else { 0 };
-                let actual:i64=tx.query_row("SELECT COALESCE(SUM(l.debit_cents-l.credit_cents),0) FROM journal_entries j JOIN journal_lines l ON l.journal_entry_id=j.id AND l.memo='Reclassement TVA à régulariser' WHERE (j.source_type='vat_cash_reclassification' AND j.source_event='invoice:'||?1) OR (j.source_type='customer_credit_settlement' AND EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE e.id=j.source_id AND e.invoice_id=?1))",[doc],|row|row.get(0))?;
+                let actual=crate::customer_credit_recovery_vat::released(tx,doc,if recovery {&input.date} else {"9999-12-31"})?;
                 if actual != expected {
                     return Err(invalid("La TVA historique de la facture ne concorde pas avec sa ventilation par ligne. Rapprochez les écritures avant d’imputer cet avoir."));
                 }

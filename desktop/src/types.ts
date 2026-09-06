@@ -475,7 +475,7 @@ export type CustomerCreditSettlement = {
 };
 
 export type Invoice = {
-  creditRecovery?: {recordedAt: string; reference: string; reason: string};
+  creditRecovery?: {recordedAt: string; reference: string; reason: string; receivedVat?: boolean; vatAdjustments?: {date:string;reference:string;dueChangeCents:number}[]};
   customerCredit?: { allocatedCents: number; refundedCents: number; remainingCents: number };
   creditSettlements?: CustomerCreditSettlement[];
   creditedCents?: number;
@@ -1922,6 +1922,7 @@ export type JournalEntry = {
   reversalOf: Identifier | null;
   hasReversal: boolean;
   reversalAction?: 'restore_expense' | 'blocked_expense' | 'blocked_refund';
+  customerRecoveryProtected?: boolean;
 };
 
 export type JournalLine = {

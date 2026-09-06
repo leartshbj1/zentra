@@ -1,4 +1,4 @@
-.credit-recovery { min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); overflow-wrap:anywhere; }
+.credit-recovery { --accent:var(--green-700); --surface:var(--surface-raised); --surface-soft:var(--surface-subtle); --text:var(--ink); min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); overflow-wrap:anywhere; }
 .credit-recovery__intro { display:flex; gap:.85rem; align-items:center; padding:1.25rem; }
 .credit-recovery__intro > svg { flex-shrink:0; color:var(--accent); }
 .credit-recovery__intro > div { flex:1; min-width:0; }
@@ -35,6 +35,11 @@
 .credit-recovery__review li span { display:flex; justify-content:space-between; gap:1rem; font-size:.875rem; }
 .credit-recovery__review small { color:var(--muted); }
 .credit-recovery__notice { background:var(--surface-soft,#f6f7f4); border-left:3px solid var(--accent); border-radius:8px; padding:1rem; }
+.credit-recovery__tax { display:grid; gap:.75rem; border:1px solid var(--line); border-radius:12px; padding:1rem; background:var(--surface-soft,#f6f7f4); min-width:0; }
+.credit-recovery__tax h5 { font-size:1rem; margin:0; }
+.credit-recovery__tax b { font-variant-numeric:tabular-nums; }
+.credit-recovery__tax a { color:var(--green-800); text-underline-offset:3px; }
+.credit-recovery__tax > ul { padding:0; margin:0; list-style:none; }
 @media(max-width:600px) {
   .credit-recovery__intro { flex-wrap:wrap; padding:1rem; align-items:flex-start; }
   .credit-recovery__intro > .button { width:100%; }

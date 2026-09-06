@@ -625,6 +625,9 @@ impl LocalStore {
         }
         let recoveries=query_all(connection,"SELECT r.* FROM customer_credit_recoveries r JOIN invoices i ON i.id=r.original_invoice_id WHERE i.issue_date<=? ORDER BY r.created_at,r.id",[date_to])?;
         if !recoveries.is_empty() { index["customer_credit_recoveries"]=json!(recoveries); }
+        let mut corrections=query_all(connection,"SELECT p.* FROM customer_credit_recovery_postings p WHERE p.date<=? ORDER BY p.date,p.source_type,p.source_id",[date_to])?;
+        for correction in &mut corrections {correction["proof_valid"]=json!(crate::customer_credit_recovery_vat::proof_valid(connection,correction["original_invoice_id"].as_str().unwrap_or_default())?);}
+        if !corrections.is_empty() {index["customer_credit_recovery_postings"]=json!(corrections);}
         Ok(index)
     }
 }
@@ -1050,6 +1053,11 @@ fn build_payload_members(
     if snapshot.piece_index.get("customer_credit_recoveries").is_some() {
         members.push(ArchiveMember {path:"02_pieces/reprises_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_recoveries"]),&[
             ("id","recovery_id"),("original_invoice_id","original_invoice_id"),("request_id","request_id"),("request_json","confirmed_input_json"),("source_json","source_snapshot_json"),("result_json","result_json"),("created_at","created_at")
+        ])});
+    }
+    if snapshot.piece_index.get("customer_credit_recovery_postings").is_some() {
+        members.push(ArchiveMember {path:"02_pieces/corrections_tva_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_recovery_postings"]),&[
+            ("id","proof_id"),("recovery_id","recovery_id"),("original_invoice_id","original_invoice_id"),("source_type","source_type"),("source_id","source_id"),("date","date"),("expected_vat_cents","expected_vat_cents"),("due_change_cents","due_change_cents"),("parts_json","allocation_json"),("source_json","original_source_json"),("journal_entry_id","journal_entry_id"),("snapshot_json","journal_snapshot_json"),("proof_valid","proof_valid")
         ])});
     }
     let audit = json!({

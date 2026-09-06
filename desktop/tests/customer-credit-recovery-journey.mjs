@@ -3,12 +3,13 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 const {chromium,webkit}=await import(pathToFileURL(process.env.ZENTRA_PLAYWRIGHT_MODULE+'/index.mjs').href);
 const engine=process.env.ZENTRA_QA_BROWSER||'edge';
-const out=fileURLToPath(new URL(`../../.qa/customer-credit-recovery-${engine}/`,import.meta.url));await mkdir(out,{recursive:true});
+const received=process.env.ZENTRA_QA_RECEIVED==='1';
+const out=fileURLToPath(new URL(`../../.qa/customer-credit-${received?'received':'recovery'}-${engine}/`,import.meta.url));await mkdir(out,{recursive:true});
 const browser=await(engine==='webkit'?webkit:chromium).launch({headless:true,...(engine==='edge'?{channel:'msedge'}:{})});const report=[];let activePage;
 try {
   for(const mode of ['write','readonly','blocked'])for(const width of mode==='write'?[320,390,768,1440]:[320,1440]) {
     const page=await browser.newPage({viewport:{width,height:900},hasTouch:width<800,reducedMotion:mode==='write'?'no-preference':'reduce'});activePage=page;page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&customerRecovery=1&${mode==='write'?'lostReply=1':mode==='readonly'?'readOnly=1':'recoveryBlocked=1'}`,{waitUntil:'domcontentloaded',timeout:60000});
+    await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&customerRecovery=1&${received?'recoveryReceived=1&':''}${mode==='write'?'lostReply=1':mode==='readonly'?'readOnly=1':'recoveryBlocked=1'}`,{waitUntil:'domcontentloaded',timeout:60000});
     if(width>860)await page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true}).click();
     await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Factures');
     await page.locator('.navigation-palette__results button').filter({has:page.getByText('Factures',{exact:true})}).click();
@@ -36,7 +37,17 @@ try {
         await card.getByRole('checkbox').check();await page.screenshot({path:`${out}/${width}-document.png`,fullPage:false});
         await card.getByRole('button',{name:'Vérifier la reprise',exact:true}).click();await card.getByRole('heading',{name:'Vérifier les soldes après reprise'}).waitFor();
         assert.equal(await page.evaluate(()=>sessionStorage.getItem('recovery-count')),null,'preview cannot commit');
-        assert.match(await card.locator('.credit-recovery__balance').innerText(),/81[.,]07/);
+        assert.match(await card.locator('.credit-recovery__balance').innerText(),received?/51[.,]07/:/81[.,]07/);
+        if(received) {
+          const confirm=card.getByRole('button',{name:'Confirmer la reprise',exact:true});
+          assert.equal(await confirm.isDisabled(),true);
+          await card.getByRole('region',{name:'Corrections de TVA'}).waitFor();
+          assert.match(await card.locator('.credit-recovery__tax').innerText(),/0[.,]01/);
+          await card.getByLabel('J’ai vérifié les dates et les corrections de TVA de cette reprise.').check();
+          await page.waitForFunction(()=>{const box=document.querySelector('.credit-recovery__tax input')?.getBoundingClientRect();return box&&box.top>=0&&box.bottom<=innerHeight;});
+          await page.screenshot({path:`${out}/${width}-tax.png`,fullPage:false});
+          await card.locator('.credit-recovery__balance').scrollIntoViewIfNeeded();
+        }
         await page.waitForFunction(()=>{const box=document.querySelector('.credit-recovery__balance')?.getBoundingClientRect();return box&&box.top>=0&&box.bottom<=innerHeight;});
         await page.screenshot({path:`${out}/${width}-review.png`,fullPage:false});
         await card.getByRole('button',{name:'Confirmer la reprise',exact:true}).click();await card.getByRole('button',{name:'Vérifier la même reprise',exact:true}).waitFor();

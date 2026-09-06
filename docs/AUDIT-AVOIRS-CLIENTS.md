@@ -1,5 +1,21 @@
 # Avoirs clients — audit en cours
 
+## Reprise de TVA reçue — source du 6 septembre 2026, non publiée
+
+Le schéma 56 complète l'assistant pour les historiques ouverts avec une méthode reçue stable. Les documents, écritures d'émission et encaissements d'origine sont conservés. Chaque avoir reçoit une correction datée qui rétablit sa TVA historique et la remet en attente de règlement. Les déductions confirmées peuvent précéder un encaissement déjà enregistré : leurs ventilations et celles des paiements sont recalculées dans l'ordre réel des dates, avec une écriture explicite pour chaque écart de TVA, même d'un centime. À date identique, les paiements déjà enregistrés précèdent les applications nouvellement documentées. Les dates ne sont pas déplacées.
+
+La simulation affiche les variations signées de TVA due, par avoir, encaissement et déduction. Une confirmation spécifique est nécessaire pour enregistrer la reprise. Les preuves conservent les sources, ventilations, comptes et journaux de correction ; elles restent consultables dans le dossier et figurent dans les exports CSV, le dossier de clôture et les sauvegardes restaurées. Une preuve altérée bloque les nouvelles opérations financières, l'export TVA et la clôture, sans masquer le diagnostic. Les corrections et les écritures originales des documents du dossier repris ne peuvent pas être extournées isolément depuis le journal ; la consultation signale cette protection.
+
+Un test de paiement après reprise a révélé une règle SQLite restée sur l'ancien modèle : elle déduisait le montant facial de l'avoir même lorsque seule une partie était imputée. La migration remplace ce calcul par les mouvements effectivement enregistrés, tout en conservant le traitement des avoirs historiques non repris. Une facture de 108,10 CHF, payée à hauteur de 30 CHF et diminuée d'une déduction de 27,03 CHF, accepte ainsi son solde de 51,07 CHF.
+
+L'interface conserve la palette, les boutons tactiles, les animations réduites et la reprise d'une demande après perte de réponse. Cocher la confirmation TVA ne fait plus remonter le formulaire en haut du dossier. Le détail des corrections reste disponible après l'enregistrement.
+
+Références vérifiées : la [LTVA, art. 40 et 41](https://www.fedlex.admin.ch/eli/cc/2009/615/fr#art_40), texte en vigueur consulté le 6 septembre 2026, rattache la méthode reçue aux encaissements/paiements et règle les corrections de contre-prestation ; les [consignes de décompte de l'AFC](https://www.estv.admin.ch/fr/decompter-la-tva) précisent le traitement des décomptes rectificatifs. Une reprise modifiant une période déjà déclarée doit être reportée dans la correction de cette période ; l'application ne la transmet pas automatiquement à l'AFC.
+
+Limites conservées : transitions de méthode, périodes clôturées ou reprises d'ouverture, remboursements anciens et déductions sur une autre facture exigent encore un rapprochement spécifique. La liaison des remboursements clients aux débits bancaires reste à compléter. Aucun lot de cette source n'est distribué et aucune disponibilité App Store/Google Play n'est annoncée.
+
+Vérifications : la suite générale du moteur passe 597 tests, sans échec, avec un test HTTPS préexistant ignoré (734,94 s, `.qa/customer-received-full-native.log`). Les dernières protections du journal original et des comptes des encaissements historiques sont ensuite vérifiées par les treize tests ciblés de reprise (`.qa/customer-received-final-guards.log`). La suite finale d'interface passe 721 tests dans 103 fichiers (`.qa/customer-received-ui-final.log`). Les parcours compilés passent sous Edge et WebKit, sur 320, 390, 768 et 1440 px, avec lecture seule et blocage à 320/1440 px : seize cas au total. Ils vérifient les dates vierges, montants invalides, confirmation TVA, position conservée, reprise sans doublon après perte de réponse et absence de débordement. Les captures finales à 320, 390 et 1440 px sont inspectées. Les données de ces parcours sont simulées ; les effets financiers et sauvegardes sont testés séparément dans SQLite. Compilation TypeScript/Vite, Clippy et formatage sont contrôlés dans les journaux de ce lot.
+
 ## Corrections locales du 6 septembre 2026
 
 Ces changements sont postérieurs à la version publique 1.37.0. Ils ne sont pas encore distribués et ne constituent pas un parcours terminé de remboursement client.

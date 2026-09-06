@@ -1,4 +1,4 @@
-//! Explicit adoption of open, agreed-basis credits with no prior cash refund.
+//! Explicit adoption of open legacy credits with no prior cash refund.
 //! The old issue journals are preserved. Applications use the ordinary dated
 //! settlement command inside the same transaction; preview always rolls back.
 use std::collections::BTreeSet;
@@ -33,6 +33,8 @@ pub struct RecoveryInput {
     pub reference: String,
     pub reason: String,
     pub no_prior_refund: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub confirm_vat_reconciliation: bool,
     pub credits: Vec<RecoveryCredit>,
 }
 
@@ -101,6 +103,9 @@ fn snapshot(tx: &Transaction<'_>, original: &str) -> AppResult<Value> {
             journals.push(journal_snapshot(tx,&field(&journal,"id"))?);
         }
     }
+    for journal in query_all(tx,"SELECT j.id FROM journal_entries j JOIN payments p ON p.id=j.source_id WHERE p.invoice_id=? AND j.source_type IN ('payment','vat_cash_reclassification') ORDER BY j.id",[original])? {
+        journals.push(journal_snapshot(tx,&field(&journal,"id"))?);
+    }
     Ok(
         json!({"documents":documents,"items":items,"journals":journals,
         "payments":query_all(tx,"SELECT * FROM payments WHERE invoice_id=? ORDER BY date,created_at,id",[original])?,
@@ -146,7 +151,7 @@ fn source_documents(source: &Value, original: &str) -> AppResult<(Value, Vec<Val
     Ok((invoice, credits))
 }
 
-fn validate_issue_journal(tx: &Transaction<'_>, doc: &Value) -> AppResult<()> {
+fn validate_issue_journal(tx: &Transaction<'_>, doc: &Value, received: bool) -> AppResult<()> {
     let id = field(doc, "id");
     let credit = doc["type"] == "avoir";
     let total = i128::from(cents(doc, "total_cents")).abs();
@@ -194,18 +199,52 @@ fn validate_issue_journal(tx: &Transaction<'_>, doc: &Value) -> AppResult<()> {
     }
     let lines=query_all(tx,"SELECT l.*,a.account_type FROM journal_lines l JOIN accounts a ON a.id=l.account_id WHERE l.journal_entry_id=? ORDER BY l.rowid",[&jid])?;
     let expected = if credit {
-        [
+        vec![
             ("Réduction créance client", "asset", -total),
             ("Extourne produit", "revenue", total - vat),
             ("Extourne TVA", "liability", vat),
         ]
     } else {
-        [
+        vec![
             ("Créance client", "asset", total),
             ("Produit facturé", "revenue", -(total - vat)),
-            ("TVA due", "liability", -vat),
+            (
+                if received {
+                    crate::customer_credit_recovery_vat::DEFERRED
+                } else {
+                    "TVA due"
+                },
+                "liability",
+                -vat,
+            ),
         ]
     };
+    let mut expected = expected;
+    if received && credit {
+        expected.pop();
+        let mut tax = 0;
+        for line in &lines {
+            if matches!(
+                field(line, "memo").as_str(),
+                "Extourne TVA à régulariser" | "Extourne TVA due encaissée"
+            ) {
+                let amount = i128::from(cents(line, "debit_cents"));
+                tax += amount;
+                expected.push((
+                    if line["memo"] == "Extourne TVA à régulariser" {
+                        "Extourne TVA à régulariser"
+                    } else {
+                        "Extourne TVA due encaissée"
+                    },
+                    "liability",
+                    amount,
+                ));
+            }
+        }
+        if tax != vat {
+            return Err(fail());
+        }
+    }
     let mut seen = BTreeSet::new();
     for line in &lines {
         let memo = field(line, "memo");
@@ -239,7 +278,7 @@ fn eligibility(
     source: &Value,
     invoice: &Value,
     credits: &[Value],
-) -> AppResult<()> {
+) -> AppResult<bool> {
     let enabled: bool = tx.query_row(
         "SELECT COALESCE((SELECT enabled FROM accounting_settings WHERE id=1),0)",
         [],
@@ -250,13 +289,14 @@ fn eligibility(
             "Activez la comptabilité et comptabilisez les documents avant leur reprise.",
         ));
     }
-    let received:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received' AND COALESCE(effective_to,'9999-12-31')>=?)",[field(invoice,"issue_date")],|r|r.get(0))?;
-    if received {
-        return Err(invalid("Ces avoirs concernent la TVA à l’encaissement ou un changement de méthode. Le rapprochement de leur TVA historique doit être documenté avant la reprise ; ce parcours n’est pas encore disponible."));
+    let received:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received' AND effective_from<=? AND effective_to IS NULL)",[field(invoice,"issue_date")],|r|r.get(0))?;
+    let mixed:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE COALESCE(effective_to,'9999-12-31')>=? AND (form_of_reporting='received')<>?)",params![field(invoice,"issue_date"),received],|r|r.get(0))?;
+    if mixed {
+        return Err(invalid("Le dossier traverse un changement de méthode TVA. Rapprochez les périodes de transition avant cette reprise."));
     }
     for doc in std::iter::once(invoice).chain(credits) {
         ensure_accounting_date_open(tx, &field(doc, "issue_date"))?;
-        validate_issue_journal(tx, doc)?;
+        validate_issue_journal(tx, doc, received)?;
         if doc["client_id"] != invoice["client_id"] || doc["currency"] != invoice["currency"] {
             return Err(invalid(
                 "Les avoirs doivent appartenir au client et à la devise de leur facture.",
@@ -277,15 +317,26 @@ fn eligibility(
     if !source["settlements"].as_array().is_some_and(Vec::is_empty) {
         return Err(invalid("La facture comporte déjà des règlements datés. Leur ventilation doit être rapprochée avec les avoirs historiques avant cette reprise."));
     }
-    Ok(())
+    if received {
+        if cents(invoice, "vat_cents") <= 0 {
+            return Err(invalid("La reprise TVA reçue exige une facture taxable avec un journal de TVA à régulariser."));
+        }
+        if !crate::accounting::cash_vat_invoice_is_consistent(tx, &field(invoice, "id"))? {
+            return Err(invalid("La TVA historique ne concorde pas avec les écritures émises. Rapprochez ces écritures avant la reprise."));
+        }
+        for payment in source["payments"].as_array().into_iter().flatten() {
+            ensure_accounting_date_open(tx, &field(payment, "date"))?;
+        }
+    }
+    Ok(received)
 }
 
 fn plan(tx: &Transaction<'_>, original: &str) -> AppResult<(Value, Value)> {
     let source = snapshot(tx, original)?;
     let (invoice, credits) = source_documents(&source, original)?;
-    let blocker = eligibility(tx, &source, &invoice, &credits)
-        .err()
-        .map(|error| error.to_string());
+    let eligible = eligibility(tx, &source, &invoice, &credits);
+    let received = matches!(eligible, Ok(true));
+    let blocker = eligible.err().map(|error| error.to_string());
     let paid: i64 = tx.query_row(
         "SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE invoice_id=?",
         [original],
@@ -296,18 +347,24 @@ fn plan(tx: &Transaction<'_>, original: &str) -> AppResult<(Value, Value)> {
         [original],
         |r| r.get(0),
     )?;
-    let credit_rows:Vec<_>=credits.iter().map(|credit|json!({"id":credit["id"],"number":credit["number"],"total_cents":-cents(credit,"total_cents"),"issue_date":credit["issue_date"],"earliest_application_date":earliest.clone().max(field(credit,"issue_date"))})).collect();
-    let result = json!({"source_token":token(&source)?,"original_invoice_id":original,"number":invoice["number"],"currency":invoice["currency"],"invoice_total_cents":invoice["total_cents"],"paid_cents":paid,"credits":credit_rows,"blocker":blocker});
+    let credit_rows:Vec<_>=credits.iter().map(|credit|json!({"id":credit["id"],"number":credit["number"],"total_cents":-cents(credit,"total_cents"),"issue_date":credit["issue_date"],"earliest_application_date":if received {field(credit,"issue_date")} else {earliest.clone().max(field(credit,"issue_date"))}})).collect();
+    let result = json!({"received_vat":received,"source_token":token(&source)?,"original_invoice_id":original,"number":invoice["number"],"currency":invoice["currency"],"invoice_total_cents":invoice["total_cents"],"paid_cents":paid,"credits":credit_rows,"blocker":blocker});
     Ok((source, result))
 }
 
-fn perform(tx: &Transaction<'_>, input: &RecoveryInput) -> AppResult<Value> {
+fn perform(tx: &Transaction<'_>, input: &RecoveryInput, preview: bool) -> AppResult<Value> {
     let source = snapshot(tx, &input.original_invoice_id)?;
     if token(&source)? != input.source_token {
         return Err(invalid("Le dossier a changé depuis son ouverture. Actualisez la reprise et vérifiez les nouveaux montants."));
     }
     let (invoice, credits) = source_documents(&source, &input.original_invoice_id)?;
-    eligibility(tx, &source, &invoice, &credits)?;
+    let received = eligibility(tx, &source, &invoice, &credits)?;
+    if received && !preview && !input.confirm_vat_reconciliation {
+        return Err(invalid(
+            "Vérifiez et confirmez les corrections de TVA de la reprise avant leur enregistrement.",
+        ));
+    }
+    let id = Uuid::new_v4().to_string();
     let expected: BTreeSet<_> = credits.iter().map(|c| field(c, "id")).collect();
     let provided: BTreeSet<_> = input
         .credits
@@ -321,6 +378,9 @@ fn perform(tx: &Transaction<'_>, input: &RecoveryInput) -> AppResult<Value> {
     }
     for credit in &credits {
         tx.execute("INSERT INTO customer_credit_documents(credit_note_id,model,created_at) VALUES(?,'dated_v1',?)",params![field(credit,"id"),now_iso()])?;
+    }
+    if received {
+        crate::customer_credit_recovery_vat::begin(tx, &id, &input.original_invoice_id, &credits)?;
     }
     let mut sorted = input.credits.clone();
     sorted.sort_by(|a, b| {
@@ -339,7 +399,20 @@ fn perform(tx: &Transaction<'_>, input: &RecoveryInput) -> AppResult<Value> {
                 .application_date
                 .clone()
                 .ok_or_else(|| invalid("Renseignez la date effective de chaque déduction."))?;
-            record(
+            if received {
+                crate::customer_credit_recovery_vat::payments_through(
+                    tx,
+                    &id,
+                    &input.original_invoice_id,
+                    &date,
+                )?;
+            }
+            let settlement = if received {
+                crate::customer_credit_settlements::record_recovery
+            } else {
+                record
+            };
+            settlement(
                 tx,
                 CustomerCreditSettlementInput {
                     request_id: Uuid::new_v4().to_string(),
@@ -357,12 +430,39 @@ fn perform(tx: &Transaction<'_>, input: &RecoveryInput) -> AppResult<Value> {
             )?;
         }
     }
+    if received {
+        crate::customer_credit_recovery_vat::payments_through(
+            tx,
+            &id,
+            &input.original_invoice_id,
+            "9999-12-31",
+        )?;
+    }
     refresh_invoice_payment_state(tx, &input.original_invoice_id)?;
     crate::reminders::cancel_settled_reminders(tx, &input.original_invoice_id)?;
     let remaining = project(tx, &input.original_invoice_id, "9999-12-31")?.remaining()?;
     let balances=query_all(tx,"SELECT b.*,i.number FROM customer_credit_balances b JOIN invoices i ON i.id=b.credit_note_id WHERE i.original_invoice_id=? ORDER BY b.credit_note_id",[&input.original_invoice_id])?;
-    let result = json!({"original_invoice_id":input.original_invoice_id,"number":invoice["number"],"currency":invoice["currency"],"invoice_remaining_cents":remaining,"credits":balances,"bank_movement_cents":0,"vat_change_cents":0});
-    let id = Uuid::new_v4().to_string();
+    let mut adjustments=query_all(tx,"SELECT p.source_type,p.source_id,p.date,p.expected_vat_cents,p.due_change_cents,COALESCE(i.number,'Encaissement') AS reference FROM customer_credit_recovery_postings p LEFT JOIN invoices i ON p.source_type='credit' AND i.id=p.source_id WHERE p.recovery_id=? ORDER BY p.date,p.source_type,p.source_id",[&id])?;
+    if received {
+        adjustments.extend(query_all(tx,"SELECT 'application' AS source_type,e.id AS source_id,e.date,COALESCE((SELECT SUM(vat_cents) FROM customer_credit_settlement_lines WHERE settlement_id=e.id AND side='credit'),0) AS expected_vat_cents,COALESCE(SUM(CASE l.memo WHEN 'TVA due sur encaissement' THEN l.credit_cents-l.debit_cents WHEN 'Réduction TVA due sur règlement de l’avoir' THEN l.credit_cents-l.debit_cents ELSE 0 END),0) AS due_change_cents,c.number AS reference FROM customer_credit_settlements e JOIN invoices c ON c.id=e.credit_note_id JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id JOIN journal_lines l ON l.journal_entry_id=p.journal_entry_id WHERE e.invoice_id=? GROUP BY e.id ORDER BY e.date,e.sequence",[&input.original_invoice_id])?);
+        adjustments.sort_by(|a, b| {
+            (
+                field(a, "date"),
+                field(a, "source_type"),
+                field(a, "source_id"),
+            )
+                .cmp(&(
+                    field(b, "date"),
+                    field(b, "source_type"),
+                    field(b, "source_id"),
+                ))
+        });
+    }
+    let vat_change = adjustments
+        .iter()
+        .map(|a| cents(a, "due_change_cents"))
+        .sum::<i64>();
+    let result = json!({"received_vat":received,"vat_adjustments":adjustments,"original_invoice_id":input.original_invoice_id,"number":invoice["number"],"currency":invoice["currency"],"invoice_remaining_cents":remaining,"credits":balances,"bank_movement_cents":0,"vat_change_cents":vat_change});
     tx.execute("INSERT INTO customer_credit_recoveries(id,request_id,original_invoice_id,request_json,source_json,result_json,created_at) VALUES(?,?,?,?,?,?,?)",params![id,input.request_id,input.original_invoice_id,serde_json::to_string(input)?,serde_json::to_string(&source)?,serde_json::to_string(&result)?,now_iso()])?;
     append_audit(
         tx,
@@ -388,7 +488,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let result = perform(&tx, &input)?;
+        let result = perform(&tx, &input, true)?;
         tx.rollback()?;
         Ok(result)
     }
@@ -405,7 +505,8 @@ impl LocalStore {
             }
             return Ok(json!({"idempotent":true,"result":serde_json::from_str::<Value>(&result)?}));
         }
-        let result = perform(&tx, &input)?;
+        let result = perform(&tx, &input, false)?;
+        crate::customer_credit_recovery_vat::ensure_proof(&tx, &input.original_invoice_id)?;
         tx.commit()?;
         Ok(json!({"idempotent":false,"result":result}))
     }

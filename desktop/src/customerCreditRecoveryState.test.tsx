@@ -10,6 +10,27 @@ const pending:PendingCreditRecovery={input:{requestId:'12211111-1111-4111-8111-1
 function storage(){const map=new Map<string,string>();vi.stubGlobal('localStorage',{getItem:(key:string)=>map.get(key)??null,setItem:(key:string,value:string)=>map.set(key,value),removeItem:(key:string)=>map.delete(key)});return map;}
 afterEach(()=>{invokeMock.mockReset();vi.unstubAllGlobals();});
 describe('reprise documentée des avoirs',()=>{
+  it('conserve la protection des pièces originales dans le journal',async()=>{
+    invokeMock.mockResolvedValue({entries:[{id:'j1',source_type:'invoice',customer_recovery_protected:1}],lines:[],currency:'CHF'});
+    const journal=await desktopApi.getJournal({});expect(journal.entries[0].customerRecoveryProtected).toBe(true);
+  });
+  it('conserve les corrections reçues et exige leur confirmation pour reprendre une demande',()=>{
+    storage();const received={...pending,input:{...pending.input,confirmVatReconciliation:true},preview:{...pending.preview,receivedVat:true,vatAdjustments:[{sourceType:'payment',sourceId:'p1',date:'2026-04-01',reference:'Encaissement',expectedVatCents:224,dueChangeCents:-1}]}};
+    saveCreditRecovery(received);expect(readCreditRecovery('invoice')).toEqual(received);
+    const html=renderToStaticMarkup(<CustomerCreditRecovery originalInvoiceId="invoice" busy={false} readOnly act={vi.fn()}/>);
+    expect(html).toContain('TVA sur encaissements');expect(html).toContain('checked');expect(html).toContain('décompte rectificatif');expect(html).toContain('Encaissement');
+    saveCreditRecovery({...received,input:{...received.input,confirmVatReconciliation:false}});expect(readCreditRecovery('invoice')).toBeUndefined();
+  });
+  it('transmet la confirmation TVA et conserve le détail des écarts signés',async()=>{
+    invokeMock.mockResolvedValue({original_invoice_id:'invoice',received_vat:true,vat_adjustments:[{source_type:'payment',source_id:'p1',date:'2026-04-01',reference:'Encaissement',expected_vat_cents:224,due_change_cents:-1}],credits:[]});
+    const result=await desktopApi.previewCustomerCreditRecovery({...pending.input,confirmVatReconciliation:true});
+    expect(result.receivedVat).toBe(true);expect(result.vatAdjustments?.[0].dueChangeCents).toBe(-1);
+    expect(invokeMock.mock.calls[0][1].input.confirm_vat_reconciliation).toBe(true);
+  });
+  it('permet de consulter les corrections après la reprise du dossier',async()=>{
+    invokeMock.mockImplementation(async(command:string)=>command==='get_app_state'?{onboarding_completed:true}:{invoices:[{id:'credit',type:'avoir',original_invoice_id:'invoice'}],customer_credit_recoveries:[{request_json:JSON.stringify({reference:'Accord',reason:'TVA rapprochée',credits:[{credit_note_id:'credit'}]}),result_json:JSON.stringify({received_vat:true,vat_adjustments:[{date:'2026-04-01',reference:'Encaissement',due_change_cents:-1}]})}]});
+    const workspace=await desktopApi.loadWorkspace();expect(workspace.invoices[0].creditRecovery?.vatAdjustments).toEqual([{date:'2026-04-01',reference:'Encaissement',dueChangeCents:-1}]);
+  });
   it('rattache la preuve aux seuls avoirs concernés et tolère une note illisible',async()=>{
     invokeMock.mockImplementation(async(command:string)=>command==='get_app_state'?{onboarding_completed:true}:{invoices:[{id:'credit',type:'avoir',original_invoice_id:'invoice'},{id:'other',type:'avoir'}],customer_credit_recoveries:[{request_json:'{'},{created_at:'2026-09-06T10:00:00Z',request_json:JSON.stringify({reference:'Accord client',reason:'Déduction confirmée',credits:[{credit_note_id:'credit'}]})}]});
     const workspace=await desktopApi.loadWorkspace();

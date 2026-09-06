@@ -15,7 +15,7 @@ pub(super) fn load_sources(
     to: &str,
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
-    let mut statement = connection.prepare("SELECT i.id,i.type='avoir',i.number FROM invoices i WHERE i.number IS NOT NULL AND i.status NOT IN ('brouillon','annulee') AND EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE (e.credit_note_id=i.id OR e.invoice_id=i.id) AND e.date<=?2) AND (EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE (e.credit_note_id=i.id OR e.invoice_id=i.id) AND e.date BETWEEN ?1 AND ?2) OR EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id=i.id AND p.date BETWEEN ?1 AND ?2)) ORDER BY i.id")?;
+    let mut statement = connection.prepare("SELECT i.id,i.type='avoir',i.number FROM invoices i WHERE i.number IS NOT NULL AND i.status NOT IN ('brouillon','annulee') AND (EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE (e.credit_note_id=i.id OR e.invoice_id=i.id) AND e.date<=?2) OR EXISTS(SELECT 1 FROM customer_credit_recovery_tax_models r WHERE r.original_invoice_id=i.id)) AND (EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE (e.credit_note_id=i.id OR e.invoice_id=i.id) AND e.date BETWEEN ?1 AND ?2) OR EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id=i.id AND p.date BETWEEN ?1 AND ?2)) ORDER BY i.id")?;
     let documents = statement
         .query_map(params![from, to], |r| {
             Ok((
@@ -27,6 +27,9 @@ pub(super) fn load_sources(
         .collect::<Result<Vec<_>, _>>()?;
     let mut sources = Vec::new();
     for (id, credit, reference) in documents {
+        if let Err(error)=crate::customer_credit_recovery_vat::ensure_proof(connection,&id) {
+            push_issue(issues,"customer_credit_recovery_posting_mismatch",format!("La reprise de {reference} exige une preuve TVA concordante : {error}"),Some("invoice_item".into()),Some(id));continue;
+        }
         let projection = match project(connection, &id, to) {
             Ok(value) => value,
             Err(error) => {
