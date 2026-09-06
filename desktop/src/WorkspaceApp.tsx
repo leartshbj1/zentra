@@ -5,6 +5,7 @@ import {
   lazy,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -94,6 +95,7 @@ import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import { assessPayrollPaymentDate } from './payrollPaymentDate';
 import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
 import { DocumentEditor } from './DocumentEditor';
+import { DocumentPreviewFrame } from './DocumentPreviewFrame';
 import { QuoteConversionModal } from './QuoteConversionModal';
 import { PairedInvoiceEditor, QuoteInvoiceFolder } from './QuoteInvoiceFolder';
 import {
@@ -468,6 +470,9 @@ export function WorkspaceApp({
   const guidedTour = useGuidedTour();
   const sidebarHidden = compactSidebarHidden(compactNavigation, menuOpen);
   const navigationRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [view]);
   useEffect(() => {
     const navigation = navigationRef.current;
     if (!navigation || sidebarHidden) return;
@@ -1367,7 +1372,7 @@ export function WorkspaceApp({
   );
 
   return (
-    <div className="desktop-app">
+    <div className="desktop-app" data-view={view}>
       <aside
         id="primary-navigation"
         className={`sidebar ${menuOpen ? 'is-open' : ''}`}
@@ -1598,7 +1603,7 @@ export function WorkspaceApp({
           </div>
         ) : null}
 
-        <section className="page-content" key={view}>
+        <section className="page-content" key={view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -1894,7 +1899,7 @@ export function WorkspaceApp({
                 });
               }}
               onPrint={(item) =>
-                item.type === 'credit_note'
+                item.type === 'credit_note' || item.status === 'draft'
                   ? setPrintTarget({ entity: 'invoices', value: item })
                   : setModal({ type: 'qrPrint', invoice: item })
               }
@@ -2463,7 +2468,7 @@ function MetricCard({
       <div className="metric-card__icon">{icon}</div>
       <div>
         <span>{label}</span>
-        <strong>{value}</strong>
+        <strong className={value.includes(' · ') ? 'metric-card__multiple' : undefined}>{value.split(' · ').map((part, index) => <b key={index}>{part}</b>)}</strong>
         <small>{note}</small>
       </div>
     </article>
@@ -3474,17 +3479,16 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         )}
                         </>
                       ) : null}
-                      {quote.status !== 'draft' ? (
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="secondary"
+                          size="small"
+                          className="document-preview-action"
                           onClick={() => props.onPrint(quote)}
-                          title="Imprimer"
-                          aria-label={`Imprimer le devis ${quote.number || quote.title}`}
+                          title="Aperçu et export PDF"
+                          aria-label={`Aperçu du devis ${quote.number || quote.title}`}
                         >
-                          <Printer size={15} />
+                          <Eye size={16} /> Aperçu
                         </Button>
-                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -3764,20 +3768,20 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         <Banknote size={16} />
                       </Button>
                     ) : null}
-                    {item.status !== 'draft' ? (
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="secondary"
+                        size="small"
+                        className="document-preview-action"
                         onClick={() =>
                           entity === 'quotes'
                             ? props.onPrint(item as Quote)
                             : props.onPrint(item as Invoice)
                         }
-                        title="Imprimer"
+                        title="Aperçu et export PDF"
+                        aria-label={`Aperçu de ${item.number || item.title}`}
                       >
-                        <Printer size={15} />
+                        <Eye size={16} /> Aperçu
                       </Button>
-                    ) : null}
                     {entity === 'invoices' &&
                     item.status !== 'draft' &&
                     item.status !== 'cancelled' ? (
@@ -8692,9 +8696,7 @@ function PrintSheet({
   const isQuote = true;
   const due = document.validUntil;
   return (
-    <div className="print-preview">
-      <div className="print-preview__toolbar">
-        <strong>Aperçu d’impression</strong>
+    <DocumentPreviewFrame title="Devis" number={document.number} customer={client?.company || client?.name || ''} total={formatMoney(totals.totalCents, document.currency)} finalDocument={source.status !== 'draft'} onClose={onClose} actions={
         <SalesPdfExportControl
           entity="quotes"
           documentId={source.id}
@@ -8702,12 +8704,9 @@ function PrintSheet({
             'quotes',
             document.number,
           )}
-          idleMessage="PDF local A4 déterministe · vérifiez les informations avant export."
+          idleMessage="L’export PDF applique la pagination A4. Vérifiez les informations avant de l’envoyer."
         />
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X size={18} />
-        </Button>
-      </div>
+      }>
       <article className="print-sheet">
         <PrintHeader
           settings={settings}
@@ -8749,21 +8748,21 @@ function PrintSheet({
           <tbody>
             {document.lines.map((line) => (
               <tr key={line.id}>
-                <td>{line.description}</td>
-                <td>{line.quantity.toLocaleString('fr-CH')}</td>
-                <td>{line.unit}</td>
-                <td>{formatMoney(line.unitPriceCents, document.currency)}</td>
-                <td>
+                <td data-label="Description">{line.description}</td>
+                <td data-label="Quantité">{line.quantity.toLocaleString('fr-CH')}</td>
+                <td data-label="Unité">{line.unit}</td>
+                <td data-label="Prix unitaire">{formatMoney(line.unitPriceCents, document.currency)}</td>
+                <td data-label="Remise">
                   {line.discountBp
                     ? `${(line.discountBp / 100).toLocaleString('fr-CH')} %`
                     : '—'}
                 </td>
-                <td>
+                <td data-label="TVA">
                   {settings.organization.vatRegistered
                     ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %`
                     : '—'}
                 </td>
-                <td>{formatMoney(documentLineTotals(line).netCents, document.currency)}</td>
+                <td data-label="Total net">{formatMoney(documentLineTotals(line).netCents, document.currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -8801,7 +8800,7 @@ function PrintSheet({
           </p>
         </footer>
       </article>
-    </div>
+    </DocumentPreviewFrame>
   );
 }
 
@@ -9250,16 +9249,14 @@ function InvoicePrintSheet({
       ? formatDate(invoice.serviceDateFrom)
       : `${formatDate(invoice.serviceDateFrom)} → ${formatDate(invoice.serviceDateTo)}`;
   const exportDescription = sourceInvoice.snapshot
-    ? `Document figé le ${formatDateTime(sourceInvoice.snapshot.capturedAt)} · pagination A4 automatique.`
+    ? `Document final du ${formatDateTime(sourceInvoice.snapshot.capturedAt)}. Export PDF au format A4.`
     : qr
-      ? 'QR-facture validée localement · pagination A4 automatique.'
+      ? 'QR-facture vérifiée. Export PDF au format A4.'
       : invoice.type === 'credit_note'
-        ? 'Avoir sans section de paiement · pagination A4 automatique.'
-        : 'Facture sans section QR · pagination A4 automatique.';
+        ? 'Avoir sans section de paiement. Export PDF au format A4.'
+        : 'Facture sans section QR. Export PDF au format A4.';
   return (
-    <div className="print-preview">
-      <div className="print-preview__toolbar">
-        <strong>Aperçu d’impression</strong>
+    <DocumentPreviewFrame title={invoice.type === 'credit_note' ? 'Avoir' : invoice.type === 'deposit' ? 'Facture d’acompte' : 'Facture'} number={invoice.number} customer={client?.company || client?.name || ''} total={formatMoney(totals.totalCents, invoice.currency)} finalDocument={sourceInvoice.status !== 'draft'} onClose={onClose} actions={
         <SalesPdfExportControl
           entity="invoices"
           documentId={sourceInvoice.id}
@@ -9270,10 +9267,7 @@ function InvoicePrintSheet({
           )}
           idleMessage={exportDescription}
         />
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X size={18} />
-        </Button>
-      </div>
+      }>
       <article className={`print-sheet ${qr ? 'print-sheet--qr' : ''}`}>
         <div className="print-invoice-body">
           <PrintHeader
@@ -9341,21 +9335,21 @@ function InvoicePrintSheet({
             <tbody>
               {invoice.lines.map((line) => (
                 <tr key={line.id}>
-                  <td>{line.description}</td>
-                  <td>{line.quantity.toLocaleString('fr-CH')}</td>
-                  <td>{line.unit}</td>
-                  <td>{formatMoney(line.unitPriceCents, invoice.currency)}</td>
-                  <td>
+                  <td data-label="Description">{line.description}</td>
+                  <td data-label="Quantité">{line.quantity.toLocaleString('fr-CH')}</td>
+                  <td data-label="Unité">{line.unit}</td>
+                  <td data-label="Prix unitaire">{formatMoney(line.unitPriceCents, invoice.currency)}</td>
+                  <td data-label="Remise">
                     {line.discountBp
                       ? `${(line.discountBp / 100).toLocaleString('fr-CH')} %`
                       : '—'}
                   </td>
-                  <td>
+                  <td data-label="TVA">
                     {settings.organization.vatRegistered
                       ? `${(line.vatRateBp / 100).toLocaleString('fr-CH')} %`
                       : 'Sans TVA'}
                   </td>
-                  <td>{formatMoney(documentLineTotals(line).netCents, invoice.currency)}</td>
+                  <td data-label="Total net">{formatMoney(documentLineTotals(line).netCents, invoice.currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -9415,7 +9409,7 @@ function InvoicePrintSheet({
         </div>
         {qr ? <SwissQrPaymentSection input={qr.input} payload={qr} /> : null}
       </article>
-    </div>
+    </DocumentPreviewFrame>
   );
 }
 

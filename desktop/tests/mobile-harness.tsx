@@ -1,5 +1,6 @@
 import { installExpenseJournalFixture } from './expense-journal-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
+import { installDesignFixture } from './design-fixture';
 import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
@@ -29,6 +30,7 @@ import { installCreditSettlementFixture } from './credit-settlement-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
+import '../src/experience.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
 let data = {
@@ -119,6 +121,7 @@ if (new URLSearchParams(location.search).has('creditDates')) installCreditSettle
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);
 if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
+if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

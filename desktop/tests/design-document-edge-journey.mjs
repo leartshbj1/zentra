@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+const { chromium } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const out = fileURLToPath(new URL('../../.qa/design-experience', import.meta.url));
+await mkdir(out, { recursive: true });
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = [];
+try {
+  for (const width of [320, 390, 768, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 940 }, hasTouch: width < 800 });
+    const errors = []; page.on('pageerror', err => errors.push(err.message));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&designQr=1&readOnly=1`);
+    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
+    if (await tour.isVisible()) await tour.click();
+    await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Factures');
+    await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Factures', { exact: true }) }).click();
+    await page.getByRole('button', { name: 'Aperçu de F-DEMO-2026-0042', exact: true }).click();
+    await page.getByRole('button', { name: 'Ouvrir l’aperçu figé', exact: true }).click();
+    const frame = page.locator('.document-preview');
+    await frame.waitFor();
+    assert.equal(await frame.locator('.print-table tbody tr').count(), 24);
+    await frame.getByRole('button', { name: 'Lecture', exact: true }).click();
+    assert.ok(await frame.locator('.document-preview__viewport').evaluate(el => el.scrollWidth <= el.clientWidth + 1));
+    assert.ok(await frame.locator('.print-invoice-body').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'all 24 lines must fit the document body');
+    await frame.locator('.qr-payment').scrollIntoViewIfNeeded();
+    assert.ok(await frame.locator('.qr-payment').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'payment details must not be clipped');
+    assert.ok(await frame.locator('.qr-code-wrap svg').isVisible());
+    await page.screenshot({ path: `${out}/${width}-qr-reading.png` });
+    await frame.getByRole('button', { name: 'Mise en page', exact: true }).click();
+    assert.ok(await frame.locator('.print-invoice-body').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'page view must retain all lines');
+    await frame.locator('.swiss-qr-section').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${out}/${width}-qr-page.png` });
+    await page.emulateMedia({ media: 'print' });
+    assert.equal(await frame.locator('.document-preview__paper').evaluate(el => getComputedStyle(el).transform), 'none', 'screen zoom must not change printed document size');
+    await page.emulateMedia({ media: 'screen' });
+    await frame.getByRole('button', { name: 'Lecture', exact: true }).click();
+    await page.evaluate(() => { document.documentElement.style.fontSize = '32px'; });
+    assert.ok(await frame.locator('.document-preview__viewport').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'enlarged text overflow');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await frame.getByRole('button', { name: 'Exporter le PDF' }).click();
+    await frame.getByRole('status').filter({ hasText: 'enregistré' }).waitFor();
+    await page.keyboard.press('Escape');
+    await frame.waitFor({ state: 'detached' });
+    assert.deepEqual(errors, []);
+    report.push({ width, readOnly: true, lines: 24, qrUnclipped: true, printScaleReset: true, textEnlargement: true });
+    await page.close();
+  }
+} finally { await browser.close(); await writeFile(`${out}/edge-report.json`, JSON.stringify(report, null, 2)); }
+console.log(JSON.stringify(report));

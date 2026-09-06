@@ -17,6 +17,20 @@
 .quote-invoice-folder__lines li { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid var(--line); }
 .quote-invoice-folder__lines span { overflow-wrap: anywhere; min-width: 0; }
 .quote-invoice-folder__lines strong { white-space: nowrap; }
+@media screen {
+  .quote-invoice-folder__totals { background: #f3f7f4; border-color: #dce6df; border-radius: 16px; padding: 20px; }
+  .quote-invoice-folder__totals strong { font-size: 21px; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+  .quote-invoice-folder__document { background: #173c2e; color: white; border: 0; border-radius: 16px; padding: 20px; }
+  .quote-invoice-folder__document small { color: #d0e1d6; }
+  .quote-invoice-folder__invoices { position: relative; padding-top: 16px; gap: 20px; }
+  .quote-invoice-folder__invoices::before { content: ''; position: absolute; width: 1px; height: 16px; background: #b7cfc0; top: 0; left: 50%; }
+  .quote-invoice-folder__invoices article { background: #fff; border-radius: 16px; border-top: 3px solid #34664d; box-shadow: 0 4px 20px #173d2c06; }
+  .quote-invoice-folder__invoices article:nth-child(2) { border-top-color: #e79b2f; }
+  .quote-invoice-folder__invoices article > svg { color: #34664d; }
+  .quote-invoice-folder__invoices h3 { font-size: 19px; letter-spacing: -.025em; }
+  .quote-invoice-folder__invoices p { color: #5b7065; line-height: 1.55; }
+  .quote-invoice-folder__amount { font-size: 28px; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+}
 @media (max-width: 600px) {
   .quote-invoice-folder__invoices, .quote-invoice-folder__totals { grid-template-columns: 1fr; }
   .quote-invoice-folder__totals div { grid-template-columns: 1fr auto; gap: .8rem; align-items: center; }
