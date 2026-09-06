@@ -1,6 +1,6 @@
 # Zentra 1.38 — avoirs clients et continuité bancaire
 
-Version en préparation. La version publique reste 1.37.0 tant que les paquets et leurs mises à jour ne sont pas vérifiés et publiés.
+Version publiée et vérifiée le 6 septembre 2026. Les installateurs Windows/macOS et les préversions mobiles sont disponibles sur la [page de téléchargement](https://elyko.alb-leart1.chatgpt.site/download) et la [publication GitHub 1.38](https://github.com/leartshbj1/zentra/releases/tag/v1.38.0). Le canal de mise à jour annonce 1.38.0.
 
 Cette version ajoute les règlements datés des avoirs clients : imputation sur une facture, remboursement, correction motivée, solde disponible et justificatifs classés dans le projet. Les écritures et la TVA sont contrôlées avec les événements d’origine. La reprise des avoirs historiques compatibles conserve leurs pièces et demande leurs dates réelles ; les historiques nécessitant un rapprochement spécialisé restent explicitement bloqués.
 
@@ -10,7 +10,7 @@ La présentation conserve les verts et les accents ambrés. Les raccourcis d’a
 
 Le schéma local passe de 52 à 57 par migrations additives. Les nouveaux registres et justificatifs sont conservés dans les sauvegardes et les exports ; les preuves des exercices clôturés restent figées. La mise à jour ne synchronise pas les données entre appareils.
 
-## Vérification avant publication
+## Vérifications de la publication
 
 - Source fonctionnelle : 726 tests UI réussis ; 606 tests natifs réussis et un contrôle HTTPS déjà ignoré dans la suite générale ; 10 scénarios bancaires ciblés réussis après ajout du dernier contrôle de clôture. Clippy toutes cibles et construction TypeScript/Vite réussis.
 - Parcours Edge et WebKit avec données de test à 320, 390 et 1440 px : justificatif facultatif, reprise après rechargement, rapprochement, dissociation, lecture seule et stockage indisponible. Les aperçus de documents disposent également de parcours dédiés, décrits dans `DESIGN-EXPERIENCE-2026-09-06.md`.
@@ -19,6 +19,6 @@ Le schéma local passe de 52 à 57 par migrations additives. Les nouveaux regist
 - iOS : archive ARM64 pour simulateur contrôlée ; démarrage à froid, relance de l'application et redémarrage du simulateur réussis, avec identité inchangée, base intègre et captures d'écran examinées.
 - Source des paquets : `2c18257cf3a167fe6e27111bd04313b60c3398c0`. Les diagnostics Android supplémentaires utilisent `e73aa41a0b1cbac628a852eb4ce295e0f4268978` ; seules les instructions de test et leur script diffèrent, le code distribué reste identique.
 - macOS : 726 tests UI et 608 tests natifs réussis (un ignoré), Clippy réussi. Le paquet universel Intel/Apple Silicon et son démarrage natif avec une base intègre au schéma 57 sont vérifiés ; aucune recette interactive complète sur Mac n'est revendiquée.
-- À établir : publication et contrôle des fichiers distribués, du canal de mise à jour et de la page de téléchargement.
+- Distribution : douze fichiers du stockage public et douze pièces de la publication GitHub correspondent aux fichiers validés. Les téléchargements mobiles anonymes ont également été comparés octet pour octet par empreinte. La page publique passe les contrôles à 320, 390, 768 et 1440 px, avec menus et liens corrects. La recherche de mise à jour dans le binaire Windows reconnaît le canal public 1.38.0. La page publiée utilise `01decf86e302d8fae1f14873e4855f0fe2196f52` (version Sites 57).
 
 Android demeure une préversion APK et iOS une archive pour simulateur. Une compilation mobile ne constitue ni une publication App Store/Google Play ni une recette sur téléphone physique. Les signatures du canal de mise à jour sont distinctes d’Authenticode et de la notarisation Apple.

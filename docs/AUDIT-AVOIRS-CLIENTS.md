@@ -1,10 +1,10 @@
 # Avoirs clients — audit en cours
 
-## État consolidé pour le lot 1.38 en préparation
+## État consolidé pour le lot 1.38 publié
 
-Le code au schéma 57 comprend les règlements datés, leurs justificatifs, les reprises compatibles en TVA convenue et reçue, ainsi que le rapprochement des débits bancaires avec les remboursements clients. Le parcours bancaire inclut la dissociation administrative et la reprise après interruption avec le fichier d'origine ; voir `REMBOURSEMENTS-CLIENTS-BANQUE.md`. Ces fonctionnalités sont vérifiées dans le code et font partie du lot 1.38 en cours de préparation. Elles ne sont pas attribuées à la version publique 1.37.
+Le code au schéma 57 comprend les règlements datés, leurs justificatifs, les reprises compatibles en TVA convenue et reçue, ainsi que le rapprochement des débits bancaires avec les remboursements clients. Le parcours bancaire inclut la dissociation administrative et la reprise après interruption avec le fichier d'origine ; voir `REMBOURSEMENTS-CLIENTS-BANQUE.md`. Ces fonctionnalités sont vérifiées dans le code et font partie du lot 1.38 publié et vérifié le 6 septembre 2026. Elles ne sont pas attribuées à la version publique 1.37.
 
-Les sections suivantes conservent les étapes de l'audit et leurs preuves historiques. Les cas d'anciens avoirs déjà remboursés, imputés ailleurs, appartenant à des exercices clos ou à des historiques fiscaux incompatibles restent soumis à un rapprochement documenté. Le passage au schéma 57 ne leur invente aucune date ni aucun paiement. L'état de distribution et les limites des essais par plateforme figurent dans `RELEASE-1.38.md`.
+Les sections suivantes conservent les étapes de l'audit et leurs preuves historiques ; leurs mentions « non publiée » décrivent leur état au moment de l'implémentation. Les cas d'anciens avoirs déjà remboursés, imputés ailleurs, appartenant à des exercices clos ou à des historiques fiscaux incompatibles restent soumis à un rapprochement documenté. Le passage au schéma 57 ne leur invente aucune date ni aucun paiement. L'état de distribution et les limites des essais par plateforme figurent dans `RELEASE-1.38.md`.
 
 ## Reprise de TVA reçue — source du 6 septembre 2026, non publiée
 
