@@ -347,9 +347,11 @@ fn supplier_refund_migration_from_50_does_not_invent_a_payment() {
         .unwrap();
     drop(connection);
     drop(store);
-    let parent = std::path::Path::new(&path).parent().unwrap();
-    assert!(parent.starts_with(temp.path()));
-    let migrated = LocalStore::initialize(parent.to_path_buf()).unwrap();
+    // SQLite may resolve a platform's temporary-directory aliases in its file path.
+    let parent = std::path::Path::new(&path).parent().unwrap().canonicalize().unwrap();
+    let temporary_root = temp.path().canonicalize().unwrap();
+    assert!(parent.starts_with(temporary_root));
+    let migrated = LocalStore::initialize(parent).unwrap();
     let workspace = migrated.get_workspace().unwrap();
     assert_eq!(
         workspace["supplier_credit_refunds"]
