@@ -32,6 +32,7 @@ import {
   ZENTRA_ANDROID_PREVIEW_PATH,
   ZENTRA_GITHUB_RELEASE_PATH,
   ZENTRA_IOS_PREVIEW_PATH,
+  ZENTRA_IPHONE_IPA_PATH,
   ZENTRA_INSTALLER_CHECKSUM_PATH,
   ZENTRA_INSTALLER_NAME,
   ZENTRA_INSTALLER_SHA256,
@@ -390,13 +391,21 @@ export default function DownloadPage() {
                   </a>
                 </article>
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
-                  <h4 className="font-semibold text-[#263a2e]">iOS — simulateur sur Mac</h4>
+                  <h4 className="font-semibold text-[#263a2e]">iPhone — IPA à signer</h4>
                   <p className="mt-3 text-sm leading-6 text-[#607068]">
-                    Application ARM64 pour le simulateur iOS sur Mac Apple
-                    Silicon. Ce ZIP ne s’installe pas directement sur iPhone.
-                    La distribution sur iPhone attend la validation Apple.
+                    Signez cet IPA avec votre compte Apple dans Sideloadly ou
+                    AltStore pour l’installer sur votre iPhone. Ouvrir le fichier
+                    dans Safari ne suffit pas. Le renouvellement de la signature
+                    dépend de votre compte Apple.
                   </p>
-                  <a href={ZENTRA_IOS_PREVIEW_PATH} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl border border-[#bdcfc2] px-4 py-3 text-center text-sm font-semibold text-[#254333] hover:bg-[#edf4ee] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47] md:mt-auto">
+                  <a href={ZENTRA_IPHONE_IPA_PATH} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]">
+                    Télécharger l’IPA pour iPhone
+                  </a>
+                  <p className="mt-4 text-sm leading-6 text-[#607068]">
+                    Pour les essais sur Mac Apple Silicon, le ZIP du simulateur
+                    ne s’installe pas directement sur iPhone.
+                  </p>
+                  <a href={ZENTRA_IOS_PREVIEW_PATH} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4">
                     Télécharger pour le simulateur iOS
                   </a>
                 </article>
@@ -597,8 +606,8 @@ export default function DownloadPage() {
                   'Aperçus des devis et factures avec sections, progression de lecture, zoom et accès direct aux totaux',
                   'Documents longs et QR de paiement consultables jusqu’au bout, y compris sur les petits écrans',
                   'Remboursements des avoirs clients et fournisseurs, totaux ou partiels, avec leur historique et leurs justificatifs',
-                  'Créez vos devis et factures en quatre étapes, avec une relecture avant enregistrement',
-                  'Une interface plus épurée, des transitions fluides et des commandes adaptées au mobile',
+                  'Retrouvez les dernières créations en premier ou classez vos devis et factures par date',
+                  'Un menu plus lisible et un classement mémorisé, sur ordinateur comme sur mobile',
                   'Le devis, l’acompte et le solde déduit restent reliés au projet, à ses documents et à ses photos',
                   'Justificatifs conservés dans les sauvegardes et indexés dans le dossier comptable',
                   'Recherche des mises à jour après le démarrage et installation signée sur Windows et macOS',
