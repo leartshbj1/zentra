@@ -1383,7 +1383,7 @@ export function WorkspaceApp({
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
             <BrandWordmark />
-            <small>Gestion locale</small>
+            <small>Votre espace de travail</small>
           </div>
           <Button
             variant="ghost"
@@ -1482,7 +1482,7 @@ export function WorkspaceApp({
                 {search ? <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => setSearch('')}><X size={15} /></button> : null}
               </label>
             ) : null}
-            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label="Aller à un écran" title="Aller à un écran (Ctrl / ⌘ K)" onClick={() => setNavigationOpen(true)}><Search size={19} /></Button>
+            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label="Aller à un écran" title="Aller à un écran (Ctrl / ⌘ K)" onClick={() => setNavigationOpen(true)}><Search size={19} /><kbd aria-hidden="true">⌘ / Ctrl K</kbd></Button>
             <Button
               type="button"
               variant="ghost"
@@ -2314,6 +2314,14 @@ function Dashboard({
           tone="violet"
         />
       </div>
+      <section className="activity-shortcuts" aria-label="Activité à suivre">
+        <div className="activity-shortcuts__heading"><span className="eyebrow">À suivre</span><span>{new Intl.DateTimeFormat('fr-CH', { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
+        <div className="activity-shortcuts__items">
+          <button type="button" onClick={() => onNavigate('quotes')}><span className="activity-shortcuts__icon"><FileText size={19} /></span><span><strong>{workspace.quotes.filter(quote => quote.status === 'draft').length}</strong><span>Devis en préparation</span></span><ArrowRight size={17} /></button>
+          <button type="button" onClick={() => onNavigate('invoices')}><span className="activity-shortcuts__icon activity-shortcuts__icon--amber"><Receipt size={19} /></span><span><strong>{workspace.invoices.filter(invoice => invoice.type !== 'credit_note' && ['issued', 'partially_paid'].includes(invoice.status)).length}</strong><span>Factures à encaisser</span></span><ArrowRight size={17} /></button>
+          <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{terminology.pluralTitle} actifs</span></span><ArrowRight size={17} /></button>
+        </div>
+      </section>
       <section className="panel panel--span">
         <SectionHeading
           eyebrow="En cours"

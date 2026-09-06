@@ -2,6 +2,14 @@
 
 Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corriger les erreurs observées et préparer une mise à jour commune. Ce document suit le travail ; il ne constitue pas une déclaration de conformité ni une recette complète de toutes les fonctions.
 
+## 6 septembre — navigation et lecture des documents
+
+Nouvelle évolution du design dans les sources, non distribuée à ce stade : navigation verte avec repère ambre, cartes et formulaires harmonisés, barre mobile flottante et accès directs aux devis en préparation, factures à encaisser et projets actifs. Les compteurs proviennent de l'espace courant. Les entrées de page, onglets, cartes et fenêtres utilisent des animations courtes, sans bibliothèque supplémentaire, désactivées avec la préférence de mouvement réduit.
+
+Les aperçus des devis, factures, acomptes et avoirs disposent d'un sommaire latéral sur ordinateur et horizontal sur mobile. Les sections présentes déterminent les raccourcis ; un document avec QR donne accès au paiement. Le mode lecture présente les prestations en cartes sur téléphone, les totaux sont mis en évidence et les exports restent accessibles en paysage. Le défilement cible uniquement la surface du document, pour conserver l'en-tête et les commandes à l'écran. La progression suit la lecture. La vue A4 garde son zoom et la version imprimée exclut toutes les commandes d'aperçu.
+
+Validation de ce lot : 721 tests d'interface réussis, compilation TypeScript/Vite et `cargo check --locked` réussis. Parcours Edge et WebKit sur 320, 390, 768 et 1440 px : écrans principaux, formulaires, lecture/A4, nouvel essai d'export, focus clavier et mouvement réduit. Recette supplémentaire du sommaire, des raccourcis et de la progression en 320×568, 390×844, 844×390 et 1440×900. Les documents longs et le QR sont contrôlés avec des données synthétiques, séparées du logiciel livré. Ces essais ne remplacent pas la validation des installations et mises à jour sur les appareils physiques.
+
 Dernière publication vérifiée : **1.37.0**, site version 56, le 6 septembre 2026. Voir les [notes et limites de cette version](RELEASE-1.37.md). La refonte ordinateur/mobile, les aperçus de documents et les remboursements d’avoirs fournisseurs avec leurs justificatifs bancaires sont publiés. Le dossier devis/acompte/solde est conservé. Les versions 1.34 et 1.36 restent non publiées. Les règlements datés des avoirs clients et leur TVA reçue restent à compléter ; les sections suivantes conservent la chronologie des lots.
 
 Les corrections locales sur les avoirs clients sont décrites dans [l'audit dédié](AUDIT-AVOIRS-CLIENTS.md) : plafond par taux, taux historiques, règlements et extournes datés, TVA reçue par événement, consultation mobile, justificatifs reliés aux projets et exports vérifiés avec restauration. Ces changements, désormais au schéma 56, ne sont pas inclus dans la version publique 1.37.0.
