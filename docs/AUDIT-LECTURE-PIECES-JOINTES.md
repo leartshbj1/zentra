@@ -21,6 +21,7 @@ Le fichier original reste disponible pour téléchargement ou partage : les octe
 - PDF endommagé et protégé par mot de passe : explication dans la fenêtre, ouverture externe disponible. PDF de 80 pages : première page accessible sans créer 80 surfaces de rendu. PNG réel : décodage vérifié. Image HEIC volontairement invalide : repli explicite.
 - Le téléchargement du PDF est comparé octet par octet à l'original après lecture et nouvel essai. Les boutons mobiles sont testés avec la constante de compilation Android et une ouverture externe simulée.
 - Le même lecteur est également compilé dans une fixture isolée et servi avec la CSP exacte de `tauri.conf.json`. Les parcours Edge/WebKit y vérifient l'absence d'erreur JavaScript et de violation CSP, y compris le chargement du worker PDF.
+- La CI macOS du commit `399d416596e591abe3d40837088ad6f98ebed814` est terminée avec succès : 726 tests UI, 608 tests Rust et un ignoré, application et DMG universels construits. Il s'agit d'un artefact de test avec signature ad hoc, non publié ; aucune interaction native du lecteur n'est déduite de cette compilation.
 
 Les données de recette sont synthétiques. Ces contrôles de navigateur ne prouvent ni le partage natif sur téléphone physique, ni l'intégration de ce lecteur dans un paquet signé ; ces étapes restent à faire pour la prochaine publication. Aucune modification Rust, migration SQLite ou écriture dans les données utilisateur n'est incluse dans ce lot.
 

@@ -6,7 +6,7 @@ Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corr
 
 La dernière publication vérifiée est **1.38.0**, site version 57 ; les preuves et limites sont dans [RELEASE-1.38.md](RELEASE-1.38.md). Elle comprend le design, les aperçus des devis/factures et les règlements datés des avoirs clients au schéma 57, avec leur continuité bancaire.
 
-Le [nouveau lecteur des pièces jointes des projets](AUDIT-LECTURE-PIECES-JOINTES.md) est validé dans les sources suivantes et n'est pas encore distribué. Les sections ci-dessous conservent la chronologie : leurs mentions de travaux en attente décrivent la situation au moment de chaque lot, pas celle de la publication 1.38.
+Le [nouveau lecteur des pièces jointes des projets](AUDIT-LECTURE-PIECES-JOINTES.md) et les [commandes de lecture seule](AUDIT-LECTURE-SEULE-2026-09.md) sont validés dans les sources et regroupés dans la [version 1.39 en préparation](RELEASE-1.39.md). Ils ne sont pas encore distribués. Les sections ci-dessous conservent la chronologie : leurs mentions de travaux en attente décrivent la situation au moment de chaque lot, pas celle de la publication 1.38.
 
 ## 6 septembre — navigation et lecture des documents
 

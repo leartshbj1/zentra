@@ -1,4 +1,6 @@
 /* Screen-only visual system: the exported accounting documents keep their own layout. */
+.form-actions--read-only { flex-wrap: wrap; }
+.form-actions__read-only { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 @media screen {
   :root {
     --surface-app: #f3f6f4;

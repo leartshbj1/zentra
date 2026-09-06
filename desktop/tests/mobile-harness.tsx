@@ -9,6 +9,7 @@ import { installBankCreditRefundFixture } from './bank-credit-refund-fixture';
 import { installBankCustomerRefundFixture } from './bank-customer-refund-fixture';
 import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
+import { installReadOnlyFixture } from './read-only-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -134,11 +135,14 @@ if (new URLSearchParams(location.search).has('customerContinuity')) installCusto
 if (new URLSearchParams(location.search).has('customerRecovery')) installCustomerCreditRecoveryFixture(()=>data);
 if (new URLSearchParams(location.search).has('bankCreditRefund')) installBankCreditRefundFixture(data);
 if (new URLSearchParams(location.search).has('bankCustomerRefund')) installBankCustomerRefundFixture(data);
+if (new URLSearchParams(location.search).has('readOnlyAudit')) { installPayrollFixture(data); installReadOnlyFixture(data); }
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
+  const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
+  if (new URLSearchParams(location.search).has('readOnlyAudit')) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
-  return <><WorkspaceApp readOnly={new URLSearchParams(location.search).has('readOnly')} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
+  return <><WorkspaceApp readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }

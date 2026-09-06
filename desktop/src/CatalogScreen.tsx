@@ -153,7 +153,7 @@ export function CatalogScreen({
               >
                 <FileSpreadsheet size={16} /> Importer Excel
               </Button>
-              <Button onClick={onCreate}>
+              <Button disabled={readOnly || busy} onClick={onCreate}>
                 <Plus size={16} /> Nouvelle référence
               </Button>
             </div>
@@ -293,7 +293,7 @@ export function CatalogScreen({
                     ) : null}
                   </div>
                   <div className="catalog-item__actions">
-                    <Button
+                    <Button disabled={readOnly || busy}
                       variant="ghost"
                       size="small"
                       onClick={() => onEdit(item)}
@@ -302,7 +302,7 @@ export function CatalogScreen({
                       <Pencil size={14} /> Modifier
                     </Button>
                     {item.archivedAt ? (
-                      <Button
+                      <Button disabled={readOnly || busy}
                         variant="secondary"
                         size="small"
                         onClick={() => onRestore(item)}
@@ -311,7 +311,7 @@ export function CatalogScreen({
                         <RotateCcw size={14} /> Réactiver
                       </Button>
                     ) : (
-                      <Button
+                      <Button disabled={readOnly || busy}
                         variant="ghost"
                         size="small"
                         onClick={() => onArchive(item)}
@@ -329,7 +329,7 @@ export function CatalogScreen({
                           <Button
                             variant="secondary"
                             size="small"
-                            disabled={readOnly}
+                            disabled={readOnly || busy}
                             onClick={() => onStockMovement(item, 'entry')}
                           >
                             <ArrowDownToLine size={14} /> Entrée
@@ -337,7 +337,7 @@ export function CatalogScreen({
                           <Button
                             variant="secondary"
                             size="small"
-                            disabled={readOnly || stock.availableMilli <= 0}
+                            disabled={readOnly || busy || stock.availableMilli <= 0}
                             onClick={() => onStockMovement(item, 'exit')}
                           >
                             <ArrowUpToLine size={14} /> Sortie
@@ -345,7 +345,7 @@ export function CatalogScreen({
                           <Button
                             variant="ghost"
                             size="small"
-                            disabled={readOnly}
+                            disabled={readOnly || busy}
                             onClick={() => onStockMovement(item, 'correction')}
                           >
                             <RotateCcw size={14} /> Correction
@@ -371,7 +371,7 @@ export function CatalogScreen({
             })}
           </div>
         ) : (
-          <EmptyState
+          <EmptyState disabled={readOnly || busy}
             icon={<Package size={26} />}
             title={visibility === 'archived' ? 'Aucune référence archivée' : 'Catalogue vide'}
             text={

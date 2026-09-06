@@ -220,6 +220,7 @@ import {
   ErrorPanel,
   Field,
   FormActions,
+  ReadOnlyFormScope,
   Modal,
   SectionHeading,
   StatusBadge,
@@ -1730,6 +1731,7 @@ export function WorkspaceApp({
           {view === 'clients' ? (
             <ClientsScreen
               workspace={workspace}
+              mutationsDisabled={busy || readOnly}
               query={search}
               onOpen={(client) => setModal({ type: 'clientDetail', client })}
               onEdit={(item) => setModal({ type: 'client', item })}
@@ -1779,6 +1781,7 @@ export function WorkspaceApp({
             <DocumentsScreen
               onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="quotes"
+              readOnly={readOnly}
               workspace={workspace}
               query={search}
               busy={busy}
@@ -1871,6 +1874,7 @@ export function WorkspaceApp({
             <DocumentsScreen
               onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="invoices"
+              readOnly={readOnly}
               workspace={workspace}
               query={search}
               busy={busy}
@@ -1922,6 +1926,7 @@ export function WorkspaceApp({
           {view === 'time' ? (
             <TimeScreen
               workspace={workspace}
+              mutationsDisabled={busy || readOnly}
               query={search}
               onCreate={() => setModal({ type: 'time' })}
               onEdit={(item) => setModal({ type: 'time', item })}
@@ -2074,6 +2079,7 @@ export function WorkspaceApp({
       </nav>
 
       {modal ? (
+        <ReadOnlyFormScope readOnly={readOnly && modal.type !== 'qrPrint'}>
         <WorkspaceModal
           state={modal}
           readOnly={readOnly}
@@ -2100,6 +2106,7 @@ export function WorkspaceApp({
             setPrintTarget({ entity: 'invoices', value: invoice, qr });
           }}
         />
+        </ReadOnlyFormScope>
       ) : null}
       {printTarget ? (
         <PrintSheet
@@ -2583,7 +2590,7 @@ function ProjectsScreen({
             : 'Ajoutez d’abord un client'
         }
         onAction={onCreate}
-        disabled={!hasActiveClient}
+        disabled={busy || readOnly || !hasActiveClient}
       />
     );
   return (
@@ -2730,14 +2737,14 @@ function ProjectsScreen({
                   <Button size="small" onClick={() => onFolderChange(project.id)}>
                     <FolderOpen size={16} /> Ouvrir le dossier
                   </Button>
-                  <Button
+                  <Button disabled={busy || readOnly}
                     variant="secondary"
                     size="small"
                     onClick={() => onEdit(project)}
                   >
                     <Pencil size={14} /> Modifier
                   </Button>
-                  <Button
+                  <Button disabled={busy || readOnly}
                     variant="ghost"
                     size="icon"
                     aria-label={`Supprimer le projet ${project.name}`}
@@ -2766,6 +2773,7 @@ function ProjectsScreen({
 
 function ClientsScreen({
   workspace,
+  mutationsDisabled,
   query,
   onOpen,
   onEdit,
@@ -2774,6 +2782,7 @@ function ClientsScreen({
   onRestore,
 }: {
   workspace: Workspace;
+  mutationsDisabled: boolean;
   query: string;
   onOpen: (item: Client) => void;
   onEdit: (item: Client) => void;
@@ -2807,7 +2816,7 @@ function ClientsScreen({
   );
   if (!workspace.clients.length)
     return (
-      <EmptyState
+      <EmptyState disabled={mutationsDisabled}
         icon={<UserRound />}
         title="Aucun client"
         text="Ajoutez votre premier client. Aucun contact d’exemple n’est créé automatiquement."
@@ -2903,7 +2912,7 @@ function ClientsScreen({
                         <Eye size={14} /> Dossier
                       </Button>
                       {client.archivedAt ? (
-                        <Button
+                        <Button disabled={mutationsDisabled}
                           variant="ghost"
                           size="small"
                           onClick={() => onRestore(client)}
@@ -2912,7 +2921,7 @@ function ClientsScreen({
                         </Button>
                       ) : (
                         <>
-                          <Button
+                          <Button disabled={mutationsDisabled}
                             variant="ghost"
                             size="icon"
                             onClick={() => onEdit(client)}
@@ -2921,7 +2930,7 @@ function ClientsScreen({
                           >
                             <Pencil size={15} />
                           </Button>
-                          <Button
+                          <Button disabled={mutationsDisabled}
                             variant="ghost"
                             size="icon"
                             title="Archiver sans supprimer l’historique"
@@ -2962,11 +2971,13 @@ function ClientsScreen({
 
 function ClientDetail({
   client,
+  mutationsDisabled,
   workspace,
   close,
   onEdit,
 }: {
   client: Client;
+  mutationsDisabled: boolean;
   workspace: Workspace;
   close: () => void;
   onEdit: () => void;
@@ -3059,7 +3070,7 @@ function ClientDetail({
             ) : null}
           </div>
         </div>
-        <Button variant="secondary" size="small" onClick={onEdit}>
+        <Button disabled={mutationsDisabled} variant="secondary" size="small" onClick={onEdit}>
           <Pencil size={14} /> Modifier la fiche
         </Button>
       </div>
@@ -3192,7 +3203,7 @@ function ClientDetail({
   );
 }
 
-type DocumentsProps = { onOpenFolder: (quoteId: string) => void } & (
+type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boolean } & (
   | {
       entity: 'quotes';
       workspace: Workspace;
@@ -3252,7 +3263,8 @@ type LooseDocumentsProps = {
 
 function DocumentsScreen(sourceProps: DocumentsProps) {
   let entity: 'quotes' | 'invoices' = sourceProps.entity;
-  const { workspace, query, busy, onCreate } = sourceProps;
+  const { workspace, query, busy, readOnly, onCreate } = sourceProps;
+  const mutationsDisabled = busy || readOnly;
   const documents = useMemo(() => newestDocumentsFirst<Quote | Invoice>(entity === 'quotes' ? workspace.quotes : workspace.invoices), [entity, workspace.quotes, workspace.invoices]);
   const clientsById = useMemo(() => new Map(workspace.clients.map((client) => [client.id, client])), [workspace.clients]);
   const [statuses, setStatuses] = useState({ quotes: 'all', invoices: 'all' });
@@ -3285,7 +3297,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   </div>;
   if (!documents.length) {
     return (
-      <EmptyState
+      <EmptyState disabled={mutationsDisabled}
         icon={entity === 'quotes' ? <FileCheck2 /> : <Receipt />}
         title={entity === 'quotes' ? 'Aucun devis' : 'Aucune facture'}
         text={`Créez ${entity === 'quotes' ? 'un devis' : 'une facture'} avec vos propres lignes et montants. Vous pourrez ajouter le client directement pendant la saisie.`}
@@ -3365,7 +3377,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        disabled={busy}
+                        disabled={mutationsDisabled}
                         onClick={() =>
                           quote.status === 'draft'
                             ? props.onEdit(quote)
@@ -3389,14 +3401,14 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={busy || !quote.lines.length}
+                            disabled={mutationsDisabled || !quote.lines.length}
                             onClick={() => props.onIssue(quote)}
                             title="Émettre"
                             aria-label={`Émettre le devis ${quote.title}`}
                           >
                             <CheckCircle2 size={16} />
                           </Button>
-                          <Button
+                          <Button disabled={mutationsDisabled}
                             variant="ghost"
                             size="icon"
                             onClick={() => props.onArchive(quote)}
@@ -3412,7 +3424,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={busy}
+                            disabled={mutationsDisabled}
                             onClick={() => props.onStatus(quote, 'accepted')}
                             title="Marquer accepté"
                             aria-label={`Marquer le devis ${quote.number || quote.title} accepté`}
@@ -3422,7 +3434,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={busy}
+                            disabled={mutationsDisabled}
                             onClick={() => props.onStatus(quote, 'refused')}
                             title="Marquer refusé"
                             aria-label={`Marquer le devis ${quote.number || quote.title} refusé`}
@@ -3432,7 +3444,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={busy}
+                            disabled={mutationsDisabled}
                             onClick={() => props.onStatus(quote, 'expired')}
                             title="Marquer expiré"
                             aria-label={`Marquer le devis ${quote.number || quote.title} expiré`}
@@ -3449,7 +3461,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           variant="ghost"
                           size="small"
                           className="quote-convert-button"
-                          disabled={busy}
+                          disabled={mutationsDisabled}
                           onClick={() => props.onStatus(quote, 'cancelled')}
                           title="Annuler l’acceptation sans supprimer le devis"
                         >
@@ -3460,7 +3472,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                             variant="secondary"
                             size="small"
                             className="quote-convert-button"
-                            disabled={busy}
+                            disabled={mutationsDisabled}
                             onClick={() => props.onCreateOrder(quote)}
                             title="Créer la commande client et préparer la réservation"
                           >
@@ -3472,7 +3484,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                               variant="secondary"
                               size="small"
                               className="quote-convert-button"
-                              disabled={busy}
+                              disabled={mutationsDisabled}
                               onClick={() => props.onConvert(quote)}
                               title="Choisir une facture complète ou un acompte"
                             >
@@ -3482,7 +3494,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                               variant="ghost"
                               size="small"
                               className="quote-convert-button"
-                              disabled={busy}
+                              disabled={mutationsDisabled}
                               onClick={() => props.onCreateOrder(quote)}
                               title="Créer une commande modèle pour planifier des factures récurrentes"
                             >
@@ -3665,7 +3677,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                 </td>
                 <td className="sales-document__actions">
                   <div className="document-actions">
-                    <Button
+                    <Button disabled={busy || (readOnly && item.status === 'draft' && !linkedOrderDraftBatch)}
                       variant="ghost"
                       size="icon"
                       onClick={() => {
@@ -3695,7 +3707,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        disabled={busy || !item.lines.length}
+                        disabled={mutationsDisabled || !item.lines.length}
                         onClick={() =>
                           entity === 'quotes'
                             ? props.onIssue(item as Quote)
@@ -3710,7 +3722,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        disabled={busy}
+                        disabled={mutationsDisabled}
                         onClick={() => props.onConvert(item as Quote)}
                         title="Créer la facture depuis le devis accepté"
                       >
@@ -3724,7 +3736,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="secondary"
                         size="small"
-                        disabled={busy}
+                        disabled={busy || (readOnly && !invoice?.billingPair && modificationAction?.kind !== 'view')}
                         onClick={() => {
                           if (invoice?.billingPair) { props.onEdit(invoice); return; }
                           if (!modificationAction) return;
@@ -3761,7 +3773,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="secondary"
                         size="small"
-                        disabled={busy}
+                        disabled={mutationsDisabled}
                         onClick={() =>
                           props.onAbandonCorrection(correctionWorkflow)
                         }
@@ -3775,7 +3787,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     item.status !== 'draft' &&
                     item.status !== 'paid' &&
                     item.status !== 'cancelled' ? (
-                      <Button
+                      <Button disabled={mutationsDisabled}
                         variant="ghost"
                         size="icon"
                         onClick={() => props.onPayment(item as Invoice)}
@@ -3805,7 +3817,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        disabled={busy}
+                        disabled={mutationsDisabled}
                         onClick={() => props.onArchiveCloud(item as Invoice)}
                         title="Archiver le PDF dans le coffre Zentra"
                         aria-label={`Archiver ${item.number || item.title} dans le coffre Zentra`}
@@ -3816,7 +3828,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     {item.status === 'draft' &&
                     !linkedOrderDraftBatch &&
                     !correctionWorkflow ? (
-                      <Button
+                      <Button disabled={mutationsDisabled}
                         variant="ghost"
                         size="icon"
                         onClick={() =>
@@ -3849,6 +3861,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
 
 function TimeScreen({
   workspace,
+  mutationsDisabled,
   query,
   onCreate,
   onEdit,
@@ -3857,6 +3870,7 @@ function TimeScreen({
   onArchive,
 }: {
   workspace: Workspace;
+  mutationsDisabled: boolean;
   query: string;
   onCreate: () => void;
   onEdit: (item: TimeEntry) => void;
@@ -3942,7 +3956,7 @@ function TimeScreen({
             variant="secondary"
             size="large"
             onClick={onBill}
-            disabled={!readyToBill}
+            disabled={mutationsDisabled || !readyToBill}
             title={
               readyToBill
                 ? `${readyToBill} saisie(s) prête(s)`
@@ -3955,7 +3969,7 @@ function TimeScreen({
           <Button
             size="large"
             onClick={onTimer}
-            disabled={Boolean(timerBlock)}
+            disabled={mutationsDisabled || Boolean(timerBlock)}
             title={timerBlock || 'Démarrer un pointage réel'}
           >
             <Play size={17} /> Démarrer
@@ -4050,7 +4064,7 @@ function TimeScreen({
                         <Button
                           variant="ghost"
                           size="icon"
-                          disabled={linked}
+                          disabled={mutationsDisabled || linked}
                           title={
                             linked
                               ? 'Cette heure est liée à une facture'
@@ -4063,7 +4077,7 @@ function TimeScreen({
                         <Button
                           variant="ghost"
                           size="icon"
-                          disabled={linked}
+                          disabled={mutationsDisabled || linked}
                           title={
                             linked
                               ? 'Supprimez le brouillon de facture pour libérer cette heure'
@@ -4088,7 +4102,7 @@ function TimeScreen({
           ) : null}
         </div>
       ) : (
-        <EmptyState
+        <EmptyState disabled={mutationsDisabled}
           icon={<Clock3 />}
           title="Aucune heure saisie"
           text={
@@ -4167,7 +4181,7 @@ function TeamScreen({
               historiques.
             </p>
           </div>
-          <Button
+          <Button disabled={busy}
             variant="secondary"
             onClick={() => onPayPayslip(legacyPaymentToRepair)}
           >
@@ -4244,7 +4258,7 @@ function TeamScreen({
           ))}
         </div>
       ) : (
-        <EmptyState
+        <EmptyState disabled={busy}
           icon={<Users />}
           title={workspace.employees.length ? 'Aucun collaborateur correspondant' : 'Aucun collaborateur'}
           text={workspace.employees.length ? 'Modifiez votre recherche pour retrouver un collaborateur.' : 'Ajoutez les personnes employées ou suivies.'}
@@ -5964,6 +5978,7 @@ function WorkspaceModal({
     return (
       <ClientDetail
         client={state.client}
+        mutationsDisabled={busy || readOnly}
         workspace={workspace}
         close={close}
         onEdit={() => replace({ type: 'client', item: state.client })}

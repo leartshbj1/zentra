@@ -27,7 +27,7 @@ import {
   type AgendaItem,
 } from './agenda';
 import type { AgendaEvent, Workspace } from './types';
-import { Button, EmptyState, Field, FormActions, Modal, StatusBadge } from './ui';
+import { Button, EmptyState, Field, FormActions, Modal, ReadOnlyFormScope, StatusBadge } from './ui';
 import { createId, formatDate, todayIso } from './utils';
 
 export type AgendaEventDraft = {
@@ -416,6 +416,7 @@ export function AgendaScreen({
       </div>
 
       {editor ? (
+        <ReadOnlyFormScope readOnly={readOnly}>
         <AgendaEditor
           draft={editor}
           workspace={workspace}
@@ -425,6 +426,7 @@ export function AgendaScreen({
             if (await onSave(draft)) setEditor(null);
           }}
         />
+        </ReadOnlyFormScope>
       ) : null}
     </div>
   );

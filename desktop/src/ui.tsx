@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { AlertTriangle, Archive, ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
@@ -240,6 +240,12 @@ export function Modal({
   return typeof document === 'undefined' ? content : createPortal(content, document.body);
 }
 
+const ReadOnlyFormContext = createContext(false);
+
+export function ReadOnlyFormScope({ readOnly, children }: { readOnly: boolean; children: ReactNode }) {
+  return <ReadOnlyFormContext.Provider value={readOnly}>{children}</ReadOnlyFormContext.Provider>;
+}
+
 export function FormActions({
   onCancel,
   busy,
@@ -251,12 +257,14 @@ export function FormActions({
   disabled?: boolean;
   submitLabel?: string;
 }) {
+  const readOnly = useContext(ReadOnlyFormContext);
   return (
-    <div className="form-actions">
+    <div className={`form-actions${readOnly ? ' form-actions--read-only' : ''}`}>
+      {readOnly ? <p className="form-actions__read-only" role="status">Mode lecture seule : les modifications ne peuvent pas être enregistrées.</p> : null}
       <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
         Annuler
       </Button>
-      <Button type="submit" disabled={busy || disabled}>
+      <Button type="submit" disabled={busy || disabled || readOnly}>
         {busy ? <LoaderCircle className="spin" size={17} /> : null}
         {busy ? 'Enregistrement…' : submitLabel}
       </Button>

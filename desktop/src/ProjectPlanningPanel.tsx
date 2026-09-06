@@ -36,6 +36,7 @@ import {
   EmptyState,
   Field,
   FormActions,
+  ReadOnlyFormScope,
   Modal,
   StatusBadge,
   submitForm,
@@ -647,6 +648,7 @@ export function ProjectPlanningPanel({
         </aside>
       </div>
 
+      <ReadOnlyFormScope readOnly={readOnly}>
       {editor?.kind === 'task' ? (
         <TaskEditor
           item={editor.item}
@@ -671,6 +673,7 @@ export function ProjectPlanningPanel({
           }}
         />
       ) : null}
+      </ReadOnlyFormScope>
     </div>
   );
 }
