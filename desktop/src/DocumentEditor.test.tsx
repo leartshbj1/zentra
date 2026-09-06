@@ -64,6 +64,30 @@ const quote: Quote = {
 };
 
 describe('éditeur devis et factures', () => {
+  it('propose les taux de la facture originale et conserve un ancien taux invalide sans le remplacer', () => {
+    const original: Invoice = {
+      ...quote, id: 'original', number: 'F-2026-001', type: 'standard', status: 'issued',
+      quoteId: null, originalInvoiceId: null, depositPercentageBp: null, depositBasisLines: null,
+      dueDate: '2026-10-03', serviceDateFrom: '2026-09-03', serviceDateTo: '2026-09-03',
+      lines: [{ ...quote.lines[0], vatRateBp: 250 }],
+    };
+    const credit: Invoice = {
+      ...original, id: 'credit', number: '', type: 'credit_note', status: 'draft',
+      originalInvoiceId: original.id, lines: [{ ...quote.lines[0], vatRateBp: 810 }],
+    };
+    const state = workspace({ invoices: [original, credit] });
+    state.settings!.organization.vatRegistered = true;
+    state.settings!.billing.vatRatesBp = [810, 260];
+    const html = renderToStaticMarkup(<DocumentEditor entity="invoices" item={credit} workspace={state}
+      busy={false} close={() => undefined} act={async () => true} />);
+    const rates = html.match(/<select[^>]*aria-label="Taux TVA"[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
+    expect(rates).toContain('value="250"');
+    expect(rates).not.toContain('value="260"');
+    expect(rates).not.toContain('value="0"');
+    expect(rates).toMatch(/value="810"[^>]*disabled=""[^>]*selected=""/);
+    expect(rates).toContain('Taux à corriger');
+    expect(html).toContain('min="2026-09-03"');
+  });
   it('réouvre le texte personnalisé et propose ses modèles et le contact rapide', () => {
     const html = renderToStaticMarkup(
       <DocumentEditor

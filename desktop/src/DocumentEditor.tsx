@@ -21,7 +21,7 @@ import {
   invoicePaid,
   todayIso,
 } from './utils';
-import { Button, Field, FormActions, Modal, submitForm } from './ui';
+import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 import { projectTerminology } from './terminology';
 import {
   buildDepositLines,
@@ -145,6 +145,9 @@ export function DocumentEditor({
     (item as Invoice | undefined)?.originalInvoiceId ?? '',
   );
   const creditOriginal = invoiceType === 'credit_note' ? workspace.invoices.find((invoice) => invoice.id === originalInvoiceId) : undefined;
+  const documentVatRates = creditOriginal
+    ? [...new Set(creditOriginal.lines.map((line) => line.vatRateBp))].filter((rate) => rate >= 0).sort((a, b) => a - b)
+    : [...new Set([0, ...settings.billing.vatRatesBp])];
   const currency = creditOriginal?.currency || current?.currency || settings.billing.currency || 'CHF';
   const [footerText, setFooterText] = useState(
     item?.terms ?? quoteSource?.terms ?? settings.billing.defaultFooter,
@@ -152,6 +155,7 @@ export function DocumentEditor({
   const [footerTemplateId, setFooterTemplateId] = useState('');
   const [footerTemplateName, setFooterTemplateName] = useState('');
   const [localError, setLocalError] = useState('');
+  const [saveAttempt, setSaveAttempt] = useState(0);
   const depositPercentageBp = Math.round(
     Number(depositPercentage.replace(',', '.')) * 100,
   );
@@ -330,6 +334,7 @@ export function DocumentEditor({
     >
       <form
         onSubmit={submitForm(async (form) => {
+          setSaveAttempt((attempt) => attempt + 1);
           setLocalError('');
           const lineError = documentLinesValidationError(lines);
           if (lineError) {
@@ -360,6 +365,10 @@ export function DocumentEditor({
             setLocalError(
               'Un avoir doit référencer explicitement la facture originale.',
             );
+            return;
+          }
+          if (creditOriginal?.issueDate && issueDate < creditOriginal.issueDate) {
+            setLocalError('La date de l’avoir ne peut pas précéder celle de la facture originale.');
             return;
           }
           if (
@@ -502,6 +511,7 @@ export function DocumentEditor({
               <input
                 type="date"
                 value={issueDate}
+                min={creditOriginal?.issueDate || undefined}
                 onChange={(event) => {
                   setIssueDate(event.target.value);
                   if (!item)
@@ -635,6 +645,7 @@ export function DocumentEditor({
               <span>
                 L’avoir est lié à la facture originale, numéroté sur sa propre
                 séquence et comptabilisé en montants négatifs à l’émission.
+                Reprenez ses taux de TVA et ses montants encore créditables.
                 Aucun encaissement n’est possible.
               </span>
             </div>
@@ -670,13 +681,7 @@ export function DocumentEditor({
             </section>
           ) : null}
           {localError ? (
-            <div className="warning-card">
-              <ShieldCheck size={18} />
-              <div>
-                <strong>Enregistrement bloqué</strong>
-                <p>{localError}</p>
-              </div>
-            </div>
+            <ErrorPanel key={saveAttempt} title="Enregistrement bloqué" message={localError} reveal />
           ) : null}
           <section className="line-editor">
             <header>
@@ -854,12 +859,15 @@ export function DocumentEditor({
                     required
                   >
                     <option value="">Choisir</option>
-                    <option value={0}>0 % · Hors TVA / taux 0</option>
-                    {settings.billing.vatRatesBp
-                      .filter((rate) => rate !== 0)
+                    {line.vatRateBp >= 0 && !documentVatRates.includes(line.vatRateBp) ? (
+                      <option value={line.vatRateBp} disabled>
+                        {(line.vatRateBp / 100).toLocaleString('fr-CH')} % · Taux à corriger
+                      </option>
+                    ) : null}
+                    {documentVatRates
                       .map((rate) => (
                         <option value={rate} key={rate}>
-                          {(rate / 100).toLocaleString('fr-CH')} %
+                          {rate === 0 ? '0 % · Hors TVA / taux 0' : `${(rate / 100).toLocaleString('fr-CH')} %`}
                         </option>
                       ))}
                   </select>

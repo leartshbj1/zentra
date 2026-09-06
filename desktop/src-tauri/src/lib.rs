@@ -16,7 +16,10 @@ mod bank_import;
 mod branding;
 mod catalog_import;
 mod commands;
+mod customer_credit_validation;
 mod database;
+#[cfg(test)]
+mod customer_credit_tests;
 mod error;
 mod fiduciary_closing;
 mod financial_pdf;

@@ -3539,6 +3539,9 @@ impl LocalStore {
                         .into(),
                 ));
             }
+            crate::customer_credit_validation::validate_issue_basis(
+                &transaction, &original, id, &date,
+            )?;
         }
         if let Some((original, expected_subtotal, expected_vat, expected_total)) = transaction
             .query_row(
