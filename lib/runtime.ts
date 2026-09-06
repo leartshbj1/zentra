@@ -7,6 +7,9 @@ type RuntimeBindings = {
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_WEBHOOK_ENDPOINT_ID?: string;
   STRIPE_PRICE_ID?: string;
+  STRIPE_PRICE_SOLO_ID?: string;
+  STRIPE_PRICE_START_ID?: string;
+  STRIPE_PRICE_PRO_ID?: string;
   LICENSE_SIGNING_KEY_PKCS8_B64URL?: string;
   OWNER_LICENSE_BINDING_SHA256?: string;
   PUBLIC_SITE_URL?: string;
@@ -52,6 +55,11 @@ export function stripeConfiguration() {
     webhookSecret,
     webhookEndpointId,
     priceId,
+    priceIds: {
+      solo: runtimeValue('STRIPE_PRICE_SOLO_ID'),
+      start: runtimeValue('STRIPE_PRICE_START_ID'),
+      pro: runtimeValue('STRIPE_PRICE_PRO_ID'),
+    },
     signingKey,
     siteUrl,
     testMode,

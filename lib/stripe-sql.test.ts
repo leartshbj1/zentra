@@ -36,6 +36,9 @@ function write(settlement: Settlement) {
     settlement.failedInvoiceId ?? null,
     settlement.failedAt ?? null,
     2_000,
+    'zentra-monthly-50-chf',
+    settlement.paidInvoiceId ? 'zentra-monthly-50-chf' : '',
+    settlement.paidInvoiceId ? null : 0,
   );
 }
 
@@ -67,7 +70,10 @@ beforeEach(() => {
     last_paid_at INTEGER,
     last_payment_failure_invoice_id TEXT,
     last_payment_failure_at INTEGER,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    plan_id TEXT NOT NULL,
+    entitlement_plan_id TEXT NOT NULL,
+    seat_limit INTEGER
   )`);
 });
 

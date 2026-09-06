@@ -60,6 +60,7 @@ vi.mock('@/lib/stripe', () => {
 });
 
 import { issueLicense, refreshLicense } from './license-token';
+import { ZENTRA_PLANS } from './plans';
 
 type SqlValue = string | number | bigint | null | Uint8Array;
 
@@ -83,11 +84,15 @@ class FakeD1 {
         subscription_id TEXT NOT NULL UNIQUE
       );
       CREATE TABLE organization_members(
+        membership_id TEXT NOT NULL DEFAULT 'member_test',
+        joined_at INTEGER NOT NULL DEFAULT 1,
         organization_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
         role TEXT NOT NULL,
         revoked_at INTEGER
       );
+      CREATE TABLE subscriptions(subscription_id TEXT PRIMARY KEY, seat_limit INTEGER);
+      INSERT INTO subscriptions VALUES('sub_license_test',NULL);
       CREATE TABLE device_sessions(
         session_id TEXT PRIMARY KEY,
         organization_id TEXT NOT NULL,
@@ -234,6 +239,12 @@ beforeEach(() => {
   runtimeStubs.runtimeValue.mockReturnValue('');
   db = new FakeD1();
   runtimeStubs.database.mockReturnValue(db);
+  stripeStubs.paidEntitlementForSubscription.mockResolvedValue({
+    customer_name: 'Entreprise de test',
+    entitlement_valid_until: NOW_SECONDS + 30 * 86_400,
+    entitlement_plan_id: 'zentra-monthly-50-chf',
+    seat_limit: null,
+  });
 });
 
 afterEach(() => {
@@ -242,6 +253,43 @@ afterEach(() => {
 });
 
 describe('license-token direct runtime contract', () => {
+  it.each(ZENTRA_PLANS)(
+    'signs the verified paid $name plan at its exact price',
+    async (plan) => {
+      stripeStubs.paidEntitlementForSubscription.mockResolvedValue({
+        customer_name: 'Entreprise de test',
+        entitlement_valid_until: NOW_SECONDS + 30 * 86_400,
+        entitlement_plan_id: plan.licensePlan,
+        seat_limit: plan.seats,
+      });
+      const result = await issueLicense(accountLicenseInput());
+      expect(result.payload).toMatchObject({
+        plan: plan.licensePlan,
+        price_chf_cents: plan.priceChfCents,
+      });
+      const [encoded, signature] = result.token.split('.');
+      expect(
+        await crypto.subtle.verify(
+          'Ed25519',
+          signingKeys.publicKey,
+          Buffer.from(signature, 'base64url'),
+          new TextEncoder().encode(encoded),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('refuses an inconsistent paid plan and seat allowance before activation', async () => {
+    stripeStubs.paidEntitlementForSubscription.mockResolvedValue({
+      entitlement_valid_until: NOW_SECONDS + 30 * 86_400,
+      entitlement_plan_id: ZENTRA_PLANS[0].licensePlan,
+      seat_limit: 10,
+    });
+    await expect(issueLicense(accountLicenseInput())).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(db.activation(SUBSCRIPTION_ID, INSTALLATION_ID)).toBeUndefined();
+  });
   it('issues an account-bound license signed by an Ed25519 test key', async () => {
     const result = await issueLicense(accountLicenseInput());
     const [encoded, signature] = result.token.split('.');
@@ -355,6 +403,8 @@ describe('license-token direct runtime contract', () => {
     stripeStubs.paidEntitlementForSubscription.mockResolvedValue({
       customer_name: 'Entreprise renouvelée',
       entitlement_valid_until: paidThrough,
+      entitlement_plan_id: 'zentra-monthly-50-chf',
+      seat_limit: null,
     });
 
     const refreshed = await refreshLicense(issued.token);
@@ -400,6 +450,7 @@ describe('license-token direct runtime contract', () => {
     const [encoded, signature] = issued.token.split('.');
     const alteredSignature = `${signature[0] === 'A' ? 'B' : 'A'}${signature.slice(1)}`;
     runtimeStubs.database.mockClear();
+    stripeStubs.paidEntitlementForSubscription.mockClear();
 
     await expect(
       refreshLicense(`${encoded}.${alteredSignature}`),
@@ -417,6 +468,7 @@ describe('license-token direct runtime contract', () => {
     db.removeAllActivations();
     db.preparedSql.length = 0;
     runtimeStubs.database.mockClear();
+    stripeStubs.paidEntitlementForSubscription.mockClear();
 
     await expect(refreshLicense(issued.token)).rejects.toMatchObject({
       status: 403,

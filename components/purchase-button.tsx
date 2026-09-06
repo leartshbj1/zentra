@@ -3,6 +3,7 @@
 import { CreditCard, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { planById, type PlanId } from '@/lib/plans';
 
 type CheckoutStatus = {
   ready?: boolean;
@@ -30,10 +31,13 @@ function trustedPortalLoginUrl(value: unknown) {
 export function PurchaseButton({
   className,
   compact = false,
+  planId,
 }: {
   className?: string;
   compact?: boolean;
+  planId: PlanId;
 }) {
+  const plan = planById(planId)!;
   const [ready, setReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -43,7 +47,7 @@ export function PurchaseButton({
 
   useEffect(() => {
     let active = true;
-    fetch('/api/stripe/status', {
+    fetch(`/api/stripe/status?plan=${plan.id}`, {
       cache: 'no-store',
       credentials: 'same-origin',
     })
@@ -69,11 +73,13 @@ export function PurchaseButton({
     return () => {
       active = false;
     };
-  }, []);
+  }, [plan.id]);
 
   async function checkout() {
     if (loginRequired) {
-      window.location.assign('/connexion?retour=%2Fpricing');
+      window.location.assign(
+        `/connexion?retour=${encodeURIComponent(`/pricing?formule=${plan.id}#${plan.id}`)}`,
+      );
       return;
     }
     setBusy(true);
@@ -83,7 +89,7 @@ export function PurchaseButton({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ plan: plan.id }),
       });
       const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !body.url)
@@ -111,8 +117,8 @@ export function PurchaseButton({
         : unavailable
           ? 'Paiement temporairement indisponible'
           : compact
-            ? 'S’abonner avec Stripe'
-            : 'Acheter la licence · 50 CHF/mois';
+            ? `Choisir ${plan.name}`
+            : `Choisir ${plan.name} · ${plan.priceChfCents / 100} CHF/mois`;
 
   return (
     <div className="w-full">

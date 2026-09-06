@@ -1,9 +1,13 @@
 import {
   clearSupabasePkceCookie,
   readSupabasePkceCookie,
+  readSupabaseAuthReturnCookie,
   writeSupabaseAuthCookies,
 } from '@/lib/supabase-auth-cookies';
-import { authNoStoreHeaders } from '@/lib/supabase-auth-http';
+import {
+  authNoStoreHeaders,
+  safeAuthReturnPath,
+} from '@/lib/supabase-auth-http';
 import { isValidSupabaseAuthCode } from '@/lib/supabase-auth-pkce';
 import { supabaseAuthClient } from '@/lib/supabase-auth-runtime';
 
@@ -20,6 +24,7 @@ export async function GET(request: Request) {
   }
 
   const verifier = await readSupabasePkceCookie();
+  const returnTo = safeAuthReturnPath(await readSupabaseAuthReturnCookie());
   await clearSupabasePkceCookie();
   if (!verifier) {
     return confirmationFailure('navigateur_different');
@@ -34,7 +39,7 @@ export async function GET(request: Request) {
       verifier,
     );
     await writeSupabaseAuthCookies(session);
-    return redirectResponse('/compte');
+    return redirectResponse(returnTo);
   } catch {
     return confirmationFailure('echange_echoue');
   }

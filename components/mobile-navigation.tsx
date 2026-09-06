@@ -9,7 +9,7 @@ const links = [
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
-  ['/compte', 'Mon compte'],
+  ['/compte', 'Compte & équipe'],
 ] as const;
 
 export function MobileNavigation() {

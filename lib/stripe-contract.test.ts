@@ -80,9 +80,7 @@ describe('Stripe SDK and webhook version contract', () => {
       new URL('../app/api/stripe/portal/route.ts', import.meta.url),
       'utf8',
     );
-    expect(checkoutSource).toContain(
-      'createCheckoutSession(origin, claimHash, identity)',
-    );
+    expect(checkoutSource).toMatch(/createCheckoutSession\(\s*origin,\s*claimHash,\s*identity,\s*plan\.id,?\s*\)/);
     expect(claimSource).toContain('assertCheckoutAccount(session, user)');
     expect(licenseSource).toContain('getZentraUser({ refreshSession: true })');
     expect(licenseSource).toContain('assertCheckoutAccount(session, user)');
@@ -95,8 +93,8 @@ describe('Stripe SDK and webhook version contract', () => {
       new URL('../app/api/stripe/status/route.ts', import.meta.url),
       'utf8',
     );
-    expect(statusSource).toContain(
-      'accessAllowed ? await stripeCheckoutReadiness() : null',
+    expect(statusSource.replace(/\s+/g, ' ')).toContain(
+      'accessAllowed ? await stripeCheckoutReadiness(plan.id) : null',
     );
     expect(statusSource).toContain('portalLoginUrl: readiness?.portalLoginUrl');
     expect(statusSource).not.toContain('stripePortalLoginUrl');
@@ -111,9 +109,7 @@ describe('Stripe SDK and webhook version contract', () => {
     expect(stripeSource).toContain(
       "throw new PublicError('Origine de la demande absente.', 403)",
     );
-    expect(stripeSource).toContain(
-      "if (supplied && supplied !== expected)",
-    );
+    expect(stripeSource).toContain('if (supplied && supplied !== expected)');
     expect(stripeSource).toContain(
       "if (fetchSite && !['same-origin', 'none'].includes(fetchSite))",
     );

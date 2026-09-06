@@ -11,7 +11,10 @@ describe('garde-fous HTTP Auth', () => {
   it('refuse une origine croisée', () => {
     const request = new Request('https://zentra.ch/api/auth/connexion', {
       method: 'POST',
-      headers: { Origin: 'https://evil.example', 'Sec-Fetch-Site': 'cross-site' },
+      headers: {
+        Origin: 'https://evil.example',
+        'Sec-Fetch-Site': 'cross-site',
+      },
     });
     expect(() => requireAuthSameOrigin(request)).toThrow('Origine');
   });
@@ -46,6 +49,7 @@ describe('garde-fous HTTP Auth', () => {
       email: 'personne@entreprise.ch',
       password: ' mot de passe ',
       displayName: 'Marie Dupont',
+      returnTo: '/compte',
     });
   });
 
@@ -59,9 +63,7 @@ describe('garde-fous HTTP Auth', () => {
     });
     await expect(
       readAuthCredentials(request, { requireStrongPassword: true }),
-    ).rejects.toThrow(
-      'au moins 12 caractères',
-    );
+    ).rejects.toThrow('au moins 12 caractères');
   });
 
   it('laisse Supabase vérifier un ancien mot de passe court à la connexion', async () => {
@@ -94,5 +96,4 @@ describe('garde-fous HTTP Auth', () => {
       isRejectedAuthCredential(new SupabaseAuthError('expired', 401)),
     ).toBe(true);
   });
-
 });

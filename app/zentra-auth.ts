@@ -25,7 +25,8 @@ type ZentraUserOptions = {
   refreshSession?: boolean;
 };
 
-function fromSupabaseUser(user: SupabaseAuthUser): ZentraUser {
+function fromSupabaseUser(user: SupabaseAuthUser): ZentraUser | null {
+  if (!user.emailConfirmed) return null;
   return {
     // Une adresse peut être modifiée ou réattribuée. Une future migration
     // SIWC devra prouver les deux identités et persister un lien explicite.
@@ -68,7 +69,11 @@ export async function getZentraUser(
     }
   }
 
-  if ((accessToken || refreshToken) && options.refreshSession && !refreshToken) {
+  if (
+    (accessToken || refreshToken) &&
+    options.refreshSession &&
+    !refreshToken
+  ) {
     await clearSupabaseAuthCookies();
   }
 

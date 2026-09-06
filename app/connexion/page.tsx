@@ -42,33 +42,33 @@ export default async function ConnexionPage({
             </span>
             <span className="text-xl tracking-[-.03em]">zentra</span>
           </a>
-          <p className="mt-12 text-xs font-bold uppercase tracking-[.2em] text-[#a66b1f]">
+          <p className="mt-12 hidden text-xs font-bold uppercase tracking-[.2em] text-[#a66b1f] lg:block">
             Compte d’entreprise
           </p>
-          <h2 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-.05em] sm:text-5xl">
-            Votre équipe retrouve le même espace, simplement.
+          <h2 className="mt-4 hidden max-w-xl text-4xl font-semibold tracking-[-.05em] sm:text-5xl lg:block">
+            Votre compte. Votre entreprise. Votre équipe.
           </h2>
-          <p className="mt-5 max-w-lg text-base leading-7 text-[#5f6d64]">
+          <p className="mt-5 hidden max-w-lg text-base leading-7 text-[#5f6d64] lg:block">
             Le travail reste local dans l’application. Le compte sécurisé sert à
             l’abonnement, aux accès de l’équipe et au coffre documentaire choisi
             par l’entreprise.
           </p>
-          <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div className="mt-8 hidden gap-3 lg:grid lg:grid-cols-1">
             {[
               [
                 ShieldCheck,
                 'Session protégée',
-                'Cookies HttpOnly et renouvellement contrôlé.',
+                'Votre mot de passe reste privé et votre session est protégée.',
               ],
               [
                 Building2,
-                'Équipe sans supplément',
-                'Collaborateurs et comptable dans la même entreprise.',
+                'Des accès pour votre équipe',
+                'Invitez chaque personne avec sa propre connexion.',
               ],
               [
                 DatabaseZap,
                 'Données maîtrisées',
-                'Aucun jeu de données fictif dans votre espace.',
+                'Vos documents et votre activité restent sous votre contrôle.',
               ],
             ].map(([Icon, title, description]) => {
               const ItemIcon = Icon as typeof ShieldCheck;

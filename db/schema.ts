@@ -29,6 +29,9 @@ export const subscriptions = sqliteTable(
     customerEmail: text('customer_email'),
     customerName: text('customer_name'),
     priceId: text('price_id').notNull(),
+    planId: text('plan_id').notNull().default('zentra-monthly-50-chf'),
+    entitlementPlanId: text('entitlement_plan_id').notNull().default('zentra-monthly-50-chf'),
+    seatLimit: integer('seat_limit'),
     status: text('status').notNull(),
     currentPeriodEnd: integer('current_period_end').notNull(),
     cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' })

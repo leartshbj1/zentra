@@ -34,6 +34,7 @@ vi.mock('@/lib/runtime', () => ({
     webhookSecret: 'whsec_valid',
     webhookEndpointId: 'we_valid',
     priceId: 'price_valid',
+    priceIds: { solo: 'price_solo', start: 'price_start', pro: 'price_pro' },
     signingKey: 'A'.repeat(40),
     siteUrl: 'https://elyko.example',
   }),

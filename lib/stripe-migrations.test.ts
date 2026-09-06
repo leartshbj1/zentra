@@ -12,6 +12,7 @@ const migrations = [
   '../drizzle/0006_account_guards.sql',
   '../drizzle/0007_device_activation_revocation.sql',
   '../drizzle/0008_unlimited_collaborators.sql',
+  '../drizzle/0009_nosy_madame_web.sql',
 ];
 
 describe('Stripe D1 migrations', () => {

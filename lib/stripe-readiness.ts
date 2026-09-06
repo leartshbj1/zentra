@@ -1,4 +1,5 @@
 import { assertLicenseSignerReady } from '@/lib/license-token';
+import type { PlanId } from '@/lib/plans';
 import { database, stripeConfiguration } from '@/lib/runtime';
 import {
   assertConfiguredStripePortalLoginUrl,
@@ -55,7 +56,7 @@ async function assertDatabaseSchemaReady() {
       'SELECT claim_hash,checkout_session_id,created_at,expires_at FROM checkout_attempts LIMIT 0',
     ),
     db.prepare(
-      'SELECT subscription_id,entitlement_valid_until,last_paid_invoice_id,last_paid_at,last_payment_failure_invoice_id,last_payment_failure_at FROM subscriptions LIMIT 0',
+      'SELECT subscription_id,plan_id,entitlement_plan_id,seat_limit,entitlement_valid_until,last_paid_invoice_id,last_paid_at,last_payment_failure_invoice_id,last_payment_failure_at FROM subscriptions LIMIT 0',
     ),
     db.prepare(
       'SELECT license_id,subscription_id,installation_id,last_issued_at FROM license_activations LIMIT 0',
@@ -96,12 +97,12 @@ async function assertVerifiedWebhookSecretReady(input: {
   }
 }
 
-async function runReadinessChecks() {
+async function runReadinessChecks(planId: PlanId) {
   const {
     secretKey,
     webhookSecret,
     webhookEndpointId,
-    priceId,
+    priceIds,
     signingKey,
     siteUrl,
   } = stripeConfiguration();
@@ -112,13 +113,13 @@ async function runReadinessChecks() {
     throw new PublicError('Le secret du webhook Stripe est invalide.', 503);
   if (!/^we_[A-Za-z0-9_]+$/.test(webhookEndpointId))
     throw new PublicError('L’endpoint webhook Stripe est invalide.', 503);
-  if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
+  if (!/^price_[A-Za-z0-9_]+$/.test(priceIds[planId]))
     throw new PublicError('Le prix Stripe Zentra est invalide.', 503);
   if (!/^[A-Za-z0-9_-]{40,256}$/.test(signingKey))
     throw new PublicError('La clé de signature Zentra est invalide.', 503);
   assertConfiguredPublicUrl(siteUrl);
   const [account] = await Promise.all([
-    assertConfiguredStripeAccount(),
+    assertConfiguredStripeAccount(planId),
     assertLicenseSignerReady(),
     assertDatabaseSchemaReady(),
     assertVerifiedWebhookSecretReady({
@@ -130,14 +131,15 @@ async function runReadinessChecks() {
   return account;
 }
 
-export async function assertStripeCheckoutReady() {
+export async function assertStripeCheckoutReady(planId: PlanId = 'solo') {
   const configuration = stripeConfiguration();
   const fingerprint = await sha256(
     [
       configuration.secretKey,
       configuration.webhookSecret,
       configuration.webhookEndpointId,
-      configuration.priceId,
+      planId,
+      configuration.priceIds[planId],
       configuration.signingKey,
       configuration.siteUrl,
       configuration.testMode,
@@ -150,7 +152,7 @@ export async function assertStripeCheckoutReady() {
   ) {
     return readinessCache.promise;
   }
-  const promise = runReadinessChecks();
+  const promise = runReadinessChecks(planId);
   readinessCache = { fingerprint, checkedAt: now, promise };
   try {
     return await promise;
@@ -164,9 +166,9 @@ export async function stripeCheckoutIsReady() {
   return Boolean(await stripeCheckoutReadiness());
 }
 
-export async function stripeCheckoutReadiness() {
+export async function stripeCheckoutReadiness(planId: PlanId = 'solo') {
   try {
-    return await assertStripeCheckoutReady();
+    return await assertStripeCheckoutReady(planId);
   } catch (error) {
     console.error('Stripe readiness check failed', {
       type: error instanceof Error ? error.name : 'UnknownError',

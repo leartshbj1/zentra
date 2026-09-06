@@ -1,44 +1,31 @@
 import type { Metadata } from 'next';
-import { ArrowRight, Check, CreditCard, Users } from 'lucide-react';
-import { PurchaseButton } from '@/components/purchase-button';
+import { ArrowRight } from 'lucide-react';
+import { PricingPlans } from '@/components/pricing-plans';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 
 export const metadata: Metadata = {
-  title: 'Tarifs — 50 CHF par mois, prix fixe',
+  title: 'Tarifs — Solo, Start et Pro dès 49 CHF par mois',
   description:
-    'Zentra coûte 50 CHF par mois pour l’entreprise, avec les fonctionnalités, les mises à jour et les collaborateurs inclus.',
+    'Solo 49 CHF pour 1 personne, Start 59 CHF pour 3 et Pro 89 CHF pour 10. Toutes les fonctions actuelles et futures incluses, titulaire compris.',
   alternates: { canonical: '/pricing' },
   openGraph: {
-    title: 'Zentra — 50 CHF par mois, prix fixe',
+    title: 'Zentra — Solo 49 CHF, Start 59 CHF, Pro 89 CHF',
     description:
-      'Un abonnement d’entreprise simple, sans module ni collaborateur facturé en supplément.',
+      'Trois formules selon la taille de votre équipe, avec les mêmes fonctionnalités actuelles et futures.',
     url: '/pricing',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
 };
 
-const included = [
-  'Facturation suisse et QR-factures',
-  'Ventes, commandes et livraisons',
-  'Achats, fournisseurs et stock',
-  'Comptabilité, TVA et clôture contrôlée',
-  'Projets, heures et agenda',
-  'Préparation locale des salaires',
-  'Import bancaire CAMT supervisé',
-  'Fonctionnalités de l’offre Zentra incluses',
-  'Collaborateurs et comptable sans supplément',
-  'Mises à jour de Zentra incluses',
-] as const;
-
 const questions = [
   [
     'Le prix augmente-t-il avec le nombre de collaborateurs ?',
-    'Non. Le prix de l’offre Zentra reste fixé à 50 CHF par mois pour l’entreprise, sans supplément par collaborateur. Les rôles de compte n’impliquent toutefois pas une synchronisation générale de la base métier locale entre les appareils.',
+    'Choisissez Solo à 49 CHF pour 1 personne, Start à 59 CHF pour 3 personnes ou Pro à 89 CHF pour 10 personnes. Le titulaire, les collaborateurs, les comptables et les accès en lecture seule comptent dans ce total. Les invitations en attente réservent une place. Plusieurs appareils peuvent être liés à une même personne.',
   ],
   [
     'Faut-il acheter des modules séparément ?',
-    'Non. Les fonctionnalités de l’offre Zentra sont incluses. Il n’existe pas de catalogue de modules payants à débloquer séparément.',
+    'Toutes les fonctions actuelles et futures sont incluses dans les trois formules. Le nombre de personnes qui peuvent se connecter est la seule différence. Les fiches de salariés dans la paie ne consomment pas de place.',
   ],
   [
     'Comment fonctionne la résiliation ?',
@@ -66,80 +53,22 @@ export default function PricingPage() {
           <div className="mx-auto max-w-4xl">
             <p className="site-eyebrow">Tarif Zentra</p>
             <h1 className="mt-5 text-balance text-[2.8rem] font-semibold leading-[.98] tracking-[-.06em] sm:text-6xl lg:text-7xl">
-              Un prix simple.
+              Votre équipe choisit le rythme.
               <br />
-              <span className="text-[#b86b16]">Toute l’entreprise.</span>
+              <span className="text-[#b86b16]">Tout Zentra est inclus.</span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#657068]">
-              Pas de grille par utilisateur. Pas de fonction essentielle cachée
-              derrière un supplément.
+              Solo, Start ou Pro : choisissez le nombre de personnes qui se
+              connectent. Toutes les fonctionnalités actuelles et futures vous
+              accompagnent.
             </p>
           </div>
         </section>
 
         <section className="px-5 pb-16 sm:pb-24 lg:px-8" data-reveal>
-          <article className="mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-[#d6d2c8] bg-white shadow-[0_32px_90px_rgba(28,53,39,.11)] lg:grid-cols-[1.08fr_.92fr]">
-            <div className="p-7 sm:p-10 lg:p-12">
-              <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-                <strong className="text-6xl tracking-[-.065em] sm:text-7xl">
-                  50 CHF
-                </strong>
-                <span className="pb-2 text-base text-[#667169]">/ mois</span>
-              </div>
-              <p className="mt-4 text-sm font-semibold uppercase tracking-[.11em] text-[#356249]">
-                Prix fixe pour l’entreprise
-              </p>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-[#657068]">
-                Toutes les fonctionnalités de l’offre et les collaborateurs sont
-                inclus. Zentra ne facture ni siège supplémentaire, ni option
-                pour débloquer une fonction.
-              </p>
-
-              <ul className="mt-9 grid gap-3 sm:grid-cols-2">
-                {included.map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-3 text-sm leading-6"
-                  >
-                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[#e5efe7] text-[#315f47]">
-                      <Check className="size-3" />
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="flex flex-col justify-between bg-[#173d2c] p-7 text-white sm:p-10 lg:p-12">
-              <div>
-                <CreditCard className="size-7 text-[#efb157]" />
-                <h2 className="mt-7 text-2xl font-semibold tracking-[-.035em]">
-                  Abonnement et licence liés à votre compte.
-                </h2>
-                <p className="mt-4 text-sm leading-7 text-white/72">
-                  Le paiement passe par une page Stripe hébergée. L’accès peut
-                  ensuite être associé à l’entreprise et à ses appareils
-                  autorisés.
-                </p>
-                <div className="mt-6 flex items-start gap-3 rounded-2xl border border-white/12 bg-white/[.06] p-4 text-sm leading-6 text-white/72">
-                  <Users className="mt-0.5 size-4 shrink-0 text-[#efb157]" />
-                  <p>
-                    Les collaborateurs sont inclus pour les accès Zentra. La
-                    base métier reste locale et n’est pas synchronisée
-                    automatiquement entre tous les ordinateurs.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-9">
-                <PurchaseButton compact />
-                <p className="mt-4 text-center text-xs leading-5 text-white/55">
-                  Le bouton reflète l’état réel du paiement. La souscription est
-                  encore limitée à la recette privée tant que Stripe Tax et les
-                  informations légales ne sont pas finalisés.
-                </p>
-              </div>
-            </div>
-          </article>
+          <div className="mx-auto max-w-6xl">
+            <PricingPlans />
+          </div>
         </section>
 
         <section

@@ -21,7 +21,8 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import { desktopApi } from './bridge';
+import { desktopApi, type CloudAccountState } from './bridge';
+import { CloudAccountAccess } from './CloudAccountAccess';
 import { isMobileRuntime } from './mobileRuntime';
 import { BrandWordmark } from './BrandMark';
 import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
@@ -106,9 +107,13 @@ function setDeep<T extends keyof AppSettings>(
 export function Onboarding({
   onComplete,
   onRestore,
+  cloudAccount,
+  onCloudAccountChange,
 }: {
   onComplete: (settings: AppSettings, scope: OnboardingValidationScope) => Promise<void>;
   onRestore: (path: string) => Promise<void>;
+  cloudAccount?: CloudAccountState | null;
+  onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [draft] = useState(readOnboardingDraft);
   const [step, setStep] = useState(() => Math.min(6, Math.max(0, draft?.step ?? 0)));
@@ -307,6 +312,7 @@ export function Onboarding({
             <small>{isMobileRuntime() ? 'Application mobile' : 'Application Windows + macOS'}</small>
           </div>
         </div>
+        <CloudAccountAccess account={cloudAccount} onAccountChange={onCloudAccountChange} />
         <div className="onboarding__promise">
           <LockKeyhole size={22} />
           <p><strong>Votre entreprise reste chez vous.</strong> Les données métier sont stockées localement sur cet {isMobileRuntime() ? 'appareil' : 'ordinateur'}.</p>

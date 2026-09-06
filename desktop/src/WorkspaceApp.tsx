@@ -84,7 +84,7 @@ import { filterPayrollList } from './payrollList';
 import { useWorkspaceRecovery } from './useWorkspaceRecovery';
 import { WorkspaceRecoveryDialog } from './WorkspaceRecoveryDialog';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
-import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
+import { BrandMark, BrandWordmark } from './BrandMark';
 import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOrder, sortDocuments, type DocumentOrder } from './documentOrder';
 import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesDocumentList';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
@@ -92,6 +92,7 @@ import type { AgendaEventDraft } from './AgendaScreen';
 import { agendaNavigationTarget, type AgendaItem } from './agenda';
 import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
 import { CloudAccountPanel } from './CloudAccountPanel';
+import { CloudAccountAccess } from './CloudAccountAccess';
 import { BusinessProfileFields } from './BusinessProfileEditor';
 import {
   PaymentAccountingProofs,
@@ -1512,7 +1513,7 @@ export function WorkspaceApp({
             >
               <CircleHelp size={16} /> Guide
             </Button>
-            <CompanyAvatar organization={settings.organization} />
+            <CloudAccountAccess account={cloudAccount} onAccountChange={onCloudAccountChange} />
           </div>
         </header>
 

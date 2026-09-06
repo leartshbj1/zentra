@@ -13,6 +13,7 @@ import {
 import { issueLicense } from '@/lib/license-token';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
+import { requireMemberSeat } from '@/lib/team-seats';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,6 +115,10 @@ export async function POST(request: Request) {
           402,
         );
       }
+      await requireMemberSeat(
+        authorization.organization_id,
+        authorization.approved_by_user_id,
+      );
       const sessionToken = newDeviceSessionToken();
       const tokenHash = await hashOpaqueToken('device-session', sessionToken);
       const sessionId = `dss_${crypto.randomUUID()}`;

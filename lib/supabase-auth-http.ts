@@ -1,5 +1,6 @@
 import { SupabaseAuthError } from './supabase-auth';
 import { AccountPublicError } from './account-security';
+import { RequestBodyError } from './request-body';
 import {
   MAX_AUTH_PASSWORD_LENGTH,
   MIN_AUTH_PASSWORD_LENGTH,
@@ -65,7 +66,8 @@ export async function readAuthCredentials(
   } catch {
     throw new AuthPublicError('La demande est invalide.');
   }
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const email =
+    typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   const displayName =
     typeof body.displayName === 'string' ? body.displayName.trim() : '';
@@ -79,7 +81,10 @@ export async function readAuthCredentials(
   if (!password || password.length > MAX_AUTH_PASSWORD_LENGTH) {
     throw new AuthPublicError('Le mot de passe est invalide.');
   }
-  if (options.requireStrongPassword && password.length < MIN_AUTH_PASSWORD_LENGTH) {
+  if (
+    options.requireStrongPassword &&
+    password.length < MIN_AUTH_PASSWORD_LENGTH
+  ) {
     throw new AuthPublicError(
       `Le mot de passe doit contenir au moins ${MIN_AUTH_PASSWORD_LENGTH} caractères.`,
     );
@@ -87,11 +92,19 @@ export async function readAuthCredentials(
   if (displayName.length > 120) {
     throw new AuthPublicError('Le nom affiché est trop long.');
   }
-  return { email, password, displayName };
+  return {
+    email,
+    password,
+    displayName,
+    returnTo: safeAuthReturnPath(
+      typeof body.returnTo === 'string' ? body.returnTo : undefined,
+    ),
+  };
 }
 
 export function safeAuthReturnPath(value: string | null | undefined) {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/compte';
+  if (!value || !value.startsWith('/') || value.startsWith('//'))
+    return '/compte';
   try {
     const url = new URL(value, 'https://zentra.local');
     if (url.origin !== 'https://zentra.local') return '/compte';
@@ -130,7 +143,11 @@ export function publicAuthUser(user: {
 export function authJsonError(error: unknown) {
   let status = 500;
   let message = 'L’authentification est temporairement indisponible.';
-  if (error instanceof AuthPublicError || error instanceof AccountPublicError) {
+  if (
+    error instanceof AuthPublicError ||
+    error instanceof AccountPublicError ||
+    error instanceof RequestBodyError
+  ) {
     status = error.status;
     message = error.message;
   } else if (error instanceof SupabaseAuthError) {

@@ -18,8 +18,14 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     requireAuthSameOrigin(request);
-    const client = supabaseAuthClient();
     const { accessToken, refreshToken } = await readSupabaseAuthCookies();
+    if (!accessToken && !refreshToken) {
+      return Response.json(
+        { authenticated: false },
+        { headers: authNoStoreHeaders() },
+      );
+    }
+    const client = supabaseAuthClient();
     let user: SupabaseAuthUser | null = null;
 
     if (accessToken) {
@@ -42,7 +48,7 @@ export async function GET(request: Request) {
       }
     }
 
-    if (!user) {
+    if (!user?.emailConfirmed) {
       if (accessToken || refreshToken) await clearSupabaseAuthCookies();
       return Response.json(
         { authenticated: false },

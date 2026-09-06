@@ -232,6 +232,13 @@
   .document-preview__document-info { background: transparent; border: 0; border-top: 1px solid var(--line); padding-inline: 0; }
   .document-preview--reading .print-sheet { border-radius: 6px; box-shadow: 0 3px 30px #173d2c05; }
 }
+.account-launcher { flex-shrink: 0; }
+@media screen and (max-width: 520px) {
+  .topbar { flex-wrap: wrap; }
+  .topbar__title > div { min-width: 0; }
+  .topbar__title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar__tools > .account-launcher { order: 4; flex: 0 0 100%; width: 100%; justify-content: center; min-height: 44px; }
+}
 @media screen and (min-width: 861px) {
   .sidebar { inset: 0 auto 0 0; height: 100dvh; width: 242px; padding: 22px 16px; border-radius: 0; box-shadow: none; }
   .app-main { margin-left: 0; padding-left: 242px; }

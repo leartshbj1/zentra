@@ -1,5 +1,7 @@
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import { isAccountRole, type AccountRole } from '@/lib/account-security';
+import { planByLicense, validLicensePrice } from '@/lib/plans';
+import { requireMemberSeat } from '@/lib/team-seats';
 import {
   LICENSE_KEY_ID,
   LICENSE_PLAN,
@@ -138,6 +140,16 @@ export async function issueLicense(input: {
       400,
     );
   }
+  const entitlement = await paidEntitlementForSubscription(
+    input.subscriptionId,
+  );
+  const plan = planByLicense(entitlement.entitlement_plan_id);
+  if (!plan || entitlement.seat_limit !== plan.seats) {
+    throw new PublicError(
+      'La formule payée de cette entreprise doit être vérifiée.',
+      403,
+    );
+  }
   const proposedLicenseId = `lic_${crypto.randomUUID()}`;
   let activation: { license_id: string } | null;
   if (input.channel === 'account') {
@@ -212,8 +224,8 @@ export async function issueLicense(input: {
     access_role: input.accessRole ?? 'owner',
     account_user_id: accountUserId,
     account_session_id: accountSessionId,
-    plan: LICENSE_PLAN,
-    price_chf_cents: LICENSE_PRICE_CHF_CENTS,
+    plan: plan.licensePlan,
+    price_chf_cents: plan.priceChfCents,
     issued_at: new Date().toISOString(),
     valid_from: isoDate(now - 86_400),
     valid_until: isoDate(input.periodEnd + 3 * 86_400),
@@ -254,7 +266,7 @@ async function refreshIdentityFromToken(token: string) {
       !/^lic_[0-9a-f-]{36}$/i.test(payload.license_id ?? '') ||
       !INSTALLATION_ID.test(payload.installation_id ?? '') ||
       !isSupportedLicensePlan(payload.plan) ||
-      payload.price_chf_cents !== LICENSE_PRICE_CHF_CENTS ||
+      !validLicensePrice(payload.plan, payload.price_chf_cents) ||
       payload.kid !== LICENSE_KEY_ID ||
       !isAccountRole(accessRole) ||
       (accountUserId === null) !== (accountSessionId === null) ||
@@ -295,9 +307,7 @@ export async function refreshLicense(token: string) {
   const normalizedToken = token.trim();
   const { licenseId, installationId, payload } =
     await refreshIdentityFromToken(normalizedToken);
-  const ownerBindingHash = runtimeValue(
-    'OWNER_LICENSE_BINDING_SHA256',
-  );
+  const ownerBindingHash = runtimeValue('OWNER_LICENSE_BINDING_SHA256');
   if (ownerBindingHash) {
     const providedHash = await sha256Hex(`${licenseId}:${installationId}`);
     let ownerBindingMatches = false;
@@ -416,6 +426,14 @@ export async function refreshLicense(token: string) {
     if (!accountAccess || !isAccountRole(accountAccess.role)) {
       throw new PublicError(
         'La session du compte liée à cet appareil a expiré ou a été révoquée. Reconnectez Zentra au compte.',
+        403,
+      );
+    }
+    try {
+      await requireMemberSeat(organization.organization_id, accountUserId);
+    } catch {
+      throw new PublicError(
+        'Votre accès dépasse le nombre de personnes incluses dans la formule de l’entreprise.',
         403,
       );
     }

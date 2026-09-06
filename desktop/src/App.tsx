@@ -176,6 +176,8 @@ export function App() {
   const content =
     !workspace.onboardingCompleted || !workspace.settings ? (
       <Onboarding
+        cloudAccount={cloudAccount}
+        onCloudAccountChange={handleCloudAccountChange}
         onComplete={async (settings: AppSettings, scope) =>
           setWorkspace(await desktopApi.completeOnboarding(settings, scope))
         }
@@ -408,7 +410,7 @@ function LicenseActivation({
       )}
       <p>
         {license.reason ||
-          `Plan fixe 50 CHF / mois · fonctions et collaborateurs inclus · jeton lié à cet appareil`}
+          `Solo 49 CHF · Start 59 CHF · Pro 89 CHF par mois · toutes les fonctions actuelles et futures incluses`}
       </p>
     </aside>
   );

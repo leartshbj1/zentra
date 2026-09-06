@@ -3,6 +3,7 @@ import { BrandWordmark } from '@/components/brand-mark';
 import { MobileNavigation } from '@/components/mobile-navigation';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AccountLink } from '@/components/account-link';
 
 const navigation = [
   ['/#workflow', 'Produit'],
@@ -37,21 +38,16 @@ export function SiteHeader() {
               {label}
             </a>
           ))}
-          <a
-            href="/compte"
-            className="inline-flex min-h-11 items-center whitespace-nowrap text-[#6d776f] transition-colors hover:text-[#173d2c]"
-          >
-            Mon compte
-          </a>
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
+          <AccountLink className="px-1 sm:px-2" />
           <MobileNavigation />
           <a
             href="/demo-facture"
             className={cn(
               buttonVariants({ size: 'lg' }),
-              'h-11 rounded-full bg-[#173d2c] px-3 text-xs text-white shadow-[0_8px_24px_rgba(23,61,44,.16)] hover:bg-[#24563f] min-[360px]:px-4 min-[390px]:px-5 min-[390px]:text-sm',
+              'hidden h-11 rounded-full bg-[#173d2c] px-4 text-sm text-white hover:bg-[#24563f] sm:inline-flex',
             )}
           >
             <span className="hidden min-[360px]:inline">Essayer Zentra</span>

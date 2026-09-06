@@ -58,9 +58,7 @@ export function ZentraAuthForm({
     setNotice('');
     const data = new FormData(form);
     const endpoint =
-      mode === 'connexion'
-        ? '/api/auth/connexion'
-        : '/api/auth/inscription';
+      mode === 'connexion' ? '/api/auth/connexion' : '/api/auth/inscription';
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -70,6 +68,7 @@ export function ZentraAuthForm({
           email: data.get('email'),
           password: data.get('password'),
           displayName: data.get('displayName'),
+          returnTo,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -93,9 +92,7 @@ export function ZentraAuthForm({
       }
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : 'La demande n’a pas abouti.',
+        reason instanceof Error ? reason.message : 'La demande n’a pas abouti.',
       );
     } finally {
       setBusy(false);
@@ -144,17 +141,23 @@ export function ZentraAuthForm({
               : 'Créez votre accès sécurisé'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#657168]">
-            Un compte par personne, puis autant de collaborateurs et de
-            comptables que nécessaire dans l’entreprise.
+            Un compte personnel pour vous et chaque membre de votre équipe.
+            Retrouvez votre entreprise avec les accès de votre formule.
           </p>
         </div>
 
-        <form className="mt-7 space-y-4" onSubmit={(event) => void submit(event)}>
+        <form
+          className="mt-7 space-y-4"
+          onSubmit={(event) => void submit(event)}
+        >
           {mode === 'inscription' ? (
             <label className="block text-sm font-semibold text-[#31483a]">
               Nom et prénom
               <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#fbfaf7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
-                <UserRound className="size-4 shrink-0 text-[#7b877f]" aria-hidden="true" />
+                <UserRound
+                  className="size-4 shrink-0 text-[#7b877f]"
+                  aria-hidden="true"
+                />
                 <input
                   name="displayName"
                   autoComplete="name"
@@ -169,7 +172,10 @@ export function ZentraAuthForm({
           <label className="block text-sm font-semibold text-[#31483a]">
             Adresse e-mail
             <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#fbfaf7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
-              <Mail className="size-4 shrink-0 text-[#7b877f]" aria-hidden="true" />
+              <Mail
+                className="size-4 shrink-0 text-[#7b877f]"
+                aria-hidden="true"
+              />
               <input
                 required
                 name="email"
@@ -186,13 +192,20 @@ export function ZentraAuthForm({
           <label className="block text-sm font-semibold text-[#31483a]">
             Mot de passe
             <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#fbfaf7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
-              <LockKeyhole className="size-4 shrink-0 text-[#7b877f]" aria-hidden="true" />
+              <LockKeyhole
+                className="size-4 shrink-0 text-[#7b877f]"
+                aria-hidden="true"
+              />
               <input
                 required
                 name="password"
                 type={showPassword ? 'text' : 'password'}
-                autoComplete={mode === 'connexion' ? 'current-password' : 'new-password'}
-                minLength={mode === 'inscription' ? MIN_AUTH_PASSWORD_LENGTH : 1}
+                autoComplete={
+                  mode === 'connexion' ? 'current-password' : 'new-password'
+                }
+                minLength={
+                  mode === 'inscription' ? MIN_AUTH_PASSWORD_LENGTH : 1
+                }
                 maxLength={MAX_AUTH_PASSWORD_LENGTH}
                 className="h-11 min-w-0 flex-1 bg-transparent text-base font-normal outline-none placeholder:text-[#9aa39d]"
                 placeholder={
@@ -205,9 +218,17 @@ export function ZentraAuthForm({
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
                 className="grid size-10 shrink-0 place-items-center rounded-full text-[#607067] hover:bg-[#e9eee9]"
-                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                aria-label={
+                  showPassword
+                    ? 'Masquer le mot de passe'
+                    : 'Afficher le mot de passe'
+                }
               >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {showPassword ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
               </button>
             </span>
           </label>
@@ -226,6 +247,14 @@ export function ZentraAuthForm({
             {!busy ? <ArrowRight className="size-4" /> : null}
           </button>
         </form>
+        {mode === 'connexion' ? (
+          <a
+            href="/mot-de-passe"
+            className="mt-3 flex min-h-11 items-center justify-center text-sm font-semibold text-[#285d43] underline underline-offset-4"
+          >
+            Mot de passe oublié ?
+          </a>
+        ) : null}
 
         {notice ? (
           <output className="mt-5 flex items-start gap-3 rounded-2xl border border-[#bad3c1] bg-[#edf6ef] p-4 text-sm leading-6 text-[#28563d]">
@@ -233,7 +262,10 @@ export function ZentraAuthForm({
           </output>
         ) : null}
         {error ? (
-          <p className="mt-5 rounded-2xl border border-[#edcabe] bg-[#fff2ed] p-4 text-sm leading-6 text-[#8b3f2e]" role="alert">
+          <p
+            className="mt-5 rounded-2xl border border-[#edcabe] bg-[#fff2ed] p-4 text-sm leading-6 text-[#8b3f2e]"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
@@ -253,8 +285,8 @@ export function ZentraAuthForm({
       </div>
 
       <p className="mt-5 px-5 text-center text-xs leading-5 text-[#748078]">
-        Les jetons de session restent dans des cookies HttpOnly sécurisés et ne
-        sont jamais exposés au code de la page.
+        Utilisez votre adresse personnelle pour retrouver les accès accordés par
+        votre entreprise.
       </p>
     </div>
   );

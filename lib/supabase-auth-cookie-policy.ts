@@ -3,6 +3,7 @@ import type { SupabaseAuthSession } from './supabase-auth';
 export const SUPABASE_ACCESS_COOKIE = '__Host-zentra_access';
 export const SUPABASE_REFRESH_COOKIE = '__Host-zentra_refresh';
 export const SUPABASE_PKCE_COOKIE = '__Host-zentra_pkce';
+export const SUPABASE_AUTH_RETURN_COOKIE = '__Host-zentra_auth_return';
 export const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
 export const PKCE_COOKIE_MAX_AGE = 10 * 60;
 

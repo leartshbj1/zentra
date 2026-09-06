@@ -1,13 +1,12 @@
+import { PricingPlans } from '@/components/pricing-plans';
 import type { Metadata } from 'next';
 import {
   ArrowRight,
   Banknote,
   BookOpenCheck,
   Building2,
-  Check,
   Database,
   FileCheck2,
-  FileDown,
   FolderKanban,
   HardDrive,
   Landmark,
@@ -25,13 +24,13 @@ import { cn } from '@/lib/utils';
 export const metadata: Metadata = {
   title: { absolute: 'Zentra — ERP suisse pour PME' },
   description:
-    'Toute votre PME dans un seul logiciel : facturation suisse, comptabilité, salaires, achats, projets et banque, pour 50 CHF par mois.',
+    'Toute votre PME dans un seul logiciel : facturation suisse, comptabilité, salaires, achats, projets et banque, dès 49 CHF par mois.',
   alternates: { canonical: '/' },
   openGraph: {
     url: '/',
     title: 'Zentra — Toute votre PME. Un seul logiciel.',
     description:
-      'Un ERP local-first conçu pour les PME suisses. 50 CHF par mois, prix fixe et collaborateurs inclus.',
+      'Un ERP local-first conçu pour les PME suisses. Solo, Start et Pro dès 49 CHF par mois, toutes les fonctions actuelles et futures incluses.',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
 };
@@ -164,7 +163,7 @@ export default function Home() {
               aria-label="Tarif Zentra"
             >
               <strong className="rounded-full bg-[#173d2c] px-4 py-2 text-sm text-white">
-                50 CHF / mois
+                Dès 49 CHF / mois
               </strong>
               <span className="rounded-full border border-[#d7d2c6] bg-white/70 px-4 py-2 text-sm font-semibold text-[#48564e]">
                 Prix fixe
@@ -521,63 +520,17 @@ export default function Home() {
             <div className="text-center">
               <p className="site-eyebrow">Un prix simple</p>
               <h2 id="pricing-title" className="site-section-title mt-4">
-                Tout Zentra. 50 CHF par mois.
+                Trois formules. Tout Zentra.
               </h2>
               <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#657068]">
-                Un prix pour l’entreprise. Pas de module à débloquer, pas de
-                siège à compter.
+                1, 3 ou 10 personnes, titulaire compris. Toutes les fonctions
+                actuelles et futures sont incluses.
               </p>
             </div>
 
-            <article className="mt-10 grid overflow-hidden rounded-[2rem] border border-[#d6d2c8] bg-white shadow-[0_28px_80px_rgba(28,53,39,.1)] md:grid-cols-[1.08fr_.92fr]">
-              <div className="p-7 sm:p-10">
-                <p className="text-xs font-bold uppercase tracking-[.14em] text-[#9a651f]">
-                  Zentra
-                </p>
-                <div className="mt-4 flex items-end gap-2">
-                  <strong className="text-5xl tracking-[-.055em] sm:text-6xl">
-                    50 CHF
-                  </strong>
-                  <span className="pb-1.5 text-sm text-[#687269]">/ mois</span>
-                </div>
-                <p className="mt-4 text-sm leading-7 text-[#657068]">
-                  Abonnement mensuel d’entreprise. Le montant est fixé côté
-                  serveur et le paiement passe par Stripe lorsque la
-                  souscription est ouverte.
-                </p>
-              </div>
-              <div className="bg-[#173d2c] p-7 text-white sm:p-10">
-                <ul className="grid gap-3 text-sm">
-                  {[
-                    'Fonctionnalités incluses',
-                    'Collaborateurs et comptable inclus',
-                    'Mises à jour incluses',
-                    'Sauvegarde et restauration locales',
-                  ].map((item) => (
-                    <li key={item} className="flex items-center gap-3">
-                      <span className="grid size-6 place-items-center rounded-full bg-white/10">
-                        <Check className="size-3.5 text-[#efb157]" />
-                      </span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-8 grid gap-3 sm:grid-cols-2 md:grid-cols-1">
-                  <a
-                    href="/pricing"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#e7a33a] px-5 text-sm font-semibold text-[#173d2c]"
-                  >
-                    Voir le tarif <ArrowRight className="size-4" />
-                  </a>
-                  <a
-                    href="/download"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/18 px-5 text-sm font-semibold"
-                  >
-                    Télécharger Zentra <FileDown className="size-4" />
-                  </a>
-                </div>
-              </div>
-            </article>
+            <div className="mt-10">
+              <PricingPlans />
+            </div>
           </div>
         </section>
 

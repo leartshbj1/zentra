@@ -5,6 +5,7 @@ import { ZentraSignOut } from '@/components/zentra-sign-out';
 import { membershipsForUser } from '@/lib/account';
 import { roleCanManageMembers, type AccountRole } from '@/lib/account-security';
 import { database } from '@/lib/runtime';
+import { teamSeats } from '@/lib/team-seats';
 import { Archive, Laptop, ShieldCheck, UsersRound } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -188,6 +189,7 @@ export default async function AccountPage() {
     memberships.map(async (membership) => ({
       ...membership,
       stats: await organizationStats(membership.organizationId),
+      seats: await teamSeats(membership.organizationId),
       access: await organizationAccess(membership.organizationId),
     })),
   );
@@ -219,10 +221,10 @@ export default async function AccountPage() {
               entreprise.
             </p>
             <a
-              href="/download"
+              href="/pricing"
               className="mt-6 inline-flex min-h-11 items-center rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white"
             >
-              Voir l’offre Zentra
+              Choisir ma formule
             </a>
           </section>
         ) : (
@@ -246,12 +248,40 @@ export default async function AccountPage() {
                       {ROLE_LABEL[organization.role]}
                     </span>
                   </div>
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d8e2d8] bg-[#f0f5ee] p-4">
+                    <div>
+                      <p className="font-semibold">
+                        {organization.seats.planName} ·{' '}
+                        {organization.seats.priceChfCents / 100} CHF / mois
+                      </p>
+                      <p className="mt-1 text-sm text-[#657068]">
+                        {organization.seats.used}
+                        {organization.seats.limit === null
+                          ? ''
+                          : ` / ${organization.seats.limit}`}{' '}
+                        personne{organization.seats.used === 1 ? '' : 's'} ·
+                        titulaire compris
+                        {organization.seats.reserved > 0
+                          ? ` · ${organization.seats.reserved} invitation(s) en attente`
+                          : ''}
+                      </p>
+                    </div>
+                    <a
+                      className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4"
+                      href="/pricing"
+                    >
+                      Voir les formules
+                    </a>
+                  </div>
                   <div className="mt-7 grid gap-3 sm:grid-cols-3">
                     {[
                       {
                         icon: UsersRound,
-                        value: organization.stats.members,
-                        label: 'personnes · sans limite',
+                        value:
+                          organization.seats.limit === null
+                            ? organization.stats.members
+                            : `${organization.stats.members} / ${organization.seats.limit}`,
+                        label: 'personnes avec un accès',
                       },
                       {
                         icon: Laptop,
@@ -356,7 +386,10 @@ export default async function AccountPage() {
                 </div>
                 <div className="border-t border-[#e0ddd5] bg-white p-6 sm:p-8">
                   {roleCanManageMembers(organization.role) ? (
-                    <TeamInvite organizationId={organization.organizationId} />
+                    <TeamInvite
+                      organizationId={organization.organizationId}
+                      seats={organization.seats}
+                    />
                   ) : (
                     <p className="rounded-2xl bg-[#f4f2ec] p-5 text-sm leading-6 text-[#5f6962]">
                       Seuls le propriétaire et les administrateurs peuvent

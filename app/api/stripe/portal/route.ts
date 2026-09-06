@@ -1,13 +1,13 @@
 import { cookies } from 'next/headers';
 import { getZentraUser } from '@/app/zentra-auth';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { planByLicense } from '@/lib/plans';
 import {
   activationCookieName,
   assertActivationClaim,
   assertCheckoutAccount,
   createPortalSession,
   jsonError,
-  LICENSE_PLAN,
   noStoreHeaders,
   PublicError,
   referenceId,
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     if (
       session.mode !== 'subscription' ||
       session.status !== 'complete' ||
-      session.metadata?.plan !== LICENSE_PLAN
+      !planByLicense(session.metadata?.plan)
     ) {
       throw new PublicError('Cette session Zentra n’est pas finalisée.', 409);
     }

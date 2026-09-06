@@ -13,6 +13,7 @@ import {
 } from '@/lib/account-security';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
+import { teamSeats } from '@/lib/team-seats';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,12 @@ export async function POST(request: Request) {
       );
     }
     const email = normalizedEmail(user.email);
+    const seats = await teamSeats(invitation.organization_id);
+    if (!seats.subscriptionActive)
+      throw new AccountPublicError(
+        'L’abonnement de cette entreprise doit être renouvelé avant de rejoindre l’équipe.',
+        402,
+      );
     if (invitation.invited_email && invitation.invited_email !== email) {
       throw new AccountPublicError(
         `Cette invitation est réservée à ${invitation.invited_email}.`,

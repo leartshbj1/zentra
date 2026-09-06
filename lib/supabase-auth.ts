@@ -71,14 +71,21 @@ export function validateSupabaseAuthConfiguration(
     parsed.hostname === 'localhost' ||
     parsed.hostname === '127.0.0.1' ||
     parsed.hostname === '::1';
-  if (parsed.protocol !== 'https:' && !(isLocal && parsed.protocol === 'http:')) {
+  if (
+    parsed.protocol !== 'https:' &&
+    !(isLocal && parsed.protocol === 'http:')
+  ) {
     throw new Error('SUPABASE_URL doit utiliser HTTPS.');
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new Error('SUPABASE_URL ne doit contenir ni identifiants ni paramètres.');
+    throw new Error(
+      'SUPABASE_URL ne doit contenir ni identifiants ni paramètres.',
+    );
   }
   if (!/^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(publishableKey)) {
-    throw new Error('SUPABASE_PUBLISHABLE_KEY doit être une clé publiable Supabase.');
+    throw new Error(
+      'SUPABASE_PUBLISHABLE_KEY doit être une clé publiable Supabase.',
+    );
   }
 
   parsed.pathname = parsed.pathname.replace(/\/+$/, '');
@@ -97,7 +104,7 @@ export function createSupabaseAuthClient(
   async function request<T>(
     path: string,
     options: {
-      method?: 'GET' | 'POST';
+      method?: 'GET' | 'POST' | 'PUT';
       accessToken?: string;
       body?: JsonRecord;
     } = {},
@@ -156,7 +163,10 @@ export function createSupabaseAuthClient(
   }
 
   return {
-    async signIn(email: string, password: string): Promise<SupabaseAuthSession> {
+    async signIn(
+      email: string,
+      password: string,
+    ): Promise<SupabaseAuthSession> {
       const payload = await request<JsonRecord>(
         '/auth/v1/token?grant_type=password',
         {
@@ -245,8 +255,43 @@ export function createSupabaseAuthClient(
       return parseUser(payload);
     },
 
-    async signOut(accessToken: string): Promise<void> {
-      await request<JsonRecord>('/auth/v1/logout?scope=local', {
+    async requestPasswordReset(
+      email: string,
+      options: SupabasePkceSignUpOptions,
+    ): Promise<void> {
+      if (!isValidPkceChallenge(options.codeChallenge))
+        throw new SupabaseAuthError(
+          'Le challenge PKCE est invalide.',
+          400,
+          'invalid_pkce_challenge',
+        );
+      const redirectUrl = validatedAuthRedirect(options.emailRedirectTo);
+      await request<JsonRecord>(
+        `/auth/v1/recover?redirect_to=${encodeURIComponent(redirectUrl)}`,
+        {
+          method: 'POST',
+          body: {
+            email,
+            code_challenge: options.codeChallenge,
+            code_challenge_method: 's256',
+          },
+        },
+      );
+    },
+
+    async updatePassword(accessToken: string, password: string): Promise<void> {
+      await request<JsonRecord>('/auth/v1/user', {
+        method: 'PUT',
+        accessToken,
+        body: { password },
+      });
+    },
+
+    async signOut(
+      accessToken: string,
+      scope: 'local' | 'global' = 'local',
+    ): Promise<void> {
+      await request<JsonRecord>(`/auth/v1/logout?scope=${scope}`, {
         method: 'POST',
         accessToken,
       });
@@ -281,7 +326,9 @@ function parseSession(
       rawExpiresAt && Number.isFinite(rawExpiresAt)
         ? Math.floor(rawExpiresAt)
         : null,
-    user: userRecord ? parseUser(userRecord) : requireFallbackUser(fallbackUser),
+    user: userRecord
+      ? parseUser(userRecord)
+      : requireFallbackUser(fallbackUser),
   };
 }
 
@@ -298,7 +345,9 @@ function parseUser(payload: JsonRecord): SupabaseAuthUser {
   const metadata = asRecord(payload.user_metadata);
   const name =
     (metadata &&
-      (readString(metadata, 'full_name') ?? readString(metadata, 'name'))?.trim()) ||
+      (
+        readString(metadata, 'full_name') ?? readString(metadata, 'name')
+      )?.trim()) ||
     '';
   return {
     id,

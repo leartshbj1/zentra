@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type Member = {
   id: string;
@@ -60,9 +61,10 @@ export function TeamAccessList({
   devices: Device[];
   invitations: Invitation[];
 }) {
-  const [members, setMembers] = useState(initialMembers);
-  const [devices, setDevices] = useState(initialDevices);
-  const [invitations, setInvitations] = useState(initialInvitations);
+  const router = useRouter();
+  const members = initialMembers;
+  const devices = initialDevices;
+  const invitations = initialInvitations;
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
 
@@ -85,10 +87,7 @@ export function TeamAccessList({
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error || 'Retrait impossible.');
-      setMembers((current) => current.filter((item) => item.id !== member.id));
-      setDevices((current) =>
-        current.filter((device) => device.userId !== member.userId),
-      );
+      router.refresh();
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : 'Retrait impossible.',
@@ -116,9 +115,7 @@ export function TeamAccessList({
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error || 'Révocation impossible.');
-      setDevices((current) =>
-        current.filter((item) => item.installationId !== device.installationId),
-      );
+      router.refresh();
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : 'Révocation impossible.',
@@ -144,9 +141,7 @@ export function TeamAccessList({
       if (!response.ok) {
         throw new Error(body.error || 'Révocation de l’invitation impossible.');
       }
-      setInvitations((current) =>
-        current.filter((item) => item.id !== invitation.id),
-      );
+      router.refresh();
     } catch (reason) {
       setError(
         reason instanceof Error

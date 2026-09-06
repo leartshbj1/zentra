@@ -41,11 +41,11 @@ export function CloudAccountPanel({
           onAccountChange?.(value);
         }
       })
-      .catch((reason) => {
-        if (active)
-          setError(
-            errorMessage(reason, 'Le compte Zentra n’a pas pu être lu.'),
-          );
+      .catch(() => {
+        if (active) {
+          setAccount({ status: 'disconnected' });
+          setError('La connexion enregistrée n’a pas pu être lue. Vous pouvez vous reconnecter.');
+        }
       });
     return () => {
       active = false;
@@ -143,8 +143,8 @@ export function CloudAccountPanel({
     <section className="panel settings-card settings-card--wide">
       <SectionHeading
         eyebrow="Compte, équipe & fiduciaire"
-        title="Compte Zentra sécurisé"
-        description="Reliez l’abonnement, invitez votre équipe ou votre fiduciaire et utilisez le coffre de factures. Les données de travail restent d’abord dans ce profil local."
+        title="Votre connexion Zentra"
+        description="Connectez-vous avec votre compte personnel. Si vous êtes invité, utilisez l’adresse e-mail de votre invitation pour rejoindre l’entreprise."
       />
 
       <ol
@@ -152,9 +152,9 @@ export function CloudAccountPanel({
         aria-label="Étapes de connexion au compte"
       >
         {[
-          ['Relier ce poste', 'Zentra ouvre la page sécurisée.'],
+          ['Se connecter', 'Ouvrez votre compte dans le navigateur.'],
           ['Confirmer le code', 'Comparez le même code dans le navigateur.'],
-          ['Gérer les accès', 'Invitez sans supplément équipe et fiduciaire.'],
+          ['Gérer les accès', 'Invitez votre équipe dans les places de votre formule.'],
         ].map(([title, description], index) => {
           const step = index + 1;
           const done =
@@ -252,7 +252,7 @@ export function CloudAccountPanel({
             ) : (
               <Users size={16} />
             )}
-            {busy ? 'Préparation…' : 'Relier ce poste'}
+            {busy ? 'Préparation…' : 'Se connecter dans le navigateur'}
           </Button>
         </div>
       )}
@@ -260,9 +260,8 @@ export function CloudAccountPanel({
       <div className="settings-cloud-privacy">
         <LockKeyhole size={17} />
         <p>
-          Le jeton de session est chiffré par Windows DPAPI ou stocké dans le
-          Trousseau macOS. Le serveur ne conserve que son empreinte, jamais le
-          secret utilisable.
+          Votre connexion est protégée sur cet appareil. Chaque personne
+          utilise son propre compte et son propre mot de passe.
         </p>
       </div>
       <p className="settings-cloud-scope">

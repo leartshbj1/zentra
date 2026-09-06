@@ -33,6 +33,11 @@ use crate::{
 pub const LICENSE_PLAN: &str = "zentra-monthly-50-chf";
 const LEGACY_LICENSE_PLANS: &[&str] = &["elyko-monthly-50-chf", "helvichantier-monthly-50-chf"];
 pub const LICENSE_PRICE_CHF_CENTS: i64 = 5_000;
+const SUBSCRIPTION_PLANS: &[(&str, i64)] = &[
+    ("zentra-solo-monthly-49-chf", 4_900),
+    ("zentra-start-monthly-59-chf", 5_900),
+    ("zentra-pro-monthly-89-chf", 8_900),
+];
 const TOKEN_VERSION: u8 = 2;
 const LICENSE_KEY_ID: &str = "hc-prod-v1";
 const CLOCK_ANCHOR_VERSION: u8 = 1;
@@ -407,7 +412,7 @@ impl LocalStore {
                 audit_action,
                 "license",
                 "1",
-                &json!({"license_id":payload.license_id,"access_role":payload.access_role,"plan":LICENSE_PLAN,"price_chf_cents":LICENSE_PRICE_CHF_CENTS,"valid_until":payload.valid_until}),
+                &json!({"license_id":payload.license_id,"access_role":payload.access_role,"plan":payload.plan,"price_chf_cents":payload.price_chf_cents,"valid_until":payload.valid_until}),
             )?;
         }
         tx.commit()?;
@@ -652,7 +657,9 @@ impl LocalStore {
         // A legacy Zentra token remains valid during the product-name
         // migration, but is renewed online as soon as possible so the server
         // can reissue the canonical Zentra plan without locking out customers.
-        payload.plan != LICENSE_PLAN || expires_soon || anchor_requires_refresh
+        LEGACY_LICENSE_PLANS.contains(&payload.plan.as_str())
+            || expires_soon
+            || anchor_requires_refresh
     }
 
     fn claim_automatic_refresh(&self, license_id: &str, now_utc: DateTime<Utc>) -> AppResult<bool> {
@@ -1284,14 +1291,28 @@ impl LocalStore {
     }
 
     pub(crate) fn require_branding_write_access(&self) -> AppResult<()> {
-        let Some(key) = embedded_key()? else { return Ok(()); };
+        let Some(key) = embedded_key()? else {
+            return Ok(());
+        };
         self.require_branding_write_access_with_key(&key)
     }
 
-    fn require_branding_write_access_with_key(&self, key: &[u8;32]) -> AppResult<()> {
-        let completed = self.connect()?.query_row("SELECT onboarding_completed FROM settings WHERE id=1",[],|row|row.get::<_,i64>(0)).optional()?.unwrap_or(0) == 1;
-        if completed { self.require_write_access_with_key(key) }
-        else { self.require_onboarding_write_access_with_key(key) }
+    fn require_branding_write_access_with_key(&self, key: &[u8; 32]) -> AppResult<()> {
+        let completed = self
+            .connect()?
+            .query_row(
+                "SELECT onboarding_completed FROM settings WHERE id=1",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .unwrap_or(0)
+            == 1;
+        if completed {
+            self.require_write_access_with_key(key)
+        } else {
+            self.require_onboarding_write_access_with_key(key)
+        }
     }
 
     fn require_onboarding_write_access_with_key(&self, key: &[u8; 32]) -> AppResult<()> {
@@ -1716,7 +1737,17 @@ fn verify_token_with_key(token: &str, key: &[u8; 32]) -> AppResult<LicenseTokenP
     Ok(payload)
 }
 fn supported_license_plan(plan: &str) -> bool {
-    plan == LICENSE_PLAN || LEGACY_LICENSE_PLANS.contains(&plan)
+    license_plan_price(plan).is_some()
+}
+
+fn license_plan_price(plan: &str) -> Option<i64> {
+    if plan == LICENSE_PLAN || LEGACY_LICENSE_PLANS.contains(&plan) {
+        return Some(LICENSE_PRICE_CHF_CENTS);
+    }
+    SUBSCRIPTION_PLANS
+        .iter()
+        .find(|(id, _)| *id == plan)
+        .map(|(_, price)| *price)
 }
 
 fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
@@ -1728,10 +1759,11 @@ fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
     if payload.license_id.trim().is_empty() {
         return Err(AppError::Validation("license_id est obligatoire.".into()));
     }
-    if !supported_license_plan(&payload.plan) || payload.price_chf_cents != LICENSE_PRICE_CHF_CENTS
+    if !supported_license_plan(&payload.plan)
+        || Some(payload.price_chf_cents) != license_plan_price(&payload.plan)
     {
         return Err(AppError::Validation(
-            "Le jeton ne correspond pas au plan Zentra à 50 CHF/mois.".into(),
+            "Le jeton ne correspond pas à une formule Zentra valide.".into(),
         ));
     }
     if !matches!(
@@ -1830,6 +1862,27 @@ mod tests {
     use super::*;
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use ed25519_dalek::{Signer, SigningKey};
+
+    #[test]
+    fn paid_plan_prices_are_validated_in_native_licenses() {
+        let signing = SigningKey::from_bytes(&[31; 32]);
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let (mut payload, _) = current_token(&store, &signing, "lic-plans");
+        for (plan, price) in SUBSCRIPTION_PLANS {
+            payload.plan = (*plan).into();
+            payload.price_chf_cents = *price;
+            assert!(validate_payload(&payload).is_ok(), "{plan}");
+            payload.price_chf_cents = *price + 1;
+            assert!(
+                validate_payload(&payload).is_err(),
+                "{plan} with wrong price"
+            );
+        }
+        payload.plan = "zentra-free-unlimited".into();
+        payload.price_chf_cents = 0;
+        assert!(validate_payload(&payload).is_err());
+    }
 
     fn current_token(
         store: &LocalStore,
@@ -2059,12 +2112,18 @@ mod tests {
 
     #[test]
     fn branding_bootstrap_gate_does_not_enable_unlicensed_completed_profiles() {
-        let key = SigningKey::from_bytes(&[34_u8;32]).verifying_key().to_bytes();
+        let key = SigningKey::from_bytes(&[34_u8; 32])
+            .verifying_key()
+            .to_bytes();
         let temp = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
         store.require_branding_write_access_with_key(&key).unwrap();
         store.connect().unwrap().execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Exemple','2026-09-06','2026-09-06')",[]).unwrap();
-        assert!(store.require_branding_write_access_with_key(&key).unwrap_err().to_string().contains("Licence requise"));
+        assert!(store
+            .require_branding_write_access_with_key(&key)
+            .unwrap_err()
+            .to_string()
+            .contains("Licence requise"));
     }
 
     #[test]

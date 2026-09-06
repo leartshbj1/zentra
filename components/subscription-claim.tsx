@@ -23,9 +23,7 @@ export function SubscriptionClaim({ sessionId }: { sessionId: string }) {
         error?: string;
       };
       if (!response.ok || !body.organization) {
-        throw new Error(
-          body.error || 'L’abonnement n’a pas pu être associé.',
-        );
+        throw new Error(body.error || 'L’abonnement n’a pas pu être associé.');
       }
       setOrganizationName(body.organization.name ?? 'votre entreprise');
       setStatus('done');
@@ -45,7 +43,7 @@ export function SubscriptionClaim({ sessionId }: { sessionId: string }) {
         <CheckCircle2 className="size-8 text-[#24593d]" />
         <h2 className="mt-4 text-xl font-semibold">Compte associé</h2>
         <p className="mt-2 text-sm leading-6 text-[#52645a]">
-          {organizationName} peut maintenant autoriser sans supplément les
+          {organizationName} peut maintenant autoriser, selon sa formule, les
           collaborateurs, comptables et appareils, puis archiver ses factures
           dans le coffre Zentra.
         </p>
@@ -72,11 +70,18 @@ export function SubscriptionClaim({ sessionId }: { sessionId: string }) {
         onClick={() => void claim()}
         className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white disabled:opacity-60"
       >
-        {status === 'busy' ? <LoaderCircle className="size-4 animate-spin" /> : null}
-        {status === 'busy' ? 'Vérification du paiement…' : 'Associer mon abonnement'}
+        {status === 'busy' ? (
+          <LoaderCircle className="size-4 animate-spin" />
+        ) : null}
+        {status === 'busy'
+          ? 'Vérification du paiement…'
+          : 'Associer mon abonnement'}
       </button>
       {error ? (
-        <p className="mt-4 rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e]" role="alert">
+        <p
+          className="mt-4 rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e]"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}

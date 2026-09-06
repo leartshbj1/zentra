@@ -3,6 +3,7 @@
 import { Check, Copy, LoaderCircle, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import type { TeamSeats } from '@/lib/team-seats';
 
 const ROLE_OPTIONS = [
   {
@@ -27,7 +28,13 @@ const ROLE_OPTIONS = [
   },
 ] as const;
 
-export function TeamInvite({ organizationId }: { organizationId: string }) {
+export function TeamInvite({
+  organizationId,
+  seats,
+}: {
+  organizationId: string;
+  seats: TeamSeats;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [role, setRole] =
@@ -93,15 +100,32 @@ export function TeamInvite({ organizationId }: { organizationId: string }) {
         <div>
           <h3 className="font-semibold">Inviter une personne</h3>
           <p className="text-sm text-[#667168]">
-            Le lien expire après 7 jours.
+            Le lien expire après 7 jours et réserve une place.
           </p>
         </div>
       </div>
+      {seats.available === 0 || !seats.subscriptionActive ? (
+        <output className="mt-4 block rounded-2xl bg-[#fff3df] p-4 text-sm leading-6 text-[#785c28]">
+          {!seats.subscriptionActive
+            ? 'Renouvelez votre abonnement pour inviter une personne.'
+            : `Les ${seats.limit} places de la formule ${seats.planName} sont utilisées ou réservées. Retirez un accès ou annulez une invitation en attente pour libérer une place.`}{' '}
+          <a href="/pricing" className="font-semibold underline">
+            Voir les formules
+          </a>
+        </output>
+      ) : (
+        <p className="mt-4 text-sm text-[#657068]">
+          {seats.available === null
+            ? 'Ancienne formule sans limite de personnes.'
+            : `${seats.available} place${seats.available === 1 ? '' : 's'} disponible${seats.available === 1 ? '' : 's'}, titulaire compris.`}
+        </p>
+      )}
       <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_180px]">
         <label className="text-sm font-semibold">
-          E-mail (recommandé)
+          Adresse e-mail de la personne
           <input
             type="email"
+            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="collaborateur@entreprise.ch"
@@ -135,7 +159,12 @@ export function TeamInvite({ organizationId }: { organizationId: string }) {
       <button
         type="button"
         onClick={() => void createInvitation()}
-        disabled={busy}
+        disabled={
+          busy ||
+          seats.available === 0 ||
+          !seats.subscriptionActive ||
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+        }
         className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white disabled:opacity-60"
       >
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}

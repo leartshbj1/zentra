@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { LICENSE_PLAN, LICENSE_PRICE_CHF_CENTS } from '@/lib/license-constants';
+import { planById, planByLicense, type PlanId } from '@/lib/plans';
 import { RequestBodyError } from '@/lib/request-body';
 import { database, stripeConfiguration } from '@/lib/runtime';
 import {
@@ -127,9 +127,12 @@ export async function createCheckoutSession(
   origin: string,
   claimHash: string,
   account: { userId: string; email: string },
+  planId: PlanId,
 ) {
   const configuration = stripeConfiguration();
-  const { priceId } = configuration;
+  const plan = planById(planId);
+  if (!plan) throw new PublicError('Choisissez une formule Zentra valide.');
+  const priceId = configuration.priceIds[plan.id];
   if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
     throw new PublicError('Le prix Stripe Zentra n’est pas configuré.', 503);
   const session = await stripeOperation('checkout.sessions.create', () =>
@@ -138,7 +141,7 @@ export async function createCheckoutSession(
         origin,
         claimHash,
         priceId,
-        plan: LICENSE_PLAN,
+        plan: plan.licensePlan,
         accountUserId: account.userId,
         accountEmail: account.email,
         automaticTax: stripeAutomaticTaxRequired(configuration),
@@ -208,9 +211,12 @@ export async function assertConfiguredStripePortalLoginUrl() {
   return portal!.login_page.url!;
 }
 
-export async function assertConfiguredStripeAccount() {
-  const { priceId, secretKey, siteUrl, webhookEndpointId } =
-    stripeConfiguration();
+export async function assertConfiguredStripeAccount(planId: PlanId = 'solo') {
+  const configuration = stripeConfiguration();
+  const { secretKey, siteUrl, webhookEndpointId } = configuration;
+  const plan = planById(planId);
+  if (!plan) throw new PublicError('Choisissez une formule Zentra valide.');
+  const priceId = configuration.priceIds[plan.id];
   const expectedLivemode = stripeSecretKeyLivemode(secretKey);
   if (expectedLivemode === null)
     throw new PublicError('La clé serveur Stripe est invalide.', 503);
@@ -242,7 +248,7 @@ export async function assertConfiguredStripeAccount() {
     portal: portalConfigurations,
     webhook,
     expectedLivemode,
-    unitAmount: LICENSE_PRICE_CHF_CENTS,
+    unitAmount: plan.priceChfCents,
     taxBehavior: STRIPE_PRICE_TAX_BEHAVIOR,
     expectedWebhookUrl: `${siteUrl.replace(/\/$/, '')}/api/stripe/webhook`,
     expectedApiVersion: STRIPE_API_VERSION,
@@ -259,7 +265,7 @@ export async function assertConfiguredStripeAccount() {
           ? 'Le portail client Stripe doit permettre la connexion par e-mail, les factures, le moyen de paiement et la résiliation en fin de période.'
           : readinessProblem === 'webhook'
             ? 'Le webhook Stripe doit être actif, lié à cette adresse Zentra, utiliser la version API attendue et recevoir tous les événements obligatoires.'
-            : 'Le produit Stripe Zentra doit être actif, facturé 50 CHF par mois, taxe comprise, avec un code fiscal explicite.',
+            : `Le prix Stripe de la formule ${plan.name} doit être actif, facturé ${plan.priceChfCents / 100} CHF par mois, taxe comprise, avec un code fiscal explicite.`,
       503,
     );
   }
@@ -300,7 +306,12 @@ export function validatePaidSubscription(
     throw new PublicError('Ce paiement n’est pas terminé.', 409);
   if (session.payment_status !== 'paid')
     throw new PublicError('Le premier paiement n’est pas confirmé.', 402);
-  if (session.metadata?.plan !== LICENSE_PLAN) {
+  const sessionPlan = planByLicense(session.metadata?.plan);
+  const subscriptionPlan = planByLicense(subscription.metadata?.plan);
+  if (
+    !sessionPlan ||
+    sessionPlan.licensePlan !== subscriptionPlan?.licensePlan
+  ) {
     throw new PublicError(
       'Cet abonnement ne correspond pas au produit Zentra.',
       403,
@@ -317,7 +328,7 @@ export function validateActiveZentraSubscription(
   const item = elykoSubscriptionItem(subscription);
   if (!item) {
     throw new PublicError(
-      'L’abonnement ne correspond pas au plan Zentra à 50 CHF/mois.',
+      'L’abonnement ne correspond pas à une formule Zentra valide.',
       403,
     );
   }
@@ -325,19 +336,24 @@ export function validateActiveZentraSubscription(
 }
 
 function elykoSubscriptionItem(subscription: StripeSubscription) {
-  if (subscription.metadata?.plan !== LICENSE_PLAN) {
+  const plan = planByLicense(subscription.metadata?.plan);
+  if (!plan) {
     return null;
   }
   const item = subscription.items.data[0];
   const configuration = stripeConfiguration();
-  const { priceId } = configuration;
+  const priceId =
+    plan.id === 'legacy'
+      ? configuration.priceId
+      : configuration.priceIds[plan.id];
   const expectedLivemode = stripeSecretKeyLivemode(configuration.secretKey);
   if (
     !item ||
     subscription.items.data.length !== 1 ||
     item.price.id !== priceId ||
     item.price.currency.toLowerCase() !== 'chf' ||
-    item.price.unit_amount !== LICENSE_PRICE_CHF_CENTS ||
+    item.price.unit_amount !== plan.priceChfCents ||
+    item.quantity !== 1 ||
     item.price.recurring?.interval !== 'month' ||
     item.price.recurring.interval_count !== 1 ||
     item.price.recurring.usage_type !== 'licensed' ||
@@ -370,7 +386,7 @@ export function validatePaidZentraInvoice(
   const paidThrough = paidThroughFromInvoice(invoice, {
     subscriptionId: subscription.id,
     priceId: item.price.id,
-    unitAmount: LICENSE_PRICE_CHF_CENTS,
+    unitAmount: planByLicense(subscription.metadata?.plan)!.priceChfCents,
     livemode: subscription.livemode,
     automaticTaxRequired: stripeAutomaticTaxRequired(stripeConfiguration()),
   });
@@ -658,6 +674,10 @@ export async function upsertSubscription(
       'Cet abonnement ne correspond pas au produit Zentra.',
       403,
     );
+  const plan = planByLicense(subscription.metadata?.plan)!;
+  const paid = Boolean(
+    settlement.paidInvoiceId && settlement.paidThrough && settlement.paidAt,
+  );
   await database()
     .prepare(UPSERT_SUBSCRIPTION_SQL)
     .bind(
@@ -679,6 +699,9 @@ export async function upsertSubscription(
       settlement.failedInvoiceId ?? null,
       settlement.failedAt ?? null,
       Math.floor(Date.now() / 1000),
+      plan.licensePlan,
+      paid ? plan.licensePlan : '',
+      paid ? plan.seats : 0,
     )
     .run();
 }
@@ -688,7 +711,7 @@ export async function paidEntitlementForSubscription(subscriptionId: string) {
     throw new PublicError('Référence d’abonnement invalide.');
   const entitlement = await database()
     .prepare(
-      `SELECT customer_name,entitlement_valid_until,last_paid_invoice_id
+      `SELECT customer_name,entitlement_valid_until,last_paid_invoice_id,entitlement_plan_id,seat_limit
        FROM subscriptions WHERE subscription_id=? LIMIT 1`,
     )
     .bind(subscriptionId)
@@ -696,6 +719,8 @@ export async function paidEntitlementForSubscription(subscriptionId: string) {
       customer_name: string | null;
       entitlement_valid_until: number;
       last_paid_invoice_id: string | null;
+      entitlement_plan_id: string;
+      seat_limit: number | null;
     }>();
   if (
     !entitlement?.last_paid_invoice_id ||

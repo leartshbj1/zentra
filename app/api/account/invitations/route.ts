@@ -16,6 +16,7 @@ import {
 } from '@/lib/account-security';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
+import { requireInvitationCapacity } from '@/lib/team-seats';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,10 +52,25 @@ export async function POST(request: Request) {
       typeof body.email === 'string' && body.email.trim()
         ? normalizedEmail(body.email)
         : null;
+    if (!invitedEmail)
+      throw new AccountPublicError(
+        'Indiquez l’adresse e-mail de la personne à inviter.',
+      );
+    await requireInvitationCapacity(organizationId);
     const db = database();
     const token = newInvitationToken();
     const tokenHash = await hashOpaqueToken('invitation', token);
     const now = Math.floor(Date.now() / 1000);
+    const duplicate = await db
+      .prepare(`SELECT 1 FROM organization_members WHERE organization_id=? AND email=? AND revoked_at IS NULL
+      UNION ALL SELECT 1 FROM organization_invitations WHERE organization_id=? AND invited_email=? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>=? LIMIT 1`)
+      .bind(organizationId, invitedEmail, organizationId, invitedEmail, now)
+      .first();
+    if (duplicate)
+      throw new AccountPublicError(
+        'Cette personne dispose déjà d’un accès ou d’une invitation en attente.',
+        409,
+      );
     const expiresAt = now + 7 * 24 * 60 * 60;
     const invitationId = `inv_${crypto.randomUUID()}`;
     await db

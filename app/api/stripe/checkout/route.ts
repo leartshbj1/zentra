@@ -3,6 +3,8 @@ import { getZentraUser } from '@/app/zentra-auth';
 import { database, stripeConfiguration } from '@/lib/runtime';
 import { assertStripeCheckoutReady } from '@/lib/stripe-readiness';
 import { stripeTestAccessAllowed } from '@/lib/stripe-test-access';
+import { planById } from '@/lib/plans';
+import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   activationCookieName,
   createCheckoutSession,
@@ -20,6 +22,9 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const origin = requireSameOrigin(request);
+    const body = await readJsonObjectWithinLimit(request, 4_096);
+    const plan = planById(body.plan);
+    if (!plan) throw new PublicError('Choisissez Solo, Start ou Pro.');
     const configuration = stripeConfiguration();
     const identity = await getZentraUser({ refreshSession: true });
     if (!identity) {
@@ -34,11 +39,16 @@ export async function POST(request: Request) {
         403,
       );
     }
-    await assertStripeCheckoutReady();
+    await assertStripeCheckoutReady(plan.id);
     await enforceCheckoutRateLimit(request);
     const claim = randomBase64Url();
     const claimHash = await sha256(claim);
-    const session = await createCheckoutSession(origin, claimHash, identity);
+    const session = await createCheckoutSession(
+      origin,
+      claimHash,
+      identity,
+      plan.id,
+    );
     const now = Math.floor(Date.now() / 1000);
     const db = database();
     await db

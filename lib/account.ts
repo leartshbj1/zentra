@@ -1,5 +1,6 @@
 import { RequestBodyError } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
+import { requireMemberSeat } from '@/lib/team-seats';
 import {
   AccountPublicError,
   bearerSessionToken,
@@ -32,16 +33,36 @@ export function accountNoStoreHeaders(): HeadersInit {
 }
 
 export function accountJsonError(reason: unknown): Response {
+  if (
+    reason instanceof Error &&
+    reason.message.includes('zentra account access revoked')
+  ) {
+    reason = new AccountPublicError(
+      'Cet accès a été révoqué ou dépasse les places de votre formule. Relancez la connexion après vérification par le titulaire.',
+      403,
+    );
+  }
+  if (
+    reason instanceof Error &&
+    reason.message.includes('zentra seat limit reached')
+  ) {
+    reason = new AccountPublicError(
+      'Toutes les places de cette formule sont utilisées ou réservées. Retirez un accès ou une invitation en attente, ou choisissez une formule supérieure.',
+      409,
+    );
+  }
   const publicReason =
-    reason instanceof AccountPublicError || reason instanceof RequestBodyError;
+    reason instanceof AccountPublicError || reason instanceof RequestBodyError
+      ? reason
+      : undefined;
   return Response.json(
     {
       error: publicReason
-        ? reason.message
+        ? publicReason.message
         : 'Le service de compte Zentra est momentanément indisponible.',
     },
     {
-      status: publicReason ? reason.status : 500,
+      status: publicReason ? publicReason.status : 500,
       headers: accountNoStoreHeaders(),
     },
   );
@@ -113,6 +134,7 @@ export async function requireBrowserMembership(
       403,
     );
   }
+  await requireMemberSeat(organizationId, userId);
   return membership;
 }
 
@@ -170,6 +192,7 @@ export async function requireDeviceSession(
       402,
     );
   }
+  await requireMemberSeat(row.organization_id, row.user_id);
   if (allowedRoles && !allowedRoles.includes(row.role)) {
     throw new AccountPublicError(
       'Votre rôle ne permet pas cette opération.',

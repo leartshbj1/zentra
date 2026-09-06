@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     if (new URL(request.url).origin !== siteOrigin) {
       throw new AuthPublicError('Origine de la demande refusée.', 403);
     }
-    const { email, password, displayName } =
+    const { email, password, displayName, returnTo } =
       await readAuthCredentials(request, { requireStrongPassword: true });
     await Promise.all([
       enforceAccountRateLimit(request, 'auth-signup-email', email, 4),
@@ -31,15 +31,10 @@ export async function POST(request: Request) {
     const pkce = await createSupabasePkceFlow();
     const confirmationUrl = new URL('/api/auth/confirmation', siteOrigin);
     const client = supabaseAuthClient();
-    const result = await client.signUp(
-      email,
-      password,
-      displayName,
-      {
-        emailRedirectTo: confirmationUrl.toString(),
-        codeChallenge: pkce.challenge,
-      },
-    );
+    const result = await client.signUp(email, password, displayName, {
+      emailRedirectTo: confirmationUrl.toString(),
+      codeChallenge: pkce.challenge,
+    });
     if (result.session) {
       try {
         await client.signOut(result.session.accessToken);
@@ -51,7 +46,7 @@ export async function POST(request: Request) {
         503,
       );
     }
-    await writeSupabasePkceCookie(pkce.verifier);
+    await writeSupabasePkceCookie(pkce.verifier, returnTo);
     return Response.json(
       {
         authenticated: false,

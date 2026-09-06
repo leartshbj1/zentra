@@ -12,6 +12,7 @@ import {
 } from '@/lib/account-security';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
+import { requireMemberSeat } from '@/lib/team-seats';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       );
     }
 
+    await requireMemberSeat(membership.organizationId, user.userId);
     const now = Math.floor(Date.now() / 1000);
     const entitlement = await database()
       .prepare(

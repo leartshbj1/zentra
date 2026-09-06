@@ -43,7 +43,6 @@ import {
   ZENTRA_MAC_DMG_SIZE_MIB,
   ZENTRA_VERSION,
 } from '@/lib/downloads';
-import { PurchaseButton } from '@/components/purchase-button';
 
 export const metadata = {
   title: `Télécharger Zentra ${ZENTRA_VERSION} — Windows et macOS`,
@@ -170,8 +169,8 @@ export default function DownloadPage() {
               <span>
                 {ZENTRA_INSTALLER_SIZE_MIB} Mio / {ZENTRA_MAC_DMG_SIZE_MIB} Mio
               </span>
-              <span>50 CHF / mois</span>
-              <span>Fonctions et collaborateurs inclus</span>
+              <span>Dès 49 CHF / mois</span>
+              <span>Toutes les fonctions incluses</span>
             </div>
             <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
               Le téléchargement ne déclenche aucun paiement. Une licence active
@@ -181,7 +180,10 @@ export default function DownloadPage() {
               Les versions iOS et Android sont en préparation. Les applications
               mobiles seront distribuées et mises à jour depuis l’App Store et
               Google Play après leur validation.{' '}
-              <a href="#mobile-previews" className="inline-flex min-h-11 items-center font-semibold text-[#315f47] underline underline-offset-4">
+              <a
+                href="#mobile-previews"
+                className="inline-flex min-h-11 items-center font-semibold text-[#315f47] underline underline-offset-4"
+              >
                 Voir les préversions de test
               </a>
             </p>
@@ -374,7 +376,9 @@ export default function DownloadPage() {
               </p>
               <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
-                  <h4 className="font-semibold text-[#263a2e]">Android — APK de test</h4>
+                  <h4 className="font-semibold text-[#263a2e]">
+                    Android — APK de test
+                  </h4>
                   <p className="mt-3 text-sm leading-6 text-[#607068]">
                     Installation manuelle sur Android ARM64. La signature de
                     test est conservée depuis 1.32.0 pour permettre le
@@ -386,31 +390,45 @@ export default function DownloadPage() {
                     l’ancienne signature diffère et désinstaller efface les
                     données locales.
                   </p>
-                  <a href={ZENTRA_ANDROID_PREVIEW_PATH} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]">
+                  <a
+                    href={ZENTRA_ANDROID_PREVIEW_PATH}
+                    className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]"
+                  >
                     Télécharger l’APK Android de test
                   </a>
                 </article>
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
-                  <h4 className="font-semibold text-[#263a2e]">iPhone — IPA à signer</h4>
+                  <h4 className="font-semibold text-[#263a2e]">
+                    iPhone — IPA à signer
+                  </h4>
                   <p className="mt-3 text-sm leading-6 text-[#607068]">
                     Signez cet IPA avec votre compte Apple dans Sideloadly ou
-                    AltStore pour l’installer sur votre iPhone. Ouvrir le fichier
-                    dans Safari ne suffit pas. Le renouvellement de la signature
-                    dépend de votre compte Apple.
+                    AltStore pour l’installer sur votre iPhone. Ouvrir le
+                    fichier dans Safari ne suffit pas. Le renouvellement de la
+                    signature dépend de votre compte Apple.
                   </p>
-                  <a href={ZENTRA_IPHONE_IPA_PATH} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]">
+                  <a
+                    href={ZENTRA_IPHONE_IPA_PATH}
+                    className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]"
+                  >
                     Télécharger l’IPA pour iPhone
                   </a>
                   <p className="mt-4 text-sm leading-6 text-[#607068]">
                     Pour les essais sur Mac Apple Silicon, le ZIP du simulateur
                     ne s’installe pas directement sur iPhone.
                   </p>
-                  <a href={ZENTRA_IOS_PREVIEW_PATH} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4">
+                  <a
+                    href={ZENTRA_IOS_PREVIEW_PATH}
+                    className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
+                  >
                     Télécharger pour le simulateur iOS
                   </a>
                 </article>
               </div>
-              <a href={ZENTRA_GITHUB_RELEASE_PATH} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4">
+              <a
+                href={ZENTRA_GITHUB_RELEASE_PATH}
+                className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
+              >
                 Notes de version et fichiers vérifiés
               </a>
             </div>
@@ -539,7 +557,7 @@ export default function DownloadPage() {
                 Licence Zentra
               </p>
               <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                L’application complète pour 50 CHF par mois.
+                Toute l’application, dès 49 CHF par mois.
               </h2>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
                 Le paiement est traité par Stripe. L’abonnement peut être
@@ -555,8 +573,8 @@ export default function DownloadPage() {
                   'Nouvelles versions incluses',
                   'Paiement sécurisé par Stripe',
                   'Résiliation depuis le portail client',
-                  'Collaborateurs sans supplément',
-                  'Toutes les fonctionnalités incluses',
+                  'Solo : 1 · Start : 3 · Pro : 10 personnes',
+                  'Fonctions actuelles et futures incluses',
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <Check className="size-4 text-[#77cf92]" /> {item}
@@ -566,17 +584,24 @@ export default function DownloadPage() {
             </div>
             <div className="rounded-[24px] border border-white/12 bg-white/7 p-6 sm:p-8">
               <div className="flex items-end gap-2">
-                <strong className="text-5xl tracking-[-.05em]">50 CHF</strong>
+                <strong className="text-5xl tracking-[-.05em]">
+                  Dès 49 CHF
+                </strong>
                 <span className="pb-1 text-sm text-white/76">/ mois</span>
               </div>
               <p className="mt-3 text-xs leading-5 text-white/74">
-                Prix final fixe de 50 CHF par mois, taxe incluse lorsqu’elle
-                s’applique. Aucune fonctionnalité et aucun collaborateur ne
-                seront facturés en supplément. Abonnement renouvelé
-                mensuellement et résiliable pour la fin de la période en cours.
+                Solo 49 CHF, Start 59 CHF ou Pro 89 CHF par mois, pour 1, 3 ou
+                10 personnes, titulaire compris. Toutes les fonctions actuelles
+                et futures sont incluses. Taxe incluse lorsqu’elle s’applique ;
+                résiliation pour la fin de la période en cours.
               </p>
               <div className="mt-7">
-                <PurchaseButton compact />
+                <a
+                  href="/pricing"
+                  className="flex min-h-12 items-center justify-center rounded-full bg-[#efaa3c] px-5 text-sm font-semibold text-[#173d2c]"
+                >
+                  Choisir ma formule
+                </a>
               </div>
               <a
                 href="mailto:leartshabija@gmail.com?subject=Zentra%20-%20activation"
@@ -598,7 +623,8 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Une interface plus fluide, des documents plus simples à consulter.
+                Une interface plus fluide, des documents plus simples à
+                consulter.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
