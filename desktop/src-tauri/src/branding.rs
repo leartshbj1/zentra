@@ -28,6 +28,19 @@ pub(crate) struct PdfLogo {
 }
 
 impl LocalStore {
+    pub fn company_logo_preview(&self, path: &str) -> AppResult<String> {
+        use base64::Engine;
+        let file_name = portable_logo_file_name(path)
+            .filter(|name| immutable_logo_digest(name).is_some())
+            .ok_or_else(|| AppError::Validation("Réimportez le logo pour créer sa copie locale.".into()))?;
+        let dir = self.secure_branding_dir()?;
+        let stored = dir.join(file_name);
+        validate_managed_logo_path(&stored, &dir)?;
+        let bytes = fs::read(stored)?;
+        let (format, _) = decode_and_validate(&bytes)?;
+        Ok(format!("data:{};base64,{}", logo_media_type(format)?, base64::engine::general_purpose::STANDARD.encode(bytes)))
+    }
+
     /// Copie un logo choisi par l'utilisateur dans le stockage local Zentra.
     /// Le nom est dérivé du contenu : un logo déjà importé n'est jamais dupliqué
     /// et les anciens documents continuent à référencer leur version immuable.
@@ -257,7 +270,7 @@ fn stage_company_logo_file(source_path: &str, branding_dir: &Path) -> AppResult<
 
 fn resolve_managed_logo_source(raw_path: &str, branding_dir: &Path) -> Option<PathBuf> {
     let original = Path::new(raw_path);
-    let file_name = original.file_name()?.to_str()?;
+    let file_name = portable_logo_file_name(raw_path)?;
     let expected_digest = immutable_logo_digest(file_name)?;
     for candidate in [original.to_path_buf(), branding_dir.join(file_name)] {
         let Some(bytes) = read_valid_logo_bytes(&candidate) else {
@@ -392,11 +405,13 @@ pub(crate) fn load_pdf_logo(raw_path: &str) -> Option<PdfLogo> {
 }
 
 pub(crate) fn is_managed_logo_reference(raw_path: &str) -> bool {
-    Path::new(raw_path.trim())
-        .file_name()
-        .and_then(|value| value.to_str())
+    portable_logo_file_name(raw_path)
         .and_then(immutable_logo_digest)
         .is_some()
+}
+
+fn portable_logo_file_name(raw_path: &str) -> Option<&str> {
+    raw_path.trim().rsplit(['/', '\\']).next().filter(|name| !name.is_empty())
 }
 
 /// Recharge une référence immuable après restauration d'une sauvegarde dans un
@@ -404,10 +419,10 @@ pub(crate) fn is_managed_logo_reference(raw_path: &str) -> bool {
 /// par `stage_company_logo` et le condensat du fichier est revérifié avant usage.
 pub(crate) fn load_pdf_logo_with_fallback(raw_path: &str, branding_dir: &Path) -> Option<PdfLogo> {
     let original = Path::new(raw_path.trim());
-    if raw_path.trim().is_empty() || !original.is_absolute() {
+    if raw_path.trim().is_empty() {
         return None;
     }
-    let file_name = original.file_name()?.to_str()?;
+    let file_name = portable_logo_file_name(raw_path)?;
     let Some(expected_digest) = immutable_logo_digest(file_name) else {
         return load_pdf_logo(raw_path);
     };
@@ -605,6 +620,12 @@ mod tests {
         assert!(Path::new(&first).starts_with(store.attachments_dir.join("branding")));
         assert!(Path::new(&first).is_file());
         assert!(load_pdf_logo(&first).is_some());
+        let name = portable_logo_file_name(&first).unwrap();
+        for foreign in [format!("C:\\Ancien profil\\attachments\\branding\\{name}"), format!("/Users/ancien/Library/branding/{name}")] {
+            assert!(is_managed_logo_reference(&foreign));
+            assert!(load_pdf_logo_with_fallback(&foreign, &store.attachments_dir.join("branding")).is_some());
+            assert!(store.company_logo_preview(&foreign).unwrap().starts_with("data:image/png;base64,"));
+        }
     }
 
     #[test]

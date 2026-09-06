@@ -1,15 +1,17 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 
-export function SettingsCategory({ title, description, icon: Icon, children }: {
+export function SettingsCategory({ title, description, icon: Icon, children, lazy = false }: {
   title: string;
   description: string;
   icon: LucideIcon;
   children: ReactNode;
+  lazy?: boolean;
 }) {
-  return <details className="settings-category" name="settings-categories">
+  const [open, setOpen] = useState(false);
+  return <details className="settings-category" name="settings-categories" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary><Icon size={22} aria-hidden="true" /><span><strong>{title}</strong><small>{description}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
-    <div className="settings-category__content settings-layout">{children}</div>
+    <div className="settings-category__content settings-layout">{!lazy || open ? children : null}</div>
   </details>;
 }
 

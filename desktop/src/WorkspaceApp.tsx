@@ -1,3 +1,6 @@
+import { CompanyLogo } from './CompanyLogo';
+import { DocumentDesignStudio } from './DocumentDesignStudio';
+import { documentAppearance, documentStyleVariables } from './documentAppearance';
 import { ReportsScreen } from './ProjectReports';
 import {
   Fragment,
@@ -4806,8 +4809,8 @@ function SettingsScreen({
           <div className="company-logo-setting">
             <div className="company-logo-setting__preview">
               {org.logoPath ? (
-                <img
-                  src={convertFileSrc(org.logoPath)}
+                <CompanyLogo
+                  path={org.logoPath}
                   alt={`Logo de ${org.legalName}`}
                 />
               ) : (
@@ -5123,6 +5126,9 @@ function SettingsScreen({
         </Button>
       </section>
 
+      </SettingsCategory>
+      <SettingsCategory lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis et bilan" icon={FileText}>
+        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={() => void execute(() => desktopApi.saveSettings(settings), 'Les présentations des factures, devis et bilans ont été enregistrées.')} />
       </SettingsCategory>
       <SettingsCategory title="Comptabilité" description="Activation et comptes de liaison" icon={Landmark}>
       <section
@@ -8178,6 +8184,7 @@ function settingsForSnapshot(
   if (!issuer) return current;
   return {
     ...current,
+    documentAppearance: documentAppearance(issuer.documentAppearance),
     organization: {
       ...current.organization,
       legalName: issuer.companyName,
@@ -8757,7 +8764,7 @@ function PrintSheet({
           idleMessage="L’export PDF applique la pagination A4. Vérifiez les informations avant de l’envoyer."
         />
       }>
-      <article className="print-sheet">
+      <article className="print-sheet document-styled" data-layout={documentAppearance(settings.documentAppearance).quotes.layout} style={documentStyleVariables(documentAppearance(settings.documentAppearance).quotes)}>
         <PrintHeader
           settings={settings}
           title={isQuote ? 'DEVIS' : 'FACTURE'}
@@ -8841,7 +8848,7 @@ function PrintSheet({
             <strong>{formatMoney(totals.totalCents, document.currency)}</strong>
           </div>
         </div>
-        <footer className="print-footer">
+        <footer className="print-footer"><p className="document-custom-footer">{documentAppearance(settings.documentAppearance).quotes.footer}</p>
           <p>{document.notes}</p>
           <p>
             <strong>IBAN</strong> · {settings.billing.iban}
@@ -9214,11 +9221,11 @@ function PrintHeader({
       <div>
         <div className="print-brand">
           {org.logoPath ? (
-            <img src={convertFileSrc(org.logoPath)} alt="" />
+            <CompanyLogo path={org.logoPath} alt="Logo de l’entreprise" />
           ) : (
             <BrandMark size={24} />
           )}
-          <span>Zentra</span>
+          {!org.logoPath && <span>{org.legalName || 'Zentra'}</span>}
         </div>
         <strong>{org.legalName}</strong>
         <p>
@@ -9318,7 +9325,7 @@ function InvoicePrintSheet({
           idleMessage={exportDescription}
         />
       }>
-      <article className={`print-sheet ${qr ? 'print-sheet--qr' : ''}`}>
+      <article className={`print-sheet document-styled ${qr ? 'print-sheet--qr' : ''}`} data-layout={documentAppearance(settings.documentAppearance).invoices.layout} style={documentStyleVariables(documentAppearance(settings.documentAppearance).invoices)}>
         <div className="print-invoice-body">
           <PrintHeader
             settings={settings}
@@ -9448,7 +9455,7 @@ function InvoicePrintSheet({
               <strong>{formatMoney(totals.totalCents, invoice.currency)}</strong>
             </div>
           </div>
-          <footer className="print-footer">
+          <footer className="print-footer"><p className="document-custom-footer">{documentAppearance(settings.documentAppearance).invoices.footer}</p>
             <p>{invoice.notes}</p>
             <p>
               {invoice.type === 'credit_note'

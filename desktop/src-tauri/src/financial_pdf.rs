@@ -19,7 +19,7 @@ const LEFT: f32 = 42.0;
 const RIGHT: f32 = 553.0;
 const FIRST_AMOUNT: f32 = 438.0;
 const INK: [f32; 3] = [0.09, 0.15, 0.12];
-const GREEN: [f32; 3] = [0.08, 0.30, 0.21];
+use crate::{document_design::DocumentStyle, branding::{load_pdf_logo, PdfLogo}, sales_pdf::add_logo_image};
 
 impl LocalStore {
     pub fn export_annual_accounts_pdf(
@@ -129,6 +129,8 @@ struct PageWriter<'a> {
     report: &'a Value,
     title: &'a str,
     closed: bool,
+    style: DocumentStyle,
+    logo: Option<PdfLogo>,
 }
 impl<'a> PageWriter<'a> {
     fn new(issuer: &'a Value, report: &'a Value, title: &'a str, closed: bool) -> AppResult<Self> {
@@ -139,6 +141,8 @@ impl<'a> PageWriter<'a> {
             report,
             title,
             closed,
+            style: DocumentStyle::from_issuer(issuer, "accounts")?,
+            logo: load_pdf_logo(string(issuer, "logo_path")),
         };
         writer.next_page()?;
         Ok(writer)
@@ -146,8 +150,16 @@ impl<'a> PageWriter<'a> {
     fn next_page(&mut self) -> AppResult<()> {
         let mut ops = Vec::new();
         let mut y = 793.0;
+        if self.style.layout == "signature" {
+            ops.extend([Operation::new("rg", self.style.accent().into_iter().map(Object::from).collect()), Operation::new("re", vec![0.into(),834.into(),595.28.into(),8.into()]), Operation::new("f",vec![])]);
+        }
+        if let Some(logo) = &self.logo {
+            let scale = (self.style.logo_width as f32 / logo.width as f32).min(self.style.logo_height() / logo.height as f32);
+            ops.extend([Operation::new("q",vec![]), Operation::new("cm",vec![(logo.width as f32 * scale).into(),0.into(),0.into(),(logo.height as f32 * scale).into(),LEFT.into(),(y-6.0).into()]), Operation::new("Do",vec![Object::Name(b"Logo".to_vec())]), Operation::new("Q",vec![])]);
+            y -= 22.0;
+        }
         for line in wrap_text_width(string(self.issuer, "company_name"), 505.0, 15.0, true) {
-            text(&mut ops, &line, LEFT, y, 15.0, true, GREEN)?;
+            text(&mut ops, &line, LEFT, y, 15.0, true, self.style.ink())?;
             y -= 19.0;
         }
         let address = format!(
@@ -161,7 +173,7 @@ impl<'a> PageWriter<'a> {
             y -= 12.0;
         }
         y -= 14.0;
-        text(&mut ops, self.title, LEFT, y, 21.0, true, GREEN)?;
+        text(&mut ops, self.title, LEFT, y, 21.0, true, self.style.ink())?;
         y -= 23.0;
         text(
             &mut ops,
@@ -223,7 +235,7 @@ impl<'a> PageWriter<'a> {
                 self.y - index as f32 * 13.0,
                 9.0,
                 bold,
-                if bold { GREEN } else { INK },
+                if bold { self.style.ink() } else { INK },
             )?;
         }
         if let Some((current, previous)) = amounts {
@@ -294,6 +306,9 @@ pub(crate) fn render_accounts_pdf(
     closed: bool,
     captured_at: &str,
 ) -> AppResult<(Vec<u8>, usize)> {
+    let style = DocumentStyle::from_issuer(issuer, "accounts")?;
+    let logo = load_pdf_logo(string(issuer, "logo_path"));
+    if !string(issuer, "logo_path").is_empty() && logo.is_none() { return Err(AppError::Validation("Le logo du bilan est introuvable. Réimportez-le dans les paramètres.".into())); }
     let mut sheet = PageWriter::new(issuer, balance, "Bilan", closed)?;
     for (key, label) in [
         ("current_assets", "Actifs circulants"),
@@ -369,9 +384,12 @@ pub(crate) fn render_accounts_pdf(
     let pages_id = pdf.new_object_id();
     let regular=pdf.add_object(dictionary!{"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>"Helvetica","Encoding"=>"WinAnsiEncoding"});
     let bold=pdf.add_object(dictionary!{"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>"Helvetica-Bold","Encoding"=>"WinAnsiEncoding"});
-    let resources = pdf.add_object(dictionary! {"Font"=>dictionary!{"F1"=>regular,"F2"=>bold}});
+    let mut resources = dictionary! {"Font"=>dictionary!{"F1"=>regular,"F2"=>bold}};
+    if let Some(logo) = &logo { resources.set("XObject", dictionary! {"Logo" => add_logo_image(&mut pdf, logo)}); }
+    let resources = pdf.add_object(resources);
     let mut kids = Vec::new();
     for (index, mut ops) in pages.into_iter().enumerate() {
+        if !style.footer.is_empty() { text(&mut ops, &style.footer, LEFT, 73.0, 7.0, false, style.ink())?; }
         rule(&mut ops, 65.0);
         text(&mut ops,"Bilan et résultat issus du journal local. Annexe et approbation à joindre selon vos obligations.",LEFT,51.0,7.0,false,INK)?;
         text(
@@ -411,14 +429,11 @@ pub(crate) fn render_accounts_pdf(
     Ok((bytes, count))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
     fn row(code: &str, name: &str, section: &str, current: i64, previous: i64) -> Value {
         json!({"code":code,"name":name,"report_section":section,"amount_cents":current*100,"previous_amount_cents":previous*100})
     }
-    fn reports() -> (Value, Value, Value) {
+    fn example_reports() -> (Value, Value, Value) {
         let issuer = json!({"company_name":"Exemple fictif - Atelier du Léman Sàrl","address_line1":"Rue du Lac 12","postal_code":"1000","city":"Lausanne"});
         let scope = json!({"date_from":"2026-01-01","date_to":"2026-12-31","previous_date_from":"2025-01-01","previous_date_to":"2025-12-31"});
         let balance = json!({"scope":scope,"currency":{"base_currency":"CHF"},"balanced":true,
@@ -433,9 +448,21 @@ mod tests {
         (issuer, balance, income)
     }
 
+
+pub(crate) fn design_example(issuer: &Value) -> AppResult<Vec<u8>> {
+    let (_, balance, income) = example_reports();
+    let mut sample_issuer = issuer.clone();
+    sample_issuer["company_name"] = json!(format!("{} - EXEMPLE", string(issuer, "company_name")));
+    Ok(render_accounts_pdf(&sample_issuer, &balance, &income, false, "Exemple fictif - sans valeur comptable")?.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
     #[test]
     fn comparative_accounts_pdf_preserves_totals_accents_status_and_creates_review_sample() {
-        let (issuer, balance, income) = reports();
+        let (issuer, balance, income) = example_reports();
         let (bytes, pages) =
             render_accounts_pdf(&issuer, &balance, &income, false, "2026-09-05T00:00:00Z").unwrap();
         let pdf = Document::load_mem(&bytes).unwrap();
@@ -467,7 +494,7 @@ mod tests {
 
     #[test]
     fn financial_pdf_paginates_without_losing_rows_and_rejects_silent_character_loss() {
-        let (mut issuer, mut balance, income) = reports();
+        let (mut issuer, mut balance, income) = example_reports();
         for index in 0..75 {
             balance["rows"].as_array_mut().unwrap().push(row(
                 &format!("10{index:03}"),

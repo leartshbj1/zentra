@@ -1,5 +1,5 @@
+import { CompanyLogo } from './CompanyLogo';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import {
   AlertCircle,
   ArrowLeft,
@@ -462,7 +462,7 @@ function IdentityStep({ settings, setSettings, catalog, catalogError, onRetryCat
           className={`company-logo-setting onboarding-logo-setting field--wide ${issues['organization.logoPath'] ? 'field--error' : ''}`}
           data-field-action="organization.logoPath"
         >
-          <div className="company-logo-setting__preview">{org.logoPath ? <img src={convertFileSrc(org.logoPath)} alt={`Logo de ${org.legalName || 'l’entreprise'}`} /> : <Building2 size={30} />}</div>
+          <div className="company-logo-setting__preview">{org.logoPath ? <CompanyLogo path={org.logoPath} alt={`Logo de ${org.legalName || 'l’entreprise'}`} /> : <Building2 size={30} />}</div>
           <div className="company-logo-setting__copy">
             <strong>Logo de l’entreprise</strong>
             <p>Facultatif · PNG, JPEG ou WebP, de 16 × 16 à 4096 × 4096 px, 8 Mo maximum. Zentra contrôle le contenu et en conserve une copie locale immuable pour vos devis, factures et fiches de salaire.</p>

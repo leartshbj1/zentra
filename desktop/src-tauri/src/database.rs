@@ -1416,6 +1416,9 @@ fn prepare_onboarding(
     if let Some(rates) = settings_rates_to_import.as_ref() {
         issues.extend(explicit_settings_rate_issues(rates));
     }
+    if let Err(error) = crate::document_design::validate_appearance(&extra_value) {
+        issues.push(onboarding_issue(2, "billing.defaultFooter", "La présentation des documents", error.to_string()));
+    }
     let extra_settings_json = match serde_json::to_string(&extra_value) {
         Ok(value) => value,
         Err(error) => {
@@ -6846,7 +6849,7 @@ fn normalize_settings_patch(object: &mut Map<String, Value>) -> AppResult<()> {
     if let Some(extra) = object.get("extra_settings_json").cloned() {
         object.insert(
             "extra_settings_json".into(),
-            Value::String(normalize_json_object(Some(extra))?),
+            Value::String({ let normalized = normalize_json_object(Some(extra))?; crate::document_design::validate_appearance(&serde_json::from_str(&normalized)?)?; normalized }),
         );
     }
     Ok(())

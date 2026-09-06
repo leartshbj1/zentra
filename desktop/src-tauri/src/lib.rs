@@ -14,6 +14,7 @@ mod audit;
 mod backup;
 mod bank_import;
 mod branding;
+mod document_design;
 mod catalog_import;
 mod commands;
 mod customer_credit_validation;
@@ -219,6 +220,9 @@ pub fn run() {
             reclassify_supplier_invoice_expense,
             update_settings,
             stage_company_logo,
+            company_logo_preview,
+            document_design_example,
+            export_document_design_example,
             save_document_with_items,
             issue_quote,
             issue_invoice,
@@ -3336,6 +3340,31 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .export_annual_accounts_pdf(filter, path.to_str().unwrap())
             .is_err());
         assert_eq!(std::fs::read(path).unwrap(), original);
+    }
+
+    #[test]
+    fn document_design_settings_are_validated_and_issued_sales_keep_their_original_pdf() {
+        let (temp, store) = initialized_store();
+        let appearance = json!({"invoices":{"accentColor":"#793c32","layout":"signature","logoWidth":150,"footer":"Présentation initiale."},"quotes":{"accentColor":"#182b49","layout":"minimal","logoWidth":88,"footer":"Devis initial."}});
+        store.update_settings(json!({"extra_settings_json":{"documentAppearance":appearance}})).unwrap();
+        let client = value_id(&store.create_record("clients",json!({"name":"Client exemple","address_line1":"Rue du Test 1","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap());
+        let mut originals = Vec::new();
+        for entity in ["quotes","invoices"] {
+            let id = value_id(&store.create_record(entity,json!({"client_id":client,"title":"Présentation figée","service_date_from":"2026-02-01","service_date_to":"2026-02-28"})).or_else(|_| store.create_record(entity,json!({"client_id":client,"title":"Présentation figée"}))).unwrap());
+            let (items,parent) = if entity == "quotes" { ("quote_items","quote_id") } else { ("invoice_items","invoice_id") };
+            store.create_record(items,json!({parent:id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
+            if entity == "quotes" { store.issue_quote(&id,Some("2026-03-01".into()),Some("2026-03-31".into())).unwrap(); }
+            else { store.issue_invoice(&id,Some("2026-03-01".into()),Some("2026-03-31".into())).unwrap(); }
+            let path = temp.path().join(format!("{entity}.pdf"));
+            store.generate_sales_document_pdf(GenerateSalesDocumentPdfInput { entity: entity.into(), document_id:id.clone(),destination_path:path.to_string_lossy().into_owned() }).unwrap();
+            originals.push((entity,id,path.clone(),fs::read(path).unwrap()));
+        }
+        assert!(store.update_settings(json!({"extra_settings_json":{"documentAppearance":{"invoices":{"accentColor":"invalid"}}}})).is_err());
+        store.update_settings(json!({"extra_settings_json":{"documentAppearance":{"invoices":{"accentColor":"#ffffff","layout":"minimal","footer":"Nouveau modèle."},"quotes":{"accentColor":"#242424","footer":"Nouveau devis."}}}})).unwrap();
+        for (entity,id,path,original) in originals {
+            store.generate_sales_document_pdf(GenerateSalesDocumentPdfInput { entity: entity.into(), document_id:id,destination_path:path.to_string_lossy().into_owned() }).unwrap();
+            assert_eq!(fs::read(&path).unwrap(),original,"{entity}: settings changes must not change the issued PDF");
+        }
     }
 
     #[test]

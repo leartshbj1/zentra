@@ -30,8 +30,7 @@ const PAGE_HEIGHT: f32 = mm(297.0);
 const QR_SECTION_HEIGHT: f32 = mm(105.0);
 const MARGIN: f32 = mm(15.0);
 const INK: [f32; 3] = [0.075, 0.12, 0.1];
-const GREEN: [f32; 3] = [0.075, 0.30, 0.20];
-const GREEN_PALE: [f32; 3] = [0.93, 0.96, 0.94];
+use crate::document_design::DocumentStyle;
 const MUTED: [f32; 3] = [0.36, 0.43, 0.39];
 const LINE: [f32; 3] = [0.82, 0.86, 0.83];
 const DRAFT: [f32; 3] = [0.91, 0.92, 0.91];
@@ -94,6 +93,7 @@ struct SalesPdfQr {
 
 #[derive(Debug, Clone)]
 struct SalesPdfData {
+    style: DocumentStyle,
     kind: SalesDocumentKind,
     number: String,
     title: String,
@@ -395,6 +395,7 @@ fn load_sales_pdf_data(
     };
 
     Ok(SalesPdfData {
+        style: DocumentStyle::from_issuer(&issuer, entity)?,
         kind,
         number: string_at(&document, "number"),
         title: string_at(&document, "title"),
@@ -1570,7 +1571,7 @@ fn render_page(
         &format!("Page {page_number}/{total_pages}"),
     );
     let mut y = table_top(first);
-    render_table_header(&mut ops, y);
+    render_table_header(&mut ops, y, &data.style);
     y -= 22.0;
     for line in lines {
         let height = line_height(line);
@@ -1588,10 +1589,10 @@ fn render_page(
 }
 
 fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Option<&PdfLogo>) {
-    fill_rect(ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, GREEN);
+    if data.style.layout == "signature" { fill_rect(ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, data.style.accent()); }
     let mut brand_y = PAGE_HEIGHT - 46.0;
     if let Some(logo) = logo {
-        let (width, height) = fitted_size(logo.width, logo.height, 88.0, 32.0);
+        let (width, height) = fitted_size(logo.width, logo.height, data.style.logo_width as f32, data.style.logo_height());
         draw_image(ops, "Logo", MARGIN, PAGE_HEIGHT - 53.0, width, height);
         brand_y = PAGE_HEIGHT - 66.0;
     }
@@ -1639,7 +1640,7 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
         PAGE_HEIGHT - 64.0,
         24.0,
         "F2",
-        GREEN,
+        data.style.ink(),
         document_label(data),
     );
     text_right(
@@ -1662,7 +1663,7 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
         PAGE_HEIGHT - 102.0,
         7.0,
         "F2",
-        if data.final_document { GREEN } else { MUTED },
+        if data.final_document { data.style.ink() } else { MUTED },
         state,
     );
     if let Some(percentage_bp) = data.deposit_percentage_bp {
@@ -1672,11 +1673,11 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
             PAGE_HEIGHT - 120.0,
             7.5,
             "F2",
-            GREEN,
+            data.style.ink(),
             &format!("ACOMPTE {}", format_basis_points_percentage(percentage_bp)),
         );
     }
-    line_segment(ops, MARGIN, 704.0, PAGE_WIDTH - 2.0 * MARGIN, 1.6, GREEN);
+    line_segment(ops, MARGIN, 704.0, PAGE_WIDTH - 2.0 * MARGIN, 1.6, data.style.ink());
 
     let meta_y = 676.0;
     meta_block(
@@ -1718,7 +1719,7 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
         605.0,
         PAGE_WIDTH - 2.0 * MARGIN,
         54.0,
-        GREEN_PALE,
+        data.style.pale(),
     );
     text(ops, MARGIN + 12.0, 644.0, 6.5, "F2", MUTED, "DESTINATAIRE");
     text(
@@ -1747,14 +1748,14 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
 }
 
 fn render_continuation_header(ops: &mut Vec<Operation>, data: &SalesPdfData) {
-    fill_rect(ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, GREEN);
+    if data.style.layout == "signature" { fill_rect(ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, data.style.accent()); }
     text(
         ops,
         MARGIN,
         PAGE_HEIGHT - 42.0,
         10.0,
         "F2",
-        GREEN,
+        data.style.ink(),
         "ZENTRA - DOCUMENT LOCAL",
     );
     text_right(
@@ -1776,7 +1777,7 @@ fn render_continuation_header(ops: &mut Vec<Operation>, data: &SalesPdfData) {
         PAGE_HEIGHT - 55.0,
         PAGE_WIDTH - 2.0 * MARGIN,
         1.0,
-        GREEN,
+        data.style.ink(),
     );
 }
 
@@ -1785,8 +1786,9 @@ fn meta_block(ops: &mut Vec<Operation>, right: f32, y: f32, label: &str, value: 
     text_right(ops, right, y - 13.0, 7.5, "F2", INK, value);
 }
 
-fn render_table_header(ops: &mut Vec<Operation>, y: f32) {
-    fill_rect(ops, MARGIN, y - 2.0, PAGE_WIDTH - 2.0 * MARGIN, 22.0, GREEN);
+fn render_table_header(ops: &mut Vec<Operation>, y: f32, style: &DocumentStyle) {
+    let minimal = style.layout == "minimal";
+    fill_rect(ops, MARGIN, y - 2.0, PAGE_WIDTH - 2.0 * MARGIN, 22.0, if minimal { style.pale() } else { style.accent() });
     for (x, label) in [
         (MARGIN + 7.0, "DESCRIPTION"),
         (249.0, "QTE"),
@@ -1795,7 +1797,7 @@ fn render_table_header(ops: &mut Vec<Operation>, y: f32) {
         (403.0, "REMISE"),
         (450.0, "TVA"),
     ] {
-        text(ops, x, y + 5.0, 6.0, "F2", [1.0, 1.0, 1.0], label);
+        text(ops, x, y + 5.0, 6.0, "F2", if minimal { style.ink() } else { style.on_accent() }, label);
     }
     text_right(
         ops,
@@ -1803,7 +1805,7 @@ fn render_table_header(ops: &mut Vec<Operation>, y: f32) {
         y + 5.0,
         6.0,
         "F2",
-        [1.0, 1.0, 1.0],
+        if minimal { style.ink() } else { style.on_accent() },
         "TOTAL NET",
     );
 }
@@ -1900,7 +1902,7 @@ fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData) {
         base_y,
         PAGE_WIDTH - MARGIN - box_x,
         totals_height,
-        GREEN_PALE,
+        data.style.pale(),
     );
     let mut y = base_y + totals_height - 18.0;
     total_row(
@@ -1930,14 +1932,14 @@ fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData) {
         y -= 15.0;
     }
     total_row(ops, y, data, "TVA totale", data.totals.vat_cents);
-    fill_rect(ops, box_x, base_y, PAGE_WIDTH - MARGIN - box_x, 22.0, GREEN);
+    fill_rect(ops, box_x, base_y, PAGE_WIDTH - MARGIN - box_x, 22.0, data.style.accent());
     text(
         ops,
         box_x + 10.0,
         base_y + 7.0,
         8.5,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         if is_credit_note(&data.document_type) {
             "TOTAL AVOIR"
         } else {
@@ -1950,7 +1952,7 @@ fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData) {
         base_y + 6.5,
         10.0,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         &format_money(&data.currency, data.totals.total_cents),
     );
 
@@ -2063,6 +2065,10 @@ fn render_footer(
     last: bool,
 ) {
     let page_label = format!("Zentra - {page_number}/{total_pages}");
+    if !data.style.footer.is_empty() {
+        let footer_y = if last && data.qr.is_some() { QR_SECTION_HEIGHT + 32.0 } else { 43.0 };
+        text(ops, MARGIN, footer_y, 7.0, "F1", data.style.ink(), &data.style.footer);
+    }
     if last && data.qr.is_some() {
         // La ligne horizontale doit rester visuellement réservée à
         // l'instruction de détachement de la QR-facture.
@@ -2576,7 +2582,7 @@ fn add_font(document: &mut Document, base_font: &str) -> ObjectId {
     })
 }
 
-fn add_logo_image(document: &mut Document, logo: &PdfLogo) -> ObjectId {
+pub(crate) fn add_logo_image(document: &mut Document, logo: &PdfLogo) -> ObjectId {
     document.add_object(Stream::new(
         dictionary! {
             "Type" => "XObject",
@@ -3111,6 +3117,29 @@ fn format_basis_points_percentage(value: i64) -> String {
     }
 }
 
+
+pub(crate) fn design_example(issuer: &Value, kind: &str, branding_dir: &Path) -> AppResult<Vec<u8>> {
+    let rate = if issuer["vat_registered"].as_bool().unwrap_or(false) { 810 } else { 0 };
+    let lines = [("Conseil et préparation", 2.0, "heure", 12500), ("Fournitures et matériel", 1.0, "lot", 25000)].into_iter().map(|(description,quantity,unit,price)| {
+        let net = (quantity * price as f64) as i64;
+        let vat = (net * rate + 5000) / 10000;
+        SalesPdfLine { description: description.into(), quantity, unit: unit.into(), unit_price_cents: price, discount_bp: 0, vat_bp: rate, net_cents: net, vat_cents: vat, total_cents: net + vat }
+    }).collect::<Vec<_>>();
+    let vat = lines.iter().map(|l| l.vat_cents).sum::<i64>();
+    let data = SalesPdfData {
+        style: DocumentStyle::from_issuer(issuer, kind)?, kind: if kind == "quotes" { SalesDocumentKind::Quote } else { SalesDocumentKind::Invoice },
+        number: "EXEMPLE - SANS VALEUR".into(), title: "Votre prochain projet".into(), document_type: "standard".into(), deposit_percentage_bp: None,
+        issue_date: "2026-09-01".into(), deadline_date: "2026-09-30".into(), service_date_from: "2026-09-01".into(), service_date_to: "2026-09-01".into(),
+        currency: "CHF".into(), notes: "Merci pour votre confiance.".into(), terms: "Exemple de présentation. Aucun document créé, aucun paiement à effectuer.".into(), captured_at: String::new(), original_invoice_number: String::new(),
+        issuer: issuer_from_value(issuer), customer: SalesPdfCustomer { name: "Camille Martin - Client exemple".into(), address: vec!["Rue du Lac 12, 1000 Lausanne".into()], email: String::new() },
+        lines, totals: SalesPdfTotals { subtotal_cents: 50000, discount_cents: 0, net_cents: 50000, vat_cents: vat, total_cents: 50000 + vat }, qr: None, final_document: false,
+    };
+    let temp = tempfile::tempdir()?;
+    let path = temp.path().join("exemple.pdf");
+    render_sales_pdf(&path, &data, Some(branding_dir))?;
+    Ok(fs::read(path)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3226,6 +3255,7 @@ mod tests {
             })
             .collect();
         SalesPdfData {
+            style: DocumentStyle::default(),
             kind: SalesDocumentKind::Invoice,
             number: "F-2026-0001".into(),
             title: "Prestations de septembre".into(),

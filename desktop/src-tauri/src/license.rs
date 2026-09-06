@@ -1283,6 +1283,17 @@ impl LocalStore {
         self.require_onboarding_write_access_with_key(&key)
     }
 
+    pub(crate) fn require_branding_write_access(&self) -> AppResult<()> {
+        let Some(key) = embedded_key()? else { return Ok(()); };
+        self.require_branding_write_access_with_key(&key)
+    }
+
+    fn require_branding_write_access_with_key(&self, key: &[u8;32]) -> AppResult<()> {
+        let completed = self.connect()?.query_row("SELECT onboarding_completed FROM settings WHERE id=1",[],|row|row.get::<_,i64>(0)).optional()?.unwrap_or(0) == 1;
+        if completed { self.require_write_access_with_key(key) }
+        else { self.require_onboarding_write_access_with_key(key) }
+    }
+
     fn require_onboarding_write_access_with_key(&self, key: &[u8; 32]) -> AppResult<()> {
         let has_license = self
             .connect()?
@@ -2006,6 +2017,8 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
 
+        store.require_branding_write_access_with_key(&key).unwrap();
+
         store
             .require_onboarding_write_access_with_key(&key)
             .unwrap();
@@ -2028,6 +2041,7 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("inactif"));
+        assert!(store.require_branding_write_access_with_key(&key).is_err());
 
         store
             .mark_server_access_after_server_verification(
@@ -2041,6 +2055,16 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("non reconnue"));
+    }
+
+    #[test]
+    fn branding_bootstrap_gate_does_not_enable_unlicensed_completed_profiles() {
+        let key = SigningKey::from_bytes(&[34_u8;32]).verifying_key().to_bytes();
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
+        store.require_branding_write_access_with_key(&key).unwrap();
+        store.connect().unwrap().execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Exemple','2026-09-06','2026-09-06')",[]).unwrap();
+        assert!(store.require_branding_write_access_with_key(&key).unwrap_err().to_string().contains("Licence requise"));
     }
 
     #[test]

@@ -722,7 +722,7 @@ pub fn stage_company_logo(
     source_path: String,
 ) -> Result<String, String> {
     let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
+    state.require_branding_write_access().map_err(command_error)?;
     state
         .stage_company_logo(&source_path)
         .map_err(command_error)
@@ -1861,4 +1861,20 @@ pub fn resolve_data_dir(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::
     }
     use tauri::Manager;
     Ok(app.path().app_local_data_dir()?)
+}
+
+#[tauri::command]
+pub fn company_logo_preview(state: State<'_, LocalStore>, path: String) -> Result<String, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.company_logo_preview(&path).map_err(command_error)
+}
+#[tauri::command]
+pub fn document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value) -> Result<Vec<u8>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.document_design_example(&kind, style, issuer).map_err(command_error)
+}
+#[tauri::command]
+pub fn export_document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value, destination: String) -> Result<String, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.export_document_design_example(&kind, style, issuer, &destination).map_err(command_error)
 }

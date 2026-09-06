@@ -1,3 +1,4 @@
+import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
 function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
@@ -1253,6 +1254,7 @@ function settingsFromRaw(
       },
       logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) || undefined,
     },
+    documentAppearance: documentAppearance(extra.documentAppearance),
     business: {
       nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section))
         ? stringValue(row.noga_section)
@@ -2001,6 +2003,7 @@ function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
     bankName: stringValue(row.bank_name),
     currency: stringValue(row.currency) || 'CHF',
     logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir),
+    documentAppearance: documentAppearance(extra.documentAppearance),
   };
 }
 
@@ -3113,6 +3116,7 @@ async function loadWorkspace(): Promise<Workspace> {
 
 function backendExtra(settings: AppSettings): string {
   return JSON.stringify({
+    documentAppearance: documentAppearance(settings.documentAppearance),
     organization: {
       website: settings.organization.website,
       address: {
@@ -4840,6 +4844,20 @@ export const desktopApi = {
   async saveSettings(settings: AppSettings) {
     await invoke('update_settings', { data: settingsToBackend(settings) });
     return loadWorkspace();
+  },
+  designExampleIssuer(settings: AppSettings): RawRecord {
+    const org = settings.organization;
+    return { company_name: org.legalName || 'Votre entreprise', legal_form: org.legalForm, address_line1: [org.address.street, org.address.buildingNumber].filter(Boolean).join(' '), postal_code: org.address.postalCode, city: org.address.city, country: org.address.country, uid_number: org.uidNumber, vat_number: org.vatNumber, vat_registered: org.vatRegistered, logo_path: org.logoPath || '' };
+  },
+  async documentDesignExample(input: { kind: DocumentDesignKind; style: DocumentStyle; issuer: RawRecord }) {
+    return invoke<number[]>('document_design_example', input);
+  },
+  async exportDocumentDesignExample(input: { kind: DocumentDesignKind; style: DocumentStyle; issuer: RawRecord }) {
+    const selected = await chooseSaveFile({ title: 'Exporter un exemple de présentation', defaultPath: `Zentra-exemple-${input.kind}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    if (!selected) return null;
+    const path = await invoke<string>('export_document_design_example', { ...input, destination: pdfDestinationPath(selected) });
+    await shareMobileExport(path);
+    return path;
   },
   async stageCompanyLogo(sourcePath: string) {
     return invoke<string>('stage_company_logo', { sourcePath });
