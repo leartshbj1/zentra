@@ -1,6 +1,6 @@
 # Avoirs fournisseurs : remboursement reçu — travail local du 6 septembre 2026
 
-Le dossier devis/acompte/solde est publié en 1.35, comme décrit dans `RELEASE-1.35.md`. Le présent travail poursuit l’audit général ; il n’est pas encore publié et ne constitue pas une fin d’audit.
+Le dossier devis/acompte/solde est publié depuis 1.35. Le présent parcours fournisseur est publié et vérifié dans la version 1.37, comme décrit dans `RELEASE-1.37.md`. L’audit général continue.
 
 ## Parcours désormais implémenté
 
@@ -26,6 +26,6 @@ Une reprise après perte de réponse ne crée pas un second paiement. Un échec 
 
 Preuves locales : `.qa/bank-credit-native-full-final.log`, `.qa/bank-credit-native-targeted-final.log`, `.qa/bank-credit-ui-full.log`, `.qa/bank-credit-clippy.log`, `.qa/bank-credit-web-build.log`, `.qa/bank-credit-refund/report.json` et captures du même dossier. Les scénarios navigateur utilisent des données et réponses natives simulées ; les transactions SQLite, les pièces réelles et les exports sont vérifiés séparément par les tests natifs.
 
-## Travail restant avant publication de ce parcours
+## Publication et limites
 
-Construire et vérifier les nouveaux paquets sur chaque plateforme avant leur publication. La version publique reste 1.35 ; aucune nouvelle publication ni validation sur téléphone physique n’est annoncée ici. La refonte locale de l’interface est décrite dans `DESIGN-EXPERIENCE-2026-09-06.md`.
+La version 1.37 est publiée sur le canal Windows/macOS et la page de téléchargement, avec les préversions Android et iOS simulateur. Les signatures, fichiers publics, démarrages et migrations documentés dans `RELEASE-1.37.md` sont vérifiés ; la recette sur téléphone physique et la publication dans les boutiques mobiles restent à réaliser. La refonte de l’interface est décrite dans `DESIGN-EXPERIENCE-2026-09-06.md`.
