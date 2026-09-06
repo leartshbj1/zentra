@@ -11,6 +11,7 @@
 
 # testing
 /coverage
+__pycache__/
 /.qa/
 /desktop/.qa/
 /desktop/.qa-*.log
