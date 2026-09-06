@@ -660,6 +660,22 @@ pub fn add_supplier_credit_refund_attachment(state:State<'_,LocalStore>,refund_i
 }
 
 #[tauri::command]
+pub fn match_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::MatchInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.match_bank_customer_credit_refund(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn unmatch_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::UnmatchInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.unmatch_bank_customer_credit_refund(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn create_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::CreateInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.create_bank_customer_credit_refund(input).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn reverse_supplier_credit_refund(
     state: State<'_, LocalStore>,
     input: crate::supplier_credit_refunds::ReverseSupplierCreditRefundInput,

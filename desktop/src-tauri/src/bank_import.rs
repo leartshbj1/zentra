@@ -34,6 +34,8 @@ mod expenses;
 pub(crate) mod refunds;
 #[path = "bank_supplier_credit_refunds.rs"]
 pub(crate) mod credit_refunds;
+#[path = "bank_customer_credit_refunds.rs"]
+pub(crate) mod customer_refunds;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CamtProfile {
@@ -1163,7 +1165,7 @@ impl LocalStore {
                 for (key, _, _) in &stable_keys {
                     let existing = transaction
                         .query_row(
-                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_unreconciliations h WHERE h.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_refund_matches r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_credit_refund_matches r WHERE r.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
+                            "SELECT m.id,m.status,m.account_id,m.account_currency,m.amount_cents,m.currency,m.credit_debit,m.reversal,m.booked_import_id,bi.message_type,(EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_unreconciliations h WHERE h.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_expense_refund_matches r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_supplier_credit_refund_matches r WHERE r.movement_id=m.id) OR EXISTS(SELECT 1 FROM bank_customer_credit_refund_matches r WHERE r.movement_id=m.id)),m.end_to_end_id,m.transaction_id,m.reference_type,m.reference,m.unstructured,m.counterparty_name,m.counterparty_iban,m.details_json FROM bank_movement_keys k JOIN bank_movements m ON m.id=k.movement_id LEFT JOIN bank_imports bi ON bi.id=m.booked_import_id WHERE k.strong_key=?",
                             params![key],
                             |row| {
                                 Ok(ExistingMovement {
@@ -4637,12 +4639,16 @@ impl LocalStore {
             let supplier_reconciliation = supplier_reconciliations_by_movement.get(movement_id);
             let expense_reconciliation = expenses::existing(&connection, movement_id)?;
             let expense_history = expenses::correction_history(&connection, movement_id)?;
-            let refund_match = refunds::existing(&connection, movement_id)?.or(credit_refunds::existing(&connection, movement_id)?);
+            let refund_match = refunds::existing(&connection, movement_id)?.or(credit_refunds::existing(&connection, movement_id)?).or(customer_refunds::existing(&connection, movement_id)?);
             let mut refund_history = refunds::history(&connection, movement_id)?;
             refund_history.extend(credit_refunds::history(&connection, movement_id)?);
+            refund_history.extend(customer_refunds::history(&connection, movement_id)?);
             refund_history.sort_by(|left,right| right["unlinked_at"].as_str().cmp(&left["unlinked_at"].as_str()));
-            let mut refund_suggestion = refunds::suggestion(&connection, movement)?;
-            if let Some(candidates)=refund_suggestion["candidates"].as_array_mut() {candidates.extend(credit_refunds::suggestion(&connection,movement)?);}
+            let refund_suggestion = if movement_field(movement,"credit_debit")==Some("DBIT") { customer_refunds::suggestion(&connection,movement)? } else {
+                let mut result=refunds::suggestion(&connection,movement)?;
+                if let Some(candidates)=result["candidates"].as_array_mut() { candidates.extend(credit_refunds::suggestion(&connection,movement)?); }
+                result
+            };
             let expense_suggestion = expenses::suggestion(&connection, movement)?;
             let suggestion = if movement_field(movement, "credit_debit") == Some("DBIT") {
                 suggestion_for_supplier_movement(
@@ -4667,7 +4673,7 @@ impl LocalStore {
                 supplier_reconciliation.cloned().unwrap_or(Value::Null),
             );
             let suggestion = if refund_match.is_some() {
-                json!({"kind":"none","confirmable":false,"reason":"Ce crédit est déjà rapproché avec un remboursement fournisseur.","candidates":[]})
+                json!({"kind":"none","confirmable":false,"reason":"Ce mouvement est déjà rapproché avec un remboursement.","candidates":[]})
             } else if expense_reconciliation.is_some() {
                 json!({"entity_type":"supplier_invoice","kind":"none","confirmable":false,"requires_confirmation":true,"reason":"Ce mouvement est déjà rapproché avec une dépense.","candidates":[]})
             } else { suggestion };
@@ -4734,6 +4740,7 @@ impl LocalStore {
                 movement["supplier_reconciliation"].is_null()
                     && movement["expense_reconciliation"].is_null()
                     && movement["reconciliation"].is_null()
+                    && movement["refund_match"].is_null()
                     && movement_field(movement, "status") == Some("BOOK")
                     && movement_field(movement, "credit_debit") == Some("DBIT")
                     && !movement

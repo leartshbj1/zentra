@@ -5,7 +5,7 @@ import { Button } from './ui';
 import { formatDate } from './utils';
 import './CustomerCreditAccountingIssues.css';
 
-const labels={missing_posting:'À comptabiliser',invalid_posting:'Preuve à vérifier',orphan_journal:'Écriture sans lien fiable'};
+const labels: Record<CustomerCreditAccountingIssue['kind'], string> = {missing_posting:'À comptabiliser',invalid_posting:'Preuve à vérifier',orphan_journal:'Écriture sans lien fiable',bank_refund_proof:'Preuve bancaire à vérifier'};
 
 export function CustomerCreditAccountingIssues({issues=[],busy,onOpenJournal}: {
   issues?:CustomerCreditAccountingIssue[];busy:boolean;onOpenJournal:(id:string)=>void;

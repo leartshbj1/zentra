@@ -2489,7 +2489,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         eventType:stringValue(event.event_type) as NonNullable<Invoice['creditSettlements']>[number]['eventType'],
         date:stringValue(event.date),amountCents:numberValue(event.amount_cents),reference:stringValue(event.reference),reason:stringValue(event.reason),
         reversesId:stringValue(event.reverses_id)||null,bankAccountId:stringValue(event.bank_account_id)||null,
-        journalEntryId:stringValue(event.journal_entry_id)||null,journalValid:Boolean(event.journal_valid),
+        journalEntryId:stringValue(event.journal_entry_id)||null,journalValid:Boolean(event.journal_valid),bankMatchId:stringValue(event.bank_match_id)||null,
       })),
       title: stringValue(row.title),
       type:
@@ -5985,6 +5985,15 @@ export const desktopApi = {
   },
   async createBankSupplierCreditRefund(input: {requestId:string; movementId:string; supplierCreditNoteId:string; reference:string; reason:string; receipt:File}): Promise<void> {
     await invoke('create_bank_supplier_credit_refund',{input:{request_id:input.requestId,movement_id:input.movementId,supplier_credit_note_id:input.supplierCreditNoteId,reference:input.reference,reason:input.reason,attachment:{original_name:input.receipt.name,content_base64:await fileBase64(input.receipt)}}});
+  },
+  async createBankCustomerCreditRefund(input: {requestId:string; movementId:string; customerCreditNoteId:string; amountCents:number; date:string; reference:string; reason:string; receipt:File|null}): Promise<void> {
+    await invoke('create_bank_customer_credit_refund',{input:{request_id:input.requestId,movement_id:input.movementId,customer_credit_note_id:input.customerCreditNoteId,expected_amount_cents:input.amountCents,expected_date:input.date,reference:input.reference,reason:input.reason,attachment:input.receipt?{original_name:input.receipt.name,content_base64:await fileBase64(input.receipt)}:null}});
+  },
+  async matchBankCustomerCreditRefund(requestId:string,movementId:string,refundId:string,dateDifferenceReason?:string): Promise<void> {
+    await invoke('match_bank_customer_credit_refund',{input:{request_id:requestId,movement_id:movementId,refund_id:refundId,date_difference_reason:dateDifferenceReason??null}});
+  },
+  async unmatchBankCustomerCreditRefund(requestId:string,matchId:string,reason:string): Promise<void> {
+    await invoke('unmatch_bank_customer_credit_refund',{input:{request_id:requestId,match_id:matchId,reason}});
   },
   async matchBankSupplierCreditRefund(requestId:string,movementId:string,refundId:string,dateDifferenceReason?:string): Promise<void> {
     await invoke('match_bank_supplier_credit_refund',{input:{request_id:requestId,movement_id:movementId,refund_id:refundId,date_difference_reason:dateDifferenceReason??null}});

@@ -472,6 +472,7 @@ export type CustomerCreditSettlement = {
   date: string; amountCents: number; reference: string; reason: string;
   reversesId: string | null; bankAccountId: string | null;
   journalEntryId: string | null; journalValid: boolean;
+  bankMatchId?: string | null;
 };
 
 export type Invoice = {
@@ -1397,8 +1398,8 @@ export type BankExpenseCandidate = {
   reason: string;
 };
 
-export type BankRefundMatch = { id: string; refundId: string; expenseId: string; supplierCreditNoteId?: string; reference: string; supplier: string; amountCents: number; paymentDate: string; paymentJournalId: string; confirmedAt: string; dateDifferenceReason?: string };
-export type BankRefundCandidate = { refundId: string; expenseId: string; supplierCreditNoteId?: string; reference: string; expenseReference: string; supplier: string; paymentDate: string; totalCents: number; requiresDateReason: boolean; confirmable: boolean; reason: string };
+export type BankRefundMatch = { id: string; refundId: string; expenseId: string; supplierCreditNoteId?: string; customerCreditNoteId?: string; customerName?: string; integrityIssue?: string; reference: string; supplier: string; amountCents: number; paymentDate: string; paymentJournalId: string; confirmedAt: string; dateDifferenceReason?: string };
+export type BankRefundCandidate = { refundId: string; expenseId: string; supplierCreditNoteId?: string; customerCreditNoteId?: string; customerName?: string; reference: string; expenseReference: string; supplier: string; paymentDate: string; totalCents: number; requiresDateReason: boolean; confirmable: boolean; reason: string };
 
 export type BankAccountLink = {
   accountId: string;
@@ -1829,7 +1830,7 @@ export type AccountingSettings = {
 };
 
 export type CustomerCreditAccountingIssue = {
-  kind: 'missing_posting' | 'invalid_posting' | 'orphan_journal';
+  kind: 'missing_posting' | 'invalid_posting' | 'orphan_journal' | 'bank_refund_proof';
   settlementId: string | null;
   creditNoteId: string | null;
   creditNoteNumber: string;

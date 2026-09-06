@@ -2018,6 +2018,7 @@ export function WorkspaceApp({
           {view === 'bank' ? (
             <Suspense fallback={<ViewLoading label="Ouverture de la banque…" />}>
               <BankScreen
+                onOpenCustomerCredit={(id)=>{const credit=workspace.invoices.find(row=>row.id===id);if(credit){setSearch('');setView('invoices');setModal({type:'document',entity:'invoices',item:credit});}}}
                 onOpenSupplierCredit={(id)=>{setSupplierCreditToOpenId(id);setSearch('');setView('expenses');}}
                 onOpenExpense={openExpenseSource}
                 workspace={workspace}

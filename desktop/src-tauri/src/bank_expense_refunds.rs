@@ -41,7 +41,7 @@ pub(super) fn history(connection: &Connection, movement: &str) -> AppResult<Vec<
     query_all(connection,"SELECT m.*,u.reason,u.unlinked_at,r.expense_id,r.reference,r.total_cents AS amount_cents,r.payment_date,r.payment_journal_id,e.supplier FROM bank_expense_refund_matches m JOIN bank_expense_refund_unlinks u ON u.match_id=m.id JOIN expense_refunds r ON r.id=m.refund_id JOIN expenses e ON e.id=r.expense_id WHERE m.movement_id=? ORDER BY u.unlinked_at DESC,u.rowid DESC",params![movement])
 }
 pub(super) fn reject_linked(connection: &Connection, movement: &str) -> AppResult<()> {
-    if existing(connection, movement)?.is_some() || super::credit_refunds::existing(connection,movement)?.is_some() {
+    if existing(connection, movement)?.is_some() || super::credit_refunds::existing(connection,movement)?.is_some() || super::customer_refunds::existing(connection,movement)?.is_some() {
         return Err(reject(
             "Ce mouvement est déjà rapproché avec un remboursement de dépense.",
         ));
@@ -49,6 +49,9 @@ pub(super) fn reject_linked(connection: &Connection, movement: &str) -> AppResul
     Ok(())
 }
 pub(super) fn movement_date(connection: &Connection, movement: &Value) -> AppResult<String> {
+    movement_date_for(connection,movement,"CRDT")
+}
+pub(super) fn movement_date_for(connection:&Connection,movement:&Value,direction:&str)->AppResult<String> {
     if movement["amount_cents"].as_i64().unwrap_or_default() <= 0 {
         return Err(reject("Le crédit bancaire doit avoir un montant positif."));
     }
@@ -59,19 +62,19 @@ pub(super) fn movement_date(connection: &Connection, movement: &Value) -> AppRes
             "Importez le relevé camt.053 définitif avant de rapprocher le remboursement.",
         ));
     }
-    if movement["credit_debit"] != "CRDT"
+    if movement["credit_debit"] != direction
         || movement["reversal"] == true
         || movement["reversal"] == 1
     {
         return Err(reject(
-            "Seul un crédit bancaire sans extourne peut correspondre à un remboursement reçu.",
+            if direction=="CRDT" {"Seul un crédit bancaire sans extourne peut correspondre à un remboursement reçu."} else {"Seul un débit bancaire sans extourne peut correspondre à un remboursement versé au client."},
         ));
     }
     if movement_tx_detail_count(movement) != 1
         || !movement_field(movement, "strong_key").is_some_and(|key| !key.is_empty())
     {
         return Err(reject(
-            "Le crédit doit identifier un règlement unique avec une référence bancaire stable.",
+            "Le mouvement doit identifier un règlement unique avec une référence bancaire stable.",
         ));
     }
     if movement["currency"] != "CHF" || movement["account_currency"] != "CHF" {
@@ -111,7 +114,7 @@ pub(super) fn movement_date(connection: &Connection, movement: &Value) -> AppRes
 pub(crate) fn validate_creation(connection: &Transaction<'_>, movement_id: &str, amount: i64, payment_date: &str) -> AppResult<()> {
     let movement = query_record_tx(connection, "bank_movements", movement_id)?;
     let date = movement_date(connection, &movement)?;
-    let linked: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1)", params![movement_id], |row| row.get(0))?;
+    let linked: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_customer_credit_refund_matches WHERE movement_id=?1)", params![movement_id], |row| row.get(0))?;
     if linked { return Err(reject("Ce crédit est déjà rapproché. Actualisez les mouvements.")); }
     if date != payment_date || movement["amount_cents"].as_i64() != Some(amount) {
         return Err(reject("Le montant et la date du remboursement doivent reprendre exactement le crédit bancaire."));
@@ -177,7 +180,7 @@ fn refund_state(
 }
 pub(super) fn suggestion(connection: &Connection, movement: &Value) -> AppResult<Value> {
     let movement_id = movement_field(movement, "id").unwrap_or_default();
-    let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1)",params![movement_id],|r|r.get(0))?;
+    let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_customer_credit_refund_matches WHERE movement_id=?1)",params![movement_id],|r|r.get(0))?;
     if linked {
         return Ok(json!({"reason":"Ce mouvement est déjà rapproché.","candidates":[]}));
     }

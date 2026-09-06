@@ -6,6 +6,7 @@ import { installCustomerCreditSettlementFixture } from './customer-credit-settle
 import { installCustomerCreditContinuityFixture } from './customer-credit-continuity-fixture';
 import { installCustomerCreditRecoveryFixture } from './customer-credit-recovery-fixture';
 import { installBankCreditRefundFixture } from './bank-credit-refund-fixture';
+import { installBankCustomerRefundFixture } from './bank-customer-refund-fixture';
 import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
@@ -132,6 +133,7 @@ if (new URLSearchParams(location.search).has('customerSettlements')) installCust
 if (new URLSearchParams(location.search).has('customerContinuity')) installCustomerCreditContinuityFixture();
 if (new URLSearchParams(location.search).has('customerRecovery')) installCustomerCreditRecoveryFixture(()=>data);
 if (new URLSearchParams(location.search).has('bankCreditRefund')) installBankCreditRefundFixture(data);
+if (new URLSearchParams(location.search).has('bankCustomerRefund')) installBankCustomerRefundFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

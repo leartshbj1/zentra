@@ -24,7 +24,7 @@
 .bank-screen .bank-candidate-picker__heading, .bank-screen .bank-candidate-picker__heading small { font-size: 12px; }
 .bank-screen .bank-candidate-search input { min-height: 44px; font-size: 16px; }
 .bank-screen .bank-candidate-options { max-height: 360px; gap: 8px; }
-.bank-screen .bank-candidate-option { min-height: 44px; padding: 12px; }
+.bank-screen .bank-candidate-option { position: relative; min-height: 44px; padding: 12px; }
 .bank-screen .bank-candidate-option__identity strong, .bank-screen .bank-candidate-option__amount strong { font-size: 14px; white-space: normal; overflow-wrap: anywhere; }
 .bank-screen .bank-candidate-option__identity span, .bank-screen .bank-candidate-option__identity small { font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
 .bank-screen .bank-candidate-option__amount small, .bank-screen .bank-candidate-option__reason, .bank-screen .bank-candidate-empty { font-size: 12px; line-height: 1.5; }
@@ -104,3 +104,13 @@
 .bank-expense-history article { display: grid; gap: 4px; padding: 12px; background: var(--surface-soft, #f4f6f8); border-radius: 8px; overflow-wrap: anywhere; }
 .bank-expense-history p { margin: 6px 0 0; white-space: pre-wrap; }
 @media (max-width: 600px) { .bank-expense-history { grid-column: 1 / -1; } .bank-match-confirmed > button { width: 100%; min-height: 44px; } }
+.bank-customer-fields { min-width: 0; padding: 0; margin: 0; border: 0; display: grid; gap: 16px; }
+@media (max-width: 600px) { .modal .modal__body .bank-customer-form > .form-actions { display: grid; grid-template-columns: minmax(72px, .65fr) minmax(0, 1.6fr); align-items: stretch; } .bank-customer-form > .form-actions .button { min-height: 44px; padding-inline: 10px; white-space: normal; } }
+.bank-customer-pending__list { display: grid; padding: 0 20px 20px; gap: 12px; }
+.bank-customer-pending__list article { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-subtle); }
+.bank-customer-pending__list strong { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.bank-customer-pending__list p { margin: 8px 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.bank-customer-pending__list small { font-size: 13px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.bank-customer-pending__actions { display: flex; flex-direction: column; gap: 8px; }
+.bank-customer-pending__remove { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--line); }
+@media (max-width: 860px) { .bank-customer-pending__list { padding-inline: 14px; } .bank-customer-pending__list article { grid-template-columns: minmax(0, 1fr); padding: 14px; } .bank-customer-pending__actions .button { min-height: 44px; } }

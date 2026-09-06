@@ -623,6 +623,11 @@ impl LocalStore {
             index["customer_credit_settlements"]=json!(settlements);
             index["customer_credit_settlement_lines"]=json!(query_all(connection,"SELECT l.settlement_id,l.side,l.invoice_item_id,i.description,i.vat_bp,l.gross_cents,l.vat_cents FROM customer_credit_settlement_lines l JOIN customer_credit_settlements e ON e.id=l.settlement_id JOIN invoice_items i ON i.id=l.invoice_item_id WHERE e.date BETWEEN ? AND ? ORDER BY e.date,e.sequence,l.side,i.position,i.id",params![date_from,date_to])?);
         }
+        // Administrative links added after closing do not rewrite the closed evidence index.
+        let bank_cutoff:String=connection.query_row("SELECT COALESCE(MAX(closed_at),?3) FROM accounting_periods WHERE date_from=?1 AND date_to=?2 AND status='closed'",params![date_from,date_to,now_iso()],|r|r.get(0))?;
+        let mut bank_matches=query_all(connection,"SELECT m.*,e.credit_note_id,e.date AS refund_date,u.reason AS unlink_reason,u.unlinked_at FROM bank_customer_credit_refund_matches m JOIN customer_credit_settlements e ON e.id=m.refund_id LEFT JOIN bank_customer_credit_refund_unlinks u ON u.match_id=m.id AND u.unlinked_at<=?3 WHERE e.date BETWEEN ?1 AND ?2 AND m.confirmed_at<=?3 ORDER BY e.date,m.confirmed_at,m.id",params![date_from,date_to,bank_cutoff])?;
+        for matched in &mut bank_matches { matched["proof_valid"]=json!(crate::bank_import::customer_refunds::proof_valid(connection,matched)?); }
+        if !bank_matches.is_empty() {index["bank_customer_credit_refunds"]=json!(bank_matches);}
         let recoveries=query_all(connection,"SELECT r.* FROM customer_credit_recoveries r JOIN invoices i ON i.id=r.original_invoice_id WHERE i.issue_date<=? ORDER BY r.created_at,r.id",[date_to])?;
         if !recoveries.is_empty() { index["customer_credit_recoveries"]=json!(recoveries); }
         let mut corrections=query_all(connection,"SELECT p.* FROM customer_credit_recovery_postings p WHERE p.date<=? ORDER BY p.date,p.source_type,p.source_id",[date_to])?;
@@ -1048,6 +1053,11 @@ fn build_payload_members(
         ])});
         members.push(ArchiveMember {path:"02_pieces/ventilations_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_settlement_lines"]),&[
             ("settlement_id","settlement_id"),("side","side"),("invoice_item_id","invoice_item_id"),("description","description"),("vat_bp","vat_bp"),("gross_cents","gross_cents"),("vat_cents","vat_cents")
+        ])});
+    }
+    if snapshot.piece_index.get("bank_customer_credit_refunds").is_some() {
+        members.push(ArchiveMember {path:"02_pieces/rapprochements_remboursements_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["bank_customer_credit_refunds"]),&[
+            ("id","match_id"),("movement_id","bank_movement_id"),("refund_id","settlement_id"),("credit_note_id","credit_note_id"),("refund_date","refund_date"),("date_difference_reason","date_difference_reason"),("confirmed_at","confirmed_at"),("source_json","source_snapshot_json"),("unlink_reason","unlink_reason"),("unlinked_at","unlinked_at"),("proof_valid","proof_valid")
         ])});
     }
     if snapshot.piece_index.get("customer_credit_recoveries").is_some() {

@@ -19,7 +19,10 @@ import {
   Unlink,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { BankCustomerPending, BankCustomerRefundCreate, useBankCustomerRequests } from './BankCustomerRefunds';
+import { removeBankCustomerRequest, runBankCustomerRequest, type BankCustomerRequest } from './bankCustomerRefundRequests';
 import {
+  bankAccountingReady,
   canConfirmBankReconciliation,
   canConfirmSupplierBankReconciliation,
   candidateForInvoice,
@@ -196,6 +199,7 @@ export function BankScreen({
   onOpenAccounting,
   onOpenExpense,
   onOpenSupplierCredit,
+  onOpenCustomerCredit,
 }: {
   workspace: Workspace;
   readOnly: boolean;
@@ -203,12 +207,16 @@ export function BankScreen({
   onOpenAccounting: () => void;
   onOpenExpense?: (expenseId: string) => void;
   onOpenSupplierCredit?: (creditId:string)=>void;
+  onOpenCustomerCredit?: (creditId:string)=>void;
 }) {
   const [bank, setBank] = useState<BankWorkspace | null>(null);
   const [filter, setFilter] = useState<BankMovementFilter>('unreconciled');
   const [refundToUnlink, setRefundToUnlink] = useState<BankMovement | null>(null);
   const [newRefundMovement, setNewRefundMovement] = useState<BankMovement | null>(null);
   const [newCreditRefundMovement,setNewCreditRefundMovement]=useState<BankMovement|null>(null);
+  const [newCustomerRefundMovement,setNewCustomerRefundMovement]=useState<BankMovement|null>(null);
+  const customerRequests = useBankCustomerRequests(bank?.movements ?? []);
+  const pendingCustomerIds = new Set(customerRequests.requests.map(request => request.movementId));
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [candidateQueries, setCandidateQueries] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -220,20 +228,7 @@ export function BankScreen({
   const [query, setQuery] = useState('');
   const [movementLimit, setMovementLimit] = useState(25);
   const writesDisabled = busy || readOnly || refreshPending;
-  const accounting = workspace.accountingSettings;
-  const accountingReady = Boolean(accounting?.enabled && [
-    accounting.arAccountId,
-    accounting.revenueAccountId,
-    accounting.vatPayableAccountId,
-    accounting.bankAccountId,
-    accounting.expenseAccountId,
-    accounting.vatReceivableAccountId,
-    accounting.wagesExpenseAccountId,
-    accounting.wagesPayableAccountId,
-    accounting.socialExpenseAccountId,
-    accounting.socialPayableAccountId,
-    accounting.supplierPayableAccountId,
-  ].every(Boolean));
+  const accountingReady = bankAccountingReady(workspace);
 
   const applyBankSnapshot = useCallback((next: BankWorkspace) => {
     setBank(next);
@@ -482,6 +477,11 @@ export function BankScreen({
   }
 
   async function confirmRefund(movement: BankMovement, requestId: string, refundId: string, dateReason?: string) {
+    const customer = movement.refundSuggestion?.candidates.find(row => row.refundId === refundId && row.customerCreditNoteId);
+    if (customer) {
+      await customerRequest({ kind: 'match', requestId, movementId: movement.id, refundId, dateDifferenceReason: dateReason, description: `${customer.expenseReference} · ${customer.customerName || 'Client'}`, date: movement.bookingDate || movement.valueDate || '', amountCents: movement.amountCents, currency: movement.currency });
+      return;
+    }
     if (writesDisabled) throw new Error('Actualisez les données avant une nouvelle association.');
     setBusy(true); setFeedback(null);
     try {
@@ -493,6 +493,10 @@ export function BankScreen({
     } finally { setBusy(false); }
   }
   async function unlinkRefund(requestId: string, matchId: string, reason: string) {
+    if (refundToUnlink?.refundMatch?.customerCreditNoteId) {
+      await customerRequest({ kind: 'unlink', requestId, movementId: refundToUnlink.id, matchId, reason, description: `${refundToUnlink.refundMatch.reference} · ${refundToUnlink.refundMatch.customerName || 'Client'}`, date: refundToUnlink.bookingDate || refundToUnlink.valueDate || '', amountCents: refundToUnlink.amountCents, currency: refundToUnlink.currency });
+      return;
+    }
     if (writesDisabled) throw new Error('Actualisez les données avant une dissociation.');
     setBusy(true); setFeedback(null);
     try {
@@ -504,11 +508,31 @@ export function BankScreen({
     } finally { setBusy(false); }
   }
 
+  async function customerRequest(request: BankCustomerRequest) {
+    if (writesDisabled || !bank?.movements.some(row => row.id === request.movementId)) throw new Error('Actualisez le relevé avant de vérifier ce remboursement.');
+    setBusy(true); setFeedback(null);
+    try {
+      const cleanupWarning = await runBankCustomerRequest(request);
+      setNewCustomerRefundMovement(null); setRefundToUnlink(null);
+      const warnings = await refreshBoth();
+      if (cleanupWarning) warnings.push(cleanupWarning);
+      setFeedback({ tone: warnings.length ? 'warning' : 'success', title: request.kind === 'create' ? 'Remboursement client enregistré et rapproché' : request.kind === 'unlink' ? 'Remboursement dissocié du relevé' : 'Remboursement client rapproché', text: request.kind === 'create' ? 'Le remboursement réel et sa preuve bancaire sont enregistrés avec l’avoir.' : request.kind === 'unlink' ? 'Le remboursement, son écriture et sa TVA sont conservés.' : 'Le débit est relié au remboursement déjà comptabilisé.', warnings });
+    } finally { setBusy(false); }
+  }
+  async function removeCustomerRequest(request: BankCustomerRequest) {
+    if (writesDisabled) throw new Error('Actualisez les données avant de retirer cette demande.');
+    setBusy(true);
+    try { await removeBankCustomerRequest(request); const warnings = await refreshBoth(); setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Copie de reprise retirée', text: 'Les opérations déjà enregistrées sont conservées.', warnings }); }
+    finally { setBusy(false); }
+  }
   if (loading) return <div className="bank-loading" role="status"><LoaderCircle className="spin" size={19} /> Chargement de l’espace bancaire local…</div>;
   if (error && !bank) return <ErrorPanel title="Banque indisponible" message={error} onRetry={() => { setLoading(true); void load(); }} />;
   if (!bank) return null;
 
   return <div className="stack-layout bank-screen">
+    {newCustomerRefundMovement ? <BankCustomerRefundCreate movement={newCustomerRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly || refreshPending} close={() => setNewCustomerRefundMovement(null)} onSave={customerRequest} /> : null}
+    {customerRequests.error ? <ErrorPanel title="Demandes de remboursement indisponibles" message={customerRequests.error} onRetry={customerRequests.retry} /> : null}
+    <BankCustomerPending requests={customerRequests.requests} disabled={writesDisabled} onRun={customerRequest} onRemove={removeCustomerRequest} />
     {newCreditRefundMovement?<BankCreditRefundCreate movement={newCreditRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly||refreshPending} close={()=>setNewCreditRefundMovement(null)} onSave={createCreditRefund}/>:null}
     {newRefundMovement ? <BankRefundCreate movement={newRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly || refreshPending} close={() => setNewRefundMovement(null)} onSave={createRefund} /> : null}
     {refundToUnlink ? <BankRefundUnlink movement={refundToUnlink} busy={writesDisabled} close={() => setRefundToUnlink(null)} onConfirm={unlinkRefund} /> : null}
@@ -570,11 +594,12 @@ export function BankScreen({
               {movement.reconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Rapproché avec {reconciledInvoice?.number || 'une facture'}</strong><small>Confirmé le {formatDateTime(movement.reconciliation.confirmedAt)}</small></span></div>
                 : movement.supplierReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Réglé avec {reconciledSupplierInvoice?.reference || 'une facture fournisseur'}</strong><small>Confirmé le {formatDateTime(movement.supplierReconciliation.confirmedAt)}</small></span></div>
                   : movement.expenseReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Dépense rapprochée · {workspace.expenses.find((expense) => expense.id === movement.expenseReconciliation?.expenseId)?.reference || movement.expenseReconciliation.reference || 'Pièce enregistrée'}</strong><small>Confirmé le {formatDateTime(movement.expenseReconciliation.confirmedAt)}</small>{movement.expenseReconciliation.dateDifferenceReason ? <small>Écart de dates documenté : {movement.expenseReconciliation.dateDifferenceReason}</small> : null}</span><Button type="button" variant="secondary" size="small" disabled={writesDisabled} onClick={() => setCorrectionMovement(movement)}>Dissocier du relevé</Button></div>
-                  : movement.refundMatch ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Remboursement rapproché · {movement.refundMatch.reference}</strong><small>{movement.refundMatch.supplier} · confirmé le {formatDateTime(movement.refundMatch.confirmedAt)}</small>{movement.refundMatch.dateDifferenceReason ? <small>Écart de dates documenté : {movement.refundMatch.dateDifferenceReason}</small> : null}</span>{movement.refundMatch.supplierCreditNoteId && onOpenSupplierCredit ? <Button size="small" variant="ghost" onClick={()=>onOpenSupplierCredit(movement.refundMatch!.supplierCreditNoteId!)}>Voir l’avoir fournisseur</Button> : onOpenExpense ? <Button size="small" variant="ghost" onClick={() => onOpenExpense(movement.refundMatch!.expenseId)}>Voir la dépense d’origine</Button> : null}<Button type="button" variant="secondary" size="small" disabled={writesDisabled} onClick={() => setRefundToUnlink(movement)}>Dissocier du relevé</Button></div>
+                  : movement.refundMatch ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Remboursement rapproché · {movement.refundMatch.reference}</strong><small>{movement.refundMatch.customerName || movement.refundMatch.supplier} · confirmé le {formatDateTime(movement.refundMatch.confirmedAt)}</small>{movement.refundMatch.dateDifferenceReason ? <small>Écart de dates documenté : {movement.refundMatch.dateDifferenceReason}</small> : null}</span>{movement.refundMatch.integrityIssue ? <p role="alert">{movement.refundMatch.integrityIssue}</p> : null}{movement.refundMatch.customerCreditNoteId && onOpenCustomerCredit ? <Button size="small" variant="ghost" onClick={()=>onOpenCustomerCredit(movement.refundMatch!.customerCreditNoteId!)}>Voir l’avoir client</Button> : movement.refundMatch.supplierCreditNoteId && onOpenSupplierCredit ? <Button size="small" variant="ghost" onClick={()=>onOpenSupplierCredit(movement.refundMatch!.supplierCreditNoteId!)}>Voir l’avoir fournisseur</Button> : onOpenExpense ? <Button size="small" variant="ghost" onClick={() => onOpenExpense(movement.refundMatch!.expenseId)}>Voir la dépense d’origine</Button> : null}<Button type="button" variant="secondary" size="small" disabled={writesDisabled || pendingCustomerIds.has(movement.id)} onClick={() => setRefundToUnlink(movement)}>Dissocier du relevé</Button></div>
                   : movement.reversal ? <div className="bank-match-muted"><span>Extourne conservée pour contrôle; aucun paiement proposé.</span></div>
                   : movement.status === 'PDNG' ? <div className="bank-match-muted"><Clock3 size={15} /><span>Ce mouvement pourra être rapproché lorsque la banque le confirmera.</span></div>
                     : !account?.linked ? <div className="bank-match-warning"><Unlink size={15} /><span>Compte non associé. Confirmez d’abord qu’il appartient à votre entreprise.</span></div>
                       : supplierDirection ? <>
+                        <BankRefundPicker key={`customer:${movement.id}:${movement.refundHistory?.length || 0}`} movement={movement} disabled={writesDisabled || !accountingReady || pendingCustomerIds.has(movement.id) || Boolean(customerRequests.error)} onOpenCustomerCredit={onOpenCustomerCredit} onCreateCustomer={() => setNewCustomerRefundMovement(movement)} onConfirm={(requestId, refundId, reason) => confirmRefund(movement, requestId, refundId, reason)} />
                         <div className={`bank-suggestion bank-suggestion--${movement.supplierSuggestion.kind === 'supplier_match' ? 'automatic_exact' : movement.supplierSuggestion.kind}`}><span>{supplierSuggestionLabels[movement.supplierSuggestion.kind]}</span><p>{movement.supplierSuggestion.reason || (movement.supplierSuggestion.candidates.length ? 'Vérifiez la facture proposée, puis confirmez le règlement.' : 'Aucune facture fournisseur correspondante.')}</p></div>
                         {movement.supplierSuggestion.candidates.length ? <BankSupplierCandidatePicker
                           movement={movement}
@@ -589,8 +614,10 @@ export function BankScreen({
                           }}
                           onSelect={(supplierInvoiceId) => setChoices((current) => ({ ...current, [movement.id]: supplierInvoiceId }))}
                         /> : null}
-                        <Button size="small" disabled={writesDisabled || Boolean(blockReason) || !canConfirmSupplierBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le règlement fournisseur après confirmation'} onClick={() => void confirmSupplierMovement(movement)}><Link2 size={14} /> Confirmer le règlement</Button>
-                        {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
+                        {movement.supplierSuggestion.candidates.length ? <>
+                          <Button size="small" disabled={writesDisabled || Boolean(blockReason) || !canConfirmSupplierBankReconciliation(movement, selectedDocumentId)} title={readOnly ? 'Licence en lecture seule' : blockReason || 'Créer le règlement fournisseur après confirmation'} onClick={() => void confirmSupplierMovement(movement)}><Link2 size={14} /> Confirmer le règlement</Button>
+                          {blockReason ? <small className="bank-block-reason">{blockReason}</small> : null}
+                        </> : null}
                         <BankExpensePicker key={`${movement.id}:${movement.expenseHistory?.length || 0}:${movement.expenseHistory?.[0]?.id || ""}`} movement={movement} disabled={writesDisabled || !accountingReady} onConfirm={(expenseId, reason, requestId) => confirmExpenseMovement(movement, expenseId, reason, requestId)} onCreate={() => setNewExpenseMovement(movement)} />
                       </> : <>
                         <div className={`bank-suggestion bank-suggestion--${movement.suggestion.kind}`}><span>{suggestionLabels[movement.suggestion.kind]}</span><p>{movement.suggestion.reason || (movement.suggestion.candidates.length ? 'Vérifiez la facture à laquelle rattacher ce règlement.' : 'Aucune facture correspondante.')}</p></div>
@@ -615,7 +642,7 @@ export function BankScreen({
                       </>}
             </div>
             <BankExpenseHistory movement={movement} />
-            <BankRefundHistory movement={movement} onOpenExpense={onOpenExpense} onOpenSupplierCredit={onOpenSupplierCredit} />
+            <BankRefundHistory movement={movement} onOpenExpense={onOpenExpense} onOpenSupplierCredit={onOpenSupplierCredit} onOpenCustomerCredit={onOpenCustomerCredit} />
           </article>;
         })}
       </div> : <EmptyState

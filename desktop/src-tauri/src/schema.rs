@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 56;
+pub const SCHEMA_VERSION: i64 = 57;
+pub const MIGRATION_V57_SQL: &str = include_str!("bank_customer_credit_refund_schema.sql");
 pub const MIGRATION_V56_SQL: &str = include_str!("customer_credit_recovery_vat_schema.sql");
 pub const MIGRATION_V55_SQL: &str = include_str!("customer_credit_recovery_schema.sql");
 pub const MIGRATION_V54_SQL: &str = include_str!("customer_credit_attachment_schema.sql");
@@ -9,7 +10,7 @@ pub(crate) fn remove_v52_for_legacy_fixture(connection: &rusqlite::Connection) {
     // Restore actual old layouts rather than leaving newer triggers/views behind.
     for kind in ["TRIGGER", "VIEW", "TABLE"] {
         let prefix = format!("CREATE {kind} IF NOT EXISTS ");
-        let migrations = format!("{MIGRATION_V52_SQL}\n{MIGRATION_V53_SQL}\n{MIGRATION_V54_SQL}\n{MIGRATION_V55_SQL}\n{MIGRATION_V56_SQL}");
+        let migrations = format!("{MIGRATION_V52_SQL}\n{MIGRATION_V53_SQL}\n{MIGRATION_V54_SQL}\n{MIGRATION_V55_SQL}\n{MIGRATION_V56_SQL}\n{MIGRATION_V57_SQL}");
         let names: Vec<_> = migrations.lines().filter_map(|line| {
             line.trim_start().strip_prefix(&prefix).and_then(|rest| rest.split_whitespace().next())
         }).collect();
@@ -200,6 +201,9 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "bank_supplier_credit_refund_matches",
     "bank_supplier_credit_refund_unlinks",
     "bank_supplier_credit_refund_requests",
+    "bank_customer_credit_refund_matches",
+    "bank_customer_credit_refund_unlinks",
+    "bank_customer_credit_refund_requests",
     "supplier_expense_reclassifications",
     "supplier_expense_reclassification_lines",
     "supplier_operation_requests",

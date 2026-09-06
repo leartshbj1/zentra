@@ -155,6 +155,7 @@ pub(crate) fn journal_proof_valid(connection: &Connection, id: &str) -> AppResul
 pub(crate) fn accounting_issues(connection:&Connection,from:&str,to:&str)->AppResult<Vec<Value>> {
     let events=query_all(connection,"SELECT e.id AS settlement_id,e.credit_note_id,c.number AS credit_note_number,e.date,e.reference,p.journal_entry_id,EXISTS(SELECT 1 FROM journal_entries actual WHERE actual.id=p.journal_entry_id) AS journal_available,EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date<=a.date_to) AS closed_period FROM customer_credit_settlements e JOIN invoices c ON c.id=e.credit_note_id LEFT JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id WHERE e.date BETWEEN ?1 AND ?2 OR EXISTS(SELECT 1 FROM journal_entries j WHERE j.id=p.journal_entry_id AND j.entry_date BETWEEN ?1 AND ?2) ORDER BY e.date DESC,e.sequence DESC",params![from,to])?;
     let mut issues=crate::customer_credit_recovery_vat::accounting_issues(connection,from,to)?;
+    issues.extend(crate::bank_import::customer_refunds::accounting_issues(connection,from,to)?);
     for mut event in events {
         let (kind,reason)=if event["journal_entry_id"].is_null() {
             ("missing_posting","Le règlement ne dispose pas encore d’une preuve de comptabilisation.")

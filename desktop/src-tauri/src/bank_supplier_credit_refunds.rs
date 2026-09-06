@@ -41,7 +41,7 @@ pub(super) fn history(connection: &Connection, movement: &str) -> AppResult<Vec<
     query_all(connection,"SELECT m.*,u.reason,u.unlinked_at,r.supplier_credit_note_id,r.reference,r.amount_cents,r.date AS payment_date,r.journal_entry_id AS payment_journal_id,c.supplier_name AS supplier FROM bank_supplier_credit_refund_matches m JOIN bank_supplier_credit_refund_unlinks u ON u.match_id=m.id JOIN supplier_credit_refunds r ON r.id=m.refund_id JOIN supplier_credit_notes c ON c.id=r.supplier_credit_note_id WHERE m.movement_id=? ORDER BY u.unlinked_at DESC,u.rowid DESC",params![movement])
 }
 fn linked(connection: &Connection, movement: &str) -> AppResult<bool> {
-    Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1)",params![movement],|r|r.get(0))?)
+    Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_customer_credit_refund_matches WHERE movement_id=?1)",params![movement],|r|r.get(0))?)
 }
 fn refund_state(
     connection: &Connection,

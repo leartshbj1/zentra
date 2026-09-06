@@ -49,6 +49,9 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
     ("bank_supplier_credit_refund_matches", "03_achats/rapprochements_remboursements_avoirs.csv"),
     ("bank_supplier_credit_refund_unlinks", "03_achats/dissociations_remboursements_avoirs.csv"),
     ("bank_supplier_credit_refund_requests", "03_achats/creations_bancaires_remboursements_avoirs.csv"),
+    ("bank_customer_credit_refund_matches", "02_ventes/rapprochements_remboursements_avoirs_clients.csv"),
+    ("bank_customer_credit_refund_unlinks", "02_ventes/dissociations_remboursements_avoirs_clients.csv"),
+    ("bank_customer_credit_refund_requests", "02_ventes/creations_bancaires_remboursements_clients.csv"),
     ("supplier_credit_refunds", "03_achats/remboursements_avoirs_fournisseurs.csv"),
     ("clients", "01_referentiels/clients.csv"),
     ("catalog_items", "01_referentiels/catalogue.csv"),
@@ -227,6 +230,9 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
 /// alourdir chaque rafraîchissement, mais indispensables dans un export CSV
 /// comptable complet.
 const CSV_EXPORT_DIRECT_COLLECTIONS: &[(&str, &str)] = &[
+    ("bank_customer_credit_refund_matches", "SELECT * FROM bank_customer_credit_refund_matches ORDER BY confirmed_at,id"),
+    ("bank_customer_credit_refund_unlinks", "SELECT * FROM bank_customer_credit_refund_unlinks ORDER BY unlinked_at,id"),
+    ("bank_customer_credit_refund_requests", "SELECT * FROM bank_customer_credit_refund_requests ORDER BY created_at,id"),
     ("customer_credit_documents", "SELECT * FROM customer_credit_documents ORDER BY credit_note_id"),
     ("customer_credit_recoveries", "SELECT * FROM customer_credit_recoveries ORDER BY created_at,id"),
     ("customer_credit_recovery_tax_models", "SELECT * FROM customer_credit_recovery_tax_models ORDER BY original_invoice_id"),

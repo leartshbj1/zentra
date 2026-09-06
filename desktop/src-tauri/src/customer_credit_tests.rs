@@ -10,6 +10,8 @@ mod attachment_tests;
 mod continuity_tests;
 #[path = "customer_credit_recovery_tests.rs"]
 mod recovery_tests;
+#[path = "bank_customer_credit_refund_tests.rs"]
+mod bank_refund_tests;
 
 fn fixture() -> (tempfile::TempDir, LocalStore, String) {
     let temporary = tempfile::tempdir().unwrap();

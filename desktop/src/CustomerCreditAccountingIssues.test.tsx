@@ -23,4 +23,8 @@ describe('contrôles comptables des avoirs clients',()=>{
     const html=renderToStaticMarkup(<CustomerCreditAccountingIssues issues={rows} busy={false} onOpenJournal={vi.fn()}/>);
     expect(html).toContain('REF-9');expect(html).not.toContain('REF-0');expect(html).toContain('Afficher les 2 suivants');
   });
+  it('identifie la preuve bancaire sans proposer une seconde comptabilisation',()=>{
+    const html=renderToStaticMarkup(<CustomerCreditAccountingIssues issues={[{...issue,kind:'bank_refund_proof',reason:'Vérifiez le rapprochement dans Banque.'}]} busy={false} onOpenJournal={vi.fn()}/>);
+    expect(html).toContain('Preuve bancaire à vérifier');expect(html).toContain('Vérifiez le rapprochement dans Banque.');expect(html).not.toContain('Reprise historique à valider');
+  });
 });

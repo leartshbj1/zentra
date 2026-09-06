@@ -18,7 +18,16 @@ import type {
   Invoice,
   Supplier,
   SupplierInvoice,
+  Workspace,
 } from './types';
+
+export function bankAccountingReady(workspace: Pick<Workspace, 'accountingSettings' | 'settings' | 'payslips'>): boolean {
+  const accounting = workspace.accountingSettings;
+  if (!accounting?.enabled) return false;
+  const core = [accounting.arAccountId, accounting.revenueAccountId, accounting.vatPayableAccountId, accounting.bankAccountId, accounting.expenseAccountId, accounting.vatReceivableAccountId, accounting.supplierPayableAccountId];
+  const payrollRequired = Boolean(workspace.settings?.payroll.enabled) || (workspace.payslips ?? []).some(row => ['posted', 'paid'].includes(row.status));
+  return core.every(Boolean) && (!payrollRequired || [accounting.wagesExpenseAccountId, accounting.wagesPayableAccountId, accounting.socialExpenseAccountId, accounting.socialPayableAccountId].every(Boolean));
+}
 
 export type BankMovementFilter = 'unreconciled' | 'pending' | 'reconciled' | 'all';
 export type BankCandidateMatch = {
@@ -46,7 +55,7 @@ const integer = (value: unknown): number => typeof value === 'number' && Number.
 const bool = (value: unknown): boolean => value === true || value === 1 || value === '1';
 
 function refundMatchFromRaw(row: RawRecord): BankRefundMatch {
-  return { id: text(row.id), refundId: text(row.refund_id), expenseId: text(row.expense_id), ...(text(row.supplier_credit_note_id)?{supplierCreditNoteId:text(row.supplier_credit_note_id)}:{}), reference: text(row.reference), supplier: text(row.supplier), amountCents: integer(row.amount_cents), paymentDate: text(row.payment_date), paymentJournalId: text(row.payment_journal_id), confirmedAt: text(row.confirmed_at), dateDifferenceReason: text(row.date_difference_reason) || undefined };
+  return { id: text(row.id), refundId: text(row.refund_id), expenseId: text(row.expense_id), ...(text(row.supplier_credit_note_id)?{supplierCreditNoteId:text(row.supplier_credit_note_id)}:{}), customerCreditNoteId: text(row.customer_credit_note_id) || undefined, customerName: text(row.customer_name) || undefined, integrityIssue: text(row.integrity_issue) || undefined, reference: text(row.reference), supplier: text(row.supplier), amountCents: integer(row.amount_cents), paymentDate: text(row.payment_date), paymentJournalId: text(row.payment_journal_id), confirmedAt: text(row.confirmed_at), dateDifferenceReason: text(row.date_difference_reason) || undefined };
 }
 
 const suggestionKinds = new Set<BankSuggestionKind>(['automatic_exact', 'automatic_partial', 'manual', 'review', 'none']);
@@ -194,7 +203,7 @@ export function bankMovementFromRaw(value: unknown): BankMovement {
     } : null,
     refundMatch: Object.keys(record(row.refund_match)).length ? refundMatchFromRaw(record(row.refund_match)) : null,
     refundHistory: array(row.refund_history).map((entry) => ({ ...refundMatchFromRaw(entry), reason: text(entry.reason), unlinkedAt: text(entry.unlinked_at) })),
-    refundSuggestion: { canCreate: bool(record(row.refund_suggestion).can_create), reason: text(record(row.refund_suggestion).reason), candidates: array(record(row.refund_suggestion).candidates).map((candidate) => ({ refundId: text(candidate.refund_id), expenseId: text(candidate.expense_id), ...(text(candidate.supplier_credit_note_id)?{supplierCreditNoteId:text(candidate.supplier_credit_note_id)}:{}), reference: text(candidate.reference), expenseReference: text(candidate.expense_reference), supplier: text(candidate.supplier), paymentDate: text(candidate.payment_date), totalCents: integer(candidate.total_cents), requiresDateReason: bool(candidate.requires_date_reason), confirmable: bool(candidate.confirmable), reason: text(candidate.reason) })) },
+    refundSuggestion: { canCreate: bool(record(row.refund_suggestion).can_create), reason: text(record(row.refund_suggestion).reason), candidates: array(record(row.refund_suggestion).candidates).map((candidate) => ({ refundId: text(candidate.refund_id), expenseId: text(candidate.expense_id), ...(text(candidate.supplier_credit_note_id)?{supplierCreditNoteId:text(candidate.supplier_credit_note_id)}:{}), customerCreditNoteId: text(candidate.customer_credit_note_id) || undefined, customerName: text(candidate.customer_name) || undefined, reference: text(candidate.reference), expenseReference: text(candidate.expense_reference), supplier: text(candidate.supplier), paymentDate: text(candidate.payment_date), totalCents: integer(candidate.total_cents), requiresDateReason: bool(candidate.requires_date_reason), confirmable: bool(candidate.confirmable), reason: text(candidate.reason) })) },
     expenseSuggestion: {
       canCreate: record(row.expense_suggestion).can_create === true,
       reason: text(record(row.expense_suggestion).reason),
@@ -345,7 +354,7 @@ export function filterBankMovements(movements: BankMovement[], filter: BankMovem
     .filter((movement) => {
       if (!needle) return true;
       const amount = (Math.abs(movement.amountCents) / 100).toFixed(2);
-      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency, movement.expenseReconciliation?.reference, movement.expenseReconciliation?.supplier, movement.refundMatch?.reference, movement.refundMatch?.supplier, ...(movement.refundHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason]), ...(movement.expenseHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason])].join(' '));
+      const searchable = normalizedCandidateQuery([movement.counterpartyName, movement.unstructured, movement.reference, movement.accountId, movement.counterpartyIban, movement.bookingDate, movement.valueDate, amount, amount.replace('.', ','), movement.currency, movement.expenseReconciliation?.reference, movement.expenseReconciliation?.supplier, movement.refundMatch?.reference, movement.refundMatch?.supplier, movement.refundMatch?.customerName, ...(movement.refundHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.customerName,entry.reason]), ...(movement.expenseHistory ?? []).flatMap((entry) => [entry.reference,entry.supplier,entry.reason])].join(' '));
       const identifiers = [movement.reference, movement.accountId, movement.counterpartyIban, movement.expenseReconciliation?.reference, movement.refundMatch?.reference, ...(movement.refundHistory ?? []).map((entry) => entry.reference), ...(movement.expenseHistory ?? []).map((entry) => entry.reference)];
       return searchable.includes(needle) || (Boolean(compactNeedle) && identifiers.some((value) => normalizedCandidateQuery(value || '').replace(/[\s\p{P}]/gu, '').includes(compactNeedle)));
     })
