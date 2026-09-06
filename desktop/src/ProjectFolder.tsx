@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, FileText, Image, Plus, Trash2, Download, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
-import { isMobileRuntime } from './mobileRuntime';
+import { ProjectFilePreview } from './ProjectFilePreview';
 import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocuments';
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
-import { Button, EmptyState, ErrorPanel, Modal, StatusBadge } from './ui';
+import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
 import { documentTotals, errorMessage, formatDate, formatMoney } from './utils';
 
 export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense }: {
@@ -20,11 +20,14 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
-  const [preview, setPreview] = useState<{ file: Attachment; url: string } | null>(null);
+  const [preview, setPreview] = useState<{ file: Attachment; bytes: Uint8Array; url: string } | null>(null);
   const [removing, setRemoving] = useState<Attachment | null>(null);
+  const previewTrigger = useRef<HTMLElement | null>(null);
+  const mounted = useRef(true);
   const contents = projectDocuments(workspace, project.id);
   const billingQuotes = contents.quotes.filter((quote) => contents.invoices.some((invoice) => invoice.quoteId === quote.id));
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   async function upload() {
     if (saving || busy || readOnly) return;
@@ -41,15 +44,24 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     catch (reason) { errors.push(errorMessage(reason, 'Actualisation impossible. Rouvrez le projet.')); }
     setError(errors.join(' ')); setProgress(''); setSaving(false);
   }
-  async function open(file: Attachment) {
+  async function open(file: Attachment, trigger: HTMLElement) {
     if (saving) return;
+    previewTrigger.current = trigger;
     setSaving(true); setError('');
     try {
       const encoded = await desktopApi.readProjectDocument(file.id);
+      if (!mounted.current) return;
       const bytes = Uint8Array.from(atob(encoded), (value) => value.charCodeAt(0));
-      setPreview({ file, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })) });
+      setPreview({ file, bytes, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })) });
     } catch (reason) { setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
     finally { setSaving(false); }
+  }
+  function closePreview() {
+    setPreview(null);
+    // Opening disables the trigger during the file read, so the generic modal
+    // cannot capture it reliably after the asynchronous operation completes.
+    const trigger = previewTrigger.current;
+    requestAnimationFrame(() => { if (trigger?.isConnected) trigger.focus({ preventScroll: true }); });
   }
   async function remove() {
     if (!removing || saving || busy || readOnly) return;
@@ -78,7 +90,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         const expenseId = file.entityType === 'expense' ? file.entityId : file.entityType === 'expense_refund' ? workspace.expenses.find((expense) => expense.refunds?.some((refund) => refund.id === file.entityId))?.id : undefined;
         const customerCredit = file.entityType === 'customer_credit_settlement' ? workspace.invoices.find((invoice) => invoice.type === 'credit_note' && invoice.creditSettlements?.some((event) => event.id === file.entityId)) : undefined;
         return <li key={file.id} className={(expenseId && onOpenExpense) || customerCredit ? 'project-document-list__with-source' : undefined}>
-        <button type="button" className="project-document-list__open" onClick={() => void open(file)} disabled={saving}>
+        <button type="button" className="project-document-list__open" onClick={(event) => void open(file, event.currentTarget)} disabled={saving}>
           {file.mimeType.startsWith('image/') ? <Image size={22} /> : <FileText size={22} />}
           <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'customer_credit_settlement' ? ' · Règlement d’un avoir client' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small></span>
         </button>
@@ -98,12 +110,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       </li>)}</ul>
       {!contents[kind].length ? <p className="project-folder__empty">{kind === 'quotes' ? 'Les devis liés à ce projet apparaîtront ici.' : 'Les factures liées à ce projet apparaîtront ici.'}</p> : null}
     </section>)}
-    {preview ? <Modal title={preview.file.originalName} onClose={() => setPreview(null)} wide>
-      <div className="project-file-preview">
-        {['image/png', 'image/jpeg', 'image/webp'].includes(preview.file.mimeType) ? <img src={preview.url} alt={preview.file.originalName} /> : preview.file.mimeType === 'application/pdf' ? <iframe src={preview.url} title={preview.file.originalName} /> : <EmptyState title="Document prêt" text="Ouvrez ou enregistrez ce fichier avec une application compatible." />}
-        <div className="form-actions">{!isMobileRuntime() && <a className="button button--primary button--normal" href={preview.url} download={preview.file.originalName}><Download size={17} /> Enregistrer</a>}<Button variant="secondary" onClick={() => void desktopApi.openAttachment(preview.file.id).catch((reason) => setError(errorMessage(reason, 'Ouverture impossible.')))}>{isMobileRuntime() ? 'Enregistrer ou partager' : 'Ouvrir avec une application'}</Button><Button variant="ghost" onClick={() => setPreview(null)}><X size={17} /> Fermer</Button></div>
-      </div>
-    </Modal> : null}
+    {preview ? <ProjectFilePreview {...preview} onClose={closePreview} /> : null}
     {removing ? <Modal title="Supprimer le document ?" onClose={() => { if (!saving) setRemoving(null); }}>
       <p>« {removing.originalName} » sera retiré de ce projet et de cet appareil.</p>
       <div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setRemoving(null)}>Annuler</Button><Button variant="danger" disabled={saving} onClick={() => void remove()}>{saving ? 'Suppression…' : 'Supprimer'}</Button></div>

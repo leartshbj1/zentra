@@ -130,6 +130,7 @@ export function Modal({
   children,
   wide = false,
   dismissible = true,
+  className = '',
 }: {
   title: string;
   description?: string;
@@ -137,6 +138,7 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
   dismissible?: boolean;
+  className?: string;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
   const titleId = useId();
@@ -213,7 +215,7 @@ export function Modal({
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => dismissible && event.target === event.currentTarget && onClose()}>
       <section
         ref={dialogRef}
-        className={`modal ${wide ? 'modal--wide' : ''}`}
+        className={`modal ${wide ? 'modal--wide' : ''} ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

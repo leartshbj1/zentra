@@ -1,0 +1,53 @@
+.modal.attachment-preview-dialog { width: min(1180px, 96vw); height: min(900px, 92dvh); max-height: 92dvh; display: flex; flex-direction: column; overflow: hidden; }
+.attachment-preview-dialog > .modal__header { flex: 0 0 auto; padding: 18px 24px; }
+.attachment-preview-dialog .modal__header > div { min-width: 0; }
+.attachment-preview-dialog .modal__header h2 { font-size: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.attachment-preview-dialog .modal__header p { margin: 4px 0 0; }
+.attachment-preview-dialog > .modal__body { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
+.attachment-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.attachment-preview__content { min-height: 0; flex: 1; overflow: auto; background: #edf2ee; }
+.attachment-preview__status { padding: 16px; text-align: center; color: var(--muted); }
+.attachment-preview__image { height: 100%; padding: 16px; display: grid; place-items: center; }
+.attachment-preview__image img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.attachment-preview__footer { flex-shrink: 0; max-height: 45%; overflow: auto; padding: 12px 20px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
+.attachment-preview__footer .error-panel { margin: 0 0 10px; }
+.attachment-preview__actions { display: flex; justify-content: flex-end; gap: 10px; }
+.attachment-preview__actions .button { min-height: 44px; }
+.pdf-attachment-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pdf-attachment-preview__toolbar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 8px 16px; background: #f8faf8; border-bottom: 1px solid var(--line); }
+.pdf-attachment-preview__pages, .pdf-attachment-preview__zoom { display: flex; gap: 4px; align-items: center; }
+.pdf-attachment-preview__pages > span { min-width: 106px; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--green-900); }
+.pdf-attachment-preview__toolbar .button { min-height: 44px; min-width: 44px; padding: 8px; }
+.pdf-attachment-preview__zoom .button { color: var(--green-900); }
+.pdf-attachment-preview__viewport { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; }
+.pdf-attachment-preview__viewport .error-panel { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; }
+.pdf-attachment-preview__viewport .error-panel > .button { grid-column: 2; justify-self: start; }
+.pdf-attachment-preview__page { width: max-content; margin-inline: auto; }
+.pdf-attachment-preview__page canvas { display: block; background: white; box-shadow: 0 3px 16px #173d2c1a; }
+.pdf-attachment-preview__text { margin: 16px auto 0; max-width: 1100px; color: var(--green-900); }
+.pdf-attachment-preview__text summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
+.pdf-attachment-preview__text p { padding: 16px; background: white; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 860px) {
+  .modal.attachment-preview-dialog { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+  .attachment-preview-dialog > .modal__header { padding: max(10px, env(safe-area-inset-top)) 16px 10px; }
+  .attachment-preview-dialog .modal__header h2 { font-size: 18px; }
+  .attachment-preview__footer { padding-inline: 12px; }
+  .attachment-preview__actions { flex-wrap: wrap; gap: 8px; }
+  .attachment-preview__actions .button { flex: 1; }
+  .pdf-attachment-preview__toolbar { padding: 4px 8px; gap: 0; }
+}
+@media (max-width: 480px) {
+  .pdf-attachment-preview__toolbar { justify-content: center; }
+}
+@media (max-width: 380px) {
+  .attachment-preview__actions .button { flex-basis: 100%; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .attachment-preview-dialog > .modal__header { padding-block: 6px; }
+  .attachment-preview-dialog .modal__header p { display: none; }
+  .attachment-preview__footer { padding-block: 6px; }
+  .pdf-attachment-preview__toolbar { padding-block: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pdf-attachment-preview__page canvas { animation: experience-fade-in 160ms ease-out; }
+}

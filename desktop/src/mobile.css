@@ -30,8 +30,6 @@
 @media (max-width: 480px) {
   .project-folder__tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
 }
-.project-file-preview img { display: block; width: 100%; max-height: 65dvh; object-fit: contain; }
-.project-file-preview iframe { width: 100%; height: 65dvh; border: 0; }
 .mobile-navigation { display: none; }
 .mobile-checklist-toggle { display: none; }
 .document-line-field { display: contents; }
@@ -164,7 +162,6 @@
   .project-file-picker__actions > .button { flex: 1 1 180px; }
   .project-document-list__open { flex-wrap: wrap; }
   .project-document-list__open > .status { margin-left: 34px; }
-  .project-file-preview iframe { height: 58dvh; }
   .license-banner { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 }
 

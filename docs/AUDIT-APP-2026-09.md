@@ -2,6 +2,12 @@
 
 Objectif actif : vérifier les parcours de Zentra sur ordinateur et mobile, corriger les erreurs observées et préparer une mise à jour commune. Ce document suit le travail ; il ne constitue pas une déclaration de conformité ni une recette complète de toutes les fonctions.
 
+## État actuel
+
+La dernière publication vérifiée est **1.38.0**, site version 57 ; les preuves et limites sont dans [RELEASE-1.38.md](RELEASE-1.38.md). Elle comprend le design, les aperçus des devis/factures et les règlements datés des avoirs clients au schéma 57, avec leur continuité bancaire.
+
+Le [nouveau lecteur des pièces jointes des projets](AUDIT-LECTURE-PIECES-JOINTES.md) est validé dans les sources suivantes et n'est pas encore distribué. Les sections ci-dessous conservent la chronologie : leurs mentions de travaux en attente décrivent la situation au moment de chaque lot, pas celle de la publication 1.38.
+
 ## 6 septembre — navigation et lecture des documents
 
 Nouvelle évolution du design dans les sources, non distribuée à ce stade : navigation verte avec repère ambre, cartes et formulaires harmonisés, barre mobile flottante et accès directs aux devis en préparation, factures à encaisser et projets actifs. Les compteurs proviennent de l'espace courant. Les entrées de page, onglets, cartes et fenêtres utilisent des animations courtes, sans bibliothèque supplémentaire, désactivées avec la préférence de mouvement réduit.
