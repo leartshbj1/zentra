@@ -3,6 +3,7 @@ import { installQuotePairFixture } from './quote-pair-fixture';
 import { installDesignFixture } from './design-fixture';
 import { installCustomerCreditFixture } from './customer-credit-fixture';
 import { installCustomerCreditSettlementFixture } from './customer-credit-settlement-fixture';
+import { installCustomerCreditContinuityFixture } from './customer-credit-continuity-fixture';
 import { installBankCreditRefundFixture } from './bank-credit-refund-fixture';
 import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
@@ -127,6 +128,7 @@ if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixtu
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
 if (new URLSearchParams(location.search).has('customerCredits')) installCustomerCreditFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlements')) installCustomerCreditSettlementFixture(()=>data);
+if (new URLSearchParams(location.search).has('customerContinuity')) installCustomerCreditContinuityFixture();
 if (new URLSearchParams(location.search).has('bankCreditRefund')) installBankCreditRefundFixture(data);
 function Harness() {
   useMobileLayout();

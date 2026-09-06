@@ -1,0 +1,16 @@
+.accounting-screen .accounting-toolbar { flex-wrap:wrap; align-items:flex-start; gap:20px; }
+.accounting-screen .accounting-toolbar > .section-navigation { flex:1 1 460px; min-width:0; }
+.accounting-screen .accounting-filters { flex:1 1 390px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:end; }
+.accounting-screen .accounting-filters > .field:first-child { grid-column:1/-1; }
+.accounting-screen .accounting-filters input,.accounting-screen .accounting-filters select { width:100%; min-width:0; min-height:44px; font-size:14px; }
+.accounting-screen .accounting-filters .field { min-width:0; margin:0; }
+.accounting-screen .accounting-filters .report-state { justify-self:start; align-self:center; }
+.accounting-screen .accounting-filters > .button { min-height:44px; }
+.accounting-screen .accounting-toolbar--global .accounting-filters { flex:0 0 auto; display:block; }
+@media(max-width:800px) {
+  .accounting-screen .accounting-toolbar > .section-navigation,.accounting-screen .accounting-filters { flex-basis:auto; width:100%; }
+  .accounting-screen .accounting-toolbar--global .accounting-filters { width:auto; align-self:flex-end; }
+}
+@media(max-width:380px) {
+  .accounting-screen .accounting-filters { grid-template-columns:minmax(0,1fr); }
+}

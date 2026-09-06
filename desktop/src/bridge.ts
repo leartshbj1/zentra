@@ -3618,6 +3618,11 @@ function accountingContinuityFromRaw(
     starterAvailable: boolValue(row?.starter_available),
     journalEntryCount: numberValue(row?.journal_entry_count),
     missingInvoices: numberValue(row?.missing_invoices),
+    missingCustomerCreditSettlements: numberValue(row?.missing_customer_credit_settlements),
+    customerCreditIssues: rawArray(row?.customer_credit_issues).map((value) => {
+      const issue=recordValue(value);
+      return {kind:stringValue(issue.kind) as NonNullable<AccountingContinuity['customerCreditIssues']>[number]['kind'],settlementId:nullableString(issue.settlement_id),creditNoteId:nullableString(issue.credit_note_id),creditNoteNumber:stringValue(issue.credit_note_number),journalEntryId:nullableString(issue.journal_entry_id),journalNumber:stringValue(issue.journal_number),journalAvailable:boolValue(issue.journal_available),date:stringValue(issue.date),reference:stringValue(issue.reference),closedPeriod:boolValue(issue.closed_period),reason:stringValue(issue.reason)};
+    }),
     missingPayments: numberValue(row?.missing_payments),
     missingExpenses: numberValue(row?.missing_expenses),
     missingSupplierInvoices: numberValue(row?.missing_supplier_invoices),
@@ -3993,6 +3998,7 @@ function accountingConfigurationFromRaw(
       createdTotal: numberValue(synchronization.created_total),
       createdInvoices: numberValue(synchronization.created_invoices),
       createdPayments: numberValue(synchronization.created_payments),
+      createdCustomerCreditSettlements: numberValue(synchronization.created_customer_credit_settlements),
       createdExpenses: numberValue(synchronization.created_expenses),
       createdPayslips: numberValue(synchronization.created_payslips),
       createdPayslipPayments: numberValue(

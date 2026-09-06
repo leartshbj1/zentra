@@ -1827,12 +1827,28 @@ export type AccountingSettings = {
   supplierPayableAccountId: string;
 };
 
+export type CustomerCreditAccountingIssue = {
+  kind: 'missing_posting' | 'invalid_posting' | 'orphan_journal';
+  settlementId: string | null;
+  creditNoteId: string | null;
+  creditNoteNumber: string;
+  journalEntryId: string | null;
+  journalNumber: string;
+  journalAvailable: boolean;
+  date: string;
+  reference: string;
+  closedPeriod: boolean;
+  reason: string;
+};
+
 export type AccountingContinuity = {
   enabled: boolean;
   mappingReady: boolean;
   starterAvailable: boolean;
   journalEntryCount: number;
   missingInvoices: number;
+  missingCustomerCreditSettlements?: number;
+  customerCreditIssues?: CustomerCreditAccountingIssue[];
   missingPayments: number;
   missingExpenses: number;
   missingSupplierInvoices: number;
@@ -1858,6 +1874,7 @@ export type AccountingSynchronization = {
   createdExpenses: number;
   createdPayslips: number;
   createdPayslipPayments: number;
+  createdCustomerCreditSettlements?: number;
   skippedClosedHistory: number;
   requiresOpeningBalanceReview: boolean;
   remaining: AccountingContinuity;

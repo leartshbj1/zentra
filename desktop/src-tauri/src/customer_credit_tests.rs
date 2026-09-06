@@ -6,6 +6,8 @@ use serde_json::{json, Value};
 
 #[path = "customer_credit_attachment_tests.rs"]
 mod attachment_tests;
+#[path = "customer_credit_continuity_tests.rs"]
+mod continuity_tests;
 
 fn fixture() -> (tempfile::TempDir, LocalStore, String) {
     let temporary = tempfile::tempdir().unwrap();

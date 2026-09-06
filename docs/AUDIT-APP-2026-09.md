@@ -6,6 +6,8 @@ Dernière publication vérifiée : **1.37.0**, site version 56, le 6 septembre 2
 
 Les corrections locales sur les avoirs clients sont décrites dans [l'audit dédié](AUDIT-AVOIRS-CLIENTS.md) : plafond par taux, taux historiques, règlements et extournes datés, TVA reçue par événement, consultation mobile, justificatifs reliés aux projets et exports vérifiés avec restauration. La reprise des anciens avoirs et le rapprochement bancaire client restent à terminer. Ces changements, au schéma 54, ne sont pas inclus dans la version publique 1.37.0.
 
+Le lot suivant complète la continuité comptable des règlements clients : anomalies détaillées, écritures sans preuve repérées, décompte sans doublon, lecture possible d'une preuve endommagée et reprise alignée sur la clôture cumulative. L'écran « Plan & liaisons » et les filtres des rapports ont été simplifiés sur ordinateur et mobile. Voir les preuves et limites dans le même audit dédié.
+
 ## Lot 1.28.0 disponible dans le système de mise à jour
 
 Les améliorations ci-dessous sont figées dans la source `b107cb85fda7bf6ff42efa0771da4339a3a9548a` du lot 1.28.0. Le canal stable Windows/macOS a été activé après vérification des signatures Ed25519 et des fichiers publics. Le manifeste et les empreintes 1.27.0 sont conservés. La page de téléchargement est alignée sur ce même lot.

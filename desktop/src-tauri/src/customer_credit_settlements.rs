@@ -73,20 +73,29 @@ pub(crate) fn journal_proof_valid(connection: &Connection, id: &str) -> AppResul
     let Some((journal, snapshot, event, date, amount, bank, invoice)) = proof else {
         return Ok(false);
     };
-    let snapshot: Value = serde_json::from_str(&snapshot)?;
-    let current = journal_snapshot(connection, &journal)?;
+    let Ok(snapshot) = serde_json::from_str::<Value>(&snapshot) else {
+        return Ok(false);
+    };
+    let current = match journal_snapshot(connection, &journal) {
+        Ok(current) => current,
+        Err(AppError::Validation(_)) => return Ok(false),
+        Err(error) => return Err(error),
+    };
     if snapshot != current
         || current["entry"]["source_type"] != "customer_credit_settlement"
         || current["entry"]["source_id"] != id
         || current["entry"]["source_event"] != event
         || current["entry"]["entry_date"] != date
+        || current["entry"]["status"] != "posted"
+        || !current["entry"]["reversal_of"].is_null()
+        || connection.query_row("SELECT EXISTS(SELECT 1 FROM journal_entries WHERE reversal_of=?)",[&journal],|row|row.get::<_,bool>(0))?
     {
         return Ok(false);
     }
     let signed = if event.starts_with("reverse_") {
-        -amount
+        -i128::from(amount)
     } else {
-        amount
+        i128::from(amount)
     };
     let lines = current["lines"]
         .as_array()
@@ -96,10 +105,10 @@ pub(crate) fn journal_proof_valid(connection: &Connection, id: &str) -> AppResul
             .iter()
             .filter(|line| line["memo"] == memo)
             .map(|line| {
-                line["debit_cents"].as_i64().unwrap_or_default()
-                    - line["credit_cents"].as_i64().unwrap_or_default()
+                i128::from(line["debit_cents"].as_i64().unwrap_or_default())
+                    - i128::from(line["credit_cents"].as_i64().unwrap_or_default())
             })
-            .sum::<i64>()
+            .sum::<i128>()
     };
     let counterpart = if invoice.is_some() {
         "Imputation sur facture client"
@@ -134,11 +143,35 @@ pub(crate) fn journal_proof_valid(connection: &Connection, id: &str) -> AppResul
         ),
     ] {
         let tax:i64=connection.query_row("SELECT CASE WHEN EXISTS(SELECT 1 FROM customer_credit_settlements e JOIN journal_entries j ON j.source_type='invoice' AND j.source_id=CASE ?2 WHEN 'credit' THEN e.credit_note_id ELSE e.invoice_id END AND j.source_event='issue' JOIN journal_lines l ON l.journal_entry_id=j.id AND l.memo=?3 WHERE e.id=?1) THEN COALESCE((SELECT SUM(vat_cents) FROM customer_credit_settlement_lines WHERE settlement_id=?1 AND side=?2),0) ELSE 0 END",params![id,side,deferred_memo],|row|row.get(0))?;
-        if delta(release) != tax * sign || delta(due) != -tax * sign {
+        if delta(release) != i128::from(tax) * sign || delta(due) != -i128::from(tax) * sign {
             return Ok(false);
         }
     }
     Ok(true)
+}
+
+/// Diagnose missing and damaged proofs without making the workspace unreadable.
+/// A financial correction is a separate settlement, never a generic journal reversal.
+pub(crate) fn accounting_issues(connection:&Connection,from:&str,to:&str)->AppResult<Vec<Value>> {
+    let events=query_all(connection,"SELECT e.id AS settlement_id,e.credit_note_id,c.number AS credit_note_number,e.date,e.reference,p.journal_entry_id,EXISTS(SELECT 1 FROM journal_entries actual WHERE actual.id=p.journal_entry_id) AS journal_available,EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date<=a.date_to) AS closed_period FROM customer_credit_settlements e JOIN invoices c ON c.id=e.credit_note_id LEFT JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id WHERE e.date BETWEEN ?1 AND ?2 OR EXISTS(SELECT 1 FROM journal_entries j WHERE j.id=p.journal_entry_id AND j.entry_date BETWEEN ?1 AND ?2) ORDER BY e.date DESC,e.sequence DESC",params![from,to])?;
+    let mut issues=Vec::new();
+    for mut event in events {
+        let (kind,reason)=if event["journal_entry_id"].is_null() {
+            ("missing_posting","Le règlement ne dispose pas encore d’une preuve de comptabilisation.")
+        } else if !journal_proof_valid(connection,event["settlement_id"].as_str().unwrap_or_default())? {
+            ("invalid_posting","L’écriture du règlement est absente, modifiée ou ne correspond plus à sa preuve conservée.")
+        } else {continue;};
+        event["kind"]=json!(kind);event["reason"]=json!(reason);issues.push(event);
+    }
+    let journals=query_all(connection,"SELECT j.id AS journal_entry_id,1 AS journal_available,j.number AS journal_number,j.entry_date AS date,j.description AS reference,e.id AS settlement_id,e.credit_note_id,c.number AS credit_note_number,EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND j.entry_date<=a.date_to) AS closed_period FROM journal_entries j LEFT JOIN customer_credit_settlements e ON e.id=j.source_id LEFT JOIN invoices c ON c.id=e.credit_note_id WHERE j.source_type='customer_credit_settlement' AND j.entry_date BETWEEN ?1 AND ?2 AND NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p JOIN customer_credit_settlements linked ON linked.id=p.settlement_id WHERE p.journal_entry_id=j.id AND linked.id=j.source_id) ORDER BY j.entry_date DESC,j.id",params![from,to])?;
+    for mut journal in journals {
+        journal["kind"]=json!("orphan_journal");journal["reason"]=json!("Cette écriture n’est reliée à aucune preuve de règlement client. Vérifiez son origine avant toute reprise.");issues.push(journal);
+    }
+    Ok(issues)
+}
+
+pub(crate) fn posting_mismatch_count(issues:&[Value])->i64 {
+    issues.iter().filter(|issue|issue["kind"]!="missing_posting").count() as i64
 }
 fn text(value: &str, label: &str, min: usize, max: usize) -> AppResult<String> {
     let value = value.trim();

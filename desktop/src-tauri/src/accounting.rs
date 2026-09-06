@@ -1372,7 +1372,7 @@ fn blocked_unposted_payments(
                       COALESCE(invoice.status,'')<>'annulee'
                       AND NOT EXISTS(
                         SELECT 1 FROM accounting_periods period
-                         WHERE period.status='closed' AND payment.date BETWEEN period.date_from AND period.date_to
+                         WHERE period.status='closed' AND payment.date<=period.date_to
                       )
                     ))
               ORDER BY payment.date,payment.created_at,payment.id",
@@ -1409,37 +1409,37 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
     let journal_entry_count: i64 =
         connection.query_row("SELECT COUNT(*) FROM journal_entries", [], |row| row.get(0))?;
     let missing_invoices: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)",
+        "SELECT COUNT(*) FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date<=ap.date_to)",
         [],
         |row| row.get(0),
     )?;
     let missing_payments: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date BETWEEN ap.date_from AND ap.date_to)",
+        "SELECT COUNT(*) FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date<=ap.date_to)",
         [],
         |row| row.get(0),
     )?;
     let missing_expenses: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)",
+        "SELECT COUNT(*) FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date)<=ap.date_to)",
         [],
         |row| row.get(0),
     )?;
     let missing_supplier_invoices: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM supplier_invoices invoice WHERE invoice.status='validated' AND NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_invoice' AND entry.source_id=invoice.id AND entry.source_event='validate') AND NOT EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND invoice.document_date BETWEEN period.date_from AND period.date_to)",
+        "SELECT COUNT(*) FROM supplier_invoices invoice WHERE invoice.status='validated' AND NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_invoice' AND entry.source_id=invoice.id AND entry.source_event='validate') AND NOT EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND invoice.document_date<=period.date_to)",
         [],
         |row| row.get(0),
     )?;
     let missing_supplier_payments: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM supplier_payments payment WHERE NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_payment' AND entry.source_id=payment.id AND entry.source_event='invoice:'||payment.supplier_invoice_id) AND NOT EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND payment.date BETWEEN period.date_from AND period.date_to)",
+        "SELECT COUNT(*) FROM supplier_payments payment WHERE NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_payment' AND entry.source_id=payment.id AND entry.source_event='invoice:'||payment.supplier_invoice_id) AND NOT EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND payment.date<=period.date_to)",
         [],
         |row| row.get(0),
     )?;
     let missing_payslips: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01' BETWEEN ap.date_from AND ap.date_to)",
+        "SELECT COUNT(*) FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01'<=ap.date_to)",
         [],
         |row| row.get(0),
     )?;
     let missing_payslip_payments: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date BETWEEN ap.date_from AND ap.date_to)",
+        "SELECT COUNT(*) FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date<=ap.date_to)",
         [],
         |row| row.get(0),
     )?;
@@ -1453,7 +1453,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         [],
         |row| row.get(0),
     )?;
-    let missing_customer_credit_settlements: i64 = connection.query_row("SELECT COUNT(*) FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date BETWEEN a.date_from AND a.date_to)",[],|r|r.get(0))?;
+    let missing_customer_credit_settlements: i64 = connection.query_row("SELECT COUNT(*) FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date<=a.date_to)",[],|r|r.get(0))?;
     let total_missing = missing_customer_credit_settlements + missing_invoices
         + missing_payments
         + missing_expenses
@@ -1537,8 +1537,10 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         [],
         |row| row.get(0),
     )?;
+    let customer_credit_issues=crate::customer_credit_settlements::accounting_issues(connection,"0001-01-01","9999-12-31")?;
     let semantic_posting_mismatches =
-        semantic_posting_mismatches_in_range(connection, "0001-01-01", "9999-12-31")?;
+        non_customer_semantic_posting_mismatches_in_range(connection, "0001-01-01", "9999-12-31")?
+        + crate::customer_credit_settlements::posting_mismatch_count(&customer_credit_issues);
     let total_anomalies = total_missing
         + closed_history_requires_opening
         + cancelled_invoice_payments
@@ -1555,6 +1557,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         "journal_entry_count": journal_entry_count,
         "missing_invoices": missing_invoices,
         "missing_customer_credit_settlements": missing_customer_credit_settlements,
+        "customer_credit_issues": customer_credit_issues,
         "missing_payments": missing_payments,
         "missing_expenses": missing_expenses,
         "missing_supplier_invoices":missing_supplier_invoices,
@@ -1587,19 +1590,21 @@ struct HistoricalEvent {
 fn closed_history_unposted_count(connection: &Connection) -> AppResult<i64> {
     Ok(connection.query_row(
         "SELECT COUNT(*) FROM (
-            SELECT 'invoice:'||i.id AS source FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
+            SELECT 'invoice:'||i.id AS source FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date<=ap.date_to)
             UNION ALL
-            SELECT 'expense:'||e.id FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)
+            SELECT 'expense:'||e.id FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date)<=ap.date_to)
             UNION ALL
-            SELECT 'supplier_invoice:'||invoice.id FROM supplier_invoices invoice WHERE invoice.status='validated' AND NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_invoice' AND entry.source_id=invoice.id AND entry.source_event='validate') AND EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND invoice.document_date BETWEEN period.date_from AND period.date_to)
+            SELECT 'supplier_invoice:'||invoice.id FROM supplier_invoices invoice WHERE invoice.status='validated' AND NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_invoice' AND entry.source_id=invoice.id AND entry.source_event='validate') AND EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND invoice.document_date<=period.date_to)
             UNION ALL
-            SELECT 'supplier_payment:'||payment.id FROM supplier_payments payment WHERE NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_payment' AND entry.source_id=payment.id AND entry.source_event='invoice:'||payment.supplier_invoice_id) AND EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND payment.date BETWEEN period.date_from AND period.date_to)
+            SELECT 'supplier_payment:'||payment.id FROM supplier_payments payment WHERE NOT EXISTS(SELECT 1 FROM journal_entries entry WHERE entry.source_type='supplier_payment' AND entry.source_id=payment.id AND entry.source_event='invoice:'||payment.supplier_invoice_id) AND EXISTS(SELECT 1 FROM accounting_periods period WHERE period.status='closed' AND payment.date<=period.date_to)
             UNION ALL
-            SELECT 'payslip:'||p.id FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01' BETWEEN ap.date_from AND ap.date_to)
+            SELECT 'payslip:'||p.id FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01'<=ap.date_to)
             UNION ALL
-            SELECT 'payment:'||p.id FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date BETWEEN ap.date_from AND ap.date_to)
+            SELECT 'payment:'||p.id FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date<=ap.date_to)
             UNION ALL
-            SELECT 'payslip_payment:'||p.id FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date BETWEEN ap.date_from AND ap.date_to)
+            SELECT 'payslip_payment:'||p.id FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date<=ap.date_to)
+            UNION ALL
+            SELECT 'customer_credit_settlement:'||e.id FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date<=a.date_to)
         )",
         [],
         |row| row.get(0),
@@ -1632,17 +1637,17 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
     let events = {
         let mut statement = tx.prepare(
             "SELECT kind,id,original_date,reference FROM (
-                SELECT 'invoice' AS kind,i.id AS id,i.issue_date AS original_date,NULL AS reference,i.issue_date AS sort_date,i.created_at AS created_at,10 AS priority,0 AS sort_sequence FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'invoice' AS kind,i.id AS id,i.issue_date AS original_date,NULL AS reference,i.issue_date AS sort_date,i.created_at AS created_at,10 AS priority,0 AS sort_sequence FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date<=ap.date_to)
                 UNION ALL
-                SELECT 'expense',e.id,COALESCE(e.paid_at,e.date),NULL,COALESCE(e.paid_at,e.date),e.created_at,20,0 FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'expense',e.id,COALESCE(e.paid_at,e.date),NULL,COALESCE(e.paid_at,e.date),e.created_at,20,0 FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date)<=ap.date_to)
                 UNION ALL
-                SELECT 'payslip',p.id,p.period||'-01',NULL,p.period||'-01',p.created_at,30,0 FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01' BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'payslip',p.id,p.period||'-01',NULL,p.period||'-01',p.created_at,30,0 FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01'<=ap.date_to)
                 UNION ALL
-                SELECT 'payment',p.id,p.date,NULL,p.date,p.created_at,40,0 FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'payment',p.id,p.date,NULL,p.date,p.created_at,40,0 FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date<=ap.date_to)
                 UNION ALL
-                SELECT 'payslip_payment',p.id,p.payment_date,p.payment_reference,p.payment_date,p.updated_at,50,0 FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'payslip_payment',p.id,p.payment_date,p.payment_reference,p.payment_date,p.updated_at,50,0 FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date<=ap.date_to)
                 UNION ALL
-                SELECT 'customer_credit_settlement',e.id,e.date,e.reference,e.date,e.created_at,40,e.sequence FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date BETWEEN a.date_from AND a.date_to)
+                SELECT 'customer_credit_settlement',e.id,e.date,e.reference,e.date,e.created_at,40,e.sequence FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date<=a.date_to)
             ) ORDER BY sort_date,priority,created_at,sort_sequence,id",
         )?;
         let rows = statement
@@ -1663,6 +1668,7 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
     let mut created_expenses = 0_usize;
     let mut created_payslips = 0_usize;
     let mut created_payslip_payments = 0_usize;
+    let mut created_customer_credit_settlements = 0_usize;
     for event in &events {
         let original_date = event.original_date.as_deref().ok_or_else(|| {
             AppError::Validation(format!(
@@ -1704,7 +1710,11 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
                 created_payments += 1;
                 journal
             }
-            "customer_credit_settlement" => crate::customer_credit_settlements::post_existing(tx,&event.id)?,
+            "customer_credit_settlement" => {
+                let journal=crate::customer_credit_settlements::post_existing(tx,&event.id)?;
+                created_customer_credit_settlements+=1;
+                journal
+            },
             "payslip_payment" => {
                 let journal = post_payslip_payment_if_enabled(
                     tx,
@@ -1752,6 +1762,7 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
         "created_expenses": created_expenses,
         "created_payslips": created_payslips,
         "created_payslip_payments": created_payslip_payments,
+        "created_customer_credit_settlements": created_customer_credit_settlements,
         "skipped_closed_history": skipped_closed_history,
         "requires_opening_balance_review": skipped_closed_history > 0,
         "remaining": remaining,
@@ -2438,7 +2449,7 @@ pub(crate) fn post_payment_if_enabled(
               )
               AND NOT EXISTS(
                 SELECT 1 FROM accounting_periods period
-                 WHERE period.status='closed' AND sibling.date BETWEEN period.date_from AND period.date_to
+                 WHERE period.status='closed' AND sibling.date<=period.date_to
               )
          )",
         params![invoice_id],
@@ -3512,11 +3523,13 @@ fn financial_sources_without_effective_posting_in_range(
             SELECT 'cancelled_invoice_posting:'||i.id FROM accountable_invoices i WHERE i.status='annulee' AND i.issue_date BETWEEN ? AND ? AND EXISTS(SELECT 1 FROM effective_sources e WHERE e.source_type='invoice' AND e.source_id=i.id AND e.source_event='issue')
             UNION ALL
             SELECT 'cancelled_invoice_payment:'||p.id FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status='annulee' AND p.date BETWEEN ? AND ?
+            UNION ALL
+            SELECT 'customer_credit_settlement:'||e.id FROM customer_credit_settlements e WHERE e.date BETWEEN ? AND ? AND NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p JOIN journal_entries j ON j.id=p.journal_entry_id WHERE p.settlement_id=e.id AND j.source_type='customer_credit_settlement' AND j.source_id=e.id AND j.source_event=e.event_type AND j.entry_date=e.date AND j.status='posted' AND j.reversal_of IS NULL AND NOT EXISTS(SELECT 1 FROM journal_entries child WHERE child.reversal_of=j.id))
         )",
         params![
             date_from, date_to, date_from, date_to, date_from, date_to, date_from, date_to,
             date_from, date_to, date_from, date_to, date_from, date_to, date_from, date_to,
-            date_from, date_to, date_from, date_to
+            date_from, date_to, date_from, date_to, date_from, date_to
         ],
         |row| row.get(0),
     )?)
@@ -3748,6 +3761,15 @@ pub(crate) fn cash_vat_invoice_is_consistent(
 }
 
 fn semantic_posting_mismatches_in_range(
+    connection: &Connection,
+    date_from: &str,
+    date_to: &str,
+) -> AppResult<i64> {
+    Ok(non_customer_semantic_posting_mismatches_in_range(connection,date_from,date_to)?
+        + crate::customer_credit_settlements::posting_mismatch_count(&crate::customer_credit_settlements::accounting_issues(connection,date_from,date_to)?))
+}
+
+fn non_customer_semantic_posting_mismatches_in_range(
     connection: &Connection,
     date_from: &str,
     date_to: &str,
@@ -4312,10 +4334,6 @@ fn semantic_posting_mismatches_in_range(
         }
     }
 
-    let mut statement=connection.prepare("SELECT id FROM customer_credit_settlements WHERE date BETWEEN ? AND ?")?;
-    for row in statement.query_map(params![date_from,date_to],|row|row.get::<_,String>(0))? {
-        if !crate::customer_credit_settlements::journal_proof_valid(connection,&row?)? { mismatches+=1; }
-    }
     Ok(mismatches)
 }
 fn period_clause(filter: &PeriodFilter, column: &str) -> AppResult<(String, Vec<SqlValue>)> {

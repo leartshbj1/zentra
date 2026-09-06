@@ -1,0 +1,27 @@
+.customer-credit-checks { min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); }
+.customer-credit-checks summary { display:flex; align-items:center; gap:12px; min-height:60px; padding:16px; cursor:pointer; list-style:none; }
+.customer-credit-checks summary::-webkit-details-marker { display:none; }
+.customer-credit-checks summary > svg { flex-shrink:0; color:var(--accent,#34664d); }
+.customer-credit-checks summary > span { flex:1; min-width:0; font-weight:600; }
+.customer-credit-checks summary small { display:block; color:var(--muted); font-weight:400; margin-top:4px; }
+.customer-credit-checks[open] summary > svg:last-child { transform:rotate(180deg); }
+.customer-credit-checks summary:focus-visible { outline:2px solid var(--accent,#34664d); outline-offset:3px; border-radius:16px; }
+.customer-credit-checks__body { padding:0 16px 16px; }
+.customer-credit-checks__body > p { color:var(--muted); font-size:.875rem; line-height:1.6; margin:0 0 16px; }
+.customer-credit-checks ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; list-style:none; padding:0; margin:0; }
+.customer-credit-checks li { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:16px; border:1px solid var(--line); border-radius:12px; min-width:0; overflow-wrap:anywhere; }
+.customer-credit-checks__identity { display:flex; justify-content:space-between; align-items:baseline; gap:10px; width:100%; flex-wrap:wrap; }
+.customer-credit-checks__identity span,.customer-credit-checks li small { color:var(--muted); font-size:.8125rem; }
+.customer-credit-checks__state { border-radius:7px; padding:5px 8px; background:#f8f1df; color:#6c5125; font-size:.8125rem; font-weight:600; }
+.customer-credit-checks li p { margin:0; line-height:1.55; font-size:.875rem; }
+.customer-credit-checks li .button { min-height:44px; margin-top:auto; white-space:normal; }
+.customer-credit-checks__body > .button { min-height:44px; margin-top:12px; }
+@media(max-width:700px) {
+  .customer-credit-checks ol { grid-template-columns:minmax(0,1fr); }
+  .customer-credit-checks li .button { width:100%; }
+}
+@media(prefers-reduced-motion:no-preference) {
+  .customer-credit-checks[open] .customer-credit-checks__body { animation:customer-checks-enter 160ms ease-out; }
+  .customer-credit-checks summary > svg:last-child { transition:transform 160ms ease; }
+}
+@keyframes customer-checks-enter { from {opacity:0;transform:translateY(-4px)} to {opacity:1;transform:translateY(0)} }
