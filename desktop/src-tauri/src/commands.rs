@@ -604,6 +604,21 @@ pub fn record_supplier_credit_refund(
 }
 
 #[tauri::command]
+pub fn get_customer_credit_recovery(state:State<'_,LocalStore>,original_invoice_id:String)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;
+    state.get_customer_credit_recovery(&original_invoice_id).map_err(command_error)
+}
+#[tauri::command]
+pub fn preview_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::customer_credit_recovery::RecoveryInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;
+    state.preview_customer_credit_recovery(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn adopt_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::customer_credit_recovery::RecoveryInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?; require_write(&state)?;
+    state.adopt_customer_credit_recovery(input).map_err(command_error)
+}
+#[tauri::command]
 pub fn record_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::CustomerCreditSettlementInput)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
     require_write(&state)?;

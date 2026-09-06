@@ -475,6 +475,7 @@ export type CustomerCreditSettlement = {
 };
 
 export type Invoice = {
+  creditRecovery?: {recordedAt: string; reference: string; reason: string};
   customerCredit?: { allocatedCents: number; refundedCents: number; remainingCents: number };
   creditSettlements?: CustomerCreditSettlement[];
   creditedCents?: number;

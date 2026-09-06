@@ -20,6 +20,7 @@ mod customer_credit_validation;
 mod customer_credit_math;
 mod customer_credit_settlements;
 mod customer_credit_attachments;
+mod customer_credit_recovery;
 mod database;
 #[cfg(test)]
 mod customer_credit_tests;
@@ -200,6 +201,9 @@ pub fn run() {
             reverse_supplier_credit_allocation,
             record_supplier_credit_refund,
             record_customer_credit_settlement,
+            get_customer_credit_recovery,
+            preview_customer_credit_recovery,
+            adopt_customer_credit_recovery,
             reverse_customer_credit_settlement,
             add_customer_credit_settlement_attachment,
             reverse_supplier_credit_refund,

@@ -42,7 +42,7 @@ fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
 
-fn journal_snapshot(connection: &Connection, id: &str) -> AppResult<Value> {
+pub(crate) fn journal_snapshot(connection: &Connection, id: &str) -> AppResult<Value> {
     let entry = query_all(connection, "SELECT * FROM journal_entries WHERE id=?", [id])?
         .into_iter()
         .next()
@@ -349,7 +349,7 @@ fn replay(tx: &Transaction<'_>, request_id: &str, payload: &str) -> AppResult<Op
     }
 }
 
-fn record(
+pub(crate) fn record(
     tx: &Transaction<'_>,
     input: CustomerCreditSettlementInput,
     reverses: Option<&str>,

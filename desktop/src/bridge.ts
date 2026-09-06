@@ -1,4 +1,9 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
+import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
+function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
+  return {request_id:input.requestId,original_invoice_id:input.originalInvoiceId,source_token:input.sourceToken,reference:input.reference,reason:input.reason,no_prior_refund:input.noPriorRefund,
+    credits:input.credits.map(credit=>({credit_note_id:credit.creditNoteId,applied_cents:credit.appliedCents,application_date:credit.applicationDate}))};
+}
 import { fileBase64 } from './projectDocuments';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { PayslipPostingRefreshError } from './payrollMutation';
@@ -251,6 +256,7 @@ type RawWorkspace = {
   sales_order_invoice_allocations?: RawRecord[];
   invoices?: RawRecord[];
   customer_credit_balances?: RawRecord[];
+  customer_credit_recoveries?: RawRecord[];
   customer_credit_settlements?: RawRecord[];
   invoice_correction_workflows?: RawRecord[];
   invoice_items?: RawRecord[];
@@ -2094,6 +2100,17 @@ function documentSnapshotFromRaw(
 }
 
 function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
+  const creditRecoveryById=new Map<string,NonNullable<Invoice['creditRecovery']>>();
+  for(const saved of raw.customer_credit_recoveries ?? []) {
+    try {
+      const request=recordValue(JSON.parse(stringValue(saved.request_json)));
+      const proof={recordedAt:stringValue(saved.created_at),reference:stringValue(request.reference),reason:stringValue(request.reason)};
+      for(const credit of rawArray(request.credits)) {
+        const id=stringValue(recordValue(credit).credit_note_id);
+        if(id)creditRecoveryById.set(id,proof);
+      }
+    } catch { /* An unreadable note must not prevent consultation of the invoice. */ }
+  }
   const quoteItems = raw.quote_items ?? [];
   const salesOrderLines = (raw.sales_order_lines ?? []).map(
     salesOrderLineFromRaw,
@@ -2465,6 +2482,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         const balance=raw.customer_credit_balances?.find((balance)=>balance.credit_note_id===row.id);
         return balance ? {allocatedCents:numberValue(balance.allocated_cents),refundedCents:numberValue(balance.refunded_cents),remainingCents:numberValue(balance.remaining_cents)} : undefined;
       })(),
+      creditRecovery: creditRecoveryById.get(stringValue(row.id)),
       creditSettlements: (raw.customer_credit_settlements ?? []).filter((event)=>event.credit_note_id===row.id || event.invoice_id===row.id).map((event)=>({
         id:stringValue(event.id),creditNoteId:stringValue(event.credit_note_id),invoiceId:stringValue(event.invoice_id)||null,
         eventType:stringValue(event.event_type) as NonNullable<Invoice['creditSettlements']>[number]['eventType'],
@@ -5911,6 +5929,22 @@ export const desktopApi = {
   },
   async addCustomerCreditSettlementAttachment(settlementId: string, receipt: File): Promise<Workspace> {
     await invoke('add_customer_credit_settlement_attachment',{settlementId,attachment:{original_name:receipt.name,content_base64:await fileBase64(receipt)}});
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async getCustomerCreditRecovery(originalInvoiceId:string):Promise<CustomerCreditRecoveryPlan> {
+    const row=recordValue(await invoke('get_customer_credit_recovery',{originalInvoiceId}));
+    return {sourceToken:stringValue(row.source_token),originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceTotalCents:numberValue(row.invoice_total_cents),paidCents:numberValue(row.paid_cents),blocker:nullableString(row.blocker),credits:rawArray(row.credits).map(value=>{
+      const c=recordValue(value);return {id:stringValue(c.id),number:stringValue(c.number),totalCents:numberValue(c.total_cents),issueDate:stringValue(c.issue_date),earliestApplicationDate:stringValue(c.earliest_application_date)};
+    })};
+  },
+  async previewCustomerCreditRecovery(input:CustomerCreditRecoveryInput):Promise<CustomerCreditRecoveryPreview> {
+    const row=recordValue(await invoke('preview_customer_credit_recovery',{input:customerRecoveryNativeInput(input)}));
+    return {originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceRemainingCents:numberValue(row.invoice_remaining_cents),credits:rawArray(row.credits).map(value=>{
+      const c=recordValue(value);return {creditNoteId:stringValue(c.credit_note_id),number:stringValue(c.number),allocatedCents:numberValue(c.allocated_cents),remainingCents:numberValue(c.remaining_cents)};
+    })};
+  },
+  async adoptCustomerCreditRecovery(input:CustomerCreditRecoveryInput):Promise<Workspace> {
+    await invoke('adopt_customer_credit_recovery',{input:customerRecoveryNativeInput(input)});
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async recordCustomerCreditSettlement(input: {

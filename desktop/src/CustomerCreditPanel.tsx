@@ -8,22 +8,12 @@ import { supplierRefundAmount, supplierRefundDateError } from './supplierCreditR
 import './CustomerCreditPanel.css';
 import { readCustomerCreditRequest,saveCustomerCreditRequest,clearCustomerCreditRequest } from './customerCreditRequest';
 import { RefundAttachmentList,RefundReceiptPicker } from './RefundAttachments';
+import { CustomerCreditRecovery } from './CustomerCreditRecovery';
+import { readCreditRecovery } from './customerCreditRecoveryState';
+import { revealInDialog } from './dialogFocus';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean) => Promise<boolean>;
 const labels = {apply:'Déduit d’une facture', refund:'Remboursé au client', reverse_apply:'Déduction annulée', reverse_refund:'Remboursement annulé'};
-function revealInDialog(node:HTMLElement|null) {
-  if(!node)return;
-  node.focus({preventScroll:true});
-  let container=node.parentElement;
-  while(container && !container.classList.contains('modal-backdrop')) {
-    if(/auto|scroll/.test(getComputedStyle(container).overflowY) && container.scrollHeight>container.clientHeight) {
-      const header=container.classList.contains('modal') ? container.querySelector('.modal__header')?.getBoundingClientRect().height ?? 0 : 0;
-      container.scrollTop+=node.getBoundingClientRect().top-container.getBoundingClientRect().top-header-16;
-      break;
-    }
-    container=container.parentElement;
-  }
-}
 
 export function CustomerCreditPanel({ invoice, workspace, busy, readOnly = false, act }: {
   invoice: Invoice; workspace: Workspace; busy: boolean; readOnly?: boolean; act: ActionRunner;
@@ -31,8 +21,10 @@ export function CustomerCreditPanel({ invoice, workspace, busy, readOnly = false
   const credits=invoice.type==='credit_note' ? [workspace.invoices.find((item)=>item.id===invoice.id) ?? invoice]
     : workspace.invoices.filter((item)=>item.type==='credit_note' && (item.originalInvoiceId===invoice.id || item.creditSettlements?.some((event)=>event.invoiceId===invoice.id)) && item.status!=='draft' && item.status!=='cancelled');
   if (!credits.length) return null;
+  const recoveryOriginals=[...new Set(credits.filter(credit=>!credit.customerCredit||readCreditRecovery(credit.originalInvoiceId||'')).map(credit=>credit.originalInvoiceId).filter((id):id is string=>Boolean(id)))];
   return <section className="customer-credit-panel" aria-label="Avoirs et règlements liés">
     <header><Receipt size={20}/><div><h3>Avoirs et règlements</h3><p>Les montants déduits et remboursés restent reliés aux documents.</p></div></header>
+    {recoveryOriginals.map(id=><CustomerCreditRecovery key={id} originalInvoiceId={id} busy={busy} readOnly={readOnly} act={act}/>)}
     {credits.map((credit)=><CreditCard key={credit.id} credit={credit} workspace={workspace} busy={busy} readOnly={readOnly} act={act}/>)}
   </section>;
 }
@@ -118,7 +110,8 @@ function CreditCard({credit,workspace,busy,readOnly,act}: {credit:Invoice;worksp
     {balance ? <>
       <dl className="customer-credit-card__totals"><div><dt>Déduit des factures</dt><dd>{formatMoney(balance.allocatedCents,credit.currency)}</dd></div><div><dt>Remboursé</dt><dd>{formatMoney(balance.refundedCents,credit.currency)}</dd></div></dl>
       {!mode && !attachmentEventId && available>0 && <div className="customer-credit-card__actions"><Button variant="secondary" disabled={busy||readOnly} onClick={()=>begin('apply')}><ArrowRightLeft size={16}/>Déduire d’une facture</Button><Button variant="secondary" disabled={busy||readOnly} onClick={()=>begin('refund')}><ArrowDownLeft size={16}/>Enregistrer un remboursement</Button></div>}
-    </> : <p className="muted">Avoir historique : sa date de règlement doit être documentée avant un remboursement ou une nouvelle déduction.</p>}
+    </> : <p className="muted">Avoir historique : documentez ses règlements dans l’assistant de reprise ci-dessus.</p>}
+    {credit.creditRecovery&&<details className="customer-credit-card__history"><summary><History size={16}/>Reprise documentée le {formatDate(credit.creditRecovery.recordedAt.slice(0,10))}</summary><p><strong>{credit.creditRecovery.reference}</strong><br/>{credit.creditRecovery.reason}</p></details>}
     {events.length>0 && <details className="customer-credit-card__history"><summary><History size={16}/>Historique · {events.length} opération{events.length>1?'s':''}</summary><ol>{events.map((event)=>{
       const counterpart=workspace.invoices.find((item)=>item.id===event.invoiceId)?.number || workspace.accounts.find((account)=>account.id===event.bankAccountId)?.name;
       const files=(workspace.attachments ?? []).filter((file)=>file.entityType==='customer_credit_settlement'&&file.entityId===event.id);

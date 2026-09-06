@@ -623,6 +623,8 @@ impl LocalStore {
             index["customer_credit_settlements"]=json!(settlements);
             index["customer_credit_settlement_lines"]=json!(query_all(connection,"SELECT l.settlement_id,l.side,l.invoice_item_id,i.description,i.vat_bp,l.gross_cents,l.vat_cents FROM customer_credit_settlement_lines l JOIN customer_credit_settlements e ON e.id=l.settlement_id JOIN invoice_items i ON i.id=l.invoice_item_id WHERE e.date BETWEEN ? AND ? ORDER BY e.date,e.sequence,l.side,i.position,i.id",params![date_from,date_to])?);
         }
+        let recoveries=query_all(connection,"SELECT r.* FROM customer_credit_recoveries r JOIN invoices i ON i.id=r.original_invoice_id WHERE i.issue_date<=? ORDER BY r.created_at,r.id",[date_to])?;
+        if !recoveries.is_empty() { index["customer_credit_recoveries"]=json!(recoveries); }
         Ok(index)
     }
 }
@@ -1043,6 +1045,11 @@ fn build_payload_members(
         ])});
         members.push(ArchiveMember {path:"02_pieces/ventilations_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_settlement_lines"]),&[
             ("settlement_id","settlement_id"),("side","side"),("invoice_item_id","invoice_item_id"),("description","description"),("vat_bp","vat_bp"),("gross_cents","gross_cents"),("vat_cents","vat_cents")
+        ])});
+    }
+    if snapshot.piece_index.get("customer_credit_recoveries").is_some() {
+        members.push(ArchiveMember {path:"02_pieces/reprises_avoirs_clients.csv".into(),bytes:csv_from_rows(rows(&snapshot.piece_index["customer_credit_recoveries"]),&[
+            ("id","recovery_id"),("original_invoice_id","original_invoice_id"),("request_id","request_id"),("request_json","confirmed_input_json"),("source_json","source_snapshot_json"),("result_json","result_json"),("created_at","created_at")
         ])});
     }
     let audit = json!({

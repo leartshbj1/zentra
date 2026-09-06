@@ -1,0 +1,46 @@
+.credit-recovery { min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); overflow-wrap:anywhere; }
+.credit-recovery__intro { display:flex; gap:.85rem; align-items:center; padding:1.25rem; }
+.credit-recovery__intro > svg { flex-shrink:0; color:var(--accent); }
+.credit-recovery__intro > div { flex:1; min-width:0; }
+.credit-recovery__intro p { margin-top:.35rem; }
+.credit-recovery__body { padding:1.25rem; display:grid; gap:1rem; animation:customer-credit-enter 160ms ease-out both; }
+.credit-recovery__top { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+.credit-recovery__eyebrow { display:flex; gap:.5rem; align-items:center; color:var(--accent); font-size:.8125rem; }
+.credit-recovery__steps { list-style:none; display:flex; flex-wrap:wrap; gap:1.5rem; padding:0; margin:0; font-size:.8125rem; color:var(--muted); }
+.credit-recovery__steps li { display:flex; align-items:center; gap:.5rem; }
+.credit-recovery__steps span { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; border:1px solid var(--line); }
+.credit-recovery__steps [aria-current] { color:var(--accent); font-weight:600; }
+.credit-recovery__steps [aria-current] span { background:var(--accent); color:white; }
+.credit-recovery h4:focus { outline:none; }
+.credit-recovery form,.credit-recovery fieldset,.credit-recovery__review { display:grid; gap:1rem; min-width:0; }
+.credit-recovery fieldset { border:0; padding:0; margin:0; }
+.credit-recovery__invoice { display:flex; gap:1rem 2rem; flex-wrap:wrap; padding-block:.5rem; font-size:.875rem; }
+.credit-recovery__invoice span { display:grid; gap:.3rem; color:var(--muted); }
+.credit-recovery__invoice strong { color:var(--text); }
+.credit-recovery__document { display:grid; gap:1rem; padding:1rem; background:var(--surface-soft,#f6f7f4); border:1px solid var(--line); border-radius:12px; }
+.credit-recovery__document header { display:flex; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
+.credit-recovery__document header div { display:grid; gap:.25rem; }
+.credit-recovery__document header span { color:var(--muted); font-size:.8125rem; }
+.credit-recovery__document .form-grid { align-items:start; }
+.credit-recovery__date-hint { grid-column:1/-1; }
+.credit-recovery input,.credit-recovery select,.credit-recovery textarea { min-width:0; max-width:100%; font-size:1rem; }
+.credit-recovery .button { min-height:44px; white-space:normal; }
+.credit-recovery__confirm { display:flex; align-items:flex-start; gap:.75rem; line-height:1.5; font-size:.875rem; padding:.5rem 0; cursor:pointer; }
+.credit-recovery__confirm input { width:20px; height:20px; flex:0 0 20px; margin-top:.15rem; accent-color:var(--accent); }
+.credit-recovery__balance { border:1px solid var(--line); border-radius:12px; padding:1.25rem; display:grid; gap:.5rem; background:var(--surface-soft,#f6f7f4); }
+.credit-recovery__balance span { color:var(--muted); font-size:.875rem; }
+.credit-recovery__balance strong { color:var(--accent); font-size:1.6rem; font-variant-numeric:tabular-nums; }
+.credit-recovery__review ul { padding:0; margin:0; list-style:none; }
+.credit-recovery__review li { display:grid; gap:.5rem; padding:1rem 0; border-bottom:1px solid var(--line); }
+.credit-recovery__review li span { display:flex; justify-content:space-between; gap:1rem; font-size:.875rem; }
+.credit-recovery__review small { color:var(--muted); }
+.credit-recovery__notice { background:var(--surface-soft,#f6f7f4); border-left:3px solid var(--accent); border-radius:8px; padding:1rem; }
+@media(max-width:600px) {
+  .credit-recovery__intro { flex-wrap:wrap; padding:1rem; align-items:flex-start; }
+  .credit-recovery__intro > .button { width:100%; }
+  .credit-recovery__body { padding:1rem; }
+  .credit-recovery .form-grid { grid-template-columns:minmax(0,1fr); }
+  .credit-recovery .form-actions { display:grid; grid-template-columns:minmax(0,1fr); }
+  .credit-recovery__document { padding:.8rem; }
+}
+@media(prefers-reduced-motion:reduce) { .credit-recovery__body {animation:none;} }

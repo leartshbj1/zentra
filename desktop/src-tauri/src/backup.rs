@@ -40,6 +40,7 @@ const MAX_BACKUP_STATUS_BYTES: u64 = 16 * 1024;
 /// sont jamais copiés dans cette archive.
 const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
     ("customer_credit_documents", "02_ventes/modeles_avoirs_clients.csv"),
+    ("customer_credit_recoveries", "02_ventes/reprises_avoirs_clients.csv"),
     ("customer_credit_settlements", "02_ventes/reglements_avoirs_clients.csv"),
     ("customer_credit_settlement_lines", "02_ventes/ventilations_reglements_avoirs_clients.csv"),
     ("customer_credit_settlement_postings", "02_ventes/preuves_reglements_avoirs_clients.csv"),
@@ -225,6 +226,7 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
 /// comptable complet.
 const CSV_EXPORT_DIRECT_COLLECTIONS: &[(&str, &str)] = &[
     ("customer_credit_documents", "SELECT * FROM customer_credit_documents ORDER BY credit_note_id"),
+    ("customer_credit_recoveries", "SELECT * FROM customer_credit_recoveries ORDER BY created_at,id"),
     ("customer_credit_settlements", "SELECT * FROM customer_credit_settlements ORDER BY date,sequence"),
     ("customer_credit_settlement_lines", "SELECT * FROM customer_credit_settlement_lines ORDER BY settlement_id,side,invoice_item_id"),
     ("customer_credit_settlement_postings", "SELECT * FROM customer_credit_settlement_postings ORDER BY settlement_id"),
