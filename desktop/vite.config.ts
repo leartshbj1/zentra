@@ -5,6 +5,7 @@ export default defineConfig({
   define: { __ZENTRA_PLATFORM__: JSON.stringify(process.env.TAURI_ENV_PLATFORM || 'desktop') },
   plugins: [react()],
   base: './',
+  server: { watch: { ignored: ['**/src-tauri/target/**', '**/src-tauri/gen/**'] } },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

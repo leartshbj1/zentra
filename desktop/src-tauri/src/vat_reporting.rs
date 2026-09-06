@@ -12,7 +12,10 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 #[path = "vat_received.rs"]
-mod received;
+pub(crate) mod received;
+
+#[path = "vat_received_customer.rs"]
+mod received_customer;
 
 #[path = "vat_received_supplier.rs"]
 mod received_supplier;
@@ -2315,7 +2318,7 @@ fn load_sales_sources(
     }
 
     let credit_note_count: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM invoices WHERE type='avoir' AND number IS NOT NULL AND status<>'annulee' AND issue_date<=?",
+        "SELECT COUNT(*) FROM invoices WHERE type='avoir' AND number IS NOT NULL AND status<>'annulee' AND issue_date<=? AND NOT EXISTS(SELECT 1 FROM customer_credit_documents d WHERE d.credit_note_id=invoices.id)",
         params![date_to],
         |row| row.get(0),
     )?;
@@ -2329,7 +2332,9 @@ fn load_sales_sources(
             None,
         );
     }
-    received::load_sources(connection, "invoice_item", date_from, date_to, issues)
+    let mut sources = received::load_sources(connection, "invoice_item", date_from, date_to, issues)?;
+    sources.extend(received_customer::load_sources(connection, date_from, date_to, issues)?);
+    Ok(sources)
 }
 
 fn load_supplier_sources(

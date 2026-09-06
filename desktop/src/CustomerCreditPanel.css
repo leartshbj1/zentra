@@ -1,0 +1,42 @@
+.customer-credit-panel { display:grid; gap:1rem; margin-bottom:1.5rem; }
+.customer-credit-panel > header { display:flex; align-items:flex-start; gap:.75rem; color:var(--accent,#34664d); }
+.customer-credit-panel h3,.customer-credit-panel h4,.customer-credit-panel p { margin:0; }
+.customer-credit-panel p { color:var(--muted); font-size:.875rem; line-height:1.55; }
+.customer-credit-panel h3 { font-size:1.125rem; }
+.customer-credit-card { min-width:0; padding:1.25rem; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); }
+.customer-credit-card__heading { display:flex; gap:1rem; align-items:center; justify-content:space-between; }
+.customer-credit-card__heading > div { min-width:0; overflow-wrap:anywhere; }
+.customer-credit-card__heading:focus,.customer-credit-form h4:focus { outline:none; }
+.customer-credit-card__available { display:grid; gap:.25rem; text-align:right; }
+.customer-credit-card__available span { color:var(--muted); font-size:.875rem; }
+.customer-credit-card__available strong { font-size:1.375rem; font-variant-numeric:tabular-nums; color:var(--accent,#34664d); }
+.customer-credit-card__totals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; padding:1rem 0; border-block:1px solid var(--line); }
+.customer-credit-card__totals dt { font-size:.875rem; color:var(--muted); }
+.customer-credit-card__totals dd { margin:.35rem 0 0; font-weight:600; overflow-wrap:anywhere; }
+.customer-credit-card__actions { display:flex; flex-wrap:wrap; gap:.75rem; }
+.customer-credit-card .button { min-height:44px; white-space:normal; }
+.customer-credit-card__history { margin-top:1rem; }
+.customer-credit-card__history summary { display:flex; align-items:center; gap:.5rem; min-height:44px; font-size:.875rem; cursor:pointer; }
+.customer-credit-card__history summary:focus-visible { outline:2px solid var(--accent,#34664d); outline-offset:3px; border-radius:6px; }
+.customer-credit-card__history ol { list-style:none; padding:0; margin:.5rem 0 0; }
+.customer-credit-card__history li { display:flex; justify-content:space-between; gap:1rem; padding:1rem 0; border-top:1px solid var(--line); }
+.customer-credit-card__history li > div { display:grid; align-content:start; gap:.35rem; min-width:0; overflow-wrap:anywhere; }
+.customer-credit-card__history span,.customer-credit-card__history small { color:var(--muted); font-size:.875rem; line-height:1.5; }
+.customer-credit-card__event-amount { text-align:right; }
+.customer-credit-form { display:grid; gap:1rem; margin-top:1rem; padding-top:1.25rem; border-top:1px solid var(--line); animation:customer-credit-enter 160ms ease-out both; }
+.customer-credit-form fieldset { min-width:0; padding:0; margin:0; border:0; }
+.customer-credit-form input,.customer-credit-form select,.customer-credit-form textarea { min-width:0; width:100%; }
+.customer-credit-form__hint { font-size:.875rem; }
+.customer-credit-document-details > summary { min-height:48px; padding:.875rem 0; cursor:pointer; font-weight:600; border-top:1px solid var(--line); }
+.customer-credit-document-details > form { margin-top:1rem; }
+@keyframes customer-credit-enter { from {opacity:0;transform:translateY(6px)} to {opacity:1;transform:translateY(0)} }
+@media(max-width:600px) {
+  .customer-credit-card { padding:1rem; }
+  .customer-credit-card__heading { align-items:flex-start; flex-direction:column; }
+  .customer-credit-card__available { text-align:left; }
+  .customer-credit-card__actions { display:grid; }
+  .customer-credit-card__history li { flex-direction:column; gap:.5rem; }
+  .customer-credit-card__event-amount { text-align:left; justify-items:start; }
+  .customer-credit-form .form-grid { grid-template-columns:minmax(0,1fr); }
+}
+@media(prefers-reduced-motion:reduce) { .customer-credit-form {animation:none;} }

@@ -376,7 +376,7 @@ impl LocalStore {
                       s.address_line2 AS sender_address_line2,s.postal_code AS sender_postal_code,s.city AS sender_city,
                       s.canton AS sender_canton,s.country AS sender_country,s.uid_number AS sender_uid_number,
                       s.logo_path AS sender_logo_path,rs.sender_name,
-                      i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0) AS balance_cents
+                      i.total_cents-i.paid_cents+COALESCE((SELECT SUM(-cn.amount_cents) FROM customer_invoice_credit_movements cn WHERE cn.invoice_id=i.id),0) AS balance_cents
                  FROM invoices i
                  LEFT JOIN clients c ON c.id=i.client_id
                  JOIN settings s ON s.id=1
@@ -384,7 +384,7 @@ impl LocalStore {
                 WHERE i.type<>'avoir' AND i.number IS NOT NULL
                   AND i.status IN('emise','partiellement_payee')
                   AND i.due_date IS NOT NULL AND i.due_date<=?
-                  AND i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0)>0
+                  AND i.total_cents-i.paid_cents+COALESCE((SELECT SUM(-cn.amount_cents) FROM customer_invoice_credit_movements cn WHERE cn.invoice_id=i.id),0)>0
                 ORDER BY i.due_date,i.number"#,
             params![date],
         )?;
@@ -648,8 +648,8 @@ impl LocalStore {
                       COALESCE(NULLIF(TRIM(c.company),''),c.name,'') AS client_name,c.email AS client_email,c.phone AS client_phone,
                       c.address_line1 AS client_address_line1,c.address_line2 AS client_address_line2,
                       c.postal_code AS client_postal_code,c.city AS client_city,c.country AS client_country,
-                      i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0) AS live_balance_cents,
-                      CASE WHEN r.balance_cents<>(i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0)) THEN 1 ELSE 0 END AS snapshot_stale,
+                      i.total_cents-i.paid_cents+COALESCE((SELECT SUM(-cn.amount_cents) FROM customer_invoice_credit_movements cn WHERE cn.invoice_id=i.id),0) AS live_balance_cents,
+                      CASE WHEN r.balance_cents<>(i.total_cents-i.paid_cents+COALESCE((SELECT SUM(-cn.amount_cents) FROM customer_invoice_credit_movements cn WHERE cn.invoice_id=i.id),0)) THEN 1 ELSE 0 END AS snapshot_stale,
                       (SELECT d.action FROM reminder_deliveries d WHERE d.reminder_id=r.id ORDER BY d.sequence DESC LIMIT 1) AS last_delivery_action,
                       (SELECT d.created_at FROM reminder_deliveries d WHERE d.reminder_id=r.id ORDER BY d.sequence DESC LIMIT 1) AS last_delivery_at
                  FROM reminders r JOIN invoices i ON i.id=r.invoice_id LEFT JOIN clients c ON c.id=i.client_id
@@ -945,7 +945,7 @@ fn cancel_all_settled(transaction: &Transaction<'_>) -> AppResult<Vec<String>> {
 fn effective_balance(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<i64> {
     transaction
         .query_row(
-            "SELECT i.total_cents-i.paid_cents+COALESCE((SELECT SUM(c.total_cents) FROM invoices c WHERE c.original_invoice_id=i.id AND c.type='avoir' AND c.number IS NOT NULL AND c.status<>'annulee'),0) FROM invoices i WHERE i.id=?",
+            "SELECT i.total_cents-i.paid_cents+COALESCE((SELECT SUM(-c.amount_cents) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id),0) FROM invoices i WHERE i.id=?",
             params![invoice_id],
             |row| row.get(0),
         )
@@ -970,7 +970,7 @@ fn build_preview(connection: &Connection, id: &str, prepared_on: &str) -> AppRes
     let row = query_all(
         connection,
         r#"SELECT r.*,i.due_date,i.status AS invoice_status,i.client_id,
-                  i.total_cents-i.paid_cents+COALESCE((SELECT SUM(cn.total_cents) FROM invoices cn WHERE cn.original_invoice_id=i.id AND cn.type='avoir' AND cn.number IS NOT NULL AND cn.status<>'annulee'),0) AS live_balance_cents,
+                  i.total_cents-i.paid_cents+COALESCE((SELECT SUM(-cn.amount_cents) FROM customer_invoice_credit_movements cn WHERE cn.invoice_id=i.id),0) AS live_balance_cents,
                   COALESCE(NULLIF(TRIM(c.company),''),c.name,'') AS live_client_name,c.email AS live_client_email,c.phone AS live_client_phone,
                   c.address_line1 AS live_address_line1,c.address_line2 AS live_address_line2,
                   c.postal_code AS live_postal_code,c.city AS live_city,c.canton AS live_canton,c.country AS live_country,

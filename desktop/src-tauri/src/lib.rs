@@ -17,6 +17,8 @@ mod branding;
 mod catalog_import;
 mod commands;
 mod customer_credit_validation;
+mod customer_credit_math;
+mod customer_credit_settlements;
 mod database;
 #[cfg(test)]
 mod customer_credit_tests;
@@ -196,6 +198,8 @@ pub fn run() {
             apply_supplier_credit,
             reverse_supplier_credit_allocation,
             record_supplier_credit_refund,
+            record_customer_credit_settlement,
+            reverse_customer_credit_settlement,
             reverse_supplier_credit_refund,
             match_bank_supplier_credit_refund,
             unmatch_bank_supplier_credit_refund,
@@ -5742,7 +5746,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(vat_balances, (0, 405, 405));
+        assert_eq!(vat_balances, (-405, 810, 0), "l’avoir non réglé conserve la TVA déjà due et son solde en attente");
         drop(connection);
         let continuity = store.get_accounting_continuity().unwrap();
         assert_eq!(continuity["semantic_posting_mismatches"], 0);

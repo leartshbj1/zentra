@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Archive,
   Check,
@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { CustomerCreditPanel } from './CustomerCreditPanel';
 import { activeCatalogItems, catalogItemToDocumentLine } from './catalog';
 import type { DocumentLine, Invoice, Project, Quote, Workspace } from './types';
 import {
@@ -52,6 +53,7 @@ export function DocumentEditor({
   workspace,
   busy,
   readOnlyReason,
+  readOnly = false,
   close,
   act,
 }: {
@@ -62,6 +64,7 @@ export function DocumentEditor({
   workspace: Workspace;
   busy: boolean;
   readOnlyReason?: string;
+  readOnly?: boolean;
   close: () => void;
   act: ActionRunner;
 }) {
@@ -69,6 +72,7 @@ export function DocumentEditor({
   const terminology = projectTerminology(settings.business.nogaSection);
   const current = item ?? quoteSource;
   const currentInvoice = entity === 'invoices' ? (item as Invoice | undefined) : undefined;
+  const hasCustomerCredit = Boolean(currentInvoice && currentInvoice.status !== 'draft' && workspace.invoices.some((invoice)=>invoice.customerCredit && (invoice.id===currentInvoice.id || invoice.originalInvoiceId===currentInvoice.id || invoice.creditSettlements?.some((event)=>event.invoiceId===currentInvoice.id))));
   const savedDepositPercentageBp = currentInvoice?.depositPercentageBp ?? null;
   const [lines, setLines] = useState<DocumentLine[]>(
     currentInvoice?.type === 'deposit' && savedDepositPercentageBp
@@ -332,6 +336,8 @@ export function DocumentEditor({
       onClose={close}
       wide
     >
+      {currentInvoice && currentInvoice.status !== 'draft' && <CustomerCreditPanel invoice={currentInvoice} workspace={workspace} busy={busy} readOnly={readOnly} act={act}/>}
+      <CreditDocumentDetails collapse={hasCustomerCredit}>
       <form
         onSubmit={submitForm(async (form) => {
           setSaveAttempt((attempt) => attempt + 1);
@@ -1020,6 +1026,11 @@ export function DocumentEditor({
           />
         )}
       </form>
+      </CreditDocumentDetails>
     </Modal>
   );
+}
+
+function CreditDocumentDetails({collapse,children}: {collapse:boolean;children:ReactNode}) {
+  return collapse ? <details className="customer-credit-document-details"><summary>Détails du document émis</summary>{children}</details> : children;
 }

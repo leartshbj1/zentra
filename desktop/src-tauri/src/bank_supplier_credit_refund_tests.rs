@@ -600,6 +600,6 @@ fn bank_credit_refund_migration_from_51_preserves_money_without_inventing_bank_m
             .unwrap()
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        52
+        crate::schema::SCHEMA_VERSION
     );
 }

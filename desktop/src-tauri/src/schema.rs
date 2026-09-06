@@ -1,11 +1,13 @@
-pub const SCHEMA_VERSION: i64 = 52;
+pub const SCHEMA_VERSION: i64 = 53;
+pub const MIGRATION_V53_SQL: &str = include_str!("customer_credit_settlement_schema.sql");
 pub const MIGRATION_V52_SQL: &str = include_str!("bank_supplier_credit_refund_schema.sql");
 #[cfg(test)]
 pub(crate) fn remove_v52_for_legacy_fixture(connection: &rusqlite::Connection) {
     // Restore actual old layouts rather than leaving newer triggers/views behind.
     for kind in ["TRIGGER", "VIEW", "TABLE"] {
         let prefix = format!("CREATE {kind} IF NOT EXISTS ");
-        let names: Vec<_> = MIGRATION_V52_SQL.lines().filter_map(|line| {
+        let migrations = format!("{MIGRATION_V52_SQL}\n{MIGRATION_V53_SQL}");
+        let names: Vec<_> = migrations.lines().filter_map(|line| {
             line.trim_start().strip_prefix(&prefix).and_then(|rest| rest.split_whitespace().next())
         }).collect();
         for name in names.into_iter().rev() {
@@ -185,6 +187,10 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "supplier_credit_note_items",
     "supplier_credit_allocations",
     "supplier_credit_refunds",
+    "customer_credit_documents",
+    "customer_credit_settlements",
+    "customer_credit_settlement_lines",
+    "customer_credit_settlement_postings",
     "bank_supplier_credit_refund_matches",
     "bank_supplier_credit_refund_unlinks",
     "bank_supplier_credit_refund_requests",

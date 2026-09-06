@@ -3799,7 +3799,7 @@ impl InvoiceCandidate {
 
 fn load_invoice_candidates(connection: &rusqlite::Connection) -> AppResult<Vec<InvoiceCandidate>> {
     let mut statement = connection.prepare(
-        "SELECT i.id,i.number,i.total_cents,i.paid_cents,COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.currency,i.issue_date,q.input_json,c.name,c.company FROM invoices i LEFT JOIN invoice_qr_bills q ON q.invoice_id=i.id LEFT JOIN clients c ON c.id=i.client_id WHERE i.type IN ('standard','acompte','situation','finale') AND i.total_cents>0 AND i.number IS NOT NULL AND i.status<>'annulee' ORDER BY i.issue_date DESC,i.created_at DESC",
+        "SELECT i.id,i.number,i.total_cents,i.paid_cents,COALESCE((SELECT SUM(c.amount_cents) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id),0),i.currency,i.issue_date,q.input_json,c.name,c.company FROM invoices i LEFT JOIN invoice_qr_bills q ON q.invoice_id=i.id LEFT JOIN clients c ON c.id=i.client_id WHERE i.type IN ('standard','acompte','situation','finale') AND i.total_cents>0 AND i.number IS NOT NULL AND i.status<>'annulee' ORDER BY i.issue_date DESC,i.created_at DESC",
     )?;
     let candidates = statement
         .query_map([], |row| {

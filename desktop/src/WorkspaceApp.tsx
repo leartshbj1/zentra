@@ -6014,6 +6014,7 @@ function WorkspaceModal({
         quoteSource={state.quoteSource}
         workspace={workspace}
         busy={busy}
+        readOnly={readOnly}
         readOnlyReason={
           state.entity === 'invoices' &&
           state.item?.status === 'draft' &&

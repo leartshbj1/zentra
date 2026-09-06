@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=51 => {}
+            28..=52 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1754,6 +1754,11 @@ impl LocalStore {
             let complete: bool = transaction.query_row("SELECT COUNT(*)=4 FROM sqlite_master WHERE type='table' AND name IN ('supplier_credit_refunds','bank_movements','bank_expense_refund_matches','attachments')", [], |row| row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V52_SQL)?; }
             else { transaction.pragma_update(None,"user_version",52)?; }
+        }
+        if current < 53 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=5 FROM sqlite_master WHERE type='table' AND name IN ('invoices','invoice_items','payments','journal_entries','accounting_periods')", [], |row| row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V53_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",53)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2051,7 +2056,7 @@ impl LocalStore {
         )?;
         let invoices = query_all(
             connection,
-            "SELECT * FROM invoices ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
+            "SELECT i.*,(SELECT COALESCE(SUM(amount_cents),0) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id) AS credited_cents FROM invoices i ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
             [],
         )?;
         let invoice_correction_workflows = query_all(
@@ -2603,6 +2608,13 @@ impl LocalStore {
         workspace["expense_refunds"] = json!(query_all(connection,"SELECT r.*,m.id AS bank_match_id FROM expense_refunds r LEFT JOIN active_bank_expense_refund_matches m ON m.refund_id=r.id ORDER BY r.payment_date DESC,r.created_at DESC,r.id",[])?);
         workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
         workspace["supplier_credit_refunds"] = json!(query_all(connection,"SELECT * FROM supplier_credit_refunds ORDER BY sequence",[])?);
+        workspace["customer_credit_balances"] = json!(query_all(connection,"SELECT * FROM customer_credit_balances ORDER BY credit_note_id",[])?);
+        let mut customer_settlements=query_all(connection,"SELECT e.*,p.journal_entry_id FROM customer_credit_settlements e LEFT JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id ORDER BY e.date DESC,e.sequence DESC",[])?;
+        for event in &mut customer_settlements {
+            let id=event["id"].as_str().unwrap_or_default();
+            event["journal_valid"]=json!(crate::customer_credit_settlements::journal_proof_valid(connection,id)?);
+        }
+        workspace["customer_credit_settlements"]=json!(customer_settlements);
         for table in ["bank_supplier_credit_refund_matches","bank_supplier_credit_refund_unlinks","bank_supplier_credit_refund_requests"] {
             workspace[table] = json!(query_all(connection,&format!("SELECT * FROM {table} ORDER BY rowid"),[])?);
         }
@@ -3611,7 +3623,9 @@ impl LocalStore {
         )?;
         let stock_movements = crate::stock::apply_invoice_stock_movements(&transaction, id)?;
         let record = query_record_tx(&transaction, "invoices", id)?;
+        if invoice_type == "avoir" { crate::customer_credit_settlements::register_new_issue(&transaction,id)?; }
         let journal = if zero_balance { None } else { post_invoice_if_enabled(&transaction, id)? };
+        if invoice_type == "avoir" { crate::customer_credit_settlements::automatic_application(&transaction,id)?; }
         let linked_sales_order: Option<(String, String)> = transaction
             .query_row(
                 "SELECT sales_order_id,role FROM sales_order_invoice_batches WHERE invoice_id=?",
@@ -7041,12 +7055,14 @@ pub(crate) fn record_payment_in_transaction(
         Option<String>,
     ) = transaction
         .query_row(
-            "SELECT i.total_cents,COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0),i.type,i.status,i.number,i.issue_date FROM invoices i WHERE i.id = ?",
+            "SELECT i.total_cents,COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(c.amount_cents) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id),0),i.type,i.status,i.number,i.issue_date FROM invoices i WHERE i.id = ?",
             params![input.invoice_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
         )
         .optional()?
         .ok_or_else(|| AppError::NotFound(format!("invoices/{}", input.invoice_id)))?;
+    let later_settlement: bool=transaction.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?1 AND date>?2)",params![input.invoice_id,date],|row|row.get(0))?;
+    if later_settlement { return Err(AppError::Validation("Un avoir a déjà été imputé à une date plus récente sur cette facture. Rétablissez la chronologie avant d’ajouter cet encaissement.".into())); }
     if invoice_type == "avoir" {
         return Err(AppError::Validation(
             "Un avoir ne peut recevoir aucun encaissement.".into(),
@@ -7268,7 +7284,7 @@ pub(crate) fn refresh_invoice_payment_state(
     invoice_id: &str,
 ) -> AppResult<()> {
     let (paid, credited): (i64, i64) = transaction.query_row(
-        "SELECT COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(-c.total_cents) FROM invoices c WHERE c.type='avoir' AND c.original_invoice_id=i.id AND c.number IS NOT NULL AND c.status<>'annulee'),0) FROM invoices i WHERE i.id=?",
+        "SELECT COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0),COALESCE((SELECT SUM(c.amount_cents) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id),0) FROM invoices i WHERE i.id=?",
         params![invoice_id],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;

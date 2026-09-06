@@ -8,7 +8,7 @@ fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
 
-pub(super) fn allocate_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
+pub(crate) fn allocate_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
     let total: i128 = remaining.iter().map(|value| i128::from(*value)).sum();
     if amount <= 0 || remaining.iter().any(|value| *value < 0) || i128::from(amount) > total {
         return Err(invalid(
@@ -38,14 +38,14 @@ pub(super) fn allocate_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i6
     Ok(allocation)
 }
 
-pub(super) fn proportional_vat(vat: i64, paid: i64, gross: i64) -> i64 {
+pub(crate) fn proportional_vat(vat: i64, paid: i64, gross: i64) -> i64 {
     ((i128::from(vat) * i128::from(paid) + i128::from(gross) / 2) / i128::from(gross)) as i64
 }
 
 // A managed balance contains the full quote and the exact negative deposit.
 // Allocate both signs at the same paid fraction; their sum is the actual cash
 // movement. Euclidean remainders preserve every cent, including partial payments.
-fn allocate_signed_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
+pub(crate) fn allocate_signed_gross(amount: i64, remaining: &[i64]) -> AppResult<Vec<i64>> {
     let total: i128 = remaining.iter().map(|value| i128::from(*value)).sum();
     if amount <= 0 || i128::from(amount) > total { return Err(invalid("Paiement supérieur au solde du dossier.")); }
     let mut allocation = Vec::with_capacity(remaining.len());
@@ -71,7 +71,7 @@ pub(super) fn load_sources(
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
     let (headers, lines_table, payments_table, parent_key, status, reference, credit_check) = match source_type {
-        "invoice_item" => ("invoices", "invoice_items", "payments", "invoice_id", "document.number IS NOT NULL AND document.status IN ('emise','partiellement_payee','payee') AND document.type<>'avoir'", "document.number", "(SELECT COUNT(*) FROM invoices credit WHERE credit.original_invoice_id=document.id AND credit.type='avoir' AND credit.number IS NOT NULL AND credit.status<>'annulee' AND credit.issue_date<=?2)"),
+        "invoice_item" => ("invoices", "invoice_items", "payments", "invoice_id", "document.number IS NOT NULL AND document.status IN ('emise','partiellement_payee','payee') AND document.type<>'avoir' AND NOT EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE e.invoice_id=document.id AND e.date<=?2)", "document.number", "(SELECT COUNT(*) FROM invoices credit WHERE credit.original_invoice_id=document.id AND credit.type='avoir' AND credit.number IS NOT NULL AND credit.status<>'annulee' AND credit.issue_date<=?2 AND NOT EXISTS(SELECT 1 FROM customer_credit_documents d WHERE d.credit_note_id=credit.id))"),
         "supplier_invoice_item" => ("supplier_invoices", "supplier_invoice_items", "supplier_payments", "supplier_invoice_id", "document.status='validated'", "NULLIF(document.reference,'')", "(SELECT COUNT(*) FROM supplier_credit_allocations allocation JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id WHERE allocation.supplier_invoice_id=document.id AND credit.status='validated' AND credit.document_date<=?2)"),
         _ => return Err(invalid("Type d'achat ou de vente reçu inconnu.")),
     };

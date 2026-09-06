@@ -101,6 +101,8 @@ export function invoicePaid(invoiceId: string, payments: Payment[]): number {
 }
 
 export function invoiceCredited(invoiceId: string, invoices: Invoice[]): number {
+  const nativeBalance = invoices.find((invoice) => invoice.id === invoiceId)?.creditedCents;
+  if (nativeBalance !== undefined) return nativeBalance;
   return invoices
     .filter(
       (invoice) =>

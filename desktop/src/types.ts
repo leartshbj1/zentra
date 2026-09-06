@@ -466,7 +466,18 @@ export type InvoiceType =
   | 'final'
   | 'credit_note';
 
+export type CustomerCreditSettlement = {
+  id: string; creditNoteId: string; invoiceId: string | null;
+  eventType: 'apply' | 'refund' | 'reverse_apply' | 'reverse_refund';
+  date: string; amountCents: number; reference: string; reason: string;
+  reversesId: string | null; bankAccountId: string | null;
+  journalEntryId: string | null; journalValid: boolean;
+};
+
 export type Invoice = {
+  customerCredit?: { allocatedCents: number; refundedCents: number; remainingCents: number };
+  creditSettlements?: CustomerCreditSettlement[];
+  creditedCents?: number;
   billingPair?: { depositInvoiceId: Identifier; balanceInvoiceId: Identifier } | null;
   id: Identifier;
   number: string;

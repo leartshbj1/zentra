@@ -845,7 +845,7 @@ impl LocalStore {
                    JOIN journal_entries parent ON parent.id=ancestry.reversal_of
                  )
                  SELECT source_type,source_id,id,depth FROM ancestry
-                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note','supplier_credit_refund')
+                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note','supplier_credit_refund','customer_credit_settlement')
                  ORDER BY depth DESC LIMIT 1",
                 params![id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
@@ -854,6 +854,9 @@ impl LocalStore {
         if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
             protected_business_source
         {
+            if source_type == "customer_credit_settlement" {
+                return Err(AppError::Validation("Corrigez ce règlement depuis l’avoir client afin de conserver ses soldes, sa TVA et son historique.".into()));
+            }
             if source_type == "supplier_credit_refund" {
                 return Err(AppError::Validation("Corrigez le remboursement depuis l’avoir fournisseur pour conserver son solde, sa TVA et son écriture bancaire cohérents.".into()));
             }
@@ -1283,7 +1286,7 @@ pub(crate) fn payment_accounting_block_reason(
 
     let credits = {
         let mut statement = connection.prepare(
-            "SELECT id,total_cents,issue_date FROM invoices WHERE type='avoir' AND original_invoice_id=? AND number IS NOT NULL AND status<>'annulee' ORDER BY issue_date,created_at,id",
+            "SELECT id,-amount_cents,date FROM customer_invoice_credit_movements WHERE invoice_id=? ORDER BY date,created_at,id",
         )?;
         let rows = statement
             .query_map(params![state.invoice_id], |row| {
@@ -1298,11 +1301,14 @@ pub(crate) fn payment_accounting_block_reason(
     };
     let mut validated_credits = Vec::with_capacity(credits.len());
     for (credit_id, total_cents, credit_date) in credits {
-        let Some(credit_amount) = total_cents.checked_neg().filter(|value| *value > 0) else {
+        let Some(credit_amount) = total_cents.checked_neg().filter(|value| *value != 0) else {
             return Ok(Some(format!(
                 "l'avoir lié {credit_id} ne possède pas un montant créditeur valide"
             )));
         };
+        if credit_amount < 0 && !connection.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE id=? AND event_type='reverse_apply')",[&credit_id],|row|row.get::<_,bool>(0))? {
+            return Ok(Some(format!("l’avoir lié {credit_id} n’a pas une extourne valide")));
+        }
         let Some(credit_date) = credit_date else {
             return Ok(Some(format!(
                 "l'avoir lié {credit_id} n'a pas de date d'émission"
@@ -1447,7 +1453,8 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         [],
         |row| row.get(0),
     )?;
-    let total_missing = missing_invoices
+    let missing_customer_credit_settlements: i64 = connection.query_row("SELECT COUNT(*) FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date BETWEEN a.date_from AND a.date_to)",[],|r|r.get(0))?;
+    let total_missing = missing_customer_credit_settlements + missing_invoices
         + missing_payments
         + missing_expenses
         + missing_supplier_invoices
@@ -1547,6 +1554,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
         "starter_available": !configured_mappings && journal_entry_count == 0,
         "journal_entry_count": journal_entry_count,
         "missing_invoices": missing_invoices,
+        "missing_customer_credit_settlements": missing_customer_credit_settlements,
         "missing_payments": missing_payments,
         "missing_expenses": missing_expenses,
         "missing_supplier_invoices":missing_supplier_invoices,
@@ -1624,16 +1632,18 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
     let events = {
         let mut statement = tx.prepare(
             "SELECT kind,id,original_date,reference FROM (
-                SELECT 'invoice' AS kind,i.id AS id,i.issue_date AS original_date,NULL AS reference,i.issue_date AS sort_date,i.created_at AS created_at,10 AS priority FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'invoice' AS kind,i.id AS id,i.issue_date AS original_date,NULL AS reference,i.issue_date AS sort_date,i.created_at AS created_at,10 AS priority,0 AS sort_sequence FROM accountable_invoices i WHERE i.number IS NOT NULL AND i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='invoice' AND je.source_id=i.id AND je.source_event='issue') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND i.issue_date BETWEEN ap.date_from AND ap.date_to)
                 UNION ALL
-                SELECT 'expense',e.id,COALESCE(e.paid_at,e.date),NULL,COALESCE(e.paid_at,e.date),e.created_at,20 FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'expense',e.id,COALESCE(e.paid_at,e.date),NULL,COALESCE(e.paid_at,e.date),e.created_at,20,0 FROM expenses e WHERE e.payment_status='paid' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='expense' AND je.source_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND COALESCE(e.paid_at,e.date) BETWEEN ap.date_from AND ap.date_to)
                 UNION ALL
-                SELECT 'payslip',p.id,p.period||'-01',NULL,p.period||'-01',p.created_at,30 FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01' BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'payslip',p.id,p.period||'-01',NULL,p.period||'-01',p.created_at,30,0 FROM payslips p WHERE p.status IN('comptabilise','paye') AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='post') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.period||'-01' BETWEEN ap.date_from AND ap.date_to)
                 UNION ALL
-                SELECT 'payment',p.id,p.date,NULL,p.date,p.created_at,40 FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date BETWEEN ap.date_from AND ap.date_to)
+                SELECT 'payment',p.id,p.date,NULL,p.date,p.created_at,40,0 FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.status<>'annulee' AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payment' AND je.source_id=p.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.date BETWEEN ap.date_from AND ap.date_to)
                 UNION ALL
-                SELECT 'payslip_payment',p.id,p.payment_date,p.payment_reference,p.payment_date,p.updated_at,50 FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date BETWEEN ap.date_from AND ap.date_to)
-            ) ORDER BY sort_date,priority,created_at,id",
+                SELECT 'payslip_payment',p.id,p.payment_date,p.payment_reference,p.payment_date,p.updated_at,50,0 FROM payslips p WHERE p.status='paye' AND p.payment_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM journal_entries je WHERE je.source_type='payslip' AND je.source_id=p.id AND je.source_event='payment') AND NOT EXISTS(SELECT 1 FROM accounting_periods ap WHERE ap.status='closed' AND p.payment_date BETWEEN ap.date_from AND ap.date_to)
+                UNION ALL
+                SELECT 'customer_credit_settlement',e.id,e.date,e.reference,e.date,e.created_at,40,e.sequence FROM customer_credit_settlements e WHERE NOT EXISTS(SELECT 1 FROM customer_credit_settlement_postings p WHERE p.settlement_id=e.id) AND NOT EXISTS(SELECT 1 FROM accounting_periods a WHERE a.status='closed' AND e.date BETWEEN a.date_from AND a.date_to)
+            ) ORDER BY sort_date,priority,created_at,sort_sequence,id",
         )?;
         let rows = statement
             .query_map([], |row| {
@@ -1694,6 +1704,7 @@ fn synchronize_accounting_history(tx: &Transaction<'_>) -> AppResult<Value> {
                 created_payments += 1;
                 journal
             }
+            "customer_credit_settlement" => crate::customer_credit_settlements::post_existing(tx,&event.id)?,
             "payslip_payment" => {
                 let journal = post_payslip_payment_if_enabled(
                     tx,
@@ -1754,7 +1765,7 @@ pub(crate) fn post_invoice_if_enabled(
     post_invoice(tx, invoice_id)
 }
 
-fn posted_invoice_account(
+pub(crate) fn posted_invoice_account(
     tx: &Transaction<'_>,
     invoice_id: &str,
     memo: &str,
@@ -1925,6 +1936,8 @@ fn cash_vat_state(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Ca
         params![VAT_CASH_RELEASE_MEMO, invoice_id],
         |row| row.get(0),
     )?;
+    let event_released: i64=tx.query_row("SELECT COALESCE(SUM(l.debit_cents-l.credit_cents),0) FROM customer_credit_settlements e JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id JOIN journal_lines l ON l.journal_entry_id=p.journal_entry_id WHERE e.invoice_id=?1 AND l.memo=?2",params![invoice_id,VAT_CASH_RELEASE_MEMO],|row|row.get(0))?;
+    let released_cents=released_cents.checked_add(event_released).ok_or_else(||AppError::Validation("La TVA réglée dépasse la capacité locale.".into()))?;
     let credit_deferred_cents: i64 = tx.query_row(
         "SELECT COALESCE(SUM(line.debit_cents),0)
            FROM invoices credit
@@ -2083,6 +2096,10 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
                 )
             })?;
             if let Some(cash_state) = original_cash_vat.as_ref() {
+                let dated: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_documents WHERE credit_note_id=?)",[invoice_id],|row|row.get(0))?;
+                if dated {
+                    push_line(&mut lines,&cash_state.deferred_account,credit_vat,0,&currency,project.clone(),client.clone(),None,crate::customer_credit_settlements::PENDING_VAT);
+                } else {
                 let later_payment_already_posted: bool = tx.query_row(
                     "SELECT EXISTS(
                        SELECT 1 FROM payments payment
@@ -2138,6 +2155,7 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
                         "La TVA de cet avoir dépasse la TVA différée et la TVA déjà devenue due sur les encaissements de la facture originale. L'avoir est bloqué pour éviter un solde TVA débiteur incohérent."
                             .into(),
                     ));
+                }
                 }
             } else {
                 push_line(
@@ -2273,12 +2291,7 @@ fn post_cash_vat_reclassification(
                     AND (other.date<payment.date
                          OR (other.date=payment.date AND other.created_at<payment.created_at)
                          OR (other.date=payment.date AND other.created_at=payment.created_at AND other.id<=payment.id))),
-                (SELECT COALESCE(SUM(-credit.total_cents),0)
-                   FROM invoices credit
-                   JOIN journal_entries credit_entry ON credit_entry.source_type='invoice' AND credit_entry.source_id=credit.id AND credit_entry.source_event='issue' AND credit_entry.reversal_of IS NULL
-                  WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id
-                    AND credit.number IS NOT NULL AND credit.status<>'annulee'
-                    AND credit.issue_date<=payment.date)
+                (SELECT COALESCE(SUM(credit.amount_cents),0) FROM customer_invoice_credit_movements credit WHERE credit.invoice_id=invoice.id AND credit.date<=payment.date)
            FROM payments payment JOIN invoices invoice ON invoice.id=payment.invoice_id
           WHERE payment.id=?",
         params![payment_id],
@@ -2298,13 +2311,23 @@ fn post_cash_vat_reclassification(
         return Ok(None);
     };
     let deferred_remaining = state.deferred_remaining()?;
-    if deferred_remaining == 0 {
+    if deferred_remaining == 0 && !tx.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[&invoice_id],|r|r.get::<_,bool>(0))? {
         return Ok(None);
     }
     let settled = paid_total
         .checked_add(credited_total)
         .is_some_and(|settled_total| settled_total >= state.invoice_total_cents);
-    let allocation = if settled {
+    let dated_settlements: bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[&invoice_id],|row|row.get(0))?;
+    let allocation = if dated_settlements {
+        let projection=crate::customer_credit_math::project_until(tx,&invoice_id,&date,Some(payment_id))?;
+        let part=projection.parts.get(payment_id).ok_or_else(||AppError::Validation("L’encaissement n’apparaît pas dans la ventilation datée de la facture.".into()))?;
+        let tax=part.iter().map(|part|part.vat_cents).sum::<i64>();
+        let expected_before=projection.parts.values().flatten().map(|part|part.vat_cents).sum::<i64>()-tax;
+        if expected_before != state.released_cents {
+            return Err(AppError::Validation("La TVA déjà comptabilisée ne concorde pas avec les règlements datés de la facture ; rapprochez cet historique avant de continuer.".into()));
+        }
+        tax
+    } else if settled {
         deferred_remaining
     } else {
         rounded_proportion(
@@ -2327,8 +2350,8 @@ fn post_cash_vat_reclassification(
     let lines = vec![
         EntryLine {
             account_id: state.deferred_account,
-            debit_cents: allocation,
-            credit_cents: 0,
+            debit_cents: allocation.max(0),
+            credit_cents: (-allocation).max(0),
             currency: currency.clone(),
             memo: Some(VAT_CASH_RELEASE_MEMO.into()),
             project_id: project.clone(),
@@ -2337,8 +2360,8 @@ fn post_cash_vat_reclassification(
         },
         EntryLine {
             account_id: map.vat_payable.clone(),
-            debit_cents: 0,
-            credit_cents: allocation,
+            debit_cents: (-allocation).max(0),
+            credit_cents: allocation.max(0),
             currency,
             memo: Some(VAT_CASH_DUE_MEMO.into()),
             project_id: project,
@@ -3197,7 +3220,7 @@ fn post_entry_with_reversal(
             "Écriture déséquilibrée : débits {debit}, crédits {credit}."
         )));
     }
-    if source_type != "manual" && reversal_of.is_none() {
+    if !matches!(source_type,"manual"|"customer_credit_settlement") && reversal_of.is_none() {
         let mut sides = std::collections::BTreeMap::<&str, (i64, i64)>::new();
         for line in &lines {
             let totals = sides.entry(line.account_id.as_str()).or_default();
@@ -3650,6 +3673,17 @@ pub(crate) fn cash_vat_invoice_is_consistent(
     let Some(_deferred_account) = deferred_account else {
         return Ok(reclassification_count == 0);
     };
+    let dated_settlements: bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_settlements WHERE invoice_id=?)",[invoice_id],|row|row.get(0))?;
+    if dated_settlements {
+        let projection=match crate::customer_credit_math::project(connection,invoice_id,"9999-12-31") {
+            Ok(value)=>value,
+            Err(AppError::Validation(_))=>return Ok(false),
+            Err(error)=>return Err(error),
+        };
+        let expected=projection.parts.values().flatten().map(|part|part.vat_cents).sum::<i64>();
+        let (released,due):(i64,i64)=connection.query_row("SELECT COALESCE(SUM(CASE l.memo WHEN ?2 THEN l.debit_cents-l.credit_cents ELSE 0 END),0),COALESCE(SUM(CASE l.memo WHEN ?3 THEN l.credit_cents-l.debit_cents ELSE 0 END),0) FROM journal_entries j JOIN journal_lines l ON l.journal_entry_id=j.id WHERE (j.source_type='vat_cash_reclassification' AND EXISTS(SELECT 1 FROM payments p WHERE p.id=j.source_id AND p.invoice_id=?1)) OR (j.source_type='customer_credit_settlement' AND EXISTS(SELECT 1 FROM customer_credit_settlements e WHERE e.id=j.source_id AND e.invoice_id=?1))",params![invoice_id,VAT_CASH_RELEASE_MEMO,VAT_CASH_DUE_MEMO],|r|Ok((r.get(0)?,r.get(1)?)))?;
+        return Ok(released==expected && due==expected);
+    }
     let (
         total,
         vat,
@@ -3766,6 +3800,7 @@ fn semantic_posting_mismatches_in_range(
                     matches!(
                         line.memo.as_deref(),
                         Some("Extourne TVA")
+                            | Some(crate::customer_credit_settlements::PENDING_VAT)
                             | Some(VAT_CREDIT_DEFERRED_MEMO)
                             | Some(VAT_CREDIT_DUE_MEMO)
                     )
@@ -3804,10 +3839,15 @@ fn semantic_posting_mismatches_in_range(
                         .iter()
                         .find(|line| line.memo.as_deref() == Some(VAT_DEFERRED_MEMO))
                 });
+                let dated_credit: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM customer_credit_documents WHERE credit_note_id=?)", [&id], |row| row.get(0))?;
                 let credit_basis_valid = if vat == 0 {
                     true
                 } else if let Some(deferred_line) = original_deferred {
                     vat_lines.iter().all(|line| {
+                        if dated_credit {
+                            return line.memo.as_deref() == Some(crate::customer_credit_settlements::PENDING_VAT)
+                                && line.account_id == deferred_line.account_id;
+                        }
                         matches!(
                             line.memo.as_deref(),
                             Some(VAT_CREDIT_DEFERRED_MEMO) | Some(VAT_CREDIT_DUE_MEMO)
@@ -4272,6 +4312,10 @@ fn semantic_posting_mismatches_in_range(
         }
     }
 
+    let mut statement=connection.prepare("SELECT id FROM customer_credit_settlements WHERE date BETWEEN ? AND ?")?;
+    for row in statement.query_map(params![date_from,date_to],|row|row.get::<_,String>(0))? {
+        if !crate::customer_credit_settlements::journal_proof_valid(connection,&row?)? { mismatches+=1; }
+    }
     Ok(mismatches)
 }
 fn period_clause(filter: &PeriodFilter, column: &str) -> AppResult<(String, Vec<SqlValue>)> {
@@ -4349,6 +4393,7 @@ mod historical_payment_guard_tests {
                  VALUES('payment-1','invoice-1','2026-09-02',4000,'2026-09-02T08:00:00Z');",
             )
             .unwrap();
+        connection.execute_batch(crate::schema::MIGRATION_V53_SQL).unwrap();
         assert_eq!(
             payment_accounting_block_reason(&connection, "payment-1").unwrap(),
             None

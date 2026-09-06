@@ -250,6 +250,8 @@ type RawWorkspace = {
   sales_order_invoice_batches?: RawRecord[];
   sales_order_invoice_allocations?: RawRecord[];
   invoices?: RawRecord[];
+  customer_credit_balances?: RawRecord[];
+  customer_credit_settlements?: RawRecord[];
   invoice_correction_workflows?: RawRecord[];
   invoice_items?: RawRecord[];
   invoice_qr_bills?: RawRecord[];
@@ -2458,6 +2460,18 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         return pair ? { depositInvoiceId: stringValue(pair.deposit_invoice_id), balanceInvoiceId: stringValue(pair.balance_invoice_id) } : null;
       })(),
       originalInvoiceId: stringValue(row.original_invoice_id) || null,
+      creditedCents: row.credited_cents == null ? undefined : numberValue(row.credited_cents),
+      customerCredit: (() => {
+        const balance=raw.customer_credit_balances?.find((balance)=>balance.credit_note_id===row.id);
+        return balance ? {allocatedCents:numberValue(balance.allocated_cents),refundedCents:numberValue(balance.refunded_cents),remainingCents:numberValue(balance.remaining_cents)} : undefined;
+      })(),
+      creditSettlements: (raw.customer_credit_settlements ?? []).filter((event)=>event.credit_note_id===row.id || event.invoice_id===row.id).map((event)=>({
+        id:stringValue(event.id),creditNoteId:stringValue(event.credit_note_id),invoiceId:stringValue(event.invoice_id)||null,
+        eventType:stringValue(event.event_type) as NonNullable<Invoice['creditSettlements']>[number]['eventType'],
+        date:stringValue(event.date),amountCents:numberValue(event.amount_cents),reference:stringValue(event.reference),reason:stringValue(event.reason),
+        reversesId:stringValue(event.reverses_id)||null,bankAccountId:stringValue(event.bank_account_id)||null,
+        journalEntryId:stringValue(event.journal_entry_id)||null,journalValid:Boolean(event.journal_valid),
+      })),
       title: stringValue(row.title),
       type:
         (
@@ -5887,6 +5901,19 @@ export const desktopApi = {
   async recordExpenseRefund(input: ExpenseRefundInput): Promise<Workspace> {
     const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt) } : null;
     await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId }, ...(attachment ? { attachment } : {}) });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordCustomerCreditSettlement(input: {
+    requestId: string; creditNoteId: string; eventType: 'apply' | 'refund'; invoiceId: string | null;
+    date: string; amountCents: number; bankAccountId: string | null; reference: string; reason: string;
+  }) {
+    await invoke('record_customer_credit_settlement',{input:{request_id:input.requestId,credit_note_id:input.creditNoteId,
+      event_type:input.eventType,invoice_id:input.invoiceId,date:input.date,amount_cents:input.amountCents,
+      bank_account_id:input.bankAccountId,reference:input.reference.trim(),reason:input.reason.trim()}});
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async reverseCustomerCreditSettlement(input: {requestId: string; settlementId: string; date: string; reason: string}) {
+    await invoke('reverse_customer_credit_settlement',{input:{request_id:input.requestId,settlement_id:input.settlementId,date:input.date,reason:input.reason.trim()}});
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async recordSupplierCreditRefund(input: {
