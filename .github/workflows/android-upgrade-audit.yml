@@ -55,6 +55,8 @@ jobs:
             grep -Fx "Signer #1 certificate SHA-256 digest: $pin" /tmp/zentra-cert.txt
           done
       - name: Upgrade an initialized previous native profile without requiring its old UI
+        env:
+          ZENTRA_UPGRADE_PREVIOUS_RESIGNED: 'false'
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
           export ANDROID_USER_HOME="$RUNNER_TEMP/zentra-upgrade-audit"

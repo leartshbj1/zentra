@@ -1,10 +1,12 @@
 """Verify a same-certificate preview upgrade using only an isolated CI emulator.
 
-The older APK is re-signed as a fixture. This does not imply that old published
-APKs signed with a lost ephemeral key can be upgraded to the durable identity.
+The caller records whether it re-signed the older APK as a fixture or supplied
+the exact previously signed companion APK. Neither proves a physical ARM64
+upgrade or compatibility with a lost ephemeral signing key.
 """
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
@@ -57,11 +59,33 @@ def snapshot(folder):
 serial = adb("get-serialno").decode().strip()
 assert serial.startswith("emulator-"), "Upgrade fixture is restricted to an emulator"
 assert adb("shell", "getprop", "ro.kernel.qemu").strip() == b"1"
+previous_resigned = os.environ.get("ZENTRA_UPGRADE_PREVIOUS_RESIGNED", "true")
+assert previous_resigned in {"true", "false"}, "Previous APK provenance must be explicit"
 before_version = version()
 adb("shell", "am", "force-stop", PACKAGE)
 identity_before = private("cat", "./installation-identity.protected")
 fixture = b"Zentra isolated Android upgrade file fixture\n"
+fixture_checks = []
+
+
+def inspect_fixture(phase):
+    actual = private("cat", "./files/zentra-update-fixture.txt")
+    check = {
+        "phase": phase,
+        "expectedBytes": len(fixture),
+        "actualBytes": len(actual),
+        "expectedSha256": hashlib.sha256(fixture).hexdigest(),
+        "actualSha256": hashlib.sha256(actual).hexdigest(),
+        "remoteSha256": private("sha256sum", "./files/zentra-update-fixture.txt").decode().strip(),
+        "equal": actual == fixture,
+    }
+    fixture_checks.append(check)
+    (OUT / "upgrade-fixture-checks.json").write_text(json.dumps(fixture_checks, indent=2) + "\n")
+    assert check["equal"], f"Fixture bytes differ at {phase}: {check}"
+
+
 write_private("./files/zentra-update-fixture.txt", fixture)
+inspect_fixture("after-fixture-copy")
 with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
     temp = Path(temp)
     before = temp / "before"
@@ -78,7 +102,9 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
     # Only this owned emulator fixture is changed; no real device/profile is used.
     write_private("./helvichantier.sqlite3", db.read_bytes())
     private("rm", "-f", "./helvichantier.sqlite3-wal", "./helvichantier.sqlite3-shm")
+    inspect_fixture("after-database-copy")
     adb("install", "-r", str(Path(sys.argv[1]).resolve()))
+    inspect_fixture("after-apk-install")
     after_version = version()
     assert after_version > before_version, "Upgrade must increase versionCode"
     adb("logcat", "-c")
@@ -112,7 +138,7 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
     assert b"FATAL EXCEPTION" not in runtime
     adb("shell", "am", "force-stop", PACKAGE)
     assert private("cat", "./installation-identity.protected") == identity_before
-    assert private("cat", "./files/zentra-update-fixture.txt") == fixture
+    inspect_fixture("after-application-startup")
     after = temp / "after"
     after.mkdir()
     db_after = snapshot(after)
@@ -128,7 +154,8 @@ with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
               "fromSchema": before_schema, "toSchema": after_schema, "integrity": "ok",
               "installationIdentityPreserved": True, "clientAndProjectPreserved": True,
               "fixtureFilePreserved": True, "refundAttachmentGuards": True,
-              "previousApkResignedAsFixture": True, "publishedOldApkUpgradeProven": False,
+              "previousApkResignedAsFixture": previous_resigned == "true",
+              "publishedOldApkUpgradeProven": False,
               "fixtureSha256": hashlib.sha256(fixture).hexdigest()}
     (OUT / "upgrade-report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report), flush=True)
