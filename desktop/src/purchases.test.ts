@@ -149,7 +149,7 @@ describe('coût réel des achats dans les projets', () => {
   const credit: SupplierCreditNote = {
     id: 'credit-1', supplierId: supplier.id, number: 'AV-1', documentDate: '2026-08-25',
     supplierName: supplier.name, reference: 'RETOUR-1', currency: 'CHF', status: 'validated',
-    netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, note: '',
+    netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, refundedCents: 0, refunds: [], note: '',
     validatedAt: '2026-08-25', validationJournalEntryId: 'credit-journal', allocations: [],
     createdAt: '2026-08-25', updatedAt: '2026-08-25',
     items: [{ ...supplierInvoice.lines[0], id: 'credit-line', supplierCreditNoteId: 'credit-1',

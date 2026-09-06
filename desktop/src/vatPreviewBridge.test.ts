@@ -5,6 +5,11 @@ import { desktopApi } from './bridge';
 
 describe('détail des achats classés dans le décompte TVA', () => {
   const input = { dateFrom: '2026-01-01', dateTo: '2026-03-31', submissionType: 'initial' as const };
+  it.each(['credit_refund','credit_refund_reversal'])('conserve la preuve du règlement fournisseur %s', async (kind) => {
+    invokeMock.mockResolvedValueOnce({received_allocations:[{source_type:'supplier_credit_note_item',source_id:'line',payment_id:'refund',gross_cents:-1081,vat_cents:-81,settlement:{kind,counterpart_id:'refund',counterpart_reference:'Virement AV',reverses_allocation_id:kind==='credit_refund_reversal'?'original':null}}]});
+    const preview=await desktopApi.previewVatReturn(input);
+    expect(preview.receivedAllocations?.[0].settlement).toMatchObject({kind,counterpartId:'refund',counterpartReference:'Virement AV',reversesAllocationId:kind==='credit_refund_reversal'?'original':null});
+  });
   it('conserve le lien exact vers une extourne à rétablir sans autoriser la dépense active', async () => {
     invokeMock.mockResolvedValueOnce({ entries: [{id:'root',source_type:'expense',reversal_action:'blocked_expense'},{id:'tip',source_type:'journal_reversal',reversal_action:'restore_expense'},{id:'manual',source_type:'manual'}],lines:[] });
     const journal=await desktopApi.getJournal({});

@@ -1168,6 +1168,21 @@ export type SupplierCreditAllocation = {
   createdAt: string;
 };
 
+export type SupplierCreditRefund = {
+  id: Identifier;
+  sequence: number;
+  supplierCreditNoteId: Identifier;
+  eventType: 'refund' | 'reverse';
+  reversesId: Identifier | null;
+  date: string;
+  amountCents: number;
+  reference: string;
+  reason: string;
+  bankAccountId: Identifier;
+  payableAccountId: Identifier;
+  journalEntryId: Identifier;
+};
+
 export type SupplierCreditNote = {
   id: Identifier;
   supplierId: Identifier;
@@ -1181,6 +1196,8 @@ export type SupplierCreditNote = {
   vatCents: number;
   totalCents: number;
   allocatedCents: number;
+  refundedCents: number;
+  refunds: SupplierCreditRefund[];
   note: string;
   validatedAt: string | null;
   validationJournalEntryId: Identifier | null;
@@ -2203,7 +2220,7 @@ export type VatReturnPreview = {
     netCents: number;
     vatCents: number;
     settlement?: {
-      kind: 'credit_application' | 'credit_reversal';
+      kind: 'credit_application' | 'credit_reversal' | 'credit_refund' | 'credit_refund_reversal';
       counterpartId: Identifier;
       counterpartReference: string;
       reversesAllocationId: Identifier | null;

@@ -20,6 +20,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { SupplierCreditRefundModal } from './SupplierCreditRefundModal';
+import { supplierCreditAvailable } from './supplierCreditRefunds';
 import { creditSettlementDateError } from './supplierCreditSettlement';
 import { expenseRefundTotals } from './expenseRefunds';
 import { purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
@@ -43,6 +45,7 @@ import type {
   Supplier,
   SupplierCreditAllocation,
   SupplierCreditNote,
+  SupplierCreditRefund,
   SupplierInvoice,
   SupplierOrder,
   SupplierOrderFulfillmentMode,
@@ -92,6 +95,7 @@ type PurchaseModal =
   | { type: 'credit'; invoice?: SupplierInvoice; credit?: SupplierCreditNote }
   | { type: 'validate_credit'; credit: SupplierCreditNote }
   | { type: 'apply_credit'; credit: SupplierCreditNote }
+  | { type: 'refund_credit'; credit: SupplierCreditNote; reverse?: SupplierCreditRefund }
   | {
       type: 'reverse_credit';
       credit: SupplierCreditNote;
@@ -1041,6 +1045,7 @@ export function PurchaseOrdersScreen({
               onApplyCredit={(credit) =>
                 setModal({ type: 'apply_credit', credit })
               }
+              onRefundCredit={(credit, reverse) => setModal({ type: 'refund_credit', credit, reverse })}
               onReverseCredit={(credit, allocation) =>
                 setModal({ type: 'reverse_credit', credit, allocation })
               }
@@ -1251,6 +1256,14 @@ export function PurchaseOrdersScreen({
           }
         />
       ) : null}
+      {modal?.type === 'refund_credit' ? <SupplierCreditRefundModal
+        credit={workspace.supplierCreditNotes.find((credit) => credit.id === modal.credit.id) || modal.credit}
+        reverse={modal.reverse} busy={busy} readOnly={readOnly} actionError={modalError} onClose={() => setModal(null)}
+        onConfirm={(input) => void completeLocalAction(() => modal.reverse
+          ? desktopApi.reverseSupplierCreditRefund({requestId: modal.requestId, refundId: modal.reverse.id, date: input.date, reason: input.reason})
+          : desktopApi.recordSupplierCreditRefund({...input, requestId: modal.requestId, supplierCreditNoteId: modal.credit.id}),
+          modal.reverse ? 'La correction a rétabli le solde de l’avoir.' : 'Le remboursement a été enregistré dans l’avoir et le journal.')}
+      /> : null}
       {modal?.type === 'reverse_credit' ? (
         <ReverseSupplierCreditAllocationModal
           actionError={modalError}
@@ -1835,6 +1848,7 @@ function DocumentsSection({
   onValidateCredit,
   onDeleteCredit,
   onApplyCredit,
+  onRefundCredit,
   onReverseCredit,
   onReclassify,
   onOpenExpense,
@@ -1859,6 +1873,7 @@ function DocumentsSection({
   onValidateCredit: (credit: SupplierCreditNote) => void;
   onDeleteCredit: (credit: SupplierCreditNote) => void;
   onApplyCredit: (credit: SupplierCreditNote) => void;
+  onRefundCredit: (credit: SupplierCreditNote, reverse?: SupplierCreditRefund) => void;
   onReverseCredit: (
     credit: SupplierCreditNote,
     allocation: SupplierCreditAllocation,
@@ -1943,11 +1958,11 @@ function DocumentsSection({
               ) : null}
             </div>
             <div>
-              <strong>{formatMoney(invoice.totalCents)}</strong>
+              <strong>{formatMoney(invoice.totalCents, invoice.currency)}</strong>
               <small>
-                Solde {formatMoney(invoice.balanceCents)}
+                Solde {formatMoney(invoice.balanceCents, invoice.currency)}
                 {invoice.creditedCents
-                  ? ` · avoirs ${formatMoney(invoice.creditedCents)}`
+                  ? ` · avoirs ${formatMoney(invoice.creditedCents, invoice.currency)}`
                   : ''}
               </small>
             </div>
@@ -2086,6 +2101,7 @@ function DocumentsSection({
           onValidate={() => onValidateCredit(credit)}
           onDelete={() => onDeleteCredit(credit)}
           onApply={() => onApplyCredit(credit)}
+          onRefund={(reverse) => onRefundCredit(credit, reverse)}
           onReverse={(allocation) => onReverseCredit(credit, allocation)}
         />
       ))}
@@ -2162,6 +2178,7 @@ function SupplierCreditDocumentCard({
   onValidate,
   onDelete,
   onApply,
+  onRefund,
   onReverse,
 }: {
   credit: SupplierCreditNote;
@@ -2172,9 +2189,10 @@ function SupplierCreditDocumentCard({
   onValidate: () => void;
   onDelete: () => void;
   onApply: () => void;
+  onRefund: (reverse?: SupplierCreditRefund) => void;
   onReverse: (allocation: SupplierCreditAllocation) => void;
 }) {
-  const availableCents = Math.max(0, credit.totalCents - credit.allocatedCents);
+  const availableCents = supplierCreditAvailable(credit);
   const reversedIds = new Set(
     credit.allocations
       .filter((allocation) => allocation.eventType === 'reverse')
@@ -2191,8 +2209,9 @@ function SupplierCreditDocumentCard({
         <small>Avoir fournisseur · {formatDate(credit.documentDate)}</small>
         <h3>{credit.number || credit.reference || 'Avoir brouillon'}</h3>
         <p>
-          {credit.supplierName} · imputé {formatMoney(credit.allocatedCents)} ·
-          disponible {formatMoney(availableCents)}
+          {credit.supplierName} · imputé {formatMoney(credit.allocatedCents, credit.currency)} ·
+          remboursé {formatMoney(credit.refundedCents, credit.currency)} ·
+          disponible {formatMoney(availableCents, credit.currency)}
         </p>
         {activeApplications.length ? (
           <div className="credit-application-list">
@@ -2204,7 +2223,7 @@ function SupplierCreditDocumentCard({
                 <span key={allocation.id}>
                   <small>
                     {invoice?.reference || allocation.supplierInvoiceId} ·{' '}
-                    {formatMoney(allocation.amountCents)}
+                    {formatMoney(allocation.amountCents, credit.currency)}
                     {' · '}{allocation.effectiveDate ? formatDate(allocation.effectiveDate) : 'Date de compensation non renseignée'}
                   </small>
                   {credit.status === 'validated' ? (
@@ -2239,10 +2258,18 @@ function SupplierCreditDocumentCard({
             </ol>
           </details>
         ) : null}
+        {credit.refunds.length > 0 ? <details className="credit-application-history">
+          <summary>Remboursements et corrections ({credit.refunds.length})</summary>
+          <ol>{[...credit.refunds].sort((left, right) => right.date.localeCompare(left.date) || right.sequence - left.sequence).map((refund) => <li key={refund.id}>
+            <strong>{refund.eventType === 'reverse' ? 'Correction' : 'Remboursement reçu'} · {formatMoney(refund.amountCents, credit.currency)}</strong>
+            <span>{formatDate(refund.date)} · {refund.reference}</span><span>{refund.reason}</span>
+            {refund.eventType === 'refund' && !credit.refunds.some((row) => row.reversesId === refund.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => onRefund(refund)}>Corriger ce remboursement</Button> : null}
+          </li>)}</ol>
+        </details> : null}
       </div>
       <div>
-        <strong>− {formatMoney(credit.totalCents)}</strong>
-        <small>TVA {formatMoney(credit.vatCents)}</small>
+        <strong>− {formatMoney(credit.totalCents, credit.currency)}</strong>
+        <small>TVA {formatMoney(credit.vatCents, credit.currency)}</small>
       </div>
       <StatusBadge status={credit.status} />
       <div className="row-actions">
@@ -2279,11 +2306,11 @@ function SupplierCreditDocumentCard({
             </Button>
           </>
         ) : availableCents > 0 ? (
-          <Button size="small" disabled={busy} onClick={onApply}>
+          <><Button size="small" disabled={busy} onClick={onApply}>
             Imputer sur une facture
-          </Button>
+          </Button><Button variant="secondary" size="small" disabled={busy || validationDisabled || credit.currency !== 'CHF'} onClick={() => onRefund()}><Banknote size={14}/> Remboursement reçu</Button></>
         ) : (
-          <StatusBadge status="closed" label="Entièrement imputé" />
+          <StatusBadge status="closed" label="Avoir entièrement réglé" />
         )}
       </div>
     </article>
@@ -4528,7 +4555,7 @@ function ApplySupplierCreditModal({
   onClose: () => void;
   onConfirm: (invoiceId: string, amountCents: number, effectiveDate: string) => void;
 }) {
-  const availableCents = Math.max(0, credit.totalCents - credit.allocatedCents);
+  const availableCents = supplierCreditAvailable(credit);
   const invoices = workspace.supplierInvoices.filter(
     (invoice) =>
       invoice.supplierId === credit.supplierId &&

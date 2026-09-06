@@ -95,7 +95,7 @@ pub(super) fn load_sources(
     let mut sources = Vec::new();
     for credit in [false, true] {
         let sql = if credit {
-            "SELECT document.id,document.total_cents,COALESCE(document.number,NULLIF(document.reference,''),document.id) FROM supplier_credit_notes document WHERE document.status='validated' AND EXISTS(SELECT 1 FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=document.id AND allocation.effective_date BETWEEN ?1 AND ?2) ORDER BY document.id"
+            "SELECT document.id,document.total_cents,COALESCE(document.number,NULLIF(document.reference,''),document.id) FROM supplier_credit_notes document WHERE document.status='validated' AND (EXISTS(SELECT 1 FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=document.id AND allocation.effective_date BETWEEN ?1 AND ?2) OR EXISTS(SELECT 1 FROM supplier_credit_refunds refund WHERE refund.supplier_credit_note_id=document.id AND refund.date BETWEEN ?1 AND ?2)) ORDER BY document.id"
         } else {
             "SELECT document.id,document.total_cents,COALESCE(NULLIF(document.reference,''),document.id) FROM supplier_invoices document WHERE document.status='validated' AND (EXISTS(SELECT 1 FROM supplier_payments payment WHERE payment.supplier_invoice_id=document.id AND payment.date BETWEEN ?1 AND ?2) OR EXISTS(SELECT 1 FROM supplier_credit_allocations allocation JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id WHERE allocation.supplier_invoice_id=document.id AND credit.status='validated' AND allocation.effective_date BETWEEN ?1 AND ?2)) ORDER BY document.id"
         };
@@ -190,6 +190,18 @@ fn movements(
     to: &str,
 ) -> AppResult<Vec<Movement>> {
     let mut events = Vec::new();
+    if credit {
+        let mut statement = connection.prepare("SELECT id,date,amount_cents,created_at,sequence,event_type,reverses_id,reference FROM supplier_credit_refunds WHERE supplier_credit_note_id=?1 AND date<=?2 ORDER BY sequence")?;
+        for row in statement.query_map(params![id,to], |row| Ok(Movement {
+            id: row.get(0)?, date: row.get(1)?, amount: row.get(2)?,
+            created_at: row.get(3)?, sequence: row.get(4)?,
+            settlement: Some(VatReceivedSettlement {
+                kind: if row.get::<_,String>(5)? == "reverse" { "credit_refund_reversal" } else { "credit_refund" }.into(),
+                reverses_allocation_id: row.get(6)?,
+                counterpart_id: row.get(0)?, counterpart_reference: row.get(7)?,
+            }),
+        }))? { events.push(row?); }
+    }
     if !credit {
         let mut statement = connection.prepare("SELECT id,date,amount_cents,created_at FROM supplier_payments WHERE supplier_invoice_id=?1 AND date<=?2 ORDER BY date,created_at,id")?;
         for row in statement.query_map(params![id, to], |row| {
@@ -342,7 +354,7 @@ fn allocate_document(
         if event
             .settlement
             .as_ref()
-            .is_some_and(|proof| proof.kind == "credit_application")
+            .is_some_and(|proof| matches!(proof.kind.as_str(), "credit_application" | "credit_refund"))
         {
             applications.insert(event.id.clone(), parts.clone());
         }

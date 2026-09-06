@@ -594,6 +594,26 @@ pub fn reverse_supplier_credit_allocation(
 }
 
 #[tauri::command]
+pub fn record_supplier_credit_refund(
+    state: State<'_, LocalStore>,
+    input: crate::supplier_credit_refunds::SupplierCreditRefundInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_supplier_credit_refund(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn reverse_supplier_credit_refund(
+    state: State<'_, LocalStore>,
+    input: crate::supplier_credit_refunds::ReverseSupplierCreditRefundInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.reverse_supplier_credit_refund(input).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn delete_supplier_credit_note_draft(
     state: State<'_, LocalStore>,
     id: String,

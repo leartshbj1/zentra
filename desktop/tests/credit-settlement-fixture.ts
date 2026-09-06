@@ -1,6 +1,7 @@
 import { desktopApi } from '../src/bridge';
 import type { SupplierCreditNote, SupplierInvoice, Workspace } from '../src/types';
 import { supplierDraftLineTotals } from '../src/PurchaseOrdersScreen';
+import { WorkspaceRefreshAfterMutationError } from '../src/workspaceMutation';
 
 /** Synthetic persistence only. Rust acceptance tests exercise SQLite and its guards. */
 export function installCreditSettlementFixture(initial: Workspace) {
@@ -15,7 +16,7 @@ export function installCreditSettlementFixture(initial: Workspace) {
     { ...structuredClone(invoice), id: 'foreign-invoice', supplierId: 'another-supplier', reference: 'NE-PAS-PROPOSER-AUTRE-FOURNISSEUR' },
   );
   const makeCredit = (id: string, status: 'draft' | 'validated'): SupplierCreditNote => ({
-    id, supplierId: invoice.supplierId, number: status === 'validated' ? 'AV-AVAILABLE' : '', reference: status === 'draft' ? 'AV-DRAFT-DATES' : 'AV-AVAILABLE', supplierName: invoice.supplierName, documentDate: '2026-09-01', status, currency: 'CHF', netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, note: '', validatedAt: status === 'validated' ? '2026-09-01T10:00:00Z' : null, validationJournalEntryId: status === 'validated' ? 'credit-journal' : null, createdAt: '', updatedAt: '',
+    id, supplierId: invoice.supplierId, number: status === 'validated' ? 'AV-AVAILABLE' : '', reference: status === 'draft' ? 'AV-DRAFT-DATES' : 'AV-AVAILABLE', supplierName: invoice.supplierName, documentDate: '2026-09-01', status, currency: 'CHF', netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, refundedCents: 0, refunds: [], note: '', validatedAt: status === 'validated' ? '2026-09-01T10:00:00Z' : null, validationJournalEntryId: status === 'validated' ? 'credit-journal' : null, createdAt: '', updatedAt: '',
     items: [{ ...invoice.lines[0], id: `${id}-line`, supplierCreditNoteId: id, quantityMilli: 1000, unitPriceCents: 5000, netCents: 5000, vatCents: 405, totalCents: 5405 }], allocations: [],
   });
   const draft = makeCredit('draft-credit', 'draft');
@@ -23,6 +24,35 @@ export function installCreditSettlementFixture(initial: Workspace) {
   draft.allocatedCents = 1000;
   initial.supplierCreditNotes = [draft, makeCredit('available-credit', 'validated')];
   const persisted = structuredClone(initial);
+  const refundRequests = new Map<string,string>();
+  const afterRefund = () => {
+    if (sessionStorage.getItem('qa-refund-refresh-fail') === '1') {
+      sessionStorage.removeItem('qa-refund-refresh-fail');
+      throw new WorkspaceRefreshAfterMutationError(new Error('Lecture temporairement indisponible'));
+    }
+    return structuredClone(persisted);
+  };
+  desktopApi.recordSupplierCreditRefund = async (input) => {
+    log('refund',input);
+    const saved=refundRequests.get(input.requestId);
+    if (saved) { if(saved!==JSON.stringify(input)) throw Error('Demande différente'); return afterRefund(); }
+    const credit=persisted.supplierCreditNotes.find((row)=>row.id===input.supplierCreditNoteId)!;
+    credit.refunds.push({id:input.requestId,sequence:credit.refunds.length+1,supplierCreditNoteId:credit.id,eventType:'refund',reversesId:null,date:input.date,amountCents:input.amountCents,reference:input.reference,reason:input.reason,bankAccountId:'bank',payableAccountId:'payable',journalEntryId:'journal'});
+    credit.refundedCents+=input.amountCents;
+    refundRequests.set(input.requestId,JSON.stringify(input));
+    return afterRefund();
+  };
+  desktopApi.reverseSupplierCreditRefund = async (input) => {
+    log('refund-reverse',input);
+    const saved=refundRequests.get(input.requestId);
+    if(saved) {if(saved!==JSON.stringify(input))throw Error('Demande différente');return afterRefund();}
+    const credit=persisted.supplierCreditNotes.find((row)=>row.refunds.some((refund)=>refund.id===input.refundId))!;
+    const refund=credit.refunds.find((row)=>row.id===input.refundId)!;
+    credit.refunds.push({...refund,id:input.requestId,sequence:credit.refunds.length+1,eventType:'reverse',reversesId:refund.id,date:input.date,reason:input.reason});
+    credit.refundedCents-=refund.amountCents;
+    refundRequests.set(input.requestId,JSON.stringify(input));
+    return afterRefund();
+  };
   desktopApi.loadWorkspace = async () => structuredClone(persisted);
   const log = (name: string, payload: unknown) => {
     const key = `qa-credit-date-${name}`;

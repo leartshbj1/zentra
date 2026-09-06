@@ -39,6 +39,7 @@ const MAX_BACKUP_STATUS_BYTES: u64 = 16 * 1024;
 /// ou un document brut soit exportée automatiquement. Les fichiers binaires ne
 /// sont jamais copiés dans cette archive.
 const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
+    ("supplier_credit_refunds", "03_achats/remboursements_avoirs_fournisseurs.csv"),
     ("clients", "01_referentiels/clients.csv"),
     ("catalog_items", "01_referentiels/catalogue.csv"),
     ("suppliers", "01_referentiels/fournisseurs.csv"),

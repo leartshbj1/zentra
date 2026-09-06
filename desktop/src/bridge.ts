@@ -108,6 +108,7 @@ import type {
   StoredSwissQrBill,
   Supplier,
   SupplierCreditAllocation,
+  SupplierCreditRefund,
   SupplierCreditNote,
   SupplierCreditNoteItem,
   SupplierExpenseReclassification,
@@ -269,6 +270,7 @@ type RawWorkspace = {
   supplier_credit_notes?: RawRecord[];
   supplier_credit_note_items?: RawRecord[];
   supplier_credit_allocations?: RawRecord[];
+  supplier_credit_refunds?: RawRecord[];
   supplier_expense_reclassifications?: RawRecord[];
   supplier_expense_reclassification_lines?: RawRecord[];
   supplier_payments?: RawRecord[];
@@ -2752,6 +2754,12 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     raw.supplier_credit_notes ?? []
   ).map((row) => {
     const id = stringValue(row.id);
+    const refunds: SupplierCreditRefund[] = (raw.supplier_credit_refunds ?? []).filter((refund) => refund.supplier_credit_note_id === id).map((refund) => ({
+      id: stringValue(refund.id), sequence: numberValue(refund.sequence), supplierCreditNoteId: id,
+      eventType: refund.event_type === 'reverse' ? 'reverse' : 'refund', reversesId: nullableString(refund.reverses_id),
+      date: stringValue(refund.date), amountCents: numberValue(refund.amount_cents), reference: stringValue(refund.reference), reason: stringValue(refund.reason),
+      bankAccountId: stringValue(refund.bank_account_id), payableAccountId: stringValue(refund.payable_account_id), journalEntryId: stringValue(refund.journal_entry_id),
+    }));
     const allocations = supplierCreditAllocations.filter(
       (allocation) => allocation.supplierCreditNoteId === id,
     );
@@ -2775,6 +2783,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
             : allocation.amountCents),
         0,
       ),
+      refundedCents: refunds.reduce((sum, refund) => sum + (refund.eventType === 'reverse' ? -refund.amountCents : refund.amountCents), 0),
+      refunds,
       note: stringValue(row.note),
       validatedAt: nullableString(row.validated_at),
       validationJournalEntryId: nullableString(row.validation_journal_entry_id),
@@ -3838,7 +3848,7 @@ function vatPreviewFromRaw(value: unknown): VatReturnPreview {
         description: stringValue(allocation.description), currency: stringValue(allocation.currency),
         paymentId: stringValue(allocation.payment_id), date: stringValue(allocation.date),
         grossCents: numberValue(allocation.gross_cents), netCents: numberValue(allocation.net_cents), vatCents: numberValue(allocation.vat_cents),
-        ...(settlement.kind === 'credit_application' || settlement.kind === 'credit_reversal' ? { settlement: {
+        ...(settlement.kind === 'credit_application' || settlement.kind === 'credit_reversal' || settlement.kind === 'credit_refund' || settlement.kind === 'credit_refund_reversal' ? { settlement: {
           kind: settlement.kind,
           counterpartId: stringValue(settlement.counterpart_id),
           counterpartReference: stringValue(settlement.counterpart_reference),
@@ -5877,6 +5887,19 @@ export const desktopApi = {
   async recordExpenseRefund(input: ExpenseRefundInput): Promise<Workspace> {
     const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt) } : null;
     await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId }, ...(attachment ? { attachment } : {}) });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordSupplierCreditRefund(input: {
+    requestId: string; supplierCreditNoteId: string; date: string; amountCents: number; reference: string; reason: string;
+  }) {
+    await invoke('record_supplier_credit_refund', { input: {
+      request_id: input.requestId, supplier_credit_note_id: input.supplierCreditNoteId, date: input.date,
+      amount_cents: input.amountCents, reference: input.reference.trim(), reason: input.reason.trim(),
+    } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async reverseSupplierCreditRefund(input: {requestId: string; refundId: string; date: string; reason: string}) {
+    await invoke('reverse_supplier_credit_refund', { input: {request_id: input.requestId, refund_id: input.refundId, date: input.date, reason: input.reason.trim()} });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async addExpenseRefundAttachment(refundId: string, receipt: File): Promise<Workspace> {

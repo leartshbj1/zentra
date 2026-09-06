@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 50;
+pub const SCHEMA_VERSION: i64 = 51;
+pub const MIGRATION_V51_SQL: &str = include_str!("supplier_credit_refund_schema.sql");
 pub const MIGRATION_V50_SQL: &str = include_str!("quote_invoice_pair_schema.sql");
 pub const MIGRATION_V49_SQL: &str = include_str!("expense_refund_attachment_schema.sql");
 pub const MIGRATION_V48_SQL: &str = include_str!("bank_expense_refund_schema.sql");
@@ -168,6 +169,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "supplier_credit_notes",
     "supplier_credit_note_items",
     "supplier_credit_allocations",
+    "supplier_credit_refunds",
     "supplier_expense_reclassifications",
     "supplier_expense_reclassification_lines",
     "supplier_operation_requests",

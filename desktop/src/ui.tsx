@@ -276,6 +276,8 @@ const statusLabels: Record<string, string> = {
   refused: 'Refusé',
   expired: 'Expiré',
   partially_paid: 'Partiellement payée',
+  partial: 'Partiellement payée',
+  pending: 'En attente',
   paid: 'Payée',
   cancelled: 'Annulée',
   entered: 'Saisi',

@@ -475,3 +475,7 @@ La conversion avec acompte crée désormais deux brouillons liés, avec une déd
 Vérifications locales : 538 tests natifs réussis (1 ignoré), 696 tests UI, Clippy sans avertissement et build web. Huit parcours sur 320/390/768/1440 pixels couvrent création, reprise historique, dates, émission et accès depuis le projet. Les PDF natifs d’acompte et de solde ont été inspectés sur leurs trois pages. TVA convenue/reçue, paiements partiels, acompte à 100 %, absence de source comptable manquante et restauration de sauvegarde sont testés.
 
 La publication 1.35 dépend encore des contrôles des nouveaux exécutables. La version publique demeure 1.33 ; le lot 1.34 reste retenu pour son échec Android après interruption.
+
+## Suite du 6 septembre — publication 1.35 et remboursements fournisseurs
+
+Le contrôle des exécutables ci-dessus a ensuite été terminé et la version 1.35 a été publiée : voir `RELEASE-1.35.md` pour les preuves et limites exactes. L’audit se poursuit sur les remboursements d’avoirs fournisseurs. Leur saisie, solde partagé avec les compensations, journal, TVA datée, historique et exports sont implémentés et vérifiés localement. Le rapprochement du relevé et les justificatifs restent à terminer avant publication de ce nouveau parcours. État détaillé et tests : `AUDIT-AVOIRS-FOURNISSEURS.md`.

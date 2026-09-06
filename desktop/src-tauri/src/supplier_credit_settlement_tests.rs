@@ -2,6 +2,8 @@ use super::*;
 use crate::models::SupplierCreditAllocationInput;
 use pretty_assertions::assert_eq;
 
+mod refunds { include!("supplier_credit_refund_tests.rs"); }
+
 fn fixture() -> (
     tempfile::TempDir,
     LocalStore,
@@ -188,6 +190,8 @@ fn supplier_credit_v42_migration_preserves_legacy_rows_without_inventing_settlem
     validate(&store, &draft);
     let legacy_id = uuid::Uuid::new_v4().to_string();
     let connection = store.connect().unwrap();
+    // Remove later settlement views before restoring a real v42 layout without effective_date.
+    connection.execute_batch("DROP TRIGGER supplier_credit_allocation_refund_balance; DROP TRIGGER supplier_credit_allocation_refund_chronology; DROP VIEW supplier_credit_settlement_timeline; DROP VIEW supplier_credit_balances; DROP TABLE supplier_credit_refunds;").unwrap();
     connection.execute_batch("DROP TRIGGER supplier_credit_allocations_date_guard; DROP TRIGGER supplier_credit_validation_settlement_date_guard; DROP INDEX idx_supplier_credit_allocations_effective_date; ALTER TABLE supplier_credit_allocations DROP COLUMN effective_date; PRAGMA user_version=42;").unwrap();
     connection.execute("INSERT INTO supplier_credit_allocations(id,request_id,supplier_credit_note_id,supplier_invoice_id,amount_cents,created_at) VALUES(?1,?2,?3,?4,500,'2026-05-15T12:00:00Z')", rusqlite::params![legacy_id,uuid::Uuid::new_v4().to_string(),draft.id.unwrap(),invoice]).unwrap();
     drop(connection);

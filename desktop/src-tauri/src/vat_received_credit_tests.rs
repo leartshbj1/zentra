@@ -1,4 +1,5 @@
 use super::*;
+use crate::supplier_credit_refunds::{SupplierCreditRefundInput, ReverseSupplierCreditRefundInput};
 use crate::models::{
     ApplySupplierCreditInput, RecordSupplierPaymentInput, ReverseSupplierCreditAllocationInput,
     SaveSupplierCreditNoteDraftInput, ValidateSupplierCreditNoteInput,
@@ -33,6 +34,58 @@ fn setup(rates: &[i64]) -> (tempfile::TempDir, LocalStore, String, String, Vec<S
     }
     store.validate_supplier_invoice(&invoice).unwrap();
     (temp, store, supplier, invoice, lines)
+}
+
+fn refund(credit: &str, date: &str, amount: i64) -> SupplierCreditRefundInput {
+    SupplierCreditRefundInput { request_id: Uuid::new_v4().to_string(), supplier_credit_note_id: credit.into(), date: date.into(), amount_cents: amount, reference: "Virement de remboursement".into(), reason: "Règlement reçu sur le compte bancaire".into() }
+}
+
+#[test]
+fn supplier_refund_received_vat_conserves_each_rate_after_compensation_and_reversal() {
+    let (_temp,store,supplier,invoice,_) = setup(&[810,260,380]);
+    pay(&store,&invoice,"2026-03-31",15725).unwrap();
+    let q1=period_preview(&store,"2026-01-01","2026-03-31");
+    let credit=credit_document(&store,&supplier,&[810,260,380],5000);
+    let received=store.record_supplier_credit_refund(refund(&credit,"2026-04-02",5001)).unwrap();
+    store.apply_supplier_credit(apply(&credit,&invoice,"2026-05-01",10724)).unwrap();
+    let q2=period_preview(&store,"2026-04-01","2026-06-30");
+    assert!(q2.exportable,"{:?}",q2.blocking_issues);
+    let credit_rows:Vec<_>=q2.received_allocations.iter().filter(|r|r.source_type=="supplier_credit_note_item").collect();
+    assert_eq!(credit_rows.iter().map(|r|r.payment.gross_cents).sum::<i64>(),-15725);
+    assert_eq!(credit_rows.iter().map(|r|r.payment.vat_cents).sum::<i64>(),-725);
+    let refund_rows:Vec<_>=credit_rows.iter().filter(|r|r.payment.settlement.as_ref().unwrap().kind=="credit_refund").collect();
+    assert_eq!(refund_rows.len(),3);
+    assert_eq!(refund_rows.iter().map(|r|r.payment.gross_cents).sum::<i64>(),-5001);
+    let id=received["refund"]["id"].as_str().unwrap();
+    store.reverse_supplier_credit_refund(ReverseSupplierCreditRefundInput {request_id:Uuid::new_v4().to_string(),refund_id:id.into(),date:"2026-07-01".into(),reason:"Virement retourné au fournisseur".into()}).unwrap();
+    let reversal_period=period_preview(&store,"2026-07-01","2026-09-30");
+    assert!(reversal_period.exportable,"{:?}",reversal_period.blocking_issues);
+    for original in refund_rows {
+        let reverse=reversal_period.received_allocations.iter().find(|r|r.source_id==original.source_id).unwrap();
+        assert_eq!(reverse.payment.gross_cents,-original.payment.gross_cents);
+        assert_eq!(reverse.payment.vat_cents,-original.payment.vat_cents);
+        assert_eq!(reverse.payment.settlement.as_ref().unwrap().kind,"credit_refund_reversal");
+    }
+    store.record_supplier_credit_refund(refund(&credit,"2026-08-01",5001)).unwrap();
+    let q3=period_preview(&store,"2026-07-01","2026-09-30");
+    assert!(q3.exportable,"{:?}",q3.blocking_issues);
+    assert_eq!(q3.payable_tax_cents,0);
+    assert_eq!(period_preview(&store,"2026-01-01","2026-03-31").source_sha256,q1.source_sha256);
+    assert_eq!(period_preview(&store,"2026-04-01","2026-06-30").source_sha256,q2.source_sha256);
+}
+
+#[test]
+fn supplier_refund_agreed_vat_does_not_count_credit_again() {
+    let (_temp,store,_) = fixture(); store.create_vat_profile(profile(false)).unwrap();
+    let supplier=store.create_record("suppliers",json!({"name":"Remboursement TVA convenue"})).unwrap()["id"].as_str().unwrap().to_owned();
+    let credit=credit_document(&store,&supplier,&[810,260,380],5000);
+    let q1=period_preview(&store,"2026-01-01","2026-03-31");
+    let q2=period_preview(&store,"2026-04-01","2026-06-30");
+    let received=store.record_supplier_credit_refund(refund(&credit,"2026-04-02",15725)).unwrap();
+    assert_eq!(period_preview(&store,"2026-01-01","2026-03-31").source_sha256,q1.source_sha256);
+    assert_eq!(period_preview(&store,"2026-04-01","2026-06-30").source_sha256,q2.source_sha256);
+    store.reverse_supplier_credit_refund(ReverseSupplierCreditRefundInput {request_id:Uuid::new_v4().to_string(),refund_id:received["refund"]["id"].as_str().unwrap().into(),date:"2026-05-01".into(),reason:"Retour du virement reçu".into()}).unwrap();
+    assert_eq!(period_preview(&store,"2026-04-01","2026-06-30").source_sha256,q2.source_sha256);
 }
 
 fn credit_document(store: &LocalStore, supplier: &str, rates: &[i64], net: i64) -> String {

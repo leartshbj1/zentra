@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=49 => {}
+            28..=50 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1744,6 +1744,11 @@ impl LocalStore {
             let complete: bool = transaction.query_row("SELECT COUNT(*)=3 FROM sqlite_master WHERE type='table' AND name IN ('quotes','invoices','invoice_items')", [], |row| row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V50_SQL)?; }
             else { transaction.pragma_update(None,"user_version",50)?; }
+        }
+        if current < 51 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=3 FROM sqlite_master WHERE type='table' AND name IN ('supplier_credit_notes','supplier_credit_allocations','journal_entries')", [], |row| row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V51_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",51)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2270,9 +2275,8 @@ impl LocalStore {
         let supplier_credit_notes = query_all(
             connection,
             "SELECT credit.*,
-                    COALESCE((SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=credit.id),0) AS allocated_cents,
-                    MAX(0,credit.total_cents-COALESCE((SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation WHERE allocation.supplier_credit_note_id=credit.id),0)) AS available_cents
-             FROM supplier_credit_notes credit ORDER BY credit.document_date DESC,credit.created_at DESC",
+                    balance.allocated_cents,balance.refunded_cents,balance.remaining_cents AS available_cents
+             FROM supplier_credit_notes credit JOIN supplier_credit_balances balance ON balance.supplier_credit_note_id=credit.id ORDER BY credit.document_date DESC,credit.created_at DESC",
             [],
         )?;
         let mut supplier_credit_note_items = query_all(
@@ -2593,6 +2597,7 @@ impl LocalStore {
         workspace["supplier_credit_note_items"] = json!(supplier_credit_note_items);
         workspace["expense_refunds"] = json!(query_all(connection,"SELECT r.*,m.id AS bank_match_id FROM expense_refunds r LEFT JOIN active_bank_expense_refund_matches m ON m.refund_id=r.id ORDER BY r.payment_date DESC,r.created_at DESC,r.id",[])?);
         workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
+        workspace["supplier_credit_refunds"] = json!(query_all(connection,"SELECT * FROM supplier_credit_refunds ORDER BY sequence",[])?);
         workspace["supplier_expense_reclassifications"] = json!(supplier_expense_reclassifications);
         workspace["supplier_expense_reclassification_lines"] =
             json!(supplier_expense_reclassification_lines);

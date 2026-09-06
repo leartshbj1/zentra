@@ -47,6 +47,7 @@ mod stock;
 mod supplier_email;
 mod supplier_invoices;
 mod supplier_procurement;
+mod supplier_credit_refunds;
 mod swiss_payroll_rules;
 mod swiss_qr;
 mod time_billing;
@@ -190,6 +191,8 @@ pub fn run() {
             validate_supplier_credit_note,
             apply_supplier_credit,
             reverse_supplier_credit_allocation,
+            record_supplier_credit_refund,
+            reverse_supplier_credit_refund,
             delete_supplier_credit_note_draft,
             reclassify_supplier_invoice_expense,
             update_settings,

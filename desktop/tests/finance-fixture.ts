@@ -76,7 +76,7 @@ export function installFinanceFixture(workspace: Workspace) {
     sessionStorage.setItem('qa-credit-attempts', JSON.stringify(attempts));
     if (attempts.length === 1 && new URLSearchParams(location.search).has('creditRetry')) throw new Error('Brouillon enregistré, mais actualisation interrompue. Réessayez.');
     const saved = structuredClone(workspace);
-    saved.supplierCreditNotes = [{ ...input, id: input.id, number: '', status: 'draft', supplierName: 'Fournitures du Léman', currency: 'CHF', netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, availableCents: 5405, validationJournalEntryId: null, validatedAt: null, createdAt: '', updatedAt: '', items: input.items.map((item) => ({ ...item, supplierCreditNoteId: input.id, lineNetCents: 5000, lineVatCents: 405, lineTotalCents: 5405 })) }] as Workspace['supplierCreditNotes'];
+    saved.supplierCreditNotes = [{ ...input, id: input.id, number: '', status: 'draft', supplierName: 'Fournitures du Léman', currency: 'CHF', netCents: 5000, vatCents: 405, totalCents: 5405, allocatedCents: 0, refundedCents: 0, refunds: [], availableCents: 5405, validationJournalEntryId: null, validatedAt: null, createdAt: '', updatedAt: '', items: input.items.map((item) => ({ ...item, supplierCreditNoteId: input.id, lineNetCents: 5000, lineVatCents: 405, lineTotalCents: 5405 })) }] as Workspace['supplierCreditNotes'];
     return saved;
   };
   desktopApi.setVatSourceClassification = async (input) => {
