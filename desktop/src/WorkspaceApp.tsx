@@ -3487,7 +3487,10 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           variant="secondary"
                           size="small"
                           className="document-preview-action"
-                          onClick={() => props.onPrint(quote)}
+                          onClick={(event) => {
+                            event.currentTarget.focus({ preventScroll: true });
+                            props.onPrint(quote);
+                          }}
                           title="Aperçu et export PDF"
                           aria-label={`Aperçu du devis ${quote.number || quote.title}`}
                         >
@@ -3776,11 +3779,12 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         variant="secondary"
                         size="small"
                         className="document-preview-action"
-                        onClick={() =>
+                        onClick={(event) => {
+                          event.currentTarget.focus({ preventScroll: true });
                           entity === 'quotes'
                             ? props.onPrint(item as Quote)
-                            : props.onPrint(item as Invoice)
-                        }
+                            : props.onPrint(item as Invoice);
+                        }}
                         title="Aperçu et export PDF"
                         aria-label={`Aperçu de ${item.number || item.title}`}
                       >

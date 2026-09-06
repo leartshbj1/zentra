@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-const { chromium } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
-const out = fileURLToPath(new URL('../../.qa/design-experience', import.meta.url));
+const { chromium, webkit } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const useWebKit = process.env.ZENTRA_QA_BROWSER === 'webkit';
+const out = fileURLToPath(new URL(useWebKit ? '../../.qa/design-experience-webkit' : '../../.qa/design-experience', import.meta.url));
 await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const browser = await (useWebKit ? webkit : chromium).launch({ headless: true, ...(!useWebKit && process.platform === 'win32' ? { channel: 'msedge' } : {}) });
 const report = [];
 try {
   for (const width of [320, 390, 768, 1440]) {
@@ -14,7 +15,10 @@ try {
     const errors = []; page.on('pageerror', err => errors.push(err.message));
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5191'}/tests/mobile-harness.html?browsing=1&design=1`);
     const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (await tour.isVisible()) await tour.click();
+    if (width > 860) {
+      await tour.waitFor({ state: 'visible' });
+      await tour.click();
+    }
     const navigate = async name => {
       await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name);
@@ -22,7 +26,8 @@ try {
       await page.locator('.navigation-palette').waitFor({ state: 'detached' });
     };
     const capture = async stage => {
-      await page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
+      // Observe current finite animations; replaced transitions and changing spinners must not leave a stale promise pending.
+      await page.waitForFunction(() => document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).every(animation => animation.playState === 'finished' || animation.playState === 'idle'), null, { timeout: 5000 });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${width} ${stage} outer overflow`);
       await page.screenshot({ path: `${out}/${width}-${stage}.png` });
     };
