@@ -594,11 +594,11 @@ export default function DownloadPage() {
               <div className="mt-7 space-y-3">
                 {[
                   'Navigation modernisée sur ordinateur et mobile, avec animations courtes et respect de la réduction des animations',
-                  'Aperçus des devis et factures en mode Lecture ou Mise en page, avec zoom et accès direct aux totaux',
+                  'Aperçus des devis et factures avec sections, progression de lecture, zoom et accès direct aux totaux',
                   'Documents longs et QR de paiement consultables jusqu’au bout, y compris sur les petits écrans',
-                  'Remboursement total ou partiel des avoirs fournisseurs, selon leur montant disponible',
-                  'Depuis le relevé bancaire, associez un remboursement existant ou créez-le avec son justificatif',
-                  'Dissociez un rapprochement tout en conservant le paiement, ses pièces et son historique',
+                  'Remboursements des avoirs clients et fournisseurs, totaux ou partiels, avec leur historique et leurs justificatifs',
+                  'Depuis le relevé bancaire, reliez les remboursements clients et fournisseurs à leurs mouvements réels',
+                  'Reprenez une opération interrompue après réouverture, avec sa demande et son justificatif conservés',
                   'Le devis, l’acompte et le solde déduit restent reliés au projet, à ses documents et à ses photos',
                   'Justificatifs conservés dans les sauvegardes et indexés dans le dossier comptable',
                   'Recherche des mises à jour après le démarrage et installation signée sur Windows et macOS',
