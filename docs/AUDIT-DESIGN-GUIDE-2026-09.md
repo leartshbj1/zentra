@@ -17,7 +17,7 @@ L’écran de vérification présente les données du brouillon, ses prestations
 - Devis de 270,25 CHF ; acompte de 30 % avec une base conservée et un total de 81,08 CHF ; avoir lié conservant l’EUR et refusant une date antérieure à la facture originale. Vérification des arguments transmis au pont applicatif, sans prétendre à une écriture native dans cette recette navigateur.
 - Parcours existant projet → pièce jointe → devis → facture, filtres, navigation entre les modules et clavier : 120 captures, aucun débordement signalé.
 - Édition des devis et factures en EUR, recherche par référence bancaire, filtres de statut et listes réactives : réussi.
-- Actions en lecture seule : réussi dans Edge aux quatre tailles.
+- Actions en lecture seule : réussi dans Edge et WebKit aux quatre tailles.
 
 Recettes reproductibles : `desktop/tests/document-wizard-journey.mjs`, `workspace-journey.mjs`, `sales-browsing-journey.mjs` et `read-only-actions-journey.mjs`. Rapports et captures locaux sous `.qa/` ; données de démonstration exclusivement.
 
@@ -25,8 +25,8 @@ Recettes reproductibles : `desktop/tests/document-wizard-journey.mjs`, `workspac
 
 L’absence de `Promise.withResolvers` reproduisait un écran vide lors de l’ouverture d’une pièce jointe PDF. Le lecteur, les aperçus PDF locaux et l’extraction des fiches de salaire partagent désormais l’API et le worker PDF.js legacy. La construction du lecteur est protégée contre les exceptions synchrones : une API toujours absente laisse les commandes du lecteur et le dossier du projet accessibles.
 
-Les recettes Edge et WebKit sans `Promise.try` rendent les pages, y compris les gros documents, sans erreur JavaScript. Le scénario WebKit sans `Promise.withResolvers` vérifie le repli local « Aperçu indisponible » et le retour au dossier. Cela ne constitue pas une certification de toutes les anciennes versions iOS : [le support PDF.js reste lié aux versions de navigateur annoncées par le projet](https://github.com/mozilla/pdf.js/wiki/Frequently-Asked-Questions#faq-support).
+Les recettes Edge et WebKit sans `Promise.try` rendent les pages, y compris les gros documents, sans erreur JavaScript. Dans les deux moteurs, l’absence de `Promise.withResolvers` vérifie le repli local « Aperçu indisponible » et le retour au dossier. Les huit parcours du lecteur compilé avec la politique CSP de production réussissent également. Cela ne constitue pas une certification de toutes les anciennes versions iOS : [le support PDF.js reste lié aux versions de navigateur annoncées par le projet](https://github.com/mozilla/pdf.js/wiki/Frequently-Asked-Questions#faq-support).
 
 ## Portée de publication
 
-Le lot 1.39.0 préparé avant cette demande est retenu et ne doit pas être publié. La version 1.40.0 doit être reconstruite depuis ce nouveau code avant toute activation du flux de mise à jour. Les résultats navigateur ne prouvent ni une installation sur téléphone physique, ni une publication App Store ou Google Play.
+Le lot 1.39.0 préparé avant cette demande est retenu et ne doit pas être publié. La version 1.40.0 a été reconstruite depuis `f4df64017730518295546811b934fd7ca73216e3`. Les six workflows de construction et de recette sont réussis, avec les tests Rust et Clippy sur Mac, le démarrage du paquet universel, les contrôles Android et les trois relances iOS complémentaires. Les résultats navigateur et simulateur ne prouvent ni une installation sur téléphone physique, ni une publication App Store ou Google Play.
