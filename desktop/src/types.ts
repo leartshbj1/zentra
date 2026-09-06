@@ -1385,8 +1385,8 @@ export type BankExpenseCandidate = {
   reason: string;
 };
 
-export type BankRefundMatch = { id: string; refundId: string; expenseId: string; reference: string; supplier: string; amountCents: number; paymentDate: string; paymentJournalId: string; confirmedAt: string; dateDifferenceReason?: string };
-export type BankRefundCandidate = { refundId: string; expenseId: string; reference: string; expenseReference: string; supplier: string; paymentDate: string; totalCents: number; requiresDateReason: boolean; confirmable: boolean; reason: string };
+export type BankRefundMatch = { id: string; refundId: string; expenseId: string; supplierCreditNoteId?: string; reference: string; supplier: string; amountCents: number; paymentDate: string; paymentJournalId: string; confirmedAt: string; dateDifferenceReason?: string };
+export type BankRefundCandidate = { refundId: string; expenseId: string; supplierCreditNoteId?: string; reference: string; expenseReference: string; supplier: string; paymentDate: string; totalCents: number; requiresDateReason: boolean; confirmable: boolean; reason: string };
 
 export type BankAccountLink = {
   accountId: string;

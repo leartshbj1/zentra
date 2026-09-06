@@ -1,4 +1,5 @@
 mod expense_tests {
+    mod supplier_credit_refund_tests { include!("bank_supplier_credit_refund_tests.rs"); }
     include!("bank_expense_refund_tests.rs");
     include!("bank_refund_creation_tests.rs");
     include!("bank_expense_creation_tests.rs");

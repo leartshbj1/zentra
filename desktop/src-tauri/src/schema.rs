@@ -1,4 +1,19 @@
-pub const SCHEMA_VERSION: i64 = 51;
+pub const SCHEMA_VERSION: i64 = 52;
+pub const MIGRATION_V52_SQL: &str = include_str!("bank_supplier_credit_refund_schema.sql");
+#[cfg(test)]
+pub(crate) fn remove_v52_for_legacy_fixture(connection: &rusqlite::Connection) {
+    // Restore actual old layouts rather than leaving newer triggers/views behind.
+    for kind in ["TRIGGER", "VIEW", "TABLE"] {
+        let prefix = format!("CREATE {kind} IF NOT EXISTS ");
+        let names: Vec<_> = MIGRATION_V52_SQL.lines().filter_map(|line| {
+            line.trim_start().strip_prefix(&prefix).and_then(|rest| rest.split_whitespace().next())
+        }).collect();
+        for name in names.into_iter().rev() {
+            assert!(name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+            connection.execute_batch(&format!("DROP {kind} IF EXISTS {name};")).unwrap();
+        }
+    }
+}
 pub const MIGRATION_V51_SQL: &str = include_str!("supplier_credit_refund_schema.sql");
 pub const MIGRATION_V50_SQL: &str = include_str!("quote_invoice_pair_schema.sql");
 pub const MIGRATION_V49_SQL: &str = include_str!("expense_refund_attachment_schema.sql");
@@ -170,6 +185,9 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "supplier_credit_note_items",
     "supplier_credit_allocations",
     "supplier_credit_refunds",
+    "bank_supplier_credit_refund_matches",
+    "bank_supplier_credit_refund_unlinks",
+    "bank_supplier_credit_refund_requests",
     "supplier_expense_reclassifications",
     "supplier_expense_reclassification_lines",
     "supplier_operation_requests",

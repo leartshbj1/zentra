@@ -5906,6 +5906,19 @@ export const desktopApi = {
     await invoke('add_expense_refund_attachment', { refundId, attachment: { original_name: receipt.name, content_base64: await fileBase64(receipt) } });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
+  async addSupplierCreditRefundAttachment(refundId: string, receipt: File): Promise<Workspace> {
+    await invoke('add_supplier_credit_refund_attachment',{refundId,attachment:{original_name:receipt.name,content_base64:await fileBase64(receipt)}});
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async createBankSupplierCreditRefund(input: {requestId:string; movementId:string; supplierCreditNoteId:string; reference:string; reason:string; receipt:File}): Promise<void> {
+    await invoke('create_bank_supplier_credit_refund',{input:{request_id:input.requestId,movement_id:input.movementId,supplier_credit_note_id:input.supplierCreditNoteId,reference:input.reference,reason:input.reason,attachment:{original_name:input.receipt.name,content_base64:await fileBase64(input.receipt)}}});
+  },
+  async matchBankSupplierCreditRefund(requestId:string,movementId:string,refundId:string,dateDifferenceReason?:string): Promise<void> {
+    await invoke('match_bank_supplier_credit_refund',{input:{request_id:requestId,movement_id:movementId,refund_id:refundId,date_difference_reason:dateDifferenceReason??null}});
+  },
+  async unmatchBankSupplierCreditRefund(requestId:string,matchId:string,reason:string): Promise<void> {
+    await invoke('unmatch_bank_supplier_credit_refund',{input:{request_id:requestId,match_id:matchId,reason}});
+  },
   async createBankExpenseRefund(movementId: string, input: ExpenseRefundInput): Promise<void> {
     const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt) } : null;
     await invoke('create_bank_expense_refund', { movementId, input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: null }, ...(attachment ? { attachment } : {}) });

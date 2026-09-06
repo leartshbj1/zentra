@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { SupplierCreditRefundModal } from './SupplierCreditRefundModal';
+import { RefundAttachmentForm, RefundAttachmentList } from './RefundAttachments';
 import { supplierCreditAvailable } from './supplierCreditRefunds';
 import { creditSettlementDateError } from './supplierCreditSettlement';
 import { expenseRefundTotals } from './expenseRefunds';
@@ -96,6 +97,7 @@ type PurchaseModal =
   | { type: 'validate_credit'; credit: SupplierCreditNote }
   | { type: 'apply_credit'; credit: SupplierCreditNote }
   | { type: 'refund_credit'; credit: SupplierCreditNote; reverse?: SupplierCreditRefund }
+  | { type: 'refund_attachment'; refund: SupplierCreditRefund }
   | {
       type: 'reverse_credit';
       credit: SupplierCreditNote;
@@ -561,6 +563,8 @@ export function nextMatchClearConfirmation(
 }
 
 export function PurchaseOrdersScreen({
+  openCreditId,
+  onOpenCreditHandled,
   workspace,
   query,
   onQueryChange,
@@ -583,6 +587,8 @@ export function PurchaseOrdersScreen({
   onRestoreSupplier,
   onOpenAccounting,
 }: {
+  openCreditId?:string|null;
+  onOpenCreditHandled?:()=>void;
   workspace: Workspace;
   query: string;
   onQueryChange: (value: string) => void;
@@ -606,6 +612,24 @@ export function PurchaseOrdersScreen({
   onOpenAccounting: () => void;
 }) {
   const [section, setSection] = useState<PurchaseSection>('inbox');
+  const [creditToReveal, setCreditToReveal] = useState<string | null>(null);
+  useEffect(()=>{
+    if(!openCreditId)return;
+    const credit=workspace.supplierCreditNotes.find(row=>row.id===openCreditId);
+    if(credit){setSection('documents');onQueryChange(credit.number||credit.reference);setCreditToReveal(credit.id);}
+    else onOpenCreditHandled?.();
+  },[openCreditId]);
+  useEffect(() => {
+    if (!creditToReveal || section !== 'documents') return;
+    const card = document.getElementById(`supplier-credit-${creditToReveal}`);
+    if (!card) return;
+    const refunds = card.querySelector<HTMLDetailsElement>('[data-credit-refunds]');
+    if (refunds) refunds.open = true;
+    card.scrollIntoView({ block: 'start', behavior: 'instant' });
+    card.focus({ preventScroll: true });
+    setCreditToReveal(null);
+    onOpenCreditHandled?.();
+  }, [creditToReveal, section, query]);
   const [modal, setModalState] = useState<(NonNullable<PurchaseModal> & { requestId: string }) | null>(null);
   const [modalFailure, setModalFailure] = useState<{ requestId: string; message: string } | null>(null);
   const modalError = modal?.requestId === modalFailure?.requestId ? modalFailure?.message || '' : '';
@@ -1046,6 +1070,7 @@ export function PurchaseOrdersScreen({
                 setModal({ type: 'apply_credit', credit })
               }
               onRefundCredit={(credit, reverse) => setModal({ type: 'refund_credit', credit, reverse })}
+              onRefundAttachment={(refund)=>setModal({type:'refund_attachment',refund})}
               onReverseCredit={(credit, allocation) =>
                 setModal({ type: 'reverse_credit', credit, allocation })
               }
@@ -1264,6 +1289,7 @@ export function PurchaseOrdersScreen({
           : desktopApi.recordSupplierCreditRefund({...input, requestId: modal.requestId, supplierCreditNoteId: modal.credit.id}),
           modal.reverse ? 'La correction a rétabli le solde de l’avoir.' : 'Le remboursement a été enregistré dans l’avoir et le journal.')}
       /> : null}
+      {modal?.type==='refund_attachment'?<RefundAttachmentForm supplierCredit refund={modal.refund} busy={busy||readOnly} close={()=>setModal(null)} act={runAction}/>:null}
       {modal?.type === 'reverse_credit' ? (
         <ReverseSupplierCreditAllocationModal
           actionError={modalError}
@@ -1849,6 +1875,7 @@ function DocumentsSection({
   onDeleteCredit,
   onApplyCredit,
   onRefundCredit,
+  onRefundAttachment,
   onReverseCredit,
   onReclassify,
   onOpenExpense,
@@ -1874,6 +1901,7 @@ function DocumentsSection({
   onDeleteCredit: (credit: SupplierCreditNote) => void;
   onApplyCredit: (credit: SupplierCreditNote) => void;
   onRefundCredit: (credit: SupplierCreditNote, reverse?: SupplierCreditRefund) => void;
+  onRefundAttachment:(refund:SupplierCreditRefund)=>void;
   onReverseCredit: (
     credit: SupplierCreditNote,
     allocation: SupplierCreditAllocation,
@@ -2102,6 +2130,7 @@ function DocumentsSection({
           onDelete={() => onDeleteCredit(credit)}
           onApply={() => onApplyCredit(credit)}
           onRefund={(reverse) => onRefundCredit(credit, reverse)}
+          onAttach={onRefundAttachment}
           onReverse={(allocation) => onReverseCredit(credit, allocation)}
         />
       ))}
@@ -2179,6 +2208,7 @@ function SupplierCreditDocumentCard({
   onDelete,
   onApply,
   onRefund,
+  onAttach,
   onReverse,
 }: {
   credit: SupplierCreditNote;
@@ -2190,6 +2220,7 @@ function SupplierCreditDocumentCard({
   onDelete: () => void;
   onApply: () => void;
   onRefund: (reverse?: SupplierCreditRefund) => void;
+  onAttach:(refund:SupplierCreditRefund)=>void;
   onReverse: (allocation: SupplierCreditAllocation) => void;
 }) {
   const availableCents = supplierCreditAvailable(credit);
@@ -2204,7 +2235,7 @@ function SupplierCreditDocumentCard({
       allocation.eventType === 'apply' && !reversedIds.has(allocation.id),
   );
   return (
-    <article className="purchase-document-card purchase-document-card--credit">
+    <article id={`supplier-credit-${credit.id}`} tabIndex={-1} className="purchase-document-card purchase-document-card--credit">
       <div>
         <small>Avoir fournisseur · {formatDate(credit.documentDate)}</small>
         <h3>{credit.number || credit.reference || 'Avoir brouillon'}</h3>
@@ -2258,11 +2289,13 @@ function SupplierCreditDocumentCard({
             </ol>
           </details>
         ) : null}
-        {credit.refunds.length > 0 ? <details className="credit-application-history">
+        {credit.refunds.length > 0 ? <details className="credit-application-history" data-credit-refunds>
           <summary>Remboursements et corrections ({credit.refunds.length})</summary>
           <ol>{[...credit.refunds].sort((left, right) => right.date.localeCompare(left.date) || right.sequence - left.sequence).map((refund) => <li key={refund.id}>
             <strong>{refund.eventType === 'reverse' ? 'Correction' : 'Remboursement reçu'} · {formatMoney(refund.amountCents, credit.currency)}</strong>
             <span>{formatDate(refund.date)} · {refund.reference}</span><span>{refund.reason}</span>
+            <RefundAttachmentList attachments={(workspace.attachments ?? []).filter(file=>file.entityType==='supplier_credit_refund'&&file.entityId===refund.id)}/>
+            <Button variant="ghost" size="small" disabled={busy} onClick={()=>onAttach(refund)}>Joindre un justificatif</Button>
             {refund.eventType === 'refund' && !credit.refunds.some((row) => row.reversesId === refund.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => onRefund(refund)}>Corriger ce remboursement</Button> : null}
           </li>)}</ol>
         </details> : null}

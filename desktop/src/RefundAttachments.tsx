@@ -9,11 +9,12 @@ import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void) => Promise<boolean>;
 
-export function RefundReceiptPicker({ receipt, onChange, disabled, onError }: {
+export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supplierCredit = false }: {
   receipt: File | null; onChange: (file: File | null) => void; disabled: boolean; onError: (message: string) => void;
+  supplierCredit?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  return <div className="refund-receipt-picker"><Field label="Justificatif de l’avoir" wide hint="PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce sera aussi classée dans le projet de la dépense.">
+  return <div className="refund-receipt-picker"><Field label="Justificatif de l’avoir" wide hint={supplierCredit ? 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce rejoint le projet lorsque toutes les lignes de l’avoir lui sont rattachées.' : 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce sera aussi classée dans le projet de la dépense.'}>
     <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" disabled={disabled} onChange={(event) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -45,7 +46,7 @@ export function RefundAttachmentList({ attachments }: { attachments: Attachment[
   </div>;
 }
 
-export function RefundAttachmentForm({ refund, busy, close, act }: { refund: ExpenseRefund; busy: boolean; close: () => void; act: ActionRunner }) {
+export function RefundAttachmentForm({ refund, busy, close, act, supplierCredit = false }: { refund: Pick<ExpenseRefund,'id'|'reference'>; busy: boolean; close: () => void; act: ActionRunner; supplierCredit?: boolean }) {
   const [receipt, setReceipt] = useState<File | null>(null);
   const [error, setError] = useState('');
   const saving = useRef(false);
@@ -56,14 +57,14 @@ export function RefundAttachmentForm({ refund, busy, close, act }: { refund: Exp
       saving.current = true; setError('');
       try {
         const saved = await act(async () => {
-          try { return await desktopApi.addExpenseRefundAttachment(refund.id, receipt); }
+          try { return await (supplierCredit ? desktopApi.addSupplierCreditRefundAttachment(refund.id, receipt) : desktopApi.addExpenseRefundAttachment(refund.id, receipt)); }
           catch (failure) { if (!(failure instanceof WorkspaceRefreshAfterMutationError)) setError(errorMessage(failure, 'Le justificatif n’a pas pu être ajouté.')); throw failure; }
-        }, 'Le justificatif est lié au remboursement et à son projet.', false, () => {});
+        }, 'Le justificatif est lié au remboursement.', false, () => {});
         if (saved) close();
       } finally { saving.current = false; }
     }}>
       <p className="field__hint">Cette pièce complète l’historique conservé. Les dates, montants et écritures du remboursement restent inchangés.</p>
-      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy} onError={setError} />
+      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy} onError={setError} supplierCredit={supplierCredit} />
       {error ? <ErrorPanel title="Justificatif à contrôler" message={error} reveal /> : null}
       <FormActions onCancel={close} busy={busy} disabled={!receipt} submitLabel="Ajouter le justificatif" />
     </form>

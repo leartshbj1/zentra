@@ -604,6 +604,27 @@ pub fn record_supplier_credit_refund(
 }
 
 #[tauri::command]
+pub fn match_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::credit_refunds::MatchInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.match_bank_supplier_credit_refund(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn unmatch_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::credit_refunds::UnmatchInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.unmatch_bank_supplier_credit_refund(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn create_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::credit_refunds::CreateInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.create_bank_supplier_credit_refund(input).map_err(command_error)
+}
+#[tauri::command]
+pub fn add_supplier_credit_refund_attachment(state:State<'_,LocalStore>,refund_id:String,attachment:crate::expense_refund_attachments::RefundAttachmentInput)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+    state.add_supplier_credit_refund_attachment(&refund_id,attachment).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn reverse_supplier_credit_refund(
     state: State<'_, LocalStore>,
     input: crate::supplier_credit_refunds::ReverseSupplierCreditRefundInput,

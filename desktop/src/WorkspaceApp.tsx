@@ -440,6 +440,7 @@ export function WorkspaceApp({
       && window.matchMedia(COMPACT_NAVIGATION_QUERY).matches,
   );
   const [orderToOpenId, setOrderToOpenId] = useState<string | null>(null);
+  const [supplierCreditToOpenId,setSupplierCreditToOpenId]=useState<string|null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   function openExpenseSource(expenseId: string) {
     const expense = workspace.expenses.find((item) => item.id === expenseId);
@@ -1963,6 +1964,8 @@ export function WorkspaceApp({
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label="Ouverture des achats…" />}>
               <PurchaseOrdersScreen
+                openCreditId={supplierCreditToOpenId}
+                onOpenCreditHandled={()=>setSupplierCreditToOpenId(null)}
                 workspace={workspace}
                 query={search}
                 onQueryChange={setSearch}
@@ -2015,6 +2018,7 @@ export function WorkspaceApp({
           {view === 'bank' ? (
             <Suspense fallback={<ViewLoading label="Ouverture de la banque…" />}>
               <BankScreen
+                onOpenSupplierCredit={(id)=>{setSupplierCreditToOpenId(id);setSearch('');setView('expenses');}}
                 onOpenExpense={openExpenseSource}
                 workspace={workspace}
                 readOnly={readOnly}

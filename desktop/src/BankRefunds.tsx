@@ -4,10 +4,12 @@ import type { BankMovement } from './types';
 import { Button, ErrorPanel, Field, FormActions, Modal } from './ui';
 import { createId, errorMessage, formatDate, formatDateTime, formatMoney, searchText } from './utils';
 
-export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense, onCreate }: {
+export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense, onCreate, onOpenSupplierCredit, onCreateCredit }: {
   movement: BankMovement; disabled: boolean;
   onOpenExpense?: (expenseId: string) => void;
   onCreate?: () => void;
+  onCreateCredit?: () => void;
+  onOpenSupplierCredit?: (creditId:string)=>void;
   onConfirm: (requestId: string, refundId: string, dateReason?: string) => Promise<void>;
 }) {
   const [requestId] = useState(createId);
@@ -35,12 +37,12 @@ export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense,
         }} placeholder="Référence, fournisseur ou achat…" /></label>
         <div className="bank-candidate-options" role="radiogroup" aria-label="Choisir le remboursement à rapprocher">{filtered.slice(0, limit).map((candidate) => <label className={`bank-candidate-option ${choice === candidate.refundId ? 'is-selected' : ''} ${candidate.confirmable ? '' : 'is-blocked'}`} key={candidate.refundId}>
           <input className="sr-only" type="radio" name={`refund-${movement.id}`} checked={choice === candidate.refundId} disabled={disabled || !candidate.confirmable} onChange={() => { setChoice(candidate.refundId); setError(''); }} />
-          <span className="bank-candidate-option__identity"><strong>{candidate.reference}</strong><span>{candidate.supplier}</span><small>Achat {candidate.expenseReference || 'sans référence'} · reçu le {formatDate(candidate.paymentDate)}</small></span>
+          <span className="bank-candidate-option__identity"><strong>{candidate.reference}</strong><span>{candidate.supplier}</span><small>{candidate.supplierCreditNoteId?'Avoir':'Achat'} {candidate.expenseReference || 'sans référence'} · reçu le {formatDate(candidate.paymentDate)}</small></span>
           <span className="bank-candidate-option__amount"><strong>{formatMoney(candidate.totalCents)}</strong></span><span className="bank-candidate-option__reason">{candidate.reason}</span>
         </label>)}</div>
         {!filtered.length ? <p role="status">Aucun remboursement ne correspond à cette recherche.</p> : null}
         {filtered.length > limit ? <Button type="button" variant="ghost" onClick={() => setLimit(limit + 25)}>Afficher les remboursements suivants</Button> : null}
-        {selected && onOpenExpense ? <Button type="button" variant="ghost" onClick={() => onOpenExpense(selected.expenseId)}>Voir la dépense d’origine</Button> : null}
+        {selected?.supplierCreditNoteId && onOpenSupplierCredit ? <Button type="button" variant="ghost" onClick={()=>onOpenSupplierCredit(selected.supplierCreditNoteId!)}>Voir l’avoir fournisseur</Button> : selected && onOpenExpense ? <Button type="button" variant="ghost" onClick={() => onOpenExpense(selected.expenseId)}>Voir la dépense d’origine</Button> : null}
         {selected?.requiresDateReason ? <Field label="Justification de l’écart de dates" required hint={`Remboursement enregistré le ${formatDate(selected.paymentDate)} ; relevé du ${formatDate(movement.bookingDate || movement.valueDate)}. Les dates comptables seront conservées.`}><textarea value={note} onChange={(event) => setNotes((previous) => ({ ...previous, [choice]: event.target.value }))} maxLength={500} minLength={5} rows={3} disabled={disabled} /></Field> : null}
         {error ? <ErrorPanel title="Association à contrôler" message={error} reveal /> : null}
         <Button type="button" size="small" disabled={disabled || invalid} onClick={async () => {
@@ -52,6 +54,7 @@ export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense,
         }}><Link2 size={14} /> Associer le remboursement</Button>
       </> : <p>Aucun remboursement déjà saisi ne correspond à ce crédit.</p>}
       {onCreate && movement.refundSuggestion?.canCreate ? <div className="bank-refund-create-action"><p>Le remboursement n’est pas encore saisi ? Retrouvez l’achat d’origine pour l’enregistrer et le rapprocher en une fois.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreate}>Créer le remboursement reçu</Button></div> : null}
+      {onCreateCredit && movement.refundSuggestion?.canCreate ? <div className="bank-refund-create-action"><p>Vous avez déjà un avoir fournisseur validé ? Enregistrez son remboursement à partir de ce virement.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreateCredit}>Rembourser un avoir fournisseur</Button></div>:null}
     </>}
   </details>;
 }
@@ -84,9 +87,9 @@ export function BankRefundUnlink({ movement, busy, close, onConfirm }: {
   </Modal>;
 }
 
-export function BankRefundHistory({ movement, onOpenExpense }: { movement: BankMovement; onOpenExpense?: (expenseId: string) => void }) {
+export function BankRefundHistory({ movement, onOpenExpense, onOpenSupplierCredit }: { movement: BankMovement; onOpenExpense?: (expenseId: string) => void; onOpenSupplierCredit?: (creditId:string)=>void }) {
   const [limit, setLimit] = useState(5);
   const history = movement.refundHistory ?? [];
   if (!history.length) return null;
-  return <details className="bank-expense-history bank-refund-history"><summary><History size={16} /> Historique des remboursements rapprochés <span>{history.length}</span><ChevronDown className="bank-history-chevron" size={14} /></summary><div className="bank-expense-history__entries">{history.slice(0, limit).map((entry) => <article key={entry.id}><strong>{entry.reference} · {formatMoney(entry.amountCents)}</strong><span>{entry.supplier}</span><small>Associé le {formatDateTime(entry.confirmedAt)}</small><small>Dissocié le {formatDateTime(entry.unlinkedAt)} · remboursement conservé</small><p>{entry.reason}</p>{onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(entry.expenseId)}>Voir la dépense d’origine</Button> : null}{entry.dateDifferenceReason ? <small>Écart de dates documenté : {entry.dateDifferenceReason}</small> : null}</article>)}</div>{history.length > limit ? <Button variant="ghost" size="small" onClick={() => setLimit(limit + 5)}>Afficher les dissociations suivantes</Button> : null}</details>;
+  return <details className="bank-expense-history bank-refund-history"><summary><History size={16} /> Historique des remboursements rapprochés <span>{history.length}</span><ChevronDown className="bank-history-chevron" size={14} /></summary><div className="bank-expense-history__entries">{history.slice(0, limit).map((entry) => <article key={entry.id}><strong>{entry.reference} · {formatMoney(entry.amountCents)}</strong><span>{entry.supplier}</span><small>Associé le {formatDateTime(entry.confirmedAt)}</small><small>Dissocié le {formatDateTime(entry.unlinkedAt)} · remboursement conservé</small><p>{entry.reason}</p>{entry.supplierCreditNoteId && onOpenSupplierCredit ? <Button variant="ghost" onClick={()=>onOpenSupplierCredit(entry.supplierCreditNoteId!)}>Voir l’avoir fournisseur</Button> : onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(entry.expenseId)}>Voir la dépense d’origine</Button> : null}{entry.dateDifferenceReason ? <small>Écart de dates documenté : {entry.dateDifferenceReason}</small> : null}</article>)}</div>{history.length > limit ? <Button variant="ghost" size="small" onClick={() => setLimit(limit + 5)}>Afficher les dissociations suivantes</Button> : null}</details>;
 }

@@ -48,6 +48,7 @@ mod supplier_email;
 mod supplier_invoices;
 mod supplier_procurement;
 mod supplier_credit_refunds;
+mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
 mod swiss_qr;
 mod time_billing;
@@ -193,6 +194,10 @@ pub fn run() {
             reverse_supplier_credit_allocation,
             record_supplier_credit_refund,
             reverse_supplier_credit_refund,
+            match_bank_supplier_credit_refund,
+            unmatch_bank_supplier_credit_refund,
+            create_bank_supplier_credit_refund,
+            add_supplier_credit_refund_attachment,
             delete_supplier_credit_note_draft,
             reclassify_supplier_invoice_expense,
             update_settings,

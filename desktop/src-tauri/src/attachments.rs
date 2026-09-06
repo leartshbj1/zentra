@@ -49,6 +49,7 @@ pub(crate) struct PreparedSupplierInvoiceAttachment {
 }
 
 impl PreparedSupplierInvoiceAttachment {
+    pub(crate) fn source_proof(&self) -> Value { json!({"sha256":self.sha256,"original_name":self.original_name}) }
     pub(crate) fn install(&mut self) -> AppResult<()> {
         fs::rename(&self.temporary_path, &self.destination_path)?;
         self.installed = true;
@@ -408,6 +409,22 @@ impl LocalStore {
         let record = query_all(tx,"SELECT * FROM attachments WHERE id=?",params![prepared.id])?
             .into_iter().next().ok_or_else(|| AppError::NotFound(format!("attachments/{}",prepared.id)))?;
         Ok(AttachmentInsertResult { record, created: true })
+    }
+
+    pub(crate) fn insert_prepared_supplier_credit_refund_attachment(
+        &self, tx: &Transaction<'_>, refund_id: &str, prepared: &PreparedSupplierInvoiceAttachment,
+    ) -> AppResult<AttachmentInsertResult> {
+        let project:Option<String>=tx.query_row("SELECT project_id FROM supplier_credit_refund_projects WHERE refund_id=?",params![refund_id],|r|r.get(0)).optional()?.ok_or_else(||AppError::NotFound(format!("supplier_credit_refunds/{refund_id}")))?;
+        if let Some(record)=query_all(tx,"SELECT * FROM attachments WHERE entity_type='supplier_credit_refund' AND entity_id=? AND sha256=?",params![refund_id,prepared.sha256])?.into_iter().next() {
+            return Ok(AttachmentInsertResult {record,created:false});
+        }
+        let count:i64=tx.query_row("SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_credit_refund' AND entity_id=?",params![refund_id],|r|r.get(0))?;
+        if count>=20 {return Err(AppError::Validation("Ce remboursement contient déjà 20 justificatifs.".into()));}
+        let now=now_iso();
+        tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'supplier_credit_refund',?,?,?,?,?,?,?,?)",params![prepared.id,project,refund_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
+        append_audit(tx,"attachment_add","supplier_credit_refund",refund_id,&json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}))?;
+        let record=query_all(tx,"SELECT * FROM attachments WHERE id=?",params![prepared.id])?.into_iter().next().ok_or_else(||AppError::NotFound(format!("attachments/{}",prepared.id)))?;
+        Ok(AttachmentInsertResult {record,created:true})
     }
 
     pub fn delete_supplier_invoice_attachment(&self, id: &str) -> AppResult<Value> {

@@ -333,6 +333,7 @@ fn supplier_refund_migration_from_50_does_not_invent_a_payment() {
     let (temp, store, _invoice, draft) = fixture();
     validate(&store, &draft);
     let connection = store.connect().unwrap();
+    crate::schema::remove_v52_for_legacy_fixture(&connection);
     let path: String = connection
         .query_row(
             "SELECT file FROM pragma_database_list WHERE name='main'",

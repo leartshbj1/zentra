@@ -1646,7 +1646,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=50 => {}
+            28..=51 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1749,6 +1749,11 @@ impl LocalStore {
             let complete: bool = transaction.query_row("SELECT COUNT(*)=3 FROM sqlite_master WHERE type='table' AND name IN ('supplier_credit_notes','supplier_credit_allocations','journal_entries')", [], |row| row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V51_SQL)?; }
             else { transaction.pragma_update(None,"user_version",51)?; }
+        }
+        if current < 52 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=4 FROM sqlite_master WHERE type='table' AND name IN ('supplier_credit_refunds','bank_movements','bank_expense_refund_matches','attachments')", [], |row| row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V52_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",52)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2598,6 +2603,9 @@ impl LocalStore {
         workspace["expense_refunds"] = json!(query_all(connection,"SELECT r.*,m.id AS bank_match_id FROM expense_refunds r LEFT JOIN active_bank_expense_refund_matches m ON m.refund_id=r.id ORDER BY r.payment_date DESC,r.created_at DESC,r.id",[])?);
         workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
         workspace["supplier_credit_refunds"] = json!(query_all(connection,"SELECT * FROM supplier_credit_refunds ORDER BY sequence",[])?);
+        for table in ["bank_supplier_credit_refund_matches","bank_supplier_credit_refund_unlinks","bank_supplier_credit_refund_requests"] {
+            workspace[table] = json!(query_all(connection,&format!("SELECT * FROM {table} ORDER BY rowid"),[])?);
+        }
         workspace["supplier_expense_reclassifications"] = json!(supplier_expense_reclassifications);
         workspace["supplier_expense_reclassification_lines"] =
             json!(supplier_expense_reclassification_lines);

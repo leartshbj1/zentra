@@ -426,6 +426,7 @@ fn bank_refund_v48_migration_preserves_existing_refund_and_journals() {
 // Historical migration fixtures remove newer dependent objects before rebuilding
 // an older table shape. This runs only in isolated test databases.
 pub(super) fn drop_refund_bank_schema(conn: &rusqlite::Connection) {
+    crate::schema::remove_v52_for_legacy_fixture(conn);
     let triggers: Vec<String> = conn.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND (name LIKE 'bank_refund_%' OR name IN ('bank_customer_exclusive_refund','bank_supplier_exclusive_refund','bank_expense_exclusive_refund','expense_refund_bank_correction_guard'))").unwrap().query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
     for name in triggers {
         conn.execute_batch(&format!("DROP TRIGGER {name}")).unwrap();

@@ -1,5 +1,6 @@
 /* Shared screen design. Print documents retain their own regulated layouts.
    Keep this layer before mobile.css so touch and safe-area rules stay authoritative. */
+@media screen { .purchase-document-card--credit { scroll-margin-top: 180px; } }
 @media screen {
   :root {
     --ink: #192b25;
