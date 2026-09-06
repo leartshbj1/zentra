@@ -163,7 +163,7 @@ fn official_pdf_preserves_canonical_widgets_and_visible_values_with_annex() {
                     let raw = object.get(b"V").unwrap().as_str().unwrap();
                     let decoded = String::from_utf16(
                         &raw[2..]
-                            .chunks_exact(2)
+                            .as_chunks::<2>().0.iter()
                             .map(|x| u16::from_be_bytes([x[0], x[1]]))
                             .collect::<Vec<_>>(),
                     )
