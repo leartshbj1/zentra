@@ -1,4 +1,5 @@
 import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel';
+import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 
 type WorkerPayload = Record<string, unknown>;
 export const PAYROLL_ANALYSIS_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
@@ -19,6 +20,8 @@ export type PayrollAiAnalysis = {
   modelVersion: string;
   mode: PayrollAiMode;
   partialError?: string;
+  employeeDraft?: EmployeeDocumentDraft;
+  extractedText?: string;
 };
 
 export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
@@ -87,7 +90,7 @@ class PayrollLocalAi {
       const label = typeof progress.file === 'string' ? `Téléchargement local · ${progress.file}` : typeof progress.status === 'string' ? progress.status : 'Préparation du modèle local';
       this.progressListeners.forEach((listener) => listener({ label, percent: rawPercent }));
       // During WebGPU -> WASM fallback, model download/compilation emits
-      // generic Transformers.js progress messages without a request id. It is
+      // generic Qwen progress messages without a request id. It is
       // still authoritative activity from this single sequential Worker.
       for (const requestId of this.analyses.keys()) this.refreshAnalysisTimeout(requestId);
       return;
@@ -141,6 +144,8 @@ class PayrollLocalAi {
           modelVersion: typeof message.modelVersion === 'string' && message.modelVersion.trim() ? message.modelVersion : PAYROLL_AI_MODEL_REVISION,
           mode: message.mode === 'webgpu' || message.mode === 'wasm' ? message.mode : 'unavailable',
           partialError: typeof message.partialError === 'string' ? message.partialError : undefined,
+          employeeDraft: message.employeeDraft as EmployeeDocumentDraft | undefined,
+          extractedText: typeof message.extractedText === 'string' ? message.extractedText : undefined,
         });
       }
     }
@@ -241,6 +246,7 @@ class PayrollLocalAi {
           extractedText: input.extractedText,
           pageStart: input.pageStart,
           pageEnd: input.pageEnd,
+          assetBase: typeof document === 'undefined' ? undefined : new URL('./', document.baseURI).href,
         });
       } catch (reason) {
         const pending = this.analyses.get(requestId);

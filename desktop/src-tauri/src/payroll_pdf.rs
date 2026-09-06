@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     branding::{load_pdf_logo_with_fallback, PdfLogo},
     database::{query_all, row_to_json_public, LocalStore},
+    document_design::DocumentStyle,
     error::{AppError, AppResult},
     models::GeneratePayslipPdfInput,
 };
@@ -49,6 +50,8 @@ struct PayslipPdfLine {
 
 #[derive(Debug, Clone)]
 struct PayslipPdfData {
+    style: DocumentStyle,
+    legacy_style: bool,
     company_name: String,
     logo_path: String,
     company_address: Vec<String>,
@@ -74,6 +77,51 @@ struct PayslipPdfData {
     net_cents: i64,
     employer_costs_cents: i64,
     final_document: bool,
+}
+
+impl PayslipPdfData {
+    fn title_ink(&self) -> [f32; 3] {
+        if self.legacy_style {
+            FOREST
+        } else {
+            self.style.ink()
+        }
+    }
+    fn accent_ink(&self) -> [f32; 3] {
+        if self.legacy_style {
+            BRAND
+        } else {
+            self.style.ink()
+        }
+    }
+    fn strong_accent(&self) -> [f32; 3] {
+        if self.legacy_style {
+            FOREST
+        } else {
+            self.style.accent()
+        }
+    }
+    fn pale(&self) -> [f32; 3] {
+        if self.legacy_style {
+            BRAND_PALE
+        } else {
+            self.style.pale()
+        }
+    }
+    fn logo_width(&self) -> f32 {
+        if self.legacy_style {
+            72.0
+        } else {
+            self.style.logo_width as f32
+        }
+    }
+    fn logo_height(&self) -> f32 {
+        if self.legacy_style {
+            25.0
+        } else {
+            self.style.logo_height()
+        }
+    }
 }
 
 impl LocalStore {
@@ -341,6 +389,12 @@ fn pdf_data_from_values(
     };
 
     Ok(PayslipPdfData {
+        style: DocumentStyle::from_issuer(issuer, "payslips")?,
+        legacy_style: serde_json::from_str::<Value>(
+            issuer["extra_settings_json"].as_str().unwrap_or("{}"),
+        )?
+        .pointer("/documentAppearance/payslips")
+        .is_none(),
         company_name: string_at(issuer, "company_name"),
         logo_path: string_at(issuer, "logo_path"),
         company_address,
@@ -369,6 +423,31 @@ fn pdf_data_from_values(
         employer_costs_cents,
         final_document,
     })
+}
+
+/// Preview uses the same renderer and never creates an employee or payroll entry.
+pub(crate) fn design_example(issuer: &Value, branding_dir: &Path) -> AppResult<Vec<u8>> {
+    let employee = json!({"name":"Camille Exemple","employee_number":"EXEMPLE","role":"Responsable de projet","address_line1":"Rue des Fleurs 8","postal_code":"1000","city":"Lausanne","employment_rate":100});
+    let payslip = json!({"period":"2026-12","status":"a_controler","payment_date":"2026-12-31","notes":"EXEMPLE · document sans valeur salariale"});
+    let items = vec![
+        json!({"label":"Salaire mensuel","kind":"earning","amount_cents":600000}),
+        json!({"label":"AVS / AI / APG","kind":"deduction","amount_cents":31800}),
+        json!({"label":"Assurance-chômage","kind":"deduction","amount_cents":6600}),
+        json!({"label":"Prévoyance professionnelle","kind":"deduction","amount_cents":28000}),
+    ];
+    let data = pdf_data_from_values(
+        issuer,
+        &employee,
+        &payslip,
+        items,
+        vec![],
+        String::new(),
+        false,
+    )?;
+    let temp = tempfile::tempdir()?;
+    let path = temp.path().join("fiche-exemple.pdf");
+    render_payslip_pdf(&path, &data, Some(branding_dir))?;
+    Ok(fs::read(path)?)
 }
 
 fn contribution_detail(row: &Value) -> String {
@@ -619,9 +698,27 @@ fn render_page(
     logo: Option<&PdfLogo>,
 ) -> Vec<Operation> {
     let mut ops = Vec::new();
-    fill_rect(&mut ops, 0.0, PAGE_HEIGHT - 8.0, PAGE_WIDTH, 8.0, BRAND);
+    if data.style.layout == "signature" {
+        fill_rect(
+            &mut ops,
+            0.0,
+            PAGE_HEIGHT - 8.0,
+            PAGE_WIDTH,
+            8.0,
+            if data.legacy_style {
+                BRAND
+            } else {
+                data.style.accent()
+            },
+        );
+    }
     let brand_text_x = if let Some(logo) = logo {
-        let (width, height) = fitted_size(logo.width, logo.height, 72.0, 25.0);
+        let (width, height) = fitted_size(
+            logo.width,
+            logo.height,
+            data.logo_width(),
+            data.logo_height(),
+        );
         draw_image(&mut ops, "Logo", MARGIN, 786.0, width, height);
         MARGIN + width + 9.0
     } else {
@@ -633,7 +730,7 @@ fn render_page(
         798.0,
         9.5,
         "F2",
-        FOREST,
+        data.title_ink(),
         &truncate(&fallback(&data.company_name), 34),
     );
     text(
@@ -663,7 +760,7 @@ fn render_page(
             763.0,
             23.0,
             "F2",
-            FOREST,
+            data.title_ink(),
             "FICHE DE SALAIRE",
         );
         text(
@@ -690,7 +787,7 @@ fn render_page(
             764.0,
             16.0,
             "F2",
-            FOREST,
+            data.title_ink(),
             &format_period(&data.period),
         );
 
@@ -785,7 +882,7 @@ fn render_page(
             769.0,
             16.0,
             "F2",
-            FOREST,
+            data.title_ink(),
             "FICHE DE SALAIRE · SUITE",
         );
         text_right(
@@ -794,7 +891,7 @@ fn render_page(
             770.0,
             10.0,
             "F2",
-            FOREST,
+            data.title_ink(),
             &format!("{} · {}", data.employee_name, format_period(&data.period)),
         );
         table_y = 738.0;
@@ -806,7 +903,7 @@ fn render_page(
         table_y - 2.0,
         PAGE_WIDTH - 2.0 * MARGIN,
         22.0,
-        FOREST,
+        data.strong_accent(),
     );
     text(
         &mut ops,
@@ -814,7 +911,7 @@ fn render_page(
         table_y + 5.0,
         7.5,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         "ÉLÉMENT",
     );
     text(
@@ -823,7 +920,7 @@ fn render_page(
         table_y + 5.0,
         7.5,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         "BASE / CALCUL",
     );
     text_right(
@@ -832,7 +929,7 @@ fn render_page(
         table_y + 5.0,
         7.5,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         "MONTANT CHF",
     );
     table_y -= 22.0;
@@ -952,8 +1049,27 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
     const RIGHT_WIDTH: f32 = PAGE_WIDTH - MARGIN - RIGHT_X;
 
     fill_rect(ops, MARGIN, BOTTOM, LEFT_WIDTH, TOP - BOTTOM, PALE);
-    fill_rect(ops, MARGIN, BOTTOM, 4.0, TOP - BOTTOM, BRAND);
-    text(ops, MARGIN + 14.0, 216.0, 7.0, "F2", BRAND, "VERSEMENT");
+    fill_rect(
+        ops,
+        MARGIN,
+        BOTTOM,
+        4.0,
+        TOP - BOTTOM,
+        if data.legacy_style {
+            BRAND
+        } else {
+            data.style.accent()
+        },
+    );
+    text(
+        ops,
+        MARGIN + 14.0,
+        216.0,
+        7.0,
+        "F2",
+        data.accent_ink(),
+        "VERSEMENT",
+    );
     text(
         ops,
         MARGIN + 14.0,
@@ -1008,7 +1124,7 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
         99.0,
         6.7,
         "F2",
-        BRAND,
+        data.accent_ink(),
         "CONTRÔLE DU NET",
     );
     text(
@@ -1021,14 +1137,14 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
         "Gains + frais - retenues = net à payer",
     );
 
-    fill_rect(ops, RIGHT_X, BOTTOM, RIGHT_WIDTH, TOP - BOTTOM, BRAND_PALE);
+    fill_rect(ops, RIGHT_X, BOTTOM, RIGHT_WIDTH, TOP - BOTTOM, data.pale());
     text(
         ops,
         RIGHT_X + 15.0,
         216.0,
         7.2,
         "F2",
-        BRAND,
+        data.accent_ink(),
         "CUMUL DU BULLETIN",
     );
     text(
@@ -1072,14 +1188,21 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
         data.employer_costs_cents,
         false,
     );
-    fill_rect(ops, RIGHT_X, BOTTOM, RIGHT_WIDTH, 31.0, FOREST);
+    fill_rect(
+        ops,
+        RIGHT_X,
+        BOTTOM,
+        RIGHT_WIDTH,
+        31.0,
+        data.strong_accent(),
+    );
     text(
         ops,
         RIGHT_X + 15.0,
         93.0,
         8.5,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         "NET À PAYER",
     );
     text_right(
@@ -1088,7 +1211,7 @@ fn render_totals(ops: &mut Vec<Operation>, data: &PayslipPdfData) {
         92.0,
         12.5,
         "F2",
-        [1.0, 1.0, 1.0],
+        data.style.on_accent(),
         &format_money(data.net_cents),
     );
 }
@@ -1100,6 +1223,17 @@ fn render_footer(
     total_pages: usize,
 ) {
     line_segment(ops, MARGIN, 62.0, PAGE_WIDTH - 2.0 * MARGIN, 0.6, LINE);
+    if !data.style.footer.is_empty() {
+        text(
+            ops,
+            MARGIN,
+            20.0,
+            7.0,
+            "F1",
+            data.style.ink(),
+            &data.style.footer,
+        );
+    }
     let mut proof = if data.final_document {
         if data.captured_at.is_empty() {
             "Valeurs comptabilisées et figées localement".to_owned()
@@ -1220,7 +1354,8 @@ fn text_right(
     color: [f32; 3],
     value: &str,
 ) {
-    let width = value.chars().count() as f32 * size * 0.52;
+    let width =
+        crate::sales_pdf::helvetica_text_width(&normalize_pdf_text(value), size, font == "F2");
     text(
         ops,
         (right - width).max(MARGIN),
@@ -1577,6 +1712,8 @@ mod tests {
         assert!(load_document_logo(&staged_logo, None).is_none());
         let destination = directory.path().join("fiche-finale.pdf");
         let data = PayslipPdfData {
+            style: DocumentStyle::default(),
+            legacy_style: true,
             company_name: "Entreprise test".into(),
             logo_path: staged_logo,
             company_address: vec!["Rue du Test 1".into(), "1000 Lausanne".into()],
@@ -1651,6 +1788,8 @@ mod tests {
             .save_with_format(&logo_path, image::ImageFormat::Png)
             .expect("write test logo");
         let data = PayslipPdfData {
+            style: DocumentStyle::default(),
+            legacy_style: true,
             company_name: "Atelier Démo Sàrl".into(),
             logo_path: logo_path.to_string_lossy().into_owned(),
             company_address: vec!["Rue du Lac 8".into(), "1000 Lausanne".into()],
@@ -1807,5 +1946,20 @@ mod tests {
         assert_eq!(data.payment_date, "2026-09-02");
         assert_eq!(data.status, "paye");
         assert!(data.final_document);
+        assert!(data.legacy_style);
+        let mut styled_snapshot = snapshot.clone();
+        styled_snapshot["issuer"]["extra_settings_json"] = json!({"documentAppearance":{"payslips":{"accentColor":"#182b49","layout":"minimal","logoWidth":88,"footer":"Présentation comptabilisée"}}}).to_string().into();
+        connection
+            .execute(
+                "UPDATE payslips SET snapshot_json=? WHERE id='paid-slip'",
+                params![styled_snapshot.to_string()],
+            )
+            .unwrap();
+        connection.execute_batch("CREATE TABLE settings(id INTEGER PRIMARY KEY,extra_settings_json TEXT); INSERT INTO settings VALUES(1,'{\"documentAppearance\":{\"payslips\":{\"accentColor\":\"#793c32\",\"footer\":\"Nouvelle présentation\"}}}');").unwrap();
+        let styled = load_payslip_data(&connection, "paid-slip").unwrap();
+        assert!(!styled.legacy_style);
+        assert_eq!(styled.style.accent_color, "#182b49");
+        assert_eq!(styled.style.footer, "Présentation comptabilisée");
+        assert_eq!(styled.style.layout, "minimal");
     }
 }

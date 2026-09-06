@@ -462,7 +462,7 @@ function parseJsonObject(raw: string): RecordValue {
       }
     }
   }
-  throw new Error("SmolVLM n'a pas renvoyé le JSON strict attendu. Relancez l'analyse ou saisissez les champs manuellement.");
+  throw new Error("La lecture locale n'a pas renvoyé le JSON strict attendu. Relancez l'analyse ou saisissez les champs manuellement.");
 }
 
 /**

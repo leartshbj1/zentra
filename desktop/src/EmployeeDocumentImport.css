@@ -1,0 +1,12 @@
+.employee-document-import { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 20px; padding: 20px 0 24px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.employee-document-import > div:first-child { flex: 1 1 280px; }
+.employee-document-import strong { font-size: 15px; font-weight: 550; }
+.employee-document-import p { color: var(--muted); margin: 7px 0 0; font-size: 13px; line-height: 1.6; }
+.employee-document-import > small { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.employee-document-import__reading { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-basis: 100%; }
+.employee-document-import__reading > span { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+.employee-document-import__reading svg { flex-shrink: 0; }
+.employee-document-import p.employee-document-import__error { color: #a13125; flex-basis: 100%; }
+.employee-document-import__notice { flex-basis: 100%; }
+.employee-prefill-notes { font-size: 13px; line-height: 1.6; margin-bottom: 22px; color: #674e21; }
+@media (max-width: 600px) { .employee-document-import > button { width: 100%; } .employee-document-import__reading { align-items: flex-start; } }

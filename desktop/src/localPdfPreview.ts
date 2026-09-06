@@ -36,7 +36,7 @@ export async function prepareImageForAnalysis(source: string, maxDimension = 200
   image.decoding = 'async';
   image.src = source;
   await image.decode();
-  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+  const scale = Math.min(3, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));

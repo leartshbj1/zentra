@@ -8,6 +8,8 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("Données JSON invalides : {0}")]
     Json(#[from] serde_json::Error),
+    #[error("Formulaire PDF invalide : {0}")]
+    Pdf(#[from] lopdf::Error),
     #[error("Archive Zentra invalide : {0}")]
     Archive(#[from] zip::result::ZipError),
     #[error("Champ invalide : {0}")]

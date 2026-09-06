@@ -1487,6 +1487,22 @@ pub fn generate_payslip_pdf(
 }
 
 #[tauri::command]
+pub fn salary_certificate_draft(state: State<'_, LocalStore>, employee_id: String, year: i32) -> Result<crate::salary_certificate::CertificateDraft, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.salary_certificate_draft(&employee_id, year).map_err(command_error)
+}
+#[tauri::command]
+pub fn salary_certificate_preview(state: State<'_, LocalStore>, input: crate::salary_certificate::CertificateInput) -> Result<Vec<u8>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.salary_certificate_preview(&input).map_err(command_error)
+}
+#[tauri::command]
+pub fn export_salary_certificate(state: State<'_, LocalStore>, input: crate::salary_certificate::CertificateInput, destination: String) -> Result<String, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.export_salary_certificate(&input, &destination).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn generate_sales_document_pdf(
     state: State<'_, LocalStore>,
     input: GenerateSalesDocumentPdfInput,

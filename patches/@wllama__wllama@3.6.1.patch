@@ -1,0 +1,42 @@
+diff --git a/esm/index.js b/esm/index.js
+index 17d611fd17a71ef2dfe1fb9d0d3ef2ec4a94dbaa..7386ade1c7ea463c42b681c7e87fd63ed7953f43 100644
+--- a/esm/index.js
++++ b/esm/index.js
+@@ -1241,13 +1241,8 @@ var isSupportWebGPU = () => {
+ };
+ var isSupportMem64 = () => {
+   try {
+-    new WebAssembly.Memory({
+-      address: "i64",
+-      initial: /* @__PURE__ */ BigInt("1")
+-      // 1 page (64 KiB)
+-    });
+-    return true;
+-  } catch (e) {
++    return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,4,1]));
++  } catch {
+     return false;
+   }
+ };
+@@ -1610,17 +1605,17 @@ var ProxyToWorker = class {
+       }
+       (() => __async(this, null, function* () {
+         let stack = "";
+-        let newMsg = message.replace(
++        let newMsg = String(message?.message ?? message).replace(
+           "Build with -sASSERTIONS for more info.",
+           ""
+         );
+         if (signalType === "abort") {
+           newMsg = `(ABORT) ${newMsg}`;
+-          stack = rawStack.replace(/\|/g, "\n");
++          stack = String(rawStack ?? "").replace(/\|/g, "\n");
+         } else if (signalType === "exception") {
+-          stack = rawStack;
++          stack = String(rawStack ?? "");
+         }
+-        const decoded = yield Debug.decodeStackTrace(stack, isCompatBuild);
++        const decoded = yield Debug.decodeStackTrace(stack, isCompatBuild).catch(() => stack);
+         this.logger.error(`Stack trace (${signalType}):
+ ` + decoded);
+         this.abort(newMsg, decoded);

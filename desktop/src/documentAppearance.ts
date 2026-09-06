@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 
 export type DocumentStyle = { accentColor: string; layout: 'signature' | 'minimal'; logoWidth: number; footer: string };
-export type DocumentAppearance = Record<'invoices' | 'quotes' | 'accounts', DocumentStyle>;
+export type DocumentAppearance = Record<'invoices' | 'quotes' | 'accounts' | 'payslips', DocumentStyle>;
 export type DocumentDesignKind = keyof DocumentAppearance;
 export const defaultDocumentStyle: DocumentStyle = { accentColor: '#134d33', layout: 'signature', logoWidth: 88, footer: '' };
 export function normalizeDocumentStyle(value?: Partial<DocumentStyle>): DocumentStyle {
@@ -13,7 +13,7 @@ export function normalizeDocumentStyle(value?: Partial<DocumentStyle>): Document
   };
 }
 export function documentAppearance(value?: Partial<DocumentAppearance>): DocumentAppearance {
-  return { invoices: normalizeDocumentStyle(value?.invoices), quotes: normalizeDocumentStyle(value?.quotes), accounts: normalizeDocumentStyle(value?.accounts) };
+  return { invoices: normalizeDocumentStyle(value?.invoices), quotes: normalizeDocumentStyle(value?.quotes), accounts: normalizeDocumentStyle(value?.accounts), payslips: normalizeDocumentStyle(value?.payslips) };
 }
 export function documentStyleVariables(style: DocumentStyle): CSSProperties {
   const rgb = [1, 3, 5].map(offset => parseInt(style.accentColor.slice(offset, offset + 2), 16));

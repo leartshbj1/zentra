@@ -44,6 +44,8 @@ mod noga;
 mod payroll;
 mod payroll_import;
 mod payroll_pdf;
+mod salary_certificate_pdf;
+mod salary_certificate;
 mod project_documents;
 mod project_planning;
 mod purchase_costs;
@@ -303,6 +305,9 @@ pub fn run() {
             post_payslip,
             pay_payslip,
             generate_payslip_pdf,
+            salary_certificate_draft,
+            salary_certificate_preview,
+            export_salary_certificate,
             generate_sales_document_pdf,
             create_invoice_correction,
             abandon_invoice_correction,

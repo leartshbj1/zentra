@@ -100,7 +100,7 @@ pub(crate) fn validate_appearance(extra: &Value) -> AppResult<()> {
             .as_object()
             .ok_or_else(|| AppError::Validation("Présentation des documents invalide.".into()))?;
         for (kind, value) in styles {
-            if !["quotes", "invoices", "accounts"].contains(&kind.as_str()) {
+            if !["quotes", "invoices", "accounts", "payslips"].contains(&kind.as_str()) {
                 return Err(AppError::Validation("Type de document inconnu.".into()));
             }
             serde_json::from_value::<DocumentStyle>(value.clone())?.validate()?;
@@ -119,7 +119,7 @@ impl LocalStore {
     ) -> AppResult<Vec<u8>> {
         let design: DocumentStyle = serde_json::from_value(style)?;
         design.validate()?;
-        if !["quotes", "invoices", "accounts"].contains(&kind) {
+        if !["quotes", "invoices", "accounts", "payslips"].contains(&kind) {
             return Err(AppError::Validation("Type de document inconnu.".into()));
         }
         if !issuer.is_object() {
@@ -131,7 +131,9 @@ impl LocalStore {
             // Preview only registered assets inside this profile, never an arbitrary path.
             self.company_logo_preview(path)?;
         }
-        if kind == "accounts" {
+        if kind == "payslips" {
+            crate::payroll_pdf::design_example(&issuer, &self.attachments_dir.join("branding"))
+        } else if kind == "accounts" {
             crate::financial_pdf::design_example(&issuer)
         } else {
             crate::sales_pdf::design_example(&issuer, kind, &self.attachments_dir.join("branding"))
@@ -186,7 +188,7 @@ mod tests {
             "original file can disappear after import"
         );
         let issuer = json!({"company_name":"Atelier du Léman Sàrl","legal_form":"Sàrl","address_line1":"Rue du Lac 12","postal_code":"1000","city":"Lausanne","country":"CH","vat_registered":true,"uid_number":"CHE-123.456.789","vat_number":"CHE-123.456.789 TVA","logo_path":logo});
-        for kind in ["quotes", "invoices", "accounts"] {
+        for kind in ["quotes", "invoices", "accounts", "payslips"] {
             for (layout, color) in [("signature", "#182b49"), ("minimal", "#d7b878")] {
                 let style = json!({"accentColor":color,"layout":layout,"logoWidth":150,"footer":"Merci pour votre confiance."});
                 let bytes = store
@@ -206,7 +208,9 @@ mod tests {
                         .is_ok_and(|stream| stream.dict.get(b"Subtype").is_ok_and(|value| value
                             .as_name()
                             .is_ok_and(|name| name == b"Image")))));
-                if kind != "accounts" {
+                if kind == "payslips" {
+                    assert!(text.contains("5'336.00"));
+                } else if kind != "accounts" {
                     assert!(text.contains("540.50"));
                     assert!(text.contains("40.50"));
                 } else {

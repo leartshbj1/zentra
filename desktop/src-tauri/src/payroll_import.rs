@@ -1453,7 +1453,7 @@ impl LocalStore {
                         if clean.trim().is_empty() {
                             let mut empty = empty_draft();
                             empty.warnings.push(
-                                    "Ce PDF semble être un scan sans couche texte. Lancez SmolVLM local puis contrôlez chaque champ."
+                                    "Ce PDF semble être un scan sans couche texte. Lancez La lecture locale local puis contrôlez chaque champ."
                                         .into(),
                                 );
                             (String::new(), "pdf_scan_pending", empty, None)
@@ -1479,7 +1479,7 @@ impl LocalStore {
             } else {
                 let mut empty = empty_draft();
                 empty.warnings.push(
-                        "Image prête pour SmolVLM local. Aucun champ ne sera créé avant votre contrôle."
+                        "Image prête pour La lecture locale local. Aucun champ ne sera créé avant votre contrôle."
                             .into(),
                     );
                 (String::new(), "image_pending", empty, None)
@@ -3539,7 +3539,7 @@ mod tests {
             schema_version: ANALYSIS_MANIFEST_SCHEMA_VERSION,
             corroboration_method: "local_visual_read_with_pdf_text".into(),
             corroboration_algorithm_version: CORROBORATION_ALGORITHM_VERSION.into(),
-            model_id: "HuggingFaceTB/SmolVLM-500M-Instruct".into(),
+            model_id: "HuggingFaceTB/La lecture locale-500M-Instruct".into(),
             model_revision: "revision-locale-figee".into(),
             input_sha256: input_sha256.into(),
             analyzed_pages: vec![2, 1, 2],

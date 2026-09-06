@@ -1,5 +1,8 @@
 import { CompanyLogo } from './CompanyLogo';
 import { DocumentDesignStudio } from './DocumentDesignStudio';
+import { EmployeeDocumentImport } from './EmployeeDocumentImport';
+import { SalaryCertificates } from './SalaryCertificates';
+import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 import { documentAppearance, documentStyleVariables } from './documentAppearance';
 import { ReportsScreen } from './ProjectReports';
 import {
@@ -1570,6 +1573,7 @@ export function WorkspaceApp({
             ) : null}
             {view !== 'settings' &&
             view !== 'reports' &&
+            view !== 'team' &&
             view !== 'dashboard' ? (
               <CreateButton
                 view={view}
@@ -4170,6 +4174,7 @@ function TeamScreen({
     searchText([employee.name, employee.role, employee.email], query),
   );
   const [payrollStatus, setPayrollStatus] = useState('all');
+  const [teamSection, setTeamSection] = useState<'employees' | 'payslips' | 'certificates'>('employees');
   const filteredPayslips = useMemo(() => filterPayrollList(workspace.payslips, workspace.employees, query, payrollStatus), [workspace.payslips, workspace.employees, query, payrollStatus]);
   const pageKey = JSON.stringify([query, payrollStatus]);
   const [pagination, setPagination] = useState({ key: pageKey, page: 0 });
@@ -4212,9 +4217,16 @@ function TeamScreen({
     );
   return (
     <div className="stack-layout team-screen">
+      <nav className="team-navigation" aria-label="Équipe et paie">
+        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}>Collaborateurs <span>{workspace.employees.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}>Fiches de salaire <span>{workspace.payslips.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}>Certificats annuels</button>
+      </nav>
+      {teamSection === 'certificates' ? <SalaryCertificates workspace={workspace} disabled={busy} /> : null}
+      {teamSection === 'employees' ? <section className="team-directory">
       <SectionHeading
         title="Collaborateurs"
-        description="Les coûts horaires sont utilisés uniquement lorsqu’ils ont été saisis."
+        description="Votre équipe, ses coordonnées et ses contrats."
         action={
           <Button disabled={busy} onClick={onCreateEmployee}>
             <Plus size={16} /> Nouveau collaborateur
@@ -4282,13 +4294,12 @@ function TeamScreen({
           icon={<Users />}
           title={workspace.employees.length ? 'Aucun collaborateur correspondant' : 'Aucun collaborateur'}
           text={workspace.employees.length ? 'Modifiez votre recherche pour retrouver un collaborateur.' : 'Ajoutez les personnes employées ou suivies.'}
-          actionLabel="Ajouter un collaborateur"
-          onAction={onCreateEmployee}
         />
       )}
+      </section> : null}
+      {teamSection === 'payslips' ?
       <section className="panel payroll-panel">
         <SectionHeading
-          eyebrow="Paie locale assistée"
           title="Fiches de salaire"
           description="Importez les anciennes fiches, contrôlez les données détectées puis générez les suivantes depuis un modèle confirmé."
           action={
@@ -4480,7 +4491,7 @@ function TeamScreen({
           </div>
         ) : null}
         {pageCount > 1 ? <nav className="sales-list-pagination" aria-label="Pages des fiches de salaire"><Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)}>Précédent</Button><span role="status">{page + 1} / {pageCount}</span><Button variant="secondary" disabled={page + 1 === pageCount} onClick={() => changePage(page + 1)}>Suivant</Button></nav> : null}
-      </section>
+      </section> : null}
     </div>
   );
 }
@@ -5127,8 +5138,8 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis et bilan" icon={FileText}>
-        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={() => void execute(() => desktopApi.saveSettings(settings), 'Les présentations des factures, devis et bilans ont été enregistrées.')} />
+      <SettingsCategory lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
+        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={() => void execute(() => desktopApi.saveSettings(settings), 'Les présentations des documents ont été enregistrées.')} />
       </SettingsCategory>
       <SettingsCategory title="Comptabilité" description="Activation et comptes de liaison" icon={Landmark}>
       <section
@@ -6736,15 +6747,30 @@ function EmployeeForm({
     '' | NonNullable<Employee['smallSalarySector']>
   >(item?.smallSalarySector ?? '');
   const [localError, setLocalError] = useState('');
+  const formElement = useRef<HTMLFormElement>(null);
+  const [prefill, setPrefill] = useState<EmployeeDocumentDraft | null>(null);
+  useLayoutEffect(() => {
+    if (!prefill || !formElement.current) return;
+    for (const [name, value] of Object.entries(prefill.fields)) {
+      const input = formElement.current.elements.namedItem(name);
+      if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && !input.value.trim()) input.value = value ?? '';
+    }
+  }, [prefill]);
+  function applyDocument(draft: EmployeeDocumentDraft) {
+    if (!salaryMode && draft.fields.salaryMode === 'monthly') setSalaryMode('monthly');
+    setPrefill(draft);
+  }
+
   return (
     <Modal
       title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
-      description="Aucun salaire, taux ou coût n’est prérempli."
+      description="Renseignez les informations du collaborateur ou importez une fiche existante."
       onClose={close}
       wide
     >
       <form
         className="employee-form"
+        ref={formElement}
         onSubmit={submitForm(async (form) => {
           setLocalError('');
           try {
@@ -6891,6 +6917,8 @@ function EmployeeForm({
         })}
       >
         {localError ? <ErrorPanel message={localError} reveal /> : null}
+        <EmployeeDocumentImport onRead={applyDocument} disabled={busy} />
+        {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{warning}</p>)}</div> : null}
         <div className="form-grid">
           <Field label="Nom complet" required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
@@ -8904,6 +8932,7 @@ function PayslipPrintSheet({
       }
     : payslip;
   const totals = payslipTotals(printedPayslip);
+  const payslipStyle = documentAppearance(settings.documentAppearance).payslips;
 
   useEffect(() => {
     if (frozen) return;
@@ -9035,7 +9064,8 @@ function PayslipPrintSheet({
       {error ? <ErrorPanel message={error} reveal onRetry={() => setContributionReload((value) => value + 1)} /> : null}
       {exportError ? <ErrorPanel message={exportError} reveal /> : null}
       <article
-        className={`print-sheet print-payslip ${frozen ? 'print-payslip--final' : 'print-payslip--review'}`}
+        style={documentStyleVariables(payslipStyle)}
+        className={`print-sheet print-payslip document-design document-design--${payslipStyle.layout} ${frozen ? 'print-payslip--final' : 'print-payslip--review'}`}
       >
         <PrintHeader
           settings={settings}
@@ -9195,6 +9225,7 @@ function PayslipPrintSheet({
         </div>
         <footer className="print-footer">
           <p>{printedPayslip.notes}</p>
+          {payslipStyle.footer ? <p>{payslipStyle.footer}</p> : null}
           <p>
             {frozen
               ? 'Les valeurs et sources ont été figées lors de la comptabilisation.'

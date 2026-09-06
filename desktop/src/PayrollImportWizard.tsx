@@ -30,7 +30,7 @@ import {
 } from './payrollImportAiDraft';
 import { findPotentialPayrollEmployeeDuplicate, findStrongEmployeeMatch } from './payrollEmployeeMatching';
 import { payrollLocalAi, type PayrollAiMode, type PayrollAiProgress } from './payrollLocalAi';
-import { payrollAiGenerationPlan, payrollAiSafePageBatchSize } from './payrollAiGenerationPolicy';
+import { payrollAiSafePageBatchSize } from './payrollAiGenerationPolicy';
 import {
   assertPayrollAnalysisDraftUnchanged,
   payrollAnalysisDraftSnapshot,
@@ -326,15 +326,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       setAiState('unavailable');
       throw new Error('Ni WebGPU ni le repli CPU WebAssembly ne sont disponibles sur cet ordinateur.');
     }
-    setAiState('loading');
-    setAiProgress({ label: 'Téléchargement unique du pack SmolVLM local…', percent: null });
-    const loadedMode = await payrollLocalAi.load();
-    if (loadedMode === 'unavailable') {
-      setAiState('unavailable');
-      throw new Error("Le pack IA local s'est chargé sans runtime utilisable.");
-    }
-    aiModeRef.current = loadedMode;
-    setAiMode(loadedMode);
+    // The worker reads scans first, releases OCR, then loads Qwen.
     aiLoadedRef.current = true;
     setAiState('ready');
   }
@@ -348,7 +340,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       target.id,
       draftRevisions.current[target.id] ?? 0,
     );
-    const mergeBase = target.extractionEngine.startsWith('smolvlm-500m-')
+    const mergeBase = /^(?:smolvlm-500m-|qwen3-0.6b-)/.test(target.extractionEngine)
       ? preparePayrollDraftForAiRerun(targetDraft)
       : cloneDraft(targetDraft);
     await ensureAiLoaded();
@@ -398,14 +390,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       const pageStart = offset + 1;
       const pageEnd = offset + batchImages.length;
       const batchNumber = Math.floor(offset / pageBatchSize) + 1;
-      // A successful first batch can reveal that WebGPU fell back to WASM.
-      // Re-read the effective runtime before each following page so the UI and
-      // strategy label never claim a GPU double-read while the CPU is active.
-      const batchRuntime = aiModeRef.current === 'wasm' ? 'wasm' : 'webgpu';
-      const generationPlan = payrollAiGenerationPlan(batchRuntime);
-      const readingLabel = generationPlan.passes === 2
-        ? 'deux lectures indépendantes · WebGPU'
-        : 'une lecture bornée · CPU/WASM · proposition faible';
+      const readingLabel = 'lecture locale · Qwen';
       setAiProgress({ label: `${queuePrefix}lot ${batchNumber}/${totalBatches} · pages ${pageStart}–${pageEnd} · ${readingLabel}`, percent: Math.round(((batchNumber - 1) / totalBatches) * 100) });
       latestResult = await payrollLocalAi.analyze({
         imageUrls: batchImages,
@@ -425,7 +410,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         analysis: reconcilePayrollAiPasses(
           latestResult.primaryRawOutput,
           latestResult.verifiedRawOutput,
-          { expectedPasses: latestResult.mode === 'wasm' ? 1 : 2 },
+          { expectedPasses: 1 },
         ),
       });
     }
@@ -483,7 +468,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       hasTextLayer: corroboratedAiDraft.hasTextLayer,
     });
     const readingStrategy = analysisPasses === 2 ? 'double-read' : 'single-read';
-    const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `smolvlm-500m-${latestResult.mode}-multipage-${readingStrategy}-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
+    const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `qwen3-0.6b-${latestResult.mode}-multipage-${readingStrategy}-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
     setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
     setAiProvenance((current) => ({ ...current, [saved.id]: payrollAiProvenanceFromManifest(saved.analysisManifest) ?? finalProvenance }));
     setEmployeeLinks((current) => ({ ...current, [saved.id]: employeeId }));
@@ -514,7 +499,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     } catch (reason) {
       aiLoadedRef.current = false;
       setAiState(aiModeRef.current === 'unavailable' ? 'unavailable' : 'error');
-      setLocalError(errorMessage(reason, "L'analyse SmolVLM locale a échoué."));
+      setLocalError(errorMessage(reason, "L'analyse Qwen locale a échoué."));
     }
   }
 
@@ -754,7 +739,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
           <Button type="button" onClick={() => void chooseDocuments()} disabled={staging || aiBusy}>{staging ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Ajouter PDF ou images</Button>
           {imports.length > 1 && pendingAiImports.length ? <Button type="button" variant="secondary" onClick={() => void analyzePendingQueue()} disabled={aiBusy || aiState === 'unavailable'}><Sparkles size={16} /> {batchAnalysis.status === 'cancelled' || batchAnalysis.failures.length ? 'Reprendre la file' : 'Analyser la file'} ({pendingAiImports.length})</Button> : null}
         </div>
-        <div className={`ai-engine-state ai-engine-state--${aiState}`}><BrainCircuit size={17} /><span><strong>SmolVLM 500M · lecture locale adaptative</strong><small>{aiState === 'idle' ? 'Arrêté · démarre seulement quand vous lancez une analyse' : aiState === 'checking' ? 'Vérification de cet ordinateur' : aiState === 'unavailable' ? 'Moteur local indisponible' : aiState === 'available' ? `Pack disponible · ${aiMode === 'webgpu' ? 'deux lectures WebGPU' : 'une lecture CPU bornée'}` : aiState === 'loading' ? `Installation locale · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : aiState === 'analyzing' ? aiMode === 'webgpu' ? 'Deux lectures indépendantes en cours · WebGPU' : 'Lecture bornée en cours · CPU/WASM · contrôle humain renforcé' : aiState === 'ready' ? `Prêt sur cet ordinateur · ${aiMode === 'webgpu' ? 'GPU' : 'CPU'}` : 'Contrôle nécessaire'}</small></span></div>
+        <div className={`ai-engine-state ai-engine-state--${aiState}`}><FileSearch size={17} /><span><strong>Lecture locale des documents</strong><small>{aiState === 'unavailable' ? 'Lecture indisponible sur cet appareil' : aiBusy ? 'Lecture en cours · vous pouvez annuler à tout moment' : 'Qwen · vos documents restent sur votre appareil'}</small></span></div>
       </div>
       {aiBusy ? <div className="ai-progress"><span><i style={{ width: aiProgress.percent === null ? '24%' : `${Math.max(2, Math.min(100, aiProgress.percent))}%` }} /></span><small>{aiProgress.label}{aiProgress.percent === null ? '' : ` · ${Math.round(aiProgress.percent)} %`}</small><Button type="button" variant="ghost" size="small" onClick={cancelAiAnalysis}>Annuler l’analyse</Button></div> : null}
       {batchAnalysis.status !== 'idle' && batchAnalysis.total ? <section className={`payroll-batch-status payroll-batch-status--${batchAnalysis.status}${batchAnalysis.failures.length ? ' has-failures' : ''}`}>
@@ -764,7 +749,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         {batchAnalysis.failures.length ? <ul>{batchAnalysis.failures.map((failure) => <li key={failure.id}><strong>{failure.sourceName}</strong><span>{failure.message}</span></li>)}</ul> : null}
       </section> : null}
       {localError ? <ErrorPanel message={localError} /> : null}
-      {!imports.length ? <section className="payroll-import-empty"><div><Files size={30} /></div><h3>Ajoutez les anciennes fiches de vos employés</h3><p>PDF natifs, scans, PNG, JPG et WEBP. Zentra détecte les doublons, lit d’abord le texte exact puis utilise SmolVLM pour comprendre la mise en page.</p><Button onClick={() => void chooseDocuments()} disabled={staging}><Upload size={16} /> Choisir les documents</Button></section> : active && draft && calculated ? <>
+      {!imports.length ? <section className="payroll-import-empty"><div><Files size={30} /></div><h3>Ajoutez les anciennes fiches de vos employés</h3><p>PDF natifs, scans, PNG, JPG et WEBP. Zentra détecte les doublons, lit d’abord le texte exact puis utilise Qwen pour repérer les informations du collaborateur.</p><Button onClick={() => void chooseDocuments()} disabled={staging}><Upload size={16} /> Choisir les documents</Button></section> : active && draft && calculated ? <>
         <div className="payroll-import-queue">
           <Button variant="ghost" size="icon" disabled={interactionBusy || activeIndex === 0} onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}><ArrowLeft size={17} /></Button>
           <div><strong>{activeIndex + 1} / {imports.length} · {active.sourceName}</strong><small>{(active.fileSize / 1024 / 1024).toLocaleString('fr-CH', { maximumFractionDigits: 1 })} Mo · {hasCompletedLocalPayrollAiAnalysis(active) ? 'IA locale terminée · à vérifier' : active.extractionEngine === 'pdf_text' ? 'texte PDF lu localement' : 'analyse visuelle requise'} · qualité des contrôles {payrollControlQualityLabel(assessment?.scoreBp ?? 0)}</small></div>
@@ -777,8 +762,8 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             <div className="source-hash">{active.fileSha256.slice(0, 20)}…</div>
           </section>
           <section className="payroll-review-pane">
-            <header><div><span>1</span><div><strong>Identité et période</strong><small>Valeurs proposées, toutes modifiables</small></div></div><Button type="button" variant="secondary" size="small" disabled={aiBusy || aiState === 'unavailable'} onClick={() => void analyzeCurrent()}>{aiBusy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />} {active.extractionEngine.startsWith('smolvlm') ? 'Relancer l’IA locale' : 'Analyser avec l’IA locale'}</Button></header>
-            {aiState === 'unavailable' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Le moteur local n’est pas disponible. Vous pouvez quand même contrôler et compléter les données extraites du PDF.</span></div> : aiMode === 'wasm' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Mode CPU local actif : une seule lecture bornée est utilisée pour rester fiable. Toutes ses valeurs restent des propositions faibles à contrôler sur le document original.</span></div> : null}
+            <header><div><span>1</span><div><strong>Identité et période</strong><small>Valeurs proposées, toutes modifiables</small></div></div><Button type="button" variant="secondary" size="small" disabled={aiBusy || aiState === 'unavailable'} onClick={() => void analyzeCurrent()}>{aiBusy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />} {/^(?:smolvlm|qwen3)/.test(active.extractionEngine) ? 'Relancer l’IA locale' : 'Analyser avec l’IA locale'}</Button></header>
+            {aiState === 'unavailable' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Le moteur local n’est pas disponible. Vous pouvez quand même contrôler et compléter les données extraites du PDF.</span></div> : aiMode === 'wasm' ? <div className="inline-warning"><AlertTriangle size={16} /><span>La lecture utilise le mode compatible de cet appareil et peut prendre quelques minutes. Vérifiez les informations proposées sur la fiche originale.</span></div> : null}
             {currentProvenance ? <div className="payroll-evidence-summary"><div><ShieldCheck size={16} /><span><strong>{provenancePages.length} indication{provenancePages.length > 1 ? 's' : ''} de page</strong><small>{currentAnalysisPasses >= 2 ? 'Pages proposées par deux passages du même modèle' : 'Pages proposées par un seul passage JSON exploitable'}</small></span></div><div><FileSearch size={16} /><span><strong>{sourcedLineCount}/{traceableLineCount} rubrique{sourcedLineCount > 1 ? 's' : ''} avec indication</strong><small>Un clic sur « p. » ouvre la page originale à contrôler</small></span></div></div> : null}
             <div className="form-grid payroll-review-fields"><Field label="Collaborateur" required><input value={draft.employee.name} onChange={(event) => patchEmployee({ name: event.target.value })} /></Field><Field label="N° employé"><input value={draft.employee.employeeNumber} onChange={(event) => patchEmployee({ employeeNumber: event.target.value })} /></Field><Field label="Fonction"><input value={draft.employee.role} onChange={(event) => patchEmployee({ role: event.target.value })} /></Field><Field label="Taux d’activité (%)" required><input type="number" min="1" max="100" value={draft.employee.employmentRate} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], employmentRate: true } })); patchEmployee({ employmentRate: Math.min(100, Math.max(1, event.target.valueAsNumber || 100)) }); }} /></Field><Field label="Période" required><input type="month" value={draft.period} onChange={(event) => updateDraft((current) => ({ ...current, period: event.target.value }))} /></Field><Field label="Date de paiement"><input type="date" value={draft.paymentDate} onChange={(event) => updateDraft((current) => ({ ...current, paymentDate: event.target.value }))} /></Field><Field label="N° AVS"><input value={draft.employee.avsNumber} onChange={(event) => patchEmployee({ avsNumber: event.target.value })} /></Field><Field label="IBAN de l’employé"><input value={draft.employee.iban} onChange={(event) => patchEmployee({ iban: event.target.value })} /></Field><Field label="Rue" wide><input value={draft.employee.addressLine1} onChange={(event) => patchEmployee({ addressLine1: event.target.value })} /></Field><Field label="Complément"><input value={draft.employee.addressLine2} onChange={(event) => patchEmployee({ addressLine2: event.target.value })} /></Field><Field label="NPA"><input value={draft.employee.postalCode} onChange={(event) => patchEmployee({ postalCode: event.target.value })} /></Field><Field label="Localité"><input value={draft.employee.city} onChange={(event) => patchEmployee({ city: event.target.value })} /></Field><Field label="Canton"><input maxLength={2} value={draft.employee.canton} onChange={(event) => patchEmployee({ canton: event.target.value.toUpperCase() })} /></Field><Field label="Mode de salaire"><select value={draft.employee.salaryMode} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], salaryMode: true } })); patchEmployee({ salaryMode: event.target.value as PayrollImportEmployeeDraft['salaryMode'] }); }}><option value="monthly">Mensuel</option><option value="hourly">Horaire</option></select></Field></div>
             <header className="payroll-lines-heading"><div><span>2</span><div><strong>Rubriques et montants</strong><small>L’IA ne choisit aucun taux légal à votre place</small></div></div><Button type="button" variant="secondary" size="small" onClick={() => updateDraft((current) => ({ ...current, lines: [...current.lines, { id: createId(), label: '', kind: 'earning', amountCents: 0, recurring: false, confidenceBp: 10_000 }] }))}><Plus size={14} /> Ajouter</Button></header>
@@ -793,7 +778,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             {duplicateCreationRisk ? <p className="link-note link-note--error">Création bloquée : {potentialDuplicate?.reason} Sélectionnez ce profil dans la liste; Zentra ne rattache jamais une personne sur son nom seul.</p> : null}
             {linkedEmployeeId ? <p className={linkedIdentityMismatch ? 'link-note link-note--error' : 'link-note'}>{linkedIdentityMismatch ? 'Rattachement bloqué : au moins un identifiant fort du document (AVS, numéro employé ou naissance) diffère du collaborateur sélectionné.' : 'Le profil et le modèle salarial actuels du collaborateur sont préservés par défaut. La fiche historique sera seulement ajoutée à la période indiquée.'}</p> : null}
             {existingTemplate && hasRecurringEarnings ? <label className={`review-confirmation ${replaceTemplates[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(replaceTemplates[active.id])} onChange={(event) => { setReplaceTemplates((current) => ({ ...current, [active.id]: event.target.checked })); setReviewed((current) => ({ ...current, [active.id]: false })); }} /><span><strong>Remplacer explicitement le modèle salarial actuel</strong><small>Les gains marqués « Récurrent » dans cette fiche historique deviendront le nouveau modèle. Cette action est facultative et ne se fera jamais automatiquement.</small></span></label> : existingTemplate ? <p className="link-note">Aucun gain récurrent contrôlé n’a été identifié : le modèle salarial actuel ne peut pas être remplacé depuis cette fiche.</p> : null}
-            <label className={`review-confirmation ${reviewed[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(reviewed[active.id])} onChange={(event) => setReviewed((current) => ({ ...current, [active.id]: event.target.checked }))} /><span><strong>J’ai comparé les champs et montants au document original</strong><small>Je comprends que SmolVLM peut se tromper et qu’aucune cotisation manquante ne sera inventée.</small></span></label>
+            <label className={`review-confirmation ${reviewed[active.id] ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(reviewed[active.id])} onChange={(event) => setReviewed((current) => ({ ...current, [active.id]: event.target.checked }))} /><span><strong>J’ai comparé les champs et montants au document original</strong><small>Je comprends que Qwen peut se tromper et qu’aucune cotisation manquante ne sera inventée.</small></span></label>
           </section>
         </div>
         <footer className="payroll-import-actions"><Button type="button" variant="ghost" onClick={() => void rejectCurrent()} disabled={interactionBusy}><Trash2 size={15} /> Écarter ce document</Button><span /><Button type="button" variant="secondary" onClick={() => void persistAndClose()} disabled={interactionBusy}>{savingDrafts ? <LoaderCircle className="spin" size={16} /> : null} Continuer plus tard</Button><Button type="button" onClick={() => void confirmCurrent()} disabled={!reviewed[active.id] || !arithmeticOk || linkedIdentityMismatch || duplicateCreationRisk || interactionBusy}>{confirming ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />} Confirmer et créer à contrôler</Button></footer>

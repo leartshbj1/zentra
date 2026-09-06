@@ -15,14 +15,44 @@
   .sidebar__brand small { margin-top: 7px; color: #b9c9bf; font-size: 12px; }
   .sidebar__nav { margin-top: 8px; }
   .sidebar__nav > div > p { margin-block: 24px 9px; font-size: 11px; letter-spacing: .09em; font-weight: 500; }
-  .sidebar__nav button { min-height: 45px; margin-block: 3px; border-radius: 6px; gap: 12px; font-size: 14px; font-weight: 500; }
+  .sidebar__nav button { min-height: 45px; margin-block: 2px; border: 1px solid transparent; border-radius: 5px; gap: 12px; font-size: 14px; font-weight: 450; color: #d1ded5; transition: background-color 140ms ease, color 140ms ease; }
+  .sidebar__nav button:hover:not(.is-active) { background: #ffffff09; color: #fff; transform: none; }
   .sidebar__nav button > svg { flex-shrink: 0; stroke-width: 1.6; }
   .sidebar__nav button.is-active,
   .sidebar__nav button.is-active:hover,
-  .sidebar__nav button.is-active:focus { background: #edf3ed; color: #183c2c; box-shadow: inset 3px 0 #e4a54c; }
+  .sidebar__nav button.is-active:focus { background: #e3ece3; color: #18372a; box-shadow: none; border-color: transparent; font-weight: 600; transform: none; }
+  .sidebar__nav button:focus-visible { outline: 2px solid #e4a54c; outline-offset: 3px; }
   .sidebar__nav button.is-active > svg { color: currentColor; filter: none; transform: none; }
   .sidebar__nav button.is-active::after { display: none; }
   .sidebar__nav button em { margin-left: auto; }
+  .team-navigation { display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .team-navigation button { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 14px 0; min-height: 48px; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; transition: color 140ms ease, border-color 140ms ease; }
+  .team-navigation button[aria-pressed=true] { color: #234c36; border-color: #234c36; font-weight: 600; }
+  .team-navigation button span { margin-left: 7px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .team-navigation button:focus-visible { outline: 2px solid #b88640; outline-offset: -2px; }
+  .team-directory { min-width: 0; }
+  .team-directory .employee-grid { display: block; border-top: 1px solid var(--line); }
+  .team-directory .employee-card { display: flex; flex-direction: row; align-items: center; gap: 18px; padding: 22px 0; background: transparent; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; box-shadow: none; }
+  .team-directory .employee-card__avatar { flex: 0 0 42px; height: 42px; width: 42px; border-radius: 50%; background: #e6ece6; color: #375441; font-size: 13px; font-weight: 500; }
+  .team-directory .employee-card__main { flex: 1; min-width: 0; }
+  .team-directory .employee-card__main h3 { font-size: 16px; font-weight: 550; letter-spacing: -.015em; }
+  .team-directory .employee-card__main > div { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 9px; }
+  .team-directory .employee-card__main > div span { font-size: 12px; color: var(--muted); }
+  .team-directory .employee-card footer { border: 0; padding: 0; margin: 0; display: flex; align-items: center; gap: 6px; }
+  .team-screen > .payroll-panel { background: transparent; padding: 0; }
+  @media (max-width: 600px) {
+    .team-navigation { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; overflow: visible; align-items: stretch; }
+    .team-navigation button { white-space: normal; font-size: 13px; line-height: 1.4; padding: 12px 0; }
+    .team-navigation button span { display: block; margin: 3px 0 0; }
+    .team-directory .employee-card { flex-wrap: wrap; gap: 12px; }
+    .team-directory .employee-card footer { margin-left: 54px; width: calc(100% - 54px); }
+    .team-directory .employee-card footer .status-badge { margin-right: auto; }
+    .team-directory .section-heading { align-items: start; flex-direction: column; gap: 16px; }
+    .team-directory .section-heading__action, .team-directory .section-heading__action > button { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar__nav button, .team-navigation button { transition: none; }
+  }
   .sidebar__local { border: 0; border-top: 1px solid #365044; background: transparent; padding: 18px 6px 6px; border-radius: 0; }
   .sidebar__local strong, .sidebar__local span { font-size: 12px; }
   .sidebar > .button { color: #d7e7dc; font-size: 13px; justify-content: flex-start; padding-inline: 12px; }

@@ -1,4 +1,5 @@
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
+import type { CertificateDraft, CertificateInput } from './salaryCertificate';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
 function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
@@ -4856,6 +4857,19 @@ export const desktopApi = {
     const selected = await chooseSaveFile({ title: 'Exporter un exemple de présentation', defaultPath: `Zentra-exemple-${input.kind}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
     if (!selected) return null;
     const path = await invoke<string>('export_document_design_example', { ...input, destination: pdfDestinationPath(selected) });
+    await shareMobileExport(path);
+    return path;
+  },
+  salaryCertificateDraft(employeeId: string, year: number) {
+    return invoke<CertificateDraft>('salary_certificate_draft', { employeeId, year });
+  },
+  salaryCertificatePreview(input: CertificateInput) {
+    return invoke<number[]>('salary_certificate_preview', { input });
+  },
+  async exportSalaryCertificate(input: CertificateInput) {
+    const selected = await chooseSaveFile({ title: 'Exporter le certificat de salaire', defaultPath: `Certificat-salaire-${input.year}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    if (!selected) return null;
+    const path = await invoke<string>('export_salary_certificate', { input, destination: pdfDestinationPath(selected) });
     await shareMobileExport(path);
     return path;
   },

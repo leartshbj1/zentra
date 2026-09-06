@@ -6,7 +6,7 @@ import type { AppSettings } from './types';
 import { Button } from './ui';
 import './DocumentDesignStudio.css';
 
-const labels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan' };
+const labels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan', payslips: 'Fiches de salaire' };
 const colors = ['#134d33', '#182b49', '#793c32', '#66523f', '#563d73', '#242424', '#d7b878'];
 export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
   settings: AppSettings; busy: boolean; onChange: (settings: AppSettings) => void; onSave: () => void;
@@ -59,7 +59,7 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
         <label>Une phrase en pied de page<input value={style.footer} maxLength={100} disabled={busy} placeholder="Merci pour votre confiance." onChange={event => patch({ footer: event.target.value })} /><small>{style.footer.length}/100 caractères · les mentions obligatoires restent présentes.</small></label>
         <Button className="design-studio__jump" variant="secondary" onClick={() => previewElement.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>Voir le résultat</Button>
         <div className="design-studio__actions"><Button disabled={busy || !!error} onClick={onSave}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button><Button variant="ghost" disabled={busy} onClick={() => patch({ ...defaultDocumentStyle })}><RotateCcw size={15} /> Réinitialiser {labels[kind].toLowerCase()}</Button></div>
-        <p className="design-studio__hint">Les réglages s’appliquent aux brouillons et aux prochains documents. Chaque devis ou facture émis conserve sa présentation.</p>
+        <p className="design-studio__hint">Les réglages s’appliquent aux brouillons et aux prochains documents. Les documents émis et les fiches comptabilisées conservent leur présentation.</p>
         {notice && <p role="status">{notice}</p>}
       </div>
       <div ref={previewElement} className="design-studio__preview" aria-label={`Exemple ${labels[kind]}`} aria-busy={loading && !error}>

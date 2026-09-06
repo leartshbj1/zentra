@@ -1,3 +1,6 @@
-export const PAYROLL_AI_MODEL_ID = 'HuggingFaceTB/SmolVLM-500M-Instruct';
-export const PAYROLL_AI_MODEL_REVISION = 'a7da5b986cb59b408707209984f360a5f4ad7e47';
-
+export const PAYROLL_AI_MODEL_ID = 'ggml-org/Qwen3-0.6B-GGUF';
+export const PAYROLL_AI_MODEL_REVISION = 'b5f37287796e5be0ea3dab2e7430873fb3f73e49';
+export const PAYROLL_AI_MODEL_FILE = 'Qwen3-0.6B-Q4_0.gguf';
+export const PAYROLL_AI_MODEL_BYTES = 428_970_080;
+export const PAYROLL_AI_MODEL_SHA256 = 'da2572f16c06133561ce56accaa822216f2391ef4d37fba427801cd6736417d4';
+export const PAYROLL_AI_MODEL_URL = `https://huggingface.co/${PAYROLL_AI_MODEL_ID}/resolve/${PAYROLL_AI_MODEL_REVISION}/${PAYROLL_AI_MODEL_FILE}`;

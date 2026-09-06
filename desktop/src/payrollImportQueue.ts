@@ -6,7 +6,7 @@ export function hasCompletedLocalPayrollAiAnalysis(item: PayrollDocumentImport) 
   const hasCompletePageCoverage = expectedPageCount >= 1
     && manifest?.analyzedPages.length === expectedPageCount
     && manifest.analyzedPages.every((page, index) => page === index + 1);
-  return item.extractionEngine.startsWith('smolvlm-500m-')
+  return /^(?:smolvlm-500m-|qwen3-0.6b-)/.test(item.extractionEngine)
     && (manifest?.schemaVersion === 1 || manifest?.schemaVersion === 2)
     && manifest.passes >= 1
     && hasCompletePageCoverage
