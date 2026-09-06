@@ -17,7 +17,10 @@
   .sidebar__nav > div > p { margin-block: 24px 9px; font-size: 11px; letter-spacing: .09em; font-weight: 500; }
   .sidebar__nav button { min-height: 45px; margin-block: 3px; border-radius: 6px; gap: 12px; font-size: 14px; font-weight: 500; }
   .sidebar__nav button > svg { flex-shrink: 0; stroke-width: 1.6; }
-  .sidebar__nav button.is-active { background: #ffffff12; color: #fff; box-shadow: inset 2px 0 #e4a54c; }
+  .sidebar__nav button.is-active,
+  .sidebar__nav button.is-active:hover,
+  .sidebar__nav button.is-active:focus { background: #edf3ed; color: #183c2c; box-shadow: inset 3px 0 #e4a54c; }
+  .sidebar__nav button.is-active > svg { color: currentColor; filter: none; transform: none; }
   .sidebar__nav button.is-active::after { display: none; }
   .sidebar__nav button em { margin-left: auto; }
   .sidebar__local { border: 0; border-top: 1px solid #365044; background: transparent; padding: 18px 6px 6px; border-radius: 0; }
@@ -79,6 +82,17 @@
   .sales-tabs button, .tab-strip button { min-height: 44px; border-radius: 4px; font-size: 14px; font-weight: 500; }
   .sales-tabs button.is-active, .tab-strip button.is-active { background: #fff; color: #173d2c; box-shadow: 0 1px 4px #173d2c08; border-color: transparent; }
   .sales-list-toolbar { background: #fff; padding: 18px 22px; }
+  .sales-documents .sales-list-toolbar { display: grid; grid-template-columns: minmax(140px, 220px) minmax(220px, 280px) 1fr; align-items: end; gap: 16px; }
+  .sales-documents .sales-list-toolbar label { display: flex; flex-direction: column; align-items: stretch; gap: 7px; }
+  .sales-documents .sales-list-toolbar select { width: 100%; min-width: 0; }
+  .sales-documents .sales-list-toolbar > span { text-align: right; padding-bottom: 13px; }
+  @media (max-width: 1100px) {
+    .sales-documents .sales-list-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .sales-documents .sales-list-toolbar > span { grid-column: 1 / -1; padding-bottom: 0; text-align: left; }
+  }
+  @media (max-width: 540px) {
+    .sales-documents .sales-list-toolbar { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 12px; }
+  }
   .table-panel th { background: #f5f7f5; color: var(--muted); font-size: 12px; font-weight: 500; padding-block: 15px; }
   .table-panel td { padding-block: 20px; }
   .sales-document__identity strong { font-size: 15px; font-weight: 550; }

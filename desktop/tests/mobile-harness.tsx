@@ -84,11 +84,11 @@ desktopApi.deleteProjectDocument = async (id) => { data.attachments = data.attac
 desktopApi.readProjectDocument = async (id) => btoa(await storedFiles.get(id)!.text());
 desktopApi.saveDocument = async (entity, input, lines, existing) => {
   const id = existing?.id || crypto.randomUUID();
-  const document = { ...input, id, lines, status: 'draft', number: '', createdAt: new Date().toISOString() };
+  const document = { ...input, id, lines, status: 'draft', number: '', createdAt: existing?.createdAt || new Date().toISOString() };
   data[entity] = [...data[entity].filter((item) => item.id !== id), document] as never;
   return structuredClone(data);
 };
-if (['finance', 'browsing', 'volume'].some((name) => new URLSearchParams(location.search).has(name))) installFinanceFixture(data);
+if (['finance', 'browsing', 'volume', 'documentOrder'].some((name) => new URLSearchParams(location.search).has(name))) installFinanceFixture(data);
 if (new URLSearchParams(location.search).has('closing')) installClosingFixture();
 if (new URLSearchParams(location.search).has('payroll')) installPayrollFixture(data);
 if (new URLSearchParams(location.search).has('browsing')) {
@@ -112,6 +112,18 @@ if (new URLSearchParams(location.search).has('browsing')) {
 }
 if (new URLSearchParams(location.search).has('volume')) {
   data.invoices = Array.from({ length: 80 }, (_, index) => ({ ...structuredClone(data.invoices[0]), id: `volume-${index}`, number: `F-2026-${String(index + 1).padStart(4, '0')}`, title: `Prestation ${index + 1}` }));
+}
+if (new URLSearchParams(location.search).has('documentOrder')) {
+  for (const entity of ['quotes', 'invoices'] as const) {
+    const template = data[entity][0];
+    data[entity] = Array.from({ length: 32 }, (_, index) => ({
+      ...structuredClone(template), id: `${entity}-order-${index}`, number: `${entity === 'quotes' ? 'D' : 'F'}-2026-${String(index + 1).padStart(4, '0')}`,
+      title: `Document de recette ${index + 1}`, status: index % 2 ? 'issued' : 'draft',
+      createdAt: new Date(Date.UTC(2026, 8, 6, 8, index)).toISOString(),
+      // Deliberately unrelated to creation order, including backdated documents.
+      issueDate: new Date(Date.UTC(2026, 0, ((index * 7) % 32) + 1)).toISOString().slice(0, 10),
+    })) as never;
+  }
 }
 if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
 if (new URLSearchParams(location.search).has('bankExpenses')) installBankExpenseFixture(() => data);

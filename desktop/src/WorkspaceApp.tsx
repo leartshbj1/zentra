@@ -79,7 +79,7 @@ import { useWorkspaceRecovery } from './useWorkspaceRecovery';
 import { WorkspaceRecoveryDialog } from './WorkspaceRecoveryDialog';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark, CompanyAvatar } from './BrandMark';
-import { newestDocumentsFirst } from './documentOrder';
+import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOrder, sortDocuments, type DocumentOrder } from './documentOrder';
 import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesDocumentList';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
 import type { AgendaEventDraft } from './AgendaScreen';
@@ -3273,7 +3273,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   let entity: 'quotes' | 'invoices' = sourceProps.entity;
   const { workspace, query, busy, readOnly, onCreate } = sourceProps;
   const mutationsDisabled = busy || readOnly;
-  const documents = useMemo(() => newestDocumentsFirst<Quote | Invoice>(entity === 'quotes' ? workspace.quotes : workspace.invoices), [entity, workspace.quotes, workspace.invoices]);
+  const [orders, setOrders] = useState(() => ({ quotes: readDocumentOrder('quotes'), invoices: readDocumentOrder('invoices') }));
+  const order = orders[entity];
+  const documents = useMemo(() => sortDocuments<Quote | Invoice>(entity === 'quotes' ? workspace.quotes : workspace.invoices, order), [entity, workspace.quotes, workspace.invoices, order]);
   const clientsById = useMemo(() => new Map(workspace.clients.map((client) => [client.id, client])), [workspace.clients]);
   const [statuses, setStatuses] = useState({ quotes: 'all', invoices: 'all' });
   const status = statuses[entity];
@@ -3281,7 +3283,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     matchesSalesDocumentSearch(document, [clientsById.get(document.clientId)?.company, clientsById.get(document.clientId)?.name].filter(Boolean).join(' '), query)
     && matchesSalesDocumentStatus(document, status, workspace.invoices, workspace.payments, todayIso()),
   );
-  const pageKey = JSON.stringify([entity, status, query]);
+  const pageKey = JSON.stringify([entity, status, query, order]);
   const [pagination, setPagination] = useState({ key: pageKey, page: 0 });
   const pageCount = Math.max(1, Math.ceil(filtered.length / 25));
   const page = pagination.key === pageKey ? Math.min(pagination.page, pageCount - 1) : 0;
@@ -3301,7 +3303,14 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
       {entity === 'invoices' ? <><option value="open">À encaisser</option><option value="overdue">En retard</option><option value="partially_paid">Partiellement payées</option><option value="paid">Payées</option></> : <><option value="accepted">Acceptés</option><option value="refused">Refusés</option><option value="expired">Expirés</option></>}
       <option value="draft">Brouillons</option><option value="issued">Émis</option><option value="cancelled">Annulés</option>
     </select></label>
-    <span role="status">{filtered.length} / {documents.length} · Plus récents d’abord</span>
+    <label><span>Classer par</span><select aria-label={entity === 'quotes' ? 'Classement des devis' : 'Classement des factures'} value={order} onChange={(event) => {
+      const next = event.target.value as DocumentOrder;
+      setOrders({ ...orders, [entity]: next });
+      saveDocumentOrder(entity, next);
+    }}>
+      {Object.entries(documentOrders).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+    </select></label>
+    <span role="status">{filtered.length} / {documents.length} {entity === 'quotes' ? 'devis' : 'factures'}</span>
   </div>;
   if (!documents.length) {
     return (
