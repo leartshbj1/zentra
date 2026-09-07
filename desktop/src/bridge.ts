@@ -8,6 +8,7 @@ function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
 }
 import { fileBase64 } from './projectDocuments';
 import type { ProjectSyncStatus } from './projectSync';
+import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
@@ -4754,6 +4755,12 @@ export const desktopApi = {
   },
   getProjectSyncStatus: () => invoke<ProjectSyncStatus>('get_project_sync_status'),
   syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
+  getCloudBackupState: () => invoke<CloudBackupState>('get_cloud_backup_state'),
+  runCloudBackup: (manual: boolean) => invoke<CloudBackupState>('run_cloud_backup', { manual }),
+  setCloudBackupEnabled: (enabled: boolean) => invoke<CloudBackupState>('set_cloud_backup_enabled', { enabled }),
+  deleteCloudBackup: (backupId: string) => invoke<void>('delete_cloud_backup', { backupId }),
+  cancelCloudBackup: () => invoke<void>('cancel_cloud_backup'),
+  async restoreCloudBackup(backupId: string) { await invoke<void>('restore_cloud_backup', { backupId }); return loadWorkspace(); },
   async startCloudAccountLink(): Promise<CloudAccountState> {
     return cloudAccountStateFromRaw(
       await invoke<RawRecord>('start_cloud_account_link'),

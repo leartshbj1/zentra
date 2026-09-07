@@ -587,7 +587,7 @@ impl LocalStore {
         )
     }
 
-    fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
+    pub(crate) fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -633,9 +633,9 @@ impl LocalStore {
         for entry in WalkDir::new(&self.attachments_dir)
             .follow_links(false)
             .into_iter()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_file())
         {
+            let entry = entry.map_err(|_| AppError::Validation("Une pièce jointe est inaccessible. La sauvegarde complète n’a pas été créée.".into()))?;
+            if !entry.file_type().is_file() { continue; }
             let relative = entry
                 .path()
                 .strip_prefix(&self.attachments_dir)
@@ -663,8 +663,9 @@ impl LocalStore {
         let backup = Backup::new(&source, &mut target)?;
         backup.run_to_completion(16, Duration::from_millis(20), None)?;
         drop(backup);
+        target.execute_batch("PRAGMA secure_delete=ON;")?;
         target.execute("DELETE FROM license_state", [])?;
-        target.execute_batch("PRAGMA journal_mode=DELETE;")?;
+        target.execute_batch("PRAGMA journal_mode=DELETE; VACUUM;")?;
         Ok(())
     }
 

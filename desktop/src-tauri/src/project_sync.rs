@@ -53,6 +53,9 @@ pub fn get_project_sync_status(state: State<'_, LocalStore>) -> Result<Value, St
 #[tauri::command]
 pub async fn sync_project_documents(state: State<'_, LocalStore>) -> Result<Value, String> {
     let store = state.inner().clone();
+    if crate::cloud_backup::is_restoring() {
+        return store.project_sync_status().map_err(command_error);
+    }
     if SYNCING
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_err()

@@ -1,5 +1,7 @@
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
+import { useCloudBackupBackground } from './cloudBackup';
+import { CloudBackupPanel } from './CloudBackupPanel';
 import { DocumentDesignStudio } from './DocumentDesignStudio';
 import { EmployeeDocumentImport } from './EmployeeDocumentImport';
 import { SalaryCertificates } from './SalaryCertificates';
@@ -452,6 +454,7 @@ export function WorkspaceApp({
   const [orderToOpenId, setOrderToOpenId] = useState<string | null>(null);
   const [supplierCreditToOpenId,setSupplierCreditToOpenId]=useState<string|null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  useCloudBackupBackground((message) => setNotice({ tone: 'error', text: message }));
   function openExpenseSource(expenseId: string) {
     const expense = workspace.expenses.find((item) => item.id === expenseId);
     if (expense) setModal({ type: 'legacyExpenseDetail', expense });
@@ -5078,6 +5081,8 @@ function SettingsScreen({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={`Retirer le taux TVA de ${(rate / 100).toLocaleString('fr-CH')} %`}
+                title="Retirer ce taux de la liste"
                 onClick={() =>
                   setSettings((current) => ({
                     ...current,
@@ -5730,6 +5735,10 @@ function SettingsScreen({
       </SettingsCategory>
       <SettingsCategory title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <AppUpdater />
+      <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
+        const next = await desktopApi.restoreCloudBackup(id);
+        onWorkspace(next); setSettings(next.settings!);
+      }} />
       <section
         id={SETTINGS_READINESS_TARGETS.backup}
         className="panel settings-card settings-scroll-target"

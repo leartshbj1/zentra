@@ -184,6 +184,7 @@ export function App() {
         onRestore={async (path: string) =>
           setWorkspace(await desktopApi.restoreBackup(path))
         }
+        onCloudRestore={async (id: string) => setWorkspace(await desktopApi.restoreCloudBackup(id))}
       />
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />

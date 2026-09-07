@@ -150,6 +150,11 @@
   .document-preview__export .button { width: auto; min-height: 44px; }
   .document-preview__outline { padding-block: 3px; }
 }
+@media screen and (max-width: 480px) and (max-height: 600px) {
+  .document-preview__export { flex-direction: column; gap: 6px; }
+  .document-preview__export > span { width: 100%; }
+  .document-preview__export .button { width: 100%; }
+}
 @media screen and (prefers-reduced-motion: no-preference) {
   .document-preview { animation: experience-fade-in 180ms ease-out; }
   .document-preview__canvas { animation: experience-document-in 260ms var(--ease-ui); }

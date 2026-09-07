@@ -6,6 +6,25 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+export const workspaceBackups = sqliteTable('workspace_backups', {
+  backupId: text('backup_id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  installationId: text('installation_id').notNull(),
+  createdBy: text('created_by').notNull(),
+  manifestJson: text('manifest_json').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  state: text('state').notNull(),
+  createdAt: text('created_at').notNull(),
+  completedAt: text('completed_at'),
+}, (table) => [index('workspace_backups_org_created').on(table.organizationId, table.createdAt)]);
+
+export const workspaceBackupChunks = sqliteTable('workspace_backup_chunks', {
+  backupId: text('backup_id').notNull().references(() => workspaceBackups.backupId),
+  chunkIndex: integer('chunk_index').notNull(),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+}, (table) => [uniqueIndex('workspace_backup_chunk_identity').on(table.backupId, table.chunkIndex)]);
+
 export const projectDocumentEvents = sqliteTable('project_document_events', {
   sequence: integer('sequence').primaryKey({ autoIncrement: true }),
   organizationId: text('organization_id').notNull().references(() => organizations.organizationId),

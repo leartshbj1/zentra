@@ -32,8 +32,13 @@ const sections = [
   },
   {
     icon: Cloud,
+    title: 'Sauvegarde complète distante sur option',
+    text: 'Dans les versions proposant le coffre de sauvegardes, le titulaire ou un administrateur peut envoyer une copie complète de la base et des pièces jointes, notamment les salaires. La copie quotidienne doit être activée explicitement ; elle s’exécute lorsque l’application est ouverte et connectée. Les secrets de connexion et la licence propre à l’appareil sont exclus. Le coffre privé conserve les copies jusqu’à leur suppression par un administrateur, dans la limite de 50 copies, 10 Go par entreprise et 512 Mo par copie. La restauration remplace les données de l’appareil après confirmation et conserve d’abord une copie locale de sécurité. Il ne s’agit pas d’une fusion du travail de plusieurs appareils.',
+  },
+  {
+    icon: Cloud,
     title: 'Prestataires techniques',
-    text: 'Supabase fournit l’authentification depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site ; D1/R2 sont utilisés par certaines routes de compte, les PDF archivés sur demande et les fichiers privés des projets synchronisés.',
+    text: 'Supabase fournit l’authentification depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site ; D1/R2 sont utilisés par certaines routes de compte, les PDF archivés sur demande, les fichiers privés des projets synchronisés et les sauvegardes complètes distantes activées par l’entreprise. La région du projet Supabase ne constitue pas une garantie de localisation des données D1/R2 en Suisse.',
   },
 ];
 

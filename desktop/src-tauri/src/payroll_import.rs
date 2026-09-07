@@ -1203,12 +1203,35 @@ fn read_verified_managed_payroll_copy(
     stored_path: &str,
     expected_sha256: &str,
 ) -> AppResult<(PathBuf, Vec<u8>)> {
-    let canonical_path = fs::canonicalize(PathBuf::from(stored_path))?;
+    // Immutable analysis proofs keep the historical path. Resolve only the
+    // managed UUID filename inside this installation, including after a restore
+    // between Windows and macOS/iOS/Android; never read the old machine's path.
+    let normalized = stored_path.replace('\\', "/");
+    if normalized.split('/').any(|part| part == "..") {
+        return Err(AppError::UnsafePath(PathBuf::from(stored_path)));
+    }
+    let mut components = normalized.rsplit('/');
+    let file_name = components.next().unwrap_or_default();
+    let managed_folder = components.next().unwrap_or_default();
+    let valid_name = file_name.rsplit_once('.').is_some_and(|(stem, extension)| {
+        Uuid::parse_str(stem).is_ok_and(|id| id.to_string() == stem)
+            && PayrollDocumentType::from_extension(extension).is_some()
+    });
+    if managed_folder != "payroll-imports" || !valid_name {
+        return Err(AppError::UnsafePath(PathBuf::from(stored_path)));
+    }
+    let canonical_path = fs::canonicalize(attachments_dir.join("payroll-imports").join(file_name))?;
     let canonical_root = fs::canonicalize(attachments_dir)?;
     if !canonical_path.starts_with(&canonical_root) {
         return Err(AppError::UnsafePath(canonical_path));
     }
-    let bytes = fs::read(&canonical_path)?;
+    use std::io::Read;
+    let file = fs::File::open(&canonical_path)?;
+    if file.metadata()?.len() > MAX_FILE_BYTES {
+        return Err(AppError::Validation("Le document local dépasse la limite de 25 Mo.".into()));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_FILE_BYTES + 1).read_to_end(&mut bytes)?;
     if bytes.is_empty() || bytes.len() as u64 > MAX_FILE_BYTES {
         return Err(AppError::Validation(
             "Le document local est vide ou dépasse la limite de 25 Mo.".into(),
@@ -4037,7 +4060,7 @@ mod tests {
         let stored_path = store
             .attachments_dir
             .join("payroll-imports")
-            .join("import-proof.pdf");
+            .join("81aece69-6fb7-4466-a340-b0c8f7292714.pdf");
         fs::create_dir_all(stored_path.parent().expect("payroll import parent"))
             .expect("create payroll import parent");
         fs::write(&stored_path, &document_bytes).expect("managed document copy");
@@ -4457,6 +4480,37 @@ mod tests {
             )
             .expect("manifest after repairs");
         assert_eq!(manifest_after_repairs.as_deref(), Some(preserved_manifest));
+    }
+
+    #[test]
+    fn restored_salary_document_uses_the_new_installation_without_rewriting_its_proof() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = LocalStore::initialize(temporary.path().join("old-profile")).unwrap();
+        source.connect().unwrap().execute(
+            "INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Entreprise locale','2026-09-08','2026-09-08')", [],
+        ).unwrap();
+        let input = temporary.path().join("fiche.png");
+        let bytes = png_with_declared_dimensions(1, 1);
+        fs::write(&input, &bytes).unwrap();
+        let staged = source.stage_payroll_documents(StagePayrollDocumentsInput { paths: vec![input.to_string_lossy().into_owned()] }).unwrap();
+        let id = staged["imports"][0]["id"].as_str().unwrap();
+        let previous_path: String = source.connect().unwrap().query_row("SELECT stored_path FROM payroll_document_imports WHERE id=?", [id], |row| row.get(0)).unwrap();
+        let archive = source.create_backup(None, env!("CARGO_PKG_VERSION")).unwrap();
+        let target = LocalStore::initialize(temporary.path().join("new-profile")).unwrap();
+        target.restore_backup(&archive, env!("CARGO_PKG_VERSION")).unwrap();
+        fs::remove_file(&previous_path).unwrap();
+        target.payroll_document_preview(id).unwrap();
+        let restored_path: String = target.connect().unwrap().query_row("SELECT stored_path FROM payroll_document_imports WHERE id=?", [id], |row| row.get(0)).unwrap();
+        assert_eq!(restored_path, previous_path);
+        let hash = format!("{:x}", Sha256::digest(&bytes));
+        let file_name = Path::new(&previous_path).file_name().unwrap().to_str().unwrap();
+        for path in [format!("C:\\old\\attachments\\payroll-imports\\{file_name}"), format!("/old/attachments/payroll-imports/{file_name}")] {
+            let (local, restored) = read_verified_managed_payroll_copy(&target.attachments_dir, &path, &hash).unwrap();
+            assert!(local.starts_with(fs::canonicalize(&target.attachments_dir).unwrap()));
+            assert_eq!(restored, bytes);
+        }
+        assert!(read_verified_managed_payroll_copy(&target.attachments_dir, &format!("../payroll-imports/{file_name}"), &hash).is_err());
+        assert!(read_verified_managed_payroll_copy(&target.attachments_dir, &format!("/unmanaged/{file_name}"), &hash).is_err());
     }
 
     #[test]

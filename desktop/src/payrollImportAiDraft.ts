@@ -445,6 +445,14 @@ function parseFieldPages(value: unknown): Record<string, number[]> {
 
 function parseJsonObject(raw: string): RecordValue {
   const cleaned = raw.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+  // Qwen normally returns a complete JSON envelope. Parse it once before the
+  // recovery search, which otherwise tries every pair of nested braces.
+  try {
+    const candidate = completePayrollEnvelope(recordValue(JSON.parse(cleaned) as unknown));
+    if (candidate) return candidate;
+  } catch {
+    // Keep recovery for surrounding prose, partial responses and Python literals.
+  }
   const starts = [...cleaned.matchAll(/\{/g)].map((match) => match.index ?? 0).reverse();
   for (const start of starts) {
     for (let end = cleaned.lastIndexOf('}'); end > start; end = cleaned.lastIndexOf('}', end - 1)) {

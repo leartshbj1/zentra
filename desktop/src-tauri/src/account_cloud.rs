@@ -61,7 +61,12 @@ impl ProjectSyncSession {
             .timeout(Duration::from_secs(90)).build().map_err(|_| AppError::Validation("Connexion sécurisée indisponible.".into()))?;
         let mut request = client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
         for (name,value) in headers { request = request.header(*name,value); }
-        if let Some(body) = body { request = request.header(CONTENT_TYPE,"application/octet-stream").body(body); }
+        if let Some(body) = body {
+            if !headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("content-type")) {
+                request = request.header(CONTENT_TYPE,"application/octet-stream");
+            }
+            request = request.body(body);
+        }
         let response = request.send().await.map_err(|_| AppError::Validation("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
         let status = response.status();
         let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
@@ -955,6 +960,8 @@ fn endpoint(path: &str) -> AppResult<Url> {
     if !matches!(
         path,
         START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH
+            | "/api/projects/sync" | "/api/projects/sync/file"
+            | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
@@ -1226,6 +1233,17 @@ fn launch_external_url(uri: &str) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_and_backup_transfer_routes_use_the_fixed_authenticated_origin() {
+        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk"] {
+            let url = endpoint(path).unwrap();
+            assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}{path}"));
+        }
+        for path in ["https://example.com/api/projects/sync", "//example.com", "/api/projects/sync/../stripe", "/api/projects/sync?token=x"] {
+            assert!(endpoint(path).is_err());
+        }
+    }
 
     const TEST_INSTALLATION_ID: &str = "55af29dd-fdaa-4993-ae78-17f9ca220e51";
 

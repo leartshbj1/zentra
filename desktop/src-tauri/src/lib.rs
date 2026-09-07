@@ -12,6 +12,7 @@ mod app_updater;
 mod attachments;
 mod audit;
 mod backup;
+mod cloud_backup;
 mod bank_import;
 mod branding;
 mod document_design;
@@ -338,6 +339,12 @@ pub fn run() {
             account_cloud::archive_invoice_to_cloud,
             project_sync::get_project_sync_status,
             project_sync::sync_project_documents,
+            cloud_backup::get_cloud_backup_state,
+            cloud_backup::set_cloud_backup_enabled,
+            cloud_backup::run_cloud_backup,
+            cloud_backup::delete_cloud_backup,
+            cloud_backup::cancel_cloud_backup,
+            cloud_backup::restore_cloud_backup,
             app_updater::get_secure_update_policy,
             app_updater::check_secure_update,
             app_updater::install_secure_update,
