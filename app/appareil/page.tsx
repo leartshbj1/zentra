@@ -24,7 +24,7 @@ export default async function DevicePage({
           Connexion sécurisée
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">
-          Autoriser un ordinateur
+          Autoriser un appareil
         </h1>
         <p className="mt-4 leading-7 text-[#5f6962]">
           Connecté comme <strong>{user.email}</strong>. Vérifiez que le code

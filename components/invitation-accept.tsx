@@ -67,7 +67,7 @@ export function InvitationAccept({ token }: { token: string }) {
       <UsersRound className="size-9 text-[#a66b1f]" />
       <h2 className="mt-4 text-xl font-semibold">Rejoindre cette entreprise</h2>
       <p className="mt-2 text-sm leading-6 text-[#5f6962]">
-        L’accès sera lié au compte ChatGPT avec lequel vous êtes connecté. Vos
+        L’accès sera lié au compte personnel avec lequel vous êtes connecté. Vos
         droits dépendront du rôle choisi par l’administrateur.
       </p>
       <button
