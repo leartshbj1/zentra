@@ -3321,6 +3321,7 @@ fn post_entry_with_reversal(
         )
         .optional()?
         .unwrap_or(1);
+    let next = crate::shared_numbering::consume(tx, "J", year, next)?.unwrap_or(next);
     tx.execute("INSERT INTO accounting_sequences(year,next_value) VALUES(?,?) ON CONFLICT(year) DO UPDATE SET next_value=excluded.next_value",params![year,next+1])?;
     let id = Uuid::new_v4().to_string();
     let number = format!("J-{year}-{next:06}");

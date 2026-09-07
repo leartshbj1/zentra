@@ -8,8 +8,8 @@ Objectif accepté : terminer l'ensemble des priorités, avec preuve du parcours 
 | E-mails | Domaine vérifié, SMTP Supabase de production, inscription et réinitialisation reçues par un utilisateur extérieur. | Domaine demandé au titulaire. Intégration Resend préparée précédemment. |
 | Abonnements | Vendeur et TVA exacts ; achat, activation, renouvellement, défaut de paiement et résiliation validés ; quotas titulaire compris. | Parcours sandbox existant. Informations légales et TVA demandées avant bascule live. |
 | Publication | Sources testées, site déployé, installateurs actuels vérifiés ; installation neuve et mise à jour préservant les données. | Audit local précédent disponible. Nouvelle livraison à préparer après les changements. |
-| Reprise après panne | Sauvegarde complète hors appareil, reprise d'un envoi interrompu, restauration sur installation vierge, contrôles d'intégrité et conservation d'une copie de sécurité. | Coffre distant publié ; intégration native et interface implémentés. Récupération web après résiliation et restauration locale sans réactiver la licence testées. Publication du parcours web, nouveaux installateurs et essai natif HTTPS à fermer. Une sauvegarde ne remplace pas la synchronisation concurrente. |
-| Validation professionnelle | Dossier d'essai fiduciaire avec chiffres attendus ; examen du vendeur, conditions d'abonnement, assistance et validation comptable documentée. | Préparation possible sans attendre. Validation professionnelle externe requise ; ne pas la présenter comme obtenue. |
+| Reprise après panne | Sauvegarde complète hors appareil, reprise d'un envoi interrompu, restauration sur installation vierge, contrôles d'intégrité et conservation d'une copie de sécurité. | Coffre et récupération web après résiliation publiés (site 69, source 730d8b2). Restauration locale sans réactiver la licence testée. Nouveaux installateurs et essai natif HTTPS à fermer. Une sauvegarde ne remplace pas la synchronisation concurrente. |
+| Validation professionnelle | Dossier d'essai fiduciaire avec chiffres attendus ; examen du vendeur, conditions d'abonnement, assistance et validation comptable documentée. | Dossier de cinq pages préparé et vérifié visuellement : TVA/bilan, acomptes/banque, paie/certificat annuel et procès-verbal. Les chiffres sont des attendus indépendants ; l'exécution avec pièces produites par l'application puis la validation professionnelle restent à obtenir. |
 | iOS et Android | Comptes de distribution actifs, builds signés acceptés, installation physique, droits fichiers/caméra, sauvegarde, reprise réseau et mise à jour testés. | Comptes et appareils à vérifier. Un IPA non signé n'est pas une publication App Store. |
 
 ## Invariants
@@ -32,3 +32,7 @@ Informations du vendeur confirmées par le titulaire le 8 septembre 2026 : **Sha
 5. Effectuer les validations de release puis publier les artefacts vérifiables.
 
 Les réponses sur le domaine, le vendeur et la TVA permettent de reprendre en parallèle l'e-mail et la commercialisation. Elles ne bloquent pas les étapes ci-dessus.
+
+## Point technique intermédiaire
+
+La suite native complète du schéma 59 passe : 636 tests réussis, aucun échec et un contrôle HTTPS public volontairement ignoré. La suite serveur passe avec 240 tests. La réservation de numéros partagés reste inactive ; voir `SYNCHRONISATION-METIER.md`. Ces résultats ne prouvent ni la réplication métier complète ni une installation physique.

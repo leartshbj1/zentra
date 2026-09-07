@@ -31,7 +31,7 @@ Le backend natif `cloud_backup.rs` conserve seulement les préférences et l’e
 - Recette CUA sur une interface fictive à 320 × 568 et 1440 × 900 : création, reprise après coupure simulée, confirmation intégrée, restauration, vues hors ligne et rôle restreint. Aucun débordement horizontal global ; commandes mobiles de 44 px de haut.
 - Page de récupération web contrôlée avec données fictives à 320 × 568 et 1440 × 900 : copies disponibles, coffre vide, erreur et connexion. Aucun débordement horizontal ; commandes de téléchargement et sélection de 48 px de haut.
 
-Ces essais ne constituent pas encore une preuve de transfert du client natif vers le serveur public ni une installation sur deux appareils physiques. Le service de sauvegarde a été publié le 8 septembre (version du site 68). Le parcours web de récupération, les artefacts distribués et l’essai natif HTTPS doivent être vérifiés avant d’annoncer cette priorité entièrement livrée.
+Ces essais ne constituent pas encore une preuve de transfert du client natif vers le serveur public ni une installation sur deux appareils physiques. Le service de sauvegarde a été publié le 8 septembre (version du site 68), puis la récupération web dans la version 69, source `730d8b2`. La page publique répond 200 et les deux API privées refusent une requête sans connexion (401). Les nouveaux artefacts natifs distribués et l’essai natif HTTPS restent à vérifier avant d’annoncer cette priorité entièrement livrée.
 
 ## Reste à fermer
 

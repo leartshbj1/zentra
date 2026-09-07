@@ -1492,6 +1492,10 @@ impl LocalStore {
 
     pub fn connect(&self) -> AppResult<Connection> {
         let connection = Connection::open(&self.database_path)?;
+        let installation = self.installation_id.clone();
+        connection.create_scalar_function("zentra_installation_id", 0,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC | FunctionFlags::SQLITE_INNOCUOUS,
+            move |_| Ok(installation.clone()))?;
         connection.create_scalar_function(
             "zentra_sha256",
             1,
@@ -1787,6 +1791,9 @@ impl LocalStore {
             let complete: bool = transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('projects','attachments')",[],|row|row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V58_SQL)?; }
             else { transaction.pragma_update(None,"user_version",58)?; }
+        }
+        if current < 59 {
+            transaction.execute_batch(crate::schema::MIGRATION_V59_SQL)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -7380,7 +7387,8 @@ pub(crate) fn assign_document_number(
             |row| row.get(0),
         )
         .optional()?;
-    let next = current.unwrap_or(start);
+    let local_next = current.unwrap_or(start);
+    let next = crate::shared_numbering::consume(transaction, &prefix, year, local_next)?.unwrap_or(local_next);
     transaction.execute(
         "INSERT INTO number_sequences (document_type,year,next_value) VALUES (?,?,?) ON CONFLICT(document_type,year) DO UPDATE SET next_value=excluded.next_value",
         params![document_type, year, next + 1],

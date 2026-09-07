@@ -1,0 +1,31 @@
+# Synchronisation métier : réalisation et critères d’activation
+
+La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
+
+## Numérotation réservée par appareil
+
+La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.
+
+- Le service `POST /api/sync/numbers` réserve une plage avec une insertion SQLite atomique. L’entreprise et l’installation proviennent de la session authentifiée, jamais du corps envoyé par le client. Un rôle en lecture seule, un abonnement expiré ou un accès révoqué est refusé.
+- L’espace de numéros est commun à un préfixe et une année dans l’entreprise, y compris si plusieurs types de documents partagent ce préfixe. La demande contient une borne minimale issue des documents historiques et de la configuration. Maximum : 1 000 numéros par demande, valeur maximale 999 999 999. Les préfixes existants de 12 caractères, lettres, chiffres et tirets sont acceptés et normalisés en majuscules.
+- Une demande porte un UUID durable et reste liée au même appareil. Sa répétition après perte de réponse renvoie la plage initiale. Les plages ne sont jamais recyclées après résiliation, révocation, désinstallation ou restauration.
+- Le schéma local 59 ajoute une liaison d’entreprise et les plages propres à l’appareil. La consommation du numéro est dans la même transaction que l’émission du document ou du journal : un échec annule les deux. Une entreprise liée dont les plages sont épuisées est bloquée avant émission ; aucun repli sur un compteur indépendant.
+- Les réservations, y compris les demandes encore en attente, sont retirées des sauvegardes à la création **et** à la restauration. Restaurer une ancienne archive sur le même ordinateur ne rend donc pas réutilisables des numéros déjà consommés après cette archive.
+
+## Porte d’activation
+
+Le client ne crée pas automatiquement `shared_numbering_binding`. La connexion cloud seule ne doit pas activer cette logique tant que l’historique de l’entreprise n’est pas publié et contrôlé. Une activation prématurée depuis un appareil vide pourrait réserver des numéros déjà utilisés dans l’ancienne base.
+
+Avant d’activer pour des clients :
+
+1. Terminer l’initialisation de l’espace partagé à partir de la base de référence, avec publication des bornes historiques de chaque préfixe et année.
+2. Ajouter la préparation durable des demandes natives, leur envoi HTTPS et leur adoption idempotente sans recul du prochain numéro consommable. Recharger les plages à la reprise réseau avant épuisement.
+3. Tester une émission réelle sur deux bases, une coupure pendant la réservation, une réponse reçue deux fois, une restauration sur les deux types d’appareil et le changement d’année.
+4. Livrer le moteur de réplication des agrégats métier avec traitement explicite des modifications concurrentes, liens entre tables, paiements, stocks et preuves d’audit. Une chaîne d’audit linéaire ne peut pas être remplacée par l’autre appareil : conserver les preuves des deux branches.
+5. Valider le parcours avec deux comptes et deux installations, puis publier les installateurs. Les essais de protocole en mémoire ne remplacent pas cette recette.
+
+## Preuves intermédiaires
+
+Les 11 tests serveur utilisent le schéma D1 réellement migré sur SQLite : vingt appareils concurrents, requête répétée, minimum historique, isolation, changement de paramètres, refus des rôles, bornes et épuisement. Avec cette brique, la suite serveur comporte 240 tests réussis. Le service de numérotation n’est pas encore publié et le téléchargement automatique des plages reste à intégrer.
+
+Les quatre tests natifs couvrent consommation transactionnelle, absence de repli, isolation et restauration sur le même ou un autre ordinateur. La suite native complète passe sur le schéma 59 : 636 tests réussis, zéro échec, un test HTTPS volontairement ignoré.

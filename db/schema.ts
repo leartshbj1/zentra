@@ -6,6 +6,24 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+export const documentNumberReservations = sqliteTable('document_number_reservations', {
+  sequence: integer('sequence').primaryKey({ autoIncrement: true }),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  requestId: text('request_id').notNull(),
+  installationId: text('installation_id').notNull(),
+  createdBy: text('created_by').notNull(),
+  prefix: text('prefix').notNull(),
+  year: integer('year').notNull(),
+  minimum: integer('minimum').notNull(),
+  count: integer('count').notNull(),
+  startValue: integer('start_value').notNull(),
+  endValue: integer('end_value').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  uniqueIndex('document_number_reservations_request').on(table.organizationId, table.requestId),
+  index('document_number_reservations_range').on(table.organizationId, table.prefix, table.year, table.endValue),
+]);
+
 export const workspaceBackups = sqliteTable('workspace_backups', {
   backupId: text('backup_id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organizations.organizationId),

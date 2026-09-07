@@ -56,6 +56,7 @@ mod reminders;
 mod sales_fulfillment;
 mod sales_pdf;
 mod schema;
+mod shared_numbering;
 mod stock;
 mod supplier_email;
 mod supplier_invoices;

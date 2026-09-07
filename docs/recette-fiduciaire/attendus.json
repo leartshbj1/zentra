@@ -1,0 +1,34 @@
+{
+  "status": "expected_only_requires_professional_execution",
+  "date": "2026-09-08",
+  "currency": "CHF",
+  "unit": "cents",
+  "ledger_case": {
+    "sales_net": 90000,
+    "purchases_net": 35000,
+    "vat_due": 7290,
+    "vat_recoverable": 2835,
+    "vat_payable": 4455,
+    "profit_before_tax": 55000,
+    "bank": 1059455,
+    "assets_with_vat_unoffset": 1062290,
+    "liabilities_and_equity_with_vat_unoffset": 1062290
+  },
+  "deposit_case": {
+    "quote_gross": 108100,
+    "deposit_gross": 32430,
+    "balance_gross": 75670,
+    "total_vat": 8100
+  },
+  "salary_case": {
+    "monthly_gross": 600000,
+    "monthly_cash_net": 527600,
+    "annual_cash_net": 6331200,
+    "certificate_1": 7200000,
+    "certificate_8": 7200000,
+    "certificate_9": 532800,
+    "certificate_10_1": 300000,
+    "certificate_11": 6367200,
+    "ijm_excluded_from_certificate_9": 36000
+  }
+}
