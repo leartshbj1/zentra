@@ -623,10 +623,14 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Chaque personne a sa connexion. Votre équipe garde toutes les fonctions.
+                Vos plans vous suivent. Vos devis vont à l’essentiel.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
+                  'Les totaux du devis apparaissent juste après les prestations, avant les conditions',
+                  'Les notes complémentaires gardent leurs retours à la ligne et leurs paragraphes dans l’aperçu et le PDF',
+                  'Plans, photos et fichiers joints aux projets partagés entre les appareils connectés à la même entreprise',
+                  'Documents téléchargés disponibles hors ligne, ajouts en attente puis envoi automatique au retour du réseau',
                   'Navigation modernisée sur ordinateur et mobile, avec animations courtes et respect de la réduction des animations',
                   'Aperçus des devis et factures avec sections, progression de lecture, zoom et accès direct aux totaux',
                   'Documents longs et QR de paiement consultables jusqu’au bout, y compris sur les petits écrans',
@@ -648,14 +652,20 @@ export default function DownloadPage() {
                   </div>
                 ))}
               </div>
+              <p className="mt-5 text-sm leading-6 text-[#647068]">
+                La synchronisation couvre les fichiers ajoutés aux projets. Les
+                clients, devis, factures, écritures comptables et le planning
+                restent locaux. Sur mobile, les transferts reprennent aussi à
+                la réouverture de l’application.
+              </p>
             </div>
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   [
                     HardDrive,
-                    'Données sur le PC',
-                    'Clients, relances, documents, salaires, heures et projets sont enregistrés localement.',
+                    'Données sur votre appareil',
+                    'Vos données restent enregistrées localement. Les fichiers des projets sont aussi synchronisés entre vos appareils connectés.',
                   ],
                   [
                     WifiOff,
