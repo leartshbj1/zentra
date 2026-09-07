@@ -48,6 +48,7 @@ import {
 } from '../app/api/auth/mot-de-passe/route';
 import { POST as signOut } from '../app/api/auth/deconnexion/route';
 import { GET as currentSession } from '../app/api/auth/session/route';
+import { GET as browserSession } from '../app/api/account/browser-session/route';
 import { getZentraUser } from '../app/zentra-auth';
 import {
   SUPABASE_ACCESS_COOKIE,
@@ -98,6 +99,75 @@ beforeEach(() => {
 });
 
 describe('Account authentication routes and cookie flow', () => {
+  it('recognizes the existing Sites account in navigation without redirecting personal sign-in', async () => {
+    stubs.sitesUser.mockResolvedValue({
+      userId: 'sites-owner',
+      email: 'owner@example.test',
+      displayName: 'Owner',
+      fullName: 'Owner',
+    });
+    const response = await browserSession(
+      new Request('https://zentra.example/api/account/browser-session'),
+    );
+    expect(await response.json()).toEqual({ authenticated: true });
+    expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(
+      await (
+        await currentSession(
+          new Request('https://zentra.example/api/auth/session'),
+        )
+      ).json(),
+    ).toEqual({ authenticated: false });
+  });
+
+  it('shows a confirmed personal account in navigation and renews its expired session', async () => {
+    stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'expired');
+    stubs.jar.set(SUPABASE_REFRESH_COOKIE, 'old-refresh');
+    stubs.getUser.mockRejectedValue(
+      new SupabaseAuthError('expired', 401, 'invalid_credentials'),
+    );
+    const response = await browserSession(
+      new Request('https://zentra.example/api/account/browser-session'),
+    );
+    expect(await response.json()).toEqual({ authenticated: true });
+    expect(stubs.jar.get(SUPABASE_REFRESH_COOKIE)).toBe(session.refreshToken);
+    expect(stubs.sitesUser).not.toHaveBeenCalled();
+  });
+
+  it('does not replace rejected personal credentials with the Sites identity in navigation', async () => {
+    stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'expired');
+    stubs.jar.set(SUPABASE_REFRESH_COOKIE, 'revoked');
+    stubs.getUser.mockRejectedValue(
+      new SupabaseAuthError('expired', 401, 'invalid_credentials'),
+    );
+    stubs.refresh.mockRejectedValue(
+      new SupabaseAuthError('revoked', 401, 'invalid_credentials'),
+    );
+    const response = await browserSession(
+      new Request('https://zentra.example/api/account/browser-session'),
+    );
+    expect(await response.json()).toEqual({ authenticated: false });
+    expect(stubs.sitesUser).not.toHaveBeenCalled();
+  });
+
+  it('keeps anonymous navigation unauthenticated and rejects cross-site session reads', async () => {
+    expect(
+      await (
+        await browserSession(
+          new Request('https://zentra.example/api/account/browser-session'),
+        )
+      ).json(),
+    ).toEqual({ authenticated: false });
+    stubs.sitesUser.mockClear();
+    const response = await browserSession(
+      new Request('https://zentra.example/api/account/browser-session', {
+        headers: { Origin: 'https://attacker.example' },
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(stubs.sitesUser).not.toHaveBeenCalled();
+  });
+
   it('returns an invited person to the same invitation after confirming their signup', async () => {
     const returnTo = '/invitation?token=invitation-for-test';
     const created = await signUp(

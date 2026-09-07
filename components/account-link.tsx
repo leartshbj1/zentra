@@ -7,7 +7,7 @@ export function AccountLink({ className = '' }: { className?: string }) {
   const [authenticated, setAuthenticated] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch('/api/auth/session', {
+    void fetch('/api/account/browser-session', {
       cache: 'no-store',
       credentials: 'same-origin',
       signal: controller.signal,
