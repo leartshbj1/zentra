@@ -1707,7 +1707,7 @@ pub fn restore_backup(
     source: String,
 ) -> Result<AppStateInfo, String> {
     let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
+    state.require_backup_restore_access().map_err(command_error)?;
     state
         .restore_backup(&source, &app_version(&app))
         .map_err(command_error)?;

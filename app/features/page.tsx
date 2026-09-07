@@ -621,7 +621,7 @@ export default function FeaturesPage() {
                 </p>
                 <div className="mt-7 space-y-3 text-sm text-white/68">
                   {[
-                    'SmolVLM reste un modèle local générique.',
+                    'Qwen reste un modèle local générique.',
                     'Aucune déclaration ELM n’est générée ou transmise.',
                     'Le calcul autonome complet de la QST n’est pas livré.',
                     'Le certificat annuel de salaire n’est pas encore généré.',

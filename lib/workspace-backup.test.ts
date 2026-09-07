@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
   files: vi.fn(),
   session: vi.fn(),
   rate: vi.fn(),
+  user: vi.fn(),
 }));
+vi.mock('@/app/zentra-auth', () => ({ getZentraUser: mocks.user }));
 vi.mock('@/lib/runtime', () => ({
   database: mocks.db,
   fileArchive: mocks.files,
@@ -23,6 +25,8 @@ import {
   DELETE as remove,
 } from '../app/api/backups/item/route';
 import { GET as download, PUT as upload } from '../app/api/backups/chunk/route';
+import { GET as recoveryList } from '../app/api/backups/account/route';
+import { GET as recoveryFile } from '../app/api/backups/account/file/route';
 import { AccountPublicError, sha256Hex } from './account-security';
 import {
   BACKUP_CHUNK_BYTES,
@@ -48,7 +52,9 @@ const objects = {
   }),
   get: vi.fn(async (key: string) => {
     const body = files.get(key);
-    return body ? { body: Uint8Array.from(body) } : null;
+    return body
+      ? { size: body.length, body: new Response(Uint8Array.from(body)).body! }
+      : null;
   }),
   delete: vi.fn(async (key: string | string[]) => {
     for (const k of typeof key === 'string' ? [key] : key) files.delete(k);
@@ -85,6 +91,7 @@ beforeEach(() => {
   mocks.db.mockReturnValue({ prepare: prepared });
   mocks.files.mockReturnValue(objects);
   mocks.session.mockResolvedValue(owner);
+  mocks.user.mockResolvedValue({ userId: 'owner' });
 });
 afterEach(() => db.close());
 async function manifest(parts = [bytes]): Promise<BackupManifest> {
@@ -321,4 +328,109 @@ it('bounds organization storage reservations and frees them only after deletion'
   expect((await start(undefined, next)).status).toBe(409);
   await remove(item('DELETE'));
   expect((await start(undefined, next)).status).toBe(200);
+});
+
+const recovery = (organizationId = 'org_first', backupId = id) =>
+  new Request(
+    `${origin}/account/file?${new URLSearchParams({ organizationId, id: backupId })}`,
+  );
+function recoveryMember(role = 'owner') {
+  db.prepare(
+    "INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('mem_owner','org_first','owner','owner@example.test',?,1)",
+  ).run(role);
+}
+it('lets the current owner recover after cancellation without any device session or paid seat', async () => {
+  await saved();
+  recoveryMember();
+  db.exec(
+    "UPDATE subscriptions SET status='canceled',entitlement_valid_until=1",
+  );
+  mocks.session.mockRejectedValue(new AccountPublicError('expired', 402));
+  expect((await recoveryList(recovery())).status).toBe(200);
+  const response = await recoveryFile(recovery());
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Content-Disposition')).toBe(
+    `attachment; filename="Zentra-${id}.zentra"`,
+  );
+  expect(response.headers.get('Cache-Control')).toContain('no-store');
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+  expect((await begin(new Request(origin, { method: 'POST' }))).status).toBe(
+    402,
+  );
+});
+it.each(['member', 'accountant', 'read_only'])(
+  'refuses whole-company recovery to %s even with a current account',
+  async (role) => {
+    await saved();
+    recoveryMember(role);
+    expect((await recoveryFile(recovery())).status).toBe(403);
+    expect((await recoveryList(recovery())).status).toBe(403);
+  },
+);
+it('requires a fresh browser identity and honors revoked membership and company isolation', async () => {
+  await saved();
+  recoveryMember('admin');
+  db.exec(
+    "UPDATE subscriptions SET status='canceled',entitlement_valid_until=1",
+  );
+  expect((await recoveryFile(recovery('org_other'))).status).toBe(403);
+  const allowed = await recoveryFile(recovery());
+  expect(new Uint8Array(await allowed.arrayBuffer())).toEqual(bytes);
+  db.exec('UPDATE organization_members SET revoked_at=2');
+  expect((await recoveryFile(recovery())).status).toBe(403);
+  mocks.user.mockResolvedValue(null);
+  expect((await recoveryFile(recovery())).status).toBe(401);
+  expect((await recoveryList(recovery())).status).toBe(401);
+});
+it('refuses incomplete, deleted and corrupted recovery archives', async () => {
+  recoveryMember();
+  await start();
+  expect((await recoveryFile(recovery())).status).toBe(409);
+  await send();
+  await complete(item('POST'));
+  const key = [...files.keys()][0];
+  files.set(
+    key,
+    Uint8Array.from(bytes, (byte) => byte ^ 1),
+  );
+  expect((await recoveryFile(recovery())).status).toBe(503);
+  await remove(item('DELETE'));
+  expect((await recoveryFile(recovery())).status).toBe(410);
+});
+it('streams several verified chunks in order and rejects an incorrect aggregate hash', async () => {
+  recoveryMember();
+  const first = new Uint8Array(BACKUP_CHUNK_BYTES).fill(65);
+  const last = bytes;
+  await start(await manifest([first, last]));
+  await send(first);
+  await send(last, 1);
+  await complete(item('POST'));
+  const response = await recoveryFile(recovery());
+  const expected = Buffer.concat([first, last]);
+  expect(Buffer.from(await response.arrayBuffer()).equals(expected)).toBe(true);
+  const row = db
+    .prepare('SELECT manifest_json FROM workspace_backups WHERE backup_id=?')
+    .get(id)!;
+  const altered = JSON.parse(String(row.manifest_json));
+  altered.sha256 = 'f'.repeat(64);
+  db.prepare(
+    'UPDATE workspace_backups SET manifest_json=? WHERE backup_id=?',
+  ).run(JSON.stringify(altered), id);
+  const broken = await recoveryFile(recovery());
+  await expect(broken.arrayBuffer()).rejects.toThrow('interrompu');
+});
+it('stops a recovery download when the next chunk disappears and does not read ahead after cancel', async () => {
+  recoveryMember();
+  const first = new Uint8Array(BACKUP_CHUNK_BYTES).fill(66);
+  await start(await manifest([first, bytes]));
+  await send(first);
+  await send(bytes, 1);
+  await complete(item('POST'));
+  objects.get.mockClear();
+  const cancelled = await recoveryFile(recovery());
+  await cancelled.body!.cancel();
+  expect(objects.get).toHaveBeenCalledTimes(1);
+  const interrupted = await recoveryFile(recovery());
+  files.delete(`workspace-backups/org_first/${id}/1`);
+  await expect(interrupted.arrayBuffer()).rejects.toThrow('interrompu');
 });

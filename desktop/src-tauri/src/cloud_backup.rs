@@ -583,7 +583,7 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
         let current_version: i64 = watcher.pragma_query_value(None, "data_version", |r| r.get(0))?;
         drop(watcher);
         if current_version != initial_version { return Err(validation("Des données ont changé pendant le téléchargement. Relancez la restauration après avoir terminé les modifications en cours.")); }
-        owned.require_write_access()?;
+        owned.require_backup_restore_access()?;
         let prefs = owned.cloud_backup_preferences()?;
         if prefs.pending.is_some() { return Err(validation("Terminez ou abandonnez l’envoi en attente avant de restaurer une sauvegarde.")); }
         let next = Preferences { enabled: prefs.enabled, organization_id: Some(organization), ..Preferences::default() };

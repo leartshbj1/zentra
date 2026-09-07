@@ -1283,6 +1283,11 @@ impl LocalStore {
         self.require_write_access_with_key(&key)
     }
 
+    pub(crate) fn require_backup_restore_access(&self) -> AppResult<()> {
+        let state = self.get_license_state()?;
+        validate_backup_restore_access(&state)
+    }
+
     pub(crate) fn require_onboarding_write_access(&self) -> AppResult<()> {
         let Some(key) = embedded_key()? else {
             return Ok(());
@@ -1857,6 +1862,22 @@ fn parse_utc(value: &str, field: &str) -> AppResult<DateTime<Utc>> {
         .map_err(|_| AppError::Validation(format!("{field} doit être RFC 3339.")))
 }
 
+// Restoring a privately obtained archive never imports its source license.
+// Missing/expired subscriptions may recover their data; ordinary write gates
+// still apply afterwards. A known restricted role cannot replace the company.
+fn validate_backup_restore_access(state: &Value) -> AppResult<()> {
+    if matches!(state["status"].as_str(), Some("missing" | "not_configured")) {
+        return Ok(());
+    }
+    if state["status"].as_str() == Some("invalid") {
+        return Err(AppError::Validation("La licence de cet appareil doit être vérifiée avant une restauration. Vos exports restent disponibles.".into()));
+    }
+    if matches!(state["access_role"].as_str(), Some("owner" | "admin")) {
+        return Ok(());
+    }
+    Err(AppError::Validation("La restauration complète est réservée au titulaire et aux administrateurs de l’entreprise.".into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2051,6 +2072,7 @@ mod tests {
         assert_eq!(state["status"], "valid");
         assert_eq!(state["access_role"], "read_only");
         assert_eq!(state["read_only"], true);
+        assert!(validate_backup_restore_access(&state).is_err());
         assert!(store
             .require_write_access_with_key(&key)
             .unwrap_err()
@@ -2061,6 +2083,33 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("même hors ligne"));
+    }
+
+    #[test]
+    fn backup_recovery_restores_data_with_an_inactive_or_missing_license_without_granting_writes() {
+        let signing = SigningKey::from_bytes(&[39_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        let temporary = tempfile::tempdir().unwrap();
+        let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
+        source.connect().unwrap().execute("INSERT INTO projects(id,name,created_at,updated_at) VALUES('recover','Projet récupéré','2026-09-08','2026-09-08')", []).unwrap();
+        let archive = source.create_backup(None, env!("CARGO_PKG_VERSION")).unwrap();
+        for inactive in [false, true] {
+            let target = LocalStore::initialize(temporary.path().join(if inactive { "inactive" } else { "new" })).unwrap();
+            if inactive {
+                let (_, token) = current_token(&target, &signing, "lic-recovery");
+                target.install_server_token_with_key(&token, &key).unwrap();
+                target.mark_server_access_after_server_verification(&token, &key, LicenseServerAccess::Inactive).unwrap();
+            }
+            let before = target.get_license_state_with_key(&key).unwrap();
+            validate_backup_restore_access(&before).unwrap();
+            target.restore_backup(&archive, env!("CARGO_PKG_VERSION")).unwrap();
+            let after = target.get_license_state_with_key(&key).unwrap();
+            assert_eq!(after["status"], before["status"]);
+            assert_eq!(after["read_only"], true);
+            assert!(target.require_write_access_with_key(&key).is_err());
+            let name: String = target.connect().unwrap().query_row("SELECT name FROM projects WHERE id='recover'", [], |row| row.get(0)).unwrap();
+            assert_eq!(name, "Projet récupéré");
+        }
     }
 
     #[test]

@@ -324,6 +324,27 @@ export function CloudBackupPanel({
           </div>
         </Modal>
       ) : null}
+      <div className="settings-actions">
+        <Button
+          variant="ghost"
+          disabled={busy}
+          onClick={() => {
+            void desktopApi
+              .openCloudAccountPortal()
+              .catch((reason) =>
+                setError(
+                  errorMessage(reason, 'Le compte web n’a pas pu être ouvert.'),
+                ),
+              );
+          }}
+        >
+          Retrouver mes copies sur le compte web
+        </Button>
+      </div>
+      <p className="settings-copy">
+        Depuis le compte web, le titulaire et les administrateurs peuvent
+        télécharger leurs copies même après la fin de l’abonnement.
+      </p>
     </section>
   );
 }

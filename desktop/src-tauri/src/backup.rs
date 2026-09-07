@@ -1101,6 +1101,30 @@ fn validate_database(path: &Path) -> AppResult<()> {
             "La sauvegarde contient des relations incohérentes.".into(),
         ));
     }
+    let has_audit: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log')",
+        [], |row| row.get(0),
+    )?;
+    if has_audit {
+        crate::audit::verify_audit_chain(&connection)?;
+    } else if user_version == SCHEMA_VERSION {
+        return Err(AppError::Validation("La sauvegarde ne contient pas le journal d’intégrité attendu.".into()));
+    }
+    let has_journal: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='journal_entries') AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='journal_lines')",
+        [], |row| row.get(0),
+    )?;
+    if has_journal {
+        let unbalanced: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM journal_entries e WHERE
+               NOT EXISTS(SELECT 1 FROM journal_lines l WHERE l.journal_entry_id=e.id)
+               OR EXISTS(SELECT 1 FROM journal_lines l WHERE l.journal_entry_id=e.id GROUP BY l.currency HAVING SUM(l.debit_cents)<>SUM(l.credit_cents)))",
+            [], |row| row.get(0),
+        )?;
+        if unbalanced {
+            return Err(AppError::Validation("La sauvegarde contient des écritures comptables vides ou déséquilibrées. Les données actuelles ont été conservées.".into()));
+        }
+    }
     Ok(())
 }
 
@@ -1262,6 +1286,31 @@ fn remove_sqlite_sidecars(database_path: &Path) -> AppResult<()> {
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    fn restore_rejects_a_broken_audit_before_replacing_business_data() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let target_dir = tempfile::tempdir().unwrap();
+        let source = LocalStore::initialize(source_dir.path().into()).unwrap();
+        let target = LocalStore::initialize(target_dir.path().into()).unwrap();
+        source.connect().unwrap().execute(
+            "INSERT INTO audit_log(id,occurred_at,actor,action,entity_type,entity_id,payload_json,entry_hash) VALUES('broken','2026-09-08','local_user','create','project','x','{}','invalid-hash')", [],
+        ).unwrap();
+        target.connect().unwrap().execute("INSERT INTO projects(id,name,created_at,updated_at) VALUES('keep','Projet à conserver','2026-09-08','2026-09-08')", []).unwrap();
+        let archive = source.create_backup(None, env!("CARGO_PKG_VERSION")).unwrap();
+        let error = target.restore_backup(&archive, env!("CARGO_PKG_VERSION")).unwrap_err();
+        assert!(error.to_string().contains("audit"));
+        let name: String = target.connect().unwrap().query_row("SELECT name FROM projects WHERE id='keep'", [], |row| row.get(0)).unwrap();
+        assert_eq!(name, "Projet à conserver");
+    }
+
+    #[test]
+    fn restore_integrity_rejects_empty_posted_journals() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        store.connect().unwrap().execute("INSERT INTO journal_entries(id,number,entry_date,description,source_type,source_id,source_event,created_at) VALUES('empty','J-2026-000001','2026-09-08','Écriture altérée','manual','empty','create','2026-09-08')", []).unwrap();
+        assert!(validate_database(&store.database_path).unwrap_err().to_string().contains("déséquilibrées"));
+    }
 
     fn seed_license(store: &LocalStore, license_id: &str) -> String {
         let token = format!("test-protected-{license_id}-{}", "x".repeat(128));

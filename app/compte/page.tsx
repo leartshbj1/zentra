@@ -308,6 +308,15 @@ export default async function AccountPage() {
                       </div>
                     ))}
                   </div>
+                  {['owner', 'admin'].includes(organization.role) ? (
+                    <a
+                      href={`/compte/sauvegardes?organizationId=${encodeURIComponent(organization.organizationId)}`}
+                      className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
+                    >
+                      <Archive className="size-4" aria-hidden="true" />{' '}
+                      Retrouver mes sauvegardes
+                    </a>
+                  ) : null}
                   <div className="mt-6">
                     <TeamAccessList
                       key={`${organization.organizationId}:${organization.access.invitations
