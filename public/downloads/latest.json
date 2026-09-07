@@ -1,15 +1,15 @@
 {
-  "version": "1.43.0",
-  "notes": "Lecture locale des fiches avec Qwen, paie simplifiée, fiches personnalisables et certificat annuel suisse.",
-  "pub_date": "2026-09-06T21:10:46.3101604+00:00",
+  "version": "1.44.0",
+  "notes": "Formules Solo, Start et Pro avec toutes les fonctions, comptes personnels et places incluant le titulaire.",
+  "pub_date": "2026-09-07T00:27:32.5633435+00:00",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmVlU1RRQmxBLzhlbFZXWFJkeld3ZWhwa1p2Z0o3Yk92Y3VCa2hIZGJ1SmtWMnpoMkcwL200MENzL2xuRU5wODlsRzdUWnZIcy9FUG9qdjNLdjQ1c1FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NzI2NTMxCWZpbGU6WmVudHJhXzEuNDMuMF94NjQtc2V0dXAuZXhlClJKQ2hwVlB3WU8yMS8xVmUwT1Z2bWg5RGhaUFR2d2pWNDA0TXIvKyt6VUVrTk0xU1BOakJSTHlYNUwrVUFiV1c3dS9sdEtzaTZ6SWZ3cDdIbkJUdUNRPT0K",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.43.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlZtclZkdXkwbEZhQXl6QmlZSWNCTEN6cnFpY2k5bE1kTUhPeUwvc2QxTnZHRDkzRHFxQW9pSC90ZkxWaWtmckk4VFozUFI4MWk0ODJOVlMwTzJOcmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NzM5NDU1CWZpbGU6WmVudHJhXzEuNDQuMF94NjQtc2V0dXAuZXhlCkJVYjFucm9VUittMUNzYlJNMGZBOVpPejZLSmhnZXAvVmkwRFdNSXVVbWRpeUVLWGdZcmpxSFJwUDJwWU8wVUxUL2xiOHlQNjFLNXgzbWlOUGIrMENnPT0K",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.44.0_x64-setup.exe"
     },
     "macos-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlJmOFlWakQrVDhmV3k0c1VlWC9GUHZTUS83WkR2T2crT2hYWnljOFM2anMzdzczcTUwenJpR01RWWovdW9PUDFyWjhlQ2ZIUlF1MUhoUStUMU5zT1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NzI4ODYzCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKZ2tWRXZFUitWNnZmN1JIbHRXeFJYSDVicDArV0kwa2h0WmhKUlZ1N0M2N2JhT04xWWI3emowTU0wOFJURWRBWG45WE1DUlp4dmtDUlo1dFZkWW1UQkE9PQo=",
-      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.43.0_macos-universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlpRM3ZlYUlFbDlZQ1pqZjZBdkgrOWRVS1QvY3JaQ3puSFlGK0crRkNuMFNNalBTTnJ4Z3pTeDEzSnR5UEhHRG1kNEdZZkZJSUhlSGJDTWtZd3BkYndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NzQwNzIwCWZpbGU6WmVudHJhLmFwcC50YXIuZ3oKNjlzUlNLQVRuKzA2Zm1PWWhSRnVIdU1ibjJhZFBzY1BzekY5Wm0rSmVBQktuWThxVUNpSEdHWDBOOHU5N29rNEJ0ZmVscnhGRGxDSEQ4Tnd6N2o4QUE9PQo=",
+      "url": "https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra_1.44.0_macos-universal.app.tar.gz"
     }
   }
 }

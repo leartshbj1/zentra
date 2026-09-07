@@ -623,8 +623,7 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Une interface plus fluide, des documents plus simples à
-                consulter.
+                Chaque personne a sa connexion. Votre équipe garde toutes les fonctions.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
@@ -632,6 +631,8 @@ export default function DownloadPage() {
                   'Aperçus des devis et factures avec sections, progression de lecture, zoom et accès direct aux totaux',
                   'Documents longs et QR de paiement consultables jusqu’au bout, y compris sur les petits écrans',
                   'Remboursements des avoirs clients et fournisseurs, totaux ou partiels, avec leur historique et leurs justificatifs',
+                  'Solo, Start ou Pro : toutes les fonctions pour 1, 3 ou 10 personnes, titulaire compris',
+                  'Connectez chaque personne avec son compte et gérez les invitations dans votre espace équipe',
                   'Préremplissez vos collaborateurs depuis une fiche de salaire, avec une lecture locale et privée',
                   'Personnalisez vos fiches de salaire et préparez le certificat annuel suisse en trois étapes',
                   'Le devis, l’acompte et le solde déduit restent reliés au projet, à ses documents et à ses photos',
