@@ -1,4 +1,5 @@
 import { CompanyLogo } from './CompanyLogo';
+import { useProjectSyncBackground } from './projectSync';
 import { DocumentDesignStudio } from './DocumentDesignStudio';
 import { EmployeeDocumentImport } from './EmployeeDocumentImport';
 import { SalaryCertificates } from './SalaryCertificates';
@@ -424,6 +425,7 @@ export function WorkspaceApp({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  useProjectSyncBackground(setWorkspace);
   const [modal, setModal] = useState<ModalState>(null);
   const [search, setSearch] = useState('');
   const [projectFolderId, setProjectFolderId] = useState<string | null>(null);

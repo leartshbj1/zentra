@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 57;
+pub const SCHEMA_VERSION: i64 = 58;
+pub const MIGRATION_V58_SQL: &str = include_str!("project_sync_schema.sql");
 pub const MIGRATION_V57_SQL: &str = include_str!("bank_customer_credit_refund_schema.sql");
 pub const MIGRATION_V56_SQL: &str = include_str!("customer_credit_recovery_vat_schema.sql");
 pub const MIGRATION_V55_SQL: &str = include_str!("customer_credit_recovery_schema.sql");

@@ -991,7 +991,7 @@ export function DocumentEditor({
           ) : null}
           <div className="document-bottom">
             <div className="document-copy-fields">
-              <Field label="Notes / texte complémentaire">
+              <Field label="Notes / texte complémentaire" hint="Entrée ajoute une nouvelle ligne. Les paragraphes sont conservés dans l’aperçu et le PDF.">
                 <textarea
                   name="notes"
                   rows={4}

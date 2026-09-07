@@ -542,7 +542,7 @@ fn bank_customer_migration_56_preserves_existing_refunds_without_inventing_links
             .unwrap()
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        57
+        crate::schema::SCHEMA_VERSION
     );
     store
         .connect()

@@ -6,6 +6,25 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+export const projectDocumentEvents = sqliteTable('project_document_events', {
+  sequence: integer('sequence').primaryKey({ autoIncrement: true }),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  documentId: text('document_id').notNull(),
+  projectId: text('project_id').notNull(),
+  projectName: text('project_name').notNull(),
+  action: text('action').notNull(),
+  originalName: text('original_name').notNull(),
+  mediaType: text('media_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  sha256: text('sha256').notNull(),
+  objectKey: text('object_key').notNull(),
+  createdAt: text('created_at').notNull(),
+}, table => [
+  uniqueIndex('project_document_event_identity').on(table.organizationId, table.documentId, table.action),
+  index('project_document_event_feed').on(table.organizationId, table.sequence),
+  index('project_document_event_project').on(table.organizationId, table.projectId),
+]);
+
 export const checkoutAttempts = sqliteTable(
   'checkout_attempts',
   {

@@ -963,7 +963,12 @@ fn render_sales_pdf(
     validate_layout_capacity(data)?;
     let all_notes = notes_lines(data);
     let dedicated_notes = all_notes.len() > 6;
-    let chunks = paginate_sales_lines(data, !dedicated_notes);
+    let mut sales_data = data.clone();
+    if dedicated_notes {
+        sales_data.notes.clear();
+        sales_data.terms.clear();
+    }
+    let chunks = paginate_sales_lines(&sales_data, true);
     let note_chunks = if dedicated_notes {
         paginate_note_lines(&all_notes)
     } else {
@@ -993,14 +998,14 @@ fn render_sales_pdf(
         resources.set("XObject", dictionary! { "Logo" => logo_object });
     }
     let resources_id = document.add_object(resources);
-    let total_pages = chunks.len() + note_chunks.len() + usize::from(dedicated_notes);
+    let total_pages = chunks.len() + note_chunks.len();
     let mut page_ids = Vec::with_capacity(total_pages);
     let mut rendered_pages = Vec::with_capacity(total_pages);
     for (index, chunk) in chunks.iter().enumerate() {
         let first = index == 0;
-        let last = !dedicated_notes && index + 1 == chunks.len();
+        let last = index + 1 == chunks.len();
         let operations = render_page(
-            data,
+            &sales_data,
             chunk,
             index + 1,
             total_pages,
@@ -1020,20 +1025,6 @@ fn render_sales_pdf(
             index + 1,
             note_chunks.len(),
         ));
-    }
-    if dedicated_notes {
-        let mut totals_data = data.clone();
-        totals_data.notes.clear();
-        totals_data.terms.clear();
-        rendered_pages.push(render_page(
-            &totals_data,
-            &[],
-            total_pages,
-            total_pages,
-            false,
-            true,
-            logo.as_ref(),
-        )?);
     }
 
     for operations in rendered_pages {
@@ -1399,7 +1390,7 @@ fn final_table_floor(data: &SalesPdfData) -> f32 {
     if data.qr.is_some() {
         QR_SECTION_HEIGHT + 27.0 + totals_box_height(data) + totals_top_gap
     } else {
-        64.0 + totals_box_height(data) + totals_top_gap
+        64.0 + totals_box_height(data) + quote_notes_height(data) + totals_top_gap
     }
 }
 
@@ -1424,13 +1415,13 @@ fn paginate_sales_lines(data: &SalesPdfData, reserve_totals: bool) -> Vec<Vec<Sa
         } else {
             55.0
         };
-        let final_budget = table_top(first) - final_floor;
+        let final_budget = table_top(first) - 22.0 - final_floor;
         if final_budget >= 0.0 && lines_height(remaining) <= final_budget {
             chunks.push(remaining.to_vec());
             break;
         }
         let non_final_floor = 55.0;
-        let non_final_budget = (table_top(first) - non_final_floor).max(30.0);
+        let non_final_budget = (table_top(first) - 22.0 - non_final_floor).max(30.0);
         let count = largest_fitting_prefix(remaining, non_final_budget);
         if count == 0 && first {
             // La première page réserve davantage de place à l'identité et au
@@ -1579,7 +1570,7 @@ fn render_page(
         y -= height;
     }
     if last {
-        render_totals_and_notes(&mut ops, data);
+        render_totals_and_notes(&mut ops, data, y - 12.0);
         if let Some(qr) = &data.qr {
             render_qr_section(&mut ops, qr)?;
         }
@@ -1887,8 +1878,10 @@ fn render_line(ops: &mut Vec<Operation>, line: &SalesPdfLine, top: f32, height: 
     );
 }
 
-fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData) {
-    let base_y = if data.qr.is_some() {
+fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData, table_bottom: f32) {
+    let base_y = if data.kind == SalesDocumentKind::Quote {
+        table_bottom - totals_box_height(data)
+    } else if data.qr.is_some() {
         QR_SECTION_HEIGHT + 27.0
     } else {
         64.0
@@ -1961,7 +1954,7 @@ fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData) {
         text(
             ops,
             MARGIN,
-            base_y + totals_height - 13.0,
+            if data.kind == SalesDocumentKind::Quote { base_y - 22.0 } else { base_y + totals_height - 13.0 },
             6.5,
             "F2",
             MUTED,
@@ -1971,7 +1964,7 @@ fn render_totals_and_notes(ops: &mut Vec<Operation>, data: &SalesPdfData) {
             text(
                 ops,
                 MARGIN,
-                base_y + totals_height - 29.0 - index as f32 * 9.0,
+                if data.kind == SalesDocumentKind::Quote { base_y - 38.0 - index as f32 * 9.0 } else { base_y + totals_height - 29.0 - index as f32 * 9.0 },
                 6.8,
                 "F1",
                 INK,
@@ -1997,6 +1990,7 @@ fn totals_box_height(data: &SalesPdfData) -> f32 {
     // 22 pt. La dernière ligne « TVA totale » conserve ainsi sa ligne de base
     // à 31 pt du bas et ne peut plus être recouverte par le total TTC.
     let financial_height = 34.0 + (4 + vat_groups(data).len()) as f32 * 15.0;
+    if data.kind == SalesDocumentKind::Quote { return financial_height; }
     let notes = inline_notes_lines(data);
     let notes_height = if notes.is_empty() {
         0.0
@@ -2011,12 +2005,19 @@ fn notes_lines(data: &SalesPdfData) -> Vec<String> {
         .into_iter()
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>()
-        .join(" - ");
+        .join("\n\n");
     if notes.is_empty() {
         Vec::new()
     } else {
-        wrap_text_width(&notes, NOTES_TEXT_WIDTH, 6.8, false)
+        let width = if data.kind == SalesDocumentKind::Quote { PAGE_WIDTH - 2.0 * MARGIN } else { NOTES_TEXT_WIDTH };
+        notes.replace("\r\n", "\n").replace('\r', "\n").split('\n')
+            .flat_map(|paragraph| wrap_text_width(paragraph, width, 6.8, false)).collect()
     }
+}
+
+fn quote_notes_height(data: &SalesPdfData) -> f32 {
+    let count = inline_notes_lines(data).len();
+    if data.kind == SalesDocumentKind::Quote && count > 0 { 38.0 + count as f32 * 9.0 } else { 0.0 }
 }
 
 fn inline_notes_lines(data: &SalesPdfData) -> Vec<String> {
@@ -3858,12 +3859,42 @@ mod tests {
         let pages = render_sales_pdf(&destination, &data, None).unwrap();
         assert_eq!(
             pages,
-            paginate_sales_lines(&data, false).len() + note_chunks.len() + 1
+            paginate_sales_lines(&data, true).len() + note_chunks.len()
         );
         assert_eq!(
             Document::load(destination).unwrap().get_pages().len(),
             pages
         );
+    }
+
+    #[test]
+    fn quote_totals_follow_the_lines_and_paragraphs_keep_their_breaks() {
+        let mut data=sample_data(2,false);
+        data.kind=SalesDocumentKind::Quote;
+        data.notes="Première condition\r\nDeuxième condition\r\n\r\nNouveau paragraphe".into();
+        data.terms="Paiement après réception.".into();
+        assert_eq!(notes_lines(&data),vec!["Première condition","Deuxième condition","","Nouveau paragraphe","","Paiement après réception."]);
+        let bottom=table_top(true)-22.0-lines_height(&data.lines)-12.0;
+        assert!(bottom-totals_box_height(&data)>250.0,"The total of a short quote must not be anchored to the page footer");
+        let dir=tempfile::tempdir().unwrap();
+        let path=dir.path().join("devis.pdf");
+        assert_eq!(render_sales_pdf(&path,&data,None).unwrap(),1);
+        let pdf=Document::load(&path).unwrap();
+        let content=pdf.extract_text(&[1]).unwrap();
+        assert!(content.find("TOTAL TTC").unwrap()<content.find("REMARQUES ET CONDITIONS").unwrap());
+        if let Ok(output)=std::env::var("ZENTRA_PDF_QA_DIR") {
+            let folder=Path::new(&output);fs::create_dir_all(folder).unwrap();
+            fs::copy(&path,folder.join("devis-court.pdf")).unwrap();
+            data.notes=(1..=120).map(|index|format!("Condition {index} : délai et modalité convenus avec le client.")).collect::<Vec<_>>().join("\n");
+            let long=folder.join("devis-conditions.pdf");
+            render_sales_pdf(&long,&data,None).unwrap();
+            let pdf=Document::load(&long).unwrap();
+            assert!(pdf.extract_text(&[1]).unwrap().contains("TOTAL TTC"));
+            assert!(pdf.extract_text(&[2]).unwrap().contains("Condition 1"));
+            let mut many=sample_data(45,false);many.kind=SalesDocumentKind::Quote;
+            render_sales_pdf(&folder.join("devis-plusieurs-pages.pdf"),&many,None).unwrap();
+            render_sales_pdf(&folder.join("facture-qr.pdf"),&sample_data(1,true),None).unwrap();
+        }
     }
 
     #[test]

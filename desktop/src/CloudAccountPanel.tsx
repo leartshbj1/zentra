@@ -266,9 +266,7 @@ export function CloudAccountPanel({
       </div>
       <p className="settings-cloud-scope">
         Les rôles encadrent les services connectés. « Lecture seule » bloque
-        aussi les modifications dans cette interface. Les dossiers métier
-        restent locaux et ne sont pas synchronisés en temps réel entre les
-        appareils.
+        aussi les modifications dans cette interface. Les plans, photos et documents ajoutés aux projets sont partagés avec l’entreprise et conservés hors ligne sur chaque appareil connecté. Les autres données métier restent locales.
       </p>
       {connected ? (
         <div className="settings-actions">

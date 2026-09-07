@@ -513,11 +513,11 @@ impl LocalStore {
         let id = required_uuid(id, "justificatif")?;
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        let (stored_name, expected_size, expected_sha256): (String, i64, String) = connection
+        let (stored_name, expected_size, expected_sha256, project_document): (String, i64, String, bool) = connection
             .query_row(
-                "SELECT stored_name,size_bytes,sha256 FROM attachments WHERE id=?",
+                "SELECT stored_name,size_bytes,sha256,COALESCE(entity_type='project' AND entity_id=project_id,0) FROM attachments WHERE id=?",
                 params![id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()?
             .ok_or_else(|| AppError::NotFound(format!("attachments/{id}")))?;
@@ -534,7 +534,11 @@ impl LocalStore {
                     .into(),
             ));
         }
-        detect_supported_attachment(&path)?;
+        if project_document {
+            crate::project_documents::document_format(&stored_name, &fs::read(&path)?)?;
+        } else {
+            detect_supported_attachment(&path)?;
+        }
         let actual_sha256 = sha256_file(&path)?;
         if actual_sha256 != expected_sha256 {
             return Err(AppError::Validation(

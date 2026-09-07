@@ -18,7 +18,7 @@ function assertDeclaredLength(request: Request, maxBytes: number) {
   }
 }
 
-export async function readTextBodyWithinLimit(
+export async function readBytesBodyWithinLimit(
   request: Request,
   maxBytes: number,
 ) {
@@ -48,6 +48,11 @@ export async function readTextBodyWithinLimit(
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return bytes;
+}
+
+export async function readTextBodyWithinLimit(request: Request, maxBytes: number) {
+  const bytes = await readBytesBodyWithinLimit(request, maxBytes);
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {

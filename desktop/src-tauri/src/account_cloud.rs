@@ -39,6 +39,37 @@ const MAX_RESPONSE_BYTES: u64 = 64 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
 
+pub(crate) struct ProjectSyncSession {
+    pub organization_id: String,
+    pub role: String,
+    token: String,
+}
+
+pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option<ProjectSyncSession>> {
+    let account = cloud_account_state(store).await?;
+    if account.status != "connected" { return Ok(None); }
+    let session = read_session_secret(store)?.ok_or_else(|| AppError::Validation("Reconnectez votre compte Zentra.".into()))?;
+    Ok(Some(ProjectSyncSession { organization_id: session.organization_id, role: session.role, token: session.session_token }))
+}
+
+impl ProjectSyncSession {
+    pub async fn request(&self, method: Method, path: &str, query: &[(&str,&str)], headers: &[(&str,String)], body: Option<Vec<u8>>, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
+        let mut url = endpoint(path)?;
+        url.query_pairs_mut().extend_pairs(query.iter().copied());
+        crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
+        let client = reqwest::Client::builder().https_only(true).redirect(Policy::none()).connect_timeout(CONNECT_TIMEOUT)
+            .timeout(Duration::from_secs(90)).build().map_err(|_| AppError::Validation("Connexion sécurisée indisponible.".into()))?;
+        let mut request = client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
+        for (name,value) in headers { request = request.header(*name,value); }
+        if let Some(body) = body { request = request.header(CONTENT_TYPE,"application/octet-stream").body(body); }
+        let response = request.send().await.map_err(|_| AppError::Validation("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
+        let status = response.status();
+        let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
+        if !status.is_success() && status != StatusCode::GONE { return Err(server_response_error(status,&bytes)); }
+        Ok((status,bytes))
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct PendingAuthorization {
@@ -992,12 +1023,16 @@ async fn account_request_url(
 }
 
 async fn read_bounded_response(response: reqwest::Response) -> AppResult<Vec<u8>> {
+    read_response_with_limit(response, MAX_RESPONSE_BYTES).await
+}
+
+async fn read_response_with_limit(response: reqwest::Response, limit: u64) -> AppResult<Vec<u8>> {
     let declared = response
         .headers()
         .get(CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<u64>().ok());
-    if declared.is_some_and(|size| size > MAX_RESPONSE_BYTES) {
+    if declared.is_some_and(|size| size > limit) {
         return Err(AppError::Validation(
             "La réponse Zentra est trop volumineuse.".into(),
         ));
@@ -1007,7 +1042,7 @@ async fn read_bounded_response(response: reqwest::Response) -> AppResult<Vec<u8>
     while let Some(chunk) = stream.next().await {
         let chunk = chunk
             .map_err(|_| AppError::Validation("La réponse Zentra a été interrompue.".into()))?;
-        if bytes.len().saturating_add(chunk.len()) as u64 > MAX_RESPONSE_BYTES {
+        if bytes.len().saturating_add(chunk.len()) as u64 > limit {
             return Err(AppError::Validation(
                 "La réponse Zentra est trop volumineuse.".into(),
             ));

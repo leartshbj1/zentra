@@ -7,6 +7,12 @@
 .project-folder__tabs [aria-current] { background: var(--green-900); color: white; }
 .project-folder__tabs span { font-size: 12px; opacity: .75; }
 .project-folder__section, .project-create-files { padding: 20px; }
+.project-sync { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 0 18px; border-bottom:1px solid var(--line-soft); margin-bottom:18px; }
+.project-sync > div { min-width:0; }
+.project-sync strong { font-size:14px; }
+.project-sync p { font-size:13px; line-height:1.5; color:var(--muted); margin:5px 0 0; overflow-wrap:anywhere; }
+.project-sync > .button { flex-shrink:0; min-height:44px; }
+@media(max-width:600px) { .project-sync { align-items:flex-start; flex-direction:column; gap:12px; } }
 .project-folder__section > header { display: flex; gap: 12px; justify-content: space-between; align-items: center; }
 .project-folder__section h3, .project-create-files h3 { margin: 0 0 16px; }
 .project-create-files { margin-top: 20px; background: var(--surface-subtle); border-radius: 14px; }

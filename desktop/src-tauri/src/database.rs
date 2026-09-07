@@ -1649,7 +1649,7 @@ impl LocalStore {
                 migrate_v28(&transaction)?;
             }
             27 => migrate_v28(&transaction)?,
-            28..=56 => {}
+            28..=57 => {}
             _ => {
                 return Err(AppError::Validation(format!(
                     "Migration locale non prise en charge depuis la version {current}."
@@ -1782,6 +1782,11 @@ impl LocalStore {
             let complete: bool=transaction.query_row("SELECT COUNT(*)=3 FROM sqlite_master WHERE type='table' AND name IN ('customer_credit_settlements','bank_supplier_credit_refund_matches','bank_movements')",[],|row|row.get(0))?;
             if complete { transaction.execute_batch(crate::schema::MIGRATION_V57_SQL)?; }
             else { transaction.pragma_update(None,"user_version",57)?; }
+        }
+        if current < 58 {
+            let complete: bool = transaction.query_row("SELECT COUNT(*)=2 FROM sqlite_master WHERE type='table' AND name IN ('projects','attachments')",[],|row|row.get(0))?;
+            if complete { transaction.execute_batch(crate::schema::MIGRATION_V58_SQL)?; }
+            else { transaction.pragma_update(None,"user_version",58)?; }
         }
         transaction.commit()?;
         if moves_plaintext_license {

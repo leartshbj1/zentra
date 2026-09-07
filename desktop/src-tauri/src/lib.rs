@@ -47,6 +47,7 @@ mod payroll_pdf;
 mod salary_certificate_pdf;
 mod salary_certificate;
 mod project_documents;
+mod project_sync;
 mod project_planning;
 mod purchase_costs;
 mod recurrence;
@@ -335,6 +336,8 @@ pub fn run() {
             account_cloud::open_cloud_account_portal,
             account_cloud::disconnect_cloud_account,
             account_cloud::archive_invoice_to_cloud,
+            project_sync::get_project_sync_status,
+            project_sync::sync_project_documents,
             app_updater::get_secure_update_policy,
             app_updater::check_secure_update,
             app_updater::install_secure_update,

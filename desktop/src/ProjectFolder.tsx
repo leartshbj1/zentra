@@ -3,6 +3,8 @@ import { ArrowLeft, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { ProjectFilePreview } from './ProjectFilePreview';
 import { ProjectFilesPicker } from './ProjectFilesPicker';
+import { requestProjectSync, useProjectSyncStatus } from './projectSync';
+import { CloudAccountAccess } from './CloudAccountAccess';
 import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocuments';
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
 import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
@@ -25,6 +27,8 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   const previewTrigger = useRef<HTMLElement | null>(null);
   const mounted = useRef(true);
   const contents = projectDocuments(workspace, project.id);
+  const sync = useProjectSyncStatus();
+  const projectPending = sync.documents.filter(file=>file.project_id===project.id && file.state!=='synced').length;
   const billingQuotes = contents.quotes.filter((quote) => contents.invoices.some((invoice) => invoice.quoteId === quote.id));
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -84,6 +88,11 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     {error ? <ErrorPanel message={error} /> : null}
     {(tab === 'all' || tab === 'files') ? <section className="panel project-folder__section">
       <h3>Documents et photos</h3>
+      <div className="project-sync" role="status" aria-live="polite">
+        <div><strong>{sync.syncing ? 'Synchronisation…' : projectPending ? `${projectPending} fichier${projectPending>1?'s':''} à synchroniser` : sync.connected ? 'Fichiers synchronisés' : 'Fichiers sur cet appareil'}</strong>
+          <p>{sync.error || (sync.connected ? 'Les plans et photos de ce dossier restent accessibles hors ligne. Les changements sont partagés avec votre entreprise.' : 'Connectez ce poste à votre compte pour partager les documents de vos projets entre vos appareils et votre équipe.')}</p></div>
+        {sync.connected || sync.organizationId ? <Button size="small" variant="secondary" disabled={sync.syncing} onClick={requestProjectSync}>Synchroniser</Button> : <CloudAccountAccess />}
+      </div>
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy} />
       {files.length ? <Button onClick={() => void upload()} disabled={saving || busy}>{saving ? progress : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}
       <ul className="project-document-list">{contents.files.map((file) => {
@@ -92,7 +101,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         return <li key={file.id} className={(expenseId && onOpenExpense) || customerCredit ? 'project-document-list__with-source' : undefined}>
         <button type="button" className="project-document-list__open" onClick={(event) => void open(file, event.currentTarget)} disabled={saving}>
           {file.mimeType.startsWith('image/') ? <Image size={22} /> : <FileText size={22} />}
-          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'customer_credit_settlement' ? ' · Règlement d’un avoir client' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small></span>
+          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'customer_credit_settlement' ? ' · Règlement d’un avoir client' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small>{isProjectFile(file) ? <small>{sync.documents.find(item=>item.document_id===file.id)?.state==='synced'?'Synchronisé · Disponible hors ligne':'Sur cet appareil · Envoi en attente'}</small> : null}</span>
         </button>
         {expenseId && onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(expenseId)} aria-label={`Voir la dépense liée à ${file.originalName}`}>Voir la dépense</Button> : null}
         {customerCredit ? <Button variant="ghost" onClick={() => onOpenDocument('invoices', customerCredit)} aria-label={`Voir l’avoir lié à ${file.originalName}`}>Voir l’avoir</Button> : null}
@@ -112,7 +121,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     </section>)}
     {preview ? <ProjectFilePreview {...preview} onClose={closePreview} /> : null}
     {removing ? <Modal title="Supprimer le document ?" onClose={() => { if (!saving) setRemoving(null); }}>
-      <p>« {removing.originalName} » sera retiré de ce projet et de cet appareil.</p>
+      <p>« {removing.originalName} » sera retiré de ce projet. Si ce dossier est partagé, la suppression sera transmise aux autres appareils dès le retour du réseau.</p>
       <div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setRemoving(null)}>Annuler</Button><Button variant="danger" disabled={saving} onClick={() => void remove()}>{saving ? 'Suppression…' : 'Supprimer'}</Button></div>
     </Modal> : null}
   </section>;

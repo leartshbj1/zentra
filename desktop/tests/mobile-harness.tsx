@@ -1,4 +1,5 @@
 import { installExpenseJournalFixture } from './expense-journal-fixture';
+import { installProjectSyncFixture } from './project-sync-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
 import { installDesignFixture } from './design-fixture';
 import { installCustomerCreditFixture } from './customer-credit-fixture';
@@ -69,6 +70,8 @@ desktopApi.getTrialBalance = async () => ({ rows: [], currency, openingDebitBala
 desktopApi.getBalanceSheet = async () => ({ asOf: scope.dateTo, exerciseFrom: scope.dateFrom, scope, currency, rows: [], sections: {}, previousSections: {}, assetsCents: 0, liabilitiesCents: 0, equityCents: 0, currentResultCents: 0, unallocatedPriorResultsCents: 0, balanced: true, previousAssetsCents: 0, previousLiabilitiesCents: 0, previousEquityCents: 0, previousCurrentResultCents: 0, previousUnallocatedPriorResultsCents: 0, previousBalanced: true });
 desktopApi.getIncomeStatement = async () => ({ scope, currency, rows: [], sections: {}, previousSections: {}, revenueCents: 0, expenseCents: 0, profitCents: 0, previousRevenueCents: 0, previousExpenseCents: 0, previousProfitCents: 0 });
 desktopApi.getSecureUpdatePolicy = async () => ({ enabled: false, reason: 'Recette locale' }) as never;
+desktopApi.getProjectSyncStatus = async () => ({pending:0, syncing:false, connected:false, documents:[]});
+desktopApi.syncProjectDocuments = desktopApi.getProjectSyncStatus;
 desktopApi.getNogaCatalog = async () => ({ version: 'Recette', source: 'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025', sections: [{ code: 'M', label: 'Activités immobilières', divisions: [{ code: '68', label: 'Activités immobilières' }] }] });
 desktopApi.saveProject = async (input, existingId) => {
   const id = existingId || crypto.randomUUID();
@@ -141,6 +144,7 @@ if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFix
 if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
+if (new URLSearchParams(location.search).has('projectSync')) installProjectSyncFixture(()=>data);
 if (new URLSearchParams(location.search).has('customerCredits')) installCustomerCreditFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlements')) installCustomerCreditSettlementFixture(()=>data);
 if (new URLSearchParams(location.search).has('customerContinuity')) installCustomerCreditContinuityFixture();

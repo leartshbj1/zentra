@@ -23,7 +23,7 @@ pub struct AddProjectDocumentInput {
     pub content_base64: String,
 }
 
-fn document_format(name: &str, bytes: &[u8]) -> AppResult<(&'static str, &'static str)> {
+pub(crate) fn document_format(name: &str, bytes: &[u8]) -> AppResult<(&'static str, &'static str)> {
     let extension = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     let invalid = || {
         AppError::Validation("Format illisible ou non pris en charge. Choisissez un PDF, une photo, un document Office, OpenDocument, TXT ou CSV.".into())

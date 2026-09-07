@@ -7,6 +7,7 @@ function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
     credits:input.credits.map(credit=>({credit_note_id:credit.creditNoteId,applied_cents:credit.appliedCents,application_date:credit.applicationDate}))};
 }
 import { fileBase64 } from './projectDocuments';
+import type { ProjectSyncStatus } from './projectSync';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
@@ -4751,15 +4752,19 @@ export const desktopApi = {
       await invoke<RawRecord>('get_cloud_account_state'),
     );
   },
+  getProjectSyncStatus: () => invoke<ProjectSyncStatus>('get_project_sync_status'),
+  syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
   async startCloudAccountLink(): Promise<CloudAccountState> {
     return cloudAccountStateFromRaw(
       await invoke<RawRecord>('start_cloud_account_link'),
     );
   },
   async pollCloudAccountLink(): Promise<CloudAccountState> {
-    return cloudAccountStateFromRaw(
+    const account = cloudAccountStateFromRaw(
       await invoke<RawRecord>('poll_cloud_account_link'),
     );
+    if(account.status==='connected') window.dispatchEvent(new Event('zentra-project-documents-changed'));
+    return account;
   },
   openCloudAccountLink: () => invoke<string>('open_cloud_account_link'),
   openCloudAccountPortal: () => invoke<string>('open_cloud_account_portal'),
@@ -4892,12 +4897,15 @@ export const desktopApi = {
     return stringValue(record.id);
   },
   async addProjectDocument(projectId: string, file: File) {
-    return invoke('add_project_document', { input: {
+    const document = await invoke('add_project_document', { input: {
       project_id: projectId, original_name: file.name, content_base64: await fileBase64(file),
     } });
+    window.dispatchEvent(new Event('zentra-project-documents-changed'));
+    return document;
   },
   async deleteProjectDocument(id: string) {
     await invoke('delete_project_document', { id });
+    window.dispatchEvent(new Event('zentra-project-documents-changed'));
     return loadWorkspace();
   },
   async readProjectDocument(id: string) {
