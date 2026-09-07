@@ -889,7 +889,7 @@ export default function FeaturesPage() {
                 ],
                 [
                   'Collaboration',
-                  'Les rôles et archives sont partagés; la base métier locale n’est pas synchronisée automatiquement.',
+                  'Les rôles, archives et fichiers joints aux projets sont partagés. Les clients, devis, factures, écritures et le planning restent locaux.',
                 ],
               ].map(([title, text]) => (
                 <article

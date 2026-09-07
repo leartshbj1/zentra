@@ -129,12 +129,13 @@ export default function SecurityPage() {
                   Utilise un service en ligne
                 </p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
-                  Le compte et le coffre choisi
+                  Le compte et les fichiers partagés
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-white/70">
                   Le serveur ne synchronise pas automatiquement la base métier.
-                  Il traite les accès, l’abonnement et les documents que vous
-                  envoyez volontairement au coffre.
+                  Il traite les accès, l’abonnement, les PDF archivés sur demande
+                  et les fichiers joints aux projets. Ces fichiers se
+                  synchronisent entre les appareils connectés à votre entreprise.
                 </p>
                 <ul className="mt-7 grid gap-2.5 text-sm leading-6 text-white/78 sm:grid-cols-2">
                   {onlineData.map((item) => (
@@ -241,7 +242,7 @@ export default function SecurityPage() {
                   ],
                   [
                     'D1 / R2',
-                    'Couche encore utilisée par certaines routes de compte et d’archivage pendant leur remplacement progressif. La base métier locale n’y est pas synchronisée.',
+                    'Stockage des accès, des archives PDF et des fichiers privés joints aux projets. Ces fichiers se synchronisent entre les appareils autorisés de la même entreprise ; les autres données métier restent locales.',
                   ],
                   [
                     'Stripe',

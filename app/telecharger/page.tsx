@@ -371,8 +371,9 @@ export default function DownloadPage() {
               </h3>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#607068]">
                 Pour les essais : les versions App Store et Google Play restent
-                en préparation. La synchronisation entre appareils et les mises
-                à jour automatiques mobiles ne sont pas encore disponibles.
+                en préparation. Les fichiers joints aux projets se synchronisent
+                entre les appareils connectés à la même entreprise. Les mises à
+                jour de ces préversions mobiles s’installent manuellement.
               </p>
               <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">

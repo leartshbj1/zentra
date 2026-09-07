@@ -27,8 +27,13 @@ const sections = [
   },
   {
     icon: Cloud,
+    title: 'Fichiers des projets synchronisés',
+    text: 'Une fois l’appareil connecté à votre entreprise, les plans, photos et fichiers ajoutés aux projets sont transmis au serveur avec le nom et la référence du projet, le nom du fichier, son format, sa taille et son empreinte. Les appareils autorisés de la même entreprise les téléchargent et en gardent une copie hors ligne. Les ajouts et suppressions en attente reprennent au retour du réseau ou à la réouverture de l’app. La suppression est partagée ; un événement de suppression empêche une ancienne copie de remettre le fichier en ligne.',
+  },
+  {
+    icon: Cloud,
     title: 'Prestataires techniques',
-    text: 'Supabase fournit l’authentification depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site; D1/R2 restent temporairement utilisés par certaines routes de compte et pour les PDF archivés sur demande.',
+    text: 'Supabase fournit l’authentification depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site ; D1/R2 sont utilisés par certaines routes de compte, les PDF archivés sur demande et les fichiers privés des projets synchronisés.',
   },
 ];
 
