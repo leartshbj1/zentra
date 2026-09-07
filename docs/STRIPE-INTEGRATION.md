@@ -3,6 +3,9 @@
 Zentra propose Solo à 49 CHF/mois (1 personne), Start à 59 CHF/mois (3 personnes) et Pro à 89 CHF/mois (10 personnes). Le titulaire compte dans le total. Toutes les fonctionnalités actuelles et futures sont incluses. Plusieurs appareils peuvent être liés à une même personne ; les fiches de salariés ne consomment pas d’accès.
 
 Les abonnements déjà conclus à 50 CHF conservent leur tarif et leur quota illimité. Les nouvelles souscriptions choisissent une des trois formules. L’environnement public existant reste en test privé tant que les conditions marchandes de production ne sont pas vérifiées.
+
+Les identifiants des catalogues live et sandbox, les preuves de connexion et les vérifications restant avant ouverture sont suivis dans [PRICING-AUTH-READINESS.md](PRICING-AUTH-READINESS.md).
+
 ## Architecture retenue
 
 1. Le site demande au serveur une Session Stripe Checkout hébergée en mode `subscription`.
