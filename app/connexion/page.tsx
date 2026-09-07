@@ -34,7 +34,7 @@ export default async function ConnexionPage({
     <main className="relative min-h-screen overflow-hidden bg-[#f6f4ee] px-5 py-8 text-[#173d2c] sm:grid sm:place-items-center sm:py-14">
       <div className="pointer-events-none absolute -left-32 top-10 size-80 rounded-full bg-[#dbe9de]/70 blur-3xl" />
       <div className="pointer-events-none absolute -right-28 bottom-0 size-96 rounded-full bg-[#f0d7aa]/40 blur-3xl" />
-      <div className="relative mx-auto grid w-full max-w-5xl gap-10 lg:grid-cols-[1fr_28rem] lg:items-center lg:gap-16">
+      <div className="relative mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center lg:gap-16">
         <section className="pt-3 lg:pt-0">
           <a href="/" className="inline-flex items-center gap-3 font-semibold">
             <span className="grid size-11 place-items-center rounded-2xl bg-[#173d2c] text-lg font-bold text-white">

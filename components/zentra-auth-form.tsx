@@ -106,7 +106,7 @@ export function ZentraAuthForm({
   }
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full min-w-0 max-w-md">
       <div className="rounded-[2rem] border border-[#d8d4c9] bg-white p-6 shadow-[0_28px_90px_rgba(20,55,38,.12)] sm:p-8">
         <div
           className="grid grid-cols-2 rounded-full bg-[#f0eee8] p-1"
@@ -120,7 +120,7 @@ export function ZentraAuthForm({
               role="tab"
               aria-selected={mode === item}
               onClick={() => selectMode(item)}
-              className={`min-h-11 rounded-full px-4 text-sm font-semibold transition ${
+              className={`min-h-11 min-w-0 rounded-full px-2 text-sm font-semibold transition sm:px-4 ${
                 mode === item
                   ? 'bg-[#173d2c] text-white shadow-sm'
                   : 'text-[#58665e] hover:text-[#173d2c]'
