@@ -84,6 +84,9 @@ def inspect_fixture(phase):
     assert check["equal"], f"Fixture bytes differ at {phase}: {check}"
 
 
+# Native initialization can finish before WebView creates Android's files
+# directory. The isolated fixture owns its directory and must prepare it first.
+private("mkdir", "-p", "./files")
 write_private("./files/zentra-update-fixture.txt", fixture)
 inspect_fixture("after-fixture-copy")
 with tempfile.TemporaryDirectory(prefix="zentra-upgrade-") as temp:
