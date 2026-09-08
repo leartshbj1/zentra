@@ -33,7 +33,7 @@ const sections = [
   {
     icon: Cloud,
     title: 'Sauvegarde complète distante sur option',
-    text: 'Dans les versions proposant le coffre de sauvegardes, le titulaire ou un administrateur peut envoyer une copie complète de la base et des pièces jointes, notamment les salaires. La copie quotidienne doit être activée explicitement ; elle s’exécute lorsque l’application est ouverte et connectée. Les secrets de connexion et la licence propre à l’appareil sont exclus. Le coffre privé conserve les copies jusqu’à leur suppression par un administrateur, dans la limite de 50 copies, 10 Go par entreprise et 512 Mo par copie. La restauration remplace les données de l’appareil après confirmation et conserve d’abord une copie locale de sécurité. Il ne s’agit pas d’une fusion du travail de plusieurs appareils.',
+    text: 'Depuis la version 1.46.1, le titulaire ou un administrateur peut envoyer une copie complète de la base et des pièces jointes, notamment les salaires. La copie quotidienne doit être activée explicitement ; elle s’exécute lorsque l’application est ouverte et connectée. Les secrets de connexion et la licence propre à l’appareil sont exclus. Le coffre privé conserve les copies jusqu’à leur suppression par un administrateur, dans la limite de 50 copies, 10 Go par entreprise et 512 Mo par copie. La restauration remplace les données de l’appareil après confirmation et conserve d’abord une copie locale de sécurité. Il ne s’agit pas d’une fusion du travail de plusieurs appareils.',
   },
   {
     icon: Cloud,

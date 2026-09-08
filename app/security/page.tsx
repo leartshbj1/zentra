@@ -40,6 +40,8 @@ const onlineData = [
   'Entreprise, rôles, invitations et appareils autorisés',
   'État de l’abonnement et de la licence',
   'PDF placés volontairement dans le coffre partagé',
+  'Fichiers joints aux projets connectés à l’entreprise',
+  'Base complète et pièces jointes lorsque la sauvegarde distante est activée',
 ] as const;
 
 const safeguards = [
@@ -213,12 +215,28 @@ export default function SecurityPage() {
                   SQLite et n’est pas présenté comme un support WORM certifié.
                 </p>
               </article>
+              <article className="rounded-[1.5rem] border border-[#d9d4c9] bg-white p-6 sm:col-span-2">
+                <Database className="size-5 text-[#3f7454]" />
+                <h3 className="mt-5 text-xl font-semibold">
+                  Sauvegarde complète distante
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-[#657068]">
+                  Le titulaire et les administrateurs peuvent envoyer la base
+                  de l’entreprise et ses pièces jointes, y compris les salaires.
+                  La copie quotidienne s’active sur demande et nécessite que
+                  l’application soit ouverte et connectée. Les empreintes des
+                  fichiers et l’intégrité de la base sont contrôlées lors de la
+                  restauration. Les sauvegardes restent récupérables dans le
+                  compte après résiliation.
+                </p>
+              </article>
               <div className="flex gap-3 rounded-[1.4rem] border border-[#cfe0d4] bg-[#edf5ef] p-5 text-sm leading-6 text-[#315a43] sm:col-span-2">
                 <ShieldCheck className="mt-0.5 size-5 shrink-0" />
                 <p>
-                  Une copie externe régulière complète le stockage local. Le
-                  coffre de factures conserve les PDF choisis, tandis que la
-                  sauvegarde Zentra couvre l’ensemble de la base métier.
+                  Gardez une copie externe et vérifiez sa restauration. Les
+                  sauvegardes complètes couvrent la base métier et ses pièces
+                  jointes ; elles ne fusionnent pas les modifications faites
+                  séparément sur plusieurs appareils.
                 </p>
               </div>
             </div>
@@ -242,7 +260,7 @@ export default function SecurityPage() {
                   ],
                   [
                     'D1 / R2',
-                    'Stockage des accès, des archives PDF et des fichiers privés joints aux projets. Ces fichiers se synchronisent entre les appareils autorisés de la même entreprise ; les autres données métier restent locales.',
+                    'Stockage des accès, des archives PDF, des fichiers privés des projets et des sauvegardes complètes activées par l’entreprise. Les fichiers des projets se synchronisent entre appareils autorisés. La localisation du projet Supabase ne garantit pas un stockage de ces données D1/R2 en Suisse.',
                   ],
                   [
                     'Stripe',
@@ -292,7 +310,9 @@ export default function SecurityPage() {
                 build macOS est disponible en accès anticipé avec une signature
                 ad hoc et sans notarisation Apple. Sur les deux plateformes, les
                 mises à jour intégrées vérifient la signature du paquet avant de
-                proposer son installation.
+                proposer son installation. Sur Mac, le Trousseau peut demander
+                une nouvelle autorisation d’accès après une mise à jour de cette
+                version en accès anticipé.
               </p>
               <a
                 href="/download"

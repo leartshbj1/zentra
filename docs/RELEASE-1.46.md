@@ -14,17 +14,29 @@ La correction est préparée en 1.46.1, avec un test de régression qui reprodui
 
 Le schéma local passe à 59. La préparation de la numérotation partagée est incluse, mais son initialisation et la réplication métier complète restent inactives ; aucune activation automatique n'est annoncée.
 
-## Contrôles disponibles avant les builds
+## Contrôles des paquets 1.46.1
 
-- 742 tests d'interface réussis et analyse Clippy complète sans avertissement pour Windows.
+- Source native commune : `b83aa865a47b05ad578e21709186b6925ca8a09f`, schéma 59. Les modifications ultérieures concernent les audits de distribution, la documentation et le site, sans changement du code des applications.
+- 742 tests d'interface et 647 tests natifs réussis sur le build Mac, deux tests ignorés explicitement ; analyse Clippy complète sans avertissement sur Mac et Windows.
 - Treize tests natifs de numérotation et migration réussis sur 1.46.1, dont demandes concurrentes, restauration, rejeu, planification des années et démarrage avec une base issue de 1.45.0. Le nouveau test échouait avant correction avec le même message que les installateurs.
 - Recette HTTPS réelle de sauvegarde et restauration de 9,5 Mo, avec deux profils Windows indépendants et nettoyage des données fictives. Cette recette a été exécutée avant la seule intégration du planificateur de numéros, sans liaison partagée active.
+
+- Windows, workflow `34175867747` : exécution de l'installateur exact, installation neuve, remplacement de 1.45.0 et redémarrage. Base, numéros, liens devis/facture/paiement, écritures équilibrées, identité DPAPI et pièce jointe conservés sur des machines de test isolées.
+- macOS, build `34175265759` : archive et DMG universels Intel/ARM64, signature ad hoc vérifiée, clé et adresse de mise à jour embarquées, démarrage réel avec un profil neuf.
+- Android, workflow de mise à jour `34176084310` : paquet x86_64 compagnon exact de 1.45.0 vers 1.46.1, sans signer à nouveau l'ancien paquet, identité et données conservées. L'APK ARM64 distribué porte le certificat de préversion persistant ; son installation sur téléphone physique reste à vérifier.
+- iPhone, build `34175268734` : IPA ARM64 pour appareil physique, version et structure contrôlées, non signé. Le simulateur du build `34175267253` démarre ; cet essai ne vaut pas installation de l'IPA sur iPhone.
+- Signatures de mise à jour Tauri/Ed25519 Windows et Mac vérifiées sur les octets finaux. Les dix fichiers immuables du coffre public et les seize fichiers du brouillon GitHub correspondent aux empreintes locales.
+
+## Autorisation du Trousseau Mac
+
+Le premier essai de remplacement exact (`34177808183`) s'arrêtait avant la migration. Le diagnostic `34178017674` montre l'attente dans `SecKeychainFindGenericPassword` et une fenêtre macOS avec les boutons « Always Allow », « Deny », « Allow ». L'identité de l'ancienne installation est protégée par le Trousseau ; le nouveau paquet ad hoc doit obtenir l'autorisation normale de macOS. Aucune suppression de l'identité, modification des contrôles d'accès ou nouvelle signature des paquets de test n'est employée.
+
+Le comportement concorde avec la documentation Apple : l'identité d'une signature ad hoc est propre à la version exacte du code, contrairement à une distribution avec identité de signature stable. Voir [TN3127, exigences de signature](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements/). La signature Developer ID et la notarisation restent à obtenir.
+
+La recette `34178563068` passe sur les deux archives exactes : base 58 vers 59, données métier, numéros, journaux équilibrés, pièce jointe et identité protégée conservés, puis redémarrage réussi. Elle utilise un Trousseau de test isolé et son propre mot de passe éphémère pour accepter la fenêtre normale macOS. Les contrôles d'accès restent actifs, aucune ACL n'est remplacée, et le Trousseau de test est supprimé après l'essai. Cet essai prouve le parcours avec autorisation explicite ; il ne prouve pas une mise à jour Mac sans intervention. L'aide de téléchargement explique cette autorisation.
 
 ## À vérifier avant annonce de publication
 
 - Source exacte de chaque lot, versions et identifiants de paquet, signatures de mise à jour, SHA-256 et disponibilité publique des fichiers immuables.
-- Installation Windows neuve et mise à jour depuis 1.45.0 avec conservation des données.
-- Réexécuter le workflow Windows sur les nouveaux fichiers exacts : les deux cas s'exécutent sur des runners isolés, avec comparaison des données métier, de l'identité protégée et d'un document joint. La candidate rejetée a confirmé le bon fonctionnement du cas installation neuve et l'échec du cas mise à jour.
-- Compilation universelle macOS et démarrage du paquet ; noter séparément la signature ad hoc, la signature de mise à jour et une éventuelle notarisation Apple.
-- Android : APK, certificat de signature et essai de mise à jour depuis le paquet précédent. iOS : distinguer simulateur, IPA non signé et distribution Apple officielle.
+- Remplacement exact macOS terminé, avec autorisation normale du Trousseau, conservation des données et redémarrage. La signature Developer ID et la notarisation restent distinctes de cette preuve.
 - Téléchargements et manifeste commun Windows/macOS publiés seulement après ces contrôles. Les comptes Apple/Google de distribution et les essais sur appareils physiques restent des critères distincts.

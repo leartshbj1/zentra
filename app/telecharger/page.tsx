@@ -278,7 +278,7 @@ export default function DownloadPage() {
             </div>
             <div className="installer-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#cad6cc] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#355141] shadow-lg sm:left-auto sm:right-6">
               <ShieldCheck className="size-3.5 text-[#3b7752]" /> Local d’abord
-              · coffre PDF sur demande
+              · sauvegarde distante en option
             </div>
           </div>
         </section>
@@ -310,7 +310,7 @@ export default function DownloadPage() {
                 [
                   Database,
                   'Données métier locales',
-                  'La base SQLite, les clients, la paie et la comptabilité restent sur l’ordinateur. Seuls les PDF que vous archivez volontairement sont copiés dans le coffre serveur.',
+                  'Votre base de travail reste sur l’appareil. Vous pouvez aussi activer une sauvegarde complète distante ; les fichiers des projets connectés se synchronisent entre vos appareils.',
                 ],
                 [
                   WifiOff,
@@ -344,6 +344,12 @@ export default function DownloadPage() {
                   préparation. Au premier lancement, macOS peut demander une
                   autorisation dans Réglages système &gt; Confidentialité et
                   sécurité.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#607068]">
+                  Après une mise à jour, le Trousseau peut demander à Zentra
+                  l’accès à son identité d’installation. Autorisez cet accès
+                  dans la fenêtre macOS pour terminer le démarrage. Cette
+                  demande peut revenir avec les versions en accès anticipé.
                 </p>
                 <p className="mt-2 break-all text-xs leading-5 text-[#718079]">
                   {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio ·
@@ -624,25 +630,16 @@ export default function DownloadPage() {
                 Version {ZENTRA_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Vos plans vous suivent. Vos devis vont à l’essentiel.
+                Retrouvez votre entreprise sur un nouvel appareil.
               </h2>
               <div className="mt-7 space-y-3">
                 {[
-                  'Les totaux du devis apparaissent juste après les prestations, avant les conditions',
-                  'Les notes complémentaires gardent leurs retours à la ligne et leurs paragraphes dans l’aperçu et le PDF',
-                  'Plans, photos et fichiers joints aux projets partagés entre les appareils connectés à la même entreprise',
-                  'Documents téléchargés disponibles hors ligne, ajouts en attente puis envoi automatique au retour du réseau',
-                  'Navigation modernisée sur ordinateur et mobile, avec animations courtes et respect de la réduction des animations',
-                  'Aperçus des devis et factures avec sections, progression de lecture, zoom et accès direct aux totaux',
-                  'Documents longs et QR de paiement consultables jusqu’au bout, y compris sur les petits écrans',
-                  'Remboursements des avoirs clients et fournisseurs, totaux ou partiels, avec leur historique et leurs justificatifs',
-                  'Solo, Start ou Pro : toutes les fonctions pour 1, 3 ou 10 personnes, titulaire compris',
-                  'Connectez chaque personne avec son compte et gérez les invitations dans votre espace équipe',
-                  'Préremplissez vos collaborateurs depuis une fiche de salaire, avec une lecture locale et privée',
-                  'Personnalisez vos fiches de salaire et préparez le certificat annuel suisse en trois étapes',
-                  'Le devis, l’acompte et le solde déduit restent reliés au projet, à ses documents et à ses photos',
-                  'Justificatifs conservés dans les sauvegardes et indexés dans le dossier comptable',
-                  'Recherche des mises à jour après le démarrage et installation signée sur Windows et macOS',
+                  'Sauvegardez ensemble la base de votre entreprise et ses pièces jointes dans le coffre distant',
+                  'Activez une copie quotidienne lorsque l’application est ouverte et connectée',
+                  'Un envoi interrompu reprend à la prochaine connexion, sans recommencer les fragments déjà reçus',
+                  'Le titulaire et les administrateurs retrouvent les sauvegardes dans leur compte, y compris après résiliation',
+                  'Restaurez sur une nouvelle installation avec vérification des fichiers et copie locale de sécurité',
+                  'Retrouvez les plans, justificatifs et fiches de salaire importées après restauration',
                 ].map((item) => (
                   <div
                     key={item}
@@ -654,10 +651,12 @@ export default function DownloadPage() {
                 ))}
               </div>
               <p className="mt-5 text-sm leading-6 text-[#647068]">
-                La synchronisation couvre les fichiers ajoutés aux projets. Les
-                clients, devis, factures, écritures comptables et le planning
-                restent locaux. Sur mobile, les transferts reprennent aussi à
-                la réouverture de l’application.
+                La base de travail reste locale ; la sauvegarde permet de la
+                récupérer entièrement sur un autre appareil. La synchronisation
+                courante concerne les fichiers de projet. Les clients, devis,
+                factures, écritures comptables et le planning ne sont pas encore
+                fusionnés entre collaborateurs. Sur mobile, les transferts
+                reprennent aussi à la réouverture de l’application.
               </p>
             </div>
             <div className="space-y-3">
@@ -737,8 +736,8 @@ export default function DownloadPage() {
                   <p>
                     <strong>Protection de licence :</strong> activation en
                     ligne, jeton signé et liaison locale protégée par Windows
-                    DPAPI ou le Trousseau macOS. Ces contrôles sont transparents
-                    pour l’utilisateur après l’activation.
+                    DPAPI ou le Trousseau macOS. Sur Mac, une mise à jour peut
+                    nécessiter une nouvelle autorisation du Trousseau.
                   </p>
                 </div>
               </details>
@@ -755,7 +754,7 @@ export default function DownloadPage() {
             <div>
               <HardDrive className="size-7 text-[#efb157]" />
               <p className="mt-5 text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">
-                Sauvegarde locale
+                Sauvegarde complète
               </p>
               <h2
                 id="sauvegarde-title"
@@ -764,10 +763,9 @@ export default function DownloadPage() {
                 Gardez une copie complète, à l’endroit de votre choix.
               </h2>
               <p className="mt-5 text-sm leading-6 text-white/72">
-                Zentra crée une sauvegarde complète que vous pouvez conserver
-                sur un support externe ou un emplacement maîtrisé. Le coffre
-                optionnel complète ce dispositif pour les PDF de factures
-                choisis.
+                Conservez une copie de votre entreprise sur un support externe
+                et, si vous le souhaitez, dans votre coffre distant. Vous
+                retrouvez la base et ses documents depuis une autre installation.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -781,8 +779,8 @@ export default function DownloadPage() {
                   'Exportez une sauvegarde complète avant d’installer une nouvelle version.',
                 ],
                 [
-                  'Hors de ce PC',
-                  'Copiez régulièrement le fichier sur un support externe ou un emplacement chiffré que vous contrôlez.',
+                  'Une copie hors de l’appareil',
+                  'Activez la sauvegarde distante quotidienne ou conservez votre fichier sur un support externe.',
                 ],
                 [
                   'Test de restauration',
@@ -798,6 +796,12 @@ export default function DownloadPage() {
                   <p className="mt-2 text-xs leading-5 text-white/66">{text}</p>
                 </article>
               ))}
+              <a
+                href="/compte/sauvegardes"
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:col-span-2"
+              >
+                Retrouver mes sauvegardes
+              </a>
               <div className="sm:col-span-2 rounded-2xl border border-[#efb157]/30 bg-[#efb157]/10 p-5 text-xs leading-6 text-white/72">
                 <strong className="text-white">Portée réglementaire :</strong>{' '}
                 la paie est assistée localement mais non certifiée Swissdec/ELM.
