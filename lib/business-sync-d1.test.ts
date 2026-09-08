@@ -7,6 +7,7 @@ import { financialRules } from './business-sync-financial';
 import { postingRules } from './business-sync-postings';
 import { cashVatRules } from './business-sync-cash-vat';
 import { creditSettlementRules } from './business-sync-credit-settlements';
+import { creditRecoveryRules } from './business-sync-credit-recovery';
 import { roundedProportionCtes } from './business-sync-money';
 
 // Exercise the workerd SQLite limits used by D1, which differ from node:sqlite.
@@ -24,7 +25,48 @@ const rules = [
   ...postingRules,
   ...cashVatRules,
   ...creditSettlementRules,
+  ...creditRecoveryRules,
 ];
+it.skipIf(!process.env.ZENTRA_RECOVERY_QA)(
+  'validates native legacy recovery sources, null corrections and mixed VAT inside D1',
+  async () => {
+    const folder = process.env.ZENTRA_RECOVERY_QA!;
+    const prepared = JSON.parse(
+      readFileSync(join(folder, 'prepared.json'), 'utf8'),
+    );
+    expect(prepared.manifest.tables.customer_credit_recovery_postings).toBe(4);
+    await db.exec('DELETE FROM business_sync_versions');
+    for (let index = 0; index < prepared.manifest.chunks.length; index++) {
+      const chunk = JSON.parse(
+        readFileSync(
+          join(folder, 'rows', `${String(index).padStart(4, '0')}.json`),
+          'utf8',
+        ),
+      );
+      for (let at = 0; at < chunk.rows.length; at += 20)
+        await db.batch(
+          chunk.rows
+            .slice(at, at + 20)
+            .map((row: { table: string; key_json: string; row_json: string }) =>
+              db
+                .prepare('INSERT INTO business_sync_versions VALUES(?,?,?,?,?)')
+                .bind(
+                  'transfer',
+                  'first',
+                  row.table,
+                  row.key_json,
+                  row.row_json,
+                ),
+            ),
+        );
+    }
+    for (const rule of rules)
+      expect(
+        await db.prepare(rule.sql).bind('transfer', 'first').first(),
+        rule.id,
+      ).toBeNull();
+  },
+);
 beforeAll(async () => {
   runtime = new Miniflare({
     modules: true,

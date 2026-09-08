@@ -2,6 +2,10 @@
 use super::*;
 
 pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
+    seed_with_recovery(store, super::recovery_qa::enabled())
+}
+
+pub(super) fn seed_with_recovery(store: &LocalStore, recovery: bool) -> AppResult<()> {
     use crate::models::{RecordPaymentInput, SaveDocumentWithItemsInput};
     store.install_swiss_accounting_starter()?;
     let customer=store.create_record("clients",json!({"name":"Client fictif de recette comptable","address_line1":"Rue du Test","postal_code":"1000","city":"Lausanne","country":"CH"}))?;
@@ -35,6 +39,9 @@ pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
     store.reverse_journal_entry(reversed["id"].as_str().ok_or_else(|| invalid("Reversal journal missing"))?, "2026-09-08", None)?;
     println!("QA_POSTINGS_FIXTURE entries=5 reversals=2 invoice=100000 payment=30000 manual=10000");
     seed_cash_vat(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
+    if recovery {
+        super::recovery_qa::seed(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
+    }
     seed_credit_history(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
     let mut connection = store.connect()?;
     let tx = connection.transaction()?;
@@ -232,12 +239,14 @@ pub(super) async fn run(
     assert_eq!(current["verified_audit_entries"], native["entries"]);
     assert_eq!(current["last_audit_hash"], native["last_hash"]);
     assert_eq!(current["credit_projection"]["phase"], "valid");
-    assert_eq!(current["credit_projection"]["verified_documents"], 2);
-    assert_eq!(current["credit_projection"]["verified_movements"], 8);
+    let documents = if super::recovery_qa::enabled() { 6 } else { 2 };
+    let movements = if super::recovery_qa::enabled() { 14 } else { 8 };
+    assert_eq!(current["credit_projection"]["verified_documents"], documents);
+    assert_eq!(current["credit_projection"]["verified_movements"], movements);
     assert_eq!(request(session, remote, Method::POST).await?, current);
     println!("QA_INTEGRITY_COMPLETE transfer={} entries={} requests={} native_hash_match=true cursor_recovered=true replay_stable=true replication_active=false validator={}",remote.transfer_id,native["entries"],calls,current["validator_sha256"]);
     println!("QA_FINANCIAL_COMPLETE rules={accounting_rules} accounting_cursor_recovered=true replication_active=false");
-    println!("QA_CREDIT_PROJECTION_COMPLETE documents=2 movements=8 cursor_recovered=true exact_line_vat=true replication_active=false");
+    println!("QA_CREDIT_PROJECTION_COMPLETE documents={documents} movements={movements} cursor_recovered=true exact_line_vat=true replication_active=false");
     Ok(())
 }
 
@@ -248,7 +257,7 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
     store
         .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
         .unwrap();
-    seed(&store).unwrap();
+    seed_with_recovery(&store, false).unwrap();
     store.connect().unwrap().execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES('qa-native-bootstrap-0000','Client projet fictif','2026-09-08','2026-09-08')",[]).unwrap();
     super::files::seed_live_qa_files(&store).unwrap();
     let prepared = store

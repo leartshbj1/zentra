@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@/lib/runtime', () => ({ database: vi.fn() }));
+import { sha256Hex } from './account-security';
 import { creditProjectionSql } from './business-sync-credit-projection-sql';
 import {
   creditProjectionStatus,
@@ -450,21 +451,55 @@ it.skipIf(!process.env.ZENTRA_CREDIT_QA)(
 );
 it('caps each source page by raw JSON bytes as well as row count', async () => {
   await document(Array(6).fill(1));
-  await db.prepare("UPDATE business_sync_versions SET row_json=json_set(row_json,'$.description',?) WHERE table_name='invoice_items'").bind('x'.repeat(900000)).run();
+  await db
+    .prepare(
+      "UPDATE business_sync_versions SET row_json=json_set(row_json,'$.description',?) WHERE table_name='invoice_items'",
+    )
+    .bind('x'.repeat(900000))
+    .run();
   await until('seed_lines');
   await validateCreditProjection(ctx);
-  expect((await db.prepare('SELECT COUNT(*) n FROM business_sync_credit_lines').first())!.n).toBe(4);
+  expect(
+    (await db
+      .prepare('SELECT COUNT(*) n FROM business_sync_credit_lines')
+      .first())!.n,
+  ).toBe(4);
   await until('valid');
-  expect((await db.prepare('SELECT COUNT(*) n FROM business_sync_credit_lines').first())!.n).toBe(6);
+  expect(
+    (await db
+      .prepare('SELECT COUNT(*) n FROM business_sync_credit_lines')
+      .first())!.n,
+  ).toBe(6);
 });
 it('ranks 200000 derived numeric lines without loading them into JavaScript', async () => {
   await document([200000]);
   await payment('half', 100000);
   await until('rank');
   await db.prepare('DELETE FROM business_sync_credit_lines').run();
-  await db.prepare(`WITH RECURSIVE ids(id) AS (VALUES(0) UNION ALL SELECT id+1 FROM ids WHERE id<199999)
+  await db
+    .prepare(`WITH RECURSIVE ids(id) AS (VALUES(0) UNION ALL SELECT id+1 FROM ids WHERE id<199999)
     INSERT INTO business_sync_credit_lines(transfer_id,validator_sha256,document_id,item_id,position,gross,vat,remaining,released,proposed_gross,remainder)
-    SELECT 'transfer','validator','doc',printf('%06d',id),id,1,0,1,0,0,100000 FROM ids`).run();
+    SELECT 'transfer','validator','doc',printf('%06d',id),id,1,0,1,0,0,100000 FROM ids`)
+    .run();
   expect((await validateCreditProjection(ctx)).phase).toBe('tax');
-  expect(await db.prepare('SELECT COUNT(*) count,SUM(proposed_gross) gross,SUM(proposed_gross<>(position<100000)) wrong FROM business_sync_credit_lines').first()).toEqual({ count: 200000, gross: 100000, wrong: 0 });
+  expect(
+    await db
+      .prepare(
+        'SELECT COUNT(*) count,SUM(proposed_gross) gross,SUM(proposed_gross<>(position<100000)) wrong FROM business_sync_credit_lines',
+      )
+      .first(),
+  ).toEqual({ count: 200000, gross: 100000, wrong: 0 });
 }, 15000);
+it('binds the recovered source bytes to the original review token before seeding lines', async () => {
+  await document([100], [8]);
+  const original = '{"amount":9007199254740993}';
+  await insert('customer_credit_recoveries', 'recovery', {
+    original_invoice_id: 'doc',
+    source_json: '{"amount":9007199254740992}',
+    request_json: JSON.stringify({ source_token: await sha256Hex(original) }),
+  });
+  expect(await until('invalid')).toMatchObject({
+    failed_rule: 'credit_projection:recovery_token',
+  });
+  expect(await lines()).toEqual([]);
+});

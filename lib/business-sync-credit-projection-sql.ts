@@ -90,6 +90,9 @@ const journal = postingContextSql.replace(/^WITH RECURSIVE /, '');
 const recovery = `recoveries AS MATERIALIZED (${rows('customer_credit_recovery_postings', ['original_invoice_id', 'source_type', 'source_id', 'journal_entry_id', 'parts_json', 'expected_vat_cents'])})`;
 
 export const creditProjectionSql = {
+  recoveryToken:
+    query(`SELECT r.source_json,CASE WHEN json_valid(r.request_json) THEN json_extract(r.request_json,'$.source_token') END token
+    FROM (${rows('customer_credit_recoveries', ['original_invoice_id', 'source_json', 'request_json'])}) r JOIN args a WHERE r.original_invoice_id=a.document_id`),
   initialize:
     query(`INSERT OR IGNORE INTO business_sync_credit_projection(transfer_id,validator_sha256,manifest_sha256,generation,revision,state_json,updated_at)
     SELECT transfer,validator,manifest_sha256,generation,0,state_json,?23 FROM args WHERE EXISTS(${active})`),

@@ -5,6 +5,7 @@ import { financialRules } from './business-sync-financial';
 import { postingRules } from './business-sync-postings';
 import { cashVatRules } from './business-sync-cash-vat';
 import { creditSettlementRules } from './business-sync-credit-settlements';
+import { creditRecoveryRules } from './business-sync-credit-recovery';
 import {
   creditProjectionContract,
   creditProjectionStatus,
@@ -26,6 +27,7 @@ export const bootstrapAccountingRules = [
   ...postingRules,
   ...cashVatRules,
   ...creditSettlementRules,
+  ...creditRecoveryRules,
 ];
 export const AUDIT_BYTES_PER_PASS = 4 * 1024 * 1024;
 export const AUDIT_WALK_PER_PASS = 1000;

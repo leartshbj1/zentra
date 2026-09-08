@@ -6,6 +6,8 @@ mod files;
 mod structure_qa;
 #[cfg(test)]
 mod integrity_qa;
+#[cfg(test)]
+mod recovery_qa;
 
 use super::*;
 use crate::account_cloud::ProjectSyncSession;

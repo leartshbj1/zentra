@@ -499,29 +499,48 @@ it('accepts a full 200-row fragment and still bounds the streamed HTTP body befo
 
 it('handles competing initializers atomically and repeated lost responses without changing the winning generation', async () => {
   const f = await fixture();
-  const outcomes = await Promise.allSettled([
-    beginBootstrap(owner, f.id, f.manifest),
-    beginBootstrap(
-      { ...owner, installationId: 'second-pc' },
-      crypto.randomUUID(),
-      f.manifest,
+  const candidates = [
+    { session: owner, id: f.id },
+    {
+      session: { ...owner, installationId: 'second-pc' },
+      id: crypto.randomUUID(),
+    },
+  ];
+  const outcomes = await Promise.allSettled(
+    candidates.map(({ session, id }) =>
+      beginBootstrap(session, id, f.manifest),
     ),
-  ]);
+  );
   expect(
     outcomes.filter((result) => result.status === 'fulfilled'),
   ).toHaveLength(1);
+  expect(outcomes.find((result) => result.status === 'rejected')).toMatchObject(
+    {
+      reason: { status: 409 },
+    },
+  );
   expect(count('business_sync_spaces')).toBe(1);
   expect(count('business_sync_transfers')).toBe(1);
-  const winner = await bootstrapStatus(owner, f.id);
+  // Either request may win: hashing the manifest is asynchronous.
+  const selected =
+    candidates[outcomes.findIndex((result) => result.status === 'fulfilled')];
+  const winner = await bootstrapStatus(selected.session, selected.id);
   const repeated = await Promise.all(
-    Array.from({ length: 4 }, () => beginBootstrap(owner, f.id, f.manifest)),
+    Array.from({ length: 4 }, () =>
+      beginBootstrap(selected.session, selected.id, f.manifest),
+    ),
   );
   expect(
     repeated.every((result) => result.generation === winner.generation),
   ).toBe(true);
   const uploads = await Promise.all(
     Array.from({ length: 4 }, () =>
-      uploadBootstrapChunk(owner, f.id, 0, uploadRequest(f.bytes[0])),
+      uploadBootstrapChunk(
+        selected.session,
+        selected.id,
+        0,
+        uploadRequest(f.bytes[0]),
+      ),
     ),
   );
   expect(uploads.every((result) => result.uploaded_chunks.length === 1)).toBe(

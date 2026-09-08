@@ -1,4 +1,4 @@
-import { AccountPublicError } from './account-security';
+import { AccountPublicError, sha256Hex } from './account-security';
 import {
   activeBootstrapSql,
   type BootstrapValidationContext,
@@ -11,7 +11,7 @@ export const CREDIT_LINE_PAGE = 1000;
 // Bump the algorithm version whenever orchestration semantics change. SQL is
 // also fingerprinted, so a receipt cannot silently acquire different rules.
 export const creditProjectionContract = [
-  1,
+  2,
   CREDIT_SOURCE_PAGE,
   CREDIT_SOURCE_BYTES,
   CREDIT_LINE_PAGE,
@@ -308,6 +308,18 @@ export async function validateCreditProjection(ctx: Context) {
       ![0, 1].includes(doc.credit)
     )
       return fail('document');
+    const source = await first<{ source_json: string; token: string }>(
+      'recoveryToken',
+      { ...s, document: doc },
+    );
+    if (
+      source &&
+      (typeof source.source_json !== 'string' ||
+        source.source_json.length > 1024 * 1024 ||
+        typeof source.token !== 'string' ||
+        (await sha256Hex(source.source_json)) !== source.token)
+    )
+      return fail('recovery_token');
     return save(ctx, old, {
       ...s,
       phase: 'seed_lines',

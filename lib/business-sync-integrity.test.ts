@@ -212,7 +212,7 @@ async function structure() {
 }
 async function finish() {
   let status = await bootstrapIntegrityStatus(owner, id);
-  for (let i = 0; i < 100 && !['valid', 'invalid'].includes(status.state); i++)
+  for (let i = 0; i < 200 && !['valid', 'invalid'].includes(status.state); i++)
     status = await validateBootstrapIntegrity(owner, id);
   return status;
 }
@@ -588,6 +588,42 @@ it.skipIf(!process.env.ZENTRA_CREDIT_QA)(
     db.exec('DELETE FROM business_sync_credit_projection');
     await expect(bootstrapIntegrityStatus(owner, id)).rejects.toMatchObject({
       status: 503,
+    });
+  },
+);
+it.skipIf(!process.env.ZENTRA_RECOVERY_QA)(
+  'accepts the complete native adoption with checked recovery tokens and exact line VAT',
+  async () => {
+    const folder = process.env.ZENTRA_RECOVERY_QA!;
+    const fixture = JSON.parse(readFileSync(`${folder}/prepared.json`, 'utf8'));
+    db.exec('DELETE FROM business_sync_versions');
+    for (let index = 0; index < fixture.manifest.chunks.length; index++) {
+      const chunk = JSON.parse(
+        readFileSync(
+          `${folder}/rows/${String(index).padStart(4, '0')}.json`,
+          'utf8',
+        ),
+      );
+      for (const row of chunk.rows)
+        db.prepare(
+          "INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,'org_first',?,?,?,?)",
+        ).run(
+          id,
+          row.table,
+          row.key_json,
+          row.row_json,
+          await sha256Hex(row.row_json),
+        );
+    }
+    await manifest();
+    await structure();
+    expect(await finish()).toMatchObject({
+      state: 'valid',
+      credit_projection: {
+        phase: 'valid',
+        verified_documents: 6,
+        verified_movements: 14,
+      },
     });
   },
 );
