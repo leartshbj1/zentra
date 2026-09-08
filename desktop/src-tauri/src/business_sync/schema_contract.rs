@@ -54,7 +54,7 @@ fn schema_contract(connection: &Connection) -> AppResult<Value> {
         tables.insert(name, json!({"sql":portable_sql(ddl),"columns":columns,"foreign_keys":foreign_keys,"unique":unique}));
     }
     Ok(
-        json!({"version":1,"schema_version":crate::schema::SCHEMA_VERSION,
+        json!({"version":1,"schema_version":DATA_SCHEMA_VERSION,
         "protocol_sha256":super::snapshot::contract_hash()?,"tables":tables}),
     )
 }
@@ -63,7 +63,12 @@ fn schema_contract(connection: &Connection) -> AppResult<Value> {
 fn structural_contract_matches_the_actual_migrated_database() {
     let temporary = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
-    let generated = schema_contract(&store.connect().unwrap()).unwrap();
+    let connection = store.connect().unwrap();
+    assert_eq!(
+        connection.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(),
+        crate::schema::SCHEMA_VERSION,
+    );
+    let generated = schema_contract(&connection).unwrap();
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/business_sync_schema.json");
     let expected: Value = serde_json::from_slice(
         &std::fs::read(path)

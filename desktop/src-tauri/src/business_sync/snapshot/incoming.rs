@@ -168,7 +168,7 @@ impl Head {
         let f: FilesManifest = serde_json::from_str(&self.files_manifest_json)?;
         if m.format != "zentra-business-bootstrap"
             || ![2, 3].contains(&m.version)
-            || m.schema_version != 60
+            || m.schema_version != crate::business_sync::DATA_SCHEMA_VERSION
             || m.contract_sha256 != contract_hash()?
             || m.tables.keys().ne(policy()?.tables.keys())
             || m.tables.get("settings") != Some(&1)

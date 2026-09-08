@@ -66,7 +66,7 @@ pub(super) fn contract_hash() -> AppResult<String> {
     Ok(digest(&serde_json::to_vec(&json!([
         "zentra-business-contract",
         1,
-        60,
+        super::DATA_SCHEMA_VERSION,
         tables
     ]))?))
 }
@@ -514,7 +514,7 @@ fn freeze_rows(connection: &Connection, folder: &Path) -> AppResult<Manifest> {
     let mut manifest = Manifest {
         format: "zentra-business-bootstrap".into(),
         version: 3,
-        schema_version: 60,
+        schema_version: super::DATA_SCHEMA_VERSION,
         contract_sha256: contract_hash()?,
         tables: BTreeMap::new(),
         chunks: Vec::new(),
@@ -627,7 +627,7 @@ impl Prepared {
             || self.installation_id != installation
             || self.manifest.format != "zentra-business-bootstrap"
             || ![1, 2, 3].contains(&self.manifest.version)
-            || self.manifest.schema_version != 60
+            || self.manifest.schema_version != super::DATA_SCHEMA_VERSION
             || self.manifest.contract_sha256 != contract_hash()?
             || self.manifest.tables.keys().ne(policy()?.tables.keys())
             || self.manifest.tables.get("settings") != Some(&1)
@@ -792,7 +792,7 @@ impl LocalStore {
             }
         }
         let schema: i64 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if schema != 60 {
+        if schema != crate::schema::SCHEMA_VERSION {
             return Err(invalid(
                 "Mettez à jour l'application avant de préparer cet historique.",
             ));
@@ -1055,6 +1055,8 @@ mod tests {
             b"changed after snapshot",
         )
         .unwrap();
+        assert_eq!(prepared.manifest.schema_version, 60);
+        crate::document_parent_tests::restore_v60_guards(&store.connect().unwrap());
         let restarted = LocalStore::initialize(store.data_dir.clone()).unwrap();
         let resumed = restarted
             .prepare_business_snapshot("company-a", "admin")

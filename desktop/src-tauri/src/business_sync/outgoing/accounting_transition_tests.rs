@@ -110,7 +110,7 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                 assert_eq!(
                     c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                         .unwrap(),
-                    60
+                    crate::schema::SCHEMA_VERSION
                 );
             }
         }

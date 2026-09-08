@@ -2,6 +2,16 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Protection locale des documents destinataires (schéma 61 en préparation)
+
+La migration native 61 renforce cinq déclencheurs de mise à jour : les lignes de facture, devis et salaire vérifient aussi le document de destination. Un document émis ou un salaire comptabilisé ne peut donc recevoir une ligne déplacée depuis un brouillon. Les lignes et cotisations d'un salaire antérieur sont également protégées quand une période suivante de la même personne et de la même année est déjà validée. Les déplacements entre brouillons restent possibles.
+
+Cette migration s'exécute dans la transaction d'ouverture du profil et ne réécrit aucune ligne métier ni pièce jointe. Elle ne change ni tables, ni colonnes, ni contraintes structurelles du contrat partagé. Le compteur de migration locale passe à 61 ; la version du format de données partagé reste explicitement 60, avec la même empreinte de contrat. Les manifestes et fragments déjà préparés doivent rester strictement identiques après migration et reprise.
+
+Recette du 9 septembre 2026 : le test initial reproduit le déplacement accepté d'une ligne nulle vers une facture émise. Après correction, les cinq tests ciblés passent, y compris conservation des données et pièces, redémarrages et annulation transactionnelle des cinq déclencheurs et de la version. La suite native complète passe avec 752 réussites, zéro échec et six essais dédiés ignorés, en 616,75 secondes ; Clippy sur toutes les cibles passe avec avertissements traités comme erreurs. Le catalogue structurel, l'empreinte du contrat, les transferts préparés et leur reprise après migration sont vérifiés. Les 77 contrôles serveur ciblés et les 16 réceptions d'opérations natives dans SQLite et D1 passent également. Ces dernières couvrent les six nouveaux parcours comptables du schéma local 61 et les devis/factures déjà exportés au schéma 60.
+
+Les installateurs publics restent en 1.46.1, schéma 59. Cette correction locale en préparation ne distribue pas encore un nouveau binaire et n'active pas la réplication métier.
+
 ## Validation fournisseur et ordre des périodes de paie (algorithme 5)
 
 La validation initiale des achats vérifie désormais les lignes et comptes de charges, les totaux, la référence, l'échéance, l'absence de paiement préalable et le journal déjà présent. Les rapprochements utilisent les valeurs du bon fournisseur à cet instant, avec la tolérance par ligne et globale du déclencheur natif. La validation d'un avoir vérifie ses lignes, son journal, ses affectations déjà créées et les périodes alors clôturées. Placer le journal après la validation est refusé, même si la copie finale est équilibrée.

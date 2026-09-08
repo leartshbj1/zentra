@@ -90,8 +90,12 @@ fn exact_images_order_and_original_revision_survive_deletion_and_restart() {
         assert_eq!(change["before_json"], json!(before));
         assert_eq!(change["after_json"], json!(after));
     }
+    assert_eq!(p.manifest.schema_version, 60);
+    let descriptor_before = fs::read(p.folder.join("manifest.json")).unwrap();
+    crate::document_parent_tests::restore_v60_guards(&c);
     let reopened = LocalStore::initialize(store.data_dir.clone()).unwrap();
     assert_eq!(next(&reopened).manifest, p.manifest);
+    assert_eq!(fs::read(p.folder.join("manifest.json")).unwrap(), descriptor_before);
     assert_eq!(
         super::super::status(&reopened.connect().unwrap()).unwrap()["pending_transactions"],
         1

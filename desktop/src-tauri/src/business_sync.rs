@@ -1,6 +1,10 @@
 //! Durable, transactional capture for the shared-business replication protocol.
 //! Network activation is deliberately gated by the authoritative bootstrap.
 
+/// Shared table and wire format, independent of the local migration counter.
+/// Local V61 only tightens update guards; prepared V60 transfers stay compatible.
+pub(crate) const DATA_SCHEMA_VERSION: u32 = 60;
+
 pub(crate) mod files;
 pub(crate) mod snapshot;
 pub(crate) mod outgoing;

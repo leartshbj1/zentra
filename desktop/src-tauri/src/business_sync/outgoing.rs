@@ -258,7 +258,7 @@ pub(crate) fn prepare_next(
     let mut manifest = Manifest {
         format: "zentra-business-transaction".into(),
         version: 1,
-        schema_version: 60,
+        schema_version: super::DATA_SCHEMA_VERSION,
         contract_sha256: snapshot::contract_hash()?,
         organization_id: org.clone(),
         installation_id: installation.clone(),

@@ -37,6 +37,9 @@ mod expense_refunds;
 mod expense_refund_attachments;
 #[cfg(test)]
 mod input_vat_tests;
+#[cfg(test)]
+mod document_parent_tests;
+mod document_parent_guards;
 mod installation;
 mod license;
 #[cfg(any(target_os = "android", target_os = "ios"))]

@@ -394,7 +394,7 @@ it.each(['earlier', 'future'])(
 );
 
 it.skipIf(!process.env.ZENTRA_ACCOUNTING_TRANSITION_QA)(
-  'matches unconditional guards from a freshly initialized native schema 60',
+  'matches unconditional guards from the current migrated native schema',
   () => {
     const triggers = JSON.parse(
       readFileSync(

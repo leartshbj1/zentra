@@ -1800,6 +1800,9 @@ impl LocalStore {
         if current < 60 {
             crate::business_sync::migrate(&transaction)?;
         }
+        if current < 61 {
+            crate::document_parent_guards::migrate(&transaction)?;
+        }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM
