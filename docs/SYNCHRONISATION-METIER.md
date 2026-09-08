@@ -186,6 +186,16 @@ La correction est publiée dans la **version 81 du site**, source `f5a447e9fd027
 
 La modification locale postérieure à la copie reste en attente. Après l'essai, les onze tables temporaires vérifiées sont vides, sans page omise, et le compte affiche zéro appareil actif. Les deux méthodes anonymes répondent 401 sans mise en cache. Cet essai utilise le même ordinateur physique et la réplication reste inactive ; le schéma natif 60 n'est pas encore distribué.
 
+## TVA sur encaissements : montants exacts et paiements successifs
+
+Le vérificateur comporte désormais 39 règles. Quatre contrôles supplémentaires relient le reclassement de TVA à son paiement, sa date et sa facture ; ils vérifient ses deux lignes, la devise, le sens des montants et le compte historique de TVA à régulariser. Pour les dossiers historiques sans imputation datée ni reprise fiscale, le cumul libéré doit correspondre au montant encaissé et aux avoirs. Sans avoir actif, chaque paiement doit libérer exactement la différence entre deux cumuls arrondis successifs : décaler un centime vers une autre période est refusé même si le total final est correct.
+
+Les proportions sont calculées dans SQLite par quotient et reste, sans multiplication susceptible de dépasser les entiers 64 bits et sans conversion monétaire en nombre JavaScript. Les agrégats positifs renvoient un refus explicite en cas de dépassement. Les tests comparent les résultats à une référence BigInt, couvrent les arrondis, les valeurs extrêmes et les entrées invalides. Dans le moteur workerd fourni avec Wrangler, **200 000 proportions extrêmes** restent exactes en 11,15 secondes lors du test local ; ce résultat ne constitue pas une garantie de latence du service public.
+
+La recette native produit une deuxième facture réelle de démonstration : 1 000 CHF hors taxe, 81 CHF de TVA, puis deux paiements de 333,33 CHF et 747,67 CHF. L'application comptabilise 24,98 CHF puis 56,02 CHF de TVA et exporte le XML du deuxième trimestre avec 81 CHF dus, sans transmission à l'AFC. Le moteur D1 accepte les 39 contrôles sur ces lignes natives et refuse une modification d'un centime des deux côtés d'une écriture pourtant équilibrée. Les extournes, les paiements sans centime de TVA à libérer et les égalités de dates sont également couverts.
+
+Ces quatre règles ne constituent pas encore la projection complète des imputations datées d'avoirs et des reprises fiscales. Ces dossiers conservent les contrôles de source et de structure comptable, mais leurs allocations chronologiques détaillées restent à vérifier. Les corrections fournisseurs, le détail de la paie et les stocks, puis la publication atomique de l'historique avec ses fichiers et bornes de numérotation, restent nécessaires avant activation de la réplication. Le schéma natif 60 demeure en préparation.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

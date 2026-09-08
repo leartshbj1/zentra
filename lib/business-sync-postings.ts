@@ -17,6 +17,7 @@ const typedLines = `${lines}, accounts AS MATERIALIZED (${rows('accounts', ['id'
 // SUM is safe here: the preceding journal rules have already established
 // positive sides and the combined signed-int64 cap for every journal entry.
 const context = `WITH RECURSIVE ${entries},${chain},${effective},${typedLines}`;
+export { context as postingContextSql };
 const quote = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const lineWhere = (
   memo: string,

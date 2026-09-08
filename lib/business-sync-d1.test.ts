@@ -1,8 +1,12 @@
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { accountingRules } from './business-sync-accounting';
 import { financialRules } from './business-sync-financial';
 import { postingRules } from './business-sync-postings';
+import { cashVatRules } from './business-sync-cash-vat';
+import { roundedProportionCtes } from './business-sync-money';
 
 // Exercise the workerd SQLite limits used by D1, which differ from node:sqlite.
 // Use the exact simulator shipped with this repository's pinned Wrangler.
@@ -13,7 +17,12 @@ let runtime: {
   dispose(): Promise<void>;
 };
 let db: D1Database;
-const rules = [...accountingRules, ...financialRules, ...postingRules];
+const rules = [
+  ...accountingRules,
+  ...financialRules,
+  ...postingRules,
+  ...cashVatRules,
+];
 beforeAll(async () => {
   runtime = new Miniflare({
     modules: true,
@@ -40,80 +49,92 @@ it('executes every bootstrap financial query within the D1 SQL limits', async ()
   }
 });
 
-it('checks every source family and required posting with the D1 engine', async () => {
-  const sourceRule = postingRules.find((r) => r.id === 'posting:source')!;
-  const requiredRule = postingRules.find((r) => r.id === 'posting:required')!;
-  const insert = async (
-    table: string,
-    id: string,
-    row: Record<string, unknown>,
-    organization = 'first',
-  ) => {
-    await db
-      .prepare('INSERT INTO business_sync_versions VALUES(?,?,?,?,?)')
-      .bind(
-        'transfer',
-        organization,
-        table,
-        JSON.stringify([id]),
-        JSON.stringify({ id, ...row }),
-      )
-      .run();
-  };
-  const families = [
-    [
-      'invoice',
-      'invoices',
-      'issue',
-      {
-        number: 'F-1',
-        type: 'facture',
-        status: 'envoyee',
-        issue_date: '2026-09-08',
-        total_cents: 100,
-        vat_cents: 0,
-        subtotal_cents: 100,
-        discount_cents: 0,
-      },
-    ],
-    [
-      'payment',
-      'payments',
-      'invoice:original',
-      { date: '2026-09-08', invoice_id: 'original' },
-    ],
-    [
-      'expense',
-      'expenses',
-      'create',
-      { date: '2026-09-08', payment_status: 'paid' },
-    ],
-    [
-      'supplier_invoice',
-      'supplier_invoices',
-      'validate',
-      { document_date: '2026-09-08', status: 'validated' },
-    ],
-    [
-      'supplier_payment',
-      'supplier_payments',
-      'invoice:original',
-      { date: '2026-09-08', supplier_invoice_id: 'original' },
-    ],
-    [
-      'payslip',
-      'payslips',
-      'post',
-      { period: '2026-09', status: 'comptabilise' },
-    ],
-    [
-      'payslip',
-      'payslips',
-      'payment',
-      { period: '2026-09', status: 'paye', payment_date: '2026-09-08' },
-    ],
-  ] as const;
-  for (const [kind, table, event, row] of families) {
+it('keeps 200000 extreme-value VAT proportions exact within the D1 runtime', async () => {
+  const result = await db
+    .prepare(`WITH RECURSIVE ids(id) AS (VALUES(0) UNION ALL SELECT id+1 FROM ids WHERE id<199999),
+    inputs AS MATERIALIZED (SELECT id,9223372036854775807-id amount,9223372036854775807-id numerator,9223372036854775807 denominator FROM ids),
+    ${roundedProportionCtes('inputs', 'proportions')}
+    SELECT COUNT(*) count,SUM(amount IS NULL OR amount<>9223372036854775807-2*id) wrong FROM proportions`)
+    .first();
+  expect(result).toEqual({ count: 200000, wrong: 0 });
+}, 25000);
+
+const families = [
+  [
+    'invoice',
+    'invoices',
+    'issue',
+    {
+      number: 'F-1',
+      type: 'facture',
+      status: 'envoyee',
+      issue_date: '2026-09-08',
+      total_cents: 100,
+      vat_cents: 0,
+      subtotal_cents: 100,
+      discount_cents: 0,
+    },
+  ],
+  [
+    'payment',
+    'payments',
+    'invoice:original',
+    { date: '2026-09-08', invoice_id: 'original' },
+  ],
+  [
+    'expense',
+    'expenses',
+    'create',
+    { date: '2026-09-08', payment_status: 'paid' },
+  ],
+  [
+    'supplier_invoice',
+    'supplier_invoices',
+    'validate',
+    { document_date: '2026-09-08', status: 'validated' },
+  ],
+  [
+    'supplier_payment',
+    'supplier_payments',
+    'invoice:original',
+    { date: '2026-09-08', supplier_invoice_id: 'original' },
+  ],
+  [
+    'payslip',
+    'payslips',
+    'post',
+    { period: '2026-09', status: 'comptabilise' },
+  ],
+  [
+    'payslip',
+    'payslips',
+    'payment',
+    { period: '2026-09', status: 'paye', payment_date: '2026-09-08' },
+  ],
+] as const;
+
+it.each(families)(
+  'checks %s sources (%s / %s) within D1',
+  async (kind, table, event, row) => {
+    const sourceRule = postingRules.find((r) => r.id === 'posting:source')!;
+    const requiredRule = postingRules.find((r) => r.id === 'posting:required')!;
+    const insert = async (
+      table: string,
+      id: string,
+      row: Record<string, unknown>,
+      organization = 'first',
+    ) => {
+      await db
+        .prepare('INSERT INTO business_sync_versions VALUES(?,?,?,?,?)')
+        .bind(
+          'transfer',
+          organization,
+          table,
+          JSON.stringify([id]),
+          JSON.stringify({ id, ...row }),
+        )
+        .run();
+    };
     await db.exec('DELETE FROM business_sync_versions');
     await insert('accounting_settings', 'settings', { enabled: 1 });
     await insert(table, 'piece', row);
@@ -152,5 +173,75 @@ it('checks every source family and required posting with the D1 engine', async (
       await db.prepare(sourceRule.sql).bind('transfer', 'first').first(),
       `${kind}/${event} foreign source`,
     ).not.toBeNull();
-  }
-});
+  },
+);
+
+it.skipIf(!process.env.ZENTRA_CASH_VAT_QA)(
+  'accepts native cash-VAT rows in D1 and detects a balanced but incorrect release',
+  async () => {
+    const folder = process.env.ZENTRA_CASH_VAT_QA!;
+    const prepared = JSON.parse(
+      readFileSync(join(folder, 'prepared.json'), 'utf8'),
+    );
+    expect(prepared.manifest.tables.invoices).toBe(2);
+    expect(prepared.manifest.tables.payments).toBe(3);
+    expect(prepared.manifest.tables.journal_entries).toBe(10);
+    expect(prepared.manifest.tables.journal_lines).toBe(21);
+    await db.exec('DELETE FROM business_sync_versions');
+    for (let index = 0; index < prepared.manifest.chunks.length; index++) {
+      const chunk = JSON.parse(
+        readFileSync(
+          join(folder, 'rows', `${String(index).padStart(4, '0')}.json`),
+          'utf8',
+        ),
+      );
+      for (let at = 0; at < chunk.rows.length; at += 20) {
+        const part = chunk.rows.slice(at, at + 20) as {
+          table: string;
+          key_json: string;
+          row_json: string;
+        }[];
+        await db
+          .prepare(
+            `INSERT INTO business_sync_versions VALUES ${part.map(() => '(?,?,?,?,?)').join(',')}`,
+          )
+          .bind(
+            ...part.flatMap((row) => [
+              'transfer',
+              'first',
+              row.table,
+              row.key_json,
+              row.row_json,
+            ]),
+          )
+          .run();
+      }
+    }
+    for (const rule of rules)
+      expect(
+        await db.prepare(rule.sql).bind('transfer', 'first').first(),
+        rule.id,
+      ).toBeNull();
+    const posting = await db
+      .prepare(
+        "SELECT json_extract(row_json,'$.id') id FROM business_sync_versions WHERE table_name='journal_entries' AND json_extract(row_json,'$.source_type')='vat_cash_reclassification' ORDER BY json_extract(row_json,'$.entry_date'),id LIMIT 1",
+      )
+      .first<{ id: string }>();
+    expect(posting).not.toBeNull();
+    await db
+      .prepare(
+        "UPDATE business_sync_versions SET row_json=json_set(row_json,'$.debit_cents',CASE WHEN json_extract(row_json,'$.debit_cents')>0 THEN json_extract(row_json,'$.debit_cents')+1 ELSE 0 END,'$.credit_cents',CASE WHEN json_extract(row_json,'$.credit_cents')>0 THEN json_extract(row_json,'$.credit_cents')+1 ELSE 0 END) WHERE table_name='journal_lines' AND json_extract(row_json,'$.journal_entry_id')=?",
+      )
+      .bind(posting!.id)
+      .run();
+    const failures: string[] = [];
+    for (const rule of rules)
+      if (await db.prepare(rule.sql).bind('transfer', 'first').first())
+        failures.push(rule.id);
+    expect(failures).toEqual([
+      'vat_cash:legacy_total',
+      'vat_cash:payment_schedule',
+    ]);
+  },
+  15000,
+);

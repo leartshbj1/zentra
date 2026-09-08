@@ -826,10 +826,11 @@ pub(super) fn seed_live_qa_files(store: &LocalStore) -> AppResult<()> {
     }
     fs::write(store.attachments_dir.join("qa-empty.txt"), b"")?;
     store.connect()?.execute("UPDATE settings SET uid_number='CHE-123.456.789',vat_number='CHE-123.456.789 TVA' WHERE id=1", [])?;
+    let cash_profile: bool = store.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE id='qa-bootstrap-cash-vat')", [], |r| r.get(0))?;
     let profile = store.create_vat_profile(crate::vat_reporting::VatProfileInput {
         id: Some("qa-bootstrap-vat".into()),
         effective_from: "2026-01-01".into(),
-        effective_to: None,
+        effective_to: cash_profile.then(|| "2026-03-31".into()),
         reporting_method: "effective".into(),
         form_of_reporting: "agreed".into(),
         periodicity: "quarterly".into(),
@@ -840,14 +841,21 @@ pub(super) fn seed_live_qa_files(store: &LocalStore) -> AppResult<()> {
         notes: Some("Recette fictive de transfert ; aucun dépôt auprès de l'AFC.".into()),
         close_previous_open_profile: false,
     })?;
-    store.export_vat_return_xml(crate::vat_reporting::ExportVatReturnInput {
-        date_from: "2026-01-01".into(),
-        date_to: "2026-03-31".into(),
+    let vat_export = store.export_vat_return_xml(crate::vat_reporting::ExportVatReturnInput {
+        date_from: if cash_profile { "2026-04-01" } else { "2026-01-01" }.into(),
+        date_to: if cash_profile { "2026-06-30" } else { "2026-03-31" }.into(),
         submission_type: "initial".into(),
-        profile_id: Some(profile.id),
+        profile_id: Some(if cash_profile { "qa-bootstrap-cash-vat".into() } else { profile.id }),
         business_reference_id: "QA-BOOTSTRAP-ONLY".into(),
         file_name: Some("qa-bootstrap-vat.xml".into()),
     })?;
+    if cash_profile {
+        assert!(vat_export.payload.exportable);
+        assert_eq!(vat_export.payload.payable_tax_cents, 8100);
+        let xml = fs::read_to_string(&vat_export.file_path)?;
+        assert!(xml.contains("<eCH-0217:payableTax>81.00</eCH-0217:payableTax>"));
+        println!("QA_CASH_VAT_XML quarter=2026-Q2 payable_cents=8100 exported=true transmitted=false");
+    }
     store.connect()?.execute("INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at) VALUES(?,'Exercice fictif de recette HTTPS','2026-01-01','2026-12-31','open','2026-09-08','2026-09-08')", [Uuid::new_v4().to_string()])?;
     let review = store.prepare_fiduciary_pre_closing(crate::models::PeriodFilter {
         date_from: Some("2026-01-01".into()),

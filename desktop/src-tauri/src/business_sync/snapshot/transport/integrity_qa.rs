@@ -34,6 +34,7 @@ pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
     let reversed = store.reverse_journal_entry(manual["id"].as_str().ok_or_else(|| invalid("Manual journal missing"))?, "2026-09-08", None)?;
     store.reverse_journal_entry(reversed["id"].as_str().ok_or_else(|| invalid("Reversal journal missing"))?, "2026-09-08", None)?;
     println!("QA_POSTINGS_FIXTURE entries=5 reversals=2 invoice=100000 payment=30000 manual=10000");
+    seed_cash_vat(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
     let mut connection = store.connect()?;
     let tx = connection.transaction()?;
     for index in 0..1005 {
@@ -46,6 +47,44 @@ pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
         )?;
     }
     tx.commit()?;
+    Ok(())
+}
+
+fn seed_cash_vat(store: &LocalStore, customer_id: &str) -> AppResult<()> {
+    use crate::models::{RecordPaymentInput, SaveDocumentWithItemsInput};
+    store.connect()?.execute("UPDATE settings SET vat_registered=1,uid_number='CHE-123.456.789',vat_number='CHE-123.456.789 TVA' WHERE id=1", [])?;
+    store.create_vat_profile(crate::vat_reporting::VatProfileInput {
+        id: Some("qa-bootstrap-cash-vat".into()), effective_from: "2026-04-01".into(), effective_to: None,
+        reporting_method: "effective".into(), form_of_reporting: "received".into(), periodicity: "quarterly".into(), gross_or_net: "net".into(),
+        tdfn_activity_id: None, tdfn_rate_bp: None, afc_authorization_confirmed: true,
+        notes: Some("Entreprise fictive de recette uniquement ; aucune déclaration AFC.".into()), close_previous_open_profile: false,
+    })?;
+    let saved = store.save_document_with_items(SaveDocumentWithItemsInput {
+        entity: "invoices".into(), id: None,
+        data: json!({"client_id":customer_id,"title":"Recette TVA sur deux encaissements","service_date_from":"2026-04-01","service_date_to":"2026-04-01","currency":"CHF"}),
+        items: vec![json!({"description":"Prestation fictive soumise à TVA","quantity":1,"unit":"pièce","unit_price_cents":100000,"discount_bp":0,"vat_bp":810})],
+    })?;
+    let invoice = saved["document"]["id"].as_str().ok_or_else(|| invalid("Cash VAT invoice missing"))?;
+    let item: String = store.connect()?.query_row("SELECT id FROM invoice_items WHERE invoice_id=?", [invoice], |r| r.get(0))?;
+    store.set_vat_source_classification(crate::vat_reporting::VatSourceClassificationInput {
+        source_type: "invoice_item".into(), source_id: item, treatment: "taxable".into(), note: None,
+    })?;
+    store.issue_invoice(invoice, Some("2026-04-01".into()), None)?;
+    for (date, amount) in [("2026-04-15",33333),("2026-06-15",74767)] {
+        store.record_payment(RecordPaymentInput {
+            request_id: Uuid::new_v4().to_string(), invoice_id: invoice.into(), amount_cents: amount,
+            date: Some(date.into()), method: Some("Banque".into()), reference: None, notes: Some("Recette fictive de ventilation TVA".into()),
+        })?;
+    }
+    let connection = store.connect()?;
+    assert!(crate::accounting::cash_vat_invoice_is_consistent(&connection, invoice)?);
+    let allocations: Vec<i64> = {
+        let mut statement = connection.prepare("SELECT l.debit_cents FROM payments p JOIN journal_entries j ON j.source_type='vat_cash_reclassification' AND j.source_id=p.id JOIN journal_lines l ON l.journal_entry_id=j.id AND l.memo='Reclassement TVA à régulariser' WHERE p.invoice_id=? ORDER BY p.date,p.created_at,p.id")?;
+        let rows = statement.query_map([invoice], |r| r.get(0))?;
+        rows.collect::<Result<_,_>>()?
+    };
+    assert_eq!(allocations, vec![2498,5602]);
+    println!("QA_CASH_VAT_FIXTURE invoice=108100 vat=8100 payments=33333,74767 allocations=2498,5602 native_consistent=true");
     Ok(())
 }
 
@@ -150,8 +189,8 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
     let prepared = store
         .prepare_business_snapshot("org_first", "owner")
         .unwrap();
-    assert_eq!(prepared.manifest.tables.get("invoices"), Some(&1));
-    assert_eq!(prepared.manifest.tables.get("payments"), Some(&1));
+    assert_eq!(prepared.manifest.tables.get("invoices"), Some(&2));
+    assert_eq!(prepared.manifest.tables.get("payments"), Some(&3));
     assert_eq!(prepared.files.len(), 5);
     let connection = store.connect().unwrap();
     assert_eq!(
@@ -159,21 +198,21 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
             .query_row("SELECT COUNT(*) FROM journal_entries", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        5
+        10
     );
     assert_eq!(
         connection
             .query_row("SELECT SUM(debit_cents) FROM journal_lines", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        160000
+        384300
     );
     assert_eq!(
         connection
             .query_row("SELECT SUM(credit_cents) FROM journal_lines", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        160000
+        384300
     );
     assert!(
         crate::audit::verify_audit_chain(&connection).unwrap()["entries"]
@@ -181,4 +220,16 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
             .unwrap()
             > 1000
     );
+    if let Ok(folder) = std::env::var("ZENTRA_CASH_VAT_QA_OUTPUT") {
+        let output = PathBuf::from(folder);
+        assert!(output.is_absolute());
+        let source = store.snapshot_folder(&prepared.transfer_id).unwrap();
+        fs::create_dir(&output).unwrap();
+        fs::create_dir(output.join("rows")).unwrap();
+        write_new(&output.join("prepared.json"), &serde_json::to_vec(&prepared).unwrap()).unwrap();
+        for index in 0..prepared.manifest.chunks.len() {
+            let name = format!("{index:04}.json");
+            write_new(&output.join("rows").join(&name), &fs::read(source.join("rows").join(name)).unwrap()).unwrap();
+        }
+    }
 }

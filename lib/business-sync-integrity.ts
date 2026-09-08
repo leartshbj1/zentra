@@ -3,6 +3,7 @@ import { AccountPublicError, sha256Hex } from './account-security';
 import { accountingRules } from './business-sync-accounting';
 import { financialRules } from './business-sync-financial';
 import { postingRules } from './business-sync-postings';
+import { cashVatRules } from './business-sync-cash-vat';
 import {
   activeBootstrapSql,
   bootstrapValidationContext,
@@ -17,6 +18,7 @@ export const bootstrapAccountingRules = [
   ...accountingRules,
   ...financialRules,
   ...postingRules,
+  ...cashVatRules,
 ];
 export const AUDIT_BYTES_PER_PASS = 4 * 1024 * 1024;
 export const AUDIT_WALK_PER_PASS = 1000;
