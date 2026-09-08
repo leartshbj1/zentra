@@ -1,11 +1,13 @@
 """Exercise immutable macOS packages on a disposable runner, with no user data."""
 
 import importlib.util
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import plistlib
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -18,6 +20,32 @@ import urllib.request
 
 def run(*args):
     return subprocess.check_output(args, text=True).strip()
+
+
+@contextmanager
+def isolated_keychain(root):
+    """Use an owned test keychain so normal consent never needs a runner password."""
+    previous_default = run('security', 'default-keychain').strip('"')
+    keychain = root / 'zentra-upgrade-test.keychain-db'
+    password = secrets.token_urlsafe(32)
+
+    def security(*args):
+        result = subprocess.run(['security', *args], capture_output=True, text=True)
+        if result.returncode:
+            raise RuntimeError('Isolated test keychain operation failed')
+
+    created = False
+    try:
+        security('create-keychain', '-p', password, str(keychain))
+        created = True
+        security('set-keychain-settings', '-lut', '3600', str(keychain))
+        security('unlock-keychain', '-p', password, str(keychain))
+        security('default-keychain', '-s', str(keychain))
+        yield password
+    finally:
+        security('default-keychain', '-s', previous_default)
+        if created:
+            security('delete-keychain', str(keychain))
 
 
 def main():
@@ -40,7 +68,7 @@ def main():
               'auditSource': run('git', 'rev-parse', 'HEAD'), 'buildRun': int(build_run),
               'passed': False, 'stages': [], 'scope': 'Exact archive replacement, native startup, restart, SQLite and protected identity; no interactive UI, Gatekeeper or notarization claim.'}
     runner_temp = Path(os.environ['RUNNER_TEMP']).resolve()
-    with tempfile.TemporaryDirectory(prefix='zentra-macos-upgrade-', dir=runner_temp) as temp:
+    with tempfile.TemporaryDirectory(prefix='zentra-macos-upgrade-', dir=runner_temp) as temp, isolated_keychain(Path(temp)) as keychain_password:
         root = Path(temp).resolve()
         assert root.parent == runner_temp
         profile = root / 'profile'
@@ -94,7 +122,8 @@ def main():
                             consent_checked = True
                             # An ad hoc update has a new code identity. Exercise the normal macOS
                             # Allow action only for this test application's own Keychain dialog.
-                            # Never alter ACLs, disable Keychain security or type a password.
+                            # Never alter ACLs or disable Keychain security. The only password
+                            # available here belongs to the disposable keychain created above.
                             consent_script = '''tell application "System Events"
 tell process "SecurityAgent"
 if (count of windows) is not 1 then return "no-single-consent-dialog"
@@ -110,11 +139,21 @@ end try
 end repeat
 if dialogText does not contain "Zentra" or dialogText does not contain "ch.zentra.desktop.protected-data" then return "unexpected-consent-context: " & dialogText
 if not (exists button "Allow" of window 1) then return "no-allow-button"
+set passwordFields to {}
+repeat with dialogElement in dialogElements
+set currentElement to contents of dialogElement
+if role of currentElement is "AXTextField" then
+if subrole of currentElement is "AXSecureTextField" then set end of passwordFields to currentElement
+end if
+end repeat
+if (count of passwordFields) > 1 then return "unexpected-password-fields"
+if (count of passwordFields) is 1 then set value of item 1 of passwordFields to system attribute "ZENTRA_QA_KEYCHAIN_PASSWORD"
 click button "Allow" of window 1
-return "allowed-zentra-keychain-dialog"
+return "allowed-zentra-keychain-dialog; test-password-fields=" & (count of passwordFields)
 end tell
 end tell'''
-                            consent = subprocess.run(['osascript', '-e', consent_script], capture_output=True, text=True, timeout=10)
+                            consent = subprocess.run(['osascript', '-e', consent_script], capture_output=True, text=True, timeout=10,
+                                                     env=dict(os.environ, ZENTRA_QA_KEYCHAIN_PASSWORD=keychain_password))
                             report.setdefault('systemConsent', []).append({'stage': stage, 'result': consent.stdout.strip(), 'inspectionError': consent.stderr.strip()})
                         assert time.monotonic() < deadline, stage + ': initialization timed out'
                         time.sleep(1)
