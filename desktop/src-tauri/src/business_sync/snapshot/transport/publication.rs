@@ -115,7 +115,7 @@ impl PublicationTransport for ProjectSyncSession {
         };
         let readonly = method == Method::GET;
         let (status, bytes) = self
-            .request(method, path, &query, &headers, body, readonly)
+            .request_status(method, path, &query, &headers, body, readonly)
             .await?;
         Ok((status.as_u16(), bytes))
     }

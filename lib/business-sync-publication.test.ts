@@ -54,6 +54,18 @@ import { reserveDocumentNumbers } from './document-number-reservations';
 import * as publishHttp from '../app/api/sync/bootstrap/publish/route';
 import * as historyHttp from '../app/api/sync/history/route';
 import * as fileHttp from '../app/api/sync/history/file/route';
+import {
+  beginBusinessTransaction,
+  businessTransactionStatus,
+  uploadBusinessTransactionChunk,
+} from './business-sync-transactions';
+import {
+  transactionManifest,
+  transactionChanges,
+  type TransactionChange,
+  type TransactionManifest,
+} from './business-sync-transaction-format';
+import * as transactionHttp from '../app/api/sync/transactions/route';
 
 let db: DatabaseSync, blobs: Map<string, Uint8Array>;
 let beforeBatch: ((sql: string[]) => Promise<void>) | undefined;
@@ -314,6 +326,304 @@ async function ready() {
   return { ...f, pages };
 }
 
+function transactionClient(
+  id = 'client-transaction',
+  notes = 'Conditions\nAcompte : 30 %',
+) {
+  const local = new DatabaseSync(':memory:');
+  try {
+    local.exec(structuralSchema.tables.clients.sql);
+    local
+      .prepare(
+        "INSERT INTO clients(id,name,notes,created_at,updated_at) VALUES(?,'Client fictif',?,'2026-09-08','2026-09-08')",
+      )
+      .run(id, notes);
+    return local
+      .prepare(
+        `SELECT json_object(${contract.tables.clients.columns.flatMap((c) => [`'${c}'`, `"${c}"`]).join(',')}) image FROM clients`,
+      )
+      .get()!.image as string;
+  } finally {
+    local.close();
+  }
+}
+function transactionInsert(
+  sequence = '9007199254740993',
+  id = 'client-transaction',
+): TransactionChange {
+  return {
+    sequence,
+    table: 'clients',
+    key_json: JSON.stringify([id]),
+    operation: 'insert',
+    before_json: null,
+    after_json: transactionClient(id),
+    source_rowid: sequence,
+    files_before: [],
+    files_after: [],
+  };
+}
+async function transactionFixture(
+  parts = [[transactionInsert()]],
+  published?: { generation: string; transfer_id: string },
+) {
+  const receipt =
+    published ??
+    (await (async () => {
+      const f = await ready();
+      return publishBootstrap(owner, f.id);
+    })());
+  const actor = { ...second, installationId: crypto.randomUUID() };
+  const chunks = parts.map((changes) => encode({ version: 1, changes }));
+  const manifest: TransactionManifest = {
+    format: 'zentra-business-transaction',
+    version: 1,
+    schema_version: 60,
+    contract_sha256: await businessSyncContractHash(),
+    organization_id: actor.organizationId,
+    installation_id: actor.installationId,
+    generation: receipt.generation,
+    capture_generation: crypto.randomUUID(),
+    bootstrap_transfer_id: receipt.transfer_id,
+    transaction_id: crypto.randomUUID(),
+    base_revision: 1,
+    first_sequence: parts[0][0].sequence,
+    last_sequence: parts.at(-1)!.at(-1)!.sequence,
+    change_count: parts.flat().length,
+    size_bytes: chunks.reduce((n, c) => n + c.length, 0),
+    chunks: await Promise.all(
+      chunks.map(async (bytes, i) => ({
+        sha256: await sha256Hex(bytes),
+        size_bytes: bytes.length,
+        change_count: parts[i].length,
+      })),
+    ),
+    files: [],
+  };
+  return { manifest, chunks, actor, receipt };
+}
+
+it('receives later transaction bytes idempotently without advancing the canonical history or rounding source sequences', async () => {
+  const { manifest, chunks, actor } = await transactionFixture();
+  const initialVersions = count('business_sync_versions');
+  expect(
+    await beginBusinessTransaction(actor, JSON.stringify(manifest)),
+  ).toMatchObject({ state: 'receiving', canonical_committed: false });
+  const first = await uploadBusinessTransactionChunk(
+    actor,
+    manifest.transaction_id,
+    0,
+    request(chunks[0]),
+  );
+  expect(first).toMatchObject({
+    state: 'awaiting_validation',
+    canonical_committed: false,
+    replication_active: false,
+  });
+  expect(
+    await uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      0,
+      request(chunks[0]),
+    ),
+  ).toEqual(first);
+  expect(
+    await beginBusinessTransaction(actor, JSON.stringify(manifest)),
+  ).toEqual(first);
+  expect(count('business_sync_transaction_parts')).toBe(1);
+  expect(count('business_sync_transaction_changes')).toBe(1);
+  expect(
+    db
+      .prepare(
+        'SELECT sequence,source_rowid,after_sha256 FROM business_sync_transaction_changes',
+      )
+      .get(),
+  ).toEqual({
+    sequence: '9007199254740993',
+    source_rowid: '9007199254740993',
+    after_sha256: await sha256Hex(transactionClient()),
+  });
+  const stored = db
+    .prepare('SELECT object_key FROM business_sync_transaction_parts')
+    .get()!.object_key as string;
+  expect(blobs.get(stored)).toEqual(chunks[0]);
+  expect(count('business_sync_versions')).toBe(initialVersions);
+  expect(await historyHead(actor)).toMatchObject({ head_revision: 1 });
+});
+
+it('rolls back every part receipt and row metadata on a database failure, then resumes the retained original bytes', async () => {
+  const { manifest, chunks, actor } = await transactionFixture([
+    [transactionInsert('1', 'a'), transactionInsert('2', 'b')],
+  ]);
+  await beginBusinessTransaction(actor, JSON.stringify(manifest));
+  failStatement = (sql) => {
+    if (sql.includes('INSERT INTO business_sync_transaction_changes'))
+      throw new Error('database unavailable');
+  };
+  await expect(
+    uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      0,
+      request(chunks[0]),
+    ),
+  ).rejects.toThrow();
+  expect(count('business_sync_transaction_parts')).toBe(0);
+  expect(count('business_sync_transaction_changes')).toBe(0);
+  failStatement = undefined;
+  expect(
+    await uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      0,
+      request(chunks[0]),
+    ),
+  ).toMatchObject({ state: 'awaiting_validation' });
+  expect(count('business_sync_transaction_changes')).toBe(2);
+});
+
+it('checks intermediate images across chunk boundaries and never calls invalid received rows applied', async () => {
+  const insert = transactionInsert('1');
+  const update: TransactionChange = {
+    ...insert,
+    sequence: '2',
+    operation: 'update',
+    before_json: transactionClient(
+      'client-transaction',
+      'another previous state',
+    ),
+    after_json: transactionClient('client-transaction', 'last state'),
+  };
+  const { manifest, chunks, actor } = await transactionFixture([
+    [insert],
+    [update],
+  ]);
+  await beginBusinessTransaction(actor, JSON.stringify(manifest));
+  expect(
+    await uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      1,
+      request(chunks[1]),
+    ),
+  ).toMatchObject({ state: 'receiving' });
+  expect(
+    await uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      0,
+      request(chunks[0]),
+    ),
+  ).toMatchObject({ state: 'invalid', canonical_committed: false });
+  expect(await historyHead(actor)).toMatchObject({ head_revision: 1 });
+});
+
+it('isolates later transactions by company, device, capture generation and role, including races after blob storage', async () => {
+  const { manifest, chunks, actor } = await transactionFixture();
+  await expect(
+    beginBusinessTransaction(
+      { ...actor, role: 'read_only' },
+      JSON.stringify(manifest),
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    beginBusinessTransaction(
+      { ...actor, installationId: crypto.randomUUID() },
+      JSON.stringify(manifest),
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  await beginBusinessTransaction(actor, JSON.stringify(manifest));
+  await expect(
+    businessTransactionStatus(
+      { ...actor, organizationId: 'org_other' },
+      manifest.transaction_id,
+    ),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    beginBusinessTransaction(
+      actor,
+      JSON.stringify({ ...manifest, base_revision: 2 }),
+    ),
+  ).rejects.toThrow();
+  beforeBatch = async (sql) => {
+    if (sql.some((s) => s.includes('business_sync_transaction_parts'))) {
+      beforeBatch = undefined;
+      db.prepare(
+        'UPDATE business_sync_spaces SET generation=? WHERE organization_id=?',
+      ).run(crypto.randomUUID(), actor.organizationId);
+    }
+  };
+  await expect(
+    uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      0,
+      request(chunks[0]),
+    ),
+  ).rejects.toThrow();
+  expect(count('business_sync_transaction_parts')).toBe(0);
+  expect(count('business_sync_transaction_changes')).toBe(0);
+});
+
+it('rejects duplicate envelope keys, altered hashes, unknown fields, local-only rows and replayed source sequences', async () => {
+  const { manifest, chunks, actor } = await transactionFixture();
+  const raw = JSON.stringify(manifest);
+  await expect(
+    transactionManifest(raw.replace('"version":1', '"version":0,"version":1')),
+  ).rejects.toThrow();
+  await expect(
+    transactionManifest(JSON.stringify({ ...manifest, unexpected: true })),
+  ).rejects.toThrow();
+  const changed = JSON.parse(new TextDecoder().decode(chunks[0]));
+  changed.changes[0].table = 'app_license';
+  expect(() => transactionChanges(encode(changed), manifest, 0)).toThrow();
+  await beginBusinessTransaction(actor, raw);
+  await expect(
+    uploadBusinessTransactionChunk(
+      actor,
+      manifest.transaction_id,
+      0,
+      request(encode(changed)),
+    ),
+  ).rejects.toThrow();
+  await uploadBusinessTransactionChunk(
+    actor,
+    manifest.transaction_id,
+    0,
+    request(chunks[0]),
+  );
+  const duplicate = { ...manifest, transaction_id: crypto.randomUUID() };
+  await beginBusinessTransaction(actor, JSON.stringify(duplicate));
+  await expect(
+    uploadBusinessTransactionChunk(
+      actor,
+      duplicate.transaction_id,
+      0,
+      request(chunks[0]),
+    ),
+  ).rejects.toThrow();
+  expect(count('business_sync_transaction_parts')).toBe(1);
+  expect(count('business_sync_transaction_changes')).toBe(1);
+});
+
+it('authenticates every later-transaction endpoint and preserves no-store on rejection', async () => {
+  mocks.session.mockRejectedValue(
+    new AccountPublicError('Connexion nécessaire.', 401),
+  );
+  for (const handler of [
+    transactionHttp.GET,
+    transactionHttp.POST,
+    transactionHttp.PUT,
+  ]) {
+    const response = await handler(
+      new Request('https://example.test/api/sync/transactions'),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  }
+});
+
 it('cannot publish a complete validated history with missing source ordering', async () => {
   const f = await ready();
   db.exec('DELETE FROM business_sync_row_order');
@@ -533,7 +843,7 @@ it('keeps old row manifests stageable but refuses to publish them without histor
   });
   unpublished();
 });
-it('executes publication, counter reservation and second-device reads using the real D1 runtime', async () => {
+it('executes publication, counter reservation, second-device reads and bounded transaction staging using the real D1 runtime', async () => {
   const require = createRequire(import.meta.url);
   const { Miniflare } = createRequire(require.resolve('wrangler'))('miniflare');
   const runtime = new Miniflare({
@@ -582,6 +892,74 @@ it('executes publication, counter reservation and second-device reads using the 
         })
       ).start_value,
     ).toBe(81);
+    const inserts = Array.from({ length: 200 }, (_, i) =>
+      transactionInsert(String(i + 1), `client-${i}`),
+    );
+    const update: TransactionChange = {
+      ...inserts[0],
+      sequence: '201',
+      operation: 'update',
+      before_json: inserts[0].after_json,
+      after_json: transactionClient(
+        'client-0',
+        'Modifié après la première partie',
+      ),
+    };
+    const sent = await transactionFixture([inserts, [update]], receipt);
+    await beginBusinessTransaction(sent.actor, JSON.stringify(sent.manifest));
+    // Out-of-order delivery still seals one ordered, complete operation.
+    await uploadBusinessTransactionChunk(
+      sent.actor,
+      sent.manifest.transaction_id,
+      1,
+      request(sent.chunks[1]),
+    );
+    const received = await uploadBusinessTransactionChunk(
+      sent.actor,
+      sent.manifest.transaction_id,
+      0,
+      request(sent.chunks[0]),
+    );
+    expect(received).toMatchObject({
+      state: 'awaiting_validation',
+      canonical_committed: false,
+    });
+    expect(
+      await uploadBusinessTransactionChunk(
+        sent.actor,
+        sent.manifest.transaction_id,
+        0,
+        request(sent.chunks[0]),
+      ),
+    ).toEqual(received);
+    expect(
+      await d1
+        .prepare('SELECT COUNT(*) n FROM business_sync_transaction_changes')
+        .first('n'),
+    ).toBe(201);
+    const duplicate = { ...sent.manifest, transaction_id: crypto.randomUUID() };
+    await beginBusinessTransaction(sent.actor, JSON.stringify(duplicate));
+    await expect(
+      uploadBusinessTransactionChunk(
+        sent.actor,
+        duplicate.transaction_id,
+        0,
+        request(sent.chunks[0]),
+      ),
+    ).rejects.toThrow();
+    expect(
+      await d1
+        .prepare(
+          'SELECT COUNT(*) n FROM business_sync_transaction_parts WHERE transaction_id=?',
+        )
+        .bind(duplicate.transaction_id)
+        .first('n'),
+    ).toBe(0);
+    expect(
+      await d1
+        .prepare('SELECT head_revision FROM business_sync_spaces')
+        .first('head_revision'),
+    ).toBe(1);
   } finally {
     await runtime.dispose();
   }

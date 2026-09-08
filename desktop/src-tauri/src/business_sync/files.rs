@@ -47,13 +47,13 @@ fn valid_hash(hash: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-struct RetainedFile {
-    root: String,
-    path: String,
-    sha256: String,
-    size_bytes: u64,
+pub(super) struct RetainedFile {
+    pub root: String,
+    pub path: String,
+    pub sha256: String,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -291,6 +291,30 @@ fn seal(
 
 fn receipt_key(table: &str, image: &str) -> String {
     digest(format!("{table}\0{image}").as_bytes())
+}
+
+/// Read existing journal evidence only. Never recreate a missing receipt from
+/// a current working file: that file may already represent a later edit.
+pub(super) fn retained_image_files(data_dir: &Path, table: &str, image: &str) -> AppResult<Vec<RetainedFile>> {
+    let row: Value = serde_json::from_str(image)?;
+    let Some(reference) = reference(table, &row)? else { return Ok(vec![]); };
+    let root = data_dir.join("attachments").join(DIRECTORY);
+    for folder in [data_dir.to_path_buf(), data_dir.join("attachments"), root.clone(), root.join("references"), root.join("blobs")] {
+        if !regular_metadata(&folder)?.is_dir() { return Err(invalid("La preuve conservée du document est inaccessible.")); }
+    }
+    let path = root.join("references").join(format!("{}.json", receipt_key(table,image)));
+    let metadata = regular_metadata(&path)?;
+    if !metadata.is_file() || metadata.len()>4096 { return Err(invalid("La preuve conservée du document est illisible.")); }
+    let receipt: Receipt = serde_json::from_slice(&fs::read(path)?)?;
+    if receipt.version!=1 || receipt.table_name!=table || receipt.image_sha256!=digest(image.as_bytes()) || receipt.files.len()!=1 {
+        return Err(invalid("La preuve conservée ne correspond pas à cette modification."));
+    }
+    let file=&receipt.files[0];
+    if file.root!=reference.root || file.path!=reference.path || reference.sha256.as_ref().is_some_and(|hash|hash!=&file.sha256) || reference.size.is_some_and(|size|size!=file.size_bytes) {
+        return Err(invalid("Le document conservé ne correspond pas à cette modification."));
+    }
+    verify_blob(&root,&file.sha256,Some(file.size_bytes))?;
+    Ok(receipt.files)
 }
 
 fn retain_image(data_dir: &Path, table: &str, image: &str) -> AppResult<()> {

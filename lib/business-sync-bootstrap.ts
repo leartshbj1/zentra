@@ -310,6 +310,75 @@ export async function beginBootstrap(
   return bootstrapStatus(session, id);
 }
 
+// Both the initial snapshot and later transactions preserve these exact JSON
+// bytes. The returned parsed values are only for validation, never storage.
+export function businessRowImage(row: {
+  table: unknown;
+  key_json: unknown;
+  row_json: unknown;
+}) {
+  if (typeof row.table !== 'string' || !Object.hasOwn(tables, row.table))
+    invalid('Le fragment contient une table qui ne peut pas être partagée.');
+  if (
+    typeof row.row_json !== 'string' ||
+    new TextEncoder().encode(row.row_json).length > SYNC_ROW_BYTES
+  )
+    invalid('Une ligne est trop volumineuse pour la synchronisation.');
+  let data: Record<string, unknown>;
+  try {
+    data = object(JSON.parse(row.row_json));
+  } catch {
+    invalid('Une ligne métier est illisible.');
+  }
+  rejectDuplicateFields(row.row_json);
+  const rule = tables[row.table];
+  const fields = Object.keys(data);
+  if (
+    fields.length !== rule.columns.length ||
+    fields.some((field) => !rule.columns.includes(field))
+  )
+    invalid(
+      'Une ligne comporte un champ manquant, inconnu ou réservé à cet appareil.',
+    );
+  for (const scalar of Object.values(data)) {
+    if (
+      scalar !== null &&
+      typeof scalar !== 'string' &&
+      typeof scalar !== 'number'
+    )
+      invalid('Un champ métier n’est pas une valeur SQLite portable.');
+    if (
+      typeof scalar === 'number' &&
+      (!Number.isFinite(scalar) || Math.abs(scalar) > Number.MAX_SAFE_INTEGER)
+    )
+      invalid('Un nombre ne peut pas être transféré sans perte de précision.');
+    if (typeof scalar === 'string' && !scalar.isWellFormed())
+      invalid('Un texte contient une séquence Unicode invalide.');
+  }
+  const key = rule.key.map((field) => data[field]);
+  if (
+    !key.length ||
+    key.some(
+      (value) =>
+        value === null ||
+        value === '' ||
+        (typeof value === 'number' && !Number.isSafeInteger(value)),
+    )
+  )
+    invalid('Une ligne métier n’a pas de référence stable.');
+  const keyJson = JSON.stringify(key);
+  if (row.key_json !== keyJson || keyJson.length > 1024)
+    invalid('La référence ne correspond pas à la ligne métier.');
+  if (
+    row.table === 'settings' &&
+    (data.id !== 1 || data.onboarding_completed !== 1)
+  )
+    invalid(
+      'La configuration de l’entreprise doit être terminée avant sa synchronisation.',
+    );
+  return { table: row.table, key_json: keyJson, row_json: row.row_json, data };
+}
+
 async function portableRows(
   bytes: Uint8Array,
   version: 1 | 2 | 3,
@@ -347,83 +416,27 @@ async function portableRows(
         invalid(
           'La position des événements nécessite une préparation récente.',
         );
-      if (typeof row.table !== 'string' || !Object.hasOwn(tables, row.table))
-        invalid(
-          'Le fragment contient une table qui ne peut pas être partagée.',
-        );
-      if (
-        typeof row.row_json !== 'string' ||
-        new TextEncoder().encode(row.row_json).length > SYNC_ROW_BYTES
-      )
-        invalid('Une ligne est trop volumineuse pour la synchronisation.');
-      let data: Record<string, unknown>;
-      try {
-        data = object(JSON.parse(row.row_json));
-      } catch {
-        invalid('Une ligne métier est illisible.');
-      }
-      rejectDuplicateFields(row.row_json);
-      const rule = tables[row.table];
-      const fields = Object.keys(data);
-      if (
-        fields.length !== rule.columns.length ||
-        fields.some((field) => !rule.columns.includes(field))
-      )
-        invalid(
-          'Une ligne comporte un champ manquant, inconnu ou réservé à cet appareil.',
-        );
-      for (const scalar of Object.values(data)) {
-        if (
-          scalar !== null &&
-          typeof scalar !== 'string' &&
-          typeof scalar !== 'number'
-        )
-          invalid('Un champ métier n’est pas une valeur SQLite portable.');
-        if (
-          typeof scalar === 'number' &&
-          (!Number.isFinite(scalar) ||
-            Math.abs(scalar) > Number.MAX_SAFE_INTEGER)
-        )
-          invalid(
-            'Un nombre ne peut pas être transféré sans perte de précision.',
-          );
-        if (typeof scalar === 'string' && !scalar.isWellFormed())
-          invalid('Un texte contient une séquence Unicode invalide.');
-      }
-      const key = rule.key.map((field) => data[field]);
-      if (
-        !key.length ||
-        key.some(
-          (value) =>
-            value === null ||
-            value === '' ||
-            (typeof value === 'number' && !Number.isSafeInteger(value)),
-        )
-      )
-        invalid('Une ligne métier n’a pas de référence stable.');
-      const keyJson = JSON.stringify(key);
-      if (row.key_json !== keyJson || keyJson.length > 1024)
-        invalid('La référence ne correspond pas à la ligne métier.');
-      const identity = `${row.table}\0${keyJson}`;
+      const image = businessRowImage({
+        table: row.table,
+        key_json: row.key_json,
+        row_json: row.row_json,
+      });
+      const { data, key_json: keyJson } = image;
+      const identity = `${image.table}\0${keyJson}`;
       if (keys.has(identity))
         invalid('Une ligne figure plusieurs fois dans le même fragment.');
       keys.add(identity);
-      if (
-        row.table === 'settings' &&
-        (data.id !== 1 || data.onboarding_completed !== 1)
-      )
-        invalid(
-          'La configuration de l’entreprise doit être terminée avant sa synchronisation.',
-        );
       // Preserve native JSON bytes, including REAL values such as 1.0 and JSON
       // stored inside TEXT columns. Re-serializing would change conflict hashes.
       return {
-        table: row.table,
+        table: image.table,
         key_json: keyJson,
-        row_json: row.row_json,
-        sha256: await sha256Hex(row.row_json),
+        row_json: image.row_json,
+        sha256: await sha256Hex(image.row_json),
         source_rowid:
-          version === 3 ? sourceRowid(row.source_rowid, row.table, data) : null,
+          version === 3
+            ? sourceRowid(row.source_rowid, image.table, data)
+            : null,
       };
     }),
   );

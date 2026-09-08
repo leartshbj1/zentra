@@ -446,7 +446,7 @@ fn validate_file_references(connection: &Connection, files: &[FrozenFile]) -> Ap
     }
     Ok(())
 }
-fn validate_row(table: &str, text: &str) -> AppResult<()> {
+pub(super) fn validate_row(table: &str, text: &str) -> AppResult<()> {
     if text.len() > ROW_BYTES {
         return Err(invalid(
             "Une ligne métier dépasse la taille autorisée de 1 Mio.",

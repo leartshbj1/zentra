@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS business_sync_changes (
   operation TEXT NOT NULL CHECK(operation IN ('insert','update','delete')),
   before_json TEXT CHECK(before_json IS NULL OR json_valid(before_json)),
   after_json TEXT CHECK(after_json IS NULL OR json_valid(after_json)),
+  source_rowid TEXT,
+  base_revision INTEGER,
   CHECK((operation='insert' AND before_json IS NULL AND after_json IS NOT NULL)
      OR (operation='update' AND before_json IS NOT NULL AND after_json IS NOT NULL)
      OR (operation='delete' AND before_json IS NOT NULL AND after_json IS NULL))

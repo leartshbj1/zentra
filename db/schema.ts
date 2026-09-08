@@ -158,6 +158,40 @@ export const businessSyncFileSets = sqliteTable('business_sync_file_sets', {
   state: text('state').notNull(),
 });
 
+export const businessSyncTransactionParts = sqliteTable('business_sync_transaction_parts', {
+  transactionId: text('transaction_id').notNull().references(() => businessSyncTransfers.transferId),
+  partIndex: integer('part_index').notNull(),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  changeCount: integer('change_count').notNull(),
+  firstSequence: text('first_sequence').notNull(),
+  lastSequence: text('last_sequence').notNull(),
+  objectKey: text('object_key').notNull(),
+}, table => [uniqueIndex('business_sync_transaction_part_identity').on(table.transactionId,table.partIndex)]);
+
+// Images remain in the original bounded R2 chunks. Only conflict/order/file
+// metadata lives here; a pair of 1 MiB images must not exceed a D1 row limit.
+export const businessSyncTransactionChanges = sqliteTable('business_sync_transaction_changes', {
+  transactionId: text('transaction_id').notNull().references(() => businessSyncTransfers.transferId),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  installationId: text('installation_id').notNull(),
+  captureGeneration: text('capture_generation').notNull(),
+  sequence: text('sequence').notNull(),
+  partIndex: integer('part_index').notNull(),
+  changeIndex: integer('change_index').notNull(),
+  tableName: text('table_name').notNull(),
+  rowKeyJson: text('row_key_json').notNull(),
+  operation: text('operation').notNull(),
+  beforeSha256: text('before_sha256'),
+  afterSha256: text('after_sha256'),
+  sourceRowid: text('source_rowid').notNull(),
+  filesJson: text('files_json').notNull(),
+}, table => [
+  uniqueIndex('business_sync_transaction_sequence').on(table.organizationId,table.installationId,table.captureGeneration,table.sequence),
+  uniqueIndex('business_sync_transaction_change_index').on(table.transactionId,table.partIndex,table.changeIndex),
+  index('business_sync_transaction_row_chain').on(table.transactionId,table.tableName,table.rowKeyJson),
+]);
+
 export const businessSyncFilePages = sqliteTable('business_sync_file_pages', {
   transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
   pageIndex: integer('page_index').notNull(),

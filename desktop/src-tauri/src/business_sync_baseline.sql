@@ -20,6 +20,14 @@ CREATE TABLE IF NOT EXISTS business_sync_publication_intent (
   state TEXT NOT NULL CHECK(state IN ('preparing','checking','publishing')),
   created_at TEXT NOT NULL
 );
+-- Updated only together with a verified remote business transaction. Its
+-- absence means that only the initial published revision has been installed.
+CREATE TABLE IF NOT EXISTS business_sync_cursor (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  organization_id TEXT NOT NULL,
+  generation TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK(revision>=1)
+);
 CREATE TRIGGER IF NOT EXISTS zentra_publication_write_guard
 BEFORE INSERT ON business_sync_changes
 WHEN EXISTS(SELECT 1 FROM business_sync_publication_intent WHERE transfer_id=NEW.generation)

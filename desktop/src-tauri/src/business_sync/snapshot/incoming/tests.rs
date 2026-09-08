@@ -412,6 +412,12 @@ fn actual_server_publication_is_received_by_another_native_profile() {
         recipient
             .create_record("clients", json!({"name":"Créé sur le second profil"}))
             .unwrap();
+        if let Ok(output)=std::env::var("ZENTRA_TRANSACTION_OUTPUT") {
+            let prepared=crate::business_sync::outgoing::prepare_next(&recipient,"org_first","member").unwrap().unwrap();
+            let output=PathBuf::from(output);fs::create_dir(&output).unwrap();
+            fs::write(output.join("manifest.json"),serde_json::to_vec(&prepared.manifest).unwrap()).unwrap();
+            for (index,_) in prepared.manifest.chunks.iter().enumerate(){fs::copy(prepared.folder.join(format!("{index:04}.json")),output.join(format!("{index:04}.json"))).unwrap();}
+        }
         assert!(
             crate::business_sync::status(&recipient.connect().unwrap()).unwrap()
                 ["pending_transactions"]

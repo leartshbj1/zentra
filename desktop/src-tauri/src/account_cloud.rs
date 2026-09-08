@@ -69,6 +69,13 @@ impl ProjectSyncSession {
         Ok(())
     }
     pub async fn request(&self, method: Method, path: &str, query: &[(&str,&str)], headers: &[(&str,String)], body: Option<Vec<u8>>, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
+        let (status,bytes)=self.request_status(method,path,query,headers,body,file).await?;
+        if !status.is_success() && status != StatusCode::GONE { return Err(server_response_error(status,&bytes)); }
+        Ok((status,bytes))
+    }
+    // Some idempotent protocols must inspect 404/409 before deciding whether
+    // an interrupted operation was abandoned or already committed remotely.
+    pub(crate) async fn request_status(&self, method: Method, path: &str, query: &[(&str,&str)], headers: &[(&str,String)], body: Option<Vec<u8>>, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
         let mut url = endpoint(path)?;
         url.query_pairs_mut().extend_pairs(query.iter().copied());
         let mut request = self.client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
@@ -79,12 +86,15 @@ impl ProjectSyncSession {
             }
             request = request.body(body);
         }
-        let response = request.send().await.map_err(|_| AppError::Validation("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
-        let status = response.status();
-        let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
-        if !status.is_success() && status != StatusCode::GONE { return Err(server_response_error(status,&bytes)); }
-        Ok((status,bytes))
+        sync_response(request,file).await
     }
+}
+
+async fn sync_response(request: reqwest::RequestBuilder, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
+    let response = request.send().await.map_err(|_| AppError::Validation("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
+    let status = response.status();
+    let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
+    Ok((status,bytes))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1512,5 +1522,29 @@ mod tests {
             session_profile_changes(&session, &role_changed),
             (true, true)
         );
+    }
+
+    #[test]
+    fn sync_transport_preserves_conflict_and_missing_responses_for_recovery() {
+        use std::{io::{Read,Write},net::TcpListener};
+        for status in [404,409] {
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+            let url=format!("http://{}/recovery",listener.local_addr().unwrap());
+            let server=std::thread::spawn(move || {
+                let (mut socket,_)=listener.accept().unwrap();
+                socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                let mut request=[0;2048];let received=socket.read(&mut request).unwrap();
+                assert!(received>0,"The client must send a request before receiving the recovery response");
+                let body=r#"{"error":"already committed"}"#;
+                write!(socket,"HTTP/1.1 {status} Recovery\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+            });
+            tauri::async_runtime::block_on(async {
+                crate::app_updater::ensure_rustls_crypto_provider().unwrap();
+                let (received,bytes)=sync_response(reqwest::Client::new().get(url),false).await.unwrap();
+                assert_eq!(received.as_u16(),status);
+                assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["error"],"already committed");
+            });server.join().unwrap();
+        }
     }
 }

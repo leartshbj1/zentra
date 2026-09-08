@@ -3,6 +3,7 @@
 
 pub(crate) mod files;
 pub(crate) mod snapshot;
+pub(crate) mod outgoing;
 
 #[cfg(test)]
 mod schema_contract;
@@ -209,6 +210,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                 "business_sync_receipts",
                 "business_sync_baseline",
                 "business_sync_publication_intent",
+                "business_sync_cursor",
             ]
             .contains(&table.as_str())
     }) {
@@ -263,7 +265,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
             "CREATE TRIGGER zentra_sync_{table}_key
              BEFORE UPDATE ON {table_sql}
              WHEN EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1)
-               AND ({old_key}<>{new_key} OR {invalid_new_key})
+               AND ({old_key}<>{new_key} OR {invalid_new_key} OR OLD.rowid<>NEW.rowid)
              BEGIN SELECT RAISE(ABORT,'Une référence métier partagée ne peut pas changer.'); END;"
         ))?;
         for (operation, before, after, key) in [
@@ -276,6 +278,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
             ),
             ("delete", old_image.as_str(), "NULL", old_key.as_str()),
         ] {
+            let source = if operation == "delete" { "OLD" } else { "NEW" };
             let changed = if operation == "update" {
                 format!(" AND {old_image}<>{new_image}")
             } else {
@@ -302,9 +305,12 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                      THEN RAISE(ABORT,'La synchronisation de cette copie appartient à un autre appareil.') END;
                    {retain_files}
                    INSERT INTO business_sync_changes(generation,transaction_id,organization_id,installation_id,
-                     table_name,row_key_json,operation,before_json,after_json)
+                     table_name,row_key_json,operation,before_json,after_json,source_rowid,base_revision)
                    SELECT generation,zentra_sync_transaction_id(),organization_id,installation_id,
-                     '{table}',{key},'{operation}',{before},{after} FROM business_sync_binding WHERE id=1;
+                     '{table}',{key},'{operation}',{before},{after},CAST({source}.rowid AS TEXT),
+                     COALESCE((SELECT revision FROM business_sync_cursor WHERE id=1),
+                       (SELECT json_extract(receipt_json,'$.revision') FROM business_sync_baseline WHERE id=1))
+                     FROM business_sync_binding WHERE id=1;
                  END;"
             ))?;
         }
@@ -317,6 +323,19 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
 /// historical file evidence for changes captured by that earlier build.
 pub(crate) fn upgrade_file_capture(connection: &Connection) -> AppResult<()> {
     connection.execute_batch(include_str!("business_sync_baseline.sql"))?;
+    let ordered: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('business_sync_changes') WHERE name='source_rowid')", [], |row| row.get(0))?;
+    if !ordered {
+        // Earlier development journals did not retain this evidence. Leave
+        // their old positions unknown; reconstructing them from current rows
+        // would invent positions for deleted or replaced historical rows.
+        connection.execute_batch("ALTER TABLE business_sync_changes ADD COLUMN source_rowid TEXT")?;
+    }
+    let revision: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('business_sync_changes') WHERE name='base_revision')", [], |row| row.get(0))?;
+    if !revision {
+        connection.execute_batch("ALTER TABLE business_sync_changes ADD COLUMN base_revision INTEGER")?;
+    }
     let enabled: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1)",
         [],
@@ -327,7 +346,9 @@ pub(crate) fn upgrade_file_capture(connection: &Connection) -> AppResult<()> {
     }
     let current: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='zentra_sync_attachments_insert' AND instr(sql,'zentra_sync_retain_files')>0)", [], |row| row.get(0))?;
-    if current {
+    let ordered_trigger: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='zentra_sync_attachments_insert' AND instr(sql,'source_rowid')>0 AND instr(sql,'base_revision')>0)", [], |row| row.get(0))?;
+    if current && ordered_trigger {
         return Ok(());
     }
     // Exclude an old writer between the history check and trigger replacement.
@@ -344,7 +365,7 @@ pub(crate) fn upgrade_file_capture(connection: &Connection) -> AppResult<()> {
     let historical_files: bool = transaction.query_row(
         "SELECT EXISTS(SELECT 1 FROM business_sync_changes c JOIN business_sync_binding b ON c.generation=b.generation
          WHERE c.table_name IN ('attachments','company_brand_assets','payroll_document_imports','settings','vat_return_exports','closing_package_exports'))", [], |row| row.get(0))?;
-    if historical_files {
+    if !current && historical_files {
         detach_capture(&transaction)?;
     } else {
         install_capture_triggers(&transaction)?;
@@ -467,7 +488,8 @@ mod tests {
                         "business_sync_changes",
                         "business_sync_receipts",
                         "business_sync_baseline",
-                        "business_sync_publication_intent"
+                        "business_sync_publication_intent",
+                        "business_sync_cursor"
                     ]
                     .contains(&table.as_str()),
                 "Unclassified table: {table}"
