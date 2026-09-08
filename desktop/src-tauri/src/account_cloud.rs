@@ -43,13 +43,20 @@ pub(crate) struct ProjectSyncSession {
     pub organization_id: String,
     pub role: String,
     token: String,
+    // Reuse TLS connections across a transfer's pages, without sharing tokens
+    // or default authorization headers between company sessions.
+    client: reqwest::Client,
 }
 
 pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option<ProjectSyncSession>> {
     let account = cloud_account_state(store).await?;
     if account.status != "connected" { return Ok(None); }
     let session = read_session_secret(store)?.ok_or_else(|| AppError::Validation("Reconnectez votre compte Zentra.".into()))?;
-    Ok(Some(ProjectSyncSession { organization_id: session.organization_id, role: session.role, token: session.session_token }))
+    crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
+    let client = reqwest::Client::builder().https_only(true).redirect(Policy::none()).connect_timeout(CONNECT_TIMEOUT)
+        .timeout(Duration::from_secs(90)).pool_max_idle_per_host(2).build()
+        .map_err(|_| AppError::Validation("Connexion sécurisée indisponible.".into()))?;
+    Ok(Some(ProjectSyncSession { organization_id: session.organization_id, role: session.role, token: session.session_token, client }))
 }
 
 impl ProjectSyncSession {
@@ -64,10 +71,7 @@ impl ProjectSyncSession {
     pub async fn request(&self, method: Method, path: &str, query: &[(&str,&str)], headers: &[(&str,String)], body: Option<Vec<u8>>, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
         let mut url = endpoint(path)?;
         url.query_pairs_mut().extend_pairs(query.iter().copied());
-        crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
-        let client = reqwest::Client::builder().https_only(true).redirect(Policy::none()).connect_timeout(CONNECT_TIMEOUT)
-            .timeout(Duration::from_secs(90)).build().map_err(|_| AppError::Validation("Connexion sécurisée indisponible.".into()))?;
-        let mut request = client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
+        let mut request = self.client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
         for (name,value) in headers { request = request.header(*name,value); }
         if let Some(body) = body {
             if !headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("content-type")) {

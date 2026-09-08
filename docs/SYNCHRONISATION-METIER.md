@@ -268,7 +268,17 @@ Le scénario natif crée une facture de 10 535 centimes à deux taux et un avoir
 
 Les 492 tests serveur passent avec les jeux natifs, dont 28 tests fournisseurs. Les 65 tests natifs de synchronisation passent ; trois essais explicitement dédiés sont ignorés dans cette suite, et l'export du nouveau jeu est exécuté séparément. Les 93 contrôles acceptent le dossier natif dans D1 ; la route HTTP complète passe aussi avec le vrai compteur de requêtes et préserve son reçu en cas de limitation. Les tests des anciens champs absents sont des cas SQLite construits d'après les migrations, pas une preuve d'importation de toutes les anciennes versions.
 
-La projection serveur de TVA fournisseur, les reclassements de charges et de TVA, les stocks, la paie, la publication atomique de l'historique, les modifications ultérieures et les conflits restent nécessaires. Le schéma 60 est en préparation, non distribué ; le partage métier complet reste inactif.
+Le serveur **88** est publié depuis `8074df7bb175672175c1948e3650e67c3f01cae7`, avec la configuration 23. La recette native HTTPS passe en **894,03 secondes** : 1 766 lignes, cinq références de fichiers, quatre contenus uniques, huit fragments de données et trois fragments binaires repris sans doublon. Les 742 contrôles structurels, 93 contrôles comptables, six pièces et quatorze mouvements de la projection clients, puis 1 088 événements d'audit sont validés. Les 168 requêtes d'intégrité conservent les curseurs et le reçu final après répétition ; la modification locale en attente reste intacte.
+
+Les quatorze tables temporaires sont ensuite vérifiées vides, sans pagination masquée ; la session est révoquée et le compte fictif affiche zéro appareil actif. L'invitation existante est conservée et l'onglet temporaire est fermé. GET et POST anonymes sont refusés avec 401 sans mise en cache. Aucun inventaire R2 indépendant n'est revendiqué.
+
+Les reclassements de charges et de TVA, les stocks, la paie, la publication atomique de l'historique, les modifications ultérieures et les conflits restent à traiter. La concordance des exports TVA fournisseurs figés avec leur recalcul doit être évaluée ; la projection serveur par ligne n'est pas réalisée. La prochaine livraison doit avancer vers un historique accessible depuis un second profil, au-delà des seuls contrôles d'importation. Le schéma 60 est en préparation, non distribué ; le partage métier complet reste inactif et cet essai utilise un seul ordinateur physique.
+
+## Connexions réutilisées pendant les transferts
+
+Après la recette du serveur 88, le client natif en préparation conserve un client HTTPS par session de synchronisation. Les fragments suivants peuvent réutiliser la connexion, avec au maximum deux connexions inactives conservées par hôte. Le jeton reste ajouté à chaque requête ; aucune authentification par défaut n'est partagée entre entreprises. L'interdiction des redirections, les limites de réponse et les délais sont conservés.
+
+Les neuf tests de compte natif et Clippy sur toutes les cibles passent. Le gain de temps n'est pas encore mesuré en HTTPS et cette modification native n'est pas distribuée. Les 894,03 secondes ci-dessus mesurent le code précédent, avant cette optimisation.
 
 ## Numérotation réservée par appareil
 
