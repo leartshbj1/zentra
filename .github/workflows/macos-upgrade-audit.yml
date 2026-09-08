@@ -1,0 +1,49 @@
+name: Zentra macOS exact archive upgrade audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful macOS updater build run
+        required: true
+        type: string
+      native_source:
+        description: Exact source revision of the packaged application
+        required: true
+        type: string
+      current_sha256:
+        description: Verified current updater archive SHA-256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  upgrade:
+    runs-on: macos-14
+    timeout-minutes: 12
+    env:
+      ZENTRA_NATIVE_SOURCE: ${{ inputs.native_source }}
+      ZENTRA_CURRENT_SHA256: ${{ inputs.current_sha256 }}
+      ZENTRA_BUILD_RUN: ${{ inputs.build_run }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: Zentra-macOS-updater-${{ inputs.native_source }}
+          run-id: ${{ inputs.build_run }}
+          github-token: ${{ github.token }}
+          path: outputs/macos-upgrade-input
+      - name: Install the exact archives and preserve a real version 1.45 profile
+        run: python3 scripts/audit-macos-upgrade.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: macOS-upgrade-${{ github.run_id }}
+          path: outputs/macos-upgrade-audit/*.json
+          retention-days: 14
