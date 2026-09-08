@@ -19,7 +19,7 @@ const EMPTY_SHA256 = createHash('sha256').digest('hex');
 type FilePage = { sha256: string; size_bytes: number; file_count: number };
 export type BusinessFileManifest = {
   format: 'zentra-business-files';
-  version: 1;
+  version: 1 | 2;
   pages: FilePage[];
   file_count: number;
   size_bytes: number;
@@ -106,7 +106,7 @@ export function businessFileManifest(value: unknown): BusinessFileManifest {
   exact(input, ['format', 'version', 'pages', 'file_count', 'size_bytes']);
   if (
     input.format !== 'zentra-business-files' ||
-    input.version !== 1 ||
+    (input.version !== 1 && input.version !== 2) ||
     !Array.isArray(input.pages)
   )
     invalid(
@@ -141,7 +141,7 @@ export function businessFileManifest(value: unknown): BusinessFileManifest {
   });
   return {
     format: 'zentra-business-files',
-    version: 1,
+    version: input.version,
     pages,
     file_count: fileCount,
     size_bytes: size,
@@ -359,7 +359,7 @@ export async function uploadBusinessFilePage(
   }
   exact(input, ['version', 'files']);
   if (
-    input.version !== 1 ||
+    input.version !== manifest.version ||
     !Array.isArray(input.files) ||
     input.files.length !== page.file_count
   )
@@ -372,6 +372,13 @@ export async function uploadBusinessFilePage(
       sha256: businessFileHash(file.sha256),
       size_bytes: integer(file.size_bytes, MAX_FILE_BYTES),
     };
+    if (manifest.version === 2) {
+      const [root, ...parts] = entry.path.split('/');
+      if (!['attachments', 'exports'].includes(root) || parts.length === 0 ||
+        (root === 'exports' && parts.length !== 1) ||
+        (root === 'attachments' && parts[0].toLowerCase() === '.business-sync-pending'))
+        invalid('Le document ne fait pas partie du stockage métier partagé.');
+    }
     if ((entry.size_bytes === 0) !== (entry.sha256 === EMPTY_SHA256))
       invalid('L’empreinte d’un fichier vide est incohérente.');
     return entry;

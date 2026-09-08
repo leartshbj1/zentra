@@ -1,6 +1,7 @@
 //! Frozen bootstrap files plus a transactional boundary for subsequent edits.
 //! Preparing this bundle does not activate remote replication or numbering.
 
+mod exports;
 pub(crate) mod transport;
 
 use super::{identifier, install_capture_triggers, json_image, json_key, policy};
@@ -157,6 +158,25 @@ pub(super) fn safe_relative(value: &str) -> AppResult<()> {
     }
     Ok(())
 }
+fn validate_storage_path(path: &str) -> AppResult<()> {
+    safe_relative(path)?;
+    let (root, relative) = path
+        .split_once('/')
+        .ok_or_else(|| invalid("Le stockage du document n'est pas précisé."))?;
+    if !matches!(root, "attachments" | "exports")
+        || (root == "exports" && relative.contains('/'))
+        || (root == "attachments"
+            && relative
+                .split('/')
+                .next()
+                .is_some_and(|part| part.eq_ignore_ascii_case(super::files::DIRECTORY)))
+    {
+        return Err(invalid(
+            "Le document ne fait pas partie du stockage métier partagé.",
+        ));
+    }
+    Ok(())
+}
 fn create_file(path: &Path) -> AppResult<File> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -260,44 +280,7 @@ fn freeze_files(root: &Path, folder: &Path) -> AppResult<Vec<FrozenFile>> {
         {
             return Err(invalid("La préparation dépasse 50 000 fichiers, 512 Mio par fichier ou 10 Gio de pièces jointes."));
         }
-        let mut temporary = tempfile::Builder::new()
-            .prefix(".file-")
-            .tempfile_in(&blob_folder)?;
-        let mut source = File::open(entry.path())?;
-        let mut hasher = Sha256::new();
-        let mut size = 0u64;
-        let mut buffer = [0u8; 64 * 1024];
-        loop {
-            let count = source.read(&mut buffer)?;
-            if count == 0 {
-                break;
-            }
-            size += count as u64;
-            if size > MAX_FILE_BYTES || total.saturating_add(size) > MAX_FILE_TOTAL {
-                return Err(invalid("Les pièces jointes dépassent la taille autorisée."));
-            }
-            hasher.update(&buffer[..count]);
-            temporary.write_all(&buffer[..count])?;
-        }
-        let sha256 = format!("{:x}", hasher.finalize());
-        if size != metadata.len() || fingerprint_file(entry.path())? != (sha256.clone(), size) {
-            return Err(invalid(
-                "Une pièce jointe a changé pendant sa copie. Relancez la préparation.",
-            ));
-        }
-        temporary.as_file().sync_all()?;
-        let destination = blob_folder.join(&sha256);
-        if destination.exists() {
-            if fingerprint_file(&destination)? != (sha256.clone(), size) {
-                return Err(invalid(
-                    "La copie figée d'une pièce jointe est incohérente.",
-                ));
-            }
-        } else {
-            temporary
-                .persist_noclobber(&destination)
-                .map_err(|error| error.error)?;
-        }
+        let (sha256, size) = freeze_file_blob(entry.path(), &blob_folder, total)?;
         total += size;
         files.push(FrozenFile {
             path,
@@ -309,10 +292,67 @@ fn freeze_files(root: &Path, folder: &Path) -> AppResult<Vec<FrozenFile>> {
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }
+
+fn freeze_file_blob(
+    source_path: &Path,
+    blob_folder: &Path,
+    total: u64,
+) -> AppResult<(String, u64)> {
+    let metadata = regular_metadata(source_path)?;
+    if !metadata.is_file()
+        || metadata.len() > MAX_FILE_BYTES
+        || total.saturating_add(metadata.len()) > MAX_FILE_TOTAL
+    {
+        return Err(invalid(
+            "Le document dépasse les limites de conservation de l'historique.",
+        ));
+    }
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".file-")
+        .tempfile_in(blob_folder)?;
+    let mut source = File::open(source_path)?;
+    let mut hasher = Sha256::new();
+    let mut size = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = source.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        size += count as u64;
+        if size > MAX_FILE_BYTES || total.saturating_add(size) > MAX_FILE_TOTAL {
+            return Err(invalid("Les pièces jointes dépassent la taille autorisée."));
+        }
+        hasher.update(&buffer[..count]);
+        temporary.write_all(&buffer[..count])?;
+    }
+    let sha256 = format!("{:x}", hasher.finalize());
+    if size != metadata.len() || fingerprint_file(source_path)? != (sha256.clone(), size) {
+        return Err(invalid(
+            "Un document a changé pendant sa copie. Relancez la préparation.",
+        ));
+    }
+    temporary.as_file().sync_all()?;
+    let destination = blob_folder.join(&sha256);
+    if destination.try_exists()? {
+        if fingerprint_file(&destination)? != (sha256.clone(), size) {
+            return Err(invalid("La copie figée d'un document est incohérente."));
+        }
+    } else {
+        temporary
+            .persist_noclobber(&destination)
+            .map_err(|error| error.error)?;
+    }
+    Ok((sha256, size))
+}
 fn validate_file_references(connection: &Connection, files: &[FrozenFile]) -> AppResult<()> {
     let catalog = files
         .iter()
-        .map(|file| (file.path.as_str(), file))
+        .filter_map(|file| {
+            file.path
+                .strip_prefix("attachments/")
+                .map(|path| (path, file))
+        })
         .collect::<BTreeMap<_, _>>();
     for (sql, kind) in [
         (
@@ -555,7 +595,7 @@ impl Prepared {
             }
         }
         if self.format != "zentra-local-business-bootstrap"
-            || self.version != 1
+            || ![1, 2].contains(&self.version)
             || !valid_id(id)
             || self.transfer_id != id
             || self.organization_id != organization
@@ -571,6 +611,18 @@ impl Prepared {
             || self.files.len() > MAX_FILES
         {
             return Err(invalid("La préparation locale ne correspond plus à cette entreprise, cet appareil ou cette version."));
+        }
+        if self.version == 1
+            && ["vat_return_exports", "closing_package_exports"]
+                .iter()
+                .any(|table| {
+                    self.manifest
+                        .tables
+                        .get(*table)
+                        .is_some_and(|count| *count > 0)
+                })
+        {
+            return Err(invalid("Cette ancienne préparation ne conserve pas ses exports historiques. Annulez-la avant de préparer à nouveau l'historique complet."));
         }
         let mut rows = 0u64;
         let mut bytes = 0u64;
@@ -616,6 +668,9 @@ impl Prepared {
         let mut portable_names = BTreeSet::new();
         for file in &self.files {
             safe_relative(&file.path)?;
+            if self.version == 2 {
+                validate_storage_path(&file.path)?;
+            }
             if !portable_names.insert(file.path.to_lowercase())
                 || previous.is_some_and(|path| path >= file.path.as_str())
                 || !valid_digest(&file.sha256)
@@ -733,11 +788,21 @@ impl LocalStore {
         )?;
         install_capture_triggers(&transaction)?;
         let manifest = freeze_rows(&transaction, &temporary.path().join("rows"))?;
-        let files = freeze_files(&self.attachments_dir, temporary.path())?;
+        let mut files = freeze_files(&self.attachments_dir, temporary.path())?;
+        for file in &mut files {
+            file.path = format!("attachments/{}", file.path);
+            validate_storage_path(&file.path)?;
+        }
+        exports::freeze(
+            &transaction,
+            &self.exports_dir,
+            temporary.path(),
+            &mut files,
+        )?;
         validate_file_references(&transaction, &files)?;
         let prepared = Prepared {
             format: "zentra-local-business-bootstrap".into(),
-            version: 1,
+            version: 2,
             transfer_id: id,
             organization_id: organization.into(),
             installation_id: self.installation_id.clone(),
@@ -779,6 +844,75 @@ pub async fn prepare_business_sync_snapshot(state: State<'_, LocalStore>) -> Res
     .await
     .map_err(|_| "La préparation locale a été interrompue.".to_owned())?
     .map_err(command_error)
+}
+
+#[cfg(test)]
+pub(crate) fn assert_export_in_qa_snapshot(store: &LocalStore, file_name: &str, expected: &[u8]) {
+    let table = if file_name.ends_with(".xml") {
+        "vat_return_exports"
+    } else {
+        "closing_package_exports"
+    };
+    let before = crate::database::query_all(
+        &store.connect().unwrap(),
+        &format!("SELECT * FROM {table}"),
+        [],
+    )
+    .unwrap();
+    let prepared = store
+        .prepare_business_snapshot("org-exports-qa", "owner")
+        .unwrap();
+    assert_eq!(prepared.version, 2);
+    let file = prepared
+        .files
+        .iter()
+        .find(|file| file.path == format!("exports/{file_name}"))
+        .unwrap();
+    assert_eq!(file.sha256, digest(expected));
+    assert_eq!(
+        fs::read(
+            store
+                .snapshot_folder(&prepared.transfer_id)
+                .unwrap()
+                .join("files")
+                .join(&file.sha256)
+        )
+        .unwrap(),
+        expected
+    );
+    assert_eq!(
+        crate::database::query_all(
+            &store.connect().unwrap(),
+            &format!("SELECT * FROM {table}"),
+            []
+        )
+        .unwrap(),
+        before
+    );
+    assert_eq!(
+        store
+            .prepare_business_snapshot("org-exports-qa", "owner")
+            .unwrap(),
+        prepared
+    );
+    let mut legacy = prepared.clone();
+    legacy.version = 1;
+    legacy
+        .files
+        .retain(|file| !file.path.starts_with("exports/"));
+    for file in &mut legacy.files {
+        file.path = file.path.strip_prefix("attachments/").unwrap().to_owned();
+    }
+    assert!(legacy
+        .verify(
+            &store.snapshot_folder(&legacy.transfer_id).unwrap(),
+            "org-exports-qa",
+            &store.installation_id,
+            &legacy.transfer_id
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("ancienne préparation"));
 }
 
 #[cfg(test)]

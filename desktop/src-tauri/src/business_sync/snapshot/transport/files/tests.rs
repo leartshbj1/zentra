@@ -2,6 +2,36 @@ use super::*;
 use std::sync::{atomic::AtomicBool, Mutex};
 
 type FakeBlob = (BlobStatus, BTreeMap<usize, Vec<u8>>);
+
+#[test]
+fn live_export_fixture_generates_real_registered_exports_before_network_acceptance() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
+    store
+        .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
+        .unwrap();
+    store.connect().unwrap().execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES('qa-native-bootstrap-0000','Client fictif','2026-09-08','2026-09-08')", []).unwrap();
+    seed_live_qa_files(&store).unwrap();
+    let prepared = store
+        .prepare_business_snapshot("org-export-fixture", "owner")
+        .unwrap();
+    assert_eq!(prepared.version, 2);
+    assert_eq!(prepared.files.len(), 5);
+    assert_eq!(
+        prepared
+            .files
+            .iter()
+            .filter(|file| file.path.starts_with("exports/"))
+            .count(),
+        2
+    );
+    assert_eq!(prepared.manifest.tables.get("vat_return_exports"), Some(&1));
+    assert_eq!(
+        prepared.manifest.tables.get("closing_package_exports"),
+        Some(&1)
+    );
+}
+
 struct Fake {
     prepared: Prepared,
     generation: String,

@@ -196,20 +196,20 @@ const count = (table: string) =>
 async function entry(path: string, bytes: Uint8Array) {
   return { path, sha256: await sha256Hex(bytes), size_bytes: bytes.length };
 }
-async function fixture(entries: Awaited<ReturnType<typeof entry>>[]) {
+async function fixture(entries: Awaited<ReturnType<typeof entry>>[], version: 1 | 2 = 1) {
   const pages: Uint8Array[] = [];
   for (let index = 0; index < entries.length; index += 200)
     pages.push(
       new TextEncoder().encode(
         JSON.stringify({
-          version: 1,
+          version,
           files: entries.slice(index, index + 200),
         }),
       ),
     );
   const manifest = {
     format: 'zentra-business-files',
-    version: 1,
+    version,
     pages: await Promise.all(
       pages.map(async (bytes, index) => ({
         sha256: await sha256Hex(bytes),
@@ -229,6 +229,47 @@ async function catalog(entries: Awaited<ReturnType<typeof entry>>[]) {
     await uploadBusinessFilePage(owner, id, index, request(bytes));
   return f;
 }
+
+it('catalogue v2 keeps attachment and export storage distinct and transfers exact bytes', async () => {
+  const document = new TextEncoder().encode('Document de projet'),
+    xml = new TextEncoder().encode('<tva>export historique</tva>');
+  const entries = [await entry('attachments/tva.xml', document), await entry('exports/tva.xml', xml)];
+  const f = await fixture(entries, 2);
+  expect(businessFileManifest(f.manifest).version).toBe(2);
+  await beginBusinessFiles(owner, id, f.manifest);
+  await uploadBusinessFilePage(owner, id, 0, request(f.pages[0]));
+  for (const [index, file] of entries.entries()) {
+    await put(file.sha256, 0, index === 0 ? document : xml);
+    await verifyBusinessFile(owner, id, file.sha256);
+  }
+  expect(await completeBusinessFiles(owner, id)).toMatchObject({state: 'uploaded', replication_active: false});
+  expect(db.prepare('SELECT path FROM business_sync_file_entries WHERE transfer_id=? ORDER BY path').all(id))
+    .toEqual([{path: 'attachments/tva.xml'}, {path: 'exports/tva.xml'}]);
+  await expect(beginBusinessFiles(owner, id, {...f.manifest, version: 1})).rejects.toMatchObject({status: 409});
+});
+
+it.each(['plan.pdf', 'attachments', 'exports/dossier/tva.xml', 'backups/archive.zip',
+  'attachments/.business-sync-pending/blobs/secret', 'attachments/.BUSINESS-SYNC-PENDING/references/private'])
+('catalogue v2 rejects an unclassified or private storage path: %s', async (path) => {
+  const f = await fixture([await entry(path, new Uint8Array([1]))], 2);
+  await beginBusinessFiles(owner, id, f.manifest);
+  await expect(uploadBusinessFilePage(owner, id, 0, request(f.pages[0]))).rejects.toThrow();
+  expect(count('business_sync_file_entries')).toBe(0);
+  expect(count('business_sync_file_pages')).toBe(0);
+});
+
+it.each([1, 2] as const)('rejects pages from a different catalogue version than v%d', async (version) => {
+  const f = await fixture([await entry('attachments/file.txt', new Uint8Array([1]))], version === 1 ? 2 : 1);
+  await beginBusinessFiles(owner, id, {...f.manifest, version});
+  await expect(uploadBusinessFilePage(owner, id, 0, request(f.pages[0]))).rejects.toThrow();
+  expect(count('business_sync_file_entries')).toBe(0);
+});
+
+it('refuses unknown catalogue versions before creating a transfer catalogue', async () => {
+  const f = await fixture([], 2);
+  await expect(beginBusinessFiles(owner, id, {...f.manifest, version: 3})).rejects.toThrow();
+  expect(count('business_sync_file_sets')).toBe(0);
+});
 async function put(sha: string, index: number, bytes: Uint8Array) {
   return uploadBusinessFilePart(
     owner,

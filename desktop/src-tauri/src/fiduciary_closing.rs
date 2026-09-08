@@ -1402,6 +1402,15 @@ mod tests {
     }
 
     #[test]
+    fn business_snapshot_preserves_the_actual_generated_closing_archive() {
+        let (_temporary, store, _period_id) = seeded_store("CHF");
+        let review = store.prepare_fiduciary_pre_closing(test_filter()).unwrap();
+        let exported = store.export_fiduciary_closing_zip(review["review_id"].as_str().unwrap(), env!("CARGO_PKG_VERSION")).unwrap();
+        let bytes = fs::read(exported["path"].as_str().unwrap()).unwrap();
+        crate::business_sync::snapshot::assert_export_in_qa_snapshot(&store, exported["file_name"].as_str().unwrap(), &bytes);
+    }
+
+    #[test]
     fn full_review_finalize_and_final_export_are_verifiable() {
         let (_temporary, store, period_id) = seeded_store("CHF");
         let filter = test_filter();

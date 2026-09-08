@@ -176,24 +176,24 @@ fn file_request(
         body: body.map(|value| serde_json::to_vec(&value)).transpose()?,
     })
 }
-fn page_bytes(files: &[FrozenFile]) -> AppResult<Vec<u8>> {
+fn page_bytes(files: &[FrozenFile], version: u32) -> AppResult<Vec<u8>> {
     #[derive(Serialize)]
     struct PageBody<'a> {
         version: u32,
         files: &'a [FrozenFile],
     }
-    Ok(serde_json::to_vec(&PageBody { version: 1, files })?)
+    Ok(serde_json::to_vec(&PageBody { version, files })?)
 }
 fn pages(bound: &BoundSnapshot) -> AppResult<FileManifest> {
     let mut manifest = FileManifest {
         format: "zentra-business-files".into(),
-        version: 1,
+        version: bound.prepared.version,
         pages: vec![],
         file_count: bound.prepared.files.len(),
         size_bytes: 0,
     };
     for files in bound.prepared.files.chunks(FILES_PER_PAGE) {
-        let bytes = page_bytes(files)?;
+        let bytes = page_bytes(files, manifest.version)?;
         if bytes.len() > PAGE_BYTES {
             return Err(invalid(
                 "Le catalogue de pièces dépasse la taille autorisée.",
@@ -671,6 +671,7 @@ async fn transfer_files_pass<T: FileTransport>(
                 .chunks(FILES_PER_PAGE)
                 .nth(next)
                 .ok_or_else(|| invalid("Page de pièces inconnue."))?,
+            manifest.version,
         )?);
         request
             .headers
@@ -824,6 +825,40 @@ pub(super) fn seed_live_qa_files(store: &LocalStore) -> AppResult<()> {
         })?;
     }
     fs::write(store.attachments_dir.join("qa-empty.txt"), b"")?;
+    store.connect()?.execute("UPDATE settings SET uid_number='CHE-123.456.789',vat_number='CHE-123.456.789 TVA' WHERE id=1", [])?;
+    let profile = store.create_vat_profile(crate::vat_reporting::VatProfileInput {
+        id: Some("qa-bootstrap-vat".into()),
+        effective_from: "2026-01-01".into(),
+        effective_to: None,
+        reporting_method: "effective".into(),
+        form_of_reporting: "agreed".into(),
+        periodicity: "quarterly".into(),
+        gross_or_net: "net".into(),
+        tdfn_activity_id: None,
+        tdfn_rate_bp: None,
+        afc_authorization_confirmed: false,
+        notes: Some("Recette fictive de transfert ; aucun dépôt auprès de l'AFC.".into()),
+        close_previous_open_profile: false,
+    })?;
+    store.export_vat_return_xml(crate::vat_reporting::ExportVatReturnInput {
+        date_from: "2026-01-01".into(),
+        date_to: "2026-03-31".into(),
+        submission_type: "initial".into(),
+        profile_id: Some(profile.id),
+        business_reference_id: "QA-BOOTSTRAP-ONLY".into(),
+        file_name: Some("qa-bootstrap-vat.xml".into()),
+    })?;
+    store.connect()?.execute("INSERT INTO accounting_periods(id,name,date_from,date_to,status,created_at,updated_at) VALUES(?,'Exercice fictif de recette HTTPS','2026-01-01','2026-12-31','open','2026-09-08','2026-09-08')", [Uuid::new_v4().to_string()])?;
+    let review = store.prepare_fiduciary_pre_closing(crate::models::PeriodFilter {
+        date_from: Some("2026-01-01".into()),
+        date_to: Some("2026-12-31".into()),
+    })?;
+    store.export_fiduciary_closing_zip(
+        review["review_id"]
+            .as_str()
+            .ok_or_else(|| invalid("QA closing review missing"))?,
+        env!("CARGO_PKG_VERSION"),
+    )?;
     Ok(())
 }
 
@@ -832,6 +867,38 @@ pub(super) async fn live_qa_files(
     store: &LocalStore,
     session: &ProjectSyncSession,
 ) -> AppResult<()> {
+    let bound = load_prepared(store, &session.organization_id)?
+        .ok_or_else(|| invalid("QA files snapshot missing"))?;
+    assert_eq!(bound.prepared.version, 2);
+    assert_eq!(
+        bound.prepared.manifest.tables.get("vat_return_exports"),
+        Some(&1)
+    );
+    assert_eq!(
+        bound
+            .prepared
+            .manifest
+            .tables
+            .get("closing_package_exports"),
+        Some(&1)
+    );
+    let unique = bound
+        .prepared
+        .files
+        .iter()
+        .map(|file| (&file.sha256, file.size_bytes))
+        .collect::<BTreeMap<_, _>>();
+    let unique_bytes = unique.values().sum::<u64>();
+    let logical_bytes = bound
+        .prepared
+        .files
+        .iter()
+        .map(|file| file.size_bytes)
+        .sum::<u64>();
+    let binary_parts = unique
+        .values()
+        .map(|size| size.div_ceil(PART_BYTES as u64))
+        .sum::<u64>();
     let catalogue = transfer_files_pass(store, session, 1).await?;
     assert_eq!(catalogue["catalog_pages"], 1);
     assert_eq!(catalogue["state"], "files_uploading");
@@ -839,8 +906,8 @@ pub(super) async fn live_qa_files(
     assert_eq!(partial["sent_file_parts"], 1);
     assert_eq!(partial["state"], "files_uploading");
     println!(
-        "QA_FILES_PARTIAL transfer={} catalogue_entries=3 unique_blobs=2 sent_binary_parts=1",
-        partial["transfer_id"]
+        "QA_FILES_PARTIAL transfer={} catalogue_version=2 catalogue_entries={} unique_blobs={} sent_binary_parts=1",
+        partial["transfer_id"], bound.prepared.files.len(), unique.len()
     );
     let reopened = LocalStore::initialize(store.data_dir.clone())?;
     let reconnected = project_sync_session(&reopened)
@@ -848,11 +915,14 @@ pub(super) async fn live_qa_files(
         .ok_or_else(|| invalid("QA session missing after file restart"))?;
     let complete = transfer_files_pass(&reopened, &reconnected, 8).await?;
     assert_eq!(complete["state"], "files_uploaded");
-    assert_eq!(complete["confirmed_files"], 2);
-    assert_eq!(complete["sent_file_parts"], 1);
+    assert_eq!(
+        complete["confirmed_files"].as_u64(),
+        Some(unique.len() as u64)
+    );
+    assert_eq!(complete["sent_file_parts"].as_u64(), Some(binary_parts - 1));
     let repeated = transfer_files_pass(&reopened, &reconnected, 8).await?;
     assert_eq!(repeated["sent_file_parts"], 0);
     assert_eq!(repeated["replication_active"], false);
-    println!("QA_FILES_COMPLETE transfer={} logical_bytes={} unique_bytes={} resumed_binary_parts=1 repeated_sent=0 replication_active=false", complete["transfer_id"], 2 * (PART_BYTES + 31), PART_BYTES + 31);
+    println!("QA_FILES_COMPLETE transfer={} logical_bytes={} unique_bytes={} resumed_binary_parts={} exports=2 repeated_sent=0 replication_active=false", complete["transfer_id"], logical_bytes, unique_bytes, binary_parts - 1);
     Ok(())
 }
