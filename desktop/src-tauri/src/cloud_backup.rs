@@ -601,6 +601,69 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "recette HTTPS réelle : deux autorisations navigateur dans une entreprise de test, puis suppression de la seule copie créée"]
+    fn live_https_backup_restores_two_chunks_on_an_independent_installation() {
+        use futures_util::FutureExt;
+        tauri::async_runtime::block_on(async {
+            let temporary = tempfile::tempdir().unwrap();
+            let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
+            let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
+            let mut cleanup: Option<(ProjectSyncSession,String)> = None;
+            let outcome = std::panic::AssertUnwindSafe(async {
+                crate::account_cloud::connect_live_qa_profile(&source,"source").await?;
+                let session = backup_session(&source).await?;
+                source.connect()?.execute("INSERT INTO projects(id,name,created_at,updated_at) VALUES('qa-live-recovery','Recette fictive sauvegarde HTTPS','2026-09-08','2026-09-08')", [])?;
+                // A deterministic, incompressible fixture crosses the real R2
+                // chunk boundary; no business or personal document is uploaded.
+                let mut bytes=vec![0u8; CHUNK_BYTES+1024*1024];
+                let mut seed=0x1938_ca47_2026_0908u64;
+                for byte in &mut bytes { seed^=seed<<13; seed^=seed>>7; seed^=seed<<17; *byte=seed as u8; }
+                fs::write(source.attachments_dir.join("qa-plan.bin"),&bytes)?;
+                let pending=source.prepare_cloud_backup(&session.organization_id)?;
+                assert_eq!(pending.manifest.chunks.len(),2);
+                let backup_id=pending.backup_id.clone();
+                println!("QA_BACKUP {} organization={} bytes={}",backup_id,session.organization_id,pending.manifest.size_bytes);
+                cleanup=Some((session,backup_id));
+                let session=&cleanup.as_ref().unwrap().0;
+                // Publish the manifest then only the first fragment, as if the
+                // process stopped mid-transfer. Reopen the profile before retry.
+                request(session,Method::POST,"/api/backups",&[],Some(json!({"backup_id":pending.backup_id,"manifest":pending.manifest}))).await?;
+                let mut archive=File::open(source.cloud_backup_path(&pending.backup_id)?)?;
+                let mut first=vec![0u8;CHUNK_BYTES]; archive.read_exact(&mut first)?;
+                let (status,_)=session.request(Method::PUT,"/api/backups/chunk",&[("id",&pending.backup_id),("index","0")],&[],Some(first),false).await?;
+                assert!(status.is_success()); drop(archive);
+                let reopened=LocalStore::initialize(source.data_dir.clone())?;
+                send_backup(&reopened,&backup_session(&reopened).await?).await?;
+                assert!(reopened.cloud_backup_preferences()?.pending.is_none());
+                let complete=request(session,Method::GET,"/api/backups/item",&[("id",&pending.backup_id)],None).await?;
+                assert_eq!(complete["state"],"complete");
+                assert_eq!(complete["sha256"],pending.manifest.sha256);
+                println!("QA_UPLOAD_COMPLETE {}",pending.backup_id);
+                crate::account_cloud::connect_live_qa_profile(&destination,"destination").await?;
+                let destination_session=backup_session(&destination).await?;
+                if destination_session.organization_id!=session.organization_id { return Err(validation("Les deux profils de recette doivent être autorisés dans la même entreprise de test.")); }
+                restore(&destination,&pending.backup_id).await?;
+                assert_ne!(source.installation_id,destination.installation_id);
+                assert_eq!(fs::read(destination.attachments_dir.join("qa-plan.bin"))?,bytes);
+                let restored:String=destination.connect()?.query_row("SELECT name FROM projects WHERE id='qa-live-recovery'",[],|row|row.get(0))?;
+                assert_eq!(restored,"Recette fictive sauvegarde HTTPS");
+                assert_eq!(backup_session(&destination).await?.organization_id,session.organization_id);
+                println!("QA_RESTORE_COMPLETE independent_installation=true attachments_sha256={:x}",Sha256::digest(&bytes));
+                Ok::<(),AppError>(())
+            }).catch_unwind().await;
+            // Clean up the specific archive and both test sessions on failures
+            // as well as success. Never enumerate/delete other company backups.
+            let removal=if let Some((session,id))=&cleanup {
+                request(session,Method::DELETE,"/api/backups/item",&[("id",id)],None).await.map(|_|())
+            } else { Ok(()) };
+            let source_disconnect=crate::account_cloud::disconnect_live_qa_profile(&source).await;
+            let destination_disconnect=crate::account_cloud::disconnect_live_qa_profile(&destination).await;
+            removal.unwrap(); source_disconnect.unwrap(); destination_disconnect.unwrap(); outcome.unwrap().unwrap();
+            println!("QA_CLEANUP_COMPLETE archive_deleted=true sessions_revoked=true");
+        });
+    }
+
+    #[test]
     fn rejects_traversal_and_corrupt_or_oversized_manifests() {
         for id in ["../x", "C:/x", "", "00000000-0000-0000-0000-000000000000"] {
             assert!(validate_id(id).is_err());

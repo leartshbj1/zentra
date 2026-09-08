@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ConfirmAccountAction } from './confirm-account-action';
 
 type Member = {
   id: string;
@@ -67,15 +68,14 @@ export function TeamAccessList({
   const invitations = initialInvitations;
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+  const [confirmation, setConfirmation] = useState<
+    | { kind: 'member'; item: Member }
+    | { kind: 'device'; item: Device }
+    | { kind: 'invitation'; item: Invitation }
+    | null
+  >(null);
 
   async function revokeMember(member: Member) {
-    if (
-      !window.confirm(
-        `Retirer l’accès de ${member.displayName || member.email} ?`,
-      )
-    ) {
-      return;
-    }
     setBusyId(member.id);
     setError('');
     try {
@@ -87,6 +87,7 @@ export function TeamAccessList({
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error || 'Retrait impossible.');
+      setConfirmation(null);
       router.refresh();
     } catch (reason) {
       setError(
@@ -98,12 +99,6 @@ export function TeamAccessList({
   }
 
   async function revokeDevice(device: Device) {
-    if (
-      !window.confirm(
-        'Couper l’accès serveur de cet appareil et bloquer les prochains renouvellements de sa licence ?',
-      )
-    )
-      return;
     setBusyId(device.id);
     setError('');
     try {
@@ -115,6 +110,7 @@ export function TeamAccessList({
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error || 'Révocation impossible.');
+      setConfirmation(null);
       router.refresh();
     } catch (reason) {
       setError(
@@ -126,8 +122,6 @@ export function TeamAccessList({
   }
 
   async function revokeInvitation(invitation: Invitation) {
-    if (!window.confirm('Invalider immédiatement ce lien d’invitation ?'))
-      return;
     setBusyId(invitation.id);
     setError('');
     try {
@@ -141,6 +135,7 @@ export function TeamAccessList({
       if (!response.ok) {
         throw new Error(body.error || 'Révocation de l’invitation impossible.');
       }
+      setConfirmation(null);
       router.refresh();
     } catch (reason) {
       setError(
@@ -183,10 +178,13 @@ export function TeamAccessList({
                 {removable ? (
                   <button
                     type="button"
-                    onClick={() => void revokeMember(member)}
+                    onClick={() => {
+                      setError('');
+                      setConfirmation({ kind: 'member', item: member });
+                    }}
                     disabled={Boolean(busyId)}
                     title="Retirer ce membre"
-                    className="grid size-10 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
+                    className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
                   >
                     {busyId === member.id ? (
                       <LoaderCircle className="size-4 animate-spin" />
@@ -226,10 +224,13 @@ export function TeamAccessList({
                   {removable ? (
                     <button
                       type="button"
-                      onClick={() => void revokeDevice(device)}
+                      onClick={() => {
+                        setError('');
+                        setConfirmation({ kind: 'device', item: device });
+                      }}
                       disabled={Boolean(busyId)}
                       title="Couper l’accès serveur de cet appareil"
-                      className="grid size-10 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
+                      className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
                     >
                       {busyId === device.id ? (
                         <LoaderCircle className="size-4 animate-spin" />
@@ -275,10 +276,13 @@ export function TeamAccessList({
                   </div>
                   <button
                     type="button"
-                    onClick={() => void revokeInvitation(invitation)}
+                    onClick={() => {
+                      setError('');
+                      setConfirmation({ kind: 'invitation', item: invitation });
+                    }}
                     disabled={Boolean(busyId)}
                     title="Invalider cette invitation"
-                    className="grid size-10 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
+                    className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
                   >
                     {busyId === invitation.id ? (
                       <LoaderCircle className="size-4 animate-spin" />
@@ -296,7 +300,38 @@ export function TeamAccessList({
           </div>
         </section>
       ) : null}
-      {error ? (
+      <ConfirmAccountAction
+        open={confirmation !== null}
+        title={
+          confirmation?.kind === 'member'
+            ? 'Retirer cette personne ?'
+            : confirmation?.kind === 'device'
+              ? 'Déconnecter cet appareil ?'
+              : 'Invalider cette invitation ?'
+        }
+        description={
+          confirmation?.kind === 'member'
+            ? `${confirmation.item.displayName || confirmation.item.email} perdra son accès serveur à cette entreprise. Ses appareils ne pourront plus renouveler leur licence.`
+            : confirmation?.kind === 'device'
+              ? `L’accès serveur du poste …${confirmation.item.installationId.slice(-8)} (${confirmation.item.ownerEmail}) sera coupé et les prochains renouvellements de sa licence seront bloqués. Ses données locales restent sur l’appareil.`
+              : `Le lien destiné à ${confirmation?.item.email || 'cette personne'} ne permettra plus de rejoindre l’entreprise. Vous pourrez créer une nouvelle invitation.`
+        }
+        busy={Boolean(busyId)}
+        error={error}
+        onCancel={() => {
+          setConfirmation(null);
+          setError('');
+        }}
+        onConfirm={() => {
+          if (busyId || !confirmation) return;
+          if (confirmation.kind === 'member')
+            void revokeMember(confirmation.item);
+          else if (confirmation.kind === 'device')
+            void revokeDevice(confirmation.item);
+          else void revokeInvitation(confirmation.item);
+        }}
+      />
+      {error && !confirmation ? (
         <p
           className="rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e] lg:col-span-2"
           role="alert"

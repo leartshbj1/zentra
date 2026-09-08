@@ -561,8 +561,15 @@ fn finalize_exchange(
     CloudAccountState::from_session(&exchange.session)
 }
 
+fn session_for_revocation(store: &LocalStore) -> AppResult<Option<CloudSession>> {
+    if let Some(session) = read_session_secret(store)? { return Ok(Some(session)); }
+    // The server can have issued a session just before local license adoption
+    // failed. That protected exchange still needs server revocation on logout.
+    Ok(read_exchange_secret(store)?.map(|exchange| exchange.session))
+}
+
 async fn disconnect(store: &LocalStore) -> AppResult<()> {
-    let revocation_confirmed_by_server = if let Some(session) = read_session_secret(store)? {
+    let revocation_confirmed_by_server = if let Some(session) = session_for_revocation(store)? {
         let (status, bytes) = account_request(
             Method::DELETE,
             SESSION_PATH,
@@ -962,6 +969,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
         START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
+            | "/api/sync/numbers"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
@@ -1231,12 +1239,50 @@ fn launch_external_url(uri: &str) -> AppResult<()> {
 }
 
 #[cfg(test)]
+pub(crate) async fn connect_live_qa_profile(store: &LocalStore, label: &str) -> AppResult<()> {
+    if option_env!("HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL").is_none() {
+        return Err(AppError::Validation("Compilez cette recette avec la clé publique de licence du fichier license-public-key.b64url avant toute autorisation serveur.".into()));
+    }
+    let pending = start_link(store).await?;
+    // Only the public, short-lived approval link is printed. Session and license
+    // tokens stay in the ordinary protected files of the isolated test profile.
+    println!("QA_APPROVAL {label} {}", pending.verification_uri.as_deref().unwrap_or(""));
+    for _ in 0..100 {
+        let interval = pending.interval_seconds.unwrap_or(5);
+        tauri::async_runtime::spawn_blocking(move || std::thread::sleep(Duration::from_secs(interval)))
+            .await.map_err(|_| AppError::Validation("Attente de recette interrompue.".into()))?;
+        let state = poll_link(store).await?;
+        if state.status == "connected" { return Ok(()); }
+    }
+    Err(AppError::Validation("L’autorisation du profil de recette n’a pas été donnée à temps.".into()))
+}
+
+#[cfg(test)]
+pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<()> {
+    disconnect(store).await
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn unfinished_license_adoption_still_exposes_its_session_for_revocation() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let session = session_for(&store.installation_id);
+        let exchange = PendingExchange { version:SECRET_VERSION,installation_id:store.installation_id.clone(),
+            session:session.clone(),license_token:"a".repeat(200) };
+        write_server_verified_secret(&exchange_path(&store),&exchange,&store.account_protected_cache.exchange).unwrap();
+        assert!(read_session_secret(&store).unwrap().is_none());
+        assert_eq!(session_for_revocation(&store).unwrap().unwrap().session_token,session.session_token);
+        remove_secret(&exchange_path(&store),&store.account_protected_cache.exchange).unwrap();
+        assert!(session_for_revocation(&store).unwrap().is_none());
+    }
+
+    #[test]
     fn project_and_backup_transfer_routes_use_the_fixed_authenticated_origin() {
-        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk"] {
+        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers"] {
             let url = endpoint(path).unwrap();
             assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}{path}"));
         }

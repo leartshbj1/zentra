@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Laptop, LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 type Membership = {
   organizationId: string;
@@ -16,7 +17,13 @@ export function DeviceApproval({
   initialCode: string;
   memberships: Membership[];
 }) {
-  const [userCode, setUserCode] = useState(initialCode);
+  const searchParams = useSearchParams();
+  const linkCode = (initialCode || searchParams.get('code') || '')
+    .trim()
+    .toUpperCase();
+  const [typedCode, setUserCode] = useState<string | null>(null);
+  const userCode =
+    typedCode ?? (/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(linkCode) ? linkCode : '');
   const [organizationId, setOrganizationId] = useState(
     memberships.length === 1 ? memberships[0].organizationId : '',
   );
@@ -59,8 +66,8 @@ export function DeviceApproval({
         <CheckCircle2 className="size-10 text-[#24593d]" />
         <h2 className="mt-4 text-2xl font-semibold">Appareil autorisé</h2>
         <p className="mt-2 leading-7 text-[#52645a]">
-          Revenez dans Zentra. L’application termine automatiquement la connexion
-          à {approvedName}.
+          Revenez dans Zentra. L’application termine automatiquement la
+          connexion à {approvedName}.
         </p>
       </div>
     );
@@ -83,7 +90,10 @@ export function DeviceApproval({
       />
       {memberships.length > 1 ? (
         <>
-          <label className="mt-5 block text-sm font-semibold" htmlFor="organization">
+          <label
+            className="mt-5 block text-sm font-semibold"
+            htmlFor="organization"
+          >
             Entreprise à ouvrir
           </label>
           <select
@@ -94,7 +104,10 @@ export function DeviceApproval({
           >
             <option value="">Choisir une entreprise</option>
             {memberships.map((membership) => (
-              <option key={membership.organizationId} value={membership.organizationId}>
+              <option
+                key={membership.organizationId}
+                value={membership.organizationId}
+              >
                 {membership.organizationName}
               </option>
             ))}
@@ -112,12 +125,16 @@ export function DeviceApproval({
       </button>
       {memberships.length === 0 ? (
         <p className="mt-4 rounded-2xl bg-[#fff5df] p-4 text-sm text-[#76511e]">
-          Ce compte ne fait encore partie d’aucune entreprise Zentra. Utilisez le
-          lien d’invitation reçu ou associez d’abord l’abonnement après le paiement.
+          Ce compte ne fait encore partie d’aucune entreprise Zentra. Utilisez
+          le lien d’invitation reçu ou associez d’abord l’abonnement après le
+          paiement.
         </p>
       ) : null}
       {error ? (
-        <p className="mt-4 rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e]" role="alert">
+        <p
+          className="mt-4 rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e]"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
