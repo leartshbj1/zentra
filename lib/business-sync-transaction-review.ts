@@ -36,13 +36,14 @@ type Review = {
 };
 // Every candidate write and checkpoint uses the same attempt and source head.
 // A concurrent pass, new canonical revision or replacement cannot advance it.
-const gate = `EXISTS(SELECT 1 FROM business_sync_transaction_reviews r JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
+export const transactionReviewGateSql = `EXISTS(SELECT 1 FROM business_sync_transaction_reviews r JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
  JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
  JOIN business_sync_transfers u ON u.transfer_id=r.source_transfer_id AND u.organization_id=t.organization_id AND u.generation=t.generation
  WHERE t.transfer_id=?1 AND t.organization_id=?2 AND t.installation_id=?3 AND t.generation=?4 AND t.manifest_sha256=?5 AND t.kind='transaction' AND t.state='received'
  AND r.attempt=?6 AND r.validator_sha256=?7 AND r.source_revision=?8 AND r.state=?9 AND r.last_table=?10 AND r.last_key=?11 AND r.next_chunk=?12 AND r.applied_changes=?13 AND r.copied_rows=?14
  AND r.generation=t.generation AND r.manifest_sha256=t.manifest_sha256 AND s.state='ready' AND s.head_revision=r.source_revision
  AND u.state='committed' AND u.revision=r.source_revision AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=s.bootstrap_transfer_id)))`;
+const gate = transactionReviewGateSql;
 const clear = `NOT EXISTS(SELECT 1 FROM business_sync_transaction_conflicts WHERE transfer_id=?1 AND attempt=?6)`;
 const filesComplete = `NOT EXISTS(SELECT 1 FROM json_each(t.manifest_json,'$.files') f WHERE NOT EXISTS(SELECT 1 FROM business_sync_file_blobs b WHERE b.transfer_id=t.transfer_id AND b.sha256=json_extract(f.value,'$.sha256') AND b.size_bytes=json_extract(f.value,'$.size_bytes') AND b.verified_at IS NOT NULL))`;
 let validator: Promise<string> | undefined;
@@ -68,7 +69,10 @@ export function transactionReviewValidatorHash() {
 function fail(message: string, status = 409): never {
   throw new AccountPublicError(message, status);
 }
-async function context(session: DeviceSessionContext, id: unknown) {
+export async function transactionReviewContext(
+  session: DeviceSessionContext,
+  id: unknown,
+) {
   const tx = await requireBusinessTransaction(session, id);
   const review = await database()
     .prepare(
@@ -139,6 +143,7 @@ async function context(session: DeviceSessionContext, id: unknown) {
     ],
   };
 }
+const context = transactionReviewContext;
 type Context = Awaited<ReturnType<typeof context>>;
 async function response(ctx: Context) {
   const head = await database()

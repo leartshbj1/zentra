@@ -2,6 +2,16 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Validation de l'état obtenu après une transaction
+
+`GET/POST /api/sync/transactions/validate` reprend désormais les contrôles sur une copie projetée sans conflit. Le décompte attendu provient de la révision de départ et des insertions/suppressions reçues, pas du contenu actuel de cette copie. Les contraintes du schéma natif, relations, unicités, contrôles comptables et calculs des avoirs sont repris par passages bornés. Le reçu reste lié à la tentative, au manifeste, à la révision de départ et à l'empreinte des règles. Un changement de révision ou une erreur pendant l'écriture n'achève pas le contrôle.
+
+Quatre protections supplémentaires couvrent les journaux, paiements, mouvements de stock et traces d'audit immuables, les champs financiers/commerciaux des factures déjà émises dans la révision de départ, leurs lignes et les données QR figées. La modification d'une note de facture émise est refusée même si les montants restent équilibrés. La réécriture d'un journal suivie d'un retour à sa valeur initiale reste interdite. Les champs figés des factures sont comparés au dernier déclencheur natif, acomptes compris.
+
+La projection des avoirs réutilise les calculs existants avec une autorisation propre à la transaction. Toutes les anciennes requêtes de publication initiale restent identiques octet pour octet. La suite complète passe avec 556 tests serveur ; la dernière suite ciblée passe avec 49 tests après ajout du cas de révision concurrente. Le moteur D1 compile et exécute aussi chaque requête de projection candidate avec des paramètres neutres, puis traite les 201 modifications du scénario à deux fragments. L'historique natif complet avec ses avoirs et reprises est vérifié sur la copie de contrôle.
+
+Un reçu `snapshot_validated: true` confirme ces contrôles d'état. Il conserve `business_validated: false`, `canonical_committed: false` et `replication_active: false` : les autres transitions natives, notamment les changements intermédiaires à l'intérieur d'une même transaction et les règles de clôture, doivent encore être couvertes. L'application atomique, la résolution des conflits, la réception native et la recette de plusieurs appareils restent nécessaires. Aucun installateur n'est publié dans cette étape.
+
 ## Contrôle des transactions reçues avant application
 
 Le serveur prépare désormais une copie de contrôle de la révision publiée, liée à l'entreprise, à l'appareil, au manifeste original et à une tentative unique. `GET/POST /api/sync/transactions/review` exige une session autorisée et des documents entièrement vérifiés. Cette copie ne devient jamais la révision officielle du seul fait que la projection a réussi.

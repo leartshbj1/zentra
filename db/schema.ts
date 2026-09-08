@@ -192,6 +192,17 @@ export const businessSyncTransactionReviews = sqliteTable('business_sync_transac
   failedRule:text('failed_rule'),
   updatedAt:text('updated_at').notNull(),
 });
+export const businessSyncTransactionValidations=sqliteTable('business_sync_transaction_validations',{
+  transferId:text('transfer_id').primaryKey().references(()=>businessSyncTransfers.transferId),
+  attempt:text('attempt').notNull(),
+  validatorSha256:text('validator_sha256').notNull(),
+  phase:text('phase').notNull(),
+  tableCountsJson:text('table_counts_json').notNull(),
+  nextStructuralRule:integer('next_structural_rule').notNull().default(0),
+  nextAccountingRule:integer('next_accounting_rule').notNull().default(0),
+  failedRule:text('failed_rule'),
+  updatedAt:text('updated_at').notNull(),
+});
 export const businessSyncTransactionConflicts=sqliteTable('business_sync_transaction_conflicts',{
   transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
   attempt:text('attempt').notNull(),

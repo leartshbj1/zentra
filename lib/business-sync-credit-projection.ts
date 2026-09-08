@@ -17,7 +17,16 @@ export const creditProjectionContract = [
   CREDIT_LINE_PAGE,
   sql,
 ];
-type Context = BootstrapValidationContext & { integrityValidator: string };
+export type CreditProjectionContext = Pick<
+  BootstrapValidationContext,
+  'db' | 'id' | 'transfer' | 'binding'
+> & {
+  manifest: { row_count: number };
+  integrityValidator: string;
+  queries?: typeof sql;
+  active?: { sql: string; bindings: (string | number)[] };
+};
+type Context = CreditProjectionContext;
 type Phase =
   | 'documents'
   | 'seed_lines'
@@ -226,7 +235,9 @@ function statement(
   state = old.state,
   overrides: Overrides = {},
 ) {
-  return ctx.db.prepare(sql[key]).bind(...bindings(ctx, old, state, overrides));
+  return ctx.db
+    .prepare((ctx.queries ?? sql)[key])
+    .bind(...bindings(ctx, old, state, overrides));
 }
 async function save(
   ctx: Context,
@@ -238,15 +249,17 @@ async function save(
 ) {
   const values = bindings(ctx, old, work, overrides);
   await ctx.db.batch([
-    ...mutations.map((key) => ctx.db.prepare(sql[key]).bind(...values)),
+    ...mutations.map((key) =>
+      ctx.db.prepare((ctx.queries ?? sql)[key]).bind(...values),
+    ),
     ctx.db
-      .prepare(sql.save)
+      .prepare((ctx.queries ?? sql).save)
       .bind(...values, JSON.stringify(next), new Date().toISOString()),
   ]);
   if (
     !(await ctx.db
-      .prepare(activeBootstrapSql)
-      .bind(...ctx.binding)
+      .prepare(ctx.active?.sql ?? activeBootstrapSql)
+      .bind(...(ctx.active?.bindings ?? ctx.binding))
       .first())
   )
     cancelled();
@@ -280,7 +293,7 @@ export async function validateCreditProjection(ctx: Context) {
       state,
     };
     await ctx.db
-      .prepare(sql.initialize)
+      .prepare((ctx.queries ?? sql).initialize)
       .bind(...bindings(ctx, candidate), new Date().toISOString())
       .run();
     old = await read(ctx);
