@@ -97,6 +97,14 @@ def main():
                     assert process.poll() is None, stage + ': packaged app exited after migration'
                     report['stages'].append({'stage': stage, 'schema': schema, 'processAliveAfterInitialization': True})
                 finally:
+                    if time.monotonic() >= deadline and process.poll() is None:
+                        sample = subprocess.run(['sample', str(process.pid), '1', '1'], capture_output=True, text=True, timeout=15)
+                        relevant = [line.strip() for line in sample.stdout.splitlines() if any(word in line.lower() for word in ['keychain', 'secitem', 'security', 'load_or_create', 'unprotect', 'migrate'])]
+                        report['timeoutDiagnostic'] = {'stage': stage, 'schema': observed, 'stackFrames': relevant[:60]}
+                        # Read only the labels of any system consent dialog on this disposable runner.
+                        consent = subprocess.run(['osascript', '-e', 'tell application "System Events" to get {name of every window, name of every button of every window} of process "SecurityAgent"'], capture_output=True, text=True, timeout=10)
+                        report['timeoutDiagnostic']['consentLabels'] = consent.stdout.strip()
+                        report['timeoutDiagnostic']['consentInspectionError'] = consent.stderr.strip()
                     if process.poll() is None:
                         process.terminate()
                         try:
