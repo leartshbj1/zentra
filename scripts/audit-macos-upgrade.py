@@ -79,6 +79,7 @@ def main():
                 process = subprocess.Popen([str(executable)], env=env, stdout=log, stderr=log)
                 try:
                     deadline = time.monotonic() + 50
+                    consent_checked = False
                     while True:
                         assert process.poll() is None, stage + ': packaged app exited during initialization'
                         try:
@@ -89,6 +90,28 @@ def main():
                                 break
                         except sqlite3.Error:
                             pass
+                        if stage != 'previous' and not consent_checked and time.monotonic() > deadline - 43:
+                            consent_checked = True
+                            # An ad hoc update has a new code identity. Exercise the normal macOS
+                            # Allow action only for this test application's own Keychain dialog.
+                            # Never alter ACLs, disable Keychain security or type a password.
+                            consent_script = '''tell application "System Events"
+tell process "SecurityAgent"
+if (count of windows) is not 1 then return "no-single-consent-dialog"
+set dialogText to ""
+repeat with element in entire contents of window 1
+try
+if role of element is "AXStaticText" then set dialogText to dialogText & (value of element as text) & " "
+end try
+end repeat
+if dialogText does not contain "Zentra" or dialogText does not contain "ch.zentra.desktop.protected-data" then return "unexpected-consent-context: " & dialogText
+if not (exists button "Allow" of window 1) then return "no-allow-button"
+click button "Allow" of window 1
+return "allowed-zentra-keychain-dialog"
+end tell
+end tell'''
+                            consent = subprocess.run(['osascript', '-e', consent_script], capture_output=True, text=True, timeout=10)
+                            report.setdefault('systemConsent', []).append({'stage': stage, 'result': consent.stdout.strip(), 'inspectionError': consent.stderr.strip()})
                         assert time.monotonic() < deadline, stage + ': initialization timed out'
                         time.sleep(1)
                     # LocalStore unlocks the Keychain identity before opening or migrating SQLite.
