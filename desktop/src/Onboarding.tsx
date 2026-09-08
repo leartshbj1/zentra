@@ -1,5 +1,6 @@
 import { CompanyLogo } from './CompanyLogo';
 import { CloudBackupPanel } from './CloudBackupPanel';
+import { BusinessHistoryPanel } from './BusinessHistoryPanel';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   AlertCircle,
@@ -109,12 +110,14 @@ export function Onboarding({
   onComplete,
   onRestore,
   onCloudRestore,
+  onBusinessImport,
   cloudAccount,
   onCloudAccountChange,
 }: {
   onComplete: (settings: AppSettings, scope: OnboardingValidationScope) => Promise<void>;
   onRestore: (path: string) => Promise<void>;
   onCloudRestore?: (backupId: string) => Promise<void>;
+  onBusinessImport?: (transferId: string) => Promise<void>;
   cloudAccount?: CloudAccountState | null;
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
@@ -350,6 +353,10 @@ export function Onboarding({
             {step === 0 ? (
               <SetupIntro onCreate={() => { setHighestStep((value) => Math.max(value, 1)); setStep(1); }} onRestore={() => void restore()} busy={busy} />
             ) : null}
+            {step === 0 && cloudAccount?.status === 'connected' && onBusinessImport ? <BusinessHistoryPanel key={`${cloudAccount.organizationId}:${cloudAccount.role}`} joinOnly disabled={busy} onBusyChange={setBusy} onImport={async (id) => {
+              await onBusinessImport(id);
+              try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* Le dossier reste installé. */ }
+            }} /> : null}
             {step === 0 && cloudAccount?.status === 'connected' && onCloudRestore ? <CloudBackupPanel recoveryOnly disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
               await onCloudRestore(id);
               try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* La restauration reste valide. */ }

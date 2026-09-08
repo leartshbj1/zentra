@@ -1,0 +1,61 @@
+.business-history-panel {
+  min-width: 0;
+}
+.business-history-panel > .section-heading {
+  padding: 0;
+  margin-bottom: 18px;
+  gap: 16px;
+}
+.business-history-panel > p {
+  max-width: 76ch;
+  line-height: 1.65;
+}
+.business-history-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 0;
+}
+.business-history-status > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--accent, #785744);
+}
+.business-history-status p {
+  margin: 6px 0 0;
+  max-width: 70ch;
+  line-height: 1.65;
+}
+.business-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.business-history-scope {
+  color: var(--text-muted, #686863);
+  font-size: 0.88rem;
+}
+.business-history-error {
+  color: var(--danger, #a63832);
+}
+.business-history-notice {
+  display: block;
+  margin-top: 16px;
+  line-height: 1.65;
+}
+@media (max-width: 640px) {
+  .business-history-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .business-history-actions > button {
+    width: 100%;
+    min-height: 46px;
+    white-space: normal;
+  }
+  .business-history-status {
+    gap: 12px;
+  }
+}

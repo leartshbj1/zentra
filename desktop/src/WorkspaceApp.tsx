@@ -3,6 +3,7 @@ import { useProjectSyncBackground } from './projectSync';
 import { useBusinessBootstrapBackground } from './businessBootstrap';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
+import { BusinessHistoryPanel } from './BusinessHistoryPanel';
 import { DocumentDesignStudio } from './DocumentDesignStudio';
 import { EmployeeDocumentImport } from './EmployeeDocumentImport';
 import { SalaryCertificates } from './SalaryCertificates';
@@ -2067,6 +2068,7 @@ export function WorkspaceApp({
           {view === 'settings' ? (
             <SettingsScreen
               workspace={workspace}
+              cloudAccount={cloudAccount}
               busy={busy}
               setBusy={setBusy}
               onWorkspace={setWorkspace}
@@ -4506,6 +4508,7 @@ function TeamScreen({
 
 function SettingsScreen({
   workspace,
+  cloudAccount,
   busy,
   setBusy,
   onWorkspace,
@@ -4514,6 +4517,7 @@ function SettingsScreen({
   onCloudAccountChange,
 }: {
   workspace: Workspace;
+  cloudAccount?: CloudAccountState | null;
   busy: boolean;
   setBusy: (value: boolean) => void;
   onWorkspace: Dispatch<SetStateAction<Workspace | null>>;
@@ -5735,8 +5739,9 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
+      <SettingsCategory title="Partage, sauvegardes et mises à jour" description="Retrouver, protéger et restaurer votre dossier" icon={Database}>
       <AppUpdater />
+      <BusinessHistoryPanel key={`${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}`} disabled={busy} onBusyChange={setBusy} />
       <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
         const next = await desktopApi.restoreCloudBackup(id);
         onWorkspace(next); setSettings(next.settings!);

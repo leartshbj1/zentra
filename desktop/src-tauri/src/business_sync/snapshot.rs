@@ -738,6 +738,9 @@ impl LocalStore {
         Ok(parent.join(id))
     }
     fn prepare_business_snapshot(&self, organization: &str, role: &str) -> AppResult<Prepared> {
+        self.prepare_business_snapshot_mode(organization,role,false)
+    }
+    fn prepare_business_snapshot_mode(&self, organization: &str, role: &str, publish:bool) -> AppResult<Prepared> {
         if !matches!(role, "owner" | "admin") {
             return Err(invalid("Seuls le titulaire et les administrateurs peuvent préparer l'historique de l'entreprise."));
         }
@@ -768,6 +771,10 @@ impl LocalStore {
             }
             let prepared: Prepared = serde_json::from_slice(&fs::read(path)?)?;
             prepared.verify(&folder, organization, &self.installation_id, &id)?;
+            if publish {
+                transport::publication::begin_intent(&transaction,&prepared)?;
+                transaction.commit()?;
+            }
             return Ok(prepared);
         }
         for table in ["project_sync_binding", "shared_numbering_binding"] {
@@ -840,6 +847,7 @@ impl LocalStore {
             manifest,
             files,
         };
+        if publish {transport::publication::begin_intent(&transaction,&prepared)?;}
         let descriptor = serde_json::to_vec(&prepared)?;
         if descriptor.len() as u64 > MAX_DESCRIPTOR_BYTES {
             return Err(invalid(

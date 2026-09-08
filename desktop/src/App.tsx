@@ -185,6 +185,7 @@ export function App() {
           setWorkspace(await desktopApi.restoreBackup(path))
         }
         onCloudRestore={async (id: string) => setWorkspace(await desktopApi.restoreCloudBackup(id))}
+        onBusinessImport={async (id: string) => setWorkspace(await desktopApi.importBusinessHistory(id))}
       />
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />

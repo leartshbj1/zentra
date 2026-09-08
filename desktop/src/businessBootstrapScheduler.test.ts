@@ -94,17 +94,18 @@ describe('prepared business history background sender', () => {
       .mockResolvedValueOnce(status('uploading'))
       .mockResolvedValueOnce(status('sending'))
       .mockResolvedValueOnce(status('files_uploading'))
+      .mockResolvedValueOnce(status('history_checking'))
       .mockResolvedValue(status('waiting_for_connection'));
     const sender = startBusinessBootstrapScheduler({
       synchronize,
       isOnline: () => true,
     });
-    await vi.advanceTimersByTimeAsync(18_000);
-    expect(synchronize).toHaveBeenCalledTimes(4);
-    await vi.advanceTimersByTimeAsync(59_999);
-    expect(synchronize).toHaveBeenCalledTimes(4);
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(23_000);
     expect(synchronize).toHaveBeenCalledTimes(5);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(synchronize).toHaveBeenCalledTimes(5);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(synchronize).toHaveBeenCalledTimes(6);
     sender.stop();
   });
 

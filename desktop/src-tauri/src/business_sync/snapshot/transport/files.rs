@@ -208,6 +208,9 @@ fn pages(bound: &BoundSnapshot) -> AppResult<FileManifest> {
     }
     Ok(manifest)
 }
+pub(super) fn manifest_json(bound:&BoundSnapshot) -> AppResult<String> {
+    Ok(serde_json::to_string(&pages(bound)?)?)
+}
 fn cache_folder(bound: &BoundSnapshot) -> AppResult<PathBuf> {
     let folder = bound.folder.join("file-transfer");
     match fs::create_dir(&folder) {

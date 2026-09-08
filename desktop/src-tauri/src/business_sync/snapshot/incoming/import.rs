@@ -14,12 +14,12 @@ struct Built {
     store: LocalStore,
 }
 
-fn require_fresh(connection: &Connection) -> AppResult<()> {
+pub(in crate::business_sync::snapshot) fn require_fresh(connection: &Connection) -> AppResult<()> {
     // A brand-new installation has no settings row. Preserve an incomplete
     // setup too: saved company information is already the user's work.
     let configured: bool =
         connection.query_row("SELECT EXISTS(SELECT 1 FROM settings)", [], |r| r.get(0))?;
-    let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding) OR EXISTS(SELECT 1 FROM business_sync_baseline) OR EXISTS(SELECT 1 FROM business_sync_changes)",[],|r|r.get(0))?;
+    let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding) OR EXISTS(SELECT 1 FROM business_sync_baseline) OR EXISTS(SELECT 1 FROM business_sync_changes) OR EXISTS(SELECT 1 FROM business_sync_publication_intent)",[],|r|r.get(0))?;
     if configured || linked {
         return Err(invalid("Ce profil contient déjà un dossier de travail. Utilisez un profil neuf pour rejoindre cette entreprise ; vos données actuelles sont conservées."));
     }

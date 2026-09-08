@@ -2,6 +2,7 @@
 //! An upload receipt never grants shared-history or numbering activation.
 
 mod files;
+pub(crate) mod publication;
 #[cfg(test)]
 mod structure_qa;
 #[cfg(test)]
@@ -458,9 +459,15 @@ pub(crate) async fn synchronize_if_prepared(store: &LocalStore) -> AppResult<Opt
         return Ok(Some(json!({"state":"history_installed","pending_transactions":pending["pending_transactions"],"replication_active":false})));
     }
     drop(connection);
+    if publication::is_committing(store)? {
+        return publication::publication_pass(store,&session).await.map(Some);
+    }
     let rows = transfer_pass(store, &session, PARTS_PER_PASS).await?;
     if rows["state"] == "history_uploaded" {
-        files::synchronize_files(store, &session).await.map(Some)
+        let result=files::synchronize_files(store, &session).await?;
+        if result["state"]=="files_uploaded" && publication::has_intent(store)? {
+            publication::publication_pass(store,&session).await.map(Some)
+        } else {Ok(Some(result))}
     } else {
         Ok(Some(rows))
     }

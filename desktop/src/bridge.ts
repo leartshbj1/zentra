@@ -9,6 +9,7 @@ function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
 import { fileBase64 } from './projectDocuments';
 import type { ProjectSyncStatus } from './projectSync';
 import type { BusinessBootstrapStatus } from './businessBootstrapScheduler';
+import type { BusinessHistoryState, BusinessHistoryReception } from './businessHistoryState';
 import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { PayslipPostingRefreshError } from './payrollMutation';
@@ -4757,6 +4758,11 @@ export const desktopApi = {
   getProjectSyncStatus: () => invoke<ProjectSyncStatus>('get_project_sync_status'),
   syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
   syncBusinessBootstrap: () => invoke<BusinessBootstrapStatus>('sync_business_bootstrap'),
+  getBusinessHistoryState: () => invoke<BusinessHistoryState>('get_business_history_state'),
+  startBusinessPublication: () => invoke<BusinessBootstrapStatus>('start_business_publication'),
+  cancelBusinessPublication: () => invoke<BusinessBootstrapStatus>('cancel_business_publication'),
+  receiveBusinessHistory: () => invoke<BusinessHistoryReception>('receive_business_history'),
+  async importBusinessHistory(transferId: string) { await invoke<void>('import_business_history', { transferId }); return loadWorkspace(); },
   getCloudBackupState: () => invoke<CloudBackupState>('get_cloud_backup_state'),
   runCloudBackup: (manual: boolean) => invoke<CloudBackupState>('run_cloud_backup', { manual }),
   setCloudBackupEnabled: (enabled: boolean) => invoke<CloudBackupState>('set_cloud_backup_enabled', { enabled }),

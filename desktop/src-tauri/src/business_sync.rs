@@ -208,6 +208,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                 "business_sync_changes",
                 "business_sync_receipts",
                 "business_sync_baseline",
+                "business_sync_publication_intent",
             ]
             .contains(&table.as_str())
     }) {
@@ -465,7 +466,8 @@ mod tests {
                         "business_sync_binding",
                         "business_sync_changes",
                         "business_sync_receipts",
-                        "business_sync_baseline"
+                        "business_sync_baseline",
+                        "business_sync_publication_intent"
                     ]
                     .contains(&table.as_str()),
                 "Unclassified table: {table}"

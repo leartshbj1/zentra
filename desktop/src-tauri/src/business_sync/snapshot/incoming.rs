@@ -231,6 +231,30 @@ impl Head {
         Ok((m, f))
     }
 }
+pub(super) fn validate_source_receipt(prepared:&Prepared,folder:&Path,files_json:String,generation:&str,bytes:&[u8]) -> AppResult<Value> {
+    let receipt:PublicationReceipt=serde_json::from_slice(bytes)?;
+    if receipt.transfer_id!=prepared.transfer_id || receipt.generation!=generation || prepared.manifest.version!=3 {
+        return Err(invalid("Le reçu ne correspond pas à cette préparation."));
+    }
+    let head=Head{state:"published".into(),head_revision:1,receipt,manifest_json:serde_json::to_string(&prepared.manifest)?,files_manifest_json:files_json};
+    head.validate(&prepared.organization_id)?;
+    let mut last:Option<(i64,String)>=None;
+    for (i,chunk) in prepared.manifest.chunks.iter().enumerate() {
+        let bytes=read(&folder.join("rows").join(format!("{i:04}.json")),CHUNK_BYTES as u64)?;
+        if digest(&bytes)!=chunk.sha256 {return Err(invalid("L’historique préparé a été altéré."));}
+        let part:Value=serde_json::from_slice(&bytes)?;
+        for row in part["rows"].as_array().ok_or_else(||invalid("Le fragment préparé est illisible."))? {
+            if row["table"]!="audit_log" {continue;}
+            let position=row["source_rowid"].as_str().and_then(|s|s.parse::<i64>().ok()).ok_or_else(||invalid("L’ordre préparé est illisible."))?;
+            let data:Value=serde_json::from_str(row["row_json"].as_str().ok_or_else(||invalid("L’audit préparé est illisible."))?)?;
+            let hash=data["entry_hash"].as_str().ok_or_else(||invalid("L’empreinte d’audit préparée est absente."))?;
+            if last.as_ref().is_none_or(|r|position>r.0) {last=Some((position,hash.to_owned()));}
+        }
+    }
+    if last.map(|r|r.1)!=head.receipt.last_audit_hash {return Err(invalid("Le reçu ne confirme pas l’audit préparé."));}
+    Ok(serde_json::to_value(&head.receipt)?)
+}
+
 async fn fetch_checked(
     t: &impl HistoryTransport,
     store: &LocalStore,
