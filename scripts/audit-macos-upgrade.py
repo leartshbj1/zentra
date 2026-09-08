@@ -99,9 +99,13 @@ def main():
 tell process "SecurityAgent"
 if (count of windows) is not 1 then return "no-single-consent-dialog"
 set dialogText to ""
-repeat with element in entire contents of window 1
+set dialogElements to entire contents of window 1
+repeat with dialogElement in dialogElements
 try
-if role of element is "AXStaticText" then set dialogText to dialogText & (value of element as text) & " "
+set currentElement to contents of dialogElement
+if role of currentElement is "AXStaticText" then set dialogText to dialogText & (value of currentElement as text) & " "
+on error inspectionError
+set dialogText to dialogText & "[inspection: " & inspectionError & "] "
 end try
 end repeat
 if dialogText does not contain "Zentra" or dialogText does not contain "ch.zentra.desktop.protected-data" then return "unexpected-consent-context: " & dialogText
