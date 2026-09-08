@@ -178,6 +178,7 @@ impl LocalStore {
         let mut staged = tempfile::NamedTempFile::new_in(&self.attachments_dir)?;
         staged.write_all(&bytes)?;
         staged.as_file().sync_all()?;
+        crate::business_sync::files::retain_prepared(&tx, &self.data_dir, staged.path(), &sha256, bytes.len() as u64)?;
         let now = now_iso();
         tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'project',?,?,?,?,?,?,?,?)", params![id, input.project_id, input.project_id, name, stored_name, mime, bytes.len() as i64, sha256, now, now])?;
         let record = query_all(&tx, "SELECT * FROM attachments WHERE id=?", params![id])?.remove(0);

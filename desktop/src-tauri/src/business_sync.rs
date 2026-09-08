@@ -1,6 +1,7 @@
 //! Durable, transactional capture for the shared-business replication protocol.
 //! Network activation is deliberately gated by the authoritative bootstrap.
 
+pub(crate) mod files;
 pub(crate) mod snapshot;
 
 use std::{
@@ -59,7 +60,11 @@ fn identifier(value: &str) -> AppResult<String> {
 
 /// The UUID belongs to a SQL transaction, not to the connection or to a row.
 /// Commit/rollback hooks only replace memory; they never execute reentrant SQL.
-pub(crate) fn register_connection(connection: &Connection) -> AppResult<()> {
+pub(crate) fn register_connection(
+    connection: &Connection,
+    data_dir: &std::path::Path,
+) -> AppResult<()> {
+    files::register(connection, data_dir)?;
     let transaction_id = Arc::new(Mutex::new(Uuid::new_v4()));
     let current = transaction_id.clone();
     connection.create_scalar_function(
@@ -275,6 +280,11 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
             } else {
                 String::new()
             };
+            let retain_files = if files::has_files(&table) {
+                format!("SELECT zentra_sync_retain_files('{table}',{before}); SELECT zentra_sync_retain_files('{table}',{after});")
+            } else {
+                String::new()
+            };
             transaction.execute_batch(&format!(
                 "CREATE TRIGGER zentra_sync_{table}_{operation}
                  AFTER {operation} ON {table_sql}
@@ -284,6 +294,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                    SELECT CASE WHEN EXISTS(SELECT 1 FROM business_sync_binding
                      WHERE installation_id<>zentra_installation_id())
                      THEN RAISE(ABORT,'La synchronisation de cette copie appartient à un autre appareil.') END;
+                   {retain_files}
                    INSERT INTO business_sync_changes(generation,transaction_id,organization_id,installation_id,
                      table_name,row_key_json,operation,before_json,after_json)
                    SELECT generation,zentra_sync_transaction_id(),organization_id,installation_id,
@@ -291,6 +302,60 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                  END;"
             ))?;
         }
+    }
+    Ok(())
+}
+
+/// Schema 60 has not been distributed. Development profiles can nevertheless
+/// contain the earlier trigger definitions. Upgrade them once; never invent
+/// historical file evidence for changes captured by that earlier build.
+pub(crate) fn upgrade_file_capture(connection: &Connection) -> AppResult<()> {
+    let enabled: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1)",
+        [],
+        |row| row.get(0),
+    )?;
+    if !enabled {
+        return Ok(());
+    }
+    let current: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='zentra_sync_attachments_insert' AND instr(sql,'zentra_sync_retain_files')>0)", [], |row| row.get(0))?;
+    if current {
+        return Ok(());
+    }
+    // Exclude an old writer between the history check and trigger replacement.
+    let transaction =
+        Transaction::new_unchecked(connection, rusqlite::TransactionBehavior::Immediate)?;
+    let enabled: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1)",
+        [],
+        |row| row.get(0),
+    )?;
+    if !enabled {
+        return Ok(());
+    }
+    let historical_files: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM business_sync_changes c JOIN business_sync_binding b ON c.generation=b.generation
+         WHERE c.table_name IN ('attachments','company_brand_assets','payroll_document_imports','settings','vat_return_exports','closing_package_exports'))", [], |row| row.get(0))?;
+    if historical_files {
+        detach_capture(&transaction)?;
+    } else {
+        install_capture_triggers(&transaction)?;
+    }
+    transaction.commit()?;
+    Ok(())
+}
+
+fn detach_capture(transaction: &Transaction<'_>) -> AppResult<()> {
+    transaction.execute("UPDATE business_sync_binding SET capture_enabled=0", [])?;
+    let triggers = transaction
+        .prepare(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND name GLOB 'zentra_sync_*'",
+        )?
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    for trigger in triggers {
+        transaction.execute_batch(&format!("DROP TRIGGER {}", identifier(&trigger)?))?;
     }
     Ok(())
 }
@@ -304,16 +369,7 @@ pub(crate) fn detach_restored_copy(connection: &Connection) -> AppResult<()> {
     )?;
     if exists {
         let transaction = connection.unchecked_transaction()?;
-        transaction.execute("UPDATE business_sync_binding SET capture_enabled=0", [])?;
-        let triggers = transaction
-            .prepare(
-                "SELECT name FROM sqlite_master WHERE type='trigger' AND name GLOB 'zentra_sync_*'",
-            )?
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        for trigger in triggers {
-            transaction.execute_batch(&format!("DROP TRIGGER {}", identifier(&trigger)?))?;
-        }
+        detach_capture(&transaction)?;
         transaction.commit()?;
     }
     Ok(())

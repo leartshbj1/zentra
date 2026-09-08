@@ -1511,7 +1511,7 @@ impl LocalStore {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "NORMAL")?;
-        crate::business_sync::register_connection(&connection)?;
+        crate::business_sync::register_connection(&connection, &self.data_dir)?;
         Ok(connection)
     }
 
@@ -1524,6 +1524,7 @@ impl LocalStore {
             )));
         }
         if current == SCHEMA_VERSION {
+            crate::business_sync::upgrade_file_capture(&connection)?;
             return Ok(());
         }
         let moves_plaintext_license = current != 0 && current < 38;

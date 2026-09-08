@@ -49,6 +49,11 @@ pub(crate) struct PreparedSupplierInvoiceAttachment {
 }
 
 impl PreparedSupplierInvoiceAttachment {
+    fn retain_for_sync(&self, tx: &Transaction<'_>, store: &LocalStore) -> AppResult<()> {
+        crate::business_sync::files::retain_prepared(tx, &store.data_dir,
+            if self.installed { &self.destination_path } else { &self.temporary_path },
+            &self.sha256, self.size_bytes)
+    }
     pub(crate) fn source_proof(&self) -> Value { json!({"sha256":self.sha256,"original_name":self.original_name}) }
     pub(crate) fn install(&mut self) -> AppResult<()> {
         fs::rename(&self.temporary_path, &self.destination_path)?;
@@ -329,6 +334,7 @@ impl LocalStore {
             )));
         }
         let now = now_iso();
+        prepared.retain_for_sync(tx, self)?;
         tx.execute(
             "INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'supplier_invoice',?,?,?,?,?,?,?,?)",
             params![prepared.id,project_id,invoice_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,i64::try_from(prepared.size_bytes).unwrap_or(i64::MAX),prepared.sha256,now,now],
@@ -373,6 +379,7 @@ impl LocalStore {
             |row| row.get(0),
         )?;
         let now = now_iso();
+        prepared.retain_for_sync(tx, self)?;
         tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'expense',?,?,?,?,?,?,?,?)", params![prepared.id,project,expense_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
         append_audit(
             tx,
@@ -403,6 +410,7 @@ impl LocalStore {
         let count: i64 = tx.query_row("SELECT COUNT(*) FROM attachments WHERE entity_type='expense_refund' AND entity_id=?", params![refund_id], |row| row.get(0))?;
         if count >= 20 { return Err(AppError::Validation("Ce remboursement contient déjà 20 justificatifs.".into())); }
         let now = now_iso();
+        prepared.retain_for_sync(tx, self)?;
         tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'expense_refund',?,?,?,?,?,?,?,?)", params![prepared.id,project,refund_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
         append_audit(tx, "attachment_add", "expense_refund", refund_id,
             &json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}))?;
@@ -421,6 +429,7 @@ impl LocalStore {
         let count:i64=tx.query_row("SELECT COUNT(*) FROM attachments WHERE entity_type='supplier_credit_refund' AND entity_id=?",params![refund_id],|r|r.get(0))?;
         if count>=20 {return Err(AppError::Validation("Ce remboursement contient déjà 20 justificatifs.".into()));}
         let now=now_iso();
+        prepared.retain_for_sync(tx, self)?;
         tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'supplier_credit_refund',?,?,?,?,?,?,?,?)",params![prepared.id,project,refund_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
         append_audit(tx,"attachment_add","supplier_credit_refund",refund_id,&json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}))?;
         let record=query_all(tx,"SELECT * FROM attachments WHERE id=?",params![prepared.id])?.into_iter().next().ok_or_else(||AppError::NotFound(format!("attachments/{}",prepared.id)))?;
@@ -436,6 +445,7 @@ impl LocalStore {
             return Ok(AttachmentInsertResult {record,created:false});
         }
         let now=now_iso();
+        prepared.retain_for_sync(tx, self)?;
         tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'customer_credit_settlement',?,?,?,?,?,?,?,?)",params![prepared.id,project,settlement_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
         append_audit(tx,"attachment_add","customer_credit_settlement",settlement_id,&json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}))?;
         let record=query_all(tx,"SELECT * FROM attachments WHERE id=?",[&prepared.id])?.into_iter().next().ok_or_else(||AppError::NotFound(format!("attachments/{}",prepared.id)))?;

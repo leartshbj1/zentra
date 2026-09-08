@@ -113,7 +113,7 @@ struct PortableRow {
     row_json: String,
 }
 
-fn regular_metadata(path: &Path) -> AppResult<fs::Metadata> {
+pub(super) fn regular_metadata(path: &Path) -> AppResult<fs::Metadata> {
     let metadata = fs::symlink_metadata(path)?;
     #[cfg(windows)]
     let linked = {
@@ -129,7 +129,7 @@ fn regular_metadata(path: &Path) -> AppResult<fs::Metadata> {
     }
     Ok(metadata)
 }
-fn safe_relative(value: &str) -> AppResult<()> {
+pub(super) fn safe_relative(value: &str) -> AppResult<()> {
     if value.is_empty()
         || value.len() > 1024
         || value.contains(['\\', ':', '<', '>', '"', '|', '?', '*'])
@@ -173,7 +173,7 @@ fn write_new(path: &Path, bytes: &[u8]) -> AppResult<()> {
     file.sync_all()?;
     Ok(())
 }
-fn sync_directory(path: &Path) -> AppResult<()> {
+pub(super) fn sync_directory(path: &Path) -> AppResult<()> {
     #[cfg(unix)]
     {
         File::open(path)?.sync_all()?;
@@ -184,7 +184,7 @@ fn sync_directory(path: &Path) -> AppResult<()> {
     }
     Ok(())
 }
-fn fingerprint_file(path: &Path) -> AppResult<(String, u64)> {
+pub(super) fn fingerprint_file(path: &Path) -> AppResult<(String, u64)> {
     if !regular_metadata(path)?.is_file() {
         return Err(invalid("Une pièce jointe locale n'est pas un fichier."));
     }
@@ -215,7 +215,24 @@ fn freeze_files(root: &Path, folder: &Path) -> AppResult<Vec<FrozenFile>> {
     let mut files = Vec::new();
     let mut total = 0u64;
     let mut portable_names = BTreeSet::new();
-    for entry in WalkDir::new(root).follow_links(false).sort_by_file_name() {
+    let private_cache = root.join(super::files::DIRECTORY);
+    if private_cache.try_exists()? && !regular_metadata(&private_cache)?.is_dir() {
+        return Err(invalid(
+            "Le cache de synchronisation des documents est invalide.",
+        ));
+    }
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .sort_by_file_name()
+        .into_iter()
+        .filter_entry(|entry| {
+            !(entry.depth() == 1
+                && entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(super::files::DIRECTORY)))
+        })
+    {
         let entry = entry.map_err(|_| {
             invalid("Une pièce jointe est inaccessible. La préparation est annulée.")
         })?;
@@ -1161,4 +1178,17 @@ mod tests {
             .unwrap();
         }
     }
+}
+#[test]
+fn private_pending_file_versions_are_not_bootstrap_business_documents() {
+    let root = tempfile::tempdir().unwrap();
+    let output = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("current.txt"), b"current").unwrap();
+    // Case-insensitive reservation also protects a cache restored on Windows.
+    let private = root.path().join(".BUSINESS-SYNC-PENDING");
+    fs::create_dir(&private).unwrap();
+    fs::write(private.join("old-content"), b"abandoned").unwrap();
+    let files = freeze_files(root.path(), output.path()).unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].path, "current.txt");
 }
