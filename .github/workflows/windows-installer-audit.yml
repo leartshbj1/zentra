@@ -1,0 +1,64 @@
+name: Zentra Windows exact installer audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Draft or published release containing the current exact installer
+        required: true
+        type: string
+      previous_tag:
+        description: Published release to upgrade
+        required: true
+        type: string
+      current_sha256:
+        description: Verified current NSIS installer SHA-256
+        required: true
+        type: string
+      current_exe_sha256:
+        description: Verified executable SHA-256 after the normal NSIS bundle marker patch
+        required: true
+        type: string
+      previous_sha256:
+        description: Verified previous NSIS installer SHA-256
+        required: true
+        type: string
+      native_source:
+        description: Exact source revision used to build the current installer
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Windows ${{ matrix.mode }} installation
+    runs-on: windows-2022
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [fresh, upgrade]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ZENTRA_RELEASE_TAG: ${{ inputs.release_tag }}
+      ZENTRA_PREVIOUS_TAG: ${{ inputs.previous_tag }}
+      ZENTRA_CURRENT_SHA256: ${{ inputs.current_sha256 }}
+      ZENTRA_CURRENT_EXE_SHA256: ${{ inputs.current_exe_sha256 }}
+      ZENTRA_PREVIOUS_SHA256: ${{ inputs.previous_sha256 }}
+      ZENTRA_NATIVE_SOURCE: ${{ inputs.native_source }}
+      ZENTRA_AUDIT_MODE: ${{ matrix.mode }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Verify and exercise the exact installers on an isolated runner
+        shell: pwsh
+        run: ./scripts/audit-windows-installer.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: Windows-installer-${{ matrix.mode }}-${{ github.run_id }}
+          path: outputs/windows-installer-audit/*.json
+          retention-days: 14
