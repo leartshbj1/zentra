@@ -208,6 +208,7 @@ fn native_supplier_fixture_preserves_mixed_vat_and_both_reversal_kinds() {
         let source = store.snapshot_folder(&prepared.transfer_id).unwrap();
         fs::create_dir(&output).unwrap();
         fs::create_dir(output.join("rows")).unwrap();
+        fs::create_dir(output.join("files")).unwrap();
         write_new(
             &output.join("prepared.json"),
             &serde_json::to_vec(&prepared).unwrap(),
@@ -223,6 +224,18 @@ fn native_supplier_fixture_preserves_mixed_vat_and_both_reversal_kinds() {
             write_new(
                 &output.join("rows").join(&name),
                 &fs::read(source.join("rows").join(name)).unwrap(),
+            )
+            .unwrap();
+        }
+        for sha in prepared
+            .files
+            .iter()
+            .map(|file| &file.sha256)
+            .collect::<std::collections::BTreeSet<_>>()
+        {
+            write_new(
+                &output.join("files").join(sha),
+                &fs::read(source.join("files").join(sha)).unwrap(),
             )
             .unwrap();
         }

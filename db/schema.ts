@@ -16,6 +16,27 @@ export const businessSyncSpaces = sqliteTable('business_sync_spaces', {
   createdAt: text('created_at').notNull(),
 });
 
+// Immutable initial high-water marks survive deleted drafts and restored PCs.
+// Later reservations are still append-only and cannot lower these floors.
+export const businessSyncNumberFloors = sqliteTable('business_sync_number_floors', {
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  prefix: text('prefix').notNull(),
+  year: integer('year').notNull(),
+  minimum: integer('minimum').notNull(),
+  bootstrapTransferId: text('bootstrap_transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+}, (table) => [uniqueIndex('business_sync_number_floor_identity').on(table.organizationId, table.prefix, table.year)]);
+
+export const businessSyncPublications = sqliteTable('business_sync_publications', {
+  transferId: text('transfer_id').primaryKey().references(() => businessSyncTransfers.transferId),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  generation: text('generation').notNull(),
+  manifestSha256: text('manifest_sha256').notNull(),
+  filesManifestSha256: text('files_manifest_sha256').notNull(),
+  validatorSha256: text('validator_sha256').notNull(),
+  receiptJson: text('receipt_json').notNull(),
+  committedAt: text('committed_at').notNull(),
+});
+
 export const businessSyncTransfers = sqliteTable('business_sync_transfers', {
   transferId: text('transfer_id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organizations.organizationId),

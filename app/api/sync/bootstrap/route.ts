@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await sessionFor(request);
-    const input = await readJsonObjectWithinLimit(request, 256 * 1024);
+    const input = await readJsonObjectWithinLimit(request, 1024 * 1024);
     return Response.json(
       await beginBootstrap(session, input.transfer_id, input.manifest),
       { headers: accountNoStoreHeaders() },

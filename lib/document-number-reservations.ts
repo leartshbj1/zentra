@@ -61,7 +61,7 @@ export async function reserveDocumentNumbers(
     .prepare(`INSERT OR IGNORE INTO document_number_reservations(
     organization_id,request_id,installation_id,created_by,prefix,year,minimum,count,start_value,end_value,created_at
   ) SELECT ?,?,?,?,?,?,?,?,next,next+?-1,? FROM (
-    SELECT MAX(COALESCE(MAX(end_value)+1,1),?) AS next FROM document_number_reservations
+    SELECT MAX(COALESCE(MAX(end_value)+1,1),?,COALESCE((SELECT minimum FROM business_sync_number_floors WHERE organization_id=? AND prefix=? AND year=?),1)) AS next FROM document_number_reservations
     WHERE organization_id=? AND prefix=? AND year=?
   ) WHERE next+?-1<=? AND NOT EXISTS(
     SELECT 1 FROM document_number_reservations WHERE organization_id=? AND request_id=?
@@ -80,6 +80,9 @@ export async function reserveDocumentNumbers(
       input.count,
       new Date().toISOString(),
       input.minimum,
+      session.organizationId,
+      input.prefix,
+      input.year,
       session.organizationId,
       input.prefix,
       input.year,

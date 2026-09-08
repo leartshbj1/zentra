@@ -2,6 +2,8 @@
 //! Preparing this bundle does not activate remote replication or numbering.
 
 mod exports;
+mod numbering;
+pub(crate) mod incoming;
 pub(crate) mod transport;
 
 use super::{identifier, install_capture_triggers, json_image, json_key, policy};
@@ -87,6 +89,8 @@ struct Manifest {
     chunks: Vec<Chunk>,
     row_count: u64,
     size_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    numbering_floors: Option<Vec<numbering::NumberFloor>>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -507,13 +511,14 @@ fn freeze_rows(connection: &Connection, folder: &Path) -> AppResult<Manifest> {
     fs::create_dir(folder)?;
     let mut manifest = Manifest {
         format: "zentra-business-bootstrap".into(),
-        version: 1,
+        version: 2,
         schema_version: 60,
         contract_sha256: contract_hash()?,
         tables: BTreeMap::new(),
         chunks: Vec::new(),
         row_count: 0,
         size_bytes: 0,
+        numbering_floors: Some(numbering::freeze(connection)?),
     };
     let mut bytes = CHUNK_PREFIX.to_vec();
     let mut count = 0;
@@ -617,7 +622,7 @@ impl Prepared {
             || self.organization_id != organization
             || self.installation_id != installation
             || self.manifest.format != "zentra-business-bootstrap"
-            || self.manifest.version != 1
+            || ![1, 2].contains(&self.manifest.version)
             || self.manifest.schema_version != 60
             || self.manifest.contract_sha256 != contract_hash()?
             || self.manifest.tables.keys().ne(policy()?.tables.keys())
@@ -627,6 +632,11 @@ impl Prepared {
             || self.files.len() > MAX_FILES
         {
             return Err(invalid("La préparation locale ne correspond plus à cette entreprise, cet appareil ou cette version."));
+        }
+        match (self.manifest.version,self.manifest.numbering_floors.as_deref()) {
+            (1,None) => (),
+            (2,Some(floors)) => numbering::validate(floors)?,
+            _ => return Err(invalid("Les bornes de numérotation de cette préparation sont absentes ou incompatibles.")),
         }
         if self.version == 1
             && ["vat_return_exports", "closing_package_exports"]
@@ -935,7 +945,7 @@ pub(crate) fn assert_export_in_qa_snapshot(store: &LocalStore, file_name: &str, 
 mod tests {
     use super::*;
 
-    fn setup() -> (tempfile::TempDir, LocalStore) {
+    pub(super) fn setup() -> (tempfile::TempDir, LocalStore) {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
         store

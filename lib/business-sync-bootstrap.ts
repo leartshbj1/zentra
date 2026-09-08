@@ -9,6 +9,7 @@ import {
 import { readBytesBodyWithinLimit } from './request-body';
 import { database, fileArchive } from './runtime';
 import { cleanupBootstrapFiles } from './business-sync-files';
+import { numberingFloors, type NumberFloor } from './business-sync-numbering';
 
 export const SYNC_CHUNK_BYTES = 4 * 1024 * 1024;
 export const SYNC_ROW_BYTES = 1024 * 1024;
@@ -44,13 +45,14 @@ export function businessSyncContractHash() {
 type Chunk = { sha256: string; size_bytes: number; row_count: number };
 export type BootstrapManifest = {
   format: 'zentra-business-bootstrap';
-  version: 1;
+  version: 1 | 2;
   schema_version: 60;
   contract_sha256: string;
   tables: Record<string, number>;
   chunks: Chunk[];
   row_count: number;
   size_bytes: number;
+  numbering_floors?: NumberFloor[];
 };
 type Transfer = {
   transfer_id: string;
@@ -122,10 +124,16 @@ export async function bootstrapManifest(
   const input = object(value);
   if (
     input.format !== 'zentra-business-bootstrap' ||
-    input.version !== 1 ||
+    (input.version !== 1 && input.version !== 2) ||
     input.schema_version !== 60
   )
     invalid('Cette version de synchronisation n’est pas prise en charge.');
+  if (input.version === 1 && Object.hasOwn(input, 'numbering_floors'))
+    invalid(
+      'Les bornes de numérotation nécessitent le nouveau format de préparation.',
+    );
+  const floors =
+    input.version === 2 ? numberingFloors(input.numbering_floors) : undefined;
   const fingerprint = hash(input.contract_sha256);
   if (fingerprint !== (await businessSyncContractHash()))
     invalid(
@@ -174,13 +182,14 @@ export async function bootstrapManifest(
     invalid('Les totaux du manifeste ne correspondent pas à ses fragments.');
   return {
     format: 'zentra-business-bootstrap',
-    version: 1,
+    version: input.version,
     schema_version: 60,
     contract_sha256: fingerprint,
     tables: normalized,
     chunks,
     row_count: rowCount,
     size_bytes: size,
+    ...(floors ? { numbering_floors: floors } : {}),
   };
 }
 
@@ -575,13 +584,27 @@ export async function abandonBootstrap(
   for (let offset = 0; offset < keys.length; offset += 100)
     await fileArchive().delete(keys.slice(offset, offset + 100));
   await db.batch([
-    ...['business_sync_credit_lines', 'business_sync_credit_movements', 'business_sync_credit_projection'].map(table =>
-      db.prepare(`DELETE FROM ${table} WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))`)
-        .bind(id, id, session.organizationId)),
-    db.prepare("DELETE FROM business_sync_audit_nodes WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))")
-      .bind(id,id,session.organizationId),
-    db.prepare("DELETE FROM business_sync_integrity_checks WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))")
-      .bind(id,id,session.organizationId),
+    ...[
+      'business_sync_credit_lines',
+      'business_sync_credit_movements',
+      'business_sync_credit_projection',
+    ].map((table) =>
+      db
+        .prepare(
+          `DELETE FROM ${table} WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))`,
+        )
+        .bind(id, id, session.organizationId),
+    ),
+    db
+      .prepare(
+        "DELETE FROM business_sync_audit_nodes WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))",
+      )
+      .bind(id, id, session.organizationId),
+    db
+      .prepare(
+        "DELETE FROM business_sync_integrity_checks WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))",
+      )
+      .bind(id, id, session.organizationId),
     db
       .prepare(
         "DELETE FROM business_sync_structural_checks WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))",

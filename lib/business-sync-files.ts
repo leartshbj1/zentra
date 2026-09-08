@@ -201,6 +201,14 @@ function prefix(org: string, id: string) {
 function partKey(org: string, id: string, sha: string, index: number) {
   return `${prefix(org, id)}${sha}/${index}`;
 }
+export function businessCatalogueKey(
+  org: string,
+  id: string,
+  sha: string,
+  index: number,
+) {
+  return `${prefix(org, id)}catalogue/${index}-${sha}.json`;
+}
 async function rejectCancelled(
   session: DeviceSessionContext,
   id: string,
@@ -341,10 +349,23 @@ export async function uploadBusinessFilePage(
     saved.sha256 === page.sha256 &&
     saved.size_bytes === page.size_bytes &&
     saved.file_count === page.file_count;
+  const retainPage = async () => {
+    const key = businessCatalogueKey(
+      session.organizationId,
+      id,
+      page.sha256,
+      index,
+    );
+    await fileArchive().put(key, bytes, {
+      httpMetadata: { contentType: 'application/json' },
+    });
+    await rejectCancelled(session, id, key);
+  };
   const previous = await receipt();
   if (previous) {
     if (!matches(previous))
       invalid('Une confirmation de catalogue est contradictoire.', 409);
+    await retainPage();
     await sealCatalog(session, id);
     return businessFilesStatus(session, id);
   }
@@ -374,15 +395,20 @@ export async function uploadBusinessFilePage(
     };
     if (manifest.version === 2) {
       const [root, ...parts] = entry.path.split('/');
-      if (!['attachments', 'exports'].includes(root) || parts.length === 0 ||
+      if (
+        !['attachments', 'exports'].includes(root) ||
+        parts.length === 0 ||
         (root === 'exports' && parts.length !== 1) ||
-        (root === 'attachments' && parts[0].toLowerCase() === '.business-sync-pending'))
+        (root === 'attachments' &&
+          parts[0].toLowerCase() === '.business-sync-pending')
+      )
         invalid('Le document ne fait pas partie du stockage métier partagé.');
     }
     if ((entry.size_bytes === 0) !== (entry.sha256 === EMPTY_SHA256))
       invalid('L’empreinte d’un fichier vide est incohérente.');
     return entry;
   });
+  await retainPage();
   const db = database();
   const statements: D1PreparedStatement[] = [];
   const blobs = new Map<string, number>();

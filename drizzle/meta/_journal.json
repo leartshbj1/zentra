@@ -134,6 +134,20 @@
       "when": 1788870658711,
       "tag": "0018_jazzy_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1788881291780,
+      "tag": "0019_young_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1788881492424,
+      "tag": "0020_cute_thor",
+      "breakpoints": true
     }
   ]
 }
