@@ -703,6 +703,22 @@ impl LocalStore {
         )
     }
 
+    /// Caller holds the working-profile lock and has verified a fresh recipient.
+    /// Reuse the restoration swap so database, attachments and exports roll back
+    /// together; protected account/installation files never leave this profile.
+    pub(crate) fn install_shared_initial_history(&self, database:&Path, attachments:&Path, exports:&Path) -> AppResult<PathBuf> {
+        validate_database(database)?;
+        let license=self.preserved_license()?;
+        let safety=unique_default_path(&self.backups_dir,"avant-synchronisation","zentra");
+        self.create_backup_at(&safety,env!("CARGO_PKG_VERSION"))?;
+        self.install_restored_data_and_then(database,attachments,exports,Some(&safety),|| {
+            self.migrate()?;
+            self.restore_local_license(license.as_ref())?;
+            validate_database(&self.database_path)
+        })?;
+        Ok(safety)
+    }
+
     pub(crate) fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
         self.create_backup_at_with_limits(destination, app_version, ARCHIVE_EXTRACTION_LIMITS, true)
     }

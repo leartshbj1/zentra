@@ -354,5 +354,265 @@ fn actual_server_publication_is_received_by_another_native_profile() {
             0,
             "Receiving is not a destructive database restore"
         );
+        assert_eq!(
+            m.version, 3,
+            "Regenerate the ordered native/server fixture before import acceptance"
+        );
+        let installed = super::import::install_received(
+            &recipient,
+            "org_first",
+            &fake.head.receipt.transfer_id,
+            || Ok(()),
+        )
+        .unwrap();
+        assert_eq!(installed["state"], "history_installed");
+        let connection = recipient.connect().unwrap();
+        let rules = policy().unwrap();
+        for bytes in &fake.rows {
+            let part: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+            for row in part["rows"].as_array().unwrap() {
+                let table = row["table"].as_str().unwrap();
+                let rule = &rules.tables[table];
+                let position = row["source_rowid"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<i64>()
+                    .unwrap();
+                let actual: String = connection
+                    .query_row(
+                        &format!(
+                            "SELECT {} FROM {} r WHERE rowid=?",
+                            json_image("r", &rule.columns).unwrap(),
+                            identifier(table).unwrap()
+                        ),
+                        [position],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    actual,
+                    row["row_json"].as_str().unwrap(),
+                    "{table}/{position}"
+                );
+            }
+        }
+        assert_eq!(
+            crate::audit::verify_audit_chain(&connection).unwrap()["last_hash"],
+            json!(fake.head.receipt.last_audit_hash)
+        );
+        drop(connection);
+        for page in &fake.pages {
+            for file in serde_json::from_slice::<FilePage>(page).unwrap().files {
+                assert_eq!(
+                    fs::read(recipient.data_dir.join(&file.path)).unwrap(),
+                    fake.files[&file.sha256]
+                );
+            }
+        }
+        recipient
+            .create_record("clients", json!({"name":"Créé sur le second profil"}))
+            .unwrap();
+        assert!(
+            crate::business_sync::status(&recipient.connect().unwrap()).unwrap()
+                ["pending_transactions"]
+                .as_i64()
+                .unwrap()
+                > 0
+        );
+        let repeated = super::import::install_received(
+            &recipient,
+            "org_first",
+            &fake.head.receipt.transfer_id,
+            || Ok(()),
+        )
+        .unwrap();
+        assert_eq!(repeated["already_installed"], true);
+        assert_eq!(
+            recipient
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM clients WHERE name='Créé sur le second profil'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+    });
+}
+
+#[test]
+fn import_preserves_large_source_positions_and_refuses_existing_local_work() {
+    tauri::async_runtime::block_on(async {
+        let (root, source) = super::super::tests::setup();
+        let c = source.connect().unwrap();
+        c.execute("INSERT INTO clients(rowid,id,name,created_at,updated_at) VALUES(9007199254740993,'z-last-key','First inserted','now','now'),(9007199254740994,'a-first-key','Second inserted','now','now')",[]).unwrap();
+        drop(c);
+        let fake = Fake::from_snapshot(&source);
+        let recipient = LocalStore::initialize(root.path().join("recipient")).unwrap();
+        finish(&recipient, &fake).await;
+        let identity = recipient.installation_id.clone();
+        super::import::install_received(
+            &recipient,
+            fake.organization(),
+            &fake.head.receipt.transfer_id,
+            || Ok(()),
+        )
+        .unwrap();
+        assert_eq!(recipient.installation_id, identity);
+        let c = recipient.connect().unwrap();
+        assert_eq!(
+            c.query_row("SELECT rowid FROM clients WHERE id='z-last-key'", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            9007199254740993
+        );
+        assert_eq!(
+            c.query_row(
+                "SELECT rowid FROM clients WHERE id='a-first-key'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            9007199254740994
+        );
+        assert!(recipient.backups_dir.read_dir().unwrap().next().is_some());
+        let occupied = LocalStore::initialize(root.path().join("occupied")).unwrap();
+        occupied.connect().unwrap().execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES('mine','Keep me','now','now')",[]).unwrap();
+        finish(&occupied, &fake).await;
+        assert!(super::import::install_received(
+            &occupied,
+            fake.organization(),
+            &fake.head.receipt.transfer_id,
+            || Ok(())
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("données locales"));
+        let partial = LocalStore::initialize(root.path().join("partial-setup")).unwrap();
+        partial.connect().unwrap().execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,0,'Entreprise en préparation','now','now')",[]).unwrap();
+        finish(&partial, &fake).await;
+        assert!(super::import::install_received(&partial,fake.organization(),&fake.head.receipt.transfer_id,||Ok(())).unwrap_err().to_string().contains("dossier de travail"));
+        assert_eq!(partial.connect().unwrap().query_row("SELECT company_name FROM settings",[],|r|r.get::<_,String>(0)).unwrap(),"Entreprise en préparation");
+        assert_eq!(
+            occupied
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM clients WHERE id='mine'", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    });
+}
+
+#[test]
+fn importing_checks_the_active_account_again_after_building_and_before_swapping() {
+    tauri::async_runtime::block_on(async {
+        let (_root, _source, recipient, fake) = setup();
+        finish(&recipient, &fake).await;
+        let calls = std::cell::Cell::new(0);
+        let before = fs::read(&recipient.database_path).unwrap();
+        let error = super::import::install_received(
+            &recipient,
+            fake.organization(),
+            &fake.head.receipt.transfer_id,
+            || {
+                calls.set(calls.get() + 1);
+                if calls.get() == 1 {
+                    Ok(())
+                } else {
+                    Err(invalid("Connexion changée"))
+                }
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("Connexion changée"));
+        assert_eq!(fs::read(&recipient.database_path).unwrap(), before);
+        assert!(recipient.backups_dir.read_dir().unwrap().next().is_none());
+    });
+}
+
+#[test]
+fn imported_stock_can_continue_without_replaying_history_or_reusing_device_numbers() {
+    use crate::models::{StockEntryInput, StockExitInput};
+    tauri::async_runtime::block_on(async {
+        let (root, source) = super::super::tests::setup();
+        let article=source.create_record("catalog_items",json!({"name":"Matériel à reprendre","kind":"product","unit":"pce","sales_price_cents":1000,"track_stock":true})).unwrap();
+        let item = article["id"].as_str().unwrap().to_owned();
+        let entry = StockEntryInput {
+            request_id: Uuid::new_v4().to_string(),
+            catalog_item_id: item.clone(),
+            quantity_milli: 10000,
+            reason: "Stock de départ".into(),
+            reference: None,
+            date: None,
+        };
+        source.record_stock_entry(entry.clone()).unwrap();
+        source
+            .record_stock_exit(StockExitInput {
+                request_id: Uuid::new_v4().to_string(),
+                catalog_item_id: item.clone(),
+                quantity_milli: 3000,
+                reason: "Sortie avant partage".into(),
+                reference: None,
+                date: None,
+            })
+            .unwrap();
+        let fake = Fake::from_snapshot(&source);
+        let recipient = LocalStore::initialize(root.path().join("stock-recipient")).unwrap();
+        finish(&recipient, &fake).await;
+        super::import::install_received(
+            &recipient,
+            fake.organization(),
+            &fake.head.receipt.transfer_id,
+            || Ok(()),
+        )
+        .unwrap();
+        assert_eq!(
+            recipient.record_stock_entry(entry).unwrap()["idempotent"],
+            true
+        );
+        let next = recipient
+            .record_stock_exit(StockExitInput {
+                request_id: Uuid::new_v4().to_string(),
+                catalog_item_id: item.clone(),
+                quantity_milli: 2000,
+                reason: "Sortie après reprise".into(),
+                reference: None,
+                date: None,
+            })
+            .unwrap();
+        assert_eq!(next["catalog_item"]["stock_quantity_milli"], 5000);
+        let mut connection = recipient.connect().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM stock_movements", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT MAX(sequence) FROM stock_movements", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM device_number_ranges", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        let tx = connection.transaction().unwrap();
+        assert!(crate::shared_numbering::consume(&tx, "FAC", 2026, 1)
+            .unwrap_err()
+            .to_string()
+            .contains("Reconnectez"));
+        tx.rollback().unwrap();
+        crate::audit::verify_audit_chain(&connection).unwrap();
     });
 }

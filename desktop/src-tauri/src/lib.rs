@@ -344,6 +344,7 @@ pub fn run() {
             business_sync::snapshot::prepare_business_sync_snapshot,
             business_sync::snapshot::transport::sync_business_bootstrap,
             business_sync::snapshot::incoming::receive_business_history,
+            business_sync::snapshot::incoming::import::import_business_history,
             cloud_backup::get_cloud_backup_state,
             cloud_backup::set_cloud_backup_enabled,
             cloud_backup::run_cloud_backup,

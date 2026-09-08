@@ -36,7 +36,7 @@ const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_FILE_TOTAL: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_FILES: usize = 50_000;
 const MAX_DESCRIPTOR_BYTES: u64 = 32 * 1024 * 1024;
-const CHUNK_PREFIX: &[u8] = b"{\"version\":1,\"rows\":[";
+const CHUNK_PREFIX: &[u8] = b"{\"version\":2,\"rows\":[";
 
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
@@ -127,11 +127,13 @@ struct Prepared {
     manifest: Manifest,
     files: Vec<FrozenFile>,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PortableRow {
     table: String,
     key_json: String,
     row_json: String,
+    source_rowid: String,
 }
 
 pub(super) fn regular_metadata(path: &Path) -> AppResult<fs::Metadata> {
@@ -511,7 +513,7 @@ fn freeze_rows(connection: &Connection, folder: &Path) -> AppResult<Manifest> {
     fs::create_dir(folder)?;
     let mut manifest = Manifest {
         format: "zentra-business-bootstrap".into(),
-        version: 2,
+        version: 3,
         schema_version: 60,
         contract_sha256: contract_hash()?,
         tables: BTreeMap::new(),
@@ -525,7 +527,7 @@ fn freeze_rows(connection: &Connection, folder: &Path) -> AppResult<Manifest> {
     let mut total = 0u64;
     for (table, rule) in policy()?.tables {
         let sql = format!(
-            "SELECT {},{} FROM {} r ORDER BY {}",
+            "SELECT {},{},r.rowid FROM {} r ORDER BY {}",
             json_key("r", &rule.key)?,
             json_image("r", &rule.columns)?,
             identifier(&table)?,
@@ -545,11 +547,13 @@ fn freeze_rows(connection: &Connection, folder: &Path) -> AppResult<Manifest> {
         })? {
             let key_json: String = row.get(0)?;
             let row_json: String = row.get(1)?;
+            let source_rowid = row.get::<_,i64>(2)?.to_string();
             validate_row(&table, &row_json)?;
             let encoded = serde_json::to_vec(&PortableRow {
                 table: table.clone(),
                 key_json,
                 row_json,
+                source_rowid,
             })?;
             if bytes.len() + usize::from(count > 0) + encoded.len() + 2 > CHUNK_BYTES
                 || count >= ROWS_PER_CHUNK as u64
@@ -622,7 +626,7 @@ impl Prepared {
             || self.organization_id != organization
             || self.installation_id != installation
             || self.manifest.format != "zentra-business-bootstrap"
-            || ![1, 2].contains(&self.manifest.version)
+            || ![1, 2, 3].contains(&self.manifest.version)
             || self.manifest.schema_version != 60
             || self.manifest.contract_sha256 != contract_hash()?
             || self.manifest.tables.keys().ne(policy()?.tables.keys())
@@ -635,7 +639,7 @@ impl Prepared {
         }
         match (self.manifest.version,self.manifest.numbering_floors.as_deref()) {
             (1,None) => (),
-            (2,Some(floors)) => numbering::validate(floors)?,
+            (2 | 3,Some(floors)) => numbering::validate(floors)?,
             _ => return Err(invalid("Les bornes de numérotation de cette préparation sont absentes ou incompatibles.")),
         }
         if self.version == 1

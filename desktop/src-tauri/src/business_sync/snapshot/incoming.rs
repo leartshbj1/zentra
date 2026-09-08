@@ -1,5 +1,6 @@
 //! Receive an immutable published history into separate, resumable storage.
 //! This does not replace the working database or enable transaction replication.
+pub(crate) mod import;
 use super::*;
 use crate::account_cloud::ProjectSyncSession;
 use reqwest::Method;
@@ -166,7 +167,7 @@ impl Head {
         let m: Manifest = serde_json::from_str(&self.manifest_json)?;
         let f: FilesManifest = serde_json::from_str(&self.files_manifest_json)?;
         if m.format != "zentra-business-bootstrap"
-            || m.version != 2
+            || ![2, 3].contains(&m.version)
             || m.schema_version != 60
             || m.contract_sha256 != contract_hash()?
             || m.tables.keys().ne(policy()?.tables.keys())

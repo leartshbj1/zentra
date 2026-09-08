@@ -173,6 +173,7 @@ fn ensure_unique_key(connection: &Connection, table: &str, rule: &TablePolicy) -
 
 pub(crate) fn migrate(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction.execute_batch(include_str!("business_sync_schema.sql"))?;
+    transaction.execute_batch(include_str!("business_sync_baseline.sql"))?;
     // Persistent triggers are parsed every time SQLite opens a connection.
     // Keep ordinary profiles lean; the authoritative bootstrap must install
     // capture in the same transaction as its binding, before any local write.
@@ -206,6 +207,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                 "business_sync_binding",
                 "business_sync_changes",
                 "business_sync_receipts",
+                "business_sync_baseline",
             ]
             .contains(&table.as_str())
     }) {
@@ -313,6 +315,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
 /// contain the earlier trigger definitions. Upgrade them once; never invent
 /// historical file evidence for changes captured by that earlier build.
 pub(crate) fn upgrade_file_capture(connection: &Connection) -> AppResult<()> {
+    connection.execute_batch(include_str!("business_sync_baseline.sql"))?;
     let enabled: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1)",
         [],
@@ -461,7 +464,8 @@ mod tests {
                     || [
                         "business_sync_binding",
                         "business_sync_changes",
-                        "business_sync_receipts"
+                        "business_sync_receipts",
+                        "business_sync_baseline"
                     ]
                     .contains(&table.as_str()),
                 "Unclassified table: {table}"

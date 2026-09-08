@@ -451,6 +451,13 @@ pub(crate) async fn synchronize_if_prepared(store: &LocalStore) -> AppResult<Opt
             json!({"state":"waiting_for_connection","replication_active":false}),
         ));
     };
+    let connection=store.connect()?;
+    let installed:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_baseline a JOIN business_sync_binding b ON b.id=a.id WHERE a.organization_id=? AND b.organization_id=a.organization_id AND b.installation_id=? AND b.capture_enabled=1)",params![session.organization_id,store.installation_id],|r|r.get(0))?;
+    if installed {
+        let pending=crate::business_sync::status(&connection)?;
+        return Ok(Some(json!({"state":"history_installed","pending_transactions":pending["pending_transactions"],"replication_active":false})));
+    }
+    drop(connection);
     let rows = transfer_pass(store, &session, PARTS_PER_PASS).await?;
     if rows["state"] == "history_uploaded" {
         files::synchronize_files(store, &session).await.map(Some)

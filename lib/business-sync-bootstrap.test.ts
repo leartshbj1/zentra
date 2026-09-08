@@ -372,9 +372,18 @@ function client(id = 'client-1') {
     updated_at: '2026-09-08',
   });
 }
-async function fixture(groups = [[settings()], [client()]]) {
+async function fixture(
+  groups: Array<
+    Array<
+      ReturnType<typeof row> & { source_rowid?: string; unexpected?: boolean }
+    >
+  > = [[settings()], [client()]],
+  ordered = false,
+) {
   const bytes = groups.map((rows) =>
-    new TextEncoder().encode(JSON.stringify({ version: 1, rows })),
+    new TextEncoder().encode(
+      JSON.stringify({ version: ordered ? 2 : 1, rows }),
+    ),
   );
   const counts = Object.fromEntries(
     Object.keys(rules).map((table) => [table, 0]),
@@ -389,13 +398,14 @@ async function fixture(groups = [[settings()], [client()]]) {
   );
   const manifest = {
     format: 'zentra-business-bootstrap',
-    version: 1,
+    version: ordered ? 3 : 1,
     schema_version: 60,
     contract_sha256: await businessSyncContractHash(),
     tables: counts,
     chunks,
     size_bytes: bytes.reduce((sum, part) => sum + part.length, 0),
     row_count: groups.flat().length,
+    ...(ordered ? { numbering_floors: [] } : {}),
   };
   return { id: crypto.randomUUID(), bytes, manifest };
 }
@@ -408,6 +418,61 @@ function uploadRequest(bytes: Uint8Array<ArrayBuffer>) {
 function count(table: string) {
   return db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()!.count;
 }
+
+it('rolls back a repeated source position across chunks and removes ordering when cancelling', async () => {
+  const f = await fixture(
+    [
+      [
+        { ...settings(), source_rowid: '1' },
+        { ...client('first'), source_rowid: '9007199254740993' },
+      ],
+      [
+        { ...client('next'), source_rowid: '9007199254740994' },
+        { ...client('duplicate'), source_rowid: '9007199254740993' },
+      ],
+    ],
+    true,
+  );
+  await beginBootstrap(owner, f.id, f.manifest);
+  await uploadBootstrapChunk(owner, f.id, 0, uploadRequest(f.bytes[0]));
+  await expect(
+    uploadBootstrapChunk(owner, f.id, 1, uploadRequest(f.bytes[1])),
+  ).rejects.toThrow();
+  expect(count('business_sync_versions')).toBe(2);
+  expect(count('business_sync_row_order')).toBe(2);
+  expect(count('business_sync_transfer_chunks')).toBe(1);
+  expect(
+    db
+      .prepare(
+        "SELECT source_rowid FROM business_sync_row_order WHERE table_name='clients'",
+      )
+      .get()!.source_rowid,
+  ).toBe('9007199254740993');
+  await abandonBootstrap(owner, f.id);
+  expect(count('business_sync_row_order')).toBe(0);
+  expect(count('business_sync_versions')).toBe(0);
+});
+
+it.each(['missing', 'unknown', 'integer-alias'])(
+  'rejects %s ordered metadata before saving any rows',
+  async (kind) => {
+    const entry: ReturnType<typeof settings> & {
+      source_rowid?: string;
+      unexpected?: boolean;
+    } = { ...settings(), source_rowid: '1' };
+    if (kind === 'missing') delete entry.source_rowid;
+    if (kind === 'unknown') entry.unexpected = true;
+    if (kind === 'integer-alias') entry.source_rowid = '2';
+    const f = await fixture([[entry]], true);
+    await beginBootstrap(owner, f.id, f.manifest);
+    await expect(
+      uploadBootstrapChunk(owner, f.id, 0, uploadRequest(f.bytes[0])),
+    ).rejects.toThrow();
+    expect(count('business_sync_versions')).toBe(0);
+    expect(count('business_sync_row_order')).toBe(0);
+    expect(count('business_sync_transfer_chunks')).toBe(0);
+  },
+);
 
 it('stages the exact rows durably, resumes missing chunks and never activates replication on receipt alone', async () => {
   const f = await fixture();

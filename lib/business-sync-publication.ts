@@ -11,6 +11,7 @@ import {
 import { businessFileManifest } from './business-sync-files';
 import { businessFileLinksSql } from './business-sync-file-links';
 import { historicalNumberFloorsSql } from './business-sync-numbering';
+import { sourceAuditOrderSql } from './business-sync-order';
 import {
   bootstrapIntegrityStatus,
   bootstrapAccountingRules,
@@ -32,6 +33,7 @@ const eligible = `SELECT 1 FROM business_sync_transfers t
  AND json_extract(p.state_json,'$.phase')='valid'
  AND f.state='uploaded' AND f.manifest_sha256=?9
  AND (SELECT COUNT(*) FROM business_sync_versions WHERE transfer_id=?1 AND organization_id=?2)=?10
+ AND (SELECT COUNT(*) FROM business_sync_row_order o JOIN business_sync_versions v ON v.transfer_id=o.transfer_id AND v.table_name=o.table_name AND v.row_key_json=o.row_key_json WHERE o.transfer_id=?1 AND v.organization_id=?2)=?10
  AND (SELECT COUNT(*) FROM business_sync_file_entries WHERE transfer_id=?1)=?14
  AND (SELECT COALESCE(SUM(size_bytes),0) FROM business_sync_file_entries WHERE transfer_id=?1)=?15
  AND NOT EXISTS(SELECT 1 FROM business_sync_file_entries e LEFT JOIN business_sync_file_blobs b ON b.transfer_id=e.transfer_id AND b.sha256=e.sha256 WHERE e.transfer_id=?1 AND (b.sha256 IS NULL OR b.verified_at IS NULL OR b.size_bytes<>e.size_bytes))
@@ -53,6 +55,7 @@ export function publicationValidatorHash() {
         ours,
         businessFileLinksSql,
         historicalNumberFloorsSql,
+        sourceAuditOrderSql,
       ]),
     ),
   ));
@@ -182,12 +185,12 @@ export async function publishBootstrap(
   const manifest = await bootstrapManifest(JSON.parse(source.manifest_json));
   const files = businessFileManifest(JSON.parse(source.files_manifest_json));
   if (
-    manifest.version !== 2 ||
+    manifest.version !== 3 ||
     !manifest.numbering_floors ||
     files.version !== 2
   )
     fail(
-      'Préparez à nouveau l’historique avec la version actuelle pour conserver les compteurs et les exports.',
+      'Préparez à nouveau l’historique avec la version actuelle pour conserver l’ordre des événements, les compteurs et les exports.',
     );
   if (
     (await sha256Hex(source.manifest_json)) !== integrity.manifest_sha256 ||
@@ -228,7 +231,7 @@ export async function publishBootstrap(
   await db.batch([
     db
       .prepare(`INSERT OR IGNORE INTO business_sync_publications(transfer_id,organization_id,generation,manifest_sha256,files_manifest_sha256,validator_sha256,receipt_json,committed_at)
-      SELECT ?1,?2,?4,?5,?9,?8,?16,?17 WHERE EXISTS(${eligible}) AND NOT EXISTS(${businessFileLinksSql})`)
+      SELECT ?1,?2,?4,?5,?9,?8,?16,?17 WHERE EXISTS(${eligible}) AND NOT EXISTS(${businessFileLinksSql}) AND NOT EXISTS(${sourceAuditOrderSql})`)
       .bind(
         ...args,
         manifest.row_count,

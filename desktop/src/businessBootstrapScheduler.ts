@@ -6,7 +6,8 @@ export type BusinessBootstrapStatus = {
     | 'uploading'
     | 'history_uploaded'
     | 'files_uploading'
-    | 'files_uploaded';
+    | 'files_uploaded'
+    | 'history_installed';
   transfer_id?: string;
   confirmed_chunks?: number;
   total_chunks?: number;
@@ -55,7 +56,8 @@ export function startBusinessBootstrapScheduler(options: {
       } else if (
         status.state === 'not_prepared' ||
         status.state === 'history_uploaded' ||
-        status.state === 'files_uploaded'
+        status.state === 'files_uploaded' ||
+        status.state === 'history_installed'
       ) {
         nextDelay = 300_000;
       }

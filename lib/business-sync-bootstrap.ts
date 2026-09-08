@@ -10,6 +10,7 @@ import { readBytesBodyWithinLimit } from './request-body';
 import { database, fileArchive } from './runtime';
 import { cleanupBootstrapFiles } from './business-sync-files';
 import { numberingFloors, type NumberFloor } from './business-sync-numbering';
+import { sourceRowid } from './business-sync-order';
 
 export const SYNC_CHUNK_BYTES = 4 * 1024 * 1024;
 export const SYNC_ROW_BYTES = 1024 * 1024;
@@ -45,7 +46,7 @@ export function businessSyncContractHash() {
 type Chunk = { sha256: string; size_bytes: number; row_count: number };
 export type BootstrapManifest = {
   format: 'zentra-business-bootstrap';
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   schema_version: 60;
   contract_sha256: string;
   tables: Record<string, number>;
@@ -80,6 +81,7 @@ type PortableRow = {
   key_json: string;
   row_json: string;
   sha256: string;
+  source_rowid: string | null;
 };
 
 function invalid(message: string, status = 400): never {
@@ -124,7 +126,7 @@ export async function bootstrapManifest(
   const input = object(value);
   if (
     input.format !== 'zentra-business-bootstrap' ||
-    (input.version !== 1 && input.version !== 2) ||
+    (input.version !== 1 && input.version !== 2 && input.version !== 3) ||
     input.schema_version !== 60
   )
     invalid('Cette version de synchronisation n’est pas prise en charge.');
@@ -133,7 +135,7 @@ export async function bootstrapManifest(
       'Les bornes de numérotation nécessitent le nouveau format de préparation.',
     );
   const floors =
-    input.version === 2 ? numberingFloors(input.numbering_floors) : undefined;
+    input.version !== 1 ? numberingFloors(input.numbering_floors) : undefined;
   const fingerprint = hash(input.contract_sha256);
   if (fingerprint !== (await businessSyncContractHash()))
     invalid(
@@ -308,7 +310,10 @@ export async function beginBootstrap(
   return bootstrapStatus(session, id);
 }
 
-async function portableRows(bytes: Uint8Array): Promise<PortableRow[]> {
+async function portableRows(
+  bytes: Uint8Array,
+  version: 1 | 2 | 3,
+): Promise<PortableRow[]> {
   let input: Record<string, unknown>;
   try {
     input = object(
@@ -318,16 +323,30 @@ async function portableRows(bytes: Uint8Array): Promise<PortableRow[]> {
     invalid('Le fragment de synchronisation est illisible.');
   }
   if (
-    input.version !== 1 ||
+    input.version !== (version === 3 ? 2 : 1) ||
     !Array.isArray(input.rows) ||
     !input.rows.length ||
     input.rows.length > SYNC_ROWS_PER_CHUNK
   )
     invalid('Le fragment ne contient pas un lot de lignes valide.');
   const keys = new Set<string>();
+  if (version === 3 && Object.keys(input).sort().join(',') !== 'rows,version')
+    invalid('Le fragment contient des champs de transport inconnus.');
   return Promise.all(
     input.rows.map(async (value) => {
       const row = object(value);
+      if (
+        version === 3 &&
+        Object.keys(row).sort().join(',') !==
+          'key_json,row_json,source_rowid,table'
+      )
+        invalid(
+          'La ligne contient des champs de transport inconnus ou incomplets.',
+        );
+      if (version !== 3 && Object.hasOwn(row, 'source_rowid'))
+        invalid(
+          'La position des événements nécessite une préparation récente.',
+        );
       if (typeof row.table !== 'string' || !Object.hasOwn(tables, row.table))
         invalid(
           'Le fragment contient une table qui ne peut pas être partagée.',
@@ -403,6 +422,8 @@ async function portableRows(bytes: Uint8Array): Promise<PortableRow[]> {
         key_json: keyJson,
         row_json: row.row_json,
         sha256: await sha256Hex(row.row_json),
+        source_rowid:
+          version === 3 ? sourceRowid(row.source_rowid, row.table, data) : null,
       };
     }),
   );
@@ -448,7 +469,7 @@ export async function uploadBootstrapChunk(
   }
   if (transfer.state !== 'uploading')
     invalid('Cette préparation n’accepte plus de nouveaux fragments.', 409);
-  const rows = await portableRows(bytes);
+  const rows = await portableRows(bytes, manifest.version);
   if (rows.length !== part.row_count)
     invalid('Le nombre de lignes du fragment est incohérent.');
   const byTable: Record<string, number> = {};
@@ -479,6 +500,22 @@ export async function uploadBootstrapChunk(
       ),
   );
   // Each table count is checked inside the same D1 transaction, after inserts.
+  for (const row of rows)
+    if (row.source_rowid !== null)
+      statements.push(
+        db
+          .prepare(`INSERT INTO business_sync_row_order(transfer_id,table_name,row_key_json,source_rowid)
+    SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND state='uploading' AND installation_id=? AND organization_id=?)`)
+          .bind(
+            id,
+            row.table,
+            row.key_json,
+            row.source_rowid,
+            id,
+            session.installationId,
+            session.organizationId,
+          ),
+      );
   // A violated NOT NULL constraint is deliberate: abort the entire chunk, never
   // retain only some rows or publish a receipt for an incomplete batch.
   for (const name of Object.keys(byTable)) {
@@ -588,6 +625,7 @@ export async function abandonBootstrap(
       'business_sync_credit_lines',
       'business_sync_credit_movements',
       'business_sync_credit_projection',
+      'business_sync_row_order',
     ].map((table) =>
       db
         .prepare(

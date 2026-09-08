@@ -199,20 +199,20 @@ async function fixture(): Promise<Fixture> {
   }
   const chunks = [
     encode({
-      version: 1,
+      version: 2,
       rows: [
         {
           table: 'settings',
           key_json: '[1]',
           row_json,
-          sha256: await sha256Hex(row_json),
+          source_rowid: '1',
         },
       ],
     }),
   ];
   const manifest = await bootstrapManifest({
     format: 'zentra-business-bootstrap',
-    version: 2,
+    version: 3,
     schema_version: 60,
     contract_sha256: await businessSyncContractHash(),
     tables: Object.fromEntries(
@@ -313,6 +313,13 @@ async function ready() {
   await validate(f.id);
   return { ...f, pages };
 }
+
+it('cannot publish a complete validated history with missing source ordering', async () => {
+  const f = await ready();
+  db.exec('DELETE FROM business_sync_row_order');
+  await expect(publishBootstrap(owner, f.id)).rejects.toThrow();
+  unpublished();
+});
 function unpublished() {
   expect(count('business_sync_publications')).toBe(0);
   expect(count('business_sync_number_floors')).toBe(0);
@@ -506,6 +513,18 @@ it('keeps old row manifests stageable but refuses to publish them without histor
   const f = await fixture();
   const legacy = { ...f.manifest, version: 1 };
   delete legacy.numbering_floors;
+  const body = JSON.parse(new TextDecoder().decode(f.chunks[0]));
+  body.version = 1;
+  delete body.rows[0].source_rowid;
+  f.chunks[0] = encode(body);
+  legacy.chunks = [
+    {
+      ...legacy.chunks[0],
+      sha256: await sha256Hex(f.chunks[0]),
+      size_bytes: f.chunks[0].length,
+    },
+  ];
+  legacy.size_bytes = f.chunks[0].length;
   f.manifest = await bootstrapManifest(legacy);
   await stage(f);
   await validate(f.id);

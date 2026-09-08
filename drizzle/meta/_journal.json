@@ -148,6 +148,13 @@
       "when": 1788881492424,
       "tag": "0020_cute_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1788884564984,
+      "tag": "0021_glorious_kingpin",
+      "breakpoints": true
     }
   ]
 }

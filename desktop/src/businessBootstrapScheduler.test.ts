@@ -60,7 +60,12 @@ describe('prepared business history background sender', () => {
     await vi.advanceTimersByTimeAsync(0);
   });
 
-  it.each(['not_prepared', 'history_uploaded', 'files_uploaded'] as const)(
+  it.each([
+    'not_prepared',
+    'history_uploaded',
+    'files_uploaded',
+    'history_installed',
+  ] as const)(
     'keeps %s quiet and does not infer active replication',
     async (state) => {
       const synchronize = vi.fn(async () => status(state));

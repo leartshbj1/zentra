@@ -191,6 +191,30 @@ export const businessSyncFileParts = sqliteTable('business_sync_file_parts', {
   objectKey: text('object_key').notNull(),
 }, (table) => [uniqueIndex('business_sync_file_part_identity').on(table.transferId, table.fileSha256, table.partIndex)]);
 
+export const businessSyncRowOrder = sqliteTable(
+  'business_sync_row_order',
+  {
+    transferId: text('transfer_id')
+      .notNull()
+      .references(() => businessSyncTransfers.transferId),
+    tableName: text('table_name').notNull(),
+    rowKeyJson: text('row_key_json').notNull(),
+    sourceRowid: text('source_rowid').notNull(),
+  },
+  (table) => [
+    uniqueIndex('business_sync_source_order_key').on(
+      table.transferId,
+      table.tableName,
+      table.rowKeyJson,
+    ),
+    uniqueIndex('business_sync_source_order_position').on(
+      table.transferId,
+      table.tableName,
+      table.sourceRowid,
+    ),
+  ],
+);
+
 export const businessSyncVersions = sqliteTable('business_sync_versions', {
   sequence: integer('sequence').primaryKey({ autoIncrement: true }),
   transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
