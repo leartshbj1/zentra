@@ -27,6 +27,6 @@ Avant d’activer pour des clients :
 
 ## Preuves intermédiaires
 
-Les 11 tests serveur utilisent le schéma D1 réellement migré sur SQLite : vingt appareils concurrents, requête répétée, minimum historique, isolation, changement de paramètres, refus des rôles, bornes et épuisement. Avec cette brique, la suite serveur comporte 240 tests réussis. Le service de numérotation n’est pas encore publié et le téléchargement automatique des plages reste à intégrer.
+Les 11 tests serveur utilisent le schéma D1 réellement migré sur SQLite : vingt appareils concurrents, requête répétée, minimum historique, isolation, changement de paramètres, refus des rôles, bornes et épuisement. Avec cette brique, la suite serveur comporte 240 tests réussis. Le service de numérotation est publié dans la version du site 70, source `75d5bb4`, et refuse une requête sans session (401). Son activation après initialisation et le téléchargement automatique des plages restent à intégrer.
 
 Les dix tests natifs ciblés couvrent consommation transactionnelle, absence de repli, isolation, restauration, redémarrage avec réponse perdue, réponse contradictoire, compteur avancé, préparation concurrente et bornes. Avant les six derniers scénarios, la suite native complète du schéma 59 passait avec 636 tests réussis, zéro échec et un test HTTPS volontairement ignoré. Le contrôle HTTPS natif public a ensuite été exécuté séparément et passe ; il ne constitue pas une émission partagée réelle.

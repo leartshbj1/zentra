@@ -45,6 +45,13 @@ const ROLE_LABEL: Record<string, string> = {
   read_only: 'Lecture seule',
 };
 
+const ACCOUNT_DATE = new Intl.DateTimeFormat('fr-CH', {
+  timeZone: 'Europe/Zurich',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
 export function TeamAccessList({
   organizationId,
   currentUserId,
@@ -218,7 +225,7 @@ export function TeamAccessList({
                     </p>
                     <p className="truncate text-xs text-[#667168]">
                       Poste …{device.installationId.slice(-8)} · vu le{' '}
-                      {new Date(device.lastSeenAt).toLocaleDateString('fr-CH')}
+                      {ACCOUNT_DATE.format(new Date(device.lastSeenAt))}
                     </p>
                   </div>
                   {removable ? (
@@ -268,10 +275,7 @@ export function TeamAccessList({
                     </p>
                     <p className="truncate text-xs text-[#667168]">
                       {ROLE_LABEL[invitation.role] || invitation.role} · expire
-                      le{' '}
-                      {new Date(invitation.expiresAt).toLocaleDateString(
-                        'fr-CH',
-                      )}
+                      le {ACCOUNT_DATE.format(new Date(invitation.expiresAt))}
                     </p>
                   </div>
                   <button

@@ -31,7 +31,28 @@ Le backend natif `cloud_backup.rs` conserve seulement les préférences et l’e
 - Recette CUA sur une interface fictive à 320 × 568 et 1440 × 900 : création, reprise après coupure simulée, confirmation intégrée, restauration, vues hors ligne et rôle restreint. Aucun débordement horizontal global ; commandes mobiles de 44 px de haut.
 - Page de récupération web contrôlée avec données fictives à 320 × 568 et 1440 × 900 : copies disponibles, coffre vide, erreur et connexion. Aucun débordement horizontal ; commandes de téléchargement et sélection de 48 px de haut.
 
-Ces essais ne constituent pas encore une preuve de transfert du client natif vers le serveur public ni une installation sur deux appareils physiques. Le service de sauvegarde a été publié le 8 septembre (version du site 68), puis la récupération web dans la version 69, source `730d8b2`. La page publique répond 200 et les deux API privées refusent une requête sans connexion (401). Les nouveaux artefacts natifs distribués et l’essai natif HTTPS restent à vérifier avant d’annoncer cette priorité entièrement livrée.
+Le service de sauvegarde a été publié le 8 septembre (version du site 68), puis la récupération web dans la version 69, source `730d8b2`. La page publique répond 200 et les deux API privées refusent une requête sans connexion (401).
+
+Une recette native HTTPS complète a ensuite réussi contre le site public version 70 : deux profils Windows temporaires avec des identités d’installation différentes, autorisés par le parcours de compte normal dans l’entreprise fictive existante. L’archive de 9 518 143 octets contenait un projet et une pièce jointe fictifs. Après envoi du premier fragment, le profil a été rouvert ; le transfert a repris, puis la seconde installation a téléchargé et restauré la base et la pièce jointe. Le SHA-256 de la pièce restaurée correspond exactement à la source. Le test a supprimé sa propre archive et révoqué ses deux sessions. Aucun paiement réel ni document client n’a été utilisé.
+
+La source native testée est `75d5bb4`, avec la clé publique de licence de production à la compilation. Un premier essai sans cette clé a été refusé avant l’envoi ; sa session a été révoquée depuis le compte. Un deuxième essai a expiré pendant le blocage d’une ancienne confirmation native du navigateur. La nouvelle interface utilise une confirmation intégrée, et l’onglet bloqué a été rechargé. Les tests de compte couvrent désormais aussi la révocation d’une session conservée dans un échange de licence inachevé.
+
+Ces deux profils tournent sur le même ordinateur : cette preuve ne remplace pas l’installation et l’essai sur deux appareils physiques. Les nouveaux installateurs restent à publier et à valider.
+
+### Reproduire la recette HTTPS
+
+Exécuter uniquement dans une entreprise de test déjà autorisée. Le test est ignoré dans la suite ordinaire, attend deux approbations par le navigateur et utilise le service réellement publié. Il ne lit aucune donnée du profil utilisateur installé.
+
+```powershell
+$env:HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL = (Get-Content desktop/src-tauri/license-public-key.b64url -Raw).Trim()
+try {
+  cargo test --manifest-path desktop/src-tauri/Cargo.toml --target x86_64-pc-windows-gnu --lib live_https_backup_restores_two_chunks_on_an_independent_installation -- --ignored --nocapture
+} finally {
+  Remove-Item Env:HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL -ErrorAction SilentlyContinue
+}
+```
+
+Les journaux ne doivent contenir que les liens courts d’approbation, les références de test et les empreintes ; jamais les jetons de session ou de licence. Vérifier `QA_CLEANUP_COMPLETE` et l’absence des deux appareils temporaires dans le compte après la recette.
 
 ## Reste à fermer
 
