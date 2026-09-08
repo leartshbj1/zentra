@@ -1,5 +1,7 @@
--- The journal stays dormant until an authenticated, validated bootstrap binds
--- this database. Merely connecting an account must never enable replication.
+-- The journal stays dormant until an authenticated administrator explicitly
+-- prepares a validated local bootstrap. This generation identifies the local
+-- capture epoch; the server assigns its separate shared-history generation.
+-- Merely connecting an account must never enable capture or replication.
 CREATE TABLE IF NOT EXISTS business_sync_binding (
   id INTEGER PRIMARY KEY CHECK(id=1),
   organization_id TEXT NOT NULL,

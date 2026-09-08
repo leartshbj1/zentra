@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import type { DeviceSessionContext } from './account';
 import contract from '../desktop/src-tauri/src/business_sync_tables.json';
@@ -98,6 +99,78 @@ beforeEach(() => {
   mocks.session.mockResolvedValue(owner);
 });
 afterEach(() => db.close());
+
+it.skipIf(!process.env.ZENTRA_NATIVE_BOOTSTRAP_QA)(
+  'accepts the actual native frozen bootstrap and preserves every original row byte for byte',
+  async () => {
+    const folder = process.env.ZENTRA_NATIVE_BOOTSTRAP_QA!;
+    const prepared = JSON.parse(
+      readFileSync(join(folder, 'prepared.json'), 'utf8'),
+    );
+    const session = { ...owner, installationId: prepared.installation_id };
+    expect(prepared.organization_id).toBe(session.organizationId);
+    expect(prepared.manifest.contract_sha256).toBe(
+      await businessSyncContractHash(),
+    );
+    expect(prepared.manifest.tables.clients).toBe(204);
+    expect(prepared.manifest.tables.invoices).toBe(1);
+    expect(prepared.manifest.tables.payments).toBe(1);
+    expect(prepared.manifest.tables.journal_entries).toBe(2);
+    expect(prepared.manifest.tables.journal_lines).toBe(4);
+    expect(prepared.files).toHaveLength(1);
+    await beginBootstrap(session, prepared.transfer_id, prepared.manifest);
+    for (let index = 0; index < prepared.manifest.chunks.length; index++) {
+      const bytes = Uint8Array.from(
+        readFileSync(
+          join(folder, 'rows', `${index.toString().padStart(4, '0')}.json`),
+        ),
+      );
+      await uploadBootstrapChunk(
+        session,
+        prepared.transfer_id,
+        index,
+        uploadRequest(bytes),
+      );
+      // A lost response repeats exactly the durable native chunk.
+      await uploadBootstrapChunk(
+        session,
+        prepared.transfer_id,
+        index,
+        uploadRequest(bytes),
+      );
+      for (const row of JSON.parse(new TextDecoder().decode(bytes)).rows) {
+        const stored = db
+          .prepare(
+            'SELECT row_json,row_sha256 FROM business_sync_versions WHERE transfer_id=? AND table_name=? AND row_key_json=?',
+          )
+          .get(prepared.transfer_id, row.table, row.key_json);
+        expect(stored).toMatchObject({
+          row_json: row.row_json,
+          row_sha256: await sha256Hex(row.row_json),
+        });
+      }
+    }
+    expect(count('business_sync_versions')).toBe(prepared.manifest.row_count);
+    expect(
+      db
+        .prepare(
+          "SELECT SUM(json_extract(row_json,'$.debit_cents')) AS debit,SUM(json_extract(row_json,'$.credit_cents')) AS credit FROM business_sync_versions WHERE transfer_id=? AND table_name='journal_lines'",
+        )
+        .get(prepared.transfer_id),
+    ).toMatchObject({ debit: 130000, credit: 130000 });
+    expect(await bootstrapStatus(session, prepared.transfer_id)).toMatchObject({
+      state: 'uploaded',
+      replication_active: false,
+    });
+    expect(
+      db
+        .prepare(
+          'SELECT state,head_revision FROM business_sync_spaces WHERE organization_id=?',
+        )
+        .get(session.organizationId),
+    ).toMatchObject({ state: 'initializing', head_revision: 0 });
+  },
+);
 
 it('cancels only the selected unpublished preparation and permits a new generation from another administrator device', async () => {
   const f = await fixture();

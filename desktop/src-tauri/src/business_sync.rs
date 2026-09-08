@@ -1,6 +1,8 @@
 //! Durable, transactional capture for the shared-business replication protocol.
 //! Network activation is deliberately gated by the authoritative bootstrap.
 
+pub(crate) mod snapshot;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
