@@ -35,6 +35,7 @@ pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
     store.reverse_journal_entry(reversed["id"].as_str().ok_or_else(|| invalid("Reversal journal missing"))?, "2026-09-08", None)?;
     println!("QA_POSTINGS_FIXTURE entries=5 reversals=2 invoice=100000 payment=30000 manual=10000");
     seed_cash_vat(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
+    seed_credit_history(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
     let mut connection = store.connect()?;
     let tx = connection.transaction()?;
     for index in 0..1005 {
@@ -85,6 +86,60 @@ fn seed_cash_vat(store: &LocalStore, customer_id: &str) -> AppResult<()> {
     };
     assert_eq!(allocations, vec![2498,5602]);
     println!("QA_CASH_VAT_FIXTURE invoice=108100 vat=8100 payments=33333,74767 allocations=2498,5602 native_consistent=true");
+    Ok(())
+}
+
+fn seed_credit_history(store: &LocalStore, customer: &str) -> AppResult<()> {
+    use crate::customer_credit_settlements::{CustomerCreditSettlementInput, ReverseCustomerCreditSettlementInput};
+    use crate::models::{RecordPaymentInput, SaveDocumentWithItemsInput};
+    let document = |original: Option<&str>, net: i64, date: &str| -> AppResult<String> {
+        let saved = store.save_document_with_items(SaveDocumentWithItemsInput {
+            entity: "invoices".into(), id: None,
+            data: json!({"client_id":customer,"title":"Dossier fictif avoir et remboursement", "type":if original.is_some() {"credit_note"} else {"standard"},
+                "original_invoice_id":original,"service_date_from":"2026-07-01","service_date_to":"2026-07-01","currency":"CHF"}),
+            items: vec![json!({"description":"Prestation fictive du dossier d’avoir","quantity":1,"unit":"pièce","unit_price_cents":net,"discount_bp":0,"vat_bp":810})],
+        })?;
+        let id = saved["document"]["id"].as_str().ok_or_else(|| invalid("QA credit document missing"))?.to_owned();
+        let item: String = store.connect()?.query_row("SELECT id FROM invoice_items WHERE invoice_id=?", [&id], |r| r.get(0))?;
+        store.set_vat_source_classification(crate::vat_reporting::VatSourceClassificationInput {
+            source_type: "invoice_item".into(), source_id: item, treatment: "taxable".into(), note: None,
+        })?;
+        store.issue_invoice(&id, Some(date.into()), None)?;
+        Ok(id)
+    };
+    let invoice = document(None, 100000, "2026-07-01")?;
+    store.record_payment(RecordPaymentInput {
+        request_id: Uuid::new_v4().to_string(), invoice_id: invoice.clone(), amount_cents:33333,
+        date: Some("2026-07-05".into()), method:Some("Banque".into()), reference:None, notes:Some("Recette fictive avant avoir".into()),
+    })?;
+    let credit = document(Some(&invoice), 50000, "2026-07-10")?;
+    let original: String = store.connect()?.query_row("SELECT id FROM customer_credit_settlements WHERE credit_note_id=?", [&credit], |r| r.get(0))?;
+    store.reverse_customer_credit_settlement(ReverseCustomerCreditSettlementInput {
+        request_id:Uuid::new_v4().to_string(), settlement_id:original, date:"2026-07-11".into(), reason:"Recette fictive d’annulation de l’imputation".into(),
+    })?;
+    let bank: String = store.connect()?.query_row("SELECT bank_account_id FROM accounting_settings WHERE id=1", [], |r| r.get(0))?;
+    let refund = CustomerCreditSettlementInput {
+        request_id:Uuid::new_v4().to_string(), credit_note_id:credit.clone(), event_type:"refund".into(), invoice_id:None,
+        date:"2026-07-12".into(), amount_cents:20000, bank_account_id:Some(bank), reference:"QA-REMBOURSEMENT".into(), reason:"Remboursement fictif partiel après annulation".into(),
+    };
+    let first = store.record_customer_credit_settlement(refund.clone())?;
+    let replay = store.record_customer_credit_settlement(refund)?;
+    assert_eq!(first["settlement"]["id"], replay["settlement"]["id"]);
+    assert_eq!(replay["idempotent"], true);
+    store.record_customer_credit_settlement(CustomerCreditSettlementInput {
+        request_id:Uuid::new_v4().to_string(), credit_note_id:credit.clone(), event_type:"apply".into(), invoice_id:Some(invoice.clone()),
+        date:"2026-07-13".into(), amount_cents:34050, bank_account_id:None, reference:"QA-REIMPUTATION".into(), reason:"Réimputation fictive du solde de l’avoir".into(),
+    })?;
+    let connection = store.connect()?;
+    let events = crate::database::query_all(&connection,"SELECT id FROM customer_credit_settlements WHERE credit_note_id=?",[&credit])?;
+    assert_eq!(events.len(),4);
+    for event in events {
+        assert!(crate::customer_credit_settlements::journal_proof_valid(&connection,event["id"].as_str().unwrap())?);
+    }
+    assert_eq!(crate::customer_credit_math::project(&connection,&credit,"9999-12-31")?.remaining()?,0);
+    assert_eq!(crate::customer_credit_math::project(&connection,&invoice,"9999-12-31")?.remaining()?,40717);
+    assert!(crate::accounting::cash_vat_invoice_is_consistent(&connection,&invoice)?);
+    println!("QA_CREDIT_FIXTURE events=4 apply=54050 reverse=54050 refund=20000 reapply=34050 remaining=40717 proofs_valid=true replayed=true");
     Ok(())
 }
 
@@ -189,8 +244,11 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
     let prepared = store
         .prepare_business_snapshot("org_first", "owner")
         .unwrap();
-    assert_eq!(prepared.manifest.tables.get("invoices"), Some(&2));
-    assert_eq!(prepared.manifest.tables.get("payments"), Some(&3));
+    assert_eq!(prepared.manifest.tables.get("invoices"), Some(&4));
+    assert_eq!(prepared.manifest.tables.get("payments"), Some(&4));
+    assert_eq!(prepared.manifest.tables.get("customer_credit_settlements"), Some(&4));
+    assert_eq!(prepared.manifest.tables.get("customer_credit_settlement_postings"), Some(&4));
+    assert_eq!(prepared.manifest.tables.get("journal_lines"), Some(&53));
     assert_eq!(prepared.files.len(), 5);
     let connection = store.connect().unwrap();
     assert_eq!(
@@ -198,21 +256,21 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
             .query_row("SELECT COUNT(*) FROM journal_entries", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        10
+        18
     );
     assert_eq!(
         connection
             .query_row("SELECT SUM(debit_cents) FROM journal_lines", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        384300
+        767232
     );
     assert_eq!(
         connection
             .query_row("SELECT SUM(credit_cents) FROM journal_lines", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        384300
+        767232
     );
     assert!(
         crate::audit::verify_audit_chain(&connection).unwrap()["entries"]
@@ -220,7 +278,7 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
             .unwrap()
             > 1000
     );
-    if let Ok(folder) = std::env::var("ZENTRA_CASH_VAT_QA_OUTPUT") {
+    if let Ok(folder) = std::env::var("ZENTRA_CREDIT_QA_OUTPUT").or_else(|_| std::env::var("ZENTRA_CASH_VAT_QA_OUTPUT")) {
         let output = PathBuf::from(folder);
         assert!(output.is_absolute());
         let source = store.snapshot_folder(&prepared.transfer_id).unwrap();

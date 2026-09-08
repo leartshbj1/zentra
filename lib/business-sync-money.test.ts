@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import {
   boundedPositiveSum,
+  boundedSignedSum,
   roundedProportionCtes,
 } from './business-sync-money';
 let db: DatabaseSync;
@@ -11,6 +12,27 @@ beforeEach(() => {
   db.exec(
     'CREATE TABLE inputs(id INTEGER PRIMARY KEY,amount,numerator,denominator)',
   );
+});
+it('narrows signed aggregates only after exact cancellation, including i64 minimum', () => {
+  const sum = db.prepare(
+    `SELECT ${boundedSignedSum('amount')} amount FROM inputs`,
+  );
+  sum.setReadBigInts(true);
+  const min = BigInt('-9223372036854775808'),
+    max = BigInt('9223372036854775807');
+  const values = [min, max, max, BigInt(1), -max];
+  let expected = BigInt(0);
+  values.forEach((value, id) => {
+    insert(id, value, 0, 1);
+    expected += value;
+    expect(sum.get()!.amount).toBe(
+      expected < min || expected > max ? null : expected,
+    );
+  });
+  db.exec('DELETE FROM inputs');
+  insert(0, min, 0, 1);
+  insert(1, -1, 0, 1);
+  expect(sum.get()!.amount).toBeNull();
 });
 afterEach(() => db.close());
 function insert(
@@ -56,7 +78,9 @@ it('matches deterministic large random products without floating-point intermedi
   const mask = BigInt('9223372036854775807');
   let state = BigInt('764912');
   const random = () => {
-    state = (state * BigInt('6364136223846793005') + BigInt('1442695040888963407')) & mask;
+    state =
+      (state * BigInt('6364136223846793005') + BigInt('1442695040888963407')) &
+      mask;
     return state;
   };
   const expected: bigint[] = [];

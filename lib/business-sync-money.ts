@@ -35,3 +35,18 @@ export function boundedPositiveSum(column: string): string {
   const low = `(SUM(${column}%1000000000)%1000000000)`;
   return `(CASE WHEN COUNT(${column})=COUNT(*) AND MIN(typeof(${column})='integer')=1 AND MIN(${column})>=0 AND (${high}<9223372036 OR (${high}=9223372036 AND ${low}<=854775807)) THEN ${high}*1000000000+${low} END)`;
 }
+
+// Signed histories can temporarily accumulate more than i64 on either side.
+// Normalize the split sum before narrowing; never multiply the floor quotient
+// of i64::MIN directly, since that intermediate itself is below i64::MIN.
+export function boundedSignedSum(column: string): string {
+  if (!/^[a-z_][a-z0-9_.]*$/.test(column))
+    throw new Error('Untrusted monetary column');
+  const low = `(SUM(${column}%1000000000))`;
+  const h = `(SUM(${column}/1000000000)+${low}/1000000000-CASE WHEN ${low}%1000000000<0 THEN 1 ELSE 0 END)`;
+  const r = `((${low}%1000000000+1000000000)%1000000000)`;
+  return `(CASE WHEN COUNT(${column})=COUNT(*) AND MIN(typeof(${column})='integer')=1
+    AND (${h}>-9223372037 OR (${h}=-9223372037 AND ${r}>=145224192))
+    AND (${h}<9223372036 OR (${h}=9223372036 AND ${r}<=854775807))
+    THEN CASE WHEN ${h}<0 AND ${r}>0 THEN (${h}+1)*1000000000-(1000000000-${r}) ELSE ${h}*1000000000+${r} END END)`;
+}

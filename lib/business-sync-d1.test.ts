@@ -6,6 +6,7 @@ import { accountingRules } from './business-sync-accounting';
 import { financialRules } from './business-sync-financial';
 import { postingRules } from './business-sync-postings';
 import { cashVatRules } from './business-sync-cash-vat';
+import { creditSettlementRules } from './business-sync-credit-settlements';
 import { roundedProportionCtes } from './business-sync-money';
 
 // Exercise the workerd SQLite limits used by D1, which differ from node:sqlite.
@@ -22,6 +23,7 @@ const rules = [
   ...financialRules,
   ...postingRules,
   ...cashVatRules,
+  ...creditSettlementRules,
 ];
 beforeAll(async () => {
   runtime = new Miniflare({
@@ -174,6 +176,86 @@ it.each(families)(
       `${kind}/${event} foreign source`,
     ).not.toBeNull();
   },
+);
+
+it.skipIf(!process.env.ZENTRA_CREDIT_QA)(
+  'accepts the native credit application, reversal, refund and replay history and protects its proof',
+  async () => {
+    const folder = process.env.ZENTRA_CREDIT_QA!;
+    const prepared = JSON.parse(
+      readFileSync(join(folder, 'prepared.json'), 'utf8'),
+    );
+    expect(prepared.manifest.tables.invoices).toBe(4);
+    expect(prepared.manifest.tables.customer_credit_settlements).toBe(4);
+    expect(prepared.manifest.tables.customer_credit_settlement_postings).toBe(
+      4,
+    );
+    expect(prepared.manifest.tables.journal_entries).toBe(18);
+    expect(prepared.manifest.tables.journal_lines).toBe(53);
+    await db.exec('DELETE FROM business_sync_versions');
+    for (let index = 0; index < prepared.manifest.chunks.length; index++) {
+      const chunk = JSON.parse(
+        readFileSync(
+          join(folder, 'rows', `${String(index).padStart(4, '0')}.json`),
+          'utf8',
+        ),
+      );
+      for (let at = 0; at < chunk.rows.length; at += 20) {
+        const part = chunk.rows.slice(at, at + 20) as {
+          table: string;
+          key_json: string;
+          row_json: string;
+        }[];
+        await db
+          .prepare(
+            `INSERT INTO business_sync_versions VALUES ${part.map(() => '(?,?,?,?,?)').join(',')}`,
+          )
+          .bind(
+            ...part.flatMap((row) => [
+              'transfer',
+              'first',
+              row.table,
+              row.key_json,
+              row.row_json,
+            ]),
+          )
+          .run();
+      }
+    }
+    for (const rule of rules)
+      expect(
+        await db.prepare(rule.sql).bind('transfer', 'first').first(),
+        rule.id,
+      ).toBeNull();
+    const saved = await db
+      .prepare(
+        "SELECT row_key_json key,row_json FROM business_sync_versions WHERE table_name='customer_credit_settlement_postings' LIMIT 1",
+      )
+      .first<{ key: string; row_json: string }>();
+    expect(saved).not.toBeNull();
+    await db
+      .prepare(
+        "UPDATE business_sync_versions SET row_json=json_set(row_json,'$.snapshot_json',json_set(json_extract(row_json,'$.snapshot_json'),'$.entry.description','Corrupted after transfer')) WHERE table_name='customer_credit_settlement_postings' AND row_key_json=?",
+      )
+      .bind(saved!.key)
+      .run();
+    const proofRule = rules.find(
+      (r) => r.id === 'credit_settlements:proof_snapshot',
+    )!;
+    expect(
+      await db.prepare(proofRule.sql).bind('transfer', 'first').first(),
+    ).not.toBeNull();
+    await db
+      .prepare(
+        "UPDATE business_sync_versions SET row_json=? WHERE table_name='customer_credit_settlement_postings' AND row_key_json=?",
+      )
+      .bind(saved!.row_json, saved!.key)
+      .run();
+    expect(
+      await db.prepare(proofRule.sql).bind('transfer', 'first').first(),
+    ).toBeNull();
+  },
+  20000,
 );
 
 it.skipIf(!process.env.ZENTRA_CASH_VAT_QA)(
