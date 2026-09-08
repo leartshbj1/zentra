@@ -174,6 +174,8 @@ Les recherches de parents et de pièces portent sur des projections matérialis�
 
 La recette native ajoute une écriture manuelle de 100 CHF et ses deux extournes à la facture de 1 000 CHF et à son paiement de 300 CHF. Elle produit cinq écritures, deux liens d'extourne, dix lignes comptables et 1 600 CHF de débit et de crédit cumulés. La preuve HTTPS de cette extension reste à obtenir après publication. Les mouvements spécifiques de TVA sur encaissements, les règlements et reprises détaillés d'avoirs, les corrections d'achats, le détail des cotisations et les stocks demandent encore leurs contrôles avant publication atomique de la base et réplication entre appareils.
 
+La première recette de la version 80 a révélé une incompatibilité D1 : deux requêtes de liaison dépassaient la limite de termes d'un `SELECT` composé, que SQLite dans Node ne reproduit pas. Les unions sont désormais réparties entre des sous-requêtes matérialisées. Deux tests exécutent les 35 requêtes dans le moteur workerd fourni avec Wrangler et vérifient les sept cas de pièces et d'écritures attendues, y compris le refus d'une pièce appartenant à une autre entreprise. Ils reproduisent l'échec avant correction et passent après celle-ci. Le premier essai HTTPS a supprimé ses données temporaires et révoqué sa session ; la nouvelle recette reste nécessaire.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

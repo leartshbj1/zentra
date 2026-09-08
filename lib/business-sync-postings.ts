@@ -83,15 +83,19 @@ const creditInvoice = `i.total_cents<0 AND i.vat_cents<=0 AND i.total_cents-i.va
  AND (i.total_cents=i.vat_cents OR ${exact('Extourne produit', 'i.vat_cents-i.total_cents', '0', 'revenue')})
  AND COALESCE((SELECT SUM(l.debit_cents) FROM typed_lines l WHERE l.journal_entry_id=e.id AND l.memo IN (${creditVatMemos}) AND l.credit_cents=0 AND l.account_type='liability'),0)=-i.vat_cents`;
 
-const sources = `sources AS MATERIALIZED (
+// D1's workerd SQLite accepts fewer compound SELECT terms than node:sqlite.
+// Materialized groups also prevent the planner from flattening the union again.
+const sources = `customer_sources AS MATERIALIZED (
  SELECT 'invoice' kind,id,issue_date date,'issue' event FROM invoices WHERE number IS NOT NULL AND status<>'annulee'
    AND NOT(type='finale' AND total_cents=0 AND vat_cents=0 AND subtotal_cents=discount_cents AND EXISTS(SELECT 1 FROM pairs WHERE balance_invoice_id=invoices.id))
  UNION ALL SELECT 'payment',id,date,'invoice:'||invoice_id FROM payments
- UNION ALL SELECT 'expense',id,COALESCE(paid_at,date),'create' FROM expenses WHERE payment_status='paid'
- UNION ALL SELECT 'supplier_invoice',id,document_date,'validate' FROM supplier_invoices WHERE status='validated'
+ UNION ALL SELECT 'expense',id,COALESCE(paid_at,date),'create' FROM expenses WHERE payment_status='paid'),
+ other_sources AS MATERIALIZED (
+ SELECT 'supplier_invoice' kind,id,document_date date,'validate' event FROM supplier_invoices WHERE status='validated'
  UNION ALL SELECT 'supplier_payment',id,date,'invoice:'||supplier_invoice_id FROM supplier_payments
  UNION ALL SELECT 'payslip',id,period||'-01','post' FROM payslips WHERE status IN ('comptabilise','paye')
- UNION ALL SELECT 'payslip',id,payment_date,'payment' FROM payslips WHERE status='paye')`;
+ UNION ALL SELECT 'payslip',id,payment_date,'payment' FROM payslips WHERE status='paye'),
+ sources AS MATERIALIZED (SELECT * FROM customer_sources UNION ALL SELECT * FROM other_sources)`;
 const sourceTables = `${invoiceCte},
  payments AS MATERIALIZED (${rows('payments', ['id', 'invoice_id', 'date'])}),
  expenses AS MATERIALIZED (${rows('expenses', ['id', 'date', 'paid_at', 'payment_status'])}),
@@ -133,8 +137,10 @@ export const postingRules: AccountingRule[] = [
   },
   {
     id: 'posting:source',
-    sql: `WITH ${entries}, documents AS MATERIALIZED (
-    ${['invoices', 'payments', 'expenses', 'supplier_invoices', 'supplier_payments', 'payslips'].map((table, index) => `SELECT ${quote(['invoice', 'payment', 'expense', 'supplier_invoice', 'supplier_payment', 'payslip'][index])} kind,id FROM (${rows(table, ['id'])})`).join(' UNION ALL ')})
+    sql: `WITH ${entries},
+    customer_documents AS MATERIALIZED (${['invoices', 'payments', 'expenses'].map((table, index) => `SELECT ${quote(['invoice', 'payment', 'expense'][index])} kind,id FROM (${rows(table, ['id'])})`).join(' UNION ALL ')}),
+    other_documents AS MATERIALIZED (${['supplier_invoices', 'supplier_payments', 'payslips'].map((table, index) => `SELECT ${quote(['supplier_invoice', 'supplier_payment', 'payslip'][index])} kind,id FROM (${rows(table, ['id'])})`).join(' UNION ALL ')}),
+    documents AS MATERIALIZED (SELECT * FROM customer_documents UNION ALL SELECT * FROM other_documents)
     SELECT e.id AS __key FROM entries e LEFT JOIN documents d ON d.kind=e.source_type AND d.id=e.source_id
     WHERE e.reversal_of IS NULL AND e.source_type IN ('invoice','payment','expense','supplier_invoice','supplier_payment','payslip') AND d.id IS NULL LIMIT 1`,
   },
