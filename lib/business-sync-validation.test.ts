@@ -306,3 +306,109 @@ it('refuses a changed manifest and an upload which has not been sealed', async (
     status: 503,
   });
 });
+
+it('proves empty table counts then skips only their row constraints within the SQL budget', async () => {
+  const executed: string[] = [];
+  const expected = structuralRules.filter(
+    (r) => r.kind === 'count' || r.table === 'settings',
+  );
+  const known = new Set(structuralRules.map((r) => r.sql));
+  let status = await structuralValidationStatus(owner, id);
+  let calls = 0;
+  while (status.state !== 'valid' && calls < 100) {
+    statements = [];
+    status = await validateBootstrapStructure(owner, id);
+    const queries = statements.filter((sql) => known.has(sql));
+    expect(queries.length).toBeLessThanOrEqual(STRUCTURAL_RULES_PER_REQUEST);
+    executed.push(...queries);
+    expect(await structuralValidationStatus(owner, id)).toEqual(status);
+    calls++;
+  }
+  expect(status.state).toBe('valid');
+  expect(executed).toEqual(expected.map((r) => r.sql));
+  expect(calls).toBe(Math.ceil(expected.length / STRUCTURAL_RULES_PER_REQUEST));
+  expect(calls).toBeLessThan(
+    Math.ceil(structuralRules.length / STRUCTURAL_RULES_PER_REQUEST),
+  );
+});
+
+it('rejects a table declared empty before skipping any of its constraints', async () => {
+  db.prepare(
+    "INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,'org_first','invoices','[\"hidden\"]','{broken',?)",
+  ).run(id, 'a'.repeat(64));
+  const checks: string[] = [];
+  beforeQuery = (sql) => {
+    checks.push(sql);
+  };
+  expect(await finish()).toMatchObject({
+    state: 'invalid',
+    failed_rule: 'invoices:count',
+  });
+  const rowChecks = structuralRules.filter((r) => r.kind !== 'count');
+  expect(checks.some((sql) => rowChecks.some((r) => r.sql === sql))).toBe(
+    false,
+  );
+});
+
+it('still rejects a nonempty child when its referenced parent table is proven empty', async () => {
+  const row = JSON.stringify({
+    ...Object.fromEntries(
+      protocol.tables.payments.columns.map((c) => [c, null]),
+    ),
+    id: 'payment',
+    invoice_id: 'missing-invoice',
+    date: '2026-09-08',
+    amount_cents: 100,
+    created_at: '2026-09-08',
+    updated_at: '2026-09-08',
+  });
+  db.prepare(
+    "INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,'org_first','payments','[\"payment\"]',?,?)",
+  ).run(id, row, await sha256Hex(row));
+  const manifest = JSON.parse(
+    db
+      .prepare(
+        'SELECT manifest_json FROM business_sync_transfers WHERE transfer_id=?',
+      )
+      .get(id)!.manifest_json as string,
+  );
+  manifest.tables.payments = 1;
+  manifest.row_count = 2;
+  manifest.chunks[0].row_count = 2;
+  const serialized = JSON.stringify(manifest);
+  db.prepare(
+    'UPDATE business_sync_transfers SET manifest_json=?,manifest_sha256=? WHERE transfer_id=?',
+  ).run(serialized, await sha256Hex(serialized), id);
+  const expected = structuralRules.find(
+    (r) => r.table === 'payments' && r.kind === 'foreign_key',
+  )!;
+  expect(await finish()).toMatchObject({
+    state: 'invalid',
+    failed_rule: expected.id,
+  });
+});
+
+it('retries the final count batch after an interruption beyond a span of empty constraints', async () => {
+  const batches = Math.floor(
+    structuralRules.filter((r) => r.kind === 'count').length /
+      STRUCTURAL_RULES_PER_REQUEST,
+  );
+  for (let at = 0; at < batches; at++)
+    await validateBootstrapStructure(owner, id);
+  const previous = await structuralValidationStatus(owner, id);
+  const fields = structuralRules.find(
+    (r) => r.table === 'settings' && r.kind === 'fields',
+  )!;
+  beforeQuery = (sql) => {
+    if (sql === fields.sql) throw new Error('Interrupted after empty tables');
+  };
+  await expect(validateBootstrapStructure(owner, id)).rejects.toThrow(
+    'Interrupted after empty tables',
+  );
+  expect(await structuralValidationStatus(owner, id)).toEqual(previous);
+  beforeQuery = undefined;
+  expect(await finish()).toMatchObject({
+    state: 'valid',
+    checked_rules: structuralRules.length,
+  });
+});

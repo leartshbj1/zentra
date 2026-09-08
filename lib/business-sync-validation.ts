@@ -13,6 +13,11 @@ import { structuralRules, structuralSchema } from './business-sync-structure';
 import { database } from './runtime';
 
 export const STRUCTURAL_RULES_PER_REQUEST = 16;
+const countRulePositions = new Map(
+  structuralRules.flatMap((rule, index) =>
+    rule.kind === 'count' ? [[rule.table, index] as const] : [],
+  ),
+);
 type Transfer = {
   transfer_id: string;
   installation_id: string;
@@ -33,9 +38,10 @@ export function structuralValidatorHash() {
   return (validatorHash ??= sha256Hex(
     JSON.stringify([
       'zentra-structural-validator',
-      1,
+      2,
       structuralSchema.protocol_sha256,
       structuralRules,
+      'skip-row-constraints-only-after-successful-empty-table-count',
     ]),
   ));
 }
@@ -171,12 +177,23 @@ export async function validateBootstrapStructure(
   if (row.state !== 'checking') return response(ctx, row);
   let next = row.next_rule;
   let failed: string | null = null;
-  const stop = Math.min(
-    next + STRUCTURAL_RULES_PER_REQUEST,
-    structuralRules.length,
-  );
-  for (; next < stop; next++) {
+  let executed = 0;
+  for (; next < structuralRules.length; next++) {
     const rule = structuralRules[next];
+    const countAt = countRulePositions.get(rule.table);
+    // The manifest alone is not proof of emptiness. Only a preceding successful
+    // count in this immutable transfer (persisted or checked in this pass) makes
+    // its row constraints vacuously valid. Foreign keys follow the child table:
+    // a nonempty child must still be checked when its parent is empty.
+    if (
+      rule.kind !== 'count' &&
+      countAt !== undefined &&
+      countAt < next &&
+      ctx.manifest.tables[rule.table] === 0
+    )
+      continue;
+    if (executed === STRUCTURAL_RULES_PER_REQUEST) break;
+    executed++;
     const params: (string | number)[] = [ctx.id, session.organizationId];
     if (rule.kind === 'count') params.push(ctx.manifest.tables[rule.table]);
     if (

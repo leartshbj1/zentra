@@ -45,6 +45,7 @@ pub(super) async fn run(session: &ProjectSyncSession, remote: &RemoteStatus) -> 
     assert_eq!(initial["checked_rules"], 0);
     let mut previous = initial;
     let mut calls = 0;
+    let mut skipped_empty_span = false;
     for _ in 0..100 {
         let current = request(session, remote, Method::POST).await?;
         calls += 1;
@@ -56,11 +57,10 @@ pub(super) async fn run(session: &ProjectSyncSession, remote: &RemoteStatus) -> 
             "Rejected structural rule: {}",
             current["failed_rule"]
         );
-        assert_eq!(
-            current["checked_rules"].as_u64().unwrap(),
-            (previous["checked_rules"].as_u64().unwrap() + 16)
-                .min(current["total_rules"].as_u64().unwrap())
-        );
+        let advanced = current["checked_rules"].as_u64().unwrap()
+            - previous["checked_rules"].as_u64().unwrap();
+        assert!(advanced > 0);
+        skipped_empty_span |= advanced > 16;
         if calls == 1 {
             // Recover the server cursor without relying on the POST response.
             assert_eq!(request(session, remote, Method::GET).await?, current);
@@ -78,8 +78,10 @@ pub(super) async fn run(session: &ProjectSyncSession, remote: &RemoteStatus) -> 
         assert_eq!(previous["state"], "checking");
     }
     assert_eq!(previous["state"], "valid");
+    assert!(skipped_empty_span);
     assert_eq!(request(session, remote, Method::GET).await?, previous);
     assert_eq!(request(session, remote, Method::POST).await?, previous);
     println!("QA_STRUCTURE_COMPLETE transfer={} rules={} requests={} cursor_recovered=true replay_stable=true replication_active=false validator={}",remote.transfer_id,previous["total_rules"],calls,previous["validator_sha256"]);
+    println!("QA_STRUCTURE_SPARSE skipped_empty_spans=true");
     Ok(())
 }
