@@ -35,7 +35,7 @@ const STRUCTURE_PAGE = 16,
   ACCOUNTING_PAGE = 4;
 // Increment on every validation semantic change. Upgrade only forwards: an
 // older running deployment must never replace a newer validation attempt.
-export const TRANSACTION_VALIDATION_VERSION = 4;
+export const TRANSACTION_VALIDATION_VERSION = 5;
 const countAt = new Map(
   structuralRules.flatMap((r, i) =>
     r.kind === 'count' ? [[r.table, i] as const] : [],
@@ -51,6 +51,7 @@ const active = `SELECT 1 FROM business_sync_transaction_validations v
 const upgradeGuard = `EXISTS(SELECT 1 FROM business_sync_transaction_validations v WHERE v.transfer_id=?1 AND v.attempt=?6
  AND v.validator_sha256=?19 AND v.algorithm_version=?20 AND v.algorithm_version<${TRANSACTION_VALIDATION_VERSION}) AND ${transactionReviewGateSql}`;
 const transitionQueries = transactionTransitionQueries(active);
+export const transactionTransitionSql = transitionQueries;
 const projectionActive = `SELECT 1 FROM business_sync_transaction_validations v
  JOIN business_sync_transaction_reviews r ON r.transfer_id=v.transfer_id AND r.attempt=v.attempt
  JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
@@ -341,6 +342,7 @@ export async function validateBusinessTransaction(
         'business_sync_credit_movements',
         'business_sync_credit_projection',
         'business_sync_transaction_document_states',
+        'business_sync_transaction_accounting_states',
       ].map((table) =>
         ctx.db
           .prepare(

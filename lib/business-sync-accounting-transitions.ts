@@ -4,6 +4,7 @@ import {
   transitionDifferent as different,
   transitionParentLocked as locked,
   transitionRowVisible as visible,
+  transitionDraftParents,
 } from './business-sync-transition-state';
 
 export const postedPayslipFields = [
@@ -58,8 +59,6 @@ const json = (alias: string, name: string) =>
   `json_extract(${alias}.row_json,'$.${name}')`;
 const parentKey = (column: string, image = 22) =>
   `json_array(${f(image, column)})`;
-const defaultParent = (column: string) =>
-  `json_array(json_extract(COALESCE(?22,?23),'$.${column}'))`;
 const supplierPaymentTotal = (
   id: string,
 ) => `(SELECT CASE WHEN COUNT(*)=0 THEN 0 ELSE ${boundedPositiveSum('amount')} END FROM
@@ -69,7 +68,7 @@ const supplierCreditTotal = (
 ) => `(SELECT CASE WHEN COUNT(*)=0 THEN 0 ELSE ${boundedSignedSum('amount')} END FROM
  (SELECT CASE ${locked('supplier_credit_notes', `json_array(${json('allocation', 'supplier_credit_note_id')})`, -2)} WHEN 0 THEN 0 WHEN 1 THEN CASE ${json('allocation', 'event_type')} WHEN 'apply' THEN ${json('allocation', 'amount_cents')} ELSE -${json('allocation', 'amount_cents')} END END amount
  FROM business_sync_versions allocation WHERE ${visible('supplier_credit_allocations', 'allocation')} AND ${json('allocation', 'supplier_invoice_id')}=${id}))`;
-const journalProof = (
+export const transitionJournalProof = (
   id: string,
   kind: string,
   source: string,
@@ -96,12 +95,12 @@ export const accountingTransitionConditions = [
     table: 'payslips',
     id: 'transition:posted-payslip',
     invalid: `(?22 IS NOT NULL AND ${f(22, 'status')} IN ('comptabilise','paye') AND (?23 IS NULL OR NOT ${payslipPayment}))
- OR (?23 IS NOT NULL AND ${f(23, 'status')}='paye' AND ${f(23, 'payment_journal_entry_id')} IS NOT NULL AND NOT ${journalProof(f(23, 'payment_journal_entry_id'), 'payslip', f(23, 'id'), "'payment'", f(23, 'payment_date'))})`,
+ OR (?23 IS NOT NULL AND ${f(23, 'status')}='paye' AND ${f(23, 'payment_journal_entry_id')} IS NOT NULL AND NOT ${transitionJournalProof(f(23, 'payment_journal_entry_id'), 'payslip', f(23, 'id'), "'payment'", f(23, 'payment_date'))})`,
   },
   {
     table: 'payslip_items',
     id: 'transition:posted-payslip-items',
-    invalid: `${locked('payslips', defaultParent('payslip_id'))}<>0`,
+    invalid: transitionDraftParents('payslips', 'payslip_id'),
   },
   {
     table: 'supplier_invoices',
@@ -139,7 +138,7 @@ export const accountingTransitionConditions = [
   {
     table: 'supplier_payments',
     id: 'transition:supplier-payment-proof',
-    invalid: `?23 IS NOT NULL AND (${locked('supplier_invoices', parentKey('supplier_invoice_id', 23), -2)}<>1 OR NOT ${journalProof(f(23, 'journal_entry_id'), 'supplier_payment', f(23, 'id'), `'invoice:'||${f(23, 'supplier_invoice_id')}`, f(23, 'date'))}
+    invalid: `?23 IS NOT NULL AND (${locked('supplier_invoices', parentKey('supplier_invoice_id', 23), -2)}<>1 OR NOT ${transitionJournalProof(f(23, 'journal_entry_id'), 'supplier_payment', f(23, 'id'), `'invoice:'||${f(23, 'supplier_invoice_id')}`, f(23, 'date'))}
  OR NOT EXISTS(SELECT 1 FROM business_sync_versions invoice WHERE invoice.transfer_id=?1 AND invoice.organization_id=?2 AND invoice.table_name='supplier_invoices' AND invoice.row_key_json=${parentKey('supplier_invoice_id', 23)}
  AND ${f(23, 'date')}>=${json('invoice', 'document_date')} AND ${f(23, 'amount_cents')}<=${json('invoice', 'total_cents')}-${supplierPaymentTotal(f(23, 'supplier_invoice_id'))}-${supplierCreditTotal(f(23, 'supplier_invoice_id'))}))`,
   },

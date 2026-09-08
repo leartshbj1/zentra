@@ -79,6 +79,7 @@ import {
   validateBusinessTransaction,
   transactionCreditProjectionSql,
   TRANSACTION_VALIDATION_VERSION,
+  transactionTransitionSql,
 } from './business-sync-transaction-validation';
 import * as transactionValidationHttp from '../app/api/sync/transactions/validate/route';
 import {
@@ -763,11 +764,13 @@ it.for([
   ['quotes', true],
   ['expense', false],
   ['payroll', false],
+  ['payroll-post', false],
   ['supplier-validate', false],
   ['supplier-payment', false],
   ['supplier-credit', false],
   ['expense', true],
   ['payroll', true],
+  ['payroll-post', true],
   ['supplier-validate', true],
   ['supplier-payment', true],
   ['supplier-credit', true],
@@ -844,6 +847,33 @@ it.for([
       expect(
         (await projectTransaction(f.actor, f.manifest.transaction_id)).state,
       ).toBe('projected');
+      if (
+        !useD1 &&
+        [
+          'payroll',
+          'payroll-post',
+          'supplier-validate',
+          'supplier-credit',
+        ].includes(table)
+      ) {
+        await atTransitions(f.actor, f.manifest.transaction_id);
+        const checkpoint = validationEvidence(f.manifest.transaction_id);
+        failStatement = (sql) => {
+          if (
+            sql.includes(
+              'INSERT INTO business_sync_transaction_accounting_states',
+            )
+          )
+            throw new Error('accounting state write failed');
+        };
+        await expect(
+          validateBusinessTransaction(f.actor, f.manifest.transaction_id),
+        ).rejects.toThrow('accounting state write failed');
+        failStatement = undefined;
+        expect(validationEvidence(f.manifest.transaction_id)).toEqual(
+          checkpoint,
+        );
+      }
       expect(
         await validateTransaction(f.actor, f.manifest.transaction_id),
       ).toMatchObject({
@@ -858,13 +888,102 @@ it.for([
         expect(
           (await historyChunk(f.actor, source.id, String(i))).bytes,
         ).toEqual(b);
+      if (table === 'supplier-validate' || table === 'supplier-credit') {
+        const changes = parts.flat();
+        const target =
+          table === 'supplier-validate'
+            ? 'supplier_invoices'
+            : 'supplier_credit_notes';
+        const postingIndex = changes.findIndex(
+          (c) =>
+            c.table === target &&
+            c.operation === 'update' &&
+            JSON.parse(c.after_json!).status === 'validated',
+        );
+        const entryIndex = changes.findIndex(
+          (c) => c.table === 'journal_entries',
+        );
+        expect(postingIndex).toBeGreaterThan(entryIndex);
+        const [premature] = changes.splice(postingIndex, 1);
+        changes.splice(entryIndex, 0, premature);
+        const reordered = changes.map((c, i) => ({
+          ...c,
+          sequence: String(BigInt(original.first_sequence) + BigInt(i)),
+        }));
+        const prematureFixture = await transactionFixture([reordered], receipt);
+        await receiveTransaction(prematureFixture);
+        await projectTransaction(
+          prematureFixture.actor,
+          prematureFixture.manifest.transaction_id,
+        );
+        expect(
+          await validateTransaction(
+            prematureFixture.actor,
+            prematureFixture.manifest.transaction_id,
+          ),
+        ).toMatchObject({
+          phase: 'invalid',
+          failed_rule:
+            table === 'supplier-validate'
+              ? 'transition:supplier-invoice-posting'
+              : 'transition:supplier-credit-posting',
+          failed_change: entryIndex,
+          snapshot_validated: false,
+        });
+      }
+      if (table === 'supplier-validate' && !useD1) {
+        const extended = [
+          ...Array.from({ length: 198 }, (_, i) =>
+            transactionInsert(String(i + 1), `padding-${i}`),
+          ),
+          ...parts.flat(),
+        ].map((c, i) => ({ ...c, sequence: String(i + 1) }));
+        const chunks = [extended.slice(0, 200), extended.slice(200)];
+        const long = await transactionFixture(chunks, receipt);
+        await receiveTransaction(long);
+        await projectTransaction(long.actor, long.manifest.transaction_id);
+        expect(
+          await validateTransaction(long.actor, long.manifest.transaction_id),
+        ).toMatchObject({ phase: 'valid', checked_changes: extended.length });
+        const lost = await transactionFixture(chunks, receipt);
+        await receiveTransaction(lost);
+        await projectTransaction(lost.actor, lost.manifest.transaction_id);
+        await atTransitions(lost.actor, lost.manifest.transaction_id);
+        let status = await businessTransactionValidationStatus(
+          lost.actor,
+          lost.manifest.transaction_id,
+        );
+        for (let i = 0; i < 10 && status.checked_changes < 200; i++)
+          status = await validateBusinessTransaction(
+            lost.actor,
+            lost.manifest.transaction_id,
+          );
+        expect(status).toMatchObject({
+          phase: 'transitions',
+          checked_changes: 200,
+        });
+        db.prepare(
+          'DELETE FROM business_sync_transaction_accounting_states WHERE transfer_id=?',
+        ).run(lost.manifest.transaction_id);
+        expect(
+          await validateBusinessTransaction(
+            lost.actor,
+            lost.manifest.transaction_id,
+          ),
+        ).toMatchObject({
+          phase: 'invalid',
+          failed_rule: 'transition:supplier-invoice-posting',
+          checked_changes: 200,
+          failed_change: 202,
+        });
+      }
       const targetTable = document
         ? table === 'invoices'
           ? 'invoice_items'
           : 'quote_items'
         : table === 'expense'
           ? 'expenses'
-          : table === 'payroll'
+          : table.startsWith('payroll')
             ? 'payslips'
             : table === 'supplier-credit'
               ? 'supplier_credit_notes'
@@ -878,8 +997,11 @@ it.for([
         : rows.find((r) => r.table === targetTable)!;
       const rewritten = JSON.stringify({
         ...JSON.parse(item.row_json),
-        [document ? 'description' : table === 'payroll' ? 'notes' : 'note']:
-          'Texte réécrit après comptabilisation',
+        [document
+          ? 'description'
+          : table.startsWith('payroll')
+            ? 'notes'
+            : 'note']: 'Texte réécrit après comptabilisation',
       });
       const change: TransactionChange = {
         sequence: String(BigInt(original.last_sequence) + BigInt(1)),
@@ -919,7 +1041,7 @@ it.for([
             : 'transition:issued-quote-items'
           : table === 'expense'
             ? 'transition:posted-expense'
-            : table === 'payroll'
+            : table.startsWith('payroll')
               ? 'transition:posted-payslip'
               : table === 'supplier-credit'
                 ? 'transition:validated-supplier-credit'
@@ -1013,6 +1135,9 @@ async function legacyTransactionValidation(version = 1) {
   db.prepare(
     'INSERT INTO business_sync_transaction_document_states VALUES(?,?,?,?,?)',
   ).run(id, legacyHash, 'invoices', '["legacy-document"]', 1);
+  db.prepare(
+    'INSERT INTO business_sync_transaction_accounting_states VALUES(?,?,?,?,?)',
+  ).run(id, legacyHash, 'payslips', '["legacy-salary"]', '{"status":"paye"}');
   return { ...f, id, legacyHash };
 }
 const derivedValidationTables = [
@@ -1021,6 +1146,7 @@ const derivedValidationTables = [
   'business_sync_credit_lines',
   'business_sync_credit_movements',
   'business_sync_transaction_document_states',
+  'business_sync_transaction_accounting_states',
 ];
 function validationEvidence(id: string) {
   return derivedValidationTables.map((table) =>
@@ -1046,7 +1172,7 @@ function businessEvidence() {
   };
 }
 
-it.each([1, 2, 3])(
+it.each([1, 2, 3, 4])(
   'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
   async (version) => {
     const f = await legacyTransactionValidation(version);
@@ -2655,6 +2781,31 @@ async function realD1Fixture() {
     throw error;
   }
 }
+it('compiles every intermediate accounting query against actual D1 limits', async () => {
+  const { runtime, d1 } = await realD1Fixture();
+  try {
+    const { reject, ...other } = transactionTransitionSql;
+    for (const [key, sql] of Object.entries({ ...reject, ...other })) {
+      expect(new TextEncoder().encode(sql).length, key).toBeLessThanOrEqual(
+        100_000,
+      );
+      const parameters = Math.max(
+        ...[...sql.matchAll(/\?(\d+)/g)].map((m) => Number(m[1])),
+      );
+      expect(parameters, key).toBeLessThanOrEqual(100);
+      try {
+        await d1
+          .prepare(sql)
+          .bind(...Array(parameters).fill(null))
+          .run();
+      } catch (error) {
+        throw new Error(`Transition query ${key} failed`, { cause: error });
+      }
+    }
+  } finally {
+    await runtime.dispose();
+  }
+}, 30_000);
 it('executes publication, counter reservation, second-device reads and bounded transaction staging using the real D1 runtime', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {

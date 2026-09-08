@@ -2,7 +2,19 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
-## Modifications intermédiaires des achats et salaires
+## Validation fournisseur et ordre des périodes de paie (algorithme 5)
+
+La validation initiale des achats vérifie désormais les lignes et comptes de charges, les totaux, la référence, l'échéance, l'absence de paiement préalable et le journal déjà présent. Les rapprochements utilisent les valeurs du bon fournisseur à cet instant, avec la tolérance par ligne et globale du déclencheur natif. La validation d'un avoir vérifie ses lignes, son journal, ses affectations déjà créées et les périodes alors clôturées. Placer le journal après la validation est refusé, même si la copie finale est équilibrée.
+
+Une projection réduite de sept tables conserve seulement les colonnes utiles des lignes modifiées et des suppressions. Les lignes inchangées sont lues dans l'historique de départ. Cette projection avance atomiquement avec le curseur, en pages de 32 changements et au plus 97 instructions SQL ; elle ne recopie pas les documents complets. Les dépendances modifiées sans état intermédiaire sont refusées. Les versions 1 à 4 reprennent la validation en version 5 en réinitialisant uniquement ces calculs dérivés.
+
+Les salaires des périodes suivantes déjà validées figent les salaires antérieurs de la même personne et de la même année, ainsi que leurs lignes et cotisations. Une période validée plus tard dans l'envoi n'est pas considérée comme déjà validée. Les déplacements de lignes contrôlent aussi le nouveau parent : un devis, une facture ou une paie figée ne peut recevoir une ligne provenant d'un brouillon, et un parent absent est refusé.
+
+Les essais couvrent les vrais achats, avoirs, paiements et comptabilisations de salaires du moteur natif, les preuves d'écriture placées trop tard, la reprise entre fragments et le retour arrière après échec d'enregistrement. Chaque requête est également compilée dans D1 avec ses limites réelles de profondeur, de taille et de paramètres. Le chemin simple conserve une requête directe ; les tables soumises à plusieurs règles identifient la première règle en échec. La suite serveur complète passe avec 675 tests sur 56 fichiers ; les six parcours natifs et les contrôles TypeScript, lint, migrations et compilation passent également.
+
+Les contrôles réglementaires complets de validation initiale de la paie, les profils/classifications TVA, les mouvements de stock et toutes les conditions de clôture intermédiaire restent à couvrir. L'application canonique, la résolution des conflits, la confirmation/réception native et l'essai physique entre appareils restent nécessaires. Aucun indicateur d'activation ni binaire natif n'est publié par cette étape.
+
+## Modifications intermédiaires des achats et salaires (algorithme 4)
 
 L'algorithme 4 étend le contrôle chronologique aux dépenses comptabilisées, aux salaires comptabilisés/payés et à leurs lignes, ainsi qu'aux factures, avoirs, lignes, rapprochements et règlements fournisseurs. Les champs figés suivent les derniers déclencheurs natifs. Un paiement de salaire et la réparation d'une ancienne preuve de paiement restent possibles, à condition de préserver le salarié, les montants et les références déjà renseignées.
 

@@ -8,8 +8,15 @@ import {
   transitionDifferent as different,
   transitionParentLocked,
   transitionParentPredicates,
+  transitionDraftParents,
 } from './business-sync-transition-state';
 import { accountingTransitionConditions } from './business-sync-accounting-transitions';
+import {
+  transitionRowColumns,
+  transitionRowRecordSql,
+} from './business-sync-transition-rows';
+import { supplierPostingConditions } from './business-sync-supplier-posting-transitions';
+import { payrollTransitionConditions } from './business-sync-payroll-transitions';
 
 export const issuedQuoteFields = [
   'number',
@@ -34,6 +41,8 @@ const parentIssued = (table: string, foreignKey: string) =>
     `json_array(json_extract(COALESCE(?22,?23),'$.${foreignKey}'))`,
   );
 const conditions = [
+  ...supplierPostingConditions,
+  ...payrollTransitionConditions,
   ...accountingTransitionConditions,
   {
     table: 'invoices',
@@ -48,12 +57,12 @@ const conditions = [
   {
     table: 'invoice_items',
     id: 'transition:issued-invoice-items',
-    invalid: `${parentIssued('invoices', 'invoice_id')}<>0`,
+    invalid: transitionDraftParents('invoices', 'invoice_id'),
   },
   {
     table: 'quote_items',
     id: 'transition:issued-quote-items',
-    invalid: `${parentIssued('quotes', 'quote_id')}<>0`,
+    invalid: transitionDraftParents('quotes', 'quote_id'),
   },
   {
     table: 'invoice_qr_bills',
@@ -64,6 +73,7 @@ const conditions = [
 export const transactionTransitionContract = {
   page: TRANSITION_PAGE,
   conditions,
+  rowColumns: transitionRowColumns,
 };
 export function transactionTransitionQueries(active: string) {
   const gate = `EXISTS(${active}) AND EXISTS(SELECT 1 FROM business_sync_transaction_validations WHERE transfer_id=?1 AND phase='transitions' AND checked_changes=?16)`;
@@ -72,10 +82,21 @@ export function transactionTransitionQueries(active: string) {
     'WITH args AS (SELECT ?16 checked,?17 source,?18 stamp,?19 position,?20 table_name,?21 row_key,?22 before_json,?23 after_json,?24 part_index,?25 change_index)';
   return {
     reject: Object.fromEntries(
-      conditions.map((rule) => [
-        rule.table,
-        `${args} UPDATE business_sync_transaction_validations SET phase='invalid',failed_rule='${rule.id}',failed_change=?19,updated_at=?18 WHERE transfer_id=?1 AND ${gate} AND (${rule.invalid})`,
-      ]),
+      [...new Set(conditions.map((rule) => rule.table))].map((table) => {
+        const rules = conditions.filter((rule) => rule.table === table);
+        if (rules.length === 1)
+          return [
+            table,
+            `${args} UPDATE business_sync_transaction_validations SET phase='invalid',failed_rule='${rules[0].id}',failed_change=?19,updated_at=?18 WHERE transfer_id=?1 AND ${gate} AND (${rules[0].invalid})`,
+          ];
+        return [
+          table,
+          `${args}, failed AS MATERIALIZED (SELECT CASE ${rules
+            .map((rule) => `WHEN (${rule.invalid}) THEN '${rule.id}'`)
+            .join(' ')} END rule)
+        UPDATE business_sync_transaction_validations SET phase='invalid',failed_rule=(SELECT rule FROM failed),failed_change=?19,updated_at=?18 WHERE transfer_id=?1 AND ${gate} AND (SELECT rule FROM failed) IS NOT NULL`,
+        ];
+      }),
     ),
     document: `${args} INSERT INTO business_sync_transaction_document_states(transfer_id,validator_sha256,table_name,row_key_json,issued)
       SELECT ?1,?15,?20,?21,CASE WHEN ?23 IS NULL THEN -2 ELSE CASE ?20 ${Object.entries(
@@ -88,6 +109,7 @@ export function transactionTransitionQueries(active: string) {
         .join(' ')} END END WHERE ${gate}
       ON CONFLICT(transfer_id,validator_sha256,table_name,row_key_json) DO UPDATE SET issued=excluded.issued`,
     advance: `UPDATE business_sync_transaction_validations SET checked_changes=?18,next_change_chunk=?17,updated_at=?19,phase=CASE WHEN ?18=?20 THEN 'projecting' ELSE 'transitions' END WHERE transfer_id=?1 AND ${gate}`,
+    accountingRow: `${args} ${transitionRowRecordSql.replace('__ACTIVE__', gate)}`,
   };
 }
 export function transactionTransitionOffset(
@@ -209,6 +231,8 @@ export async function validateTransactionTransitions(ctx: Context) {
     if (reject) statements.push(db.prepare(reject).bind(...bindings));
     if (Object.hasOwn(transitionParentPredicates, c.table))
       statements.push(db.prepare(ctx.queries.document).bind(...bindings));
+    if (Object.hasOwn(transitionRowColumns, c.table))
+      statements.push(db.prepare(ctx.queries.accountingRow).bind(...bindings));
   }
   statements.push(
     db

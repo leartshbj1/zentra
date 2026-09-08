@@ -5,6 +5,7 @@ import { expect, it, vi } from 'vitest';
 vi.mock('./runtime', () => ({ database: vi.fn(), fileArchive: vi.fn() }));
 import { transactionTransitionQueries } from './business-sync-transaction-transitions';
 import { transitionParentPredicates } from './business-sync-transition-state';
+import { transitionRowColumns } from './business-sync-transition-rows';
 import {
   postedPayslipFields,
   validatedSupplierFields,
@@ -24,7 +25,8 @@ function fixture() {
     CREATE TABLE business_sync_transaction_changes(transaction_id TEXT,organization_id TEXT,table_name TEXT,row_key_json TEXT,sequence TEXT,part_index INTEGER,change_index INTEGER,operation TEXT,after_sha256 TEXT);
     CREATE INDEX business_sync_transaction_row_timeline ON business_sync_transaction_changes(transaction_id,table_name,row_key_json,part_index,change_index);
     CREATE TABLE business_sync_versions(transfer_id TEXT,organization_id TEXT,table_name TEXT,row_key_json TEXT,row_json TEXT,row_sha256 TEXT,UNIQUE(transfer_id,table_name,row_key_json));
-    CREATE TABLE business_sync_transaction_document_states(transfer_id TEXT,validator_sha256 TEXT,table_name TEXT,row_key_json TEXT,issued INTEGER,UNIQUE(transfer_id,validator_sha256,table_name,row_key_json));`);
+    CREATE TABLE business_sync_transaction_document_states(transfer_id TEXT,validator_sha256 TEXT,table_name TEXT,row_key_json TEXT,issued INTEGER,UNIQUE(transfer_id,validator_sha256,table_name,row_key_json));
+    CREATE TABLE business_sync_transaction_accounting_states(transfer_id TEXT,validator_sha256 TEXT,table_name TEXT,row_key_json TEXT,row_json TEXT,UNIQUE(transfer_id,validator_sha256,table_name,row_key_json));`);
   db.exec(
     readFileSync(
       new URL('../drizzle/0028_previous_wilson_fisk.sql', import.meta.url),
@@ -125,6 +127,8 @@ function fixture() {
       db.prepare(queries.reject[table]).run(...bindings);
     if (Object.hasOwn(transitionParentPredicates, table))
       db.prepare(queries.document).run(...bindings);
+    if (Object.hasOwn(transitionRowColumns, table))
+      db.prepare(queries.accountingRow).run(...bindings);
     return db
       .prepare(
         'SELECT phase,failed_rule,failed_change FROM business_sync_transaction_validations',
@@ -175,6 +179,219 @@ const payment = {
   date: '2026-09-08',
   journal_entry_id: 'journal',
 };
+const draftCredit = {
+  id: 'credit',
+  status: 'draft',
+  document_date: '2026-09-08',
+  net_cents: 2000,
+  vat_cents: 0,
+  total_cents: 2000,
+  number: null,
+  validation_journal_entry_id: null,
+  validated_at: null,
+  snapshot_json: null,
+};
+const validatedCredit = {
+  ...draftCredit,
+  status: 'validated',
+  number: 'AF-1',
+  validation_journal_entry_id: 'credit-journal',
+  validated_at: '2026-09-08',
+  snapshot_json: '{}',
+};
+function creditSource(f: ReturnType<typeof fixture>) {
+  f.source('supplier_credit_notes', draftCredit);
+  f.source('supplier_credit_note_items', {
+    id: 'credit-item',
+    supplier_credit_note_id: 'credit',
+    line_net_cents: 2000,
+    line_vat_cents: 0,
+    line_total_cents: 2000,
+  });
+  f.source('journal_entries', {
+    ...journal('supplier_credit_note', 'credit', 'validate'),
+    id: 'credit-journal',
+  });
+}
+function supplierPostingSource(f: ReturnType<typeof fixture>) {
+  const draft = {
+    ...invoice,
+    status: 'draft',
+    reference_normalized: 'ACHAT-1',
+    due_date: '2026-09-30',
+    net_cents: 9000,
+    vat_cents: 1000,
+    validation_journal_entry_id: null,
+  };
+  const posted = {
+    ...draft,
+    status: 'validated',
+    validation_journal_entry_id: 'journal',
+  };
+  const item = {
+    id: 'item',
+    supplier_invoice_id: 'invoice',
+    line_net_cents: 9000,
+    line_vat_cents: 1000,
+    line_total_cents: 10000,
+    posted_expense_account_id: 'expense',
+  };
+  f.source('supplier_invoices', draft);
+  f.source('supplier_invoice_items', item);
+  f.source(
+    'journal_entries',
+    journal('supplier_invoice', 'invoice', 'validate'),
+  );
+  return { draft, posted, item };
+}
+
+it.each(['reference', 'paid', 'credited', 'due', 'account', 'totals'])(
+  'rejects premature supplier validation with invalid %s',
+  (problem) => {
+    const f = fixture();
+    try {
+      const { draft, posted, item } = supplierPostingSource(f);
+      const after = { ...posted };
+      if (problem === 'reference') after.reference_normalized = ' ';
+      if (problem === 'paid') after.paid_cents = 1;
+      if (problem === 'credited') after.credited_cents = 1;
+      if (problem === 'due') after.due_date = '2026-01-01';
+      if (problem === 'account')
+        f.source('supplier_invoice_items', {
+          ...item,
+          posted_expense_account_id: null,
+        });
+      if (problem === 'totals')
+        f.source('supplier_invoice_items', { ...item, line_net_cents: 8000 });
+      expect(f.step('supplier_invoices', draft, after)).toMatchObject({
+        phase: 'invalid',
+        failed_rule: 'transition:supplier-invoice-posting',
+      });
+    } finally {
+      f.db.close();
+    }
+  },
+);
+it.each(['future-fix', 'deleted', 'missing-state'])(
+  'does not substitute final supplier items for their current state (%s)',
+  (scenario) => {
+    const f = fixture();
+    try {
+      const { draft, posted, item } = supplierPostingSource(f);
+      if (scenario === 'future-fix') {
+        f.source('supplier_invoice_items', { ...item, line_net_cents: 8000 });
+        f.future('supplier_invoice_items', item);
+      } else if (scenario === 'deleted') {
+        f.step('supplier_invoice_items', item, null);
+        f.future('supplier_invoice_items', item);
+      } else {
+        f.step('supplier_invoice_items', item, item);
+        f.db.exec('DELETE FROM business_sync_transaction_accounting_states');
+      }
+      expect(f.step('supplier_invoices', draft, posted)).toMatchObject({
+        phase: 'invalid',
+        failed_rule: 'transition:supplier-invoice-posting',
+      });
+    } finally {
+      f.db.close();
+    }
+  },
+);
+it('uses the earlier line update and ignores later replacements when validating an actual supplier total', () => {
+  const f = fixture();
+  try {
+    const { draft, posted, item } = supplierPostingSource(f);
+    const original = { ...item, posted_expense_account_id: null };
+    f.source('supplier_invoice_items', original);
+    expect(f.step('supplier_invoice_items', original, item).phase).toBe(
+      'transitions',
+    );
+    expect(f.step('supplier_invoices', draft, posted).phase).toBe(
+      'transitions',
+    );
+  } finally {
+    f.db.close();
+  }
+});
+it.each([0, 1, 2])(
+  'checks both individual and cumulative supplier matching tolerances (%s one-cent deviations)',
+  (deviations) => {
+    const f = fixture();
+    try {
+      const { draft, posted } = supplierPostingSource(f);
+      for (let i = 0; i < 2; i++) {
+        f.source('supplier_order_lines', {
+          id: `order-${i}`,
+          quantity_milli: 1000,
+          line_net_cents: 4500,
+          line_vat_cents: 500,
+          line_total_cents: 5000,
+        });
+        f.source('supplier_invoice_matches', {
+          id: `match-${i}`,
+          supplier_invoice_id: 'invoice',
+          supplier_order_line_id: `order-${i}`,
+          quantity_milli: 1000,
+          net_cents: 4500 + (i < deviations ? 1 : 0),
+          vat_cents: 500,
+          total_cents: 5000 + (i < deviations ? 1 : 0),
+        });
+      }
+      expect(f.step('supplier_invoices', draft, posted).phase).toBe(
+        deviations <= 1 ? 'transitions' : 'invalid',
+      );
+    } finally {
+      f.db.close();
+    }
+  },
+);
+it.each(['source', 'earlier', 'future'])(
+  'uses only accounting periods already closed at credit validation (%s)',
+  (when) => {
+    const f = fixture();
+    try {
+      creditSource(f);
+      const period = {
+        id: 'period',
+        status: 'closed',
+        date_from: '2026-01-01',
+        date_to: '2026-12-31',
+      };
+      if (when === 'source') f.source('accounting_periods', period);
+      else if (when === 'earlier') f.step('accounting_periods', null, period);
+      else f.future('accounting_periods', period);
+      expect(
+        f.step('supplier_credit_notes', draftCredit, validatedCredit).phase,
+      ).toBe(when === 'future' ? 'transitions' : 'invalid');
+    } finally {
+      f.db.close();
+    }
+  },
+);
+it.each(['earlier', 'future'])(
+  'does not apply credit allocations before their creation (%s)',
+  (when) => {
+    const f = fixture();
+    try {
+      creditSource(f);
+      const allocation = {
+        id: 'allocation',
+        supplier_credit_note_id: 'credit',
+        supplier_invoice_id: 'invoice',
+        event_type: 'apply',
+        amount_cents: 2001,
+      };
+      if (when === 'earlier')
+        f.step('supplier_credit_allocations', null, allocation);
+      else f.future('supplier_credit_allocations', allocation);
+      expect(
+        f.step('supplier_credit_notes', draftCredit, validatedCredit).phase,
+      ).toBe(when === 'future' ? 'transitions' : 'invalid');
+    } finally {
+      f.db.close();
+    }
+  },
+);
 
 it.skipIf(!process.env.ZENTRA_ACCOUNTING_TRANSITION_QA)(
   'matches unconditional guards from a freshly initialized native schema 60',
@@ -474,7 +691,7 @@ it('ignores future payments when checking an earlier invoice total', () => {
 it('applies credit only after validation and accounts for subsequent reversals', () => {
   const f = fixture();
   try {
-    const credit = { id: 'credit', status: 'draft' };
+    const credit = draftCredit;
     const allocation = {
       id: 'allocation',
       supplier_credit_note_id: 'credit',
@@ -483,12 +700,14 @@ it('applies credit only after validation and accounts for subsequent reversals',
       event_type: 'apply',
     };
     f.source('supplier_invoices', invoice);
-    f.source('supplier_credit_notes', credit);
+    creditSource(f);
     f.step('supplier_credit_allocations', null, allocation);
     expect(f.step('supplier_invoices', invoice, invoice).phase).toBe(
       'transitions',
     );
-    f.step('supplier_credit_notes', credit, { ...credit, status: 'validated' });
+    expect(f.step('supplier_credit_notes', credit, validatedCredit).phase).toBe(
+      'transitions',
+    );
     const credited = { ...invoice, credited_cents: 2000 };
     expect(f.step('supplier_invoices', invoice, credited).phase).toBe(
       'transitions',
@@ -513,7 +732,7 @@ it.each([true, false])(
   (sameImage) => {
     const f = fixture();
     try {
-      const draft = { id: 'credit', status: 'draft' };
+      const draft = draftCredit;
       const old = {
         id: 'allocation',
         supplier_credit_note_id: 'credit',
@@ -522,7 +741,7 @@ it.each([true, false])(
         event_type: 'apply',
       };
       f.source('supplier_invoices', invoice);
-      f.source('supplier_credit_notes', draft);
+      creditSource(f);
       f.source('supplier_credit_notes', { id: 'other', status: 'validated' });
       f.source('supplier_credit_allocations', old);
       const replacement = sameImage
@@ -534,7 +753,9 @@ it.each([true, false])(
       );
       f.step('supplier_credit_allocations', old, null);
       f.future('supplier_credit_allocations', replacement);
-      f.step('supplier_credit_notes', draft, { ...draft, status: 'validated' });
+      expect(
+        f.step('supplier_credit_notes', draft, validatedCredit).phase,
+      ).toBe('transitions');
       expect(f.step('supplier_invoices', invoice, invoice).phase).toBe(
         'transitions',
       );
@@ -547,6 +768,154 @@ it.each([true, false])(
       ).toBe('transitions');
     } finally {
       f.db.close();
+    }
+  },
+);
+
+it.each(['source', 'earlier', 'future'])(
+  'respects the order in which later payroll periods become validated (%s)',
+  (when) => {
+    const f = fixture();
+    try {
+      const current = {
+        id: 'current',
+        employee_id: 'employee',
+        period: '2026-08',
+        status: 'valide',
+      };
+      const later = {
+        id: 'later',
+        employee_id: 'employee',
+        period: '2026-09',
+        status: 'valide',
+      };
+      f.source('payslips', current);
+      if (when === 'source') f.source('payslips', later);
+      else if (when === 'earlier')
+        expect(f.step('payslips', null, later).phase).toBe('transitions');
+      else f.future('payslips', later);
+      expect(
+        f.step('payslips', current, { ...current, gross_cents: 10000 }).phase,
+      ).toBe(when === 'future' ? 'transitions' : 'invalid');
+    } finally {
+      f.db.close();
+    }
+  },
+);
+it.each(['payslips', 'payslip_items', 'payslip_contributions'])(
+  'seals earlier validated %s when a later period is validated',
+  (table) => {
+    for (const operation of ['insert', 'update', 'delete']) {
+      const f = fixture();
+      try {
+        const current = {
+          id: 'current',
+          employee_id: 'employee',
+          period: '2026-08',
+          status: 'valide',
+        };
+        f.source('payslips', current);
+        f.source('payslips', { ...current, id: 'later', period: '2026-09' });
+        const row =
+          table === 'payslips'
+            ? current
+            : { id: 'line', payslip_id: 'current' };
+        expect(
+          f.step(
+            table,
+            operation === 'insert' ? null : row,
+            operation === 'delete' ? null : row,
+          ),
+        ).toMatchObject({
+          phase: 'invalid',
+          failed_rule:
+            table === 'payslips'
+              ? 'transition:payroll-period-order'
+              : `transition:${table.replaceAll('_', '-')}-period-order`,
+        });
+      } finally {
+        f.db.close();
+      }
+    }
+  },
+);
+it.each(['year', 'employee', 'draft'])(
+  'does not seal an earlier payroll for unrelated %s',
+  (difference) => {
+    const f = fixture();
+    try {
+      const current = {
+        id: 'current',
+        employee_id: 'employee',
+        period: '2026-08',
+        status: 'valide',
+      };
+      const later = { ...current, id: 'later', period: '2026-09' };
+      if (difference === 'year') later.period = '2027-09';
+      if (difference === 'employee') later.employee_id = 'other';
+      if (difference === 'draft') later.status = 'brouillon';
+      f.source('payslips', current);
+      f.source('payslips', later);
+      expect(f.step('payslips', current, current).phase).toBe('transitions');
+    } finally {
+      f.db.close();
+    }
+  },
+);
+it('uses the current payroll state when a later draft becomes validated and then is deleted before the final snapshot', () => {
+  const f = fixture();
+  try {
+    const current = {
+      id: 'current',
+      employee_id: 'employee',
+      period: '2026-08',
+      status: 'valide',
+    };
+    const draft = {
+      ...current,
+      id: 'later',
+      period: '2026-09',
+      status: 'brouillon',
+    };
+    f.source('payslips', current);
+    f.source('payslips', draft);
+    expect(
+      f.step('payslips', draft, { ...draft, status: 'valide' }).phase,
+    ).toBe('transitions');
+    f.db.exec(
+      "DELETE FROM business_sync_versions WHERE transfer_id='tx' AND table_name='payslips' AND row_key_json='[\"later\"]'",
+    );
+    expect(f.step('payslips', current, current)).toMatchObject({
+      phase: 'invalid',
+      failed_rule: 'transition:payroll-period-order',
+    });
+  } finally {
+    f.db.close();
+  }
+});
+it.each([
+  ['invoices', 'invoice_items', 'invoice_id'],
+  ['quotes', 'quote_items', 'quote_id'],
+  ['payslips', 'payslip_items', 'payslip_id'],
+] as const)(
+  'refuses moving a line into a frozen or absent %s parent',
+  (table, items, key) => {
+    for (const target of ['frozen', 'missing']) {
+      const f = fixture();
+      try {
+        f.source(table, { id: 'draft', number: null, status: 'brouillon' });
+        f.source(table, {
+          id: 'frozen',
+          number: 'F-1',
+          status: 'comptabilise',
+        });
+        const line = { id: 'line', [key]: 'draft' };
+        expect(f.step(items, line, { ...line, [key]: target }).phase).toBe(
+          'invalid',
+        );
+      } finally {
+        f.db.close();
+      }
     }
   },
 );

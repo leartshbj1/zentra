@@ -215,6 +215,13 @@ export const businessSyncTransactionDocumentStates=sqliteTable('business_sync_tr
   rowKeyJson:text('row_key_json').notNull(),
   issued:integer('issued').notNull(),
 },table=>[uniqueIndex('business_sync_transaction_document_state').on(table.transferId,table.validatorSha256,table.tableName,table.rowKeyJson)]);
+export const businessSyncTransactionAccountingStates=sqliteTable('business_sync_transaction_accounting_states',{
+  transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  validatorSha256:text('validator_sha256').notNull(),
+  tableName:text('table_name').notNull(),
+  rowKeyJson:text('row_key_json').notNull(),
+  rowJson:text('row_json'),
+},table=>[uniqueIndex('business_sync_transaction_accounting_state').on(table.transferId,table.validatorSha256,table.tableName,table.rowKeyJson)]);
 export const businessSyncTransactionConflicts=sqliteTable('business_sync_transaction_conflicts',{
   transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
   attempt:text('attempt').notNull(),

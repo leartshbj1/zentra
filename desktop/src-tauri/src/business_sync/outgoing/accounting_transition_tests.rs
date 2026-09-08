@@ -48,6 +48,7 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
     for scenario in [
         "expense",
         "payroll",
+        "payroll-post",
         "supplier-validate",
         "supplier-payment",
         "supplier-credit",
@@ -74,7 +75,7 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                 store.save_supplier_credit_note_draft(serde_json::from_value(json!({"id":credit,"supplier_id":supplier,"document_date":"2026-09-02","reference":"RECETTE-AVOIR","items":[{"description":"Retour","quantity_milli":1000,"unit_price_cents":3000,"vat_bp":0,"category":"Marchandises"}],"allocations":[{"supplier_invoice_id":id,"amount_cents":2000,"effective_date":"2026-09-03"}]})).unwrap()).unwrap();
                 id = credit;
             }
-        } else if scenario == "payroll" {
+        } else if scenario.starts_with("payroll") {
             let employee = store
                 .create_record("employees", json!({"name":"Employé fictif"}))
                 .unwrap();
@@ -82,12 +83,14 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
             let aap = crate::tests::configure_minor_test_payroll(&store, &employee_id, 50000);
             let saved=store.save_payslip_with_contributions(serde_json::from_value(json!({"id":null,"employee_id":employee_id,"period":"2026-08","status":"valide","payment_date":null,"notes":null,"lines":[{"id":null,"label":"Salaire fictif","kind":"earning","amount_cents":50000,"posting_account_id":null,"expense_account_id":null}],"contributions":[aap]})).unwrap()).unwrap();
             id = saved["payslip"]["id"].as_str().unwrap().into();
-            store
-                .post_payslip(crate::models::PostPayslipInput {
-                    payslip_id: id.clone(),
-                    entry_date: Some("2026-08-31".into()),
-                })
-                .unwrap();
+            if scenario == "payroll" {
+                store
+                    .post_payslip(crate::models::PostPayslipInput {
+                        payslip_id: id.clone(),
+                        entry_date: Some("2026-08-31".into()),
+                    })
+                    .unwrap();
+            }
         }
         let source = source_rows(&store);
         if scenario == "expense" {
@@ -123,6 +126,14 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                         payment_date: Some("2026-09-08".into()),
                         reference: Some("RECETTE-SALAIRE".into()),
                         regulatory_override_reason: None,
+                    })
+                    .unwrap();
+            }
+            "payroll-post" => {
+                store
+                    .post_payslip(crate::models::PostPayslipInput {
+                        payslip_id: id,
+                        entry_date: Some("2026-08-31".into()),
                     })
                     .unwrap();
             }

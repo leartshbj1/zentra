@@ -30,6 +30,14 @@ export function transitionParentLocked(
  CASE WHEN EXISTS(SELECT 1 FROM business_sync_transaction_changes WHERE transaction_id=?1 AND organization_id=?2 AND table_name='${table}' AND row_key_json=${key} AND (part_index,change_index)<(?24,?25)) THEN -1
  ELSE COALESCE((SELECT CASE WHEN ${predicate('row_json')} THEN 1 ELSE 0 END FROM business_sync_versions WHERE transfer_id=?17 AND organization_id=?2 AND table_name='${table}' AND row_key_json=${key}),${missing}) END)`;
 }
+export function transitionDraftParents(table: string, foreignKey: string) {
+  return [22, 23]
+    .map(
+      (image) =>
+        `(?${image} IS NOT NULL AND ${transitionParentLocked(table, `json_array(${transitionField(image, foreignKey)})`, -2)}<>0)`,
+    )
+    .join(' OR ');
+}
 // Only use this lookup for append-only rows, or rows whose later deletion is
 // separately forbidden once their parent is validated. It preserves the source
 // and inserts that actually precede this change; future inserts stay invisible.
