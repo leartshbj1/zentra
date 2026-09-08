@@ -756,17 +756,33 @@ it('serializes transition retries, preserves metadata evidence and stops if the 
   expect((await historyHead(f.actor)).head_revision).toBe(2);
 });
 
-it.skipIf(!process.env.ZENTRA_DOCUMENT_TRANSITION_QA).each([
+it.for([
   ['invoices', false],
   ['quotes', false],
   ['invoices', true],
   ['quotes', true],
+  ['expense', false],
+  ['payroll', false],
+  ['supplier-validate', false],
+  ['supplier-payment', false],
+  ['supplier-credit', false],
+  ['expense', true],
+  ['payroll', true],
+  ['supplier-validate', true],
+  ['supplier-payment', true],
+  ['supplier-credit', true],
 ] as const)(
-  'validates actual native %s emission including intermediate document and QR states (D1=%s)',
-  async (table, useD1) => {
+  'validates actual native %s operations including intermediate accounting states (D1=%s)',
+  { timeout: 60_000 },
+  async ([table, useD1], context) => {
+    const document = table === 'invoices' || table === 'quotes';
+    const root = document
+      ? process.env.ZENTRA_DOCUMENT_TRANSITION_QA
+      : process.env.ZENTRA_ACCOUNTING_TRANSITION_QA;
+    if (!root) return context.skip();
     const real = useD1 ? await realD1Fixture() : null;
     try {
-      const folder = join(process.env.ZENTRA_DOCUMENT_TRANSITION_QA!, table);
+      const folder = join(root, table);
       const rows = JSON.parse(
         readFileSync(join(folder, 'source.json'), 'utf8'),
       ) as {
@@ -842,17 +858,32 @@ it.skipIf(!process.env.ZENTRA_DOCUMENT_TRANSITION_QA).each([
         expect(
           (await historyChunk(f.actor, source.id, String(i))).bytes,
         ).toEqual(b);
-      const item = rows.find(
-        (r) =>
-          r.table === (table === 'invoices' ? 'invoice_items' : 'quote_items'),
-      )!;
+      const targetTable = document
+        ? table === 'invoices'
+          ? 'invoice_items'
+          : 'quote_items'
+        : table === 'expense'
+          ? 'expenses'
+          : table === 'payroll'
+            ? 'payslips'
+            : table === 'supplier-credit'
+              ? 'supplier_credit_notes'
+              : 'supplier_invoices';
+      const finalChange = parts
+        .flat()
+        .filter((c) => c.table === targetTable && c.after_json !== null)
+        .at(-1);
+      const item = finalChange
+        ? { ...finalChange, row_json: finalChange.after_json! }
+        : rows.find((r) => r.table === targetTable)!;
       const rewritten = JSON.stringify({
         ...JSON.parse(item.row_json),
-        description: 'Texte réécrit après émission',
+        [document ? 'description' : table === 'payroll' ? 'notes' : 'note']:
+          'Texte réécrit après comptabilisation',
       });
       const change: TransactionChange = {
         sequence: String(BigInt(original.last_sequence) + BigInt(1)),
-        table: item.table,
+        table: targetTable,
         key_json: item.key_json,
         operation: 'update',
         before_json: item.row_json,
@@ -882,10 +913,17 @@ it.skipIf(!process.env.ZENTRA_DOCUMENT_TRANSITION_QA).each([
         await validateTransaction(bad.actor, bad.manifest.transaction_id),
       ).toMatchObject({
         phase: 'invalid',
-        failed_rule:
-          table === 'invoices'
+        failed_rule: document
+          ? table === 'invoices'
             ? 'transition:issued-invoice-items'
-            : 'transition:issued-quote-items',
+            : 'transition:issued-quote-items'
+          : table === 'expense'
+            ? 'transition:posted-expense'
+            : table === 'payroll'
+              ? 'transition:posted-payslip'
+              : table === 'supplier-credit'
+                ? 'transition:validated-supplier-credit'
+                : 'transition:validated-supplier-invoice',
         failed_change: original.change_count,
         snapshot_validated: false,
       });
@@ -893,7 +931,6 @@ it.skipIf(!process.env.ZENTRA_DOCUMENT_TRANSITION_QA).each([
       await real?.runtime.dispose();
     }
   },
-  60_000,
 );
 
 it('validates a complete subsequent snapshot without applying it or changing canonical receipts', async () => {
@@ -1009,7 +1046,7 @@ function businessEvidence() {
   };
 }
 
-it.each([1, 2])(
+it.each([1, 2, 3])(
   'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
   async (version) => {
     const f = await legacyTransactionValidation(version);

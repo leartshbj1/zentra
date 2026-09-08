@@ -2,7 +2,19 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
-## Modifications intermédiaires des factures et devis
+## Modifications intermédiaires des achats et salaires
+
+L'algorithme 4 étend le contrôle chronologique aux dépenses comptabilisées, aux salaires comptabilisés/payés et à leurs lignes, ainsi qu'aux factures, avoirs, lignes, rapprochements et règlements fournisseurs. Les champs figés suivent les derniers déclencheurs natifs. Un paiement de salaire et la réparation d'une ancienne preuve de paiement restent possibles, à condition de préserver le salarié, les montants et les références déjà renseignées.
+
+Les journaux et règlements doivent exister avant le changement qui s'en réclame. Un journal inséré plus tard ne justifie pas une opération antérieure. Les totaux fournisseurs tiennent compte uniquement des paiements et affectations d'avoirs déjà présents, avec leurs annulations et l'état de validation de l'avoir à cet instant. Une affectation brouillon supprimée puis recréée ne récupère pas l'antériorité de son ancienne clé. Les sommes restent exactes en entiers signés 64 bits et un dépassement est refusé.
+
+Le catalogue des interdictions inconditionnelles distingue 58 tables non modifiables de 51 tables non supprimables. Il est confronté aux déclencheurs d'un profil natif neuf de schéma 60 ; les suppressions conditionnelles de brouillons et de pièces non figées restent distinctes. Le suivi des parents conserve leur état figé ou supprimé, sans dupliquer les documents complets. Trois index partiels accélèrent les recherches de journaux et règlements. La migration additive 0028 corrige explicitement la syntaxe des expressions mal générée par Drizzle ; une génération suivante ne détecte aucune dérive.
+
+Les opérations natives de dépense, paiement de salaire, validation de facture fournisseur, paiement partiel et validation d'avoir sont exportées avec leurs images et leur ordre d'origine. Les tests les reçoivent dans SQLite et D1, puis introduisent une réécriture interdite suivie de son rétablissement pour vérifier son rejet. Les validations des versions 1, 2 et 3 sont reprises atomiquement en version 4 sans effacer leurs preuves originales. La suite serveur complète passe avec 640 tests sur 56 fichiers, dont les 30 nouveaux tests comptables ; le test natif couvrant les cinq parcours passe aussi. TypeScript, lint et compilation sont validés.
+
+Cette étape ne couvre pas encore toutes les conditions de validation initiale de la paie et des achats, les changements de TVA, de stocks ou la clôture acquise pendant une même transaction. L'application canonique, les conflits, la confirmation native et la recette sur deux appareils restent à réaliser. Les trois indicateurs d'activation restent faux et aucun nouvel installateur n'est distribué.
+
+## Modifications intermédiaires des factures et devis (algorithme 3)
 
 Après les contrôles d'état, la validation relit maintenant les fragments originaux et leurs empreintes, par pages de 32 modifications. Elle compare aussi leurs métadonnées conservées : séquence entière exacte, position, clé, opération et empreintes des images avant/après. Une altération arrête le contrôle sans avancer le curseur.
 

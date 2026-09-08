@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -336,6 +337,9 @@ export const businessSyncVersions = sqliteTable('business_sync_versions', {
 }, (table) => [
   uniqueIndex('business_sync_transfer_row').on(table.transferId, table.tableName, table.rowKeyJson),
   index('business_sync_row_history').on(table.organizationId, table.tableName, table.rowKeyJson, table.sequence),
+  index('business_sync_journal_source').on(table.transferId,table.organizationId,sql`json_extract(${table.rowJson},'$.source_type')`,sql`json_extract(${table.rowJson},'$.source_id')`).where(sql`${table.tableName}='journal_entries'`),
+  index('business_sync_supplier_payment_parent').on(table.transferId,table.organizationId,sql`json_extract(${table.rowJson},'$.supplier_invoice_id')`).where(sql`${table.tableName}='supplier_payments'`),
+  index('business_sync_supplier_allocation_parent').on(table.transferId,table.organizationId,sql`json_extract(${table.rowJson},'$.supplier_invoice_id')`).where(sql`${table.tableName}='supplier_credit_allocations'`),
 ]);
 
 export const documentNumberReservations = sqliteTable('document_number_reservations', {

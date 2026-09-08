@@ -559,7 +559,7 @@ mod tests {
     /// Fixture réglementaire minimale pour les tests comptables qui ne portent
     /// pas sur les taux sociaux : collaborateur mineur, contrat < 8 h/semaine
     /// et police AAP de test à 1 %, avec le plafond LAA 2026 explicite.
-    fn configure_minor_test_payroll(
+    pub(crate) fn configure_minor_test_payroll(
         store: &LocalStore,
         employee_id: &str,
         laa_basis_cents: i64,

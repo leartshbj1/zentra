@@ -3,6 +3,13 @@ import { readBusinessTransactionChunk } from './business-sync-transaction-chunk'
 import type { TransactionManifest } from './business-sync-transaction-format';
 import { issuedInvoiceFields } from './business-sync-transaction-immutability';
 import { database } from './runtime';
+import {
+  transitionField as field,
+  transitionDifferent as different,
+  transitionParentLocked,
+  transitionParentPredicates,
+} from './business-sync-transition-state';
+import { accountingTransitionConditions } from './business-sync-accounting-transitions';
 
 export const issuedQuoteFields = [
   'number',
@@ -21,20 +28,13 @@ export const issuedQuoteFields = [
   'snapshot_json',
 ] as const;
 export const TRANSITION_PAGE = 32;
-const field = (image: number, name: string) =>
-  `json_extract(?${image},'$.${name}')`;
-const different = (fields: readonly string[]) =>
-  fields
-    .map((name) => `${field(22, name)} IS NOT ${field(23, name)}`)
-    .join(' OR ');
-// Only whether a document is issued is retained. Full original images stay in
-// immutable chunks; monetary comparisons happen in SQLite, never JS numbers.
-// A missing state for an earlier parent change must not fall back to an old
-// draft image and authorize rewriting a now-issued document.
-const parentIssued = (table: string, foreignKey: string) => `COALESCE(
- (SELECT issued FROM business_sync_transaction_document_states WHERE transfer_id=?1 AND validator_sha256=?15 AND table_name='${table}' AND row_key_json=json_array(json_extract(COALESCE(?22,?23),'$.${foreignKey}'))),
- CASE WHEN EXISTS(SELECT 1 FROM business_sync_transaction_changes WHERE transaction_id=?1 AND organization_id=?2 AND table_name='${table}' AND row_key_json=json_array(json_extract(COALESCE(?22,?23),'$.${foreignKey}')) AND (part_index,change_index)<(?24,?25)) THEN -1 ELSE COALESCE((SELECT json_extract(row_json,'$.number') IS NOT NULL FROM business_sync_versions WHERE transfer_id=?17 AND organization_id=?2 AND table_name='${table}' AND row_key_json=json_array(json_extract(COALESCE(?22,?23),'$.${foreignKey}'))),0) END)`;
+const parentIssued = (table: string, foreignKey: string) =>
+  transitionParentLocked(
+    table,
+    `json_array(json_extract(COALESCE(?22,?23),'$.${foreignKey}'))`,
+  );
 const conditions = [
+  ...accountingTransitionConditions,
   {
     table: 'invoices',
     id: 'transition:issued-invoices',
@@ -78,7 +78,14 @@ export function transactionTransitionQueries(active: string) {
       ]),
     ),
     document: `${args} INSERT INTO business_sync_transaction_document_states(transfer_id,validator_sha256,table_name,row_key_json,issued)
-      SELECT ?1,?15,?20,?21,${field(23, 'number')} IS NOT NULL WHERE ${gate}
+      SELECT ?1,?15,?20,?21,CASE WHEN ?23 IS NULL THEN -2 ELSE CASE ?20 ${Object.entries(
+        transitionParentPredicates,
+      )
+        .map(
+          ([table, predicate]) =>
+            `WHEN '${table}' THEN CASE WHEN ${predicate('?23')} THEN 1 ELSE 0 END`,
+        )
+        .join(' ')} END END WHERE ${gate}
       ON CONFLICT(transfer_id,validator_sha256,table_name,row_key_json) DO UPDATE SET issued=excluded.issued`,
     advance: `UPDATE business_sync_transaction_validations SET checked_changes=?18,next_change_chunk=?17,updated_at=?19,phase=CASE WHEN ?18=?20 THEN 'projecting' ELSE 'transitions' END WHERE transfer_id=?1 AND ${gate}`,
   };
@@ -200,7 +207,7 @@ export async function validateTransactionTransitions(ctx: Context) {
     ];
     const reject = ctx.queries.reject[c.table];
     if (reject) statements.push(db.prepare(reject).bind(...bindings));
-    if (c.table === 'invoices' || c.table === 'quotes')
+    if (Object.hasOwn(transitionParentPredicates, c.table))
       statements.push(db.prepare(ctx.queries.document).bind(...bindings));
   }
   statements.push(

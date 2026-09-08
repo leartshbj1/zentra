@@ -197,6 +197,13 @@
       "when": 1788902151196,
       "tag": "0027_gifted_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1788903320428,
+      "tag": "0028_previous_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

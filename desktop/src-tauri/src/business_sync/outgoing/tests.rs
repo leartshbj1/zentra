@@ -2,6 +2,9 @@ use super::*;
 use rusqlite::Connection;
 use serde_json::json;
 
+#[path = "accounting_transition_tests.rs"]
+mod accounting_transitions;
+
 pub(super) fn setup() -> (tempfile::TempDir, LocalStore) {
     let directory = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(directory.path().join("profile")).unwrap();

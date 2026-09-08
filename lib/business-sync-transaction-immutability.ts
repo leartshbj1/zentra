@@ -1,3 +1,4 @@
+import nativeImmutability from './business-sync-native-immutability.json';
 // These source-state protections complement final-state accounting checks.
 // They mirror schema.rs's immutable journals/payments/stock and invoice guards
 // (including MIGRATION_V41's deposit fields). Other native transition guards
@@ -32,8 +33,12 @@ export const transactionImmutabilityRules = [
   {
     id: 'immutable:append-only',
     sql: `SELECT 1 invalid FROM business_sync_transaction_changes WHERE transaction_id=?1 AND organization_id=?2
-      AND table_name IN ('audit_log','journal_entries','journal_lines','payments','supplier_payments','stock_movements','vat_adjustments')
-      AND operation IN ('update','delete') LIMIT 1`,
+      AND (${Object.entries(nativeImmutability)
+        .map(
+          ([op, tables]) =>
+            `(operation='${op}' AND table_name IN (${tables.map((t) => `'${t}'`).join(',')}))`,
+        )
+        .join(' OR ')}) LIMIT 1`,
     source: false,
   },
   {
