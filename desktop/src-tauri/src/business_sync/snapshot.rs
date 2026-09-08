@@ -1,6 +1,8 @@
 //! Frozen bootstrap files plus a transactional boundary for subsequent edits.
 //! Preparing this bundle does not activate remote replication or numbering.
 
+pub(crate) mod transport;
+
 use super::{identifier, install_capture_triggers, json_image, json_key, policy};
 use crate::{
     account_cloud::project_sync_session,
@@ -515,6 +517,17 @@ impl Prepared {
         installation: &str,
         id: &str,
     ) -> AppResult<()> {
+        self.verify_contents(folder, organization, installation, id, true)
+    }
+
+    fn verify_contents(
+        &self,
+        folder: &Path,
+        organization: &str,
+        installation: &str,
+        id: &str,
+        check_files: bool,
+    ) -> AppResult<()> {
         for path in [
             folder.to_path_buf(),
             folder.join("rows"),
@@ -550,8 +563,9 @@ impl Prepared {
                 || chunk.row_count > ROWS_PER_CHUNK as u64
                 || chunk.size_bytes == 0
                 || chunk.size_bytes > CHUNK_BYTES as u64
-                || fingerprint_file(&folder.join("rows").join(format!("{index:04}.json")))?
-                    != (chunk.sha256.clone(), chunk.size_bytes)
+                || (check_files
+                    && fingerprint_file(&folder.join("rows").join(format!("{index:04}.json")))?
+                        != (chunk.sha256.clone(), chunk.size_bytes))
             {
                 return Err(invalid(
                     "Un fragment figé de l'historique est absent ou altéré.",
@@ -589,8 +603,9 @@ impl Prepared {
                 || previous.is_some_and(|path| path >= file.path.as_str())
                 || !valid_digest(&file.sha256)
                 || file.size_bytes > MAX_FILE_BYTES
-                || fingerprint_file(&folder.join("files").join(&file.sha256))?
-                    != (file.sha256.clone(), file.size_bytes)
+                || (check_files
+                    && fingerprint_file(&folder.join("files").join(&file.sha256))?
+                        != (file.sha256.clone(), file.size_bytes))
             {
                 return Err(invalid(
                     "Une pièce figée de l'historique est absente ou altérée.",

@@ -342,6 +342,7 @@ pub fn run() {
             project_sync::get_project_sync_status,
             project_sync::sync_project_documents,
             business_sync::snapshot::prepare_business_sync_snapshot,
+            business_sync::snapshot::transport::sync_business_bootstrap,
             cloud_backup::get_cloud_backup_state,
             cloud_backup::set_cloud_backup_enabled,
             cloud_backup::run_cloud_backup,

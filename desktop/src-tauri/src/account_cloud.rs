@@ -53,6 +53,14 @@ pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option
 }
 
 impl ProjectSyncSession {
+    pub(crate) fn ensure_current_for(&self, store: &LocalStore) -> AppResult<()> {
+        let current = read_session_secret(store)?;
+        if !current.is_some_and(|current| current.installation_id == store.installation_id
+            && current.organization_id == self.organization_id && current.session_token == self.token) {
+            return Err(AppError::Validation("La connexion à l'entreprise a changé. L'envoi a été interrompu.".into()));
+        }
+        Ok(())
+    }
     pub async fn request(&self, method: Method, path: &str, query: &[(&str,&str)], headers: &[(&str,String)], body: Option<Vec<u8>>, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
         let mut url = endpoint(path)?;
         url.query_pairs_mut().extend_pairs(query.iter().copied());
@@ -969,7 +977,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
         START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
-            | "/api/sync/numbers"
+            | "/api/sync/numbers" | "/api/sync/bootstrap"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
@@ -1282,7 +1290,7 @@ mod tests {
 
     #[test]
     fn project_and_backup_transfer_routes_use_the_fixed_authenticated_origin() {
-        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers"] {
+        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers", "/api/sync/bootstrap"] {
             let url = endpoint(path).unwrap();
             assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}{path}"));
         }

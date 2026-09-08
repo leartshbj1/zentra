@@ -1,5 +1,6 @@
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
+import { useBusinessBootstrapBackground } from './businessBootstrap';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 import { DocumentDesignStudio } from './DocumentDesignStudio';
@@ -428,6 +429,7 @@ export function WorkspaceApp({
 }) {
   const [view, setView] = useState<View>('dashboard');
   useProjectSyncBackground(setWorkspace);
+  useBusinessBootstrapBackground();
   const [modal, setModal] = useState<ModalState>(null);
   const [search, setSearch] = useState('');
   const [projectFolderId, setProjectFolderId] = useState<string | null>(null);
