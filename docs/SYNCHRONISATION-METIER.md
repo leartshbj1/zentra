@@ -83,6 +83,10 @@ Ces pièces restent dans une préparation non publiée. Les références d'expor
 
 Contrôles locaux du 8 septembre : 289 tests serveur réussis, dont 25 scénarios de fichiers, 38 tests natifs de synchronisation réussis et 752 tests d'interface réussis, dont 10 scénarios du planificateur. TypeScript, Clippy sur toutes les cibles et les deux compilations de production passent. Les scénarios couvrent réponses perdues, redémarrage, déduplication, altération de contenu, collisions de chemins, annulation tardive et reprise du nettoyage. Ces contrôles locaux ne remplacent pas l'essai HTTPS ni la recette sur deux appareils.
 
+Le service de pièces est publié dans la **version 74 du site**, source `2b20583e0bee145555f7f57d1d370e44bf452ef4`, avec la configuration existante (révision 23). La migration ajoute ses cinq tables et les deux nouvelles API refusent les requêtes anonymes en GET, POST et PUT (401). L'essai natif HTTPS réussit en **130,73 secondes** : 409 lignes, deux projets fictifs et trois références de fichiers. Les deux documents ont été ajoutés avec la commande réelle de document de projet ; ils contiennent chacun les mêmes 4 194 335 octets. Leur contenu n'est envoyé qu'une fois, avec un fichier vide supplémentaire. Après le premier fragment binaire, une réouverture du profil reprend seulement le second ; un nouveau passage n'envoie rien. La modification de client postérieure à la copie reste en attente et la réplication reste inactive.
+
+Le transfert de recette `733804a0-32fe-4a8b-940c-af480feac396` a ensuite été abandonné et sa session révoquée. Les cinq tables de fichiers, les fragments de lignes et les versions temporaires sont vides, vérifiés directement dans D1 ; le compte affiche zéro appareil actif. La recette utilise un seul ordinateur physique. Les installateurs publics restent en 1.46.1, schéma 59 : cette publication serveur ne livre pas encore le partage complet aux clients.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.
