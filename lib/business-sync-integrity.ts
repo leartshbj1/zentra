@@ -1,6 +1,7 @@
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { accountingRules } from './business-sync-accounting';
+import { financialRules } from './business-sync-financial';
 import {
   activeBootstrapSql,
   bootstrapValidationContext,
@@ -10,6 +11,8 @@ import {
 } from './business-sync-validation';
 
 export const AUDIT_ROWS_PER_PASS = 100;
+export const ACCOUNTING_RULES_PER_PASS = 4;
+export const bootstrapAccountingRules = [...accountingRules, ...financialRules];
 export const AUDIT_BYTES_PER_PASS = 4 * 1024 * 1024;
 export const AUDIT_WALK_PER_PASS = 1000;
 const hashFields = [
@@ -55,7 +58,7 @@ export function integrityValidatorHash() {
         'zentra-bootstrap-integrity',
         1,
         structure,
-        accountingRules,
+        bootstrapAccountingRules,
         hashFields,
         'sha256-fields-separated-by-lf-v1',
         graphRules,
@@ -68,6 +71,7 @@ type Progress = {
   manifest_sha256: string;
   generation: string;
   state: string;
+  next_accounting_rule: number;
   last_row_key: string | null;
   indexed_entries: number;
   walked_entries: number;
@@ -105,6 +109,11 @@ async function progress(ctx: Context) {
     row &&
     (row.manifest_sha256 !== ctx.transfer.manifest_sha256 ||
       row.generation !== ctx.transfer.generation ||
+      !Number.isSafeInteger(row.next_accounting_rule) ||
+      row.next_accounting_rule < 0 ||
+      row.next_accounting_rule > bootstrapAccountingRules.length ||
+      (!['accounting', 'invalid'].includes(row.state) &&
+        row.next_accounting_rule !== bootstrapAccountingRules.length) ||
       ![
         'accounting',
         'indexing',
@@ -135,7 +144,7 @@ async function progress(ctx: Context) {
 }
 const progressGuard = `SELECT 1 FROM business_sync_integrity_checks c WHERE c.transfer_id=? AND c.validator_sha256=?
   AND c.manifest_sha256=? AND c.generation=? AND c.state=? AND c.last_row_key IS ? AND c.indexed_entries=?
-  AND c.walked_entries=? AND c.last_hash IS ? AND EXISTS(${activeBootstrapSql})`;
+  AND c.walked_entries=? AND c.last_hash IS ? AND c.next_accounting_rule=? AND EXISTS(${activeBootstrapSql})`;
 function guardValues(ctx: Context, row: Progress) {
   return [
     ctx.id,
@@ -147,6 +156,7 @@ function guardValues(ctx: Context, row: Progress) {
     row.indexed_entries,
     row.walked_entries,
     row.last_hash,
+    row.next_accounting_rule,
     ...ctx.binding,
   ];
 }
@@ -157,7 +167,7 @@ async function save(
   nodes: AuditNode[] = [],
 ) {
   const statements: D1PreparedStatement[] = [];
-  // 25*3 input values + 2 identities + 14 guard bindings stay below D1's 100.
+  // 25*3 input values + 2 identities + 15 guard bindings stay below D1's 100.
   for (let at = 0; at < nodes.length; at += 25) {
     const part = nodes.slice(at, at + 25);
     statements.push(
@@ -178,7 +188,7 @@ async function save(
   }
   statements.push(
     ctx.db
-      .prepare(`UPDATE business_sync_integrity_checks SET state=?,last_row_key=?,indexed_entries=?,walked_entries=?,last_hash=?,failed_rule=?,updated_at=?
+      .prepare(`UPDATE business_sync_integrity_checks SET state=?,last_row_key=?,indexed_entries=?,walked_entries=?,last_hash=?,failed_rule=?,next_accounting_rule=?,updated_at=?
     WHERE transfer_id=? AND validator_sha256=? AND EXISTS(${progressGuard})`)
       .bind(
         next.state,
@@ -187,6 +197,7 @@ async function save(
         next.walked_entries,
         next.last_hash,
         next.failed_rule,
+        next.next_accounting_rule,
         new Date().toISOString(),
         ctx.id,
         ctx.integrityValidator,
@@ -213,6 +224,8 @@ function response(ctx: Context, row: Progress | null) {
     validator_sha256: ctx.integrityValidator,
     structural_validator_sha256: ctx.validator,
     state: row?.state ?? 'pending',
+    checked_accounting_rules: row?.next_accounting_rule ?? 0,
+    total_accounting_rules: bootstrapAccountingRules.length,
     indexed_audit_entries: row?.indexed_entries ?? 0,
     verified_audit_entries: row?.walked_entries ?? 0,
     total_audit_entries: ctx.manifest.tables.audit_log,
@@ -386,7 +399,13 @@ export async function validateBootstrapIntegrity(
   if (!row) invalid('La préparation a changé pendant son contrôle.');
   if (row.state === 'accounting') {
     let failed: string | null = null;
-    for (const rule of accountingRules)
+    let next = row.next_accounting_rule;
+    const stop = Math.min(
+      next + ACCOUNTING_RULES_PER_PASS,
+      bootstrapAccountingRules.length,
+    );
+    for (; next < stop; next++) {
+      const rule = bootstrapAccountingRules[next];
       if (
         await ctx.db
           .prepare(rule.sql)
@@ -396,9 +415,15 @@ export async function validateBootstrapIntegrity(
         failed = rule.id;
         break;
       }
+    }
     row = await save(ctx, row, {
       ...row,
-      state: failed ? 'invalid' : 'indexing',
+      state: failed
+        ? 'invalid'
+        : next === bootstrapAccountingRules.length
+          ? 'indexing'
+          : 'accounting',
+      next_accounting_rule: next,
       failed_rule: failed,
     });
   } else if (row.state === 'indexing') row = await indexAudit(ctx, row);

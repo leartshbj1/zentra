@@ -25,6 +25,8 @@ import {
   bootstrapIntegrityStatus,
   validateBootstrapIntegrity,
   AUDIT_ROWS_PER_PASS,
+  ACCOUNTING_RULES_PER_PASS,
+  bootstrapAccountingRules,
 } from './business-sync-integrity';
 import { GET, POST } from '../app/api/sync/bootstrap/integrity/route';
 
@@ -214,6 +216,81 @@ async function finish() {
     status = await validateBootstrapIntegrity(owner, id);
   return status;
 }
+async function accounting() {
+  let status = await validateBootstrapIntegrity(owner, id);
+  for (
+    let at = 0;
+    at < bootstrapAccountingRules.length && status.state === 'accounting';
+    at++
+  )
+    status = await validateBootstrapIntegrity(owner, id);
+  expect(status.state).toBe('indexing');
+  return status;
+}
+it('resumes bounded accounting rules after a lost response and does not advance on an interrupted pass', async () => {
+  await structure();
+  const first = await validateBootstrapIntegrity(owner, id);
+  expect(first).toMatchObject({
+    state: 'accounting',
+    checked_accounting_rules: ACCOUNTING_RULES_PER_PASS,
+    indexed_audit_entries: 0,
+  });
+  expect(await bootstrapIntegrityStatus(owner, id)).toEqual(first);
+  let checked = 0;
+  beforeQuery = (sql) => {
+    if (
+      bootstrapAccountingRules.some((rule) => rule.sql === sql) &&
+      ++checked === 2
+    )
+      throw new Error('Accounting connection interrupted');
+  };
+  await expect(validateBootstrapIntegrity(owner, id)).rejects.toThrow(
+    'Accounting connection interrupted',
+  );
+  expect(await bootstrapIntegrityStatus(owner, id)).toEqual(first);
+  beforeQuery = undefined;
+  const next = await validateBootstrapIntegrity(owner, id);
+  expect(next.checked_accounting_rules).toBe(2 * ACCOUNTING_RULES_PER_PASS);
+  expect(await finish()).toMatchObject({
+    state: 'valid',
+    checked_accounting_rules: bootstrapAccountingRules.length,
+  });
+});
+it('does not skip accounting rules when two callers start from the same receipt', async () => {
+  await structure();
+  await validateBootstrapIntegrity(owner, id);
+  let release!: () => void,
+    readers = 0;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  afterRead = async (sql) => {
+    if (
+      sql.startsWith('SELECT * FROM business_sync_integrity_checks') &&
+      readers < 2
+    ) {
+      if (++readers === 2) release();
+      await barrier;
+    }
+  };
+  const results = await Promise.all([
+    validateBootstrapIntegrity(owner, id),
+    validateBootstrapIntegrity(owner, id),
+  ]);
+  expect(results.map((r) => r.checked_accounting_rules)).toEqual([8, 8]);
+  expect(await finish()).toMatchObject({
+    state: 'valid',
+    checked_accounting_rules: bootstrapAccountingRules.length,
+  });
+});
+it('rejects an inconsistent completed accounting cursor before accepting an audit receipt', async () => {
+  await structure();
+  await finish();
+  db.exec('UPDATE business_sync_integrity_checks SET next_accounting_rule=0');
+  await expect(bootstrapIntegrityStatus(owner, id)).rejects.toMatchObject({
+    status: 503,
+  });
+});
 it('rejects an empty accounting entry before accepting its otherwise valid audit chain', async () => {
   const value = JSON.stringify({
     id: 'entry',
@@ -268,7 +345,7 @@ it('requires the exact current structural receipt and never activates the shared
 it('validates the hash-linked history independently of UUID and upload order and resumes its index', async () => {
   const data = await audit(205);
   await structure();
-  expect((await validateBootstrapIntegrity(owner, id)).state).toBe('indexing');
+  await accounting();
   const first = await validateBootstrapIntegrity(owner, id);
   expect(first).toMatchObject({
     indexed_audit_entries: AUDIT_ROWS_PER_PASS,
@@ -325,7 +402,7 @@ it.each(['missing_parent', 'fork', 'two_roots'] as const)(
 it('rolls back indexed nodes and its cursor together after a database failure', async () => {
   await audit(120);
   await structure();
-  await validateBootstrapIntegrity(owner, id);
+  await accounting();
   let inserts = 0;
   beforeQuery = (sql) => {
     if (sql.startsWith('WITH incoming') && ++inserts === 3)
@@ -346,7 +423,7 @@ it('rolls back indexed nodes and its cursor together after a database failure', 
 it('does not recreate audit nodes if cancellation races the atomic index commit', async () => {
   await audit(5);
   await structure();
-  await validateBootstrapIntegrity(owner, id);
+  await accounting();
   beforeBatch = () => {
     db.exec(
       "UPDATE business_sync_transfers SET state='abandoning'; DELETE FROM business_sync_audit_nodes; DELETE FROM business_sync_integrity_checks",
@@ -362,7 +439,7 @@ it('does not recreate audit nodes if cancellation races the atomic index commit'
 it('merges concurrent index receipts without duplicate entries or a skipped page', async () => {
   await audit(205);
   await structure();
-  await validateBootstrapIntegrity(owner, id);
+  await accounting();
   let release!: () => void,
     readers = 0;
   const barrier = new Promise<void>((resolve) => {
@@ -390,7 +467,7 @@ it('merges concurrent index receipts without duplicate entries or a skipped page
 it('bounds the decoded audit page by bytes as well as rows', async () => {
   await audit(8, null, 'x'.repeat(800_000));
   await structure();
-  await validateBootstrapIntegrity(owner, id);
+  await accounting();
   const status = await validateBootstrapIntegrity(owner, id);
   expect(status.indexed_audit_entries).toBe(5);
   expect((await finish()).state).toBe('valid');
@@ -422,7 +499,8 @@ it('protects HTTP access and ignores a client-supplied approval state', async ()
   );
   expect(response.headers.get('cache-control')).toContain('no-store');
   expect(await response.json()).toMatchObject({
-    state: 'indexing',
+    state: 'accounting',
+    checked_accounting_rules: ACCOUNTING_RULES_PER_PASS,
     indexed_audit_entries: 0,
   });
   for (const role of ['member', 'accountant', 'read_only'] as const)
@@ -460,7 +538,7 @@ it('resumes a long audit walk and compares its exact final native-style hash', a
 it('rejects a disconnected audit cycle without looping indefinitely', async () => {
   const data = await audit(3);
   await structure();
-  await validateBootstrapIntegrity(owner, id);
+  await accounting();
   expect((await validateBootstrapIntegrity(owner, id)).state).toBe('linking');
   db.prepare(
     'UPDATE business_sync_audit_nodes SET previous_hash=? WHERE entry_hash=?',

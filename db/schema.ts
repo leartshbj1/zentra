@@ -54,6 +54,7 @@ export const businessSyncIntegrityChecks = sqliteTable('business_sync_integrity_
   generation: text('generation').notNull(),
   state: text('state').notNull(),
   lastRowKey: text('last_row_key'),
+  nextAccountingRule: integer('next_accounting_rule').notNull().default(0),
   indexedEntries: integer('indexed_entries').notNull().default(0),
   walkedEntries: integer('walked_entries').notNull().default(0),
   lastHash: text('last_hash'),

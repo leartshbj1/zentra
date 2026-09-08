@@ -82,11 +82,19 @@ pub(super) async fn run(
     assert_eq!(current["state"], "pending");
     assert_eq!(current["total_audit_entries"], native["entries"]);
     assert!(native["entries"].as_u64().is_some_and(|count| count > 1000));
+    let accounting_rules = current["total_accounting_rules"].as_u64().expect("Accounting rule count");
+    assert!(accounting_rules > 4);
     let mut calls = 0;
     let mut walked_partial = false;
+    let mut accounting_partial = false;
     for _ in 0..100 {
         current = request(session, remote, Method::POST).await?;
         calls += 1;
+        let checked = current["checked_accounting_rules"].as_u64().expect("Accounting cursor");
+        assert!(checked <= accounting_rules);
+        if current["state"] == "accounting" && checked > 0 && checked < accounting_rules {
+            accounting_partial = true;
+        }
         if calls == 2 {
             assert_eq!(request(session, remote, Method::GET).await?, current);
         }
@@ -107,11 +115,14 @@ pub(super) async fn run(
         }
     }
     assert!(walked_partial);
+    assert!(accounting_partial);
     assert_eq!(current["state"], "valid");
+    assert_eq!(current["checked_accounting_rules"], accounting_rules);
     assert_eq!(current["verified_audit_entries"], native["entries"]);
     assert_eq!(current["last_audit_hash"], native["last_hash"]);
     assert_eq!(request(session, remote, Method::POST).await?, current);
     println!("QA_INTEGRITY_COMPLETE transfer={} entries={} requests={} native_hash_match=true cursor_recovered=true replay_stable=true replication_active=false validator={}",remote.transfer_id,native["entries"],calls,current["validator_sha256"]);
+    println!("QA_FINANCIAL_COMPLETE rules={accounting_rules} accounting_cursor_recovered=true replication_active=false");
     Ok(())
 }
 

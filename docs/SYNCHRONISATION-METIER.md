@@ -148,6 +148,16 @@ Après la recette, le transfert `c5ffcfc5-a818-4ddc-add4-f09156ae4474` est aband
 
 Ce reçu atteste uniquement ces règles comptables et la chaîne initiale. La cohérence complète des agrégats facture/paiement/avoirs/TVA/paie/stocks, le rattachement des pièces et des bornes de numérotation à une publication atomique, les branches d'audit des modifications suivantes et la réplication entre appareils restent à terminer.
 
+## Cohérence des montants et règlements reçus
+
+La vérification d'intégrité est étendue à 18 règles comptables et financières, exécutées par groupes de quatre avec un curseur persistant. La migration 0017 ajoute ce curseur ; son écriture partage la même transaction et les mêmes protections contre l'annulation et la concurrence que le reste du reçu. Un vérificateur modifié possède une nouvelle empreinte et ne réutilise pas un ancien résultat terminé.
+
+Les devis et factures sont comparés à leurs lignes : quantités, remises, TVA, montants nets et totaux. Les arrondis signés reprennent les calculs natifs et conservent les lignes négatives des avoirs et déductions d'acompte. Les sommes sont décomposées en parties entières pour détecter un écart d'un centime même après compensation de montants dépassant la précision JavaScript. Une quantité produisant un montant hors de la plage entière est refusée.
+
+Le montant payé des factures clients et fournisseurs doit correspondre à leurs paiements. Les dates et états des pièces payées sont contrôlés. Les avoirs historiques et les imputations datées restent distingués : le solde tient compte des applications et annulations, ainsi que des remboursements, sans déduire deux fois la valeur faciale d'un avoir. Le dossier devis/acompte/solde doit conserver les mêmes client, projet et devise et retrouver les totaux du devis. Les montants des dépenses doivent également se réconcilier.
+
+Les tests SQL couvrent ces montants, les isolations d'entreprise et de transfert, les montants extrêmes, les crédits partiellement imputés, les déductions négatives et les reprises concurrentes. Le scénario natif facture/paiement passe aussi le contrôle complet du service sur SQLite. La preuve HTTPS de cette extension doit encore être obtenue après publication. Les rapprochements sémantiques de toutes les écritures avec leurs pièces, la TVA sur encaissements, les fournisseurs, la paie et les stocks restent à compléter avant toute publication d'une base partagée.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

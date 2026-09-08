@@ -75,6 +75,7 @@ function rows(table: string, columns = tables[table].columns) {
   return `SELECT row_key_json AS __key,${columns.map((column) => `${field(table, column)} AS ${identifier(column)}`).join(',')}
     FROM business_sync_versions WHERE ${scope(table)}`;
 }
+export const structuralRows = rows;
 function requirePortable(table: string, expression: string) {
   const local = tables[table].local_columns;
   if (sqlIdentifiers(expression).some((id) => local.includes(id)))

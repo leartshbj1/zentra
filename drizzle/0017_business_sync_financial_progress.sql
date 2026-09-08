@@ -1,0 +1,1 @@
+ALTER TABLE `business_sync_integrity_checks` ADD `next_accounting_rule` integer DEFAULT 0 NOT NULL;
