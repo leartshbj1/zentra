@@ -196,6 +196,12 @@ La recette native produit une deuxième facture réelle de démonstration : 1 00
 
 Ces quatre règles ne constituent pas encore la projection complète des imputations datées d'avoirs et des reprises fiscales. Ces dossiers conservent les contrôles de source et de structure comptable, mais leurs allocations chronologiques détaillées restent à vérifier. Les corrections fournisseurs, le détail de la paie et les stocks, puis la publication atomique de l'historique avec ses fichiers et bornes de numérotation, restent nécessaires avant activation de la réplication. Le schéma natif 60 demeure en préparation.
 
+Les **396 tests serveur dans 43 fichiers** passent sur la version finale, avec les deux jeux de données natifs chargés. TypeScript, lint, compilation serveur et Clippy sur toutes les cibles passent également. La recette native des écritures et du XML TVA réussit séparément.
+
+Ces contrôles sont publiés dans la **version 83 du site**, source `551999db00ecdd5d0c521feab4ccedbffa61e4fd`, configuration inchangée (révision 23). La recette native HTTPS réussit en **304,70 secondes** : **1 502 lignes**, cinq références de fichiers, quatre contenus uniques et deux exports. Elle reprend sept fragments de données et trois fragments binaires, sans envoi répété. Les **742 règles structurelles passent en 13 requêtes**, puis les **39 règles comptables et la chaîne de 1 035 événements passent en 24 requêtes**. La progression est récupérée après interruption, l'empreinte finale correspond exactement à Rust et les réponses terminées restent stables. La modification locale postérieure à la capture est conservée en attente.
+
+Le transfert de test est ensuite abandonné et sa session révoquée. Les onze tables temporaires contrôlées dans D1 sont vides, sans pagination résiduelle, et le compte affiche zéro appareil actif. L'onglet créé pour cet essai est fermé ; l'invitation de test préexistante reste intacte. Les appels anonymes GET et POST répondent 401 sans mise en cache. Cet essai utilise un seul ordinateur physique ; il n'active pas le partage métier et ne distribue pas le schéma natif 60.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.
