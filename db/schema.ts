@@ -44,6 +44,46 @@ export const businessSyncTransferChunks = sqliteTable('business_sync_transfer_ch
   objectKey: text('object_key').notNull(),
 }, (table) => [uniqueIndex('business_sync_chunk_identity').on(table.transferId, table.chunkIndex)]);
 
+export const businessSyncFileSets = sqliteTable('business_sync_file_sets', {
+  transferId: text('transfer_id').primaryKey().references(() => businessSyncTransfers.transferId),
+  manifestJson: text('manifest_json').notNull(),
+  manifestSha256: text('manifest_sha256').notNull(),
+  state: text('state').notNull(),
+});
+
+export const businessSyncFilePages = sqliteTable('business_sync_file_pages', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  pageIndex: integer('page_index').notNull(),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  fileCount: integer('file_count').notNull(),
+}, (table) => [uniqueIndex('business_sync_file_page_identity').on(table.transferId, table.pageIndex)]);
+
+export const businessSyncFileEntries = sqliteTable('business_sync_file_entries', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  pathKey: text('path_key').notNull(),
+  path: text('path').notNull(),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  pageIndex: integer('page_index').notNull(),
+}, (table) => [uniqueIndex('business_sync_file_path_identity').on(table.transferId, table.pathKey)]);
+
+export const businessSyncFileBlobs = sqliteTable('business_sync_file_blobs', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  verifiedAt: text('verified_at'),
+}, (table) => [uniqueIndex('business_sync_file_blob_identity').on(table.transferId, table.sha256)]);
+
+export const businessSyncFileParts = sqliteTable('business_sync_file_parts', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  fileSha256: text('file_sha256').notNull(),
+  partIndex: integer('part_index').notNull(),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  objectKey: text('object_key').notNull(),
+}, (table) => [uniqueIndex('business_sync_file_part_identity').on(table.transferId, table.fileSha256, table.partIndex)]);
+
 export const businessSyncVersions = sqliteTable('business_sync_versions', {
   sequence: integer('sequence').primaryKey({ autoIncrement: true }),
   transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),

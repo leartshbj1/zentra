@@ -95,6 +95,7 @@ beforeEach(() => {
       for (const key of typeof keys === 'string' ? [keys] : keys)
         blobs.delete(key);
     }),
+    list: vi.fn(async ({ prefix }: { prefix: string }) => ({ objects: [...blobs.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })), truncated: false })),
   });
   mocks.session.mockResolvedValue(owner);
 });

@@ -1,6 +1,8 @@
 //! Authenticated, resumable transport of a frozen local bootstrap.
 //! An upload receipt never grants shared-history or numbering activation.
 
+mod files;
+
 use super::*;
 use crate::account_cloud::ProjectSyncSession;
 use reqwest::Method;
@@ -441,9 +443,12 @@ pub(crate) async fn synchronize_if_prepared(store: &LocalStore) -> AppResult<Opt
             json!({"state":"waiting_for_connection","replication_active":false}),
         ));
     };
-    transfer_pass(store, &session, PARTS_PER_PASS)
-        .await
-        .map(Some)
+    let rows = transfer_pass(store, &session, PARTS_PER_PASS).await?;
+    if rows["state"] == "history_uploaded" {
+        files::synchronize_files(store, &session).await.map(Some)
+    } else {
+        Ok(Some(rows))
+    }
 }
 
 #[tauri::command]
@@ -822,6 +827,7 @@ mod tests {
                 let mut connection=source.connect()?;let transaction=connection.transaction()?;
                 for index in 0..401 {transaction.execute("INSERT INTO clients(id,name,notes,created_at,updated_at) VALUES(?,'Recette fictive HTTPS','Aucune donnée client réelle\nContrôle de reprise','2026-09-08','2026-09-08')",[format!("qa-native-bootstrap-{index:04}")])?;}
                 transaction.commit()?;drop(connection);
+                files::seed_live_qa_files(&source)?;
                 let prepared=source.prepare_business_snapshot(&session.organization_id,&session.role)?;
                 assert_eq!(prepared.manifest.chunks.len(),3);
                 cleanup=Some((session,prepared.transfer_id.clone()));
@@ -843,6 +849,7 @@ mod tests {
                 assert_eq!(reopened.connect()?.query_row("SELECT COUNT(*) FROM shared_numbering_binding",[],|row|row.get::<_,i64>(0))?,0);
                 assert_eq!(reopened.connect()?.query_row("SELECT COUNT(*) FROM business_sync_changes WHERE table_name='clients'",[],|row|row.get::<_,i64>(0))?,1);
                 println!("QA_BOOTSTRAP_COMPLETE transfer={} rows={} resumed_chunks=2 repeated_sent=0 pending_local_changes=1 replication_active=false",prepared.transfer_id,prepared.manifest.row_count);
+                files::live_qa_files(&reopened,&reconnected).await?;
                 Ok::<(),AppError>(())
             }).catch_unwind().await;
             let removal = if let Some((session, id)) = &cleanup {

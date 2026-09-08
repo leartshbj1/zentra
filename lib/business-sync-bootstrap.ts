@@ -8,6 +8,7 @@ import {
 } from './account-security';
 import { readBytesBodyWithinLimit } from './request-body';
 import { database, fileArchive } from './runtime';
+import { cleanupBootstrapFiles } from './business-sync-files';
 
 export const SYNC_CHUNK_BYTES = 4 * 1024 * 1024;
 export const SYNC_ROW_BYTES = 1024 * 1024;
@@ -566,6 +567,7 @@ export async function abandonBootstrap(
       409,
     );
   // The expected keys include uploads whose receipt was lost after R2's write.
+  await cleanupBootstrapFiles(session.organizationId, id);
   const keys = manifest.chunks.map(
     (part, index) =>
       `business-sync/${session.organizationId}/${id}/${index}-${part.sha256}.json`,

@@ -60,7 +60,7 @@ describe('prepared business history background sender', () => {
     await vi.advanceTimersByTimeAsync(0);
   });
 
-  it.each(['not_prepared', 'history_uploaded'] as const)(
+  it.each(['not_prepared', 'history_uploaded', 'files_uploaded'] as const)(
     'keeps %s quiet and does not infer active replication',
     async (state) => {
       const synchronize = vi.fn(async () => status(state));
@@ -88,17 +88,18 @@ describe('prepared business history background sender', () => {
       .fn()
       .mockResolvedValueOnce(status('uploading'))
       .mockResolvedValueOnce(status('sending'))
+      .mockResolvedValueOnce(status('files_uploading'))
       .mockResolvedValue(status('waiting_for_connection'));
     const sender = startBusinessBootstrapScheduler({
       synchronize,
       isOnline: () => true,
     });
-    await vi.advanceTimersByTimeAsync(13_000);
-    expect(synchronize).toHaveBeenCalledTimes(3);
-    await vi.advanceTimersByTimeAsync(59_999);
-    expect(synchronize).toHaveBeenCalledTimes(3);
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(18_000);
     expect(synchronize).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(synchronize).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(synchronize).toHaveBeenCalledTimes(5);
     sender.stop();
   });
 

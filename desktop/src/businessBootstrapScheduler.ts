@@ -4,7 +4,9 @@ export type BusinessBootstrapStatus = {
     | 'sending'
     | 'waiting_for_connection'
     | 'uploading'
-    | 'history_uploaded';
+    | 'history_uploaded'
+    | 'files_uploading'
+    | 'files_uploaded';
   transfer_id?: string;
   confirmed_chunks?: number;
   total_chunks?: number;
@@ -44,11 +46,16 @@ export function startBusinessBootstrapScheduler(options: {
       const status = await options.synchronize();
       failures = 0;
       if (active) options.onStatus?.(status);
-      if (status.state === 'uploading' || status.state === 'sending') {
+      if (
+        status.state === 'uploading' ||
+        status.state === 'sending' ||
+        status.state === 'files_uploading'
+      ) {
         nextDelay = 5_000;
       } else if (
         status.state === 'not_prepared' ||
-        status.state === 'history_uploaded'
+        status.state === 'history_uploaded' ||
+        status.state === 'files_uploaded'
       ) {
         nextDelay = 300_000;
       }

@@ -54,7 +54,7 @@ La commande `prepare_business_sync_snapshot`, enregistrée côté Tauri, prend l
 
 La suite ciblée passe avec **27 tests**, zéro échec, en 21,84 secondes. Le test d'export fictif, ignoré dans cette suite ordinaire, a ensuite été exécuté explicitement avec succès. Il produit une copie native contenant 246 lignes, dont une facture de CHF 1 000, un paiement de CHF 300 et quatre lignes comptables équilibrées. Le test TypeScript du service réel accepte les deux fragments, conserve chaque ligne et son empreinte à l'identique, puis accepte un renvoi sans doublon. Les **23 tests de préparation serveur** passent avec cette copie ; Clippy sur toutes les cibles et TypeScript passent aussi. Les essais serveur utilisent SQLite et R2 simulé, sans compte client ni transmission publique. Ils ne prouvent pas encore un transfert HTTPS natif, le partage des fichiers ou une fusion entre deux appareils.
 
-Restent à relier : transfert authentifié des fragments et de leurs fichiers, reçus durables, annulation locale/serveur et réconciliation, gestion des fichiers créés ou supprimés après la copie, validation puis publication de l'historique, bornes de numérotation, téléchargement vers un autre appareil et traitement des conflits.
+Restent à relier : annulation locale/serveur et réconciliation dans l'interface, gestion des fichiers créés ou supprimés après la copie, validation puis publication de l'historique, bornes de numérotation, téléchargement vers un autre appareil et traitement des conflits.
 
 ## Envoi natif authentifié de la copie initiale
 
@@ -68,6 +68,20 @@ La commande `sync_business_bootstrap` reprend uniquement une préparation explic
 Les **33 tests natifs ciblés** passent, avec deux essais ignorés par défaut. Les **751 tests d'interface**, dont les **9 tests du planificateur**, passent aussi, ainsi que la compilation de l'interface et Clippy sur toutes les cibles avec les avertissements traités comme des erreurs. Le contrôle de l'origine HTTPS autorisée passe séparément. L'essai HTTPS ignoré a été exécuté séparément sur l'entreprise fictive `Zentra QA Start - test technique` : **403 lignes, trois fragments**, arrêt après le premier, réouverture du profil puis envoi des deux autres. Un nouveau passage n'envoie aucun doublon ; une modification locale effectuée après la copie reste en attente. La préparation distante a ensuite été supprimée et la session révoquée, avec zéro appareil actif confirmé dans le compte.
 
 Cette recette utilise le vrai transport HTTPS sur un seul ordinateur. Elle ne prouve pas la réplication entre deux appareils, l'envoi des pièces métier ou la résolution des conflits. Le schéma 60 reste non distribué et le partage métier complet reste inactif.
+
+## Pièces figées de l'historique initial
+
+Le transport natif reprend désormais les pièces après les lignes métier. Le catalogue classe les chemins du stockage géré, leurs tailles et leurs empreintes, par pages de 200 fichiers au maximum. Le serveur refuse les chemins non portables, les noms qui entrent en collision sans distinction de casse, les tailles contradictoires et les totaux incohérents. Les limites restent 50 000 références, 512 Mio par fichier et 10 Gio de volume logique.
+
+Un même contenu référencé par plusieurs chemins n'est envoyé qu'une fois. Chaque partie binaire est limitée à 4 Mio. Sa création conditionnelle dans R2 empêche un renvoi concurrent de remplacer des octets déjà conservés. Les réponses perdues se reprennent à partir des confirmations durables ; un contenu contradictoire bloque la reprise. Le serveur relit ensuite toutes les parties dans l'ordre et contrôle l'empreinte du fichier complet, avec une mémoire bornée par partie. L'API ne déclare toutes les pièces reçues qu'après cette vérification.
+
+Le serveur propose au plus huit contenus encore attendus par passage. Le client ne reparcourt pas tous les anciens reçus ; il calcule une seule fois les empreintes des parties depuis la copie figée, en dehors du travail réseau, puis les conserve localement. Il partage le descripteur en mémoire et ne garde pas toutes les pages sérialisées à la fois. Une modification du fichier d'origine ne change pas la copie envoyée ; une altération de la copie ou une confirmation incohérente interrompt son transfert.
+
+La migration additive `0014_brainy_slayback.sql` ajoute cinq tables de catalogue, contenus et confirmations. L'annulation de l'historique retire aussi ces métadonnées et les objets R2 de son préfixe, y compris ceux sans reçu D1. Elle reste reprenable ; un envoi tardif actif retire son fragment après constat de l'annulation. Un processus brutalement arrêté après une écriture tardive peut nécessiter un nouveau balayage du préfixe abandonné : le nettoyage périodique reste à intégrer. Les autres entreprises et les historiques publiés sont protégés.
+
+Ces pièces restent dans une préparation non publiée. Les références d'exports hors du stockage géré, les contenus modifiés après la copie, la validation métier complète et le téléchargement sur un autre appareil restent à terminer. Les confirmations de fichiers n'activent ni la numérotation ni la réplication des modifications.
+
+Contrôles locaux du 8 septembre : 289 tests serveur réussis, dont 25 scénarios de fichiers, 38 tests natifs de synchronisation réussis et 752 tests d'interface réussis, dont 10 scénarios du planificateur. TypeScript, Clippy sur toutes les cibles et les deux compilations de production passent. Les scénarios couvrent réponses perdues, redémarrage, déduplication, altération de contenu, collisions de chemins, annulation tardive et reprise du nettoyage. Ces contrôles locaux ne remplacent pas l'essai HTTPS ni la recette sur deux appareils.
 
 ## Numérotation réservée par appareil
 

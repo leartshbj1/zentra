@@ -977,7 +977,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
         START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
-            | "/api/sync/numbers" | "/api/sync/bootstrap"
+            | "/api/sync/numbers" | "/api/sync/bootstrap" | "/api/sync/bootstrap/files" | "/api/sync/bootstrap/file"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
@@ -1290,7 +1290,7 @@ mod tests {
 
     #[test]
     fn project_and_backup_transfer_routes_use_the_fixed_authenticated_origin() {
-        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers", "/api/sync/bootstrap"] {
+        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers", "/api/sync/bootstrap", "/api/sync/bootstrap/files", "/api/sync/bootstrap/file"] {
             let url = endpoint(path).unwrap();
             assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}{path}"));
         }
