@@ -14,6 +14,20 @@ La branche de réalisation ajoute un journal local des modifications avant tout 
 
 La capture conserve des états locaux, y compris des champs de paie et des références de fichiers. Ils ne constituent pas un corps HTTP prêt à partager : le transport doit appliquer les droits des collaborateurs, séparer les données confidentielles, convertir les références de fichiers et préserver les branches d'audit. Une application des lignes reçues sans ces contrôles ne serait pas acceptable. Il faut également traiter les effets des déclencheurs sans les exécuter deux fois et vérifier les conflits portant sur les paiements, les soldes de stock et les clôtures.
 
+## Réception de l'historique initial
+
+Le service `GET/POST/PUT/DELETE /api/sync/bootstrap` prépare le transfert initial. L'entreprise vient de la session authentifiée. Seuls le titulaire et les administrateurs peuvent choisir et annuler cette base de référence ; cela ne réduit pas l'accès de travail complet annoncé aux rôles collaborateur et comptable pour la future réplication métier.
+
+- Le manifeste classe exactement les 106 tables du contrat natif. Son empreinte repose sur un tableau JSON ordonné, indépendant des fins de ligne Windows ou macOS. Les huit tables propres à l'installation restent exclues.
+- Une préparation est liée à une entreprise, un appareil, un UUID de demande et une génération attribuée une seule fois par le serveur. Deux appareils concurrents ne créent pas deux bases de référence. Une réponse perdue reprend le même manifeste et les mêmes accusés de réception.
+- Chaque fragment contient au maximum 200 lignes et 4 Mio. Une ligne est limitée à 1 Mio ; un transfert à 200 000 lignes, 1 024 fragments et 512 Mio au total. Les octets sont contrôlés avant stockage, puis conservés dans R2 ; les lignes et accusés de réception sont insérés ensemble dans une transaction D1. Une référence répétée ou un dépassement du nombre déclaré annule le fragment entier.
+- Les lignes conservent le texte JSON natif exact, notamment les valeurs réelles comme `1.0` et le JSON stocké dans des colonnes texte. Les références incohérentes, champs inconnus, nombres non représentables sans perte, séquences Unicode invalides et clés JSON répétées sont refusés. Ces dernières n'ont pas la même interprétation avec JavaScript et SQLite.
+- Recevoir tous les fragments produit l'état `uploaded`, pas une publication. L'espace reste `initializing`, avec une révision nulle, et aucune ligne ne devient une base métier partagée. Le passage autoritaire vers `ready`, les relations, les invariants financiers, les fichiers associés, les bornes historiques des numéros et le client natif restent à terminer.
+- L'annulation d'une préparation non publiée retire les lignes temporaires et ses fragments attendus, y compris un fragment dont la réponse aurait été perdue. Un administrateur peut reprendre ce parcours depuis un autre appareil si le premier est perdu. Un nettoyage interrompu reste reprenable ; un envoi retardé qui reprend après annulation retire sa copie au lieu de réactiver l'ancienne génération. Une préparation déjà publiée et les autres entreprises sont protégées.
+- Le service de numérotation exige maintenant un espace `ready` avec une révision publiée, à la fois lors de la réservation atomique et lors de sa relecture. La réception d'un manifeste ou d'un fragment ne suffit jamais à ouvrir les compteurs. Les réservations historiques sont conservées même si la base partagée devient temporairement indisponible.
+
+La migration D1 `0013_concerned_goliath.sql` ajoute uniquement quatre tables et leurs index. Les 22 tests du transfert emploient toutes les migrations réelles sur SQLite avec une simulation transactionnelle de D1 et un stockage R2 en mémoire. Les 13 tests de numérotation passent aussi ; la suite serveur complète comporte 264 tests réussis. TypeScript, le contrôle statique et le build de production passent. Ces tests ne constituent pas un transfert natif authentifié sur deux appareils réels.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

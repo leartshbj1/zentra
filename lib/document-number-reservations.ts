@@ -65,6 +65,8 @@ export async function reserveDocumentNumbers(
     WHERE organization_id=? AND prefix=? AND year=?
   ) WHERE next+?-1<=? AND NOT EXISTS(
     SELECT 1 FROM document_number_reservations WHERE organization_id=? AND request_id=?
+  ) AND EXISTS(
+    SELECT 1 FROM business_sync_spaces WHERE organization_id=? AND state='ready' AND head_revision>0
   )`)
     .bind(
       session.organizationId,
@@ -85,19 +87,34 @@ export async function reserveDocumentNumbers(
       MAX_DOCUMENT_NUMBER,
       session.organizationId,
       input.request_id,
+      session.organizationId,
     )
     .run();
   const row = await db
     .prepare(
-      'SELECT * FROM document_number_reservations WHERE organization_id=? AND request_id=?',
+      `SELECT reservation.* FROM document_number_reservations reservation
+       JOIN business_sync_spaces space ON space.organization_id=reservation.organization_id
+       WHERE reservation.organization_id=? AND reservation.request_id=? AND space.state='ready' AND space.head_revision>0`,
     )
     .bind(session.organizationId, input.request_id)
     .first<ReservationRow>();
-  if (!row)
+  if (!row) {
+    const ready = await db
+      .prepare(
+        "SELECT 1 AS ready FROM business_sync_spaces WHERE organization_id=? AND state='ready' AND head_revision>0",
+      )
+      .bind(session.organizationId)
+      .first();
+    if (!ready)
+      throw new AccountPublicError(
+        'L’historique de cette entreprise doit être contrôlé et publié avant de réserver des numéros partagés.',
+        409,
+      );
     throw new AccountPublicError(
       'La numérotation disponible pour ce préfixe et cette année est épuisée. Choisissez un nouveau préfixe.',
       409,
     );
+  }
   if (
     row.installation_id !== session.installationId ||
     row.prefix !== input.prefix ||

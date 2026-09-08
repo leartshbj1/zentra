@@ -6,6 +6,58 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+export const businessSyncSpaces = sqliteTable('business_sync_spaces', {
+  organizationId: text('organization_id').primaryKey().references(() => organizations.organizationId),
+  generation: text('generation').notNull(),
+  bootstrapTransferId: text('bootstrap_transfer_id').notNull(),
+  state: text('state').notNull(),
+  headRevision: integer('head_revision').notNull().default(0),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
+export const businessSyncTransfers = sqliteTable('business_sync_transfers', {
+  transferId: text('transfer_id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  installationId: text('installation_id').notNull(),
+  createdBy: text('created_by').notNull(),
+  generation: text('generation').notNull(),
+  kind: text('kind').notNull(),
+  state: text('state').notNull(),
+  baseRevision: integer('base_revision').notNull(),
+  revision: integer('revision'),
+  manifestJson: text('manifest_json').notNull(),
+  manifestSha256: text('manifest_sha256').notNull(),
+  createdAt: text('created_at').notNull(),
+  committedAt: text('committed_at'),
+}, (table) => [
+  uniqueIndex('business_sync_transfer_revision').on(table.organizationId, table.revision),
+  index('business_sync_transfer_org_state').on(table.organizationId, table.state, table.createdAt),
+]);
+
+export const businessSyncTransferChunks = sqliteTable('business_sync_transfer_chunks', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  chunkIndex: integer('chunk_index').notNull(),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  rowCount: integer('row_count').notNull(),
+  objectKey: text('object_key').notNull(),
+}, (table) => [uniqueIndex('business_sync_chunk_identity').on(table.transferId, table.chunkIndex)]);
+
+export const businessSyncVersions = sqliteTable('business_sync_versions', {
+  sequence: integer('sequence').primaryKey({ autoIncrement: true }),
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  tableName: text('table_name').notNull(),
+  rowKeyJson: text('row_key_json').notNull(),
+  rowJson: text('row_json'),
+  rowSha256: text('row_sha256'),
+  beforeSha256: text('before_sha256'),
+}, (table) => [
+  uniqueIndex('business_sync_transfer_row').on(table.transferId, table.tableName, table.rowKeyJson),
+  index('business_sync_row_history').on(table.organizationId, table.tableName, table.rowKeyJson, table.sequence),
+]);
+
 export const documentNumberReservations = sqliteTable('document_number_reservations', {
   sequence: integer('sequence').primaryKey({ autoIncrement: true }),
   organizationId: text('organization_id').notNull().references(() => organizations.organizationId),

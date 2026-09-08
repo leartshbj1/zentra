@@ -66,6 +66,9 @@ beforeEach(() => {
   db.exec(
     "INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,livemode,updated_at) VALUES('sub','cus','price','active',2000000000,0,1),('sub2','cus2','price','active',2000000000,0,1); INSERT INTO organizations VALUES('org_first','First','sub','owner',1,1),('org_other','Other','sub2','other',1,1)",
   );
+  db.exec(
+    "INSERT INTO business_sync_spaces VALUES('org_first','generation','bootstrap-first','ready',1,'owner','2026-09-08'),('org_other','other-generation','bootstrap-other','ready',1,'other','2026-09-08')",
+  );
   mocks.db.mockReturnValue({ prepare: prepared });
   mocks.session.mockResolvedValue(owner);
 });
@@ -218,4 +221,44 @@ it('uses the authenticated company instead of caller identifiers and refuses res
   expect((await POST(request())).status).toBe(401);
   mocks.session.mockRejectedValue(new AccountPublicError('expired', 402));
   expect((await POST(request())).status).toBe(402);
+});
+
+it('never allocates a number before the authoritative company bootstrap is published', async () => {
+  db.exec("DELETE FROM business_sync_spaces WHERE organization_id='org_first'");
+  const missing = await POST(request());
+  expect(missing.status).toBe(409);
+  expect(await missing.json()).toMatchObject({
+    error: expect.stringContaining('historique'),
+  });
+  db.exec(
+    "INSERT INTO business_sync_spaces VALUES('org_first','generation','bootstrap','initializing',0,'owner','2026-09-08')",
+  );
+  expect((await POST(request())).status).toBe(409);
+  db.exec(
+    "UPDATE business_sync_spaces SET state='ready' WHERE organization_id='org_first'",
+  );
+  expect((await POST(request())).status).toBe(409);
+  expect(
+    db
+      .prepare('SELECT COUNT(*) AS count FROM document_number_reservations')
+      .get()!.count,
+  ).toBe(0);
+});
+
+it('keeps historical reservations but refuses to replay them while the shared history is unavailable', async () => {
+  await reserveDocumentNumbers(owner, base);
+  db.exec(
+    "UPDATE business_sync_spaces SET state='initializing' WHERE organization_id='org_first'",
+  );
+  await expect(reserveDocumentNumbers(owner, base)).rejects.toMatchObject({
+    status: 409,
+  });
+  await expect(
+    reserveDocumentNumbers(owner, { ...base, request_id: crypto.randomUUID() }),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(
+    db
+      .prepare('SELECT COUNT(*) AS count FROM document_number_reservations')
+      .get()!.count,
+  ).toBe(1);
 });
