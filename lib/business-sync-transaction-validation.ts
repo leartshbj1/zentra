@@ -18,13 +18,18 @@ import {
 } from './business-sync-transaction-review';
 import { database } from './runtime';
 import { transactionImmutabilityRules } from './business-sync-transaction-immutability';
+import { transactionClosureRules } from './business-sync-transaction-closure';
 export const transactionStateRules = [
   ...transactionImmutabilityRules,
+  ...transactionClosureRules,
   ...bootstrapAccountingRules.map((rule) => ({ ...rule, source: false })),
 ];
 
 const STRUCTURE_PAGE = 16,
   ACCOUNTING_PAGE = 4;
+// Increment on every validation semantic change. Upgrade only forwards: an
+// older running deployment must never replace a newer validation attempt.
+export const TRANSACTION_VALIDATION_VERSION = 2;
 const countAt = new Map(
   structuralRules.flatMap((r, i) =>
     r.kind === 'count' ? [[r.table, i] as const] : [],
@@ -36,7 +41,9 @@ const countsSql = `WITH totals AS (
 ), grouped AS (SELECT table_name,SUM(n) n FROM totals GROUP BY table_name)
 SELECT json_group_object(table_name,n) FROM grouped`;
 const active = `SELECT 1 FROM business_sync_transaction_validations v
- WHERE v.transfer_id=?1 AND v.attempt=?6 AND v.validator_sha256=?15 AND ${transactionReviewGateSql}`;
+ WHERE v.transfer_id=?1 AND v.attempt=?6 AND v.validator_sha256=?15 AND v.algorithm_version=${TRANSACTION_VALIDATION_VERSION} AND ${transactionReviewGateSql}`;
+const upgradeGuard = `EXISTS(SELECT 1 FROM business_sync_transaction_validations v WHERE v.transfer_id=?1 AND v.attempt=?6
+ AND v.validator_sha256=?19 AND v.algorithm_version=?20 AND v.algorithm_version<${TRANSACTION_VALIDATION_VERSION}) AND ${transactionReviewGateSql}`;
 const projectionActive = `SELECT 1 FROM business_sync_transaction_validations v
  JOIN business_sync_transaction_reviews r ON r.transfer_id=v.transfer_id AND r.attempt=v.attempt
  JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
@@ -47,7 +54,7 @@ const projectionActive = `SELECT 1 FROM business_sync_transaction_validations v
  AND r.manifest_sha256=t.manifest_sha256 AND r.generation=t.generation AND r.state='projected'
  AND r.applied_changes=json_extract(t.manifest_json,'$.change_count') AND r.next_chunk=json_array_length(t.manifest_json,'$.chunks')
  AND u.state='committed' AND u.revision=r.source_revision AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=s.bootstrap_transfer_id))
- AND s.state='ready' AND s.head_revision=r.source_revision AND v.validator_sha256=a.validator AND v.phase='projecting'
+ AND s.state='ready' AND s.head_revision=r.source_revision AND v.validator_sha256=a.validator AND v.algorithm_version=${TRANSACTION_VALIDATION_VERSION} AND v.phase='projecting'
  AND v.next_structural_rule=${structuralRules.length} AND v.next_accounting_rule=${transactionStateRules.length} AND v.failed_rule IS NULL`;
 const queries = creditProjectionQueries(projectionActive);
 export const transactionCreditProjectionSql = queries;
@@ -55,6 +62,7 @@ type Progress = {
   transfer_id: string;
   attempt: string;
   validator_sha256: string;
+  algorithm_version: number;
   phase: 'structure' | 'accounting' | 'projecting' | 'valid' | 'invalid';
   table_counts_json: string;
   next_structural_rule: number;
@@ -70,7 +78,7 @@ export function transactionValidationContractHash() {
     sha256Hex(
       JSON.stringify([
         'zentra-transaction-state-validation',
-        1,
+        TRANSACTION_VALIDATION_VERSION,
         h,
         creditProjectionContract,
         transactionStateRules,
@@ -78,6 +86,7 @@ export function transactionValidationContractHash() {
         ACCOUNTING_PAGE,
         countsSql,
         active,
+        upgradeGuard,
         queries,
       ]),
     ),
@@ -148,7 +157,8 @@ async function progress(ctx: Context) {
   if (!row) return null;
   if (
     row.attempt !== ctx.review.attempt ||
-    row.validator_sha256 !== ctx.validator
+    row.validator_sha256 !== ctx.validator ||
+    row.algorithm_version !== TRANSACTION_VALIDATION_VERSION
   )
     fail('Cette tentative nécessite une nouvelle validation.');
   const integer = (n: number, max: number) =>
@@ -205,6 +215,7 @@ async function response(ctx: Context, row: Progress | null) {
     attempt: ctx.review.attempt,
     source_revision: ctx.review.source_revision,
     validator_sha256: ctx.validator,
+    algorithm_version: TRANSACTION_VALIDATION_VERSION,
     phase: stillCurrent ? (row?.phase ?? 'pending') : 'stale',
     checked_structural_rules: row?.next_structural_rule ?? 0,
     total_structural_rules: structuralRules.length,
@@ -255,15 +266,61 @@ export async function validateBusinessTransaction(
   id: unknown,
 ) {
   const ctx = await context(session, id);
+  const old = await ctx.db
+    .prepare(
+      'SELECT * FROM business_sync_transaction_validations WHERE transfer_id=?',
+    )
+    .bind(ctx.id)
+    .first<Progress>();
+  if (old && old.algorithm_version !== TRANSACTION_VALIDATION_VERSION) {
+    if (
+      !Number.isSafeInteger(old.algorithm_version) ||
+      old.algorithm_version < 1 ||
+      old.algorithm_version > TRANSACTION_VALIDATION_VERSION ||
+      old.attempt !== ctx.review.attempt
+    )
+      fail(
+        'Cette validation nécessite une version plus récente ou une nouvelle tentative.',
+      );
+    const bindings = [
+      ...ctx.validationBindings,
+      ctx.review.source_transfer_id,
+      new Date().toISOString(),
+      TRANSACTION_VALIDATION_VERSION,
+      old.validator_sha256,
+      old.algorithm_version,
+    ];
+    // Only derived validation state is replaced. Original envelopes, source
+    // rows, files, conflicts, candidate rows and audit evidence remain intact.
+    await ctx.db.batch([
+      ...[
+        'business_sync_credit_lines',
+        'business_sync_credit_movements',
+        'business_sync_credit_projection',
+      ].map((table) =>
+        ctx.db
+          .prepare(
+            `DELETE FROM ${table} WHERE transfer_id=?1 AND validator_sha256=?19 AND ${upgradeGuard}`,
+          )
+          .bind(...bindings),
+      ),
+      ctx.db
+        .prepare(
+          `UPDATE business_sync_transaction_validations SET validator_sha256=?15,algorithm_version=?18,phase='structure',table_counts_json=(${countsSql}),next_structural_rule=0,next_accounting_rule=0,failed_rule=NULL,updated_at=?17 WHERE transfer_id=?1 AND ${upgradeGuard}`,
+        )
+        .bind(...bindings),
+    ]);
+  }
   let row = await progress(ctx);
   if (!row) {
     await ctx.db
-      .prepare(`INSERT OR IGNORE INTO business_sync_transaction_validations(transfer_id,attempt,validator_sha256,phase,table_counts_json,updated_at)
-    SELECT ?1,?6,?15,'structure',(${countsSql}),?17 WHERE ${transactionReviewGateSql}`)
+      .prepare(`INSERT OR IGNORE INTO business_sync_transaction_validations(transfer_id,attempt,validator_sha256,phase,table_counts_json,updated_at,algorithm_version)
+    SELECT ?1,?6,?15,'structure',(${countsSql}),?17,?18 WHERE ${transactionReviewGateSql}`)
       .bind(
         ...ctx.validationBindings,
         ctx.review.source_transfer_id,
         new Date().toISOString(),
+        TRANSACTION_VALIDATION_VERSION,
       )
       .run();
     row = await progress(ctx);

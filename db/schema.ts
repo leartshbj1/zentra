@@ -196,6 +196,7 @@ export const businessSyncTransactionValidations=sqliteTable('business_sync_trans
   transferId:text('transfer_id').primaryKey().references(()=>businessSyncTransfers.transferId),
   attempt:text('attempt').notNull(),
   validatorSha256:text('validator_sha256').notNull(),
+  algorithmVersion:integer('algorithm_version').notNull().default(1),
   phase:text('phase').notNull(),
   tableCountsJson:text('table_counts_json').notNull(),
   nextStructuralRule:integer('next_structural_rule').notNull().default(0),

@@ -176,6 +176,13 @@
       "when": 1788897215659,
       "tag": "0024_remarkable_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1788899167511,
+      "tag": "0025_mature_logan",
+      "breakpoints": true
     }
   ]
 }

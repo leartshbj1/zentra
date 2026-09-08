@@ -32,7 +32,7 @@ export const transactionImmutabilityRules = [
   {
     id: 'immutable:append-only',
     sql: `SELECT 1 invalid FROM business_sync_transaction_changes WHERE transaction_id=?1 AND organization_id=?2
-      AND table_name IN ('audit_log','journal_entries','journal_lines','payments','supplier_payments','stock_movements')
+      AND table_name IN ('audit_log','journal_entries','journal_lines','payments','supplier_payments','stock_movements','vat_adjustments')
       AND operation IN ('update','delete') LIMIT 1`,
     source: false,
   },

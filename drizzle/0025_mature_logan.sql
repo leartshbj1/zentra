@@ -1,0 +1,1 @@
+ALTER TABLE `business_sync_transaction_validations` ADD `algorithm_version` integer DEFAULT 1 NOT NULL;

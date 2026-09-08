@@ -2,6 +2,18 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Protection des périodes clôturées et reprise des contrôles
+
+La copie de contrôle respecte maintenant la dernière date clôturée de la révision de départ, y compris les intervalles antérieurs sans période explicite. Neuf contrôles protègent l'historique des périodes, vérifient leurs dates et chevauchements, et refusent les nouvelles écritures, émissions de factures, validations fournisseurs, paiements et corrections TVA antidatés. Ils contrôlent aussi les modifications fiscales et règlements des dépenses historiques. Les corrections TVA enregistrées rejoignent les opérations qui ne peuvent être réécrites ou supprimées.
+
+Un paiement ultérieur d'une ancienne facture reste possible. Le calcul utilise la clôture de départ pour accepter les écritures de fin d'année réalisées avant la clôture suivante dans une même transaction. Le contrôle des chevauchements parcourt les périodes triées sans comparaison de toutes les paires. La réouverture d'un exercice publié est refusée dans le parcours complet, tandis qu'une nouvelle fiche client est acceptée sans modifier les documents historiques.
+
+Le reçu de validation porte désormais une version d'algorithme. Une demande explicite de validation remplace atomiquement les seuls calculs dérivés d'une version antérieure puis recommence les contrôles. Les enveloppes originales, fichiers, lignes métier, traces et conflits sont conservés. Une lecture ne provoque aucune reprise ; une version plus récente ou une autre tentative n'est jamais remplacée. L'annulation sur erreur, les demandes simultanées et une révision concurrente sont testées.
+
+Validation : 574 tests serveur passent, puis 67 tests ciblés après optimisation du contrôle des périodes, dont 5 000 périodes contiguës, D1 et l’historique natif. Les contrôles TypeScript, lint et compilation passent.
+
+Ces contrôles portent sur l'état de départ et l'état final. La validation de tous les changements intermédiaires, des conditions complètes de clôture native et des autres transitions métier reste nécessaire avant activation. Ils ne produisent aucun reçu d'application officielle ni acquittement sur les appareils.
+
 ## Validation de l'état obtenu après une transaction
 
 `GET/POST /api/sync/transactions/validate` reprend désormais les contrôles sur une copie projetée sans conflit. Le décompte attendu provient de la révision de départ et des insertions/suppressions reçues, pas du contenu actuel de cette copie. Les contraintes du schéma natif, relations, unicités, contrôles comptables et calculs des avoirs sont repris par passages bornés. Le reçu reste lié à la tentative, au manifeste, à la révision de départ et à l'empreinte des règles. Un changement de révision ou une erreur pendant l'écriture n'achève pas le contrôle.
@@ -10,7 +22,7 @@ Quatre protections supplémentaires couvrent les journaux, paiements, mouvements
 
 La projection des avoirs réutilise les calculs existants avec une autorisation propre à la transaction. Toutes les anciennes requêtes de publication initiale restent identiques octet pour octet. La suite complète passe avec 556 tests serveur ; la dernière suite ciblée passe avec 49 tests après ajout du cas de révision concurrente. Le moteur D1 compile et exécute aussi chaque requête de projection candidate avec des paramètres neutres, puis traite les 201 modifications du scénario à deux fragments. L'historique natif complet avec ses avoirs et reprises est vérifié sur la copie de contrôle.
 
-Un reçu `snapshot_validated: true` confirme ces contrôles d'état. Il conserve `business_validated: false`, `canonical_committed: false` et `replication_active: false` : les autres transitions natives, notamment les changements intermédiaires à l'intérieur d'une même transaction et les règles de clôture, doivent encore être couvertes. L'application atomique, la résolution des conflits, la réception native et la recette de plusieurs appareils restent nécessaires. Aucun installateur n'est publié dans cette étape.
+Un reçu `snapshot_validated: true` confirme ces contrôles d'état. Il conserve `business_validated: false`, `canonical_committed: false` et `replication_active: false` : les autres transitions natives, notamment les changements intermédiaires à l'intérieur d'une même transaction et les conditions complètes de clôture, doivent encore être couvertes. L'application atomique, la résolution des conflits, la réception native et la recette de plusieurs appareils restent nécessaires. Aucun installateur n'est publié dans cette étape.
 
 ## Contrôle des transactions reçues avant application
 
