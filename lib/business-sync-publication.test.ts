@@ -67,6 +67,13 @@ import {
 } from './business-sync-transaction-format';
 import * as transactionHttp from '../app/api/sync/transactions/route';
 import * as transactionFileHttp from '../app/api/sync/transactions/file/route';
+import * as reviewHttp from '../app/api/sync/transactions/review/route';
+import {
+  beginBusinessTransactionReview,
+  businessTransactionReviewStatus,
+  reviewBusinessTransaction,
+} from './business-sync-transaction-review';
+import { auditHashFields } from './business-sync-audit';
 import {
   businessTransactionFileStatus,
   uploadBusinessTransactionFilePart,
@@ -408,6 +415,568 @@ async function transactionFixture(
   };
   return { manifest, chunks, actor, receipt };
 }
+
+async function receiveTransaction(
+  f: Awaited<ReturnType<typeof transactionFixture>>,
+) {
+  await beginBusinessTransaction(f.actor, JSON.stringify(f.manifest));
+  for (const [i, bytes] of f.chunks.entries())
+    await uploadBusinessTransactionChunk(
+      f.actor,
+      f.manifest.transaction_id,
+      i,
+      request(bytes),
+    );
+  return f;
+}
+async function projectTransaction(actor: DeviceSessionContext, id: string) {
+  let status = await beginBusinessTransactionReview(actor, id);
+  for (
+    let pass = 0;
+    pass < 100 && ['copying', 'applying'].includes(status.state);
+    pass++
+  )
+    status = await reviewBusinessTransaction(actor, id);
+  expect(['copying', 'applying']).not.toContain(status.state);
+  return status;
+}
+
+it('projects exact insert/update/delete images without overwriting the canonical history or reusing deleted ordering positions', async () => {
+  const first = transactionInsert('1', 'first');
+  const changed = transactionClient(
+    'first',
+    'Conditions\nDeuxième ligne : été.',
+  );
+  const update: TransactionChange = {
+    ...first,
+    sequence: '2',
+    operation: 'update',
+    before_json: first.after_json,
+    after_json: changed,
+  };
+  const remove: TransactionChange = {
+    ...first,
+    sequence: '3',
+    operation: 'delete',
+    before_json: changed,
+    after_json: null,
+  };
+  const last = transactionInsert('4', 'last');
+  const f = await receiveTransaction(
+    await transactionFixture([[first, update, remove, last]]),
+  );
+  const id = f.manifest.transaction_id;
+  expect(await projectTransaction(f.actor, id)).toMatchObject({
+    state: 'projected',
+    applied_changes: 4,
+    copied_rows: 1,
+    next_chunk: 1,
+    audit_entries: 0,
+    financial_validated: false,
+    canonical_committed: false,
+    replication_active: false,
+  });
+  expect(
+    db
+      .prepare(
+        "SELECT row_json FROM business_sync_versions WHERE transfer_id=? AND table_name='clients'",
+      )
+      .all(id),
+  ).toEqual([{ row_json: last.after_json }]);
+  expect(
+    db
+      .prepare(
+        "SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=? AND table_name='clients'",
+      )
+      .all(id),
+  ).toEqual([{ source_rowid: '2' }]);
+  expect(
+    db
+      .prepare(
+        'SELECT count(*) n FROM business_sync_versions WHERE transfer_id=?',
+      )
+      .get(f.receipt.transfer_id),
+  ).toEqual({ n: 1 });
+  expect((await historyHead(f.actor)).head_revision).toBe(1);
+  expect(count('business_sync_audit_branches')).toBe(0);
+  expect(await reviewBusinessTransaction(f.actor, id)).toEqual(
+    await businessTransactionReviewStatus(f.actor, id),
+  );
+  const stored = db
+    .prepare(
+      'SELECT object_key FROM business_sync_transaction_parts WHERE transaction_id=?',
+    )
+    .get(id)!.object_key as string;
+  expect(blobs.get(stored)).toEqual(f.chunks[0]);
+});
+
+it('records a before-image conflict without changing the committed row or hiding the original modification', async () => {
+  const base = await ready();
+  const receipt = await publishBootstrap(owner, base.id);
+  const actual = db
+    .prepare('SELECT row_json FROM business_sync_versions WHERE transfer_id=?')
+    .get(base.id)!.row_json as string;
+  const before = JSON.stringify({
+    ...JSON.parse(actual),
+    company_name: 'Autre version',
+  });
+  const after = JSON.stringify({
+    ...JSON.parse(actual),
+    company_name: 'Modification hors ligne',
+  });
+  const change: TransactionChange = {
+    sequence: '1',
+    table: 'settings',
+    key_json: '[1]',
+    operation: 'update',
+    before_json: before,
+    after_json: after,
+    source_rowid: '1',
+    files_before: [],
+    files_after: [],
+  };
+  const f = await receiveTransaction(
+    await transactionFixture([[change]], receipt),
+  );
+  expect(
+    await projectTransaction(f.actor, f.manifest.transaction_id),
+  ).toMatchObject({
+    state: 'conflict',
+    applied_changes: 0,
+    conflicts: [
+      {
+        table_name: 'settings',
+        row_key_json: '[1]',
+        change_index: 0,
+        expected_sha256: await sha256Hex(before),
+        current_sha256: await sha256Hex(actual),
+        incoming_sha256: await sha256Hex(after),
+        reason: 'before_mismatch',
+      },
+    ],
+  });
+  expect(
+    db
+      .prepare(
+        "SELECT row_json FROM business_sync_versions WHERE table_name='settings'",
+      )
+      .all(),
+  ).toEqual([{ row_json: actual }, { row_json: actual }]);
+  expect((await historyHead(f.actor)).head_revision).toBe(1);
+});
+
+it('preserves shared integer primary keys when replacing a candidate row', async () => {
+  const base = await ready();
+  const receipt = await publishBootstrap(owner, base.id);
+  const row = db
+    .prepare('SELECT row_json FROM business_sync_versions WHERE transfer_id=?')
+    .get(base.id)!.row_json as string;
+  const remove: TransactionChange = {
+    sequence: '1',
+    table: 'settings',
+    key_json: '[1]',
+    operation: 'delete',
+    before_json: row,
+    after_json: null,
+    source_rowid: '1',
+    files_before: [],
+    files_after: [],
+  };
+  const insert: TransactionChange = {
+    ...remove,
+    sequence: '2',
+    operation: 'insert',
+    before_json: null,
+    after_json: row,
+  };
+  const f = await receiveTransaction(
+    await transactionFixture([[remove, insert]], receipt),
+  );
+  expect(
+    await projectTransaction(f.actor, f.manifest.transaction_id),
+  ).toMatchObject({ state: 'projected', applied_changes: 2 });
+  expect(
+    db
+      .prepare(
+        'SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=?',
+      )
+      .get(f.manifest.transaction_id),
+  ).toEqual({ source_rowid: '1' });
+});
+
+it('rolls back failed candidate copies and applications, and resumes simultaneous retries exactly once', async () => {
+  const f = await receiveTransaction(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  await beginBusinessTransactionReview(f.actor, id);
+  failStatement = (sql) => {
+    if (sql.startsWith('INSERT INTO business_sync_row_order'))
+      throw new Error('copy failure');
+  };
+  await expect(reviewBusinessTransaction(f.actor, id)).rejects.toThrow(
+    'copy failure',
+  );
+  expect(
+    db
+      .prepare(
+        'SELECT count(*) n FROM business_sync_versions WHERE transfer_id=?',
+      )
+      .get(id),
+  ).toEqual({ n: 0 });
+  expect(await businessTransactionReviewStatus(f.actor, id)).toMatchObject({
+    copied_rows: 0,
+    applied_changes: 0,
+  });
+  failStatement = undefined;
+  await Promise.all([
+    reviewBusinessTransaction(f.actor, id),
+    reviewBusinessTransaction(f.actor, id),
+  ]);
+  expect(await businessTransactionReviewStatus(f.actor, id)).toMatchObject({
+    copied_rows: 1,
+  });
+  await reviewBusinessTransaction(f.actor, id);
+  failStatement = (sql) => {
+    if (sql.startsWith('INSERT INTO business_sync_versions'))
+      throw new Error('application failure');
+  };
+  await expect(reviewBusinessTransaction(f.actor, id)).rejects.toThrow(
+    'application failure',
+  );
+  expect(
+    db
+      .prepare(
+        "SELECT last_value FROM business_sync_candidate_order WHERE transfer_id=? AND table_name='clients'",
+      )
+      .get(id),
+  ).toEqual({ last_value: 0 });
+  failStatement = undefined;
+  await Promise.all([
+    reviewBusinessTransaction(f.actor, id),
+    reviewBusinessTransaction(f.actor, id),
+  ]);
+  expect(await businessTransactionReviewStatus(f.actor, id)).toMatchObject({
+    state: 'projected',
+    applied_changes: 1,
+  });
+  expect(
+    db
+      .prepare(
+        "SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=? AND table_name='clients'",
+      )
+      .get(id),
+  ).toEqual({ source_rowid: '1' });
+});
+
+it('stops candidate writes when the canonical head changes immediately before the batch', async () => {
+  const f = await receiveTransaction(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  await beginBusinessTransactionReview(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  beforeBatch = async () => {
+    beforeBatch = undefined;
+    db.exec('UPDATE business_sync_spaces SET head_revision=2');
+  };
+  expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
+    state: 'stale',
+    applied_changes: 0,
+  });
+  expect(
+    db
+      .prepare(
+        "SELECT count(*) n FROM business_sync_versions WHERE transfer_id=? AND table_name='clients'",
+      )
+      .get(id),
+  ).toEqual({ n: 0 });
+});
+
+it('resumes within large fragments and records the original change offset on a later conflict', async () => {
+  const changes = Array.from({ length: 65 }, (_, i) =>
+    transactionInsert(String(i + 1), `client-${i}`),
+  );
+  changes[40] = {
+    ...changes[40],
+    operation: 'update',
+    before_json: changes[40].after_json,
+    after_json: transactionClient('client-40', 'Un autre état'),
+  };
+  const f = await receiveTransaction(await transactionFixture([changes]));
+  const id = f.manifest.transaction_id;
+  await beginBusinessTransactionReview(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  beforeBatch = async (sql) => {
+    expect(sql.length).toBeLessThanOrEqual(161);
+  };
+  expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
+    state: 'applying',
+    applied_changes: 32,
+    next_chunk: 0,
+  });
+  expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
+    state: 'conflict',
+    applied_changes: 32,
+    next_chunk: 0,
+    conflicts: [{ part_index: 0, change_index: 40, reason: 'before_mismatch' }],
+  });
+  expect((await historyHead(f.actor)).head_revision).toBe(1);
+});
+
+it('requires verified documents and the original authorized device for transaction reviews', async () => {
+  const f = await fileTransaction(encode('Plan à conserver'));
+  const id = f.manifest.transaction_id;
+  await expect(beginBusinessTransactionReview(f.actor, id)).rejects.toThrow();
+  expect(count('business_sync_transaction_reviews')).toBe(0);
+  await uploadBusinessTransactionFilePart(
+    f.actor,
+    id,
+    f.sha,
+    0,
+    request(f.content, f.sha),
+  );
+  await verifyBusinessTransactionFile(f.actor, id, f.sha);
+  await beginBusinessTransactionReview(f.actor, id);
+  for (const actor of [
+    { ...f.actor, organizationId: 'org_other' },
+    { ...f.actor, installationId: crypto.randomUUID() },
+    { ...f.actor, role: 'read_only' as const },
+  ]) {
+    await expect(businessTransactionReviewStatus(actor, id)).rejects.toThrow();
+    await expect(reviewBusinessTransaction(actor, id)).rejects.toThrow();
+  }
+  expect(await projectTransaction(f.actor, id)).toMatchObject({
+    state: 'projected',
+    applied_changes: 2,
+  });
+  mocks.session.mockRejectedValue(
+    new AccountPublicError('Session requise.', 401),
+  );
+  for (const [method, handler] of [
+    ['GET', reviewHttp.GET],
+    ['POST', reviewHttp.POST],
+  ] as const) {
+    const result = await handler(
+      new Request(
+        `https://example.test/api/sync/transactions/review?transaction_id=${id}`,
+        { method },
+      ),
+    );
+    expect(result.status).toBe(401);
+    expect(result.headers.get('cache-control')).toContain('no-store');
+  }
+});
+
+it('refuses altered stored transaction bytes and missing or mismatched source ordering before projection', async () => {
+  const f = await receiveTransaction(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  await beginBusinessTransactionReview(f.actor, id);
+  db.prepare(
+    "UPDATE business_sync_row_order SET source_rowid='2' WHERE transfer_id=?",
+  ).run(f.receipt.transfer_id);
+  await expect(reviewBusinessTransaction(f.actor, id)).rejects.toThrow();
+  db.prepare(
+    "UPDATE business_sync_row_order SET source_rowid='1' WHERE transfer_id=?",
+  ).run(f.receipt.transfer_id);
+  await reviewBusinessTransaction(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  const key = db
+    .prepare(
+      'SELECT object_key FROM business_sync_transaction_parts WHERE transaction_id=?',
+    )
+    .get(id)!.object_key as string;
+  const bytes = Uint8Array.from(blobs.get(key)!);
+  bytes[0] ^= 1;
+  blobs.set(key, bytes);
+  await expect(reviewBusinessTransaction(f.actor, id)).rejects.toMatchObject({
+    status: 503,
+  });
+  expect(await businessTransactionReviewStatus(f.actor, id)).toMatchObject({
+    state: 'applying',
+    applied_changes: 0,
+  });
+});
+
+it.each([
+  ['9007199254740992', '9007199254740993', 'projected'],
+  ['9223372036854775806', '9223372036854775807', 'projected'],
+  ['9223372036854775807', null, 'conflict'],
+])(
+  'keeps canonical ordering exact at SQLite boundary %s',
+  async (floor, expected, state) => {
+    const f = await receiveTransaction(await transactionFixture());
+    const id = f.manifest.transaction_id;
+    // A previous revision may retain an order floor after deleting older rows.
+    db.prepare(
+      "INSERT INTO business_sync_candidate_order VALUES(?,'clients',CAST(? AS INTEGER))",
+    ).run(f.receipt.transfer_id, floor);
+    expect(await projectTransaction(f.actor, id)).toMatchObject({ state });
+    const row = db
+      .prepare(
+        "SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=? AND table_name='clients'",
+      )
+      .get(id);
+    if (expected) expect(row).toEqual({ source_rowid: expected });
+    else {
+      expect(row).toBeUndefined();
+      expect(await businessTransactionReviewStatus(f.actor, id)).toMatchObject({
+        conflicts: [{ reason: 'order_exhausted' }],
+      });
+    }
+  },
+);
+
+it('resumes an established device audit branch and rejects replay of its committed source sequence', async () => {
+  const anchor = 'b'.repeat(64);
+  const f = await receiveTransaction(
+    await transactionFixture([
+      [await auditChange('9007199254740994', 'continued-audit', anchor)],
+    ]),
+  );
+  const m = f.manifest;
+  db.prepare(
+    'INSERT INTO business_sync_audit_branches VALUES(?,?,?,?,?,?,?)',
+  ).run(
+    m.organization_id,
+    m.generation,
+    m.installation_id,
+    m.capture_generation,
+    anchor,
+    '9007199254740993',
+    1,
+  );
+  expect(await projectTransaction(f.actor, m.transaction_id)).toMatchObject({
+    state: 'projected',
+    audit_entries: 1,
+  });
+  expect(
+    db
+      .prepare(
+        'SELECT last_hash,last_sequence FROM business_sync_audit_branches',
+      )
+      .get(),
+  ).toEqual({ last_hash: anchor, last_sequence: '9007199254740993' });
+  const next = await receiveTransaction(
+    await transactionFixture(
+      [[await auditChange('9007199254740993', 'old-audit', anchor)]],
+      f.receipt,
+    ),
+  );
+  db.prepare(
+    'INSERT INTO business_sync_audit_branches VALUES(?,?,?,?,?,?,?)',
+  ).run(
+    next.manifest.organization_id,
+    next.manifest.generation,
+    next.manifest.installation_id,
+    next.manifest.capture_generation,
+    anchor,
+    '9007199254740993',
+    1,
+  );
+  await expect(
+    beginBusinessTransactionReview(next.actor, next.manifest.transaction_id),
+  ).rejects.toThrow('plus récente');
+});
+
+async function auditChange(
+  sequence: string,
+  id: string,
+  previous_hash: string | null = null,
+): Promise<TransactionChange> {
+  const row: Record<string, unknown> = {
+    id,
+    occurred_at: '2026-09-08T12:00:00Z',
+    actor: 'local_user',
+    action: 'create',
+    entity_type: 'client',
+    entity_id: 'fictif',
+    payload_json: '{"notes":"Deux lignes\\nÉté"}',
+    previous_hash,
+  };
+  row.entry_hash = await sha256Hex(
+    [previous_hash ?? '', ...auditHashFields.map((field) => row[field])].join(
+      '\n',
+    ),
+  );
+  return {
+    sequence,
+    table: 'audit_log',
+    key_json: JSON.stringify([id]),
+    operation: 'insert',
+    before_json: null,
+    after_json: JSON.stringify(row),
+    source_rowid: sequence,
+    files_before: [],
+    files_after: [],
+  };
+}
+
+it('verifies separate original audit branches without rewriting either hash chain or advancing an origin receipt', async () => {
+  const a = await receiveTransaction(
+    await transactionFixture([[await auditChange('1', 'first-audit')]]),
+  );
+  const b = await receiveTransaction(
+    await transactionFixture(
+      [[await auditChange('1', 'other-audit')]],
+      a.receipt,
+    ),
+  );
+  for (const f of [a, b]) {
+    expect(
+      await projectTransaction(f.actor, f.manifest.transaction_id),
+    ).toMatchObject({ state: 'projected', audit_entries: 1 });
+    expect(
+      db
+        .prepare(
+          "SELECT row_json FROM business_sync_versions WHERE transfer_id=? AND table_name='audit_log'",
+        )
+        .get(f.manifest.transaction_id),
+    ).toEqual({
+      row_json: JSON.parse(new TextDecoder().decode(f.chunks[0])).changes[0]
+        .after_json,
+    });
+  }
+  expect(count('business_sync_audit_branches')).toBe(0);
+  expect((await historyHead(a.actor)).head_revision).toBe(1);
+});
+
+it.each(['hash', 'parent', 'immutable'])(
+  'rejects an invalid audit %s without projecting unaudited row changes',
+  async (rule) => {
+    const audit = await auditChange(
+      '2',
+      'audit',
+      rule === 'parent' ? 'a'.repeat(64) : null,
+    );
+    if (rule === 'hash')
+      audit.after_json = audit.after_json!.replace(
+        'local_user',
+        'changed_user',
+      );
+    if (rule === 'immutable') {
+      audit.operation = 'delete';
+      audit.before_json = audit.after_json;
+      audit.after_json = null;
+    }
+    const f = await receiveTransaction(
+      await transactionFixture([[transactionInsert('1'), audit]]),
+    );
+    expect(
+      await projectTransaction(f.actor, f.manifest.transaction_id),
+    ).toMatchObject({
+      state: 'invalid',
+      failed_rule: `audit:${rule}`,
+      applied_changes: 0,
+      audit_entries: 0,
+    });
+    expect(
+      db
+        .prepare(
+          'SELECT count(*) n FROM business_sync_versions WHERE transfer_id=?',
+        )
+        .get(f.manifest.transaction_id),
+    ).toEqual({ n: 1 });
+  },
+);
 
 it('receives later transaction bytes idempotently without advancing the canonical history or rounding source sequences', async () => {
   const { manifest, chunks, actor } = await transactionFixture();
@@ -1225,6 +1794,39 @@ it('executes publication, counter reservation, second-device reads and bounded t
         .prepare('SELECT COUNT(*) n FROM business_sync_transaction_changes')
         .first('n'),
     ).toBe(201);
+    expect(
+      await projectTransaction(sent.actor, sent.manifest.transaction_id),
+    ).toMatchObject({
+      state: 'projected',
+      applied_changes: 201,
+      copied_rows: 1,
+      next_chunk: 2,
+      canonical_committed: false,
+    });
+    expect(
+      await d1
+        .prepare(
+          'SELECT count(*) n FROM business_sync_versions WHERE transfer_id=?',
+        )
+        .bind(sent.manifest.transaction_id)
+        .first('n'),
+    ).toBe(201);
+    expect(
+      await d1
+        .prepare(
+          "SELECT row_json FROM business_sync_versions WHERE transfer_id=? AND table_name='clients' AND row_key_json='[\"client-0\"]'",
+        )
+        .bind(sent.manifest.transaction_id)
+        .first('row_json'),
+    ).toBe(update.after_json);
+    expect(
+      await d1
+        .prepare(
+          "SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=? AND table_name='clients' AND row_key_json='[\"client-199\"]'",
+        )
+        .bind(sent.manifest.transaction_id)
+        .first('source_rowid'),
+    ).toBe('200');
     const duplicate = { ...sent.manifest, transaction_id: crypto.randomUUID() };
     await beginBusinessTransaction(sent.actor, JSON.stringify(duplicate));
     await expect(
@@ -1402,6 +2004,52 @@ it.skipIf(!process.env.ZENTRA_CANONICAL_QA)(
     }
     expect(receipt.audit_entries).toBe(1087);
     expect(receipt.last_audit_hash).toBe(integrity.last_audit_hash);
+    if (process.env.ZENTRA_TRANSACTION_QA) {
+      const folder = process.env.ZENTRA_TRANSACTION_QA;
+      const original: TransactionManifest = JSON.parse(
+        readFileSync(join(folder, 'manifest.json'), 'utf8'),
+      );
+      // Only rebind the QA transport to this newly published copy of the same
+      // native history. Original client/audit row bytes and hashes stay intact.
+      const manifest = {
+        ...original,
+        generation: receipt.generation,
+        bootstrap_transfer_id: receipt.transfer_id,
+      };
+      const actor = { ...second, installationId: original.installation_id };
+      const chunks = manifest.chunks.map(
+        (_, i) =>
+          new Uint8Array(
+            readFileSync(join(folder, `${String(i).padStart(4, '0')}.json`)),
+          ),
+      );
+      await receiveTransaction({ manifest, chunks, actor, receipt });
+      expect(
+        await projectTransaction(actor, manifest.transaction_id),
+      ).toMatchObject({
+        state: 'projected',
+        copied_rows: 1365,
+        applied_changes: 2,
+        audit_entries: 1,
+        financial_validated: false,
+        canonical_committed: false,
+      });
+      expect(
+        db
+          .prepare(
+            'SELECT count(*) n FROM business_sync_versions WHERE transfer_id=?',
+          )
+          .get(manifest.transaction_id),
+      ).toEqual({ n: 1367 });
+      expect(
+        db
+          .prepare(
+            "SELECT count(*) n FROM business_sync_versions WHERE transfer_id=? AND table_name='audit_log'",
+          )
+          .get(manifest.transaction_id),
+      ).toEqual({ n: 1088 });
+      expect((await historyHead(actor)).head_revision).toBe(1);
+    }
     for (const [i, bytes] of f.chunks.entries())
       expect((await historyChunk(second, f.id, String(i))).bytes).toEqual(
         bytes,

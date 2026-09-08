@@ -2,6 +2,20 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Contrôle des transactions reçues avant application
+
+Le serveur prépare désormais une copie de contrôle de la révision publiée, liée à l'entreprise, à l'appareil, au manifeste original et à une tentative unique. `GET/POST /api/sync/transactions/review` exige une session autorisée et des documents entièrement vérifiés. Cette copie ne devient jamais la révision officielle du seul fait que la projection a réussi.
+
+La copie progresse par pages de 200 lignes et 4 Mio au maximum. Les modifications avancent par groupes de 32, y compris à l'intérieur d'un fragment reçu ; le groupe et son curseur sont enregistrés dans la même transaction. Chaque image initiale est comparée à son empreinte actuelle avant modification. Un désaccord conserve les empreintes attendue, courante et proposée, ainsi que la position originale du changement. Il arrête la projection sans modifier l'historique publié. Une révision concurrente rend la tentative obsolète ; une erreur SQL annule le groupe et permet sa reprise.
+
+Les positions d'origine restent dans les fragments immuables. La copie de contrôle attribue un ordre partagé distinct, avec un compteur SQLite entier exact et non réutilisé après suppression. Les clés primaires entières partagées conservent leur valeur réelle. Les limites 64 bits et les valeurs supérieures à la précision JavaScript sont testées.
+
+Les nouveaux événements d'audit sont vérifiés sur leur branche d'appareil d'origine : empreinte, parent et interdiction de modifier une trace existante. Deux appareils peuvent conserver des branches distinctes à partir du même historique initial. Aucune empreinte n'est réécrite et aucun reçu de branche n'avance pendant ce contrôle. Leur lecture et leur conservation sur les appareils destinataires restent à réaliser.
+
+Validation : la suite complète passe avec 547 tests serveur ; les quatre cas supplémentaires de positions extrêmes et de reprise d'audit passent dans une dernière suite ciblée de 45 tests. Cette dernière inclut le moteur D1 réel, 201 changements en plusieurs fragments, les coupures et courses simultanées, ainsi que l'ajout natif d'un client et de son audit à l'historique natif de 1 365 lignes et 1 087 traces. Les octets des lignes restent identiques ; seules les références de transport du jeu d'essai sont rattachées à la nouvelle publication locale de ce même historique.
+
+**À terminer avant activation :** contrôles structurels, comptables et de transitions sur la copie résultante ; recalage d'une tentative obsolète et résolution des conflits ; application officielle et reçu atomiques ; réception native sans double capture ; numérotation et recette de deux appareils. La conservation des copies calculées doit être bornée et leur nettoyage défini avant la réplication continue. Le résultat `projected` conserve explicitement `financial_validated: false`, `canonical_committed: false` et `replication_active: false`. Schéma natif 60 non distribué ; aucune nouvelle version mobile ou installable dans cette étape.
+
 ## Publication initiale, réception et import dans un second profil
 
 La préparation actuelle ajoute une publication atomique explicite (`POST /api/sync/bootstrap/publish`). Elle lie le reçu de référence, les fichiers vérifiés et les bornes de numérotation au passage à la révision 1. Les conditions de rôle, d'appareil, de génération, de contrôles structurels/comptables/audit et de références de fichiers sont relues dans la même transaction D1. Une annulation gagnante ou une erreur d'écriture ne laisse ni historique publié ni compteurs partiellement activés. Une répétition rend le reçu initial inchangé ; l'abandon ne peut pas nettoyer un historique publié.

@@ -169,6 +169,58 @@ export const businessSyncTransactionParts = sqliteTable('business_sync_transacti
   objectKey: text('object_key').notNull(),
 }, table => [uniqueIndex('business_sync_transaction_part_identity').on(table.transactionId,table.partIndex)]);
 
+// Disposable candidate snapshots are pinned to a committed revision. They are
+// never authoritative merely because every transport fragment was received.
+export const businessSyncTransactionReviews = sqliteTable('business_sync_transaction_reviews', {
+  transferId:text('transfer_id').primaryKey().references(()=>businessSyncTransfers.transferId),
+  attempt:text('attempt').notNull(),
+  generation:text('generation').notNull(),
+  manifestSha256:text('manifest_sha256').notNull(),
+  validatorSha256:text('validator_sha256').notNull(),
+  sourceTransferId:text('source_transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  sourceRevision:integer('source_revision').notNull(),
+  state:text('state').notNull(),
+  lastTable:text('last_table').notNull().default(''),
+  lastKey:text('last_key').notNull().default(''),
+  copiedRows:integer('copied_rows').notNull().default(0),
+  copiedBytes:integer('copied_bytes').notNull().default(0),
+  nextChunk:integer('next_chunk').notNull().default(0),
+  appliedChanges:integer('applied_changes').notNull().default(0),
+  baseAuditHash:text('base_audit_hash'),
+  lastAuditHash:text('last_audit_hash'),
+  auditEntries:integer('audit_entries').notNull().default(0),
+  failedRule:text('failed_rule'),
+  updatedAt:text('updated_at').notNull(),
+});
+export const businessSyncTransactionConflicts=sqliteTable('business_sync_transaction_conflicts',{
+  transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  attempt:text('attempt').notNull(),
+  tableName:text('table_name').notNull(),
+  rowKeyJson:text('row_key_json').notNull(),
+  partIndex:integer('part_index').notNull(),
+  changeIndex:integer('change_index').notNull(),
+  expectedSha256:text('expected_sha256'),
+  currentSha256:text('current_sha256'),
+  incomingSha256:text('incoming_sha256'),
+  reason:text('reason').notNull(),
+},table=>[uniqueIndex('business_sync_transaction_conflict_identity').on(table.transferId,table.attempt,table.tableName,table.rowKeyJson)]);
+export const businessSyncCandidateOrder=sqliteTable('business_sync_candidate_order',{
+  transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  tableName:text('table_name').notNull(),
+  lastValue:integer('last_value').notNull(),
+},table=>[uniqueIndex('business_sync_candidate_order_identity').on(table.transferId,table.tableName)]);
+// Original device chains remain distinct, even when they share the bootstrap
+// audit anchor. Only canonical commitment may advance a branch's last hash.
+export const businessSyncAuditBranches=sqliteTable('business_sync_audit_branches',{
+  organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+  generation:text('generation').notNull(),
+  installationId:text('installation_id').notNull(),
+  captureGeneration:text('capture_generation').notNull(),
+  lastHash:text('last_hash'),
+  lastSequence:text('last_sequence').notNull(),
+  revision:integer('revision').notNull(),
+},table=>[uniqueIndex('business_sync_audit_branch_identity').on(table.organizationId,table.generation,table.installationId,table.captureGeneration)]);
+
 // Images remain in the original bounded R2 chunks. Only conflict/order/file
 // metadata lives here; a pair of 1 MiB images must not exceed a D1 row limit.
 export const businessSyncTransactionChanges = sqliteTable('business_sync_transaction_changes', {

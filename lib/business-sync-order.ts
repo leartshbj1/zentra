@@ -11,6 +11,15 @@ const aliases = new Map(
       : [];
   }),
 );
+export function sharedRowid(
+  table: string,
+  image: Record<string, unknown>,
+): string | null {
+  const alias = aliases.get(table);
+  return alias && Object.hasOwn(image, alias)
+    ? sourceRowid(String(image[alias]), table, image)
+    : null;
+}
 // Store rowids as canonical decimal strings: SQLite signed 64-bit integers need
 // not fit in a JavaScript Number. Their exact source values matter to exports
 // and event replay, including negative legacy rowids and retained sequence gaps.

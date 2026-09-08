@@ -1,5 +1,9 @@
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
+import {
+  auditHashFields as hashFields,
+  verifiedAuditNode,
+} from './business-sync-audit';
 import { accountingRules } from './business-sync-accounting';
 import { financialRules } from './business-sync-financial';
 import { postingRules } from './business-sync-postings';
@@ -33,15 +37,6 @@ export const bootstrapAccountingRules = [
 ];
 export const AUDIT_BYTES_PER_PASS = 4 * 1024 * 1024;
 export const AUDIT_WALK_PER_PASS = 1000;
-const hashFields = [
-  'id',
-  'occurred_at',
-  'actor',
-  'action',
-  'entity_type',
-  'entity_id',
-  'payload_json',
-] as const;
 const nodesScope = 'transfer_id=?1 AND validator_sha256=?2';
 const graphRules = [
   {
@@ -305,17 +300,8 @@ async function indexAudit(ctx: Context, row: Progress) {
   const nodes: AuditNode[] = [];
   for (const item of result.results ?? []) {
     const data = JSON.parse(item.row_json) as Record<string, unknown>;
-    if (
-      hashFields.some((field) => typeof data[field] !== 'string') ||
-      !isHash(data.entry_hash) ||
-      !(data.previous_hash === null || isHash(data.previous_hash)) ||
-      (await sha256Hex(
-        [
-          data.previous_hash ?? '',
-          ...hashFields.map((field) => data[field]),
-        ].join('\n'),
-      )) !== data.entry_hash
-    )
+    const node = await verifiedAuditNode(data);
+    if (!node)
       return save(ctx, row, {
         ...row,
         state: 'invalid',
@@ -323,8 +309,7 @@ async function indexAudit(ctx: Context, row: Progress) {
       });
     nodes.push({
       row_key: item.row_key_json,
-      entry_hash: data.entry_hash,
-      previous_hash: data.previous_hash as string | null,
+      ...node,
     });
   }
   if (nodes.length !== limit)

@@ -1,6 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import { expect, it } from 'vitest';
-import { sourceRowid, sourceAuditOrderSql } from './business-sync-order';
+import {
+  sourceRowid,
+  sharedRowid,
+  sourceAuditOrderSql,
+} from './business-sync-order';
 
 it('preserves signed SQLite order without Number rounding and verifies integer aliases', () => {
   for (const value of [
@@ -27,6 +31,9 @@ it('preserves signed SQLite order without Number rounding and verifies integer a
   expect(sourceRowid('1', 'settings', { id: 1 })).toBe('1');
   expect(() => sourceRowid('2', 'settings', { id: 1 })).toThrow();
   expect(sourceRowid('41', 'stock_movements', { id: 'movement' })).toBe('41');
+  expect(sharedRowid('settings', { id: 1 })).toBe('1');
+  expect(sharedRowid('clients', { id: 'client' })).toBeNull();
+  expect(sharedRowid('stock_movements', { id: 'movement' })).toBeNull();
 });
 it('rejects an inverted audit order, including exact positions larger than the JS integer limit', () => {
   const db = new DatabaseSync(':memory:');
