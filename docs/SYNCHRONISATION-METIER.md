@@ -162,6 +162,18 @@ L'extension est publiée dans la **version 79 du site**, source `e4ea4c39ef38282
 
 Le transfert `34e35ef6-078c-44ea-bd80-4c8457ec97e8` est ensuite abandonné, sa session révoquée et les onze tables temporaires vérifiées vides dans D1, sans pagination résiduelle. Le compte affiche zéro appareil actif et les métadonnées d'annulation sont conservées. Les méthodes anonymes GET et POST répondent 401 sans mise en cache. La recette utilise toujours un seul ordinateur physique, le schéma 60 reste non distribué et le partage métier complet reste inactif. Les rapprochements sémantiques de toutes les écritures avec leurs pièces, la TVA sur encaissements, les fournisseurs, la paie et les stocks restent à compléter avant toute publication d'une base partagée.
 
+## Liaisons entre pièces et écritures comptables
+
+Le vérificateur initial comporte maintenant 35 règles comptables et financières. Les nouvelles règles contrôlent le graphe des extournes, leurs dates et leurs lignes inversées, en conservant les doublons de lignes et les dimensions client/projet/collaborateur. Une branche multiple ou une composante cyclique inaccessible est refusée. L'état effectif d'une écriture dépend de la parité de ses extournes, pas de l'ordre des identifiants ni d'un simple indicateur d'annulation.
+
+Les écritures effectives des factures, avoirs, paiements, dépenses, factures et règlements fournisseurs sont comparées aux pièces sources : identifiant, événement, date, montant, devise, sens et nature des comptes. Les encaissements et avoirs reprennent le compte de créance historique de la facture ; les règlements fournisseurs reprennent sa dette historique. Les écritures de salaires contrôlent le brut, le net dû, les frais remboursés, les charges patronales et la liaison du paiement bancaire. Les réglages actuels des comptes ne remplacent pas les preuves historiques.
+
+Les pièces courantes doivent avoir leur écriture effective lorsque la comptabilité est activée. Le contrôle conserve les factures émises sans comptabilité et les anciennes pièces sans écriture appartenant à une période clôturée : il ne fabrique ni écriture ni reprise d'ouverture. Une écriture présente puis annulée doit néanmoins être rétablie pour une pièce active. Une facture annulée ne peut garder une écriture effective ; le solde final entièrement déduit d'un dossier acompte/solde reste exempt d'écriture nulle.
+
+Les recherches de parents et de pièces portent sur des projections matérialisées propres au transfert. Un essai de 65 000 écritures vérifie le parcours indexé et la détection d'un cycle détaché. Un second essai couvre 3 000 factures et leurs paiements, puis détecte un écart dans la dernière pièce. La projection du profil TVA évite une relecture de toutes les lignes à chaque facture ; le scénario de volume passe en moins d'une seconde en local après cette correction. Ce temps n'est pas une mesure de latence HTTPS.
+
+La recette native ajoute une écriture manuelle de 100 CHF et ses deux extournes à la facture de 1 000 CHF et à son paiement de 300 CHF. Elle produit cinq écritures, deux liens d'extourne, dix lignes comptables et 1 600 CHF de débit et de crédit cumulés. La preuve HTTPS de cette extension reste à obtenir après publication. Les mouvements spécifiques de TVA sur encaissements, les règlements et reprises détaillés d'avoirs, les corrections d'achats, le détail des cotisations et les stocks demandent encore leurs contrôles avant publication atomique de la base et réplication entre appareils.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

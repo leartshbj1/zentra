@@ -23,6 +23,17 @@ pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
         reference: None,
         notes: Some("Versement fictif de recette".into()),
     })?;
+    let (bank, receivable): (String, String) = store.connect()?.query_row(
+        "SELECT bank_account_id,ar_account_id FROM accounting_settings WHERE id=1",
+        [], |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let manual = store.post_manual_journal_entry(serde_json::from_value(json!({
+        "entry_date":"2026-09-08", "description":"Écriture manuelle fictive et ses deux extournes", "currency":"CHF",
+        "lines":[{"account_id":bank,"debit_cents":10000,"credit_cents":0}, {"account_id":receivable,"debit_cents":0,"credit_cents":10000}]
+    }))?)?;
+    let reversed = store.reverse_journal_entry(manual["id"].as_str().ok_or_else(|| invalid("Manual journal missing"))?, "2026-09-08", None)?;
+    store.reverse_journal_entry(reversed["id"].as_str().ok_or_else(|| invalid("Reversal journal missing"))?, "2026-09-08", None)?;
+    println!("QA_POSTINGS_FIXTURE entries=5 reversals=2 invoice=100000 payment=30000 manual=10000");
     let mut connection = store.connect()?;
     let tx = connection.transaction()?;
     for index in 0..1005 {
@@ -148,21 +159,21 @@ fn native_integrity_fixture_contains_real_postings_and_a_long_valid_chain() {
             .query_row("SELECT COUNT(*) FROM journal_entries", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        2
+        5
     );
     assert_eq!(
         connection
             .query_row("SELECT SUM(debit_cents) FROM journal_lines", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        130000
+        160000
     );
     assert_eq!(
         connection
             .query_row("SELECT SUM(credit_cents) FROM journal_lines", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        130000
+        160000
     );
     assert!(
         crate::audit::verify_audit_chain(&connection).unwrap()["entries"]
