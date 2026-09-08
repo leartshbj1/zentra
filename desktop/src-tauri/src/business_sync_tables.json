@@ -1,0 +1,2156 @@
+{
+  "version": 1,
+  "tables": {
+    "accounting_periods": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "name",
+        "date_from",
+        "date_to",
+        "status",
+        "closed_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "accounting_settings": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "enabled",
+        "ar_account_id",
+        "revenue_account_id",
+        "vat_payable_account_id",
+        "vat_deferred_payable_account_id",
+        "bank_account_id",
+        "expense_account_id",
+        "vat_receivable_account_id",
+        "wages_expense_account_id",
+        "wages_payable_account_id",
+        "social_expense_account_id",
+        "social_payable_account_id",
+        "supplier_payable_account_id",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "accounts": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "code",
+        "name",
+        "account_type",
+        "normal_balance",
+        "report_section",
+        "active",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "agenda_events": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "title",
+        "start_date",
+        "end_date",
+        "all_day",
+        "start_time",
+        "end_time",
+        "kind",
+        "status",
+        "location",
+        "notes",
+        "project_id",
+        "employee_id",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "attachments": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "project_id",
+        "entity_type",
+        "entity_id",
+        "original_name",
+        "stored_name",
+        "mime_type",
+        "size_bytes",
+        "sha256",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "audit_log": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "occurred_at",
+        "actor",
+        "action",
+        "entity_type",
+        "entity_id",
+        "payload_json",
+        "previous_hash",
+        "entry_hash"
+      ],
+      "local_columns": []
+    },
+    "bank_account_links": {
+      "key": [
+        "account_id"
+      ],
+      "columns": [
+        "account_id",
+        "currency",
+        "active",
+        "confirmed_at",
+        "revoked_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "bank_customer_credit_refund_matches": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "movement_id",
+        "refund_id",
+        "date_difference_reason",
+        "source_json",
+        "confirmed_at"
+      ],
+      "local_columns": []
+    },
+    "bank_customer_credit_refund_requests": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_json",
+        "refund_id",
+        "match_id",
+        "attachment_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_customer_credit_refund_unlinks": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "match_id",
+        "reason",
+        "unlinked_at"
+      ],
+      "local_columns": []
+    },
+    "bank_expense_creation_requests": {
+      "key": [
+        "request_id"
+      ],
+      "columns": [
+        "request_id",
+        "payload_sha256",
+        "reconciliation_id",
+        "attachment_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_expense_reconciliation_registry": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_expense_reconciliations": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "movement_id",
+        "expense_id",
+        "journal_entry_id",
+        "amount_cents",
+        "date_difference_reason",
+        "confirmed_at"
+      ],
+      "local_columns": []
+    },
+    "bank_expense_refund_matches": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "movement_id",
+        "refund_id",
+        "date_difference_reason",
+        "confirmed_at"
+      ],
+      "local_columns": []
+    },
+    "bank_expense_refund_unlinks": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "match_id",
+        "reason",
+        "unlinked_at"
+      ],
+      "local_columns": []
+    },
+    "bank_expense_unreconciliations": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "movement_id",
+        "expense_id",
+        "journal_entry_id",
+        "amount_cents",
+        "date_difference_reason",
+        "confirmed_at",
+        "reason",
+        "unlinked_at"
+      ],
+      "local_columns": []
+    },
+    "bank_imports": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "source_name",
+        "file_sha256",
+        "file_size",
+        "message_type",
+        "namespace_version",
+        "account_id",
+        "account_currency",
+        "entry_count",
+        "imported_count",
+        "ignored_count",
+        "warnings_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_movement_keys": {
+      "key": [
+        "strong_key"
+      ],
+      "columns": [
+        "strong_key",
+        "movement_id",
+        "account_id",
+        "reference_level",
+        "account_servicer_ref",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_movements": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "import_id",
+        "booked_import_id",
+        "entry_sequence",
+        "account_id",
+        "account_currency",
+        "amount_cents",
+        "currency",
+        "credit_debit",
+        "status",
+        "reversal",
+        "booking_date",
+        "value_date",
+        "account_servicer_ref",
+        "reference_level",
+        "end_to_end_id",
+        "transaction_id",
+        "reference_type",
+        "reference",
+        "unstructured",
+        "counterparty_name",
+        "counterparty_iban",
+        "strong_key",
+        "details_json",
+        "created_at",
+        "enriched_at"
+      ],
+      "local_columns": []
+    },
+    "bank_reconciliations": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "movement_id",
+        "invoice_id",
+        "payment_id",
+        "amount_cents",
+        "confirmed_at",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_supplier_credit_refund_matches": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "movement_id",
+        "refund_id",
+        "date_difference_reason",
+        "confirmed_at"
+      ],
+      "local_columns": []
+    },
+    "bank_supplier_credit_refund_requests": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_json",
+        "refund_id",
+        "match_id",
+        "attachment_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "bank_supplier_credit_refund_unlinks": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "match_id",
+        "reason",
+        "unlinked_at"
+      ],
+      "local_columns": []
+    },
+    "bank_supplier_reconciliations": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "movement_id",
+        "supplier_invoice_id",
+        "supplier_payment_id",
+        "amount_cents",
+        "confirmed_at",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "catalog_items": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "kind",
+        "sku",
+        "name",
+        "description",
+        "unit",
+        "sales_price_cents",
+        "purchase_cost_cents",
+        "vat_bp",
+        "track_stock",
+        "stock_quantity_milli",
+        "reorder_level_milli",
+        "archived_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "clients": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "name",
+        "company",
+        "contact_person",
+        "email",
+        "phone",
+        "address_line1",
+        "address_line2",
+        "postal_code",
+        "city",
+        "canton",
+        "country",
+        "notes",
+        "archived_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "closing_package_exports": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "accounting_period_id",
+        "closing_review_id",
+        "package_status",
+        "source_sha256",
+        "manifest_sha256",
+        "file_name",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "closing_reviews": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "accounting_period_id",
+        "status",
+        "source_sha256",
+        "checks_json",
+        "report_json",
+        "created_at",
+        "consumed_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "company_brand_assets": {
+      "key": [
+        "sha256"
+      ],
+      "columns": [
+        "sha256",
+        "file_name",
+        "media_type",
+        "byte_size",
+        "width",
+        "height",
+        "created_at",
+        "last_verified_at"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_documents": {
+      "key": [
+        "credit_note_id"
+      ],
+      "columns": [
+        "credit_note_id",
+        "model",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_recoveries": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "original_invoice_id",
+        "request_json",
+        "source_json",
+        "result_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_recovery_postings": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "recovery_id",
+        "original_invoice_id",
+        "source_type",
+        "source_id",
+        "date",
+        "source_json",
+        "parts_json",
+        "expected_vat_cents",
+        "due_change_cents",
+        "journal_entry_id",
+        "snapshot_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_recovery_tax_models": {
+      "key": [
+        "original_invoice_id"
+      ],
+      "columns": [
+        "original_invoice_id",
+        "recovery_id",
+        "model",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_settlement_lines": {
+      "key": [
+        "settlement_id",
+        "side",
+        "invoice_item_id"
+      ],
+      "columns": [
+        "settlement_id",
+        "side",
+        "invoice_item_id",
+        "gross_cents",
+        "vat_cents"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_settlement_postings": {
+      "key": [
+        "settlement_id"
+      ],
+      "columns": [
+        "settlement_id",
+        "journal_entry_id",
+        "snapshot_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "customer_credit_settlements": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "request_json",
+        "credit_note_id",
+        "event_type",
+        "reverses_id",
+        "invoice_id",
+        "date",
+        "amount_cents",
+        "reference",
+        "reason",
+        "bank_account_id",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "delivery_note_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "delivery_note_id",
+        "sales_order_line_id",
+        "position",
+        "quantity_milli",
+        "description",
+        "unit",
+        "stock_movement_id",
+        "reversal_stock_movement_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "delivery_notes": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "sales_order_id",
+        "number",
+        "status",
+        "delivery_date",
+        "reference",
+        "notes",
+        "snapshot_json",
+        "issued_at",
+        "reversed_at",
+        "reversal_reason",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "employee_payroll_templates": {
+      "key": [
+        "employee_id"
+      ],
+      "columns": [
+        "employee_id",
+        "salary_mode",
+        "base_salary_cents",
+        "recurring_earnings_json",
+        "suggested_contribution_codes_json",
+        "source_import_id",
+        "reviewed_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "employee_small_salary_decisions": {
+      "key": [
+        "employee_id",
+        "assessment_year",
+        "revision"
+      ],
+      "columns": [
+        "employee_id",
+        "assessment_year",
+        "revision",
+        "revision_kind",
+        "decision_date",
+        "sector",
+        "employee_requested_contributions",
+        "opening_gross_cents",
+        "opening_contributed_basis_cents",
+        "evidence_reference",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "employees": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "employee_number",
+        "name",
+        "role",
+        "email",
+        "phone",
+        "address_line1",
+        "address_line2",
+        "postal_code",
+        "city",
+        "canton",
+        "country",
+        "birth_date",
+        "social_security_number",
+        "iban",
+        "employment_start_date",
+        "employment_end_date",
+        "employment_contract_kind",
+        "reference_age_date",
+        "avs_allowance_waived",
+        "contractual_weekly_minutes",
+        "ac_opening_year",
+        "ac_opening_basis_cents",
+        "laa_opening_year",
+        "laa_opening_basis_cents",
+        "small_salary_assessment_year",
+        "small_salary_decision_date",
+        "small_salary_sector",
+        "small_salary_employee_requested_contributions",
+        "small_salary_opening_gross_cents",
+        "small_salary_opening_contributed_basis_cents",
+        "small_salary_evidence_reference",
+        "lpp_assessment_year",
+        "lpp_annual_salary_cents",
+        "lpp_exception_code",
+        "lpp_exception_evidence_reference",
+        "employment_rate",
+        "hourly_rate_cents",
+        "monthly_salary_cents",
+        "status",
+        "notes",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "expense_refunds": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "request_json",
+        "expense_id",
+        "event_type",
+        "reverses_id",
+        "credit_date",
+        "payment_date",
+        "reference",
+        "reason",
+        "net_cents",
+        "vat_cents",
+        "total_cents",
+        "cost_cents",
+        "treatment",
+        "expense_account_id",
+        "vat_account_id",
+        "bank_account_id",
+        "clearing_account_id",
+        "credit_journal_id",
+        "payment_journal_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "expenses": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "project_id",
+        "supplier_id",
+        "date",
+        "due_date",
+        "supplier",
+        "category",
+        "reference",
+        "currency",
+        "net_cents",
+        "vat_cents",
+        "total_cents",
+        "payment_status",
+        "paid_at",
+        "reimbursable",
+        "note",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "invoice_correction_workflows": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "original_invoice_id",
+        "credit_note_id",
+        "replacement_invoice_id",
+        "reason",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "invoice_items": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "invoice_id",
+        "catalog_item_id",
+        "position",
+        "description",
+        "quantity",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+        "line_net_cents",
+        "line_vat_cents",
+        "line_total_cents",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "invoice_qr_bills": {
+      "key": [
+        "invoice_id"
+      ],
+      "columns": [
+        "invoice_id",
+        "input_json",
+        "payload",
+        "reference_type",
+        "is_qr_iban",
+        "character_count",
+        "byte_count",
+        "frozen_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "invoices": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "client_id",
+        "project_id",
+        "quote_id",
+        "original_invoice_id",
+        "number",
+        "title",
+        "type",
+        "status",
+        "issue_date",
+        "due_date",
+        "service_date_from",
+        "service_date_to",
+        "currency",
+        "subtotal_cents",
+        "discount_cents",
+        "vat_cents",
+        "total_cents",
+        "paid_cents",
+        "notes",
+        "terms",
+        "snapshot_json",
+        "created_at",
+        "updated_at",
+        "deposit_percentage_bp",
+        "deposit_basis_json"
+      ],
+      "local_columns": []
+    },
+    "journal_entries": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "number",
+        "entry_date",
+        "description",
+        "source_type",
+        "source_id",
+        "source_event",
+        "status",
+        "reversal_of",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "journal_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "journal_entry_id",
+        "account_id",
+        "debit_cents",
+        "credit_cents",
+        "currency",
+        "memo",
+        "project_id",
+        "client_id",
+        "employee_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "payments": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "invoice_id",
+        "date",
+        "amount_cents",
+        "method",
+        "reference",
+        "notes",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "payroll_contribution_definitions": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "code",
+        "label",
+        "category",
+        "side",
+        "calculation_kind",
+        "rate_bp",
+        "fixed_amount_cents",
+        "annual_ceiling_cents",
+        "basis_kind",
+        "lpp_component",
+        "lpp_employee_id",
+        "source",
+        "effective_from",
+        "effective_to",
+        "active",
+        "liability_account_id",
+        "expense_account_id",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "payroll_document_imports": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "source_name",
+        "stored_path",
+        "file_sha256",
+        "media_kind",
+        "file_size",
+        "page_count",
+        "extraction_engine",
+        "engine_version",
+        "extracted_text",
+        "draft_json",
+        "analysis_manifest_json",
+        "confidence_bp",
+        "status",
+        "error_message",
+        "employee_id",
+        "payslip_id",
+        "reviewed_at",
+        "human_review_attestation_version",
+        "human_review_attested_at",
+        "confirmation_evidence_sha256",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "payslip_contributions": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "payslip_id",
+        "definition_id",
+        "payslip_item_id",
+        "label",
+        "category",
+        "side",
+        "calculation_kind",
+        "basis_kind",
+        "basis_cents",
+        "year_to_date_basis_cents",
+        "rate_bp",
+        "fixed_amount_cents",
+        "annual_ceiling_cents",
+        "amount_cents",
+        "lpp_component",
+        "lpp_employee_id",
+        "source",
+        "effective_from",
+        "effective_to",
+        "liability_account_id",
+        "expense_account_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "payslip_items": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "payslip_id",
+        "position",
+        "label",
+        "kind",
+        "amount_cents",
+        "posting_account_id",
+        "expense_account_id",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "payslip_small_salary_assessments": {
+      "key": [
+        "payslip_id"
+      ],
+      "columns": [
+        "payslip_id",
+        "employee_id",
+        "assessment_year",
+        "decision_revision",
+        "decision_date",
+        "sector",
+        "employee_requested_contributions",
+        "threshold_cents",
+        "opening_gross_cents",
+        "opening_contributed_basis_cents",
+        "prior_gross_cents",
+        "prior_contributed_basis_cents",
+        "current_gross_cents",
+        "cumulative_gross_cents",
+        "contributions_due",
+        "statutory_contribution_basis_cents",
+        "statutory_catchup_basis_cents",
+        "reason_code",
+        "evidence_reference",
+        "assessment_json",
+        "assessment_sha256",
+        "source_reference",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "payslips": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "employee_id",
+        "period",
+        "status",
+        "gross_cents",
+        "deductions_cents",
+        "net_cents",
+        "employer_costs_cents",
+        "payment_date",
+        "payment_reference",
+        "payment_journal_entry_id",
+        "notes",
+        "snapshot_json",
+        "source_payroll_import_id",
+        "source_import_evidence_json",
+        "source_import_evidence_sha256",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "project_milestones": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "project_id",
+        "title",
+        "description",
+        "due_date",
+        "status",
+        "priority",
+        "sort_order",
+        "employee_id",
+        "completed_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "project_tasks": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "project_id",
+        "milestone_id",
+        "title",
+        "description",
+        "due_date",
+        "status",
+        "priority",
+        "sort_order",
+        "employee_id",
+        "completed_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "projects": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "client_id",
+        "code",
+        "name",
+        "address_line1",
+        "address_line2",
+        "postal_code",
+        "city",
+        "canton",
+        "status",
+        "planned_start_date",
+        "planned_end_date",
+        "actual_start_date",
+        "actual_end_date",
+        "budget_cents",
+        "planned_minutes",
+        "progress",
+        "description",
+        "notes",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "quote_conversions": {
+      "key": [
+        "quote_id"
+      ],
+      "columns": [
+        "quote_id",
+        "invoice_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "quote_invoice_pairs": {
+      "key": [
+        "quote_id"
+      ],
+      "columns": [
+        "quote_id",
+        "deposit_invoice_id",
+        "balance_invoice_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "quote_items": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "quote_id",
+        "catalog_item_id",
+        "position",
+        "description",
+        "quantity",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+        "line_net_cents",
+        "line_vat_cents",
+        "line_total_cents",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "quotes": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "client_id",
+        "project_id",
+        "number",
+        "title",
+        "status",
+        "issue_date",
+        "valid_until",
+        "currency",
+        "subtotal_cents",
+        "discount_cents",
+        "vat_cents",
+        "total_cents",
+        "notes",
+        "terms",
+        "snapshot_json",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "recurrence_occurrences": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "schedule_id",
+        "scheduled_for",
+        "invoice_id",
+        "status",
+        "message",
+        "request_id",
+        "payload_sha256",
+        "source_snapshot_sha256",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "recurrence_operation_requests": {
+      "key": [
+        "request_id"
+      ],
+      "columns": [
+        "request_id",
+        "operation",
+        "payload_sha256",
+        "payload_json",
+        "response_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "recurrence_schedules": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "source_sales_order_id",
+        "frequency",
+        "anchor_date",
+        "anchor_day",
+        "anchor_is_month_end",
+        "payment_terms_days",
+        "next_scheduled_for",
+        "end_date",
+        "status",
+        "review_reason",
+        "source_order_snapshot_sha256",
+        "source_snapshot_sha256",
+        "source_snapshot_json",
+        "completed_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "reminder_deliveries": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "reminder_id",
+        "action",
+        "prepared_on",
+        "recipient_email",
+        "current_balance_cents",
+        "payment_deadline_date",
+        "subject",
+        "body",
+        "payload_sha256",
+        "payload_json",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "reminder_history": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "reminder_id",
+        "action",
+        "occurred_at",
+        "note"
+      ],
+      "local_columns": []
+    },
+    "reminder_operation_requests": {
+      "key": [
+        "request_id"
+      ],
+      "columns": [
+        "request_id",
+        "operation",
+        "payload_sha256",
+        "payload_json",
+        "response_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "reminder_settings": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "enabled",
+        "sender_name",
+        "created_at",
+        "updated_at",
+        "last_scan_at"
+      ],
+      "local_columns": []
+    },
+    "reminder_templates": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "level",
+        "name",
+        "subject",
+        "body",
+        "days_after_due",
+        "active",
+        "created_at",
+        "updated_at",
+        "payment_deadline_days"
+      ],
+      "local_columns": []
+    },
+    "reminders": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "invoice_id",
+        "template_id",
+        "level",
+        "scheduled_date",
+        "status",
+        "subject",
+        "body",
+        "invoice_number",
+        "currency",
+        "invoice_total_cents",
+        "balance_cents",
+        "snapshot_json",
+        "notes",
+        "created_at",
+        "updated_at",
+        "payment_deadline_days"
+      ],
+      "local_columns": []
+    },
+    "sales_operation_requests": {
+      "key": [
+        "request_id"
+      ],
+      "columns": [
+        "request_id",
+        "operation",
+        "payload_sha256",
+        "result_entity_type",
+        "result_entity_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "sales_order_cancellation_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "sales_order_id",
+        "sales_order_line_id",
+        "quantity_milli",
+        "reason",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "sales_order_invoice_allocations": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "batch_id",
+        "sales_order_line_id",
+        "delivery_note_line_id",
+        "invoice_item_id",
+        "quantity_milli",
+        "gross_cents",
+        "net_cents",
+        "vat_cents",
+        "total_cents",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "sales_order_invoice_batches": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "sales_order_id",
+        "invoice_id",
+        "role",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "sales_order_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "sales_order_id",
+        "quote_item_id",
+        "catalog_item_id",
+        "position",
+        "description",
+        "quantity_milli",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+        "line_net_cents",
+        "line_vat_cents",
+        "line_total_cents",
+        "fulfillment_mode",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "sales_orders": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "client_id",
+        "project_id",
+        "quote_id",
+        "number",
+        "title",
+        "status",
+        "order_date",
+        "currency",
+        "subtotal_cents",
+        "discount_cents",
+        "vat_cents",
+        "total_cents",
+        "notes",
+        "terms",
+        "snapshot_json",
+        "confirmed_at",
+        "closed_at",
+        "cancelled_at",
+        "cancellation_reason",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "settings": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "onboarding_completed",
+        "company_name",
+        "legal_form",
+        "owner_name",
+        "email",
+        "phone",
+        "address_line1",
+        "address_line2",
+        "postal_code",
+        "city",
+        "canton",
+        "country",
+        "noga_section",
+        "noga_division",
+        "activity_description",
+        "noga_detailed_code",
+        "uid_number",
+        "vat_number",
+        "vat_registered",
+        "default_vat_bp",
+        "iban",
+        "bank_name",
+        "currency",
+        "quote_prefix",
+        "invoice_prefix",
+        "credit_note_prefix",
+        "quote_start_number",
+        "invoice_start_number",
+        "credit_note_start_number",
+        "payment_terms_days",
+        "quote_validity_days",
+        "default_hourly_rate_cents",
+        "logo_path",
+        "extra_settings_json",
+        "created_at",
+        "updated_at",
+        "sales_order_prefix",
+        "delivery_note_prefix",
+        "sales_order_start_number",
+        "delivery_note_start_number",
+        "supplier_order_prefix",
+        "supplier_receipt_prefix",
+        "supplier_credit_prefix",
+        "supplier_order_start_number",
+        "supplier_receipt_start_number",
+        "supplier_credit_start_number"
+      ],
+      "local_columns": []
+    },
+    "stock_movements": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "source_key",
+        "request_id",
+        "request_sha256",
+        "request_json",
+        "catalog_item_id",
+        "movement_type",
+        "quantity_delta_milli",
+        "balance_after_milli",
+        "reason",
+        "reference",
+        "movement_date",
+        "source_type",
+        "invoice_id",
+        "invoice_item_id",
+        "delivery_note_id",
+        "delivery_note_line_id",
+        "supplier_receipt_id",
+        "supplier_receipt_line_id",
+        "reverses_stock_movement_id",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "stock_reservation_events": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "catalog_item_id",
+        "sales_order_id",
+        "sales_order_line_id",
+        "delivery_note_line_id",
+        "event_type",
+        "quantity_delta_milli",
+        "line_reserved_after_milli",
+        "catalog_reserved_after_milli",
+        "reason",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "supplier_credit_allocations": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "supplier_credit_note_id",
+        "supplier_invoice_id",
+        "event_type",
+        "amount_cents",
+        "reverses_allocation_id",
+        "reason",
+        "created_at",
+        "effective_date"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "supplier_credit_note_items": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_credit_note_id",
+        "position",
+        "description",
+        "quantity_milli",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+        "line_net_cents",
+        "line_vat_cents",
+        "line_total_cents",
+        "category",
+        "expense_account_id",
+        "project_id",
+        "created_at",
+        "updated_at",
+        "posted_expense_account_id"
+      ],
+      "local_columns": []
+    },
+    "supplier_credit_notes": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_id",
+        "number",
+        "status",
+        "document_date",
+        "supplier_name",
+        "reference",
+        "reference_normalized",
+        "currency",
+        "net_cents",
+        "vat_cents",
+        "total_cents",
+        "note",
+        "snapshot_json",
+        "validation_journal_entry_id",
+        "validated_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_credit_refunds": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "request_json",
+        "supplier_credit_note_id",
+        "event_type",
+        "reverses_id",
+        "date",
+        "amount_cents",
+        "reference",
+        "reason",
+        "bank_account_id",
+        "payable_account_id",
+        "journal_entry_id",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "supplier_email_invoice_imports": {
+      "key": [
+        "supplier_invoice_id"
+      ],
+      "columns": [
+        "supplier_invoice_id",
+        "source_sha256",
+        "source_message_id",
+        "source_file_name",
+        "attachment_sha256",
+        "attachment_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_expense_reclassification_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "reclassification_id",
+        "supplier_invoice_item_id",
+        "old_expense_account_id",
+        "new_expense_account_id",
+        "amount_cents",
+        "project_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_expense_reclassifications": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "supplier_invoice_id",
+        "effective_date",
+        "reason",
+        "journal_entry_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_invoice_items": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_invoice_id",
+        "position",
+        "description",
+        "quantity_milli",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+        "line_net_cents",
+        "line_vat_cents",
+        "line_total_cents",
+        "category",
+        "expense_account_id",
+        "project_id",
+        "created_at",
+        "updated_at",
+        "posted_expense_account_id"
+      ],
+      "local_columns": []
+    },
+    "supplier_invoice_matches": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "supplier_invoice_id",
+        "supplier_invoice_item_id",
+        "supplier_order_id",
+        "supplier_order_line_id",
+        "supplier_receipt_line_id",
+        "quantity_milli",
+        "net_cents",
+        "vat_cents",
+        "total_cents",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_invoices": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_id",
+        "project_id",
+        "document_date",
+        "due_date",
+        "supplier_name",
+        "reference",
+        "reference_normalized",
+        "currency",
+        "status",
+        "net_cents",
+        "vat_cents",
+        "total_cents",
+        "paid_cents",
+        "validated_at",
+        "validation_journal_entry_id",
+        "snapshot_json",
+        "note",
+        "created_at",
+        "updated_at",
+        "credited_cents"
+      ],
+      "local_columns": []
+    },
+    "supplier_operation_requests": {
+      "key": [
+        "request_id"
+      ],
+      "columns": [
+        "request_id",
+        "operation",
+        "payload_sha256",
+        "payload_json",
+        "result_entity_type",
+        "result_entity_id",
+        "response_json",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_order_cancellation_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "supplier_order_id",
+        "supplier_order_line_id",
+        "quantity_milli",
+        "reason",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_order_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_order_id",
+        "catalog_item_id",
+        "position",
+        "description",
+        "quantity_milli",
+        "unit",
+        "unit_price_cents",
+        "discount_bp",
+        "vat_bp",
+        "line_net_cents",
+        "line_vat_cents",
+        "line_total_cents",
+        "category",
+        "expense_account_id",
+        "project_id",
+        "fulfillment_mode",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_orders": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_id",
+        "project_id",
+        "number",
+        "title",
+        "status",
+        "order_date",
+        "currency",
+        "subtotal_cents",
+        "discount_cents",
+        "vat_cents",
+        "total_cents",
+        "notes",
+        "terms",
+        "snapshot_json",
+        "confirmed_at",
+        "closed_at",
+        "cancelled_at",
+        "cancellation_reason",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_payments": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_invoice_id",
+        "request_id",
+        "date",
+        "amount_cents",
+        "method",
+        "reference",
+        "notes",
+        "journal_entry_id",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_receipt_lines": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_receipt_id",
+        "supplier_order_line_id",
+        "position",
+        "quantity_milli",
+        "description",
+        "unit",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "supplier_receipts": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "supplier_order_id",
+        "number",
+        "status",
+        "receipt_date",
+        "reference",
+        "notes",
+        "snapshot_json",
+        "issued_at",
+        "reversed_at",
+        "reversal_reason",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "suppliers": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "name",
+        "contact_name",
+        "email",
+        "phone",
+        "address",
+        "uid_number",
+        "iban",
+        "currency",
+        "payment_terms_days",
+        "notes",
+        "archived_at",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "time_billing_batches": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "request_id",
+        "request_sha256",
+        "request_json",
+        "invoice_id",
+        "project_id",
+        "client_id",
+        "vat_bp",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "time_billing_entries": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "batch_id",
+        "time_entry_id",
+        "invoice_item_id",
+        "entry_date_snapshot",
+        "minutes_snapshot",
+        "billing_rate_cents_snapshot",
+        "amount_cents_snapshot",
+        "employee_name_snapshot",
+        "note_snapshot",
+        "created_at"
+      ],
+      "local_columns": []
+    },
+    "time_entries": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "project_id",
+        "task_id",
+        "employee_id",
+        "date",
+        "started_at",
+        "ended_at",
+        "minutes",
+        "break_minutes",
+        "billable",
+        "billing_rate_cents",
+        "cost_rate_cents",
+        "note",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "vat_adjustments": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "adjustment_date",
+        "category",
+        "amount_cents",
+        "tax_rate_bp",
+        "description",
+        "evidence_reference",
+        "reverses_adjustment_id",
+        "created_by",
+        "created_at",
+        "request_id",
+        "request_sha256",
+        "request_json"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "vat_profiles": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "effective_from",
+        "effective_to",
+        "reporting_method",
+        "form_of_reporting",
+        "periodicity",
+        "gross_or_net",
+        "tdfn_activity_id",
+        "tdfn_rate_bp",
+        "afc_authorization_confirmed",
+        "notes",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    },
+    "vat_return_exports": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "profile_id",
+        "date_from",
+        "date_to",
+        "submission_type",
+        "source_sha256",
+        "payload_json",
+        "xml_sha256",
+        "file_name",
+        "created_at"
+      ],
+      "local_columns": [
+        "sequence"
+      ]
+    },
+    "vat_source_classifications": {
+      "key": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "source_type",
+        "source_id",
+        "treatment",
+        "note",
+        "created_at",
+        "updated_at"
+      ],
+      "local_columns": []
+    }
+  },
+  "local_tables": {
+    "license_state": "Licence propre à cet appareil ; jamais transmise par la synchronisation métier.",
+    "number_sequences": "Compteurs locaux remplacés par les plages réservées après initialisation partagée.",
+    "accounting_sequences": "Compteurs locaux remplacés par les plages réservées après initialisation partagée.",
+    "device_number_ranges": "Réservations propres à une installation.",
+    "shared_numbering_binding": "Liaison de sécurité de la numérotation de cette installation.",
+    "project_sync_binding": "Curseur de transport des fichiers propre à cette installation.",
+    "project_document_sync": "File de transport des fichiers propre à cette installation.",
+    "active_timers": "Minuteur en cours sur cet appareil ; les heures enregistrées sont partagées."
+  }
+}

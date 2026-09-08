@@ -2,6 +2,18 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Journal transactionnel local, schéma 60 en préparation
+
+La branche de réalisation ajoute un journal local des modifications avant tout transport réseau. Il ne faut pas confondre cette capture avec une synchronisation déjà disponible pour les clients ; la version distribuée 1.46.1 conserve le schéma 59.
+
+- Un contrat explicite décrit les clés et les colonnes de 106 tables métier. Les compteurs techniques `sequence` restent propres à l'installation ; les lignes utilisent leur identifiant stable. Huit tables locales sont exclues, notamment les licences, les réservations de numéros, l'état du transport et les chronomètres encore actifs.
+- Les insertions, modifications et suppressions conservent l'état avant et après dans la même transaction SQLite que l'opération. Les effets des déclencheurs et des relations entre tables sont également capturés. Un échec de contrainte, un retour au point de sauvegarde ou l'annulation complète ne laisse pas d'envoi fantôme.
+- Un identifiant de transaction commun relie la facture, le paiement, les lignes comptables et les preuves d'audit. Les connexions réutilisées, les redémarrages et les transactions distinctes conservent des identifiants distincts. Le journal est non modifiable et non supprimable ; les futurs accusés de réception sont stockés séparément.
+- Aucun profil ordinaire ne crée de liaison active. Pour ne pas alourdir chaque ouverture de base, les déclencheurs de capture ne sont installés qu'avec une liaison activée dans une transaction. Une table incomplète ou un champ non classé bloque cette installation entièrement. Le parcours d'initialisation serveur qui autorisera cette transaction reste à réaliser.
+- Une sauvegarde conserve les changements en attente mais désactive la capture et retire ses déclencheurs sur la copie. La restauration conserve l'identité de l'appareil destinataire et exige une réconciliation avant d'envoyer de nouveau. Les anciennes demandes ne peuvent donc pas reprendre silencieusement comme si la copie était encore l'appareil d'origine.
+
+La capture conserve des états locaux, y compris des champs de paie et des références de fichiers. Ils ne constituent pas un corps HTTP prêt à partager : le transport doit appliquer les droits des collaborateurs, séparer les données confidentielles, convertir les références de fichiers et préserver les branches d'audit. Une application des lignes reçues sans ces contrôles ne serait pas acceptable. Il faut également traiter les effets des déclencheurs sans les exécuter deux fois et vérifier les conflits portant sur les paiements, les soldes de stock et les clôtures.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.
@@ -27,6 +39,12 @@ Avant d’activer pour des clients :
 5. Valider le parcours avec deux comptes et deux installations, puis publier les installateurs. Les essais de protocole en mémoire ne remplacent pas cette recette.
 
 ## Preuves intermédiaires
+
+Le 8 septembre 2026, la suite Windows GNU du schéma 60 en préparation passe avec **658 tests réussis, zéro échec et deux essais HTTPS explicitement ignorés**, en 825,92 secondes. Elle comprend douze scénarios de capture : contrat complet, absence d'activation implicite, atomicité facture/paiement, effets des déclencheurs et des relations, annulation, redémarrage, notes et suppressions, identité d'installation, migration 59 vers 60, sauvegarde puis restauration dans un autre profil, facture émise avec journal équilibré et paiement répété sans doublon. Clippy sur toutes les cibles et le format du nouveau module passent. Les essais HTTPS publics attestés pour la release 1.46.1 ne sont pas réexécutés par cette suite.
+
+La première exécution générale avec les déclencheurs installés sur chaque profil a été interrompue pour réduire ce coût inutile. Son journal est conservé séparément ; ce n'est pas un contrôle réussi. La suite complète ci-dessus utilise l'installation différée des déclencheurs. Ces résultats ne prouvent pas encore les performances d'un profil synchronisé chargé ni une fusion concurrente réelle.
+
+Un dernier contrôle ajouté après le lancement de la suite générale refuse un champ non classé et annule la liaison ainsi que tous les déclencheurs partiellement installés. La suite ciblée finale passe avec **13 tests sur 13**, en 16,55 secondes. Aucun code de production n'a changé entre les deux exécutions.
 
 Les 11 tests serveur utilisent le schéma D1 réellement migré sur SQLite : vingt appareils concurrents, requête répétée, minimum historique, isolation, changement de paramètres, refus des rôles, bornes et épuisement. Avec cette brique, la suite serveur comporte 240 tests réussis. Le service de numérotation est publié dans la version du site 70, source `75d5bb4`, et refuse une requête sans session (401). Son activation après initialisation et le téléchargement automatique des plages restent à intégrer.
 

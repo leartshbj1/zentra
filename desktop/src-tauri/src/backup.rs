@@ -565,6 +565,7 @@ impl LocalStore {
         validate_database(&extracted_database)?;
         strip_restored_license(&extracted_database)?;
         crate::shared_numbering::strip_device_ranges(&Connection::open(&extracted_database)?)?;
+        crate::business_sync::detach_restored_copy(&Connection::open(&extracted_database)?)?;
 
         let safety_path = if self.database_path.is_file() {
             let safety_path =
@@ -667,6 +668,7 @@ impl LocalStore {
         target.execute_batch("PRAGMA secure_delete=ON;")?;
         target.execute("DELETE FROM license_state", [])?;
         crate::shared_numbering::strip_device_ranges(&target)?;
+        crate::business_sync::detach_restored_copy(&target)?;
         target.execute_batch("PRAGMA journal_mode=DELETE; VACUUM;")?;
         Ok(())
     }

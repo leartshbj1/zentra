@@ -1511,6 +1511,7 @@ impl LocalStore {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "NORMAL")?;
+        crate::business_sync::register_connection(&connection)?;
         Ok(connection)
     }
 
@@ -1794,6 +1795,9 @@ impl LocalStore {
         }
         if current < 59 {
             transaction.execute_batch(crate::schema::MIGRATION_V59_SQL)?;
+        }
+        if current < 60 {
+            crate::business_sync::migrate(&transaction)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {
@@ -2617,6 +2621,7 @@ impl LocalStore {
         workspace["agenda_events"] = json!(agenda_events);
         workspace["quote_invoice_pairs"] = json!(query_all(connection, "SELECT * FROM quote_invoice_pairs ORDER BY created_at", [])?);
         workspace["backup_status"] = backup_status;
+        workspace["business_sync_status"] = crate::business_sync::status(connection)?;
         workspace["reminder_deliveries"] = json!(reminder_deliveries);
         workspace["time_billing_batches"] = json!(time_billing_batches);
         workspace["time_billing_entries"] = json!(time_billing_entries);

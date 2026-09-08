@@ -14,6 +14,7 @@ mod audit;
 mod backup;
 mod cloud_backup;
 mod bank_import;
+mod business_sync;
 mod branding;
 mod document_design;
 mod catalog_import;
