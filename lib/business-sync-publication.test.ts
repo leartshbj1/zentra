@@ -464,6 +464,438 @@ async function validateTransaction(actor: DeviceSessionContext, id: string) {
   return status;
 }
 
+function transactionDocument(
+  table: 'invoices' | 'quotes',
+  values: Record<string, unknown>,
+) {
+  const local = new DatabaseSync(':memory:');
+  try {
+    local.exec('PRAGMA foreign_keys=OFF');
+    local.exec(structuralSchema.tables[table].sql);
+    const data = {
+      id: 'intermediate',
+      client_id: 'client-transaction',
+      title: 'Document',
+      created_at: '2026-09-08',
+      updated_at: '2026-09-08',
+      ...values,
+    };
+    local
+      .prepare(
+        `INSERT INTO ${table}(${Object.keys(data).join(',')}) VALUES(${Object.keys(
+          data,
+        )
+          .map(() => '?')
+          .join(',')})`,
+      )
+      .run(...(Object.values(data) as Scalar[]));
+    return local
+      .prepare(
+        `SELECT json_object(${contract.tables[table].columns.flatMap((c) => [`'${c}'`, `"${c}"`]).join(',')}) image FROM ${table}`,
+      )
+      .get()!.image as string;
+  } finally {
+    local.close();
+  }
+}
+function documentChanges(
+  table: 'invoices' | 'quotes',
+  rewrite = true,
+): TransactionChange[] {
+  const draft = transactionDocument(table, {});
+  const issued = transactionDocument(table, {
+    number: 'F-2026-999',
+    status: table === 'invoices' ? 'emise' : 'envoye',
+    issue_date: '2026-09-08',
+  });
+  const changed = JSON.stringify({
+    ...JSON.parse(issued),
+    notes: 'Réécriture interdite',
+  });
+  const pairs: (string | null)[][] = rewrite
+    ? [
+        [null, draft],
+        [draft, issued],
+        [issued, changed],
+        [changed, issued],
+        [issued, null],
+      ]
+    : [
+        [null, draft],
+        [
+          draft,
+          JSON.stringify({
+            ...JSON.parse(draft),
+            notes: 'Conditions\nAcompte',
+          }),
+        ],
+        [
+          JSON.stringify({
+            ...JSON.parse(draft),
+            notes: 'Conditions\nAcompte',
+          }),
+          null,
+        ],
+      ];
+  return pairs.map(([before_json, after_json], i) => ({
+    sequence: String(i + 2),
+    table,
+    key_json: '["intermediate"]',
+    operation:
+      before_json === null
+        ? 'insert'
+        : after_json === null
+          ? 'delete'
+          : 'update',
+    before_json,
+    after_json,
+    source_rowid: '1',
+    files_before: [],
+    files_after: [],
+  }));
+}
+async function atTransitions(actor: DeviceSessionContext, id: string) {
+  let status = await validateBusinessTransaction(actor, id);
+  for (
+    let i = 0;
+    i < 200 && !['transitions', 'valid', 'invalid'].includes(status.phase);
+    i++
+  )
+    status = await validateBusinessTransaction(actor, id);
+  expect(status.phase).toBe('transitions');
+  return status;
+}
+
+it.each(['invoices', 'quotes'] as const)(
+  'rejects intermediate issued %s rewrites even if the final snapshot has no document',
+  async (table) => {
+    const f = await receiveTransaction(
+      await transactionFixture([
+        [transactionInsert('1'), ...documentChanges(table)],
+      ]),
+    );
+    const id = f.manifest.transaction_id;
+    expect((await projectTransaction(f.actor, id)).state).toBe('projected');
+    expect(await validateTransaction(f.actor, id)).toMatchObject({
+      phase: 'invalid',
+      failed_rule: `transition:issued-${table}`,
+      failed_change: 3,
+      snapshot_validated: false,
+    });
+    expect((await historyHead(f.actor)).head_revision).toBe(1);
+    const draft = await receiveTransaction(
+      await transactionFixture(
+        [[transactionInsert('1'), ...documentChanges(table, false)]],
+        f.receipt,
+      ),
+    );
+    await projectTransaction(draft.actor, draft.manifest.transaction_id);
+    expect(
+      (await validateTransaction(draft.actor, draft.manifest.transaction_id))
+        .phase,
+    ).toBe('valid');
+  },
+);
+
+it('retains issued state across original fragments and SQL pages, including exact large sequence numbers', async () => {
+  const changes = [
+    transactionInsert('1'),
+    ...Array.from({ length: 197 }, (_, i) =>
+      transactionInsert('1', `pad-${i}`),
+    ),
+    ...documentChanges('invoices'),
+  ].map((c, i) => ({
+    ...c,
+    sequence: String(BigInt('9007199254740993') + BigInt(i)),
+  }));
+  const f = await receiveTransaction(
+    await transactionFixture([changes.slice(0, 200), changes.slice(200)]),
+  );
+  await projectTransaction(f.actor, f.manifest.transaction_id);
+  expect(
+    await validateTransaction(f.actor, f.manifest.transaction_id),
+  ).toMatchObject({
+    phase: 'invalid',
+    failed_rule: 'transition:issued-invoices',
+    failed_change: 200,
+    checked_changes: 200,
+  });
+  expect(
+    db
+      .prepare(
+        'SELECT issued FROM business_sync_transaction_document_states WHERE transfer_id=?',
+      )
+      .get(f.manifest.transaction_id),
+  ).toEqual({ issued: 1 });
+});
+
+it('rolls back document state and its transition cursor together and never accepts a changed original fragment', async () => {
+  const f = await receiveTransaction(
+    await transactionFixture([
+      [transactionInsert('1'), ...documentChanges('invoices', false)],
+    ]),
+  );
+  const id = f.manifest.transaction_id;
+  await projectTransaction(f.actor, id);
+  await atTransitions(f.actor, id);
+  const original = businessEvidence();
+  failStatement = (sql) => {
+    if (
+      sql.startsWith(
+        'UPDATE business_sync_transaction_validations SET checked_changes',
+      )
+    )
+      throw new Error('transition checkpoint failure');
+  };
+  await expect(validateBusinessTransaction(f.actor, id)).rejects.toThrow(
+    'transition checkpoint failure',
+  );
+  failStatement = undefined;
+  expect(await businessTransactionValidationStatus(f.actor, id)).toMatchObject({
+    phase: 'transitions',
+    checked_changes: 0,
+  });
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_transaction_document_states WHERE transfer_id=?',
+      )
+      .get(id),
+  ).toEqual({ n: 0 });
+  expect(businessEvidence()).toEqual(original);
+  const key = [...blobs.keys()].find((k) =>
+    k.includes(`/transactions/${f.manifest.capture_generation}/${id}/`),
+  )!;
+  const bytes = blobs.get(key)!;
+  blobs.set(key, new Uint8Array(bytes.length));
+  await expect(validateBusinessTransaction(f.actor, id)).rejects.toMatchObject({
+    status: 503,
+  });
+  expect(
+    (await businessTransactionValidationStatus(f.actor, id)).checked_changes,
+  ).toBe(0);
+  blobs.set(key, bytes);
+  expect((await validateTransaction(f.actor, id)).phase).toBe('valid');
+});
+
+it('serializes transition retries, preserves metadata evidence and stops if the canonical revision changes', async () => {
+  const documents = documentChanges('invoices', false);
+  const changes = [
+    transactionInsert('1'),
+    documents[0],
+    ...Array.from({ length: 40 }, (_, i) =>
+      transactionInsert('1', `padding-${i}`),
+    ),
+    ...documents.slice(1),
+  ].map((c, i) => ({ ...c, sequence: String(i + 1) }));
+  const f = await receiveTransaction(await transactionFixture([changes]));
+  const id = f.manifest.transaction_id;
+  await projectTransaction(f.actor, id);
+  await atTransitions(f.actor, id);
+  const meta = db
+    .prepare(
+      'SELECT after_sha256 FROM business_sync_transaction_changes WHERE transaction_id=? AND change_index=0',
+    )
+    .get(id)!;
+  db.prepare(
+    'UPDATE business_sync_transaction_changes SET after_sha256=? WHERE transaction_id=? AND change_index=0',
+  ).run('0'.repeat(64), id);
+  await expect(validateBusinessTransaction(f.actor, id)).rejects.toMatchObject({
+    status: 503,
+  });
+  expect(
+    (await businessTransactionValidationStatus(f.actor, id)).checked_changes,
+  ).toBe(0);
+  db.prepare(
+    'UPDATE business_sync_transaction_changes SET after_sha256=? WHERE transaction_id=? AND change_index=0',
+  ).run(meta.after_sha256, id);
+  let arrivals = 0,
+    release!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  beforeBatch = async (sql) => {
+    if (
+      !sql.some((s) =>
+        s.startsWith(
+          'UPDATE business_sync_transaction_validations SET checked_changes',
+        ),
+      )
+    )
+      return;
+    if (++arrivals === 2) release();
+    await barrier;
+  };
+  await Promise.all([
+    validateBusinessTransaction(f.actor, id),
+    validateBusinessTransaction(f.actor, id),
+  ]);
+  beforeBatch = undefined;
+  expect(arrivals).toBe(2);
+  expect(
+    (await businessTransactionValidationStatus(f.actor, id)).checked_changes,
+  ).toBe(32);
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_transaction_document_states WHERE transfer_id=?',
+      )
+      .get(id),
+  ).toEqual({ n: 1 });
+  const evidence = businessEvidence();
+  beforeBatch = async () => {
+    beforeBatch = undefined;
+    db.exec('UPDATE business_sync_spaces SET head_revision=2');
+  };
+  expect(await validateBusinessTransaction(f.actor, id)).toMatchObject({
+    phase: 'stale',
+    checked_changes: 32,
+    snapshot_validated: false,
+  });
+  expect(businessEvidence()).toEqual(evidence);
+  expect((await historyHead(f.actor)).head_revision).toBe(2);
+});
+
+it.skipIf(!process.env.ZENTRA_DOCUMENT_TRANSITION_QA).each([
+  ['invoices', false],
+  ['quotes', false],
+  ['invoices', true],
+  ['quotes', true],
+] as const)(
+  'validates actual native %s emission including intermediate document and QR states (D1=%s)',
+  async (table, useD1) => {
+    const real = useD1 ? await realD1Fixture() : null;
+    try {
+      const folder = join(process.env.ZENTRA_DOCUMENT_TRANSITION_QA!, table);
+      const rows = JSON.parse(
+        readFileSync(join(folder, 'source.json'), 'utf8'),
+      ) as {
+        table: string;
+        key_json: string;
+        row_json: string;
+        source_rowid: string;
+      }[];
+      const source = await fixture();
+      source.chunks = [];
+      const tables = Object.fromEntries(
+        Object.keys(contract.tables).map((t) => [t, 0]),
+      );
+      for (const row of rows) tables[row.table]++;
+      for (let i = 0; i < rows.length; i += 200)
+        source.chunks.push(
+          encode({ version: 2, rows: rows.slice(i, i + 200) }),
+        );
+      source.manifest = await bootstrapManifest({
+        ...source.manifest,
+        tables,
+        row_count: rows.length,
+        size_bytes: source.chunks.reduce((n, p) => n + p.length, 0),
+        chunks: await Promise.all(
+          source.chunks.map(async (bytes, i) => ({
+            sha256: await sha256Hex(bytes),
+            size_bytes: bytes.length,
+            row_count: rows.slice(i * 200, i * 200 + 200).length,
+          })),
+        ),
+      });
+      await stage(source);
+      await validate(source.id);
+      const receipt = await publishBootstrap(owner, source.id);
+      const original = JSON.parse(
+        readFileSync(join(folder, 'manifest.json'), 'utf8'),
+      ) as TransactionManifest;
+      expect(original.files).toEqual([]);
+      const bytes = original.chunks.map(
+        (_, i) =>
+          new Uint8Array(
+            readFileSync(join(folder, `${String(i).padStart(4, '0')}.json`)),
+          ),
+      );
+      const parts = bytes.map(
+        (b) =>
+          JSON.parse(new TextDecoder().decode(b))
+            .changes as TransactionChange[],
+      );
+      const f = await transactionFixture(parts, receipt);
+      Object.assign(f.manifest, {
+        installation_id: original.installation_id,
+        capture_generation: original.capture_generation,
+        transaction_id: original.transaction_id,
+      });
+      f.actor = { ...f.actor, installationId: original.installation_id };
+      expect(f.chunks).toEqual(bytes);
+      await receiveTransaction(f);
+      expect(
+        (await projectTransaction(f.actor, f.manifest.transaction_id)).state,
+      ).toBe('projected');
+      expect(
+        await validateTransaction(f.actor, f.manifest.transaction_id),
+      ).toMatchObject({
+        phase: 'valid',
+        snapshot_validated: true,
+        checked_changes: original.change_count,
+        business_validated: false,
+        canonical_committed: false,
+      });
+      expect((await historyHead(f.actor)).head_revision).toBe(1);
+      for (const [i, b] of source.chunks.entries())
+        expect(
+          (await historyChunk(f.actor, source.id, String(i))).bytes,
+        ).toEqual(b);
+      const item = rows.find(
+        (r) =>
+          r.table === (table === 'invoices' ? 'invoice_items' : 'quote_items'),
+      )!;
+      const rewritten = JSON.stringify({
+        ...JSON.parse(item.row_json),
+        description: 'Texte réécrit après émission',
+      });
+      const change: TransactionChange = {
+        sequence: String(BigInt(original.last_sequence) + BigInt(1)),
+        table: item.table,
+        key_json: item.key_json,
+        operation: 'update',
+        before_json: item.row_json,
+        after_json: rewritten,
+        source_rowid: item.source_rowid,
+        files_before: [],
+        files_after: [],
+      };
+      const bad = await transactionFixture(
+        [
+          ...parts,
+          [
+            change,
+            {
+              ...change,
+              sequence: String(BigInt(original.last_sequence) + BigInt(2)),
+              before_json: rewritten,
+              after_json: item.row_json,
+            },
+          ],
+        ],
+        receipt,
+      );
+      await receiveTransaction(bad);
+      await projectTransaction(bad.actor, bad.manifest.transaction_id);
+      expect(
+        await validateTransaction(bad.actor, bad.manifest.transaction_id),
+      ).toMatchObject({
+        phase: 'invalid',
+        failed_rule:
+          table === 'invoices'
+            ? 'transition:issued-invoice-items'
+            : 'transition:issued-quote-items',
+        failed_change: original.change_count,
+        snapshot_validated: false,
+      });
+    } finally {
+      await real?.runtime.dispose();
+    }
+  },
+  60_000,
+);
+
 it('validates a complete subsequent snapshot without applying it or changing canonical receipts', async () => {
   const f = await receiveTransaction(await transactionFixture());
   const id = f.manifest.transaction_id;
@@ -509,7 +941,7 @@ it('validates a complete subsequent snapshot without applying it or changing can
   }
 });
 
-async function legacyTransactionValidation() {
+async function legacyTransactionValidation(version = 1) {
   const f = await receiveTransaction(await transactionFixture());
   const id = f.manifest.transaction_id;
   await projectTransaction(f.actor, id);
@@ -538,6 +970,12 @@ async function legacyTransactionValidation() {
     0,
     100,
   );
+  db.prepare(
+    'UPDATE business_sync_transaction_validations SET algorithm_version=? WHERE transfer_id=?',
+  ).run(version, id);
+  db.prepare(
+    'INSERT INTO business_sync_transaction_document_states VALUES(?,?,?,?,?)',
+  ).run(id, legacyHash, 'invoices', '["legacy-document"]', 1);
   return { ...f, id, legacyHash };
 }
 const derivedValidationTables = [
@@ -545,6 +983,7 @@ const derivedValidationTables = [
   'business_sync_credit_projection',
   'business_sync_credit_lines',
   'business_sync_credit_movements',
+  'business_sync_transaction_document_states',
 ];
 function validationEvidence(id: string) {
   return derivedValidationTables.map((table) =>
@@ -570,57 +1009,60 @@ function businessEvidence() {
   };
 }
 
-it('upgrades legacy validation atomically and rechecks the preserved candidate without losing original evidence', async () => {
-  const f = await legacyTransactionValidation();
-  const derived = validationEvidence(f.id);
-  const original = businessEvidence();
-  // Reading status cannot silently discard the old receipt or its calculations.
-  await expect(
-    businessTransactionValidationStatus(f.actor, f.id),
-  ).rejects.toMatchObject({ status: 409 });
-  expect(validationEvidence(f.id)).toEqual(derived);
-  failStatement = (sql) => {
-    if (
-      sql.startsWith(
-        'UPDATE business_sync_transaction_validations SET validator_sha256',
-      )
-    )
-      throw new Error('upgrade interrupted');
-  };
-  await expect(validateBusinessTransaction(f.actor, f.id)).rejects.toThrow(
-    'upgrade interrupted',
-  );
-  expect(validationEvidence(f.id)).toEqual(derived);
-  expect(businessEvidence()).toEqual(original);
-  failStatement = undefined;
-  const resumed = await validateBusinessTransaction(f.actor, f.id);
-  expect(resumed).toMatchObject({
-    algorithm_version: TRANSACTION_VALIDATION_VERSION,
-    phase: 'structure',
-    snapshot_validated: false,
-    checked_accounting_rules: 0,
-  });
-  expect(resumed.validator_sha256).not.toBe(f.legacyHash);
-  for (const table of derivedValidationTables.slice(1))
-    expect(
-      db
-        .prepare(
-          `SELECT COUNT(*) n FROM ${table} WHERE transfer_id=? AND validator_sha256=?`,
+it.each([1, 2])(
+  'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
+  async (version) => {
+    const f = await legacyTransactionValidation(version);
+    const derived = validationEvidence(f.id);
+    const original = businessEvidence();
+    // Reading status cannot silently discard the old receipt or its calculations.
+    await expect(
+      businessTransactionValidationStatus(f.actor, f.id),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(validationEvidence(f.id)).toEqual(derived);
+    failStatement = (sql) => {
+      if (
+        sql.startsWith(
+          'UPDATE business_sync_transaction_validations SET validator_sha256',
         )
-        .get(f.id, f.legacyHash),
-    ).toEqual({ n: 0 });
-  expect(businessEvidence()).toEqual(original);
-  const validated = await validateTransaction(f.actor, f.id);
-  expect(validated).toMatchObject({
-    phase: 'valid',
-    snapshot_validated: true,
-    algorithm_version: TRANSACTION_VALIDATION_VERSION,
-    canonical_committed: false,
-    replication_active: false,
-  });
-  expect(await validateBusinessTransaction(f.actor, f.id)).toEqual(validated);
-  expect((await historyHead(f.actor)).head_revision).toBe(1);
-});
+      )
+        throw new Error('upgrade interrupted');
+    };
+    await expect(validateBusinessTransaction(f.actor, f.id)).rejects.toThrow(
+      'upgrade interrupted',
+    );
+    expect(validationEvidence(f.id)).toEqual(derived);
+    expect(businessEvidence()).toEqual(original);
+    failStatement = undefined;
+    const resumed = await validateBusinessTransaction(f.actor, f.id);
+    expect(resumed).toMatchObject({
+      algorithm_version: TRANSACTION_VALIDATION_VERSION,
+      phase: 'structure',
+      snapshot_validated: false,
+      checked_accounting_rules: 0,
+    });
+    expect(resumed.validator_sha256).not.toBe(f.legacyHash);
+    for (const table of derivedValidationTables.slice(1))
+      expect(
+        db
+          .prepare(
+            `SELECT COUNT(*) n FROM ${table} WHERE transfer_id=? AND validator_sha256=?`,
+          )
+          .get(f.id, f.legacyHash),
+      ).toEqual({ n: 0 });
+    expect(businessEvidence()).toEqual(original);
+    const validated = await validateTransaction(f.actor, f.id);
+    expect(validated).toMatchObject({
+      phase: 'valid',
+      snapshot_validated: true,
+      algorithm_version: TRANSACTION_VALIDATION_VERSION,
+      canonical_committed: false,
+      replication_active: false,
+    });
+    expect(await validateBusinessTransaction(f.actor, f.id)).toEqual(validated);
+    expect((await historyHead(f.actor)).head_revision).toBe(1);
+  },
+);
 
 it('never downgrades newer validations or resets another review attempt', async () => {
   const f = await legacyTransactionValidation();
@@ -2139,7 +2581,7 @@ it('keeps old row manifests stageable but refuses to publish them without histor
   });
   unpublished();
 });
-it('executes publication, counter reservation, second-device reads and bounded transaction staging using the real D1 runtime', async () => {
+async function realD1Fixture() {
   const require = createRequire(import.meta.url);
   const { Miniflare } = createRequire(require.resolve('wrangler'))('miniflare');
   const runtime = new Miniflare({
@@ -2170,6 +2612,15 @@ it('executes publication, counter reservation, second-device reads and bounded t
       ),
     ]);
     mocks.db.mockReturnValue(d1);
+    return { runtime, d1 };
+  } catch (error) {
+    await runtime.dispose();
+    throw error;
+  }
+}
+it('executes publication, counter reservation, second-device reads and bounded transaction staging using the real D1 runtime', async () => {
+  const { runtime, d1 } = await realD1Fixture();
+  try {
     // Compile every candidate credit statement against D1, including branches
     // not reached by the small fixture. No transfer identity makes the guard
     // inactive; LIMIT and integer work fields still use valid scalar values.

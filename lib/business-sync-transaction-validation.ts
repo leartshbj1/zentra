@@ -19,6 +19,12 @@ import {
 import { database } from './runtime';
 import { transactionImmutabilityRules } from './business-sync-transaction-immutability';
 import { transactionClosureRules } from './business-sync-transaction-closure';
+import {
+  transactionTransitionContract,
+  transactionTransitionOffset,
+  transactionTransitionQueries,
+  validateTransactionTransitions,
+} from './business-sync-transaction-transitions';
 export const transactionStateRules = [
   ...transactionImmutabilityRules,
   ...transactionClosureRules,
@@ -29,7 +35,7 @@ const STRUCTURE_PAGE = 16,
   ACCOUNTING_PAGE = 4;
 // Increment on every validation semantic change. Upgrade only forwards: an
 // older running deployment must never replace a newer validation attempt.
-export const TRANSACTION_VALIDATION_VERSION = 2;
+export const TRANSACTION_VALIDATION_VERSION = 3;
 const countAt = new Map(
   structuralRules.flatMap((r, i) =>
     r.kind === 'count' ? [[r.table, i] as const] : [],
@@ -44,6 +50,7 @@ const active = `SELECT 1 FROM business_sync_transaction_validations v
  WHERE v.transfer_id=?1 AND v.attempt=?6 AND v.validator_sha256=?15 AND v.algorithm_version=${TRANSACTION_VALIDATION_VERSION} AND ${transactionReviewGateSql}`;
 const upgradeGuard = `EXISTS(SELECT 1 FROM business_sync_transaction_validations v WHERE v.transfer_id=?1 AND v.attempt=?6
  AND v.validator_sha256=?19 AND v.algorithm_version=?20 AND v.algorithm_version<${TRANSACTION_VALIDATION_VERSION}) AND ${transactionReviewGateSql}`;
+const transitionQueries = transactionTransitionQueries(active);
 const projectionActive = `SELECT 1 FROM business_sync_transaction_validations v
  JOIN business_sync_transaction_reviews r ON r.transfer_id=v.transfer_id AND r.attempt=v.attempt
  JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
@@ -55,7 +62,7 @@ const projectionActive = `SELECT 1 FROM business_sync_transaction_validations v
  AND r.applied_changes=json_extract(t.manifest_json,'$.change_count') AND r.next_chunk=json_array_length(t.manifest_json,'$.chunks')
  AND u.state='committed' AND u.revision=r.source_revision AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=s.bootstrap_transfer_id))
  AND s.state='ready' AND s.head_revision=r.source_revision AND v.validator_sha256=a.validator AND v.algorithm_version=${TRANSACTION_VALIDATION_VERSION} AND v.phase='projecting'
- AND v.next_structural_rule=${structuralRules.length} AND v.next_accounting_rule=${transactionStateRules.length} AND v.failed_rule IS NULL`;
+ AND v.next_structural_rule=${structuralRules.length} AND v.next_accounting_rule=${transactionStateRules.length} AND v.failed_rule IS NULL AND v.checked_changes=json_extract(t.manifest_json,'$.change_count') AND v.next_change_chunk=json_array_length(t.manifest_json,'$.chunks')`;
 const queries = creditProjectionQueries(projectionActive);
 export const transactionCreditProjectionSql = queries;
 type Progress = {
@@ -63,7 +70,16 @@ type Progress = {
   attempt: string;
   validator_sha256: string;
   algorithm_version: number;
-  phase: 'structure' | 'accounting' | 'projecting' | 'valid' | 'invalid';
+  phase:
+    | 'structure'
+    | 'accounting'
+    | 'transitions'
+    | 'projecting'
+    | 'valid'
+    | 'invalid';
+  checked_changes: number;
+  next_change_chunk: number;
+  failed_change: number | null;
   table_counts_json: string;
   next_structural_rule: number;
   next_accounting_rule: number;
@@ -87,6 +103,8 @@ export function transactionValidationContractHash() {
         countsSql,
         active,
         upgradeGuard,
+        transactionTransitionContract,
+        transitionQueries,
         queries,
       ]),
     ),
@@ -164,21 +182,43 @@ async function progress(ctx: Context) {
   const integer = (n: number, max: number) =>
     Number.isSafeInteger(n) && n >= 0 && n <= max;
   if (
-    !['structure', 'accounting', 'projecting', 'valid', 'invalid'].includes(
-      row.phase,
-    ) ||
+    ![
+      'structure',
+      'accounting',
+      'transitions',
+      'projecting',
+      'valid',
+      'invalid',
+    ].includes(row.phase) ||
     !integer(row.next_structural_rule, structuralRules.length) ||
     !integer(row.next_accounting_rule, transactionStateRules.length) ||
     (row.phase === 'structure' && row.next_accounting_rule !== 0) ||
-    (['accounting', 'projecting', 'valid'].includes(row.phase) &&
+    (['accounting', 'transitions', 'projecting', 'valid'].includes(row.phase) &&
       row.next_structural_rule !== structuralRules.length) ||
-    (['projecting', 'valid'].includes(row.phase) &&
+    (['transitions', 'projecting', 'valid'].includes(row.phase) &&
       row.next_accounting_rule !== transactionStateRules.length) ||
     (row.phase === 'invalid'
       ? typeof row.failed_rule !== 'string' || !row.failed_rule
       : row.failed_rule !== null)
   )
     fail('Le reçu de validation est incohérent.', 503);
+  transactionTransitionOffset(
+    ctx.manifest,
+    row.checked_changes,
+    row.next_change_chunk,
+  );
+  if (
+    (['structure', 'accounting'].includes(row.phase) &&
+      row.checked_changes !== 0) ||
+    (['projecting', 'valid'].includes(row.phase) &&
+      row.checked_changes !== ctx.manifest.change_count) ||
+    (row.failed_change !== null &&
+      (row.phase !== 'invalid' ||
+        !Number.isSafeInteger(row.failed_change) ||
+        row.failed_change < row.checked_changes ||
+        row.failed_change >= ctx.manifest.change_count))
+  )
+    fail('Le reçu des modifications contrôlées est incohérent.', 503);
   counts(row);
   return row;
 }
@@ -222,6 +262,9 @@ async function response(ctx: Context, row: Progress | null) {
     checked_accounting_rules: row?.next_accounting_rule ?? 0,
     total_accounting_rules: transactionStateRules.length,
     failed_rule: row?.failed_rule ?? null,
+    checked_changes: row?.checked_changes ?? 0,
+    total_changes: ctx.manifest.change_count,
+    failed_change: row?.failed_change ?? null,
     credit_projection: credit,
     snapshot_validated: !!stillCurrent && row?.phase === 'valid',
     business_validated: false,
@@ -297,6 +340,7 @@ export async function validateBusinessTransaction(
         'business_sync_credit_lines',
         'business_sync_credit_movements',
         'business_sync_credit_projection',
+        'business_sync_transaction_document_states',
       ].map((table) =>
         ctx.db
           .prepare(
@@ -306,7 +350,7 @@ export async function validateBusinessTransaction(
       ),
       ctx.db
         .prepare(
-          `UPDATE business_sync_transaction_validations SET validator_sha256=?15,algorithm_version=?18,phase='structure',table_counts_json=(${countsSql}),next_structural_rule=0,next_accounting_rule=0,failed_rule=NULL,updated_at=?17 WHERE transfer_id=?1 AND ${upgradeGuard}`,
+          `UPDATE business_sync_transaction_validations SET validator_sha256=?15,algorithm_version=?18,phase='structure',table_counts_json=(${countsSql}),next_structural_rule=0,next_accounting_rule=0,checked_changes=0,next_change_chunk=0,failed_change=NULL,failed_rule=NULL,updated_at=?17 WHERE transfer_id=?1 AND ${upgradeGuard}`,
         )
         .bind(...bindings),
     ]);
@@ -328,6 +372,18 @@ export async function validateBusinessTransaction(
   if (!row) fail('La tentative de contrôle a changé.');
   if (row.phase === 'valid' || row.phase === 'invalid')
     return response(ctx, row);
+  if (row.phase === 'transitions') {
+    await validateTransactionTransitions({
+      id: ctx.id,
+      manifest: ctx.manifest,
+      sourceTransferId: ctx.review.source_transfer_id,
+      validationBindings: ctx.validationBindings,
+      checked: row.checked_changes,
+      chunk: row.next_change_chunk,
+      queries: transitionQueries,
+    });
+    return response(ctx, await progress(ctx));
+  }
   if (row.phase === 'projecting') {
     const credit = await validateCreditProjection(projection(ctx, row));
     if (credit.phase === 'valid' || credit.phase === 'invalid')
@@ -406,7 +462,7 @@ export async function validateBusinessTransaction(
     failed
       ? 'invalid'
       : next === transactionStateRules.length
-        ? 'projecting'
+        ? 'transitions'
         : 'accounting',
     row.next_structural_rule,
     next,

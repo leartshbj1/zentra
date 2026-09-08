@@ -1,0 +1,1 @@
+CREATE INDEX `business_sync_transaction_row_timeline` ON `business_sync_transaction_changes` (`transaction_id`,`table_name`,`row_key_json`,`part_index`,`change_index`);

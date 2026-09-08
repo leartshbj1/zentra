@@ -201,9 +201,19 @@ export const businessSyncTransactionValidations=sqliteTable('business_sync_trans
   tableCountsJson:text('table_counts_json').notNull(),
   nextStructuralRule:integer('next_structural_rule').notNull().default(0),
   nextAccountingRule:integer('next_accounting_rule').notNull().default(0),
+  checkedChanges:integer('checked_changes').notNull().default(0),
+  nextChangeChunk:integer('next_change_chunk').notNull().default(0),
+  failedChange:integer('failed_change'),
   failedRule:text('failed_rule'),
   updatedAt:text('updated_at').notNull(),
 });
+export const businessSyncTransactionDocumentStates=sqliteTable('business_sync_transaction_document_states',{
+  transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  validatorSha256:text('validator_sha256').notNull(),
+  tableName:text('table_name').notNull(),
+  rowKeyJson:text('row_key_json').notNull(),
+  issued:integer('issued').notNull(),
+},table=>[uniqueIndex('business_sync_transaction_document_state').on(table.transferId,table.validatorSha256,table.tableName,table.rowKeyJson)]);
 export const businessSyncTransactionConflicts=sqliteTable('business_sync_transaction_conflicts',{
   transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
   attempt:text('attempt').notNull(),
@@ -254,6 +264,7 @@ export const businessSyncTransactionChanges = sqliteTable('business_sync_transac
   uniqueIndex('business_sync_transaction_sequence').on(table.organizationId,table.installationId,table.captureGeneration,table.sequence),
   uniqueIndex('business_sync_transaction_change_index').on(table.transactionId,table.partIndex,table.changeIndex),
   index('business_sync_transaction_row_chain').on(table.transactionId,table.tableName,table.rowKeyJson),
+  index('business_sync_transaction_row_timeline').on(table.transactionId,table.tableName,table.rowKeyJson,table.partIndex,table.changeIndex),
 ]);
 
 export const businessSyncFilePages = sqliteTable('business_sync_file_pages', {

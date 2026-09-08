@@ -2,6 +2,20 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Modifications intermédiaires des factures et devis
+
+Après les contrôles d'état, la validation relit maintenant les fragments originaux et leurs empreintes, par pages de 32 modifications. Elle compare aussi leurs métadonnées conservées : séquence entière exacte, position, clé, opération et empreintes des images avant/après. Une altération arrête le contrôle sans avancer le curseur.
+
+Les champs figés d'une facture ou d'un devis émis sont vérifiés à chaque modification, même si le document était encore brouillon au départ, ou si une réécriture est ensuite annulée avant la fin de l'envoi. Le suivi conserve seulement l'état d'émission des documents modifiés. Il protège leurs lignes et les QR figés au fil des fragments, sans recopier les documents complets. Une preuve intermédiaire manquante ne peut pas être remplacée silencieusement par l'ancien brouillon.
+
+L'état intermédiaire et son curseur avancent dans le même lot atomique, lié à la tentative, à l'empreinte du contrôle et à la révision partagée. Deux demandes simultanées ne font avancer qu'une page ; une erreur annule le lot. Le premier changement refusé est identifié par `failed_rule` et sa position `failed_change`. Les montants figés sont comparés dans SQLite, y compris au-delà de la précision des nombres JavaScript.
+
+L'algorithme de validation passe en version 3 avec une migration additive. Les versions antérieures reprennent tous les contrôles ; seuls les calculs dérivés et leurs curseurs sont réinitialisés. Les fragments, fichiers et traces originaux sont conservés. Les émissions de devis et factures produites par le code natif sont acceptées dans SQLite et D1, y compris le gel du QR ; leurs réécritures ultérieures sont refusées.
+
+La recherche d’un changement antérieur utilise un index sur le document et la position dans l’envoi ; 10 000 changements ultérieurs ne sont pas parcourus pour décider de l’état précédent. Validation : 598 tests serveur, puis 91 tests ciblés finaux après cette optimisation, dont D1 et les émissions natives. Les sept tests natifs de préparation des transactions passent aussi.
+
+Ce suivi couvre les règles d'immuabilité des documents commerciaux. Les conditions complètes de clôture, les transitions de paie, fournisseurs, TVA et stocks ne sont pas toutes vérifiées à chaque étape. `business_validated`, `canonical_committed` et `replication_active` restent faux. Aucune nouvelle distribution native n'est créée ici.
+
 ## Protection des périodes clôturées et reprise des contrôles
 
 La copie de contrôle respecte maintenant la dernière date clôturée de la révision de départ, y compris les intervalles antérieurs sans période explicite. Neuf contrôles protègent l'historique des périodes, vérifient leurs dates et chevauchements, et refusent les nouvelles écritures, émissions de factures, validations fournisseurs, paiements et corrections TVA antidatés. Ils contrôlent aussi les modifications fiscales et règlements des dépenses historiques. Les corrections TVA enregistrées rejoignent les opérations qui ne peuvent être réécrites ou supprimées.

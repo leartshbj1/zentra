@@ -5,8 +5,7 @@ import { integrityValidatorHash } from './business-sync-integrity';
 import { verifiedAuditNode } from './business-sync-audit';
 import { publishedHistory } from './business-sync-publication';
 import { requireBusinessTransaction } from './business-sync-transactions';
-import { transactionChanges } from './business-sync-transaction-format';
-import { storedBlobPart } from './business-sync-blob-store';
+import { readBusinessTransactionChunk } from './business-sync-transaction-chunk';
 import contract from '../desktop/src-tauri/src/business_sync_tables.json';
 import { database } from './runtime';
 import { sharedRowid, sourceRowid } from './business-sync-order';
@@ -400,38 +399,13 @@ async function reject(ctx: Context, rule: string) {
 }
 async function applyChunk(ctx: Context) {
   const r = ctx.review,
-    index = r.next_chunk,
-    part = ctx.manifest.chunks[index];
-  if (!part) fail('Le contrôle a dépassé les fragments disponibles.', 503);
-  const stored = await database()
-    .prepare(
-      'SELECT object_key,sha256,size_bytes,change_count FROM business_sync_transaction_parts WHERE transaction_id=? AND part_index=?',
-    )
-    .bind(ctx.id, index)
-    .first<{
-      object_key: string;
-      sha256: string;
-      size_bytes: number;
-      change_count: number;
-    }>();
-  const expectedKey = `business-sync/${ctx.manifest.organization_id}/transactions/${ctx.manifest.capture_generation}/${ctx.id}/${index}-${part.sha256}.json`;
-  if (
-    !stored ||
-    stored.object_key !== expectedKey ||
-    stored.sha256 !== part.sha256 ||
-    stored.size_bytes !== part.size_bytes ||
-    stored.change_count !== part.change_count
-  )
-    fail('Un fragment de la transaction est absent ou incohérent.', 503);
-  const bytes = await storedBlobPart(expectedKey, part.size_bytes);
-  if (
-    bytes.length !== part.size_bytes ||
-    (await sha256Hex(bytes)) !== part.sha256
-  )
-    fail('Le fragment de transaction conservé est altéré.', 503);
-  // A received fragment can contain 200 changes. Bound the SQL batch as well
-  // as its bytes; the saved applied_changes cursor resumes within that fragment.
-  const allChanges = transactionChanges(bytes, ctx.manifest, index);
+    index = r.next_chunk;
+  const allChanges = await readBusinessTransactionChunk(
+    ctx.id,
+    ctx.manifest,
+    index,
+  );
+  // Resume a bounded SQL page inside the original immutable fragment.
   const changes = allChanges.slice(
     ctx.changeOffset,
     ctx.changeOffset + APPLY_CHANGES,

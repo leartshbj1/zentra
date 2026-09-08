@@ -285,3 +285,95 @@ fn a_real_payment_keeps_its_invoice_posting_lines_and_audit_in_one_envelope() {
         1
     );
 }
+
+#[test]
+fn native_document_emission_preserves_original_intermediate_images() {
+    use crate::models::SaveDocumentWithItemsInput;
+    let output = std::env::var("ZENTRA_DOCUMENT_TRANSITION_OUTPUT")
+        .ok()
+        .map(PathBuf::from);
+    if let Some(output) = &output {
+        fs::create_dir(output).unwrap();
+    }
+    for entity in ["invoices", "quotes"] {
+        let (_directory, store) = setup();
+        store.install_swiss_accounting_starter().unwrap();
+        let client=store.create_record("clients",json!({"name":"Client fictif","address_line1":"Rue du Client","address_line2":"7","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap();
+        let mut data =
+            json!({"client_id":client["id"],"title":"Emission hors ligne","currency":"CHF"});
+        if entity == "invoices" {
+            data["service_date_from"] = json!("2026-09-08");
+            data["service_date_to"] = json!("2026-09-08");
+        }
+        let saved=store.save_document_with_items(SaveDocumentWithItemsInput{entity:entity.into(),id:None,data,items:vec![json!({"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":100_000,"discount_bp":0,"vat_bp":0})]}).unwrap();
+        let id = saved["document"]["id"].as_str().unwrap();
+        let mut source = Vec::new();
+        let c = store.connect().unwrap();
+        for (table, rule) in super::super::policy().unwrap().tables {
+            let sql = format!(
+                "SELECT {},{},CAST(rowid AS TEXT) FROM {} r ORDER BY rowid",
+                super::super::json_key("r", &rule.key).unwrap(),
+                super::super::json_image("r", &rule.columns).unwrap(),
+                super::super::identifier(&table).unwrap()
+            );
+            let mut query = c.prepare(&sql).unwrap();
+            let rows = query
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                })
+                .unwrap();
+            for row in rows {
+                let (key, image, rowid) = row.unwrap();
+                source.push(
+                    json!({"table":table,"key_json":key,"row_json":image,"source_rowid":rowid}),
+                );
+            }
+        }
+        drop(c);
+        bind(&store);
+        if entity == "invoices" {
+            store
+                .issue_invoice(id, Some("2026-09-08".into()), None)
+                .unwrap();
+        } else {
+            store
+                .issue_quote(id, Some("2026-09-08".into()), Some("2026-10-08".into()))
+                .unwrap();
+        }
+        let p = next(&store);
+        let changes = all(&p);
+        assert!(changes.iter().any(|c| c["table"] == entity
+            && c["operation"] == "update"
+            && serde_json::from_str::<Value>(c["before_json"].as_str().unwrap()).unwrap()
+                ["number"]
+                .is_null()
+            && serde_json::from_str::<Value>(c["after_json"].as_str().unwrap()).unwrap()
+                ["number"]
+                .is_string()));
+        if let Some(output) = &output {
+            let directory = output.join(entity);
+            fs::create_dir(&directory).unwrap();
+            fs::write(
+                directory.join("source.json"),
+                serde_json::to_vec(&source).unwrap(),
+            )
+            .unwrap();
+            fs::write(
+                directory.join("manifest.json"),
+                serde_json::to_vec(&p.manifest).unwrap(),
+            )
+            .unwrap();
+            for (index, _) in p.manifest.chunks.iter().enumerate() {
+                fs::copy(
+                    p.folder.join(format!("{index:04}.json")),
+                    directory.join(format!("{index:04}.json")),
+                )
+                .unwrap();
+            }
+        }
+    }
+}
