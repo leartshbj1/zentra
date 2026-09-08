@@ -1,7 +1,9 @@
 use crate::error::{AppError, AppResult};
-use crate::{account_cloud::project_sync_session, database::LocalStore};
+use crate::{account_cloud::ProjectSyncSession, database::LocalStore};
+use chrono::Datelike;
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_NUMBER: i64 = 999_999_999;
 
@@ -159,16 +161,14 @@ pub(crate) fn adopt(
     Ok(())
 }
 
-// Called by the future business-sync scheduler only after company bootstrap.
-// This does not activate shared numbering merely because a cloud account exists.
-pub(crate) async fn replenish(
+type NumberSeries = BTreeMap<(i64, String), i64>;
+
+fn active_series(
     store: &LocalStore,
-    prefix: &str,
-    year: i64,
-    minimum: i64,
-) -> AppResult<()> {
-    let organization: Option<String> = store
-        .connect()?
+    current_year: i64,
+) -> AppResult<Option<(String, NumberSeries)>> {
+    let connection = store.connect()?;
+    let organization: Option<String> = connection
         .query_row(
             "SELECT organization_id FROM shared_numbering_binding WHERE id=1",
             [],
@@ -176,18 +176,166 @@ pub(crate) async fn replenish(
         )
         .optional()?;
     let Some(organization) = organization else {
+        return Ok(None);
+    };
+    let mut series = NumberSeries::new();
+    let mut journal_years = BTreeSet::new();
+    // These identifiers are fixed application schema identifiers, never input.
+    for (kind, table, date, prefix, start) in [
+        (
+            "quote",
+            "quotes",
+            "issue_date",
+            "quote_prefix",
+            "quote_start_number",
+        ),
+        (
+            "invoice",
+            "invoices",
+            "issue_date",
+            "invoice_prefix",
+            "invoice_start_number",
+        ),
+        (
+            "credit_note",
+            "invoices",
+            "issue_date",
+            "credit_note_prefix",
+            "credit_note_start_number",
+        ),
+        (
+            "sales_order",
+            "sales_orders",
+            "order_date",
+            "sales_order_prefix",
+            "sales_order_start_number",
+        ),
+        (
+            "delivery_note",
+            "delivery_notes",
+            "delivery_date",
+            "delivery_note_prefix",
+            "delivery_note_start_number",
+        ),
+        (
+            "supplier_order",
+            "supplier_orders",
+            "order_date",
+            "supplier_order_prefix",
+            "supplier_order_start_number",
+        ),
+        (
+            "supplier_receipt",
+            "supplier_receipts",
+            "receipt_date",
+            "supplier_receipt_prefix",
+            "supplier_receipt_start_number",
+        ),
+        (
+            "supplier_credit_note",
+            "supplier_credit_notes",
+            "document_date",
+            "supplier_credit_prefix",
+            "supplier_credit_start_number",
+        ),
+    ] {
+        let (prefix, start): (String, i64) = connection.query_row(
+            &format!("SELECT {prefix},{start} FROM settings WHERE id=1"),
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let mut years: BTreeSet<i64> = [current_year - 1, current_year, current_year + 1]
+            .into_iter()
+            .collect();
+        let mut statement = connection.prepare(&format!("SELECT DISTINCT CAST(substr({date},1,4) AS INTEGER) FROM {table} WHERE number IS NULL AND {date} IS NOT NULL"))?;
+        years.extend(
+            statement
+                .query_map([], |row| row.get::<_, i64>(0))?
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        for year in years
+            .into_iter()
+            .filter(|year| (1900..=9999).contains(year))
+        {
+            let floor: i64 = connection
+                .query_row(
+                    "SELECT next_value FROM number_sequences WHERE document_type=? AND year=?",
+                    params![kind, year],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .unwrap_or(start);
+            series
+                .entry((year, prefix.clone()))
+                .and_modify(|value| *value = (*value).max(floor))
+                .or_insert(floor);
+            journal_years.insert(year);
+        }
+    }
+    for year in journal_years {
+        let floor: i64 = connection
+            .query_row(
+                "SELECT next_value FROM accounting_sequences WHERE year=?",
+                params![year],
+                |row| row.get(0),
+            )
+            .optional()?
+            .unwrap_or(1);
+        series
+            .entry((year, "J".into()))
+            .and_modify(|value| *value = (*value).max(floor))
+            .or_insert(floor);
+    }
+    Ok(Some((organization, series)))
+}
+
+// The existing online/focus scheduler calls this, but no requests are prepared
+// until a verified company bootstrap has created the shared-numbering binding.
+pub(crate) async fn replenish_active_series(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+) -> AppResult<()> {
+    let current_year = i64::from(chrono::Local::now().year());
+    let Some((organization, series)) = active_series(store, current_year)? else {
         return Ok(());
     };
-    let session = project_sync_session(store)
-        .await?
-        .ok_or_else(|| invalid("Reconnectez cet appareil pour recharger ses numéros réservés."))?;
-    if session.organization_id != organization || session.role == "read_only" {
+    if session.organization_id != organization {
         return Err(invalid(
-            "Le compte connecté ne peut pas réserver des numéros pour cette entreprise.",
+            "Le compte connecté ne correspond pas à la numérotation de cette entreprise.",
         ));
     }
-    let Some(request) = prepare(store, &organization, prefix, year, minimum)? else {
+    if session.role == "read_only" {
         return Ok(());
+    }
+    let mut ordered: Vec<_> = series.into_iter().collect();
+    // Prioritize today's issuance over older or next-year drafts, and bound the
+    // network work in each pass. Completed ranges are skipped on the next pass.
+    ordered.sort_by_key(|((year, prefix), _)| ((year - current_year).abs(), *year, prefix.clone()));
+    let mut sent = 0;
+    for ((year, prefix), minimum) in ordered {
+        if crate::cloud_backup::is_restoring() {
+            break;
+        }
+        if replenish(store, session, &prefix, year, minimum).await? {
+            sent += 1;
+        }
+        if sent >= 8 {
+            break;
+        }
+    }
+    Ok(())
+}
+
+async fn replenish(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+    prefix: &str,
+    year: i64,
+    minimum: i64,
+) -> AppResult<bool> {
+    let organization = &session.organization_id;
+    let Some(request) = prepare(store, organization, prefix, year, minimum)? else {
+        return Ok(false);
     };
     let (status, bytes) = session
         .request(
@@ -203,7 +351,8 @@ pub(crate) async fn replenish(
         return Err(invalid("La réservation n’a pas été confirmée. La demande sera reprise lors de la prochaine connexion."));
     }
     let response: ReservationResponse = serde_json::from_slice(&bytes)?;
-    adopt(store, &organization, &request, &response)
+    adopt(store, organization, &request, &response)?;
+    Ok(true)
 }
 
 // No binding is created automatically. Company bootstrap must first publish
@@ -265,6 +414,67 @@ pub(crate) fn strip_device_ranges(connection: &Connection) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn background_planner_does_nothing_until_company_bootstrap() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        assert!(active_series(&store, 2026).unwrap().is_none());
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM device_number_ranges", [], |row| row
+                    .get::<_, i64>(
+                    0
+                ))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn background_planner_covers_year_boundary_drafts_and_shared_prefix_floors() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        bind(&store);
+        let connection = store.connect().unwrap();
+        connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Recette','2026-09-08','2026-09-08')",[]).unwrap();
+        connection
+            .execute(
+                "UPDATE settings SET quote_prefix='COMMUN',invoice_prefix='COMMUN'",
+                [],
+            )
+            .unwrap();
+        connection.execute("INSERT INTO quotes(id,title,issue_date,created_at,updated_at) VALUES('draft','Devis futur','2030-01-05','2026-09-08','2026-09-08')",[]).unwrap();
+        connection
+            .execute(
+                "INSERT INTO number_sequences VALUES('quote',2026,200),('invoice',2026,700)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("INSERT INTO accounting_sequences VALUES(2030,820)", [])
+            .unwrap();
+        let (organization, series) = active_series(&store, 2026).unwrap().unwrap();
+        assert_eq!(organization, "org");
+        assert_eq!(series[&(2026, "COMMUN".into())], 700);
+        for year in [2025, 2026, 2027, 2030] {
+            assert!(series.contains_key(&(year, "COMMUN".into())));
+        }
+        assert_eq!(series[&(2030, "J".into())], 820);
+        assert!(!series.keys().any(|(year, _)| *year == 2024));
+        // Planning is read-only; only an authenticated transport prepares ranges.
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM device_number_ranges", [], |row| row
+                    .get::<_, i64>(
+                    0
+                ))
+                .unwrap(),
+            0
+        );
+    }
 
     fn bind(store: &LocalStore) {
         store
