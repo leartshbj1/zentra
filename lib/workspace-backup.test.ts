@@ -176,19 +176,36 @@ it('resumes a lost acknowledgement without duplicating or replacing the complete
 it('does not publish an interrupted transfer and resumes its missing chunks', async () => {
   const first = new Uint8Array(BACKUP_CHUNK_BYTES).fill(65);
   const m = await manifest([first, bytes]);
-  expect((await start(m)).status).toBe(200);
+  expect(await (await start(m)).json()).toMatchObject({ received_chunks: [] });
   expect((await send(first)).status).toBe(200);
+  expect(await (await start(m)).json()).toMatchObject({
+    received_chunks: [{ chunk_index: 0, ...m.chunks[0] }],
+  });
   expect((await complete(item('POST'))).status).toBe(409);
   expect((await get(item())).status).toBe(409);
   expect((await download(new Request(part()))).status).toBe(409);
   objects.put.mockRejectedValueOnce(new Error('network interrupted'));
   expect((await send(bytes, 1)).status).toBe(500);
+  expect(await (await start(m)).json()).toMatchObject({
+    received_chunks: [{ chunk_index: 0, ...m.chunks[0] }],
+  });
   expect((await complete(item('POST'))).status).toBe(409);
   expect((await send(bytes, 1)).status).toBe(200);
   expect((await complete(item('POST'))).status).toBe(200);
   expect(
     new Uint8Array(await (await download(new Request(part(1)))).arrayBuffer()),
   ).toEqual(bytes);
+});
+it('never advertises inconsistent chunk receipts or another installation upload', async () => {
+  await start();
+  await send();
+  mocks.session.mockResolvedValue({ ...owner, installationId: 'other_pc' });
+  expect((await start()).status).toBe(409);
+  mocks.session.mockResolvedValue(owner);
+  db.prepare(
+    'UPDATE workspace_backup_chunks SET sha256=? WHERE backup_id=?',
+  ).run('0'.repeat(64), id);
+  expect((await start()).status).toBe(503);
 });
 it('never crosses organizations for listing, overwrite, completion, download or deletion', async () => {
   await saved();

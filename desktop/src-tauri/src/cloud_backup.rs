@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     fs::{self, File},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -298,7 +299,57 @@ async fn request(
     }
     serde_json::from_slice(&bytes).map_err(Into::into)
 }
-async fn send_backup(store: &LocalStore, session: &ProjectSyncSession) -> AppResult<()> {
+fn received_chunks(response: &Value, pending: &Pending) -> AppResult<BTreeSet<usize>> {
+    if response["backup_id"] != pending.backup_id
+        || response["sha256"] != pending.manifest.sha256
+        || response["size_bytes"] != pending.manifest.size_bytes
+        || !matches!(response["state"].as_str(), Some("uploading" | "complete"))
+    {
+        return Err(validation(
+            "Le coffre a répondu pour une autre sauvegarde ou un état invalide.",
+        ));
+    }
+    // An older server has no receipt catalogue: repeat verified parts safely.
+    let Some(received) = response.get("received_chunks") else {
+        return Ok(BTreeSet::new());
+    };
+    let received = received
+        .as_array()
+        .filter(|parts| parts.len() <= pending.manifest.chunks.len())
+        .ok_or_else(|| validation("Les confirmations du coffre sont invalides."))?;
+    let mut indexes = BTreeSet::new();
+    for part in received {
+        let index = part["chunk_index"]
+            .as_u64()
+            .and_then(|v| usize::try_from(v).ok())
+            .ok_or_else(|| validation("Une confirmation de fragment est invalide."))?;
+        let expected = pending
+            .manifest
+            .chunks
+            .get(index)
+            .ok_or_else(|| validation("Une confirmation concerne un fragment inconnu."))?;
+        if part["sha256"] != expected.sha256
+            || part["size_bytes"] != expected.size_bytes
+            || !indexes.insert(index)
+        {
+            return Err(validation(
+                "Une confirmation de fragment ne correspond pas à cet envoi.",
+            ));
+        }
+    }
+    Ok(indexes)
+}
+
+#[derive(Debug, PartialEq)]
+struct BackupSendReceipt {
+    sent_chunks: usize,
+    skipped_chunks: usize,
+}
+
+async fn send_backup(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+) -> AppResult<BackupSendReceipt> {
     let owned = store.clone();
     let org = session.organization_id.clone();
     let pending = tauri::async_runtime::spawn_blocking(move || owned.prepare_cloud_backup(&org))
@@ -312,12 +363,19 @@ async fn send_backup(store: &LocalStore, session: &ProjectSyncSession) -> AppRes
         Some(json!({ "backup_id": pending.backup_id, "manifest": pending.manifest })),
     )
     .await?;
-    if result["backup_id"] != pending.backup_id {
-        return Err(validation("Le coffre a répondu pour une autre sauvegarde."));
-    }
+    let received = received_chunks(&result, &pending)?;
+    let mut receipt = BackupSendReceipt {
+        sent_chunks: 0,
+        skipped_chunks: 0,
+    };
     if result["state"] != "complete" {
         let mut file = File::open(store.cloud_backup_path(&pending.backup_id)?)?;
         for (index, part) in pending.manifest.chunks.iter().enumerate() {
+            if received.contains(&index) {
+                file.seek(SeekFrom::Current(part.size_bytes as i64))?;
+                receipt.skipped_chunks += 1;
+                continue;
+            }
             let mut bytes = vec![0; part.size_bytes as usize];
             file.read_exact(&mut bytes)?;
             verify_chunk(part, &bytes)?;
@@ -337,6 +395,7 @@ async fn send_backup(store: &LocalStore, session: &ProjectSyncSession) -> AppRes
                     "Cette sauvegarde a été supprimée. Abandonnez cet envoi avant de recommencer.",
                 ));
             }
+            receipt.sent_chunks += 1;
         }
         let complete = request(
             session,
@@ -354,12 +413,11 @@ async fn send_backup(store: &LocalStore, session: &ProjectSyncSession) -> AppRes
                 "Le coffre n’a pas confirmé la réception complète de la sauvegarde.",
             ));
         }
-    } else if result["sha256"] != pending.manifest.sha256 {
-        return Err(validation(
-            "La sauvegarde confirmée ne correspond pas à cet envoi.",
-        ));
+    } else {
+        receipt.skipped_chunks = pending.manifest.chunks.len();
     }
-    store.finish_cloud_backup(&pending.backup_id)
+    store.finish_cloud_backup(&pending.backup_id)?;
+    Ok(receipt)
 }
 fn public_preferences(prefs: &Preferences) -> Value {
     json!({ "enabled": prefs.enabled, "organization_id": prefs.organization_id, "last_success_at": prefs.last_success_at,
@@ -597,70 +655,76 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
 }
 
 #[cfg(test)]
+mod qa;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn backup_receipts_are_bound_to_the_exact_pending_archive() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("small.zentra");
+        fs::write(&path, b"archive bytes").unwrap();
+        let pending = Pending {
+            backup_id: Uuid::new_v4().to_string(),
+            manifest: file_manifest(&path).unwrap(),
+        };
+        let response = json!({"backup_id":pending.backup_id,"sha256":pending.manifest.sha256,
+            "size_bytes":pending.manifest.size_bytes,"state":"uploading",
+            "received_chunks":[{"chunk_index":0,"sha256":pending.manifest.chunks[0].sha256,"size_bytes":pending.manifest.chunks[0].size_bytes}]});
+        assert_eq!(
+            received_chunks(&response, &pending).unwrap(),
+            BTreeSet::from([0])
+        );
+        let mut older = response.clone();
+        older.as_object_mut().unwrap().remove("received_chunks");
+        assert!(received_chunks(&older, &pending).unwrap().is_empty());
+        for invalid in [
+            json!(null),
+            json!({}),
+            json!([null]),
+            json!([
+                response["received_chunks"][0],
+                response["received_chunks"][0]
+            ]),
+        ] {
+            let mut copy = response.clone();
+            copy["received_chunks"] = invalid;
+            assert!(received_chunks(&copy, &pending).is_err());
+        }
+        for (key, value) in [
+            ("chunk_index", json!(-1)),
+            ("chunk_index", json!(1)),
+            ("chunk_index", json!(0.5)),
+            ("sha256", json!("0".repeat(64))),
+            ("size_bytes", json!(1)),
+        ] {
+            let mut copy = response.clone();
+            copy["received_chunks"][0][key] = value;
+            assert!(received_chunks(&copy, &pending).is_err());
+        }
+        for (key, value) in [
+            ("backup_id", json!(Uuid::new_v4().to_string())),
+            ("sha256", json!("0".repeat(64))),
+            ("size_bytes", json!(1)),
+            ("state", json!("deleted")),
+        ] {
+            let mut copy = response.clone();
+            copy[key] = value;
+            assert!(received_chunks(&copy, &pending).is_err());
+        }
+    }
+
+    #[test]
+    fn backup_v2_https_fixture_contains_real_registered_documents_and_exports() {
+        qa::verify_fixture_locally();
+    }
+
+    #[test]
     #[ignore = "recette HTTPS réelle : deux autorisations navigateur dans une entreprise de test, puis suppression de la seule copie créée"]
     fn live_https_backup_restores_two_chunks_on_an_independent_installation() {
-        use futures_util::FutureExt;
-        tauri::async_runtime::block_on(async {
-            let temporary = tempfile::tempdir().unwrap();
-            let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
-            let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
-            let mut cleanup: Option<(ProjectSyncSession,String)> = None;
-            let outcome = std::panic::AssertUnwindSafe(async {
-                crate::account_cloud::connect_live_qa_profile(&source,"source").await?;
-                let session = backup_session(&source).await?;
-                source.connect()?.execute("INSERT INTO projects(id,name,created_at,updated_at) VALUES('qa-live-recovery','Recette fictive sauvegarde HTTPS','2026-09-08','2026-09-08')", [])?;
-                // A deterministic, incompressible fixture crosses the real R2
-                // chunk boundary; no business or personal document is uploaded.
-                let mut bytes=vec![0u8; CHUNK_BYTES+1024*1024];
-                let mut seed=0x1938_ca47_2026_0908u64;
-                for byte in &mut bytes { seed^=seed<<13; seed^=seed>>7; seed^=seed<<17; *byte=seed as u8; }
-                fs::write(source.attachments_dir.join("qa-plan.bin"),&bytes)?;
-                let pending=source.prepare_cloud_backup(&session.organization_id)?;
-                assert_eq!(pending.manifest.chunks.len(),2);
-                let backup_id=pending.backup_id.clone();
-                println!("QA_BACKUP {} organization={} bytes={}",backup_id,session.organization_id,pending.manifest.size_bytes);
-                cleanup=Some((session,backup_id));
-                let session=&cleanup.as_ref().unwrap().0;
-                // Publish the manifest then only the first fragment, as if the
-                // process stopped mid-transfer. Reopen the profile before retry.
-                request(session,Method::POST,"/api/backups",&[],Some(json!({"backup_id":pending.backup_id,"manifest":pending.manifest}))).await?;
-                let mut archive=File::open(source.cloud_backup_path(&pending.backup_id)?)?;
-                let mut first=vec![0u8;CHUNK_BYTES]; archive.read_exact(&mut first)?;
-                let (status,_)=session.request(Method::PUT,"/api/backups/chunk",&[("id",&pending.backup_id),("index","0")],&[],Some(first),false).await?;
-                assert!(status.is_success()); drop(archive);
-                let reopened=LocalStore::initialize(source.data_dir.clone())?;
-                send_backup(&reopened,&backup_session(&reopened).await?).await?;
-                assert!(reopened.cloud_backup_preferences()?.pending.is_none());
-                let complete=request(session,Method::GET,"/api/backups/item",&[("id",&pending.backup_id)],None).await?;
-                assert_eq!(complete["state"],"complete");
-                assert_eq!(complete["sha256"],pending.manifest.sha256);
-                println!("QA_UPLOAD_COMPLETE {}",pending.backup_id);
-                crate::account_cloud::connect_live_qa_profile(&destination,"destination").await?;
-                let destination_session=backup_session(&destination).await?;
-                if destination_session.organization_id!=session.organization_id { return Err(validation("Les deux profils de recette doivent être autorisés dans la même entreprise de test.")); }
-                restore(&destination,&pending.backup_id).await?;
-                assert_ne!(source.installation_id,destination.installation_id);
-                assert_eq!(fs::read(destination.attachments_dir.join("qa-plan.bin"))?,bytes);
-                let restored:String=destination.connect()?.query_row("SELECT name FROM projects WHERE id='qa-live-recovery'",[],|row|row.get(0))?;
-                assert_eq!(restored,"Recette fictive sauvegarde HTTPS");
-                assert_eq!(backup_session(&destination).await?.organization_id,session.organization_id);
-                println!("QA_RESTORE_COMPLETE independent_installation=true attachments_sha256={:x}",Sha256::digest(&bytes));
-                Ok::<(),AppError>(())
-            }).catch_unwind().await;
-            // Clean up the specific archive and both test sessions on failures
-            // as well as success. Never enumerate/delete other company backups.
-            let removal=if let Some((session,id))=&cleanup {
-                request(session,Method::DELETE,"/api/backups/item",&[("id",id)],None).await.map(|_|())
-            } else { Ok(()) };
-            let source_disconnect=crate::account_cloud::disconnect_live_qa_profile(&source).await;
-            let destination_disconnect=crate::account_cloud::disconnect_live_qa_profile(&destination).await;
-            removal.unwrap(); source_disconnect.unwrap(); destination_disconnect.unwrap(); outcome.unwrap().unwrap();
-            println!("QA_CLEANUP_COMPLETE archive_deleted=true sessions_revoked=true");
-        });
+        qa::run();
     }
 
     #[test]

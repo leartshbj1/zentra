@@ -36,6 +36,10 @@ Routes privées `/api/backups`, `/api/backups/item`, `/api/backups/chunk`, authe
 
 Le backend natif `cloud_backup.rs` conserve seulement les préférences et l’envoi en attente dans le profil local. Le planificateur de l’interface demande une vérification toutes les cinq minutes et à la reprise réseau ; le backend applique l’intervalle quotidien et un verrou d’opération. Les erreurs sont conservées et signalées dans l’interface.
 
+La reprise en préparation utilise les confirmations `received_chunks` renvoyées par `/api/backups`. Le serveur ne les enregistre qu'après réception durable du fragment dans R2 ; chaque confirmation contient son index, son empreinte et sa taille. L'application vérifie ces valeurs contre son manifeste avant de sauter les octets correspondants. Une confirmation incohérente ne fait pas terminer l'envoi. Les anciens clients ignorent ce champ ; avec un ancien serveur sans catalogue de confirmations, le nouveau client répète les fragments de façon idempotente. Cette compatibilité ne doit pas être présentée comme une reprise économisant la bande passante.
+
+La recette HTTPS version 2 emploie un document réellement ajouté à un projet, un XML TVA et un ZIP de clôture réellement générés, plus un fichier fictif incompressible pour traverser la limite des fragments. Elle exige une entreprise de test explicitement désignée avant tout envoi. Après le premier fragment, elle rouvre le profil et exige un seul fragment envoyé et un seul ignoré ; une simulation de confirmation locale perdue exige ensuite zéro octet renvoyé. Le second profil vérifie les quatre fichiers et les trois registres inchangés après restauration. La recette ne prétend pas représenter un exercice comptable complet ni deux appareils physiques.
+
 ## Preuves de recette du 8 septembre 2026
 
 - 229 tests serveur passent, dont 21 pour le coffre et sa récupération web : transferts interrompus, rejeu, altération, quotas, rôles, révocation, isolation, suppression concurrente, reprise d’un nettoyage R2 en échec, récupération après résiliation et téléchargement de plusieurs fragments avec contrôle global.
@@ -59,10 +63,12 @@ Exécuter uniquement dans une entreprise de test déjà autorisée. Le test est 
 
 ```powershell
 $env:HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL = (Get-Content desktop/src-tauri/license-public-key.b64url -Raw).Trim()
+$env:ZENTRA_BACKUP_QA_ORGANIZATION = '<identifiant org_ de votre entreprise fictive autorisée>'
 try {
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --target x86_64-pc-windows-gnu --lib live_https_backup_restores_two_chunks_on_an_independent_installation -- --ignored --nocapture
 } finally {
   Remove-Item Env:HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL -ErrorAction SilentlyContinue
+  Remove-Item Env:ZENTRA_BACKUP_QA_ORGANIZATION -ErrorAction SilentlyContinue
 }
 ```
 

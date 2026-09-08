@@ -118,6 +118,34 @@ function publicBackup(row: BackupRow) {
     completed_at: row.completed_at,
   };
 }
+
+async function resumableBackup(row: BackupRow) {
+  const manifest = backupManifest(JSON.parse(row.manifest_json));
+  const receipts = await database()
+    .prepare(
+      'SELECT chunk_index,sha256,size_bytes FROM workspace_backup_chunks WHERE backup_id=? ORDER BY chunk_index LIMIT ?',
+    )
+    .bind(row.backup_id, MAX_BACKUP_CHUNKS + 1)
+    .all<{ chunk_index: number; sha256: string; size_bytes: number }>();
+  if (
+    receipts.results.length > manifest.chunks.length ||
+    receipts.results.some((receipt) => {
+      const expected = manifest.chunks[receipt.chunk_index];
+      return (
+        !Number.isSafeInteger(receipt.chunk_index) ||
+        !expected ||
+        receipt.sha256 !== expected.sha256 ||
+        receipt.size_bytes !== expected.size_bytes
+      );
+    })
+  )
+    throw new AccountPublicError(
+      'Les confirmations de sauvegarde sont incohérentes. Réessayez plus tard.',
+      503,
+    );
+  // Receipts are written only after R2 has accepted the immutable bytes.
+  return { ...publicBackup(row), received_chunks: receipts.results };
+}
 export async function listBackups(org: string) {
   const rows = await database()
     .prepare(
@@ -149,7 +177,7 @@ export async function beginBackup(
         'Cette référence est déjà utilisée pour une autre sauvegarde.',
         409,
       );
-    return publicBackup(prior);
+    return resumableBackup(prior);
   }
   // Quota reservation and insertion are one SQL statement: concurrent devices cannot overbook.
   await database()
@@ -188,7 +216,7 @@ export async function beginBackup(
       'Cette référence est déjà utilisée pour une autre sauvegarde.',
       409,
     );
-  return publicBackup(result);
+  return resumableBackup(result);
 }
 function chunk(row: BackupRow, index: number) {
   const manifest = backupManifest(JSON.parse(row.manifest_json));
