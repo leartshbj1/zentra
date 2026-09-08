@@ -247,7 +247,7 @@ export function CloudBackupPanel({
                       onClick={() => {
                         setConfirmation({
                           title: 'Restaurer cette sauvegarde',
-                          message: `La copie du ${formatDateTime(backup.created_at)} remplacera les données actuelles de cet appareil. Zentra conservera d’abord une copie locale de sécurité.`,
+                          message: `La copie du ${formatDateTime(backup.created_at)} remplacera les données actuelles de cet appareil. Zentra conservera d’abord une copie locale de sécurité. Les anciennes sauvegardes peuvent ne pas contenir les exports TVA et les dossiers de clôture.`,
                           label: 'Restaurer cette copie',
                           action: () => onRestore(backup.backup_id),
                           success:

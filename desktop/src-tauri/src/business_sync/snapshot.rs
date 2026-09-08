@@ -95,6 +95,22 @@ struct FrozenFile {
     sha256: String,
     size_bytes: u64,
 }
+
+/// Verify and freeze registered accounting exports against a database snapshot.
+/// Backups use the same checks as initial history without enabling replication.
+pub(crate) fn freeze_registered_exports(
+    connection: &Connection,
+    exports_root: &Path,
+    staging: &Path,
+) -> AppResult<Vec<(String, PathBuf)>> {
+    fs::create_dir_all(staging.join("files"))?;
+    let mut files = Vec::new();
+    exports::freeze(connection, exports_root, staging, &mut files)?;
+    Ok(files
+        .into_iter()
+        .map(|file| (file.path, staging.join("files").join(file.sha256)))
+        .collect())
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct Prepared {

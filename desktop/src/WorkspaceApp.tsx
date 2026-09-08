@@ -4593,7 +4593,7 @@ function SettingsScreen({
     if (
       !source ||
       !window.confirm(
-        'Une sauvegarde de sécurité sera créée avant le remplacement. Restaurer le fichier sélectionné ?',
+        'Une sauvegarde de sécurité sera créée avant le remplacement. Les anciennes sauvegardes peuvent ne pas contenir les exports TVA et les dossiers de clôture. Restaurer le fichier sélectionné ?',
       )
     )
       return;

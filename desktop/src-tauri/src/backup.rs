@@ -22,9 +22,11 @@ use crate::{
 };
 
 const BACKUP_FORMAT: &str = "helvichantier-backup";
-const BACKUP_FORMAT_VERSION: u32 = 1;
+const BACKUP_FORMAT_VERSION: u32 = 2;
 const DATABASE_ENTRY: &str = "database.sqlite3";
 const ATTACHMENTS_PREFIX: &str = "attachments/";
+const EXPORTS_PREFIX: &str = "exports/";
+const MAX_EXPORTS_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 const MAX_DATABASE_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_ATTACHMENTS_BYTES: u64 = 50 * 1024 * 1024 * 1024;
@@ -33,33 +35,81 @@ const BACKUP_STATUS_FORMAT: &str = "elyko-backup-status";
 const BACKUP_STATUS_VERSION: u32 = 1;
 const MAX_BACKUP_STATUS_BYTES: u64 = 16 * 1024;
 
+#[cfg(test)]
+pub(crate) mod exports_tests;
+
 /// Collections tabulaires explicitement autorisées dans l'export CSV.
 ///
 /// L'allowlist évite qu'une future table contenant un secret, un chemin local
 /// ou un document brut soit exportée automatiquement. Les fichiers binaires ne
 /// sont jamais copiés dans cette archive.
 const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
-    ("customer_credit_documents", "02_ventes/modeles_avoirs_clients.csv"),
-    ("customer_credit_recoveries", "02_ventes/reprises_avoirs_clients.csv"),
-    ("customer_credit_recovery_tax_models", "02_ventes/modeles_reprise_tva_clients.csv"),
-    ("customer_credit_recovery_postings", "02_ventes/corrections_reprise_tva_clients.csv"),
-    ("customer_credit_settlements", "02_ventes/reglements_avoirs_clients.csv"),
-    ("customer_credit_settlement_lines", "02_ventes/ventilations_reglements_avoirs_clients.csv"),
-    ("customer_credit_settlement_postings", "02_ventes/preuves_reglements_avoirs_clients.csv"),
-    ("bank_supplier_credit_refund_matches", "03_achats/rapprochements_remboursements_avoirs.csv"),
-    ("bank_supplier_credit_refund_unlinks", "03_achats/dissociations_remboursements_avoirs.csv"),
-    ("bank_supplier_credit_refund_requests", "03_achats/creations_bancaires_remboursements_avoirs.csv"),
-    ("bank_customer_credit_refund_matches", "02_ventes/rapprochements_remboursements_avoirs_clients.csv"),
-    ("bank_customer_credit_refund_unlinks", "02_ventes/dissociations_remboursements_avoirs_clients.csv"),
-    ("bank_customer_credit_refund_requests", "02_ventes/creations_bancaires_remboursements_clients.csv"),
-    ("supplier_credit_refunds", "03_achats/remboursements_avoirs_fournisseurs.csv"),
+    (
+        "customer_credit_documents",
+        "02_ventes/modeles_avoirs_clients.csv",
+    ),
+    (
+        "customer_credit_recoveries",
+        "02_ventes/reprises_avoirs_clients.csv",
+    ),
+    (
+        "customer_credit_recovery_tax_models",
+        "02_ventes/modeles_reprise_tva_clients.csv",
+    ),
+    (
+        "customer_credit_recovery_postings",
+        "02_ventes/corrections_reprise_tva_clients.csv",
+    ),
+    (
+        "customer_credit_settlements",
+        "02_ventes/reglements_avoirs_clients.csv",
+    ),
+    (
+        "customer_credit_settlement_lines",
+        "02_ventes/ventilations_reglements_avoirs_clients.csv",
+    ),
+    (
+        "customer_credit_settlement_postings",
+        "02_ventes/preuves_reglements_avoirs_clients.csv",
+    ),
+    (
+        "bank_supplier_credit_refund_matches",
+        "03_achats/rapprochements_remboursements_avoirs.csv",
+    ),
+    (
+        "bank_supplier_credit_refund_unlinks",
+        "03_achats/dissociations_remboursements_avoirs.csv",
+    ),
+    (
+        "bank_supplier_credit_refund_requests",
+        "03_achats/creations_bancaires_remboursements_avoirs.csv",
+    ),
+    (
+        "bank_customer_credit_refund_matches",
+        "02_ventes/rapprochements_remboursements_avoirs_clients.csv",
+    ),
+    (
+        "bank_customer_credit_refund_unlinks",
+        "02_ventes/dissociations_remboursements_avoirs_clients.csv",
+    ),
+    (
+        "bank_customer_credit_refund_requests",
+        "02_ventes/creations_bancaires_remboursements_clients.csv",
+    ),
+    (
+        "supplier_credit_refunds",
+        "03_achats/remboursements_avoirs_fournisseurs.csv",
+    ),
     ("clients", "01_referentiels/clients.csv"),
     ("catalog_items", "01_referentiels/catalogue.csv"),
     ("suppliers", "01_referentiels/fournisseurs.csv"),
     ("quotes", "02_ventes/devis.csv"),
     ("quote_items", "02_ventes/lignes_devis.csv"),
     ("quote_conversions", "02_ventes/conversions_devis.csv"),
-    ("quote_invoice_pairs", "02_ventes/dossiers_acompte_solde.csv"),
+    (
+        "quote_invoice_pairs",
+        "02_ventes/dossiers_acompte_solde.csv",
+    ),
     ("sales_orders", "02_ventes/commandes_clients.csv"),
     (
         "sales_order_lines",
@@ -178,12 +228,30 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
         "06_banque/rapprochements_fournisseurs.csv",
     ),
     ("bank_movement_keys", "06_banque/cles_mouvements.csv"),
-    ("bank_expense_reconciliations", "06_banque/rapprochements_depenses.csv"),
-    ("bank_expense_creation_requests", "06_banque/creations_depenses.csv"),
-    ("bank_expense_unreconciliations", "06_banque/corrections_rapprochements_depenses.csv"),
-    ("bank_expense_reconciliation_registry", "06_banque/registre_rapprochements_depenses.csv"),
-    ("bank_expense_refund_matches", "06_banque/rapprochements_remboursements.csv"),
-    ("bank_expense_refund_unlinks", "06_banque/dissociations_remboursements.csv"),
+    (
+        "bank_expense_reconciliations",
+        "06_banque/rapprochements_depenses.csv",
+    ),
+    (
+        "bank_expense_creation_requests",
+        "06_banque/creations_depenses.csv",
+    ),
+    (
+        "bank_expense_unreconciliations",
+        "06_banque/corrections_rapprochements_depenses.csv",
+    ),
+    (
+        "bank_expense_reconciliation_registry",
+        "06_banque/registre_rapprochements_depenses.csv",
+    ),
+    (
+        "bank_expense_refund_matches",
+        "06_banque/rapprochements_remboursements.csv",
+    ),
+    (
+        "bank_expense_refund_unlinks",
+        "06_banque/dissociations_remboursements.csv",
+    ),
     ("bank_account_links", "06_banque/comptes_associes.csv"),
     ("projects", "07_projets/projets.csv"),
     ("project_milestones", "07_projets/jalons.csv"),
@@ -295,12 +363,14 @@ struct ArchiveExtractionLimits {
     manifest_bytes: u64,
     database_bytes: u64,
     attachments_bytes: u64,
+    exports_bytes: u64,
 }
 
 const ARCHIVE_EXTRACTION_LIMITS: ArchiveExtractionLimits = ArchiveExtractionLimits {
     manifest_bytes: MAX_MANIFEST_BYTES,
     database_bytes: MAX_DATABASE_BYTES,
     attachments_bytes: MAX_ATTACHMENTS_BYTES,
+    exports_bytes: MAX_EXPORTS_BYTES,
 };
 
 struct PreservedLicense {
@@ -320,14 +390,19 @@ struct PreservedLicense {
 struct RestoredDataSwap {
     database_path: PathBuf,
     attachments_dir: PathBuf,
+    exports_dir: PathBuf,
     staged_database: PathBuf,
     staged_attachments: PathBuf,
+    staged_exports: PathBuf,
     old_database: PathBuf,
     old_attachments: PathBuf,
+    old_exports: PathBuf,
     old_database_staged: bool,
     old_attachments_staged: bool,
+    old_exports_staged: bool,
     new_database_installed: bool,
     new_attachments_installed: bool,
+    new_exports_installed: bool,
 }
 
 impl RestoredDataSwap {
@@ -354,6 +429,16 @@ impl RestoredDataSwap {
                 failures.push(format!("ancienne base : {error}"));
             }
         }
+        if self.new_exports_installed && self.exports_dir.exists() {
+            if let Err(error) = fs::remove_dir_all(&self.exports_dir) {
+                failures.push(format!("exports restaurés : {error}"));
+            }
+        }
+        if self.old_exports_staged && self.old_exports.exists() {
+            if let Err(error) = fs::rename(&self.old_exports, &self.exports_dir) {
+                failures.push(format!("anciens exports : {error}"));
+            }
+        }
         if self.old_attachments_staged && self.old_attachments.exists() {
             if let Err(error) = fs::rename(&self.old_attachments, &self.attachments_dir) {
                 failures.push(format!("anciennes pièces jointes : {error}"));
@@ -364,6 +449,9 @@ impl RestoredDataSwap {
         }
         if self.staged_attachments.exists() {
             let _ = fs::remove_dir_all(&self.staged_attachments);
+        }
+        if self.staged_exports.exists() {
+            let _ = fs::remove_dir_all(&self.staged_exports);
         }
 
         if failures.is_empty() {
@@ -377,6 +465,12 @@ impl RestoredDataSwap {
     }
 
     fn commit(self) {
+        if self.old_exports.exists() {
+            let _ = fs::remove_dir_all(self.old_exports);
+        }
+        if self.staged_exports.exists() {
+            let _ = fs::remove_dir_all(self.staged_exports);
+        }
         if self.old_database.exists() {
             let _ = fs::remove_file(self.old_database);
         }
@@ -555,14 +649,24 @@ impl LocalStore {
             .tempdir_in(&self.data_dir)?;
         let extracted_database = extraction.path().join(DATABASE_ENTRY);
         let extracted_attachments = extraction.path().join("attachments");
+        let extracted_exports = extraction.path().join("exports");
         fs::create_dir_all(&extracted_attachments)?;
-        self.extract_and_validate_archive_with_limits(
+        fs::create_dir_all(&extracted_exports)?;
+        let format_version = self.extract_and_validate_archive_with_limits(
             &source,
             &extracted_database,
             &extracted_attachments,
+            &extracted_exports,
             limits,
         )?;
         validate_database(&extracted_database)?;
+        if format_version >= 2 {
+            crate::business_sync::snapshot::freeze_registered_exports(
+                &Connection::open(&extracted_database)?,
+                &extracted_exports,
+                &extraction.path().join("verified-exports"),
+            )?;
+        }
         strip_restored_license(&extracted_database)?;
         crate::shared_numbering::strip_device_ranges(&Connection::open(&extracted_database)?)?;
         crate::business_sync::detach_restored_copy(&Connection::open(&extracted_database)?)?;
@@ -570,7 +674,16 @@ impl LocalStore {
         let safety_path = if self.database_path.is_file() {
             let safety_path =
                 unique_default_path(&self.backups_dir, "avant-restauration", "zentra");
-            self.create_backup_at(&safety_path, app_version)?;
+            // Preserve the existing profile as found, even when the restoration
+            // is repairing a missing/altered export. This internal recovery copy
+            // is never published as a successful complete backup. Incoming v2
+            // archives always retain their strict registry/content validation.
+            self.create_backup_at_with_limits(
+                &safety_path,
+                app_version,
+                ARCHIVE_EXTRACTION_LIMITS,
+                false,
+            )?;
             Some(safety_path)
         } else {
             None
@@ -579,6 +692,7 @@ impl LocalStore {
         self.install_restored_data_and_then(
             &extracted_database,
             &extracted_attachments,
+            &extracted_exports,
             safety_path.as_deref(),
             || {
                 self.migrate()?;
@@ -590,6 +704,16 @@ impl LocalStore {
     }
 
     pub(crate) fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
+        self.create_backup_at_with_limits(destination, app_version, ARCHIVE_EXTRACTION_LIMITS, true)
+    }
+
+    fn create_backup_at_with_limits(
+        &self,
+        destination: &Path,
+        app_version: &str,
+        limits: ArchiveExtractionLimits,
+        verify_exports: bool,
+    ) -> AppResult<()> {
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -605,6 +729,21 @@ impl LocalStore {
             .tempdir_in(&self.data_dir)?;
         let snapshot_database = snapshot_dir.path().join(DATABASE_ENTRY);
         self.snapshot_database(&snapshot_database)?;
+        if fs::metadata(&snapshot_database)?.len() > limits.database_bytes {
+            return Err(AppError::Validation(
+                "La base de données dépasse la limite de sauvegarde.".into(),
+            ));
+        }
+
+        let registered_exports = if verify_exports {
+            crate::business_sync::snapshot::freeze_registered_exports(
+                &Connection::open(&snapshot_database)?,
+                &self.exports_dir,
+                &snapshot_dir.path().join("verified-exports"),
+            )?
+        } else {
+            Vec::new()
+        };
 
         let manifest = BackupManifest {
             format: BACKUP_FORMAT.into(),
@@ -613,17 +752,23 @@ impl LocalStore {
             created_at: now_iso(),
             database_file: DATABASE_ENTRY.into(),
             attachments_prefix: ATTACHMENTS_PREFIX.into(),
+            exports_prefix: Some(EXPORTS_PREFIX.into()),
         };
 
-        let temporary_archive = destination.with_extension(format!(
-            "{}.tmp-{}",
-            destination
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or("zentra"),
-            Uuid::new_v4()
-        ));
-        let archive_file = create_new_file(&temporary_archive)?;
+        let parent = destination.parent().unwrap_or(Path::new("."));
+        let canonical_parent = fs::canonicalize(parent)?;
+        for managed in [&self.attachments_dir, &self.exports_dir] {
+            if canonical_parent.starts_with(fs::canonicalize(managed)?) {
+                return Err(AppError::Validation(
+                    "Enregistrez la sauvegarde hors des dossiers actifs de documents et d'exports."
+                        .into(),
+                ));
+            }
+        }
+        let temporary_archive = tempfile::Builder::new()
+            .prefix(".zentra-backup-")
+            .tempfile_in(parent)?;
+        let archive_file = temporary_archive.reopen()?;
         let mut archive = ZipWriter::new(archive_file);
         let options = SimpleFileOptions::default()
             .compression_method(CompressionMethod::Deflated)
@@ -632,29 +777,28 @@ impl LocalStore {
         archive.start_file("manifest.json", options)?;
         archive.write_all(serde_json::to_string_pretty(&manifest)?.as_bytes())?;
         add_file_to_archive(&mut archive, &snapshot_database, DATABASE_ENTRY, options)?;
-        for entry in WalkDir::new(&self.attachments_dir)
-            .follow_links(false)
-            .into_iter()
-        {
-            let entry = entry.map_err(|_| AppError::Validation("Une pièce jointe est inaccessible. La sauvegarde complète n’a pas été créée.".into()))?;
-            if !entry.file_type().is_file() { continue; }
-            let relative = entry
-                .path()
-                .strip_prefix(&self.attachments_dir)
-                .map_err(|_| AppError::UnsafePath(entry.path().to_path_buf()))?;
-            ensure_safe_relative(relative)?;
-            let archive_name = format!(
-                "{ATTACHMENTS_PREFIX}{}",
-                relative.to_string_lossy().replace('\\', "/")
-            );
-            add_file_to_archive(&mut archive, entry.path(), &archive_name, options)?;
-        }
+        add_backup_directory(
+            &mut archive,
+            &self.attachments_dir,
+            ATTACHMENTS_PREFIX,
+            limits.attachments_bytes,
+            &[],
+            options,
+        )?;
+        add_backup_directory(
+            &mut archive,
+            &self.exports_dir,
+            EXPORTS_PREFIX,
+            limits.exports_bytes,
+            &registered_exports,
+            options,
+        )?;
         let file = archive.finish()?;
         file.sync_all()?;
-        if let Err(error) = fs::rename(&temporary_archive, destination) {
-            let _ = fs::remove_file(&temporary_archive);
-            return Err(error.into());
-        }
+        drop(file);
+        temporary_archive
+            .persist_noclobber(destination)
+            .map_err(|error| AppError::Io(error.error))?;
         Ok(())
     }
 
@@ -728,10 +872,16 @@ impl LocalStore {
         source: &Path,
         database_destination: &Path,
         attachments_destination: &Path,
+        exports_destination: &Path,
         limits: ArchiveExtractionLimits,
-    ) -> AppResult<()> {
+    ) -> AppResult<u32> {
         let file = File::open(source)?;
         let mut archive = ZipArchive::new(file)?;
+        if archive.len() > 200_002 {
+            return Err(AppError::Validation(
+                "La sauvegarde contient trop de fichiers.".into(),
+            ));
+        }
         let manifest: BackupManifest = {
             let mut entry = archive.by_name("manifest.json").map_err(|_| {
                 AppError::Validation("Le manifeste de sauvegarde est absent.".into())
@@ -744,9 +894,12 @@ impl LocalStore {
             serde_json::from_str(&contents)?
         };
         if manifest.format != BACKUP_FORMAT
-            || manifest.format_version != BACKUP_FORMAT_VERSION
+            || !matches!(manifest.format_version, 1 | BACKUP_FORMAT_VERSION)
             || manifest.database_file != DATABASE_ENTRY
             || manifest.attachments_prefix != ATTACHMENTS_PREFIX
+            || (manifest.format_version == 1 && manifest.exports_prefix.is_some())
+            || (manifest.format_version == 2
+                && manifest.exports_prefix.as_deref() != Some(EXPORTS_PREFIX))
         {
             return Err(AppError::Validation(
                 "Le format de cette sauvegarde n'est pas reconnu.".into(),
@@ -766,53 +919,75 @@ impl LocalStore {
         }
 
         let mut total_attachment_bytes: u64 = 0;
+        let mut total_export_bytes: u64 = 0;
+        let mut names = BTreeSet::new();
         for index in 0..archive.len() {
             let mut entry = archive.by_index(index)?;
             let name = entry.name().replace('\\', "/");
-            if !name.starts_with(ATTACHMENTS_PREFIX) || entry.is_dir() {
+            ensure_safe_relative(Path::new(name.trim_end_matches('/')))?;
+            if !names.insert(name.trim_end_matches('/').to_lowercase())
+                || entry
+                    .unix_mode()
+                    .is_some_and(|mode| mode & 0o170000 == 0o120000)
+            {
+                return Err(AppError::Validation(
+                    "La sauvegarde contient un chemin dupliqué ou un lien non autorisé.".into(),
+                ));
+            }
+            if name == "manifest.json" || name == DATABASE_ENTRY || entry.is_dir() {
                 continue;
             }
-            let relative_name = name.trim_start_matches(ATTACHMENTS_PREFIX);
+            let (relative_name, directory, maximum, total, label) = if let Some(relative) =
+                name.strip_prefix(ATTACHMENTS_PREFIX)
+            {
+                (
+                    relative,
+                    attachments_destination,
+                    limits.attachments_bytes,
+                    &mut total_attachment_bytes,
+                    "Les pièces jointes de la sauvegarde",
+                )
+            } else if manifest.format_version >= 2 && name.starts_with(EXPORTS_PREFIX) {
+                (
+                    &name[EXPORTS_PREFIX.len()..],
+                    exports_destination,
+                    limits.exports_bytes,
+                    &mut total_export_bytes,
+                    "Les exports de la sauvegarde",
+                )
+            } else {
+                return Err(AppError::Validation(
+                    "La sauvegarde contient un fichier en dehors des dossiers autorisés.".into(),
+                ));
+            };
             let relative = Path::new(relative_name);
             ensure_safe_relative(relative)?;
-            let destination = attachments_destination.join(relative);
-            let remaining = limits
-                .attachments_bytes
-                .checked_sub(total_attachment_bytes)
-                .ok_or_else(|| {
-                    AppError::Validation(
-                        "Les pièces jointes de la sauvegarde dépassent la limite autorisée.".into(),
-                    )
-                })?;
-            let extracted = copy_reader_to_new_file_limited(
-                &mut entry,
-                &destination,
-                remaining,
-                "Les pièces jointes de la sauvegarde",
-            )?;
-            total_attachment_bytes =
-                total_attachment_bytes
-                    .checked_add(extracted)
-                    .ok_or_else(|| {
-                        AppError::Validation(
-                            "La taille extraite des pièces jointes est invalide.".into(),
-                        )
-                    })?;
+            let destination = directory.join(relative);
+            let remaining = maximum.checked_sub(*total).ok_or_else(|| {
+                AppError::Validation(format!("{label} dépassent la limite autorisée."))
+            })?;
+            let extracted =
+                copy_reader_to_new_file_limited(&mut entry, &destination, remaining, label)?;
+            *total = total.checked_add(extracted).ok_or_else(|| {
+                AppError::Validation("La taille extraite des pièces jointes est invalide.".into())
+            })?;
         }
-        Ok(())
+        Ok(manifest.format_version)
     }
 
     fn install_restored_data_and_then<F>(
         &self,
         restored_database: &Path,
         restored_attachments: &Path,
+        restored_exports: &Path,
         safety_path: Option<&Path>,
         finalize: F,
     ) -> AppResult<()>
     where
         F: FnOnce() -> AppResult<()>,
     {
-        let swap = self.install_restored_data(restored_database, restored_attachments)?;
+        let swap =
+            self.install_restored_data(restored_database, restored_attachments, restored_exports)?;
         match finalize() {
             Ok(()) => {
                 swap.commit();
@@ -839,6 +1014,7 @@ impl LocalStore {
         &self,
         restored_database: &Path,
         restored_attachments: &Path,
+        restored_exports: &Path,
     ) -> AppResult<RestoredDataSwap> {
         let token = Uuid::new_v4();
         let staged_database = self.data_dir.join(format!(".restore-{token}.sqlite3"));
@@ -853,18 +1029,26 @@ impl LocalStore {
         let mut swap = RestoredDataSwap {
             database_path: self.database_path.clone(),
             attachments_dir: self.attachments_dir.clone(),
+            exports_dir: self.exports_dir.clone(),
+            staged_exports: self.data_dir.join(format!(".restore-exports-{token}")),
+            old_exports: self
+                .data_dir
+                .join(format!(".before-restore-exports-{token}")),
             staged_database,
             staged_attachments,
             old_database,
             old_attachments,
             old_database_staged: false,
             old_attachments_staged: false,
+            old_exports_staged: false,
             new_database_installed: false,
             new_attachments_installed: false,
+            new_exports_installed: false,
         };
         let staging_result = (|| -> AppResult<()> {
             fs::copy(restored_database, &swap.staged_database)?;
             copy_directory(restored_attachments, &swap.staged_attachments)?;
+            copy_directory(restored_exports, &swap.staged_exports)?;
             Ok(())
         })();
         if let Err(error) = staging_result {
@@ -885,6 +1069,12 @@ impl LocalStore {
             swap.new_database_installed = true;
             fs::rename(&swap.staged_attachments, &self.attachments_dir)?;
             swap.new_attachments_installed = true;
+            if self.exports_dir.exists() {
+                fs::rename(&self.exports_dir, &swap.old_exports)?;
+                swap.old_exports_staged = true;
+            }
+            fs::rename(&swap.staged_exports, &self.exports_dir)?;
+            swap.new_exports_installed = true;
             Ok(())
         })();
         if let Err(error) = install_result {
@@ -1107,12 +1297,15 @@ fn validate_database(path: &Path) -> AppResult<()> {
     }
     let has_audit: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log')",
-        [], |row| row.get(0),
+        [],
+        |row| row.get(0),
     )?;
     if has_audit {
         crate::audit::verify_audit_chain(&connection)?;
     } else if user_version == SCHEMA_VERSION {
-        return Err(AppError::Validation("La sauvegarde ne contient pas le journal d’intégrité attendu.".into()));
+        return Err(AppError::Validation(
+            "La sauvegarde ne contient pas le journal d’intégrité attendu.".into(),
+        ));
     }
     let has_journal: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='journal_entries') AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='journal_lines')",
@@ -1223,12 +1416,87 @@ fn add_file_to_archive(
     Ok(())
 }
 
+fn add_backup_directory(
+    archive: &mut ZipWriter<File>,
+    root: &Path,
+    prefix: &str,
+    maximum: u64,
+    frozen: &[(String, PathBuf)],
+    options: SimpleFileOptions,
+) -> AppResult<()> {
+    let frozen_names = frozen
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut names = BTreeSet::new();
+    let mut total = 0_u64;
+    let mut append = |name: &str, source: &Path| -> AppResult<()> {
+        ensure_safe_relative(Path::new(name))?;
+        if names.len() >= 100_000 || !names.insert(name.to_lowercase()) {
+            return Err(AppError::Validation("La sauvegarde contient trop de fichiers ou des noms incompatibles entre appareils.".into()));
+        }
+        archive.start_file(name, options)?;
+        total += copy_reader_limited(
+            &mut File::open(source)?,
+            archive,
+            maximum - total,
+            "Les documents de la sauvegarde",
+        )?;
+        Ok(())
+    };
+    // Registered files come from the verified immutable copy matching SQLite.
+    for (name, source) in frozen {
+        append(name, source)?;
+    }
+    for entry in WalkDir::new(root).follow_links(false) {
+        let entry = entry.map_err(|_| {
+            AppError::Validation(
+                "Un document est inaccessible. La sauvegarde complète n'a pas été créée.".into(),
+            )
+        })?;
+        if entry.file_type().is_symlink() {
+            return Err(AppError::UnsafePath(entry.path().into()));
+        }
+        if entry.file_type().is_dir() {
+            continue;
+        }
+        if !entry.file_type().is_file() {
+            return Err(AppError::UnsafePath(entry.path().into()));
+        }
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| AppError::UnsafePath(entry.path().into()))?;
+        let name = format!("{prefix}{}", relative.to_string_lossy().replace('\\', "/"));
+        if !frozen_names.contains(name.as_str()) {
+            append(&name, entry.path())?;
+        }
+    }
+    Ok(())
+}
+
 fn ensure_safe_relative(path: &Path) -> AppResult<()> {
     if path.as_os_str().is_empty()
         || path.is_absolute()
         || path
             .components()
             .any(|component| !matches!(component, Component::Normal(_)))
+        || path.components().any(|component| {
+            let component = component.as_os_str().to_string_lossy();
+            let stem = component
+                .split('.')
+                .next()
+                .unwrap_or_default()
+                .to_ascii_uppercase();
+            component.ends_with([' ', '.'])
+                || component
+                    .chars()
+                    .any(|c| c.is_control() || matches!(c, ':' | '<' | '>' | '"' | '|' | '?' | '*'))
+                || matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+                || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+                    && stem.len() == 4
+                    && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+        })
     {
         return Err(AppError::UnsafePath(path.to_path_buf()));
     }
@@ -1250,11 +1518,13 @@ fn unique_default_path(directory: &Path, label: &str, extension: &str) -> PathBu
 
 fn copy_directory(source: &Path, destination: &Path) -> AppResult<()> {
     fs::create_dir_all(destination)?;
-    for entry in WalkDir::new(source)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
+    for entry in WalkDir::new(source).follow_links(false).into_iter() {
+        let entry = entry.map_err(|_| {
+            AppError::Validation("Un document à restaurer est inaccessible.".into())
+        })?;
+        if entry.file_type().is_symlink() {
+            return Err(AppError::UnsafePath(entry.path().into()));
+        }
         let relative = entry
             .path()
             .strip_prefix(source)
@@ -1301,10 +1571,20 @@ mod tests {
             "INSERT INTO audit_log(id,occurred_at,actor,action,entity_type,entity_id,payload_json,entry_hash) VALUES('broken','2026-09-08','local_user','create','project','x','{}','invalid-hash')", [],
         ).unwrap();
         target.connect().unwrap().execute("INSERT INTO projects(id,name,created_at,updated_at) VALUES('keep','Projet à conserver','2026-09-08','2026-09-08')", []).unwrap();
-        let archive = source.create_backup(None, env!("CARGO_PKG_VERSION")).unwrap();
-        let error = target.restore_backup(&archive, env!("CARGO_PKG_VERSION")).unwrap_err();
+        let archive = source
+            .create_backup(None, env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        let error = target
+            .restore_backup(&archive, env!("CARGO_PKG_VERSION"))
+            .unwrap_err();
         assert!(error.to_string().contains("audit"));
-        let name: String = target.connect().unwrap().query_row("SELECT name FROM projects WHERE id='keep'", [], |row| row.get(0)).unwrap();
+        let name: String = target
+            .connect()
+            .unwrap()
+            .query_row("SELECT name FROM projects WHERE id='keep'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
         assert_eq!(name, "Projet à conserver");
     }
 
@@ -1313,7 +1593,10 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().into()).unwrap();
         store.connect().unwrap().execute("INSERT INTO journal_entries(id,number,entry_date,description,source_type,source_id,source_event,created_at) VALUES('empty','J-2026-000001','2026-09-08','Écriture altérée','manual','empty','create','2026-09-08')", []).unwrap();
-        assert!(validate_database(&store.database_path).unwrap_err().to_string().contains("déséquilibrées"));
+        assert!(validate_database(&store.database_path)
+            .unwrap_err()
+            .to_string()
+            .contains("déséquilibrées"));
     }
 
     fn seed_license(store: &LocalStore, license_id: &str) -> String {
@@ -1668,9 +1951,15 @@ mod tests {
             b"original",
         )
         .unwrap();
+        fs::write(
+            destination.exports_dir.join("original.csv"),
+            b"original export",
+        )
+        .unwrap();
 
         let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
         fs::write(source.attachments_dir.join("restored.txt"), b"restored").unwrap();
+        fs::write(source.exports_dir.join("restored.csv"), b"restored export").unwrap();
         let restored_database = temporary.path().join("restored.sqlite3");
         source.snapshot_database(&restored_database).unwrap();
 
@@ -1678,6 +1967,7 @@ mod tests {
             .install_restored_data_and_then(
                 &restored_database,
                 &source.attachments_dir,
+                &source.exports_dir,
                 None,
                 || {
                     Err(AppError::Validation(
@@ -1696,6 +1986,11 @@ mod tests {
         );
         assert!(destination.attachments_dir.join("original.txt").is_file());
         assert!(!destination.attachments_dir.join("restored.txt").exists());
+        assert_eq!(
+            fs::read(destination.exports_dir.join("original.csv")).unwrap(),
+            b"original export"
+        );
+        assert!(!destination.exports_dir.join("restored.csv").exists());
     }
 
     #[test]
@@ -1782,6 +2077,7 @@ mod tests {
                     manifest_bytes: MAX_MANIFEST_BYTES,
                     database_bytes: MAX_DATABASE_BYTES,
                     attachments_bytes: 32,
+                    exports_bytes: MAX_EXPORTS_BYTES,
                 },
             )
             .expect_err("the actual attachment bytes exceed the test limit");

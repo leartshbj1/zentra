@@ -39,7 +39,7 @@ La préparation locale version 2 et son catalogue de fichiers version 2 distingu
 
 Validation locale du 8 septembre 2026 : **299 tests serveur réussis, un essai optionnel ignoré**, dont 35 contrôles du catalogue ; **68 tests natifs réussis, deux essais dédiés ignorés** en 119,86 secondes. Deux essais emploient un vrai XML TVA et un vrai dossier de clôture produits par les méthodes de l'application ; leurs registres restent identiques et leur préparation reprend sans changer les octets. La fixture étendue de recette HTTPS génère aussi ces deux exports et passe séparément en 2,23 secondes. TypeScript, lint et compilation du service passent ; Clippy sur toutes les cibles passe en 20,86 secondes. La recette HTTPS avec ces exports réussit après publication du service, comme décrit ci-dessous.
 
-La sauvegarde complète doit encore inclure directement les exports historiques du dossier `exports`. Le cache des fichiers capturés après préparation les conserve déjà lorsqu'ils appartiennent à des modifications en attente, mais cela ne couvre pas les exports de tous les profils ordinaires. Cette limite reste distincte du transfert initial.
+Le format 2 de sauvegarde en préparation inclut directement les exports historiques du dossier `exports`, y compris sur un profil sans capture de synchronisation. Il vérifie les XML TVA et les dossiers de clôture contre leur registre et restaure ensemble la base, les pièces jointes et les exports. Le cache des modifications en attente reste également conservé. La recette du coffre HTTPS avec ce nouveau format et sa distribution native restent à effectuer ; voir `SAUVEGARDES-DISTANTES.md`.
 
 ## Réception de l'historique initial
 

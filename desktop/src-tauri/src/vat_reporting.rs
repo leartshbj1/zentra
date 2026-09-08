@@ -4480,6 +4480,19 @@ mod tests {
     }
 
     #[test]
+    fn backup_preserves_the_actual_generated_vat_xml() {
+        let (_temporary, store) = initialized_store("Recette sauvegarde exports historiques");
+        store.create_vat_profile(effective_profile("agreed")).unwrap();
+        insert_issued_invoice(&store, "invoice-backup", "item-backup", "2026-02-01", 10_000, 810, 810);
+        classify_sale(&store, "item-backup");
+        let export = store.export_vat_return_xml(ExportVatReturnInput {
+            date_from: "2026-01-01".into(), date_to: "2026-03-31".into(), submission_type: "initial".into(),
+            profile_id: Some("effective-agreed".into()), business_reference_id: "QA-BACKUP".into(), file_name: None,
+        }).unwrap();
+        crate::backup::exports_tests::assert_registered_export_backup(&store, &export.file_name, &fs::read(&export.file_path).unwrap());
+    }
+
+    #[test]
     fn unclassified_source_blocks_export_but_remains_visible() {
         let (_temporary, store) = initialized_store("Zentra Tests");
         store

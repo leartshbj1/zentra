@@ -227,7 +227,7 @@ export function Onboarding({
     try {
       const path = await desktopApi.chooseRestoreFile();
       if (!path) return;
-      if (!window.confirm('La sauvegarde choisie sera contrôlée avant de remplacer les données locales. Continuer ?')) return;
+      if (!window.confirm('La sauvegarde choisie sera contrôlée avant de remplacer les données locales. Les anciennes sauvegardes peuvent ne pas contenir les exports TVA et les dossiers de clôture. Continuer ?')) return;
       setBusy(true);
       await onRestore(path);
       try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* L’espace restauré reste valide même si le brouillon ne peut pas être supprimé. */ }
