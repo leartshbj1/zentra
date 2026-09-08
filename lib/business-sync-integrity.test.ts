@@ -220,7 +220,8 @@ async function accounting() {
   let status = await validateBootstrapIntegrity(owner, id);
   for (
     let at = 0;
-    at < bootstrapAccountingRules.length && status.state === 'accounting';
+    at < bootstrapAccountingRules.length + 10 &&
+    ['accounting', 'projecting'].includes(status.state);
     at++
   )
     status = await validateBootstrapIntegrity(owner, id);
@@ -548,3 +549,45 @@ it('rejects a disconnected audit cycle without looping indefinitely', async () =
     failed_rule: 'audit:chain',
   });
 });
+it.skipIf(!process.env.ZENTRA_CREDIT_QA)(
+  'requires exact credit projection before accepting the complete native history',
+  async () => {
+    const folder = process.env.ZENTRA_CREDIT_QA!;
+    const fixture = JSON.parse(readFileSync(`${folder}/prepared.json`, 'utf8'));
+    db.exec('DELETE FROM business_sync_versions');
+    for (let index = 0; index < fixture.manifest.chunks.length; index++) {
+      const chunk = JSON.parse(
+        readFileSync(
+          `${folder}/rows/${String(index).padStart(4, '0')}.json`,
+          'utf8',
+        ),
+      );
+      for (const row of chunk.rows)
+        db.prepare(
+          "INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,'org_first',?,?,?,?)",
+        ).run(
+          id,
+          row.table,
+          row.key_json,
+          row.row_json,
+          await sha256Hex(row.row_json),
+        );
+    }
+    await manifest();
+    await structure();
+    const result = await finish();
+    expect(result).toMatchObject({
+      state: 'valid',
+      credit_projection: {
+        phase: 'valid',
+        verified_documents: 2,
+        verified_movements: 8,
+      },
+    });
+    expect(await bootstrapIntegrityStatus(owner, id)).toEqual(result);
+    db.exec('DELETE FROM business_sync_credit_projection');
+    await expect(bootstrapIntegrityStatus(owner, id)).rejects.toMatchObject({
+      status: 503,
+    });
+  },
+);

@@ -1,5 +1,5 @@
 {
-  "protocol_sha256": "9afbc592e1e11e23164d2ac59b604893ea3aad417e2379faf75fc351e6de2e5d",
+  "protocol_sha256": "4e1198908236293a5edb0e6523c6473a9826a7ffaabdecfc154978b0d2bd3c8c",
   "schema_version": 60,
   "tables": {
     "accounting_periods": {

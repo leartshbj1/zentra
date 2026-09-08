@@ -6,6 +6,11 @@ import { postingRules } from './business-sync-postings';
 import { cashVatRules } from './business-sync-cash-vat';
 import { creditSettlementRules } from './business-sync-credit-settlements';
 import {
+  creditProjectionContract,
+  creditProjectionStatus,
+  validateCreditProjection,
+} from './business-sync-credit-projection';
+import {
   activeBootstrapSql,
   bootstrapValidationContext,
   requireStructuralValidation,
@@ -68,6 +73,7 @@ export function integrityValidatorHash() {
         1,
         structure,
         bootstrapAccountingRules,
+        creditProjectionContract,
         hashFields,
         'sha256-fields-separated-by-lf-v1',
         graphRules,
@@ -125,6 +131,7 @@ async function progress(ctx: Context) {
         row.next_accounting_rule !== bootstrapAccountingRules.length) ||
       ![
         'accounting',
+        'projecting',
         'indexing',
         'linking',
         'walking',
@@ -149,6 +156,12 @@ async function progress(ctx: Context) {
         row.indexed_entries !== count))
   )
     invalid('Le reçu de contrôle comptable est incohérent.', 503);
+  if (
+    row &&
+    ['indexing', 'linking', 'walking', 'valid'].includes(row.state) &&
+    (await creditProjectionStatus(ctx)).phase !== 'valid'
+  )
+    invalid('Le reçu de calcul des avoirs est absent ou incomplet.', 503);
   return row;
 }
 const progressGuard = `SELECT 1 FROM business_sync_integrity_checks c WHERE c.transfer_id=? AND c.validator_sha256=?
@@ -225,7 +238,7 @@ async function save(
   if (!stored) invalid('Le contrôle a été annulé.');
   return stored;
 }
-function response(ctx: Context, row: Progress | null) {
+async function response(ctx: Context, row: Progress | null) {
   return {
     transfer_id: ctx.id,
     generation: ctx.transfer.generation,
@@ -240,6 +253,7 @@ function response(ctx: Context, row: Progress | null) {
     total_audit_entries: ctx.manifest.tables.audit_log,
     last_audit_hash: row?.last_hash ?? null,
     failed_rule: row?.failed_rule ?? null,
+    credit_projection: await creditProjectionStatus(ctx),
     replication_active: false,
   };
 }
@@ -430,11 +444,19 @@ export async function validateBootstrapIntegrity(
       state: failed
         ? 'invalid'
         : next === bootstrapAccountingRules.length
-          ? 'indexing'
+          ? 'projecting'
           : 'accounting',
       next_accounting_rule: next,
       failed_rule: failed,
     });
+  } else if (row.state === 'projecting') {
+    const projection = await validateCreditProjection(ctx);
+    if (projection.phase === 'valid' || projection.phase === 'invalid')
+      row = await save(ctx, row, {
+        ...row,
+        state: projection.phase === 'valid' ? 'indexing' : 'invalid',
+        failed_rule: projection.failed_rule,
+      });
   } else if (row.state === 'indexing') row = await indexAudit(ctx, row);
   else if (row.state === 'linking') row = await linkAudit(ctx, row);
   else if (row.state === 'walking') row = await walkAudit(ctx, row);

@@ -72,6 +72,8 @@ function scope(table: string) {
   return `transfer_id=?1 AND organization_id=?2 AND table_name='${table}'`;
 }
 function rows(table: string, columns = tables[table].columns) {
+  if (columns.some(column => !tables[table].columns.includes(column)))
+    throw new Error(`Structural query depends on a non-transmitted column: ${table}`);
   return `SELECT row_key_json AS __key,${columns.map((column) => `${field(table, column)} AS ${identifier(column)}`).join(',')}
     FROM business_sync_versions WHERE ${scope(table)}`;
 }

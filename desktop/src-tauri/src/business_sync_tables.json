@@ -582,6 +582,7 @@
       ],
       "columns": [
         "id",
+        "sequence",
         "request_id",
         "request_json",
         "credit_note_id",
@@ -595,9 +596,7 @@
         "bank_account_id",
         "created_at"
       ],
-      "local_columns": [
-        "sequence"
-      ]
+      "local_columns": []
     },
     "delivery_note_lines": {
       "key": [

@@ -74,6 +74,53 @@ export const businessSyncAuditNodes = sqliteTable('business_sync_audit_nodes', {
   index('business_sync_audit_previous').on(table.transferId, table.validatorSha256, table.previousHash),
 ]);
 
+// Projection money is written/read through exact SQL, never through JS numbers.
+export const businessSyncCreditProjection = sqliteTable('business_sync_credit_projection', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  validatorSha256: text('validator_sha256').notNull(),
+  manifestSha256: text('manifest_sha256').notNull(),
+  generation: text('generation').notNull(),
+  revision: integer('revision').notNull().default(0),
+  stateJson: text('state_json').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [uniqueIndex('business_sync_credit_projection_identity').on(table.transferId, table.validatorSha256)]);
+
+export const businessSyncCreditLines = sqliteTable('business_sync_credit_lines', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  validatorSha256: text('validator_sha256').notNull(),
+  documentId: text('document_id').notNull(),
+  itemId: text('item_id').notNull(),
+  position: integer('position').notNull(),
+  gross: integer('gross').notNull(),
+  vat: integer('vat').notNull(),
+  remaining: integer('remaining').notNull(),
+  released: integer('released').notNull().default(0),
+  proposedGross: integer('proposed_gross'),
+  proposedVat: integer('proposed_vat'),
+  remainder: integer('remainder'),
+}, (table) => [
+  uniqueIndex('business_sync_credit_line_identity').on(table.transferId, table.validatorSha256, table.documentId, table.itemId),
+  index('business_sync_credit_line_order').on(table.transferId, table.validatorSha256, table.documentId, table.position, table.itemId),
+]);
+
+export const businessSyncCreditMovements = sqliteTable('business_sync_credit_movements', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  validatorSha256: text('validator_sha256').notNull(),
+  documentId: text('document_id').notNull(),
+  movementId: text('movement_id').notNull(),
+  kind: text('kind').notNull(),
+  date: text('date').notNull(),
+  createdAt: text('created_at').notNull(),
+  sequence: integer('sequence').notNull(),
+  amount: integer('amount').notNull(),
+  reversesId: text('reverses_id'),
+  validated: integer('validated').notNull().default(0),
+  computedVat: integer('computed_vat'),
+}, (table) => [
+  uniqueIndex('business_sync_credit_movement_identity').on(table.transferId, table.validatorSha256, table.documentId, table.movementId),
+  index('business_sync_credit_movement_order').on(table.transferId, table.validatorSha256, table.documentId, table.date, table.createdAt, table.sequence, table.movementId),
+]);
+
 export const businessSyncTransferChunks = sqliteTable('business_sync_transfer_chunks', {
   transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
   chunkIndex: integer('chunk_index').notNull(),

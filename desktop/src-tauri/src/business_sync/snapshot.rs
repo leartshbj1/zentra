@@ -986,7 +986,7 @@ mod tests {
     fn contract_fingerprint_matches_the_deployed_typescript_protocol() {
         assert_eq!(
             contract_hash().unwrap(),
-            "9afbc592e1e11e23164d2ac59b604893ea3aad417e2379faf75fc351e6de2e5d"
+            "4e1198908236293a5edb0e6523c6473a9826a7ffaabdecfc154978b0d2bd3c8c"
         );
     }
 

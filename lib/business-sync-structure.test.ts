@@ -7,6 +7,7 @@ import {
   compileStructuralRules,
   structuralRules,
   structuralSchema,
+  structuralRows,
 } from './business-sync-structure';
 import { sqlChecks, sqlUniqueIndex } from './business-sync-sql-rules';
 
@@ -19,6 +20,12 @@ const tables = protocol.tables as Record<
   string,
   { key: string[]; columns: string[] }
 >;
+it('requires the settlement sequence on the wire and refuses queries on local-only fields', () => {
+  expect(protocol.tables.customer_credit_settlements.columns).toContain('sequence');
+  for (const [table, rule] of Object.entries(protocol.tables))
+    for (const column of rule.local_columns)
+      expect(() => structuralRows(table, [column])).toThrow('non-transmitted');
+});
 beforeEach(() => {
   db = new DatabaseSync(':memory:');
   for (const name of readdirSync(new URL('../drizzle/', import.meta.url))

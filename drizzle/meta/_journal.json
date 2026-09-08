@@ -127,6 +127,13 @@
       "when": 1788860537249,
       "tag": "0017_business_sync_financial_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1788870658711,
+      "tag": "0018_jazzy_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

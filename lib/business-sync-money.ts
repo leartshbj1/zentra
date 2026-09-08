@@ -3,7 +3,7 @@
 // Every remainder operation avoids overflowing 2*r or r+amount%denominator.
 // With 0 <= numerator <= denominator the quotient never exceeds amount.
 // This matches native rounded_proportion/proportional_vat for positive inputs.
-export function roundedProportionCtes(input: string, output: string): string {
+export function proportionDivRemCtes(input: string, output: string): string {
   for (const name of [input, output])
     if (!/^[a-z_][a-z0-9_]*$/.test(name))
       throw new Error('Untrusted proportion CTE name');
@@ -20,9 +20,14 @@ export function roundedProportionCtes(input: string, output: string): string {
       q+q+(CASE WHEN r>=d-r THEN 1 ELSE 0 END)+(CASE WHEN ${bit}=1 THEN aq+${carry} ELSE 0 END),
       CASE WHEN ${bit}=1 THEN CASE WHEN ${doubleR}>=d-ar THEN ${doubleR}-(d-ar) ELSE ${doubleR}+ar END ELSE ${doubleR} END
     FROM ${output}_steps WHERE bit>=0),
-    ${output} AS MATERIALIZED (SELECT id,q+(CASE WHEN r>=d-d/2 THEN 1 ELSE 0 END) AS amount
+    ${output} AS MATERIALIZED (SELECT id,q AS quotient,r AS remainder,d AS denominator
       FROM ${output}_steps WHERE bit=-1
-      UNION ALL SELECT id,NULL AS amount FROM ${input} WHERE NOT (${valid}))`;
+      UNION ALL SELECT id,NULL,NULL,NULL FROM ${input} WHERE NOT (${valid}))`;
+}
+
+export function roundedProportionCtes(input: string, output: string): string {
+  return `${proportionDivRemCtes(input, `${output}_divrem`)},
+    ${output} AS MATERIALIZED (SELECT id,quotient+(CASE WHEN remainder>=denominator-denominator/2 THEN 1 ELSE 0 END) AS amount FROM ${output}_divrem)`;
 }
 
 // Positive aggregates across several journal entries may exceed i64 even when

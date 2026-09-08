@@ -192,7 +192,8 @@ pub(super) async fn run(
     let mut calls = 0;
     let mut walked_partial = false;
     let mut accounting_partial = false;
-    for _ in 0..100 {
+    let mut projection_partial = false;
+    for _ in 0..200 {
         current = request(session, remote, Method::POST).await?;
         calls += 1;
         let checked = current["checked_accounting_rules"].as_u64().expect("Accounting cursor");
@@ -201,6 +202,10 @@ pub(super) async fn run(
             accounting_partial = true;
         }
         if calls == 2 {
+            assert_eq!(request(session, remote, Method::GET).await?, current);
+        }
+        if current["state"] == "projecting" && current["credit_projection"]["phase"] == "verify" && !projection_partial {
+            projection_partial = true;
             assert_eq!(request(session, remote, Method::GET).await?, current);
         }
         if current["state"] == "walking" && current["verified_audit_entries"] == 1000 {
@@ -221,13 +226,18 @@ pub(super) async fn run(
     }
     assert!(walked_partial);
     assert!(accounting_partial);
+    assert!(projection_partial);
     assert_eq!(current["state"], "valid");
     assert_eq!(current["checked_accounting_rules"], accounting_rules);
     assert_eq!(current["verified_audit_entries"], native["entries"]);
     assert_eq!(current["last_audit_hash"], native["last_hash"]);
+    assert_eq!(current["credit_projection"]["phase"], "valid");
+    assert_eq!(current["credit_projection"]["verified_documents"], 2);
+    assert_eq!(current["credit_projection"]["verified_movements"], 8);
     assert_eq!(request(session, remote, Method::POST).await?, current);
     println!("QA_INTEGRITY_COMPLETE transfer={} entries={} requests={} native_hash_match=true cursor_recovered=true replay_stable=true replication_active=false validator={}",remote.transfer_id,native["entries"],calls,current["validator_sha256"]);
     println!("QA_FINANCIAL_COMPLETE rules={accounting_rules} accounting_cursor_recovered=true replication_active=false");
+    println!("QA_CREDIT_PROJECTION_COMPLETE documents=2 movements=8 cursor_recovered=true exact_line_vat=true replication_active=false");
     Ok(())
 }
 
