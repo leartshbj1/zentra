@@ -4,6 +4,8 @@
 mod files;
 #[cfg(test)]
 mod structure_qa;
+#[cfg(test)]
+mod integrity_qa;
 
 use super::*;
 use crate::account_cloud::ProjectSyncSession;
@@ -829,30 +831,34 @@ mod tests {
                 let mut connection=source.connect()?;let transaction=connection.transaction()?;
                 for index in 0..401 {transaction.execute("INSERT INTO clients(id,name,notes,created_at,updated_at) VALUES(?,'Recette fictive HTTPS','Aucune donnée client réelle\nContrôle de reprise','2026-09-08','2026-09-08')",[format!("qa-native-bootstrap-{index:04}")])?;}
                 transaction.commit()?;drop(connection);
+                integrity_qa::seed(&source)?;
                 files::seed_live_qa_files(&source)?;
+                let native_audit=crate::audit::verify_audit_chain(&source.connect()?)?;
                 let prepared=source.prepare_business_snapshot(&session.organization_id,&session.role)?;
-                assert_eq!(prepared.manifest.chunks.len(),3);
+                let total_chunks=prepared.manifest.chunks.len();
+                assert!(total_chunks>1 && total_chunks<=9);
                 cleanup=Some((session,prepared.transfer_id.clone()));
                 let session=&cleanup.as_ref().unwrap().0;
                 let partial=transfer_pass(&source,session,1).await?;
                 assert_eq!(partial["confirmed_chunks"],1);assert_eq!(partial["state"],"uploading");
-                println!("QA_BOOTSTRAP_PARTIAL transfer={} organization={} confirmed=1 total=3",prepared.transfer_id,session.organization_id);
+                println!("QA_BOOTSTRAP_PARTIAL transfer={} organization={} confirmed=1 total={}",prepared.transfer_id,session.organization_id,total_chunks);
                 assert_eq!(source.connect()?.execute("UPDATE clients SET notes='Modification locale après la copie' WHERE id='qa-native-bootstrap-0000'",[])?,1);
                 let reopened=LocalStore::initialize(source.data_dir.clone())?;
                 let reconnected=project_sync_session(&reopened).await?.ok_or_else(||invalid("QA session missing after restart"))?;
                 let complete=transfer_pass(&reopened,&reconnected,8).await?;
-                assert_eq!(complete["state"],"history_uploaded");assert_eq!(complete["sent_chunks"],2);
+                assert_eq!(complete["state"],"history_uploaded");assert_eq!(complete["sent_chunks"],total_chunks-1);
                 assert_eq!(complete["replication_active"],false);
                 let duplicate=transfer_pass(&reopened,&reconnected,8).await?;
                 assert_eq!(duplicate["sent_chunks"],0);
                 let bound=load_prepared(&reopened,&expected_organization)?.ok_or_else(||invalid("QA snapshot missing after restart"))?;
                 let stored=read_receipts(&bound)?.ok_or_else(||invalid("QA receipts missing after restart"))?;
-                assert_eq!(stored.remote.uploaded_chunks.len(),3);
+                assert_eq!(stored.remote.uploaded_chunks.len(),total_chunks);
                 assert_eq!(reopened.connect()?.query_row("SELECT COUNT(*) FROM shared_numbering_binding",[],|row|row.get::<_,i64>(0))?,0);
                 assert_eq!(reopened.connect()?.query_row("SELECT COUNT(*) FROM business_sync_changes WHERE table_name='clients'",[],|row|row.get::<_,i64>(0))?,1);
-                println!("QA_BOOTSTRAP_COMPLETE transfer={} rows={} resumed_chunks=2 repeated_sent=0 pending_local_changes=1 replication_active=false",prepared.transfer_id,prepared.manifest.row_count);
+                println!("QA_BOOTSTRAP_COMPLETE transfer={} rows={} resumed_chunks={} repeated_sent=0 pending_local_changes=1 replication_active=false",prepared.transfer_id,prepared.manifest.row_count,total_chunks-1);
                 files::live_qa_files(&reopened,&reconnected).await?;
                 structure_qa::run(&reconnected,&stored.remote).await?;
+                integrity_qa::run(&reconnected,&stored.remote,&native_audit).await?;
                 Ok::<(),AppError>(())
             }).catch_unwind().await;
             let removal = if let Some((session, id)) = &cleanup {

@@ -22,6 +22,7 @@ vi.mock('@/lib/account', async (original) => ({
 import { DELETE, GET, POST, PUT } from '../app/api/sync/bootstrap/route';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { validateBootstrapStructure } from './business-sync-validation';
+import { validateBootstrapIntegrity } from './business-sync-integrity';
 import {
   abandonBootstrap,
   beginBootstrap,
@@ -190,6 +191,31 @@ it.skipIf(!process.env.ZENTRA_NATIVE_BOOTSTRAP_QA)(
       state: 'valid',
       replication_active: false,
     });
+    let integrity = await validateBootstrapIntegrity(
+      session,
+      prepared.transfer_id,
+    );
+    for (
+      let attempt = 0;
+      attempt < 100 && !['valid', 'invalid'].includes(integrity.state);
+      attempt++
+    )
+      integrity = await validateBootstrapIntegrity(
+        session,
+        prepared.transfer_id,
+      );
+    expect(integrity).toMatchObject({
+      state: 'valid',
+      verified_audit_entries: prepared.manifest.tables.audit_log,
+      replication_active: false,
+    });
+    expect(count('business_sync_integrity_checks')).toBe(1);
+    expect(count('business_sync_audit_nodes')).toBe(
+      prepared.manifest.tables.audit_log,
+    );
+    await abandonBootstrap(session, prepared.transfer_id);
+    expect(count('business_sync_integrity_checks')).toBe(0);
+    expect(count('business_sync_audit_nodes')).toBe(0);
   },
 );
 

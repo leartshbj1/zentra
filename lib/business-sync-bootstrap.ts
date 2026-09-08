@@ -575,6 +575,10 @@ export async function abandonBootstrap(
   for (let offset = 0; offset < keys.length; offset += 100)
     await fileArchive().delete(keys.slice(offset, offset + 100));
   await db.batch([
+    db.prepare("DELETE FROM business_sync_audit_nodes WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))")
+      .bind(id,id,session.organizationId),
+    db.prepare("DELETE FROM business_sync_integrity_checks WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))")
+      .bind(id,id,session.organizationId),
     db
       .prepare(
         "DELETE FROM business_sync_structural_checks WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))",

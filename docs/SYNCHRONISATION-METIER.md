@@ -132,6 +132,18 @@ La version 77 du site publie ce contrôle et la migration 0015, source `623a0095
 
 Le premier essai avait échoué avant le contrôle structurel : la liste native d'adresses autorisées n'incluait pas encore cette route. La correction ajoute uniquement l'adresse précise et son test refuse les variantes ; le scénario complet a ensuite été rejoué avec succès. Après les deux essais, les neuf tables temporaires contrôlées dans D1 sont vides sans pagination résiduelle et la session est révoquée. Le compte affiche zéro appareil actif. Les deux méthodes anonymes du nouveau service répondent 401 sans mise en cache. Les transferts restent des tombstones d'annulation, sans historique partagé actif. Réduire les requêtes pour les tables déclarées vides, après validation de leurs comptes, reste une optimisation avant l'intégration du parcours utilisateur.
 
+## Intégrité des écritures et de la chaîne d'audit initiale
+
+Une seconde étape `GET/POST /api/sync/bootstrap/integrity` exige le reçu structurel exact avant de travailler. Elle vérifie que chaque écriture comporte des lignes positives, qu'elle est équilibrée par devise et que ses totaux restent dans la plage entière du code natif. Les sommes sont décomposées en parties entières avant addition : un centime manquant au-delà de la précision des nombres JavaScript est détecté, et un dépassement de l'accumulateur SQLite devient un refus explicite.
+
+L'audit est lu par pages de 100 lignes au plus et de quatre Mio au plus. Le contenu original de `payload_json` et les séparateurs utilisés par Rust restent inchangés lors du calcul SHA-256. Le serveur persiste les liens validés et la progression dans une même transaction ; les identifiants et l'ordre d'envoi ne remplacent pas l'ordre de la chaîne. Il refuse plusieurs racines, un parent manquant, une bifurcation ou une composante inaccessible. Le parcours final est repris par tranches de 1 000 entrées et conserve l'empreinte de fin.
+
+Les reçus dépendent de la génération, du manifeste, du vérificateur structurel et des règles d'intégrité. Un échec de base de données annule ensemble les liens et leur progression ; les requêtes simultanées ne sautent pas de page. L'annulation nettoie aussi les deux nouvelles tables de la migration 0016. Les lectures et écritures restent réservées au titulaire ou à l'administrateur sur l'appareil préparateur.
+
+Validation locale : 339 tests serveur passent, dont le scénario natif facture/paiement, les montants extrêmes, une chaîne de 2 005 entrées, la reprise par octets et par lignes, les interruptions et la concurrence. La préparation native produit également une vraie facture de 1 000 CHF, un paiement de 300 CHF, deux écritures équilibrées, des documents de projet, un XML TVA et un ZIP de clôture avec plus de 1 000 entrées d'audit. L'essai HTTPS de cette nouvelle étape reste à exécuter après publication.
+
+Ce reçu atteste uniquement ces règles comptables et la chaîne initiale. La cohérence complète des agrégats facture/paiement/avoirs/TVA/paie/stocks, le rattachement des pièces et des bornes de numérotation à une publication atomique, les branches d'audit des modifications suivantes et la réplication entre appareils restent à terminer.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

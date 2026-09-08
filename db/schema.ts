@@ -47,6 +47,32 @@ export const businessSyncStructuralChecks = sqliteTable('business_sync_structura
   updatedAt: text('updated_at').notNull(),
 }, (table) => [uniqueIndex('business_sync_structural_identity').on(table.transferId, table.validatorSha256)]);
 
+export const businessSyncIntegrityChecks = sqliteTable('business_sync_integrity_checks', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  validatorSha256: text('validator_sha256').notNull(),
+  manifestSha256: text('manifest_sha256').notNull(),
+  generation: text('generation').notNull(),
+  state: text('state').notNull(),
+  lastRowKey: text('last_row_key'),
+  indexedEntries: integer('indexed_entries').notNull().default(0),
+  walkedEntries: integer('walked_entries').notNull().default(0),
+  lastHash: text('last_hash'),
+  failedRule: text('failed_rule'),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [uniqueIndex('business_sync_integrity_identity').on(table.transferId, table.validatorSha256)]);
+
+export const businessSyncAuditNodes = sqliteTable('business_sync_audit_nodes', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  validatorSha256: text('validator_sha256').notNull(),
+  rowKey: text('row_key').notNull(),
+  entryHash: text('entry_hash').notNull(),
+  previousHash: text('previous_hash'),
+}, (table) => [
+  uniqueIndex('business_sync_audit_row').on(table.transferId, table.validatorSha256, table.rowKey),
+  uniqueIndex('business_sync_audit_hash').on(table.transferId, table.validatorSha256, table.entryHash),
+  index('business_sync_audit_previous').on(table.transferId, table.validatorSha256, table.previousHash),
+]);
+
 export const businessSyncTransferChunks = sqliteTable('business_sync_transfer_chunks', {
   transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
   chunkIndex: integer('chunk_index').notNull(),

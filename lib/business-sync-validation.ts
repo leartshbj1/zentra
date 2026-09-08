@@ -39,7 +39,7 @@ export function structuralValidatorHash() {
     ]),
   ));
 }
-const activeTransfer = `SELECT 1 FROM business_sync_transfers t JOIN business_sync_spaces s
+export const activeBootstrapSql = `SELECT 1 FROM business_sync_transfers t JOIN business_sync_spaces s
   ON s.organization_id=t.organization_id AND s.bootstrap_transfer_id=t.transfer_id AND s.generation=t.generation
   WHERE t.transfer_id=? AND t.organization_id=? AND t.installation_id=? AND t.generation=? AND t.manifest_sha256=?
     AND t.kind='bootstrap' AND t.state='uploaded' AND s.state='initializing' AND s.head_revision=0`;
@@ -47,7 +47,10 @@ function invalid(message: string, status = 409): never {
   throw new AccountPublicError(message, status);
 }
 
-async function context(session: DeviceSessionContext, rawId: unknown) {
+export async function bootstrapValidationContext(
+  session: DeviceSessionContext,
+  rawId: unknown,
+) {
   if (!roleCanManageMembers(session.role))
     invalid(
       'Seuls le titulaire et les administrateurs peuvent vérifier la base de référence.',
@@ -73,7 +76,7 @@ async function context(session: DeviceSessionContext, rawId: unknown) {
   ];
   if (
     !(await db
-      .prepare(activeTransfer)
+      .prepare(activeBootstrapSql)
       .bind(...binding)
       .first())
   )
@@ -86,7 +89,10 @@ async function context(session: DeviceSessionContext, rawId: unknown) {
   const validator = await structuralValidatorHash();
   return { db, id, transfer, binding, manifest, validator };
 }
-type Context = Awaited<ReturnType<typeof context>>;
+export type BootstrapValidationContext = Awaited<
+  ReturnType<typeof bootstrapValidationContext>
+>;
+type Context = BootstrapValidationContext;
 async function progress(ctx: Context) {
   const row = await ctx.db
     .prepare(
@@ -127,11 +133,18 @@ function response(ctx: Context, row: Progress | null) {
   };
 }
 
+export async function requireStructuralValidation(ctx: Context) {
+  if ((await progress(ctx))?.state !== 'valid')
+    invalid(
+      'Le contrôle de structure doit être terminé avant de vérifier la comptabilité et l’audit.',
+    );
+}
+
 export async function structuralValidationStatus(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
-  const ctx = await context(session, rawId);
+  const ctx = await bootstrapValidationContext(session, rawId);
   return response(ctx, await progress(ctx));
 }
 
@@ -139,11 +152,11 @@ export async function validateBootstrapStructure(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
-  const ctx = await context(session, rawId);
+  const ctx = await bootstrapValidationContext(session, rawId);
   await ctx.db
     .prepare(`INSERT OR IGNORE INTO business_sync_structural_checks
     (transfer_id,validator_sha256,manifest_sha256,generation,next_rule,state,updated_at)
-    SELECT ?,?,?,?,0,'checking',? WHERE EXISTS(${activeTransfer})`)
+    SELECT ?,?,?,?,0,'checking',? WHERE EXISTS(${activeBootstrapSql})`)
     .bind(
       ctx.id,
       ctx.validator,
@@ -181,7 +194,7 @@ export async function validateBootstrapStructure(
   await ctx.db
     .prepare(`UPDATE business_sync_structural_checks SET next_rule=?,state=?,failed_rule=?,updated_at=?
     WHERE transfer_id=? AND validator_sha256=? AND manifest_sha256=? AND generation=? AND next_rule=? AND state='checking'
-      AND EXISTS(${activeTransfer})`)
+      AND EXISTS(${activeBootstrapSql})`)
     .bind(
       next,
       failed
@@ -201,7 +214,7 @@ export async function validateBootstrapStructure(
     .run();
   if (
     !(await ctx.db
-      .prepare(activeTransfer)
+      .prepare(activeBootstrapSql)
       .bind(...ctx.binding)
       .first())
   )
