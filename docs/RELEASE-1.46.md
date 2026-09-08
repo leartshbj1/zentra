@@ -1,10 +1,10 @@
-# Zentra 1.46.1 - préparation de distribution
+# Zentra 1.46.1 - distribution vérifiée
 
 La candidate 1.46.0 a été rejetée : les essais réels Windows et Android ont révélé un refus de migration depuis le schéma 58 de la version 1.45.0. Son installation neuve fonctionnait, mais la liste des anciennes versions acceptées par le démarrage natif s'arrêtait à 57. Les compilations macOS correspondantes ont été arrêtées et la release GitHub reste en brouillon avec l'avertissement de ne pas l'installer. Les trois fichiers Windows immuables déposés pour ces essais ne sont pas référencés par le manifeste stable.
 
-La correction est préparée en 1.46.1, avec un test de régression qui reproduit le refus via le véritable démarrage de LocalStore avant de vérifier la conservation des devis, factures, paiements, séquences et d'un document, puis un second démarrage. Les liens et le manifeste publics restent sur la version 1.45.0 jusqu'à vérification des nouveaux artefacts.
+La correction est publiée en 1.46.1, avec un test de régression qui reproduit le refus via le véritable démarrage de LocalStore avant de vérifier la conservation des devis, factures, paiements, séquences et d'un document, puis un second démarrage. Les liens et le manifeste publics ont été activés après vérification des nouveaux artefacts et essais exacts Windows et Mac.
 
-## Changements à livrer
+## Changements livrés
 
 - Sauvegarde complète de l'entreprise dans le coffre distant, sur demande ou chaque jour lorsque l'application est ouverte et l'option activée.
 - Reprise d'un envoi interrompu, restauration dans une installation neuve et contrôle des empreintes, de la base, des écritures comptables et du journal d'audit.
@@ -35,8 +35,10 @@ Le comportement concorde avec la documentation Apple : l'identité d'une signatu
 
 La recette `34178563068` passe sur les deux archives exactes : base 58 vers 59, données métier, numéros, journaux équilibrés, pièce jointe et identité protégée conservés, puis redémarrage réussi. Elle utilise un Trousseau de test isolé et son propre mot de passe éphémère pour accepter la fenêtre normale macOS. Les contrôles d'accès restent actifs, aucune ACL n'est remplacée, et le Trousseau de test est supprimé après l'essai. Cet essai prouve le parcours avec autorisation explicite ; il ne prouve pas une mise à jour Mac sans intervention. L'aide de téléchargement explique cette autorisation.
 
-## À vérifier avant annonce de publication
+## Publication du 8 septembre 2026
 
-- Source exacte de chaque lot, versions et identifiants de paquet, signatures de mise à jour, SHA-256 et disponibilité publique des fichiers immuables.
+- Les seize fichiers GitHub de `v1.46.1` sont publiés et leurs tailles et empreintes correspondent aux fichiers validés. Les douze fichiers du coffre public, dont `latest.json`, ont été relus et comparés octet par octet au lot final.
 - Remplacement exact macOS terminé, avec autorisation normale du Trousseau, conservation des données et redémarrage. La signature Developer ID et la notarisation restent distinctes de cette preuve.
-- Téléchargements et manifeste commun Windows/macOS publiés seulement après ces contrôles. Les comptes Apple/Google de distribution et les essais sur appareils physiques restent des critères distincts.
+- Site version 72, source `4acef7628e41b0e1f7cf12560df72a70919663cf`, déploiement `appgdep_6a9f6dc0ad58819198cf4c285abfffee` réussi avec la révision d'environnement 23 conservée. La page `/download` affiche les liens 1.46.1 Windows, Mac, APK et IPA ainsi que l'accès aux sauvegardes et le support confirmé.
+- L'ancien manifeste et les anciennes empreintes restent disponibles sous `latest-before-1.46.1.json` et `SHA256SUMS-before-1.46.1.txt`. Les fichiers de version immuables ne sont pas écrasés.
+- Les comptes Apple/Google de distribution, signatures d'éditeur, notarisation et essais sur appareils physiques restent des critères distincts. La synchronisation métier complète, le domaine d'envoi, la bascule Stripe et la validation fiduciaire ne sont pas annoncés comme terminés.
