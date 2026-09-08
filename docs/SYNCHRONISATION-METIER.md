@@ -22,6 +22,8 @@ Le reçu local de l'historique installé est séparé de la génération de capt
 
 **Suite nécessaire :** commande de publication native avec protection des écritures intervenues depuis la préparation, parcours de publication/import dans l'interface, transactions suivantes, conflits et essais sur deux appareils. L'ordre conservé résout la reprise initiale ; les événements ajoutés simultanément sur plusieurs appareils et leurs branches d'audit nécessitent encore un ordre commun et une réconciliation. Les commandes natives de réception et d'import ne sont pas encore distribuées ni accessibles dans l'interface.
 
+La version serveur 90 de cette étape est publiée le 8 septembre 2026 depuis `15f50847213911f89b41e6883a0f8e65acd7b945`. La page d'accueil répond 200 ; les trois accès d'historique/publication vérifiés sans session répondent 401 avec `no-store`. Validation : 518 tests serveur dans 51 fichiers, 73 tests natifs de synchronisation (trois recettes dédiées ignorées), les sept cas réception/import revérifiés avec l'export du serveur actuel, 19 tests sauvegarde/coffre (un essai HTTPS dédié ignoré), 11 tests du planificateur. TypeScript racine/desktop, lint, build et Clippy toutes cibles passent. Ces résultats ne distribuent pas le schéma 60 ni son interface aux utilisateurs.
+
 ## Journal transactionnel local, schéma 60 en préparation
 
 La branche de réalisation ajoute un journal local des modifications avant tout transport réseau. Il ne faut pas confondre cette capture avec une synchronisation déjà disponible pour les clients ; la version distribuée 1.46.1 conserve le schéma 59.
