@@ -416,6 +416,117 @@ mod tests {
     use super::*;
 
     #[test]
+    fn native_startup_migrates_schema_58_without_changing_existing_documents() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("profile");
+        let store = LocalStore::initialize(path.clone()).unwrap();
+        let connection = store.connect().unwrap();
+        connection.execute_batch(
+            "DROP TABLE device_number_ranges;
+             DROP TABLE shared_numbering_binding;
+             PRAGMA user_version=58;
+             INSERT INTO clients(id,name,created_at,updated_at)
+               VALUES('upgrade-client','Client fictif','2026-09-07','2026-09-07');
+             INSERT INTO projects(id,client_id,name,created_at,updated_at)
+               VALUES('upgrade-project','upgrade-client','Projet fictif','2026-09-07','2026-09-07');
+             INSERT INTO quotes(id,client_id,project_id,number,title,issue_date,total_cents,created_at,updated_at)
+               VALUES('upgrade-quote','upgrade-client','upgrade-project','D-2026-000041','Devis fictif','2026-09-07',108100,'2026-09-07','2026-09-07');
+             INSERT INTO invoices(id,client_id,project_id,quote_id,number,title,status,issue_date,total_cents,paid_cents,notes,created_at,updated_at)
+               VALUES('upgrade-invoice','upgrade-client','upgrade-project','upgrade-quote','F-2026-000012','Facture fictive','partiellement_payee','2026-09-07',108100,30000,'Ligne 1
+Ligne 2','2026-09-07','2026-09-07');
+             INSERT INTO payments(id,invoice_id,date,amount_cents,created_at,updated_at)
+               VALUES('upgrade-payment','upgrade-invoice','2026-09-07',30000,'2026-09-07','2026-09-07');
+             INSERT INTO number_sequences VALUES('quote',2026,42),('invoice',2026,13);
+             INSERT INTO accounting_sequences VALUES(2026,3);"
+        ).unwrap();
+        let document = store.attachments_dir.join("upgrade-document.txt");
+        std::fs::write(&document, b"Document fictif conserve").unwrap();
+        drop(connection);
+        drop(store);
+
+        // Use the actual startup entry point, not just the migration SQL. The
+        // dispatch match once rejected schema 58 before reaching its SQL step.
+        for _ in 0..2 {
+            let reopened = LocalStore::initialize(path.clone()).unwrap();
+            let connection = reopened.connect().unwrap();
+            assert_eq!(
+                connection
+                    .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                    .unwrap(),
+                crate::schema::SCHEMA_VERSION
+            );
+            assert_eq!(
+                connection
+                    .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
+                    .unwrap(),
+                "ok"
+            );
+            let foreign_key_errors: i64 = connection
+                .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(foreign_key_errors, 0);
+            let values: (String, String, i64, i64, String) = connection.query_row(
+                "SELECT quote_id,number,total_cents,paid_cents,notes FROM invoices WHERE id='upgrade-invoice'", [],
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
+            ).unwrap();
+            assert_eq!(
+                values,
+                (
+                    "upgrade-quote".into(),
+                    "F-2026-000012".into(),
+                    108100,
+                    30000,
+                    "Ligne 1\nLigne 2".into()
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT SUM(amount_cents) FROM payments WHERE invoice_id='upgrade-invoice'",
+                        [],
+                        |row| row.get::<_, i64>(0)
+                    )
+                    .unwrap(),
+                30000
+            );
+            assert_eq!(connection.query_row("SELECT next_value FROM number_sequences WHERE document_type='invoice' AND year=2026", [], |row| row.get::<_, i64>(0)).unwrap(), 13);
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT next_value FROM accounting_sequences WHERE year=2026",
+                        [],
+                        |row| row.get::<_, i64>(0)
+                    )
+                    .unwrap(),
+                3
+            );
+            assert_eq!(
+                connection
+                    .query_row("SELECT COUNT(*) FROM shared_numbering_binding", [], |row| {
+                        row.get::<_, i64>(0)
+                    })
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                connection
+                    .query_row("SELECT COUNT(*) FROM device_number_ranges", [], |row| row
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                std::fs::read(&document).unwrap(),
+                b"Document fictif conserve"
+            );
+        }
+    }
+
+    #[test]
     fn background_planner_does_nothing_until_company_bootstrap() {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().into()).unwrap();

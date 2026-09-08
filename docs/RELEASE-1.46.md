@@ -1,6 +1,8 @@
-# Zentra 1.46.0 - préparation de distribution
+# Zentra 1.46.1 - préparation de distribution
 
-Les installateurs 1.46.0 sont en préparation. Les liens et le manifeste publics restent sur la version 1.45.0 jusqu'à vérification des nouveaux artefacts.
+La candidate 1.46.0 a été rejetée : les essais réels Windows et Android ont révélé un refus de migration depuis le schéma 58 de la version 1.45.0. Son installation neuve fonctionnait, mais la liste des anciennes versions acceptées par le démarrage natif s'arrêtait à 57. Les compilations macOS correspondantes ont été arrêtées et la release GitHub reste en brouillon avec l'avertissement de ne pas l'installer. Les trois fichiers Windows immuables déposés pour ces essais ne sont pas référencés par le manifeste stable.
+
+La correction est préparée en 1.46.1, avec un test de régression qui reproduit le refus via le véritable démarrage de LocalStore avant de vérifier la conservation des devis, factures, paiements, séquences et d'un document, puis un second démarrage. Les liens et le manifeste publics restent sur la version 1.45.0 jusqu'à vérification des nouveaux artefacts.
 
 ## Changements à livrer
 
@@ -15,13 +17,14 @@ Le schéma local passe à 59. La préparation de la numérotation partagée est 
 ## Contrôles disponibles avant les builds
 
 - 742 tests d'interface réussis et analyse Clippy complète sans avertissement pour Windows.
-- Douze tests natifs de numérotation, dont demandes concurrentes, restauration, rejeu et planification des années.
+- Treize tests natifs de numérotation et migration réussis sur 1.46.1, dont demandes concurrentes, restauration, rejeu, planification des années et démarrage avec une base issue de 1.45.0. Le nouveau test échouait avant correction avec le même message que les installateurs.
 - Recette HTTPS réelle de sauvegarde et restauration de 9,5 Mo, avec deux profils Windows indépendants et nettoyage des données fictives. Cette recette a été exécutée avant la seule intégration du planificateur de numéros, sans liaison partagée active.
 
 ## À vérifier avant annonce de publication
 
 - Source exacte de chaque lot, versions et identifiants de paquet, signatures de mise à jour, SHA-256 et disponibilité publique des fichiers immuables.
 - Installation Windows neuve et mise à jour depuis 1.45.0 avec conservation des données.
+- Réexécuter le workflow Windows sur les nouveaux fichiers exacts : les deux cas s'exécutent sur des runners isolés, avec comparaison des données métier, de l'identité protégée et d'un document joint. La candidate rejetée a confirmé le bon fonctionnement du cas installation neuve et l'échec du cas mise à jour.
 - Compilation universelle macOS et démarrage du paquet ; noter séparément la signature ad hoc, la signature de mise à jour et une éventuelle notarisation Apple.
 - Android : APK, certificat de signature et essai de mise à jour depuis le paquet précédent. iOS : distinguer simulateur, IPA non signé et distribution Apple officielle.
 - Téléchargements et manifeste commun Windows/macOS publiés seulement après ces contrôles. Les comptes Apple/Google de distribution et les essais sur appareils physiques restent des critères distincts.
