@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Draft or published release containing the current exact installer
+        description: Version of the current exact installer in the Zentra release bucket
         required: true
         type: string
       previous_tag:

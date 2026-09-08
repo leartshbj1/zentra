@@ -36,9 +36,17 @@ $verifier = Join-Path $env:GITHUB_WORKSPACE 'scripts/verify-windows-release-prof
 
 function Get-Installer([string]$Tag, [string]$Hash) {
     $name = "Zentra_$($Tag.Substring(1))_x64-setup.exe"
-    & gh release download $Tag --repo $env:GITHUB_REPOSITORY --pattern $name --dir $downloads
-    if ($LASTEXITCODE -ne 0) { throw "Installer download failed for $Tag." }
     $path = Join-Path $downloads $name
+    if ($Tag -eq $env:ZENTRA_RELEASE_TAG) {
+        # A read-only Actions token cannot retrieve a draft release. Use only
+        # the immutable, hash-pinned artifact in the existing release bucket;
+        # the public updater manifest is not promoted by this workflow.
+        $origin = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases'
+        Invoke-WebRequest -Uri "$origin/$name" -OutFile $path
+    } else {
+        & gh release download $Tag --repo $env:GITHUB_REPOSITORY --pattern $name --dir $downloads
+        if ($LASTEXITCODE -ne 0) { throw "Installer download failed for $Tag." }
+    }
     if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $Hash) { throw 'Installer hash mismatch.' }
     return $path
 }
