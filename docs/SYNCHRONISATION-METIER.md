@@ -216,6 +216,12 @@ La recette native ajoute un dossier de TVA sur encaissements au troisième trime
 
 Le test local parcourt 6 000 règlements avec leurs preuves et détecte une altération de la dernière pièce. D1 accepte les données effectivement produites par le scénario natif et détecte une preuve modifiée. Ces contrôles ne recalculent pas encore toute la ventilation chronologique de TVA par ligne des dossiers datés, ni les preuves détaillées de reprise historique : ce travail reste nécessaire, avec les autres agrégats métier, avant publication atomique et réplication.
 
+Les **421 tests serveur dans 44 fichiers** passent avec les trois jeux de données natifs chargés. TypeScript, lint, compilation serveur et Clippy passent. Le scénario natif des quatre règlements et des exports réussit séparément en 3,89 secondes. Le test local de 6 000 preuves termine en 2,60 secondes dans son exécution ciblée ; cette mesure ne garantit pas la latence publique.
+
+La **version 84 du site**, source `a7268d3a0e44e96ce5295d9800d60d0ee2b0694f`, est publiée avec la même configuration (révision 23). La recette native HTTPS réussit en **332,18 secondes**, avec **1 577 lignes**, cinq références de fichiers, quatre contenus uniques et deux exports. Elle reprend sept fragments de données et trois fragments binaires sans doublon. Les 742 règles structurelles passent en 14 requêtes ; les **55 contrôles comptables et la chaîne de 1 046 événements** passent ensuite en 28 requêtes. La progression et les réponses terminées sont relues, l'empreinte finale est identique à Rust, et la modification locale postérieure reste en attente.
+
+Après l'essai, le transfert est abandonné et sa session révoquée. Les onze tables temporaires contrôlées dans D1 sont vides, sans page omise ; le compte affiche zéro appareil actif et l'onglet de recette est fermé. Les appels anonymes GET et POST restent refusés avec 401 et sans mise en cache. Cet essai sur un seul ordinateur ne constitue pas une synchronisation entre deux appareils physiques ; le schéma natif 60 reste non distribué et la réplication inactive.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.
