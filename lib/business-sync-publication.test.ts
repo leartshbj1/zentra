@@ -66,6 +66,12 @@ import {
   type TransactionManifest,
 } from './business-sync-transaction-format';
 import * as transactionHttp from '../app/api/sync/transactions/route';
+import * as transactionFileHttp from '../app/api/sync/transactions/file/route';
+import {
+  businessTransactionFileStatus,
+  uploadBusinessTransactionFilePart,
+  verifyBusinessTransactionFile,
+} from './business-sync-transaction-files';
 
 let db: DatabaseSync, blobs: Map<string, Uint8Array>;
 let beforeBatch: ((sql: string[]) => Promise<void>) | undefined;
@@ -615,6 +621,9 @@ it('authenticates every later-transaction endpoint and preserves no-store on rej
     transactionHttp.GET,
     transactionHttp.POST,
     transactionHttp.PUT,
+    transactionFileHttp.GET,
+    transactionFileHttp.POST,
+    transactionFileHttp.PUT,
   ]) {
     const response = await handler(
       new Request('https://example.test/api/sync/transactions'),
@@ -622,6 +631,285 @@ it('authenticates every later-transaction endpoint and preserves no-store on rej
     expect(response.status).toBe(401);
     expect(response.headers.get('cache-control')).toContain('no-store');
   }
+});
+
+async function fileTransaction(
+  content: Uint8Array,
+  published?: { generation: string; transfer_id: string },
+) {
+  const base = await transactionFixture(undefined, published);
+  const sha = await sha256Hex(content),
+    size = content.length;
+  const local = new DatabaseSync(':memory:');
+  let row: string;
+  try {
+    for (const table of Object.values(structuralSchema.tables))
+      local.exec(table.sql);
+    local
+      .prepare(
+        "INSERT INTO attachments(id,original_name,stored_name,size_bytes,sha256,created_at,updated_at) VALUES('doc','plan.txt','plan.txt',?,?,'x','x')",
+      )
+      .run(size, sha);
+    row = local
+      .prepare(
+        `SELECT json_object(${contract.tables.attachments.columns.flatMap((c) => [`'${c}'`, `"${c}"`]).join(',')}) image FROM attachments`,
+      )
+      .get()!.image as string;
+  } finally {
+    local.close();
+  }
+  const proof = {
+    root: 'attachments' as const,
+    path: 'plan.txt',
+    sha256: sha,
+    size_bytes: size,
+  };
+  const insert: TransactionChange = {
+    sequence: '1',
+    table: 'attachments',
+    key_json: '["doc"]',
+    operation: 'insert',
+    before_json: null,
+    after_json: row,
+    source_rowid: '1',
+    files_before: [],
+    files_after: [proof],
+  };
+  const deletion: TransactionChange = {
+    ...insert,
+    sequence: '2',
+    operation: 'delete',
+    before_json: row,
+    after_json: null,
+    files_before: [proof],
+    files_after: [],
+  };
+  const bytes = encode({ version: 1, changes: [insert, deletion] });
+  const manifest: TransactionManifest = {
+    ...base.manifest,
+    first_sequence: '1',
+    last_sequence: '2',
+    change_count: 2,
+    size_bytes: bytes.length,
+    chunks: [
+      {
+        sha256: await sha256Hex(bytes),
+        size_bytes: bytes.length,
+        change_count: 2,
+      },
+    ],
+    files: [{ sha256: sha, size_bytes: size }],
+  };
+  await beginBusinessTransaction(base.actor, JSON.stringify(manifest));
+  expect(
+    await uploadBusinessTransactionChunk(
+      base.actor,
+      manifest.transaction_id,
+      0,
+      request(bytes),
+    ),
+  ).toMatchObject({
+    state: 'awaiting_files',
+    files_pending: 1,
+    pending_files: [manifest.files[0]],
+  });
+  return { ...base, manifest, sha, content };
+}
+it('receives deleted transaction documents out of order, resumes exact parts and verifies the complete file without acknowledging business changes', async () => {
+  const content = new Uint8Array(BUSINESS_FILE_PART_BYTES + 19).fill(37),
+    f = await fileTransaction(content),
+    id = f.manifest.transaction_id;
+  expect(await businessTransactionFileStatus(f.actor, id, f.sha)).toMatchObject(
+    { verified: false, uploaded_parts: [] },
+  );
+  await expect(
+    verifyBusinessTransactionFile(f.actor, id, f.sha),
+  ).rejects.toThrow('manquent');
+  for (const index of [1, 0, 0]) {
+    const part = content.slice(
+      index * BUSINESS_FILE_PART_BYTES,
+      (index + 1) * BUSINESS_FILE_PART_BYTES,
+    );
+    await uploadBusinessTransactionFilePart(
+      f.actor,
+      id,
+      f.sha,
+      index,
+      request(part, await sha256Hex(part)),
+    );
+  }
+  const verified = await verifyBusinessTransactionFile(f.actor, id, f.sha);
+  expect(verified).toMatchObject({
+    verified: true,
+    canonical_committed: false,
+  });
+  expect(verified.uploaded_parts).toHaveLength(2);
+  expect(await verifyBusinessTransactionFile(f.actor, id, f.sha)).toEqual(
+    verified,
+  );
+  expect(await businessTransactionStatus(f.actor, id)).toMatchObject({
+    state: 'awaiting_validation',
+    files_pending: 0,
+    pending_files: [],
+    canonical_committed: false,
+  });
+  expect(
+    db.prepare('SELECT head_revision FROM business_sync_spaces').get()!
+      .head_revision,
+  ).toBe(1);
+  expect(count('business_sync_versions')).toBe(1);
+  const keys = [...blobs.keys()]
+    .filter((k) =>
+      k.includes(`/transactions/${f.manifest.capture_generation}/${id}/files/`),
+    )
+    .sort();
+  expect(keys).toHaveLength(2);
+  expect(
+    Buffer.concat(keys.map((k) => blobs.get(k)!)).equals(Buffer.from(content)),
+  ).toBe(true);
+});
+it('rejects changed upload bytes, changed retained bytes and a whole-file hash that does not match otherwise valid parts', async () => {
+  const f = await fileTransaction(encode({ original: 'Plan du projet' })),
+    id = f.manifest.transaction_id;
+  const changed = Uint8Array.from(f.content);
+  changed[0] ^= 1;
+  await expect(
+    uploadBusinessTransactionFilePart(
+      f.actor,
+      id,
+      f.sha,
+      0,
+      request(changed, f.sha),
+    ),
+  ).rejects.toThrow('altéré');
+  expect(count('business_sync_file_parts')).toBe(1); // Initial bootstrap document only.
+  await uploadBusinessTransactionFilePart(
+    f.actor,
+    id,
+    f.sha,
+    0,
+    request(changed, await sha256Hex(changed)),
+  );
+  await expect(
+    verifyBusinessTransactionFile(f.actor, id, f.sha),
+  ).rejects.toThrow('origine');
+  expect(
+    (await businessTransactionFileStatus(f.actor, id, f.sha)).verified,
+  ).toBe(false);
+  await expect(
+    uploadBusinessTransactionFilePart(
+      f.actor,
+      id,
+      f.sha,
+      0,
+      request(f.content, f.sha),
+    ),
+  ).rejects.toThrow('autre contenu');
+  const key = [...blobs.keys()].find(
+    (k) => k.includes(`/transactions/`) && k.endsWith(`/files/${f.sha}/0`),
+  )!;
+  blobs.set(key, f.content);
+  await expect(
+    verifyBusinessTransactionFile(f.actor, id, f.sha),
+  ).rejects.toThrow('altéré');
+});
+it('verifies an empty retained transaction document without inventing a binary fragment', async () => {
+  const f = await fileTransaction(new Uint8Array());
+  await expect(
+    uploadBusinessTransactionFilePart(
+      f.actor,
+      f.manifest.transaction_id,
+      f.sha,
+      0,
+      request(new Uint8Array(), f.sha),
+    ),
+  ).rejects.toThrow('figure pas');
+  expect(
+    await verifyBusinessTransactionFile(
+      f.actor,
+      f.manifest.transaction_id,
+      f.sha,
+    ),
+  ).toMatchObject({ verified: true, uploaded_parts: [] });
+  expect(
+    await businessTransactionStatus(f.actor, f.manifest.transaction_id),
+  ).toMatchObject({ files_pending: 0, state: 'awaiting_validation' });
+});
+it('keeps file metadata atomic after SQL failure and refuses other companies, devices, roles and generation changes during storage', async () => {
+  const f = await fileTransaction(encode({ file: 'Confidentiel fictif' })),
+    id = f.manifest.transaction_id;
+  for (const actor of [
+    { ...f.actor, organizationId: 'org_other' },
+    { ...f.actor, installationId: crypto.randomUUID() },
+    { ...f.actor, role: 'read_only' as const },
+  ]) {
+    await expect(
+      businessTransactionFileStatus(actor, id, f.sha),
+    ).rejects.toThrow();
+    await expect(
+      uploadBusinessTransactionFilePart(
+        actor,
+        id,
+        f.sha,
+        0,
+        request(f.content, f.sha),
+      ),
+    ).rejects.toThrow();
+  }
+  await expect(
+    businessTransactionFileStatus(f.actor, id, 'a'.repeat(64)),
+  ).rejects.toThrow();
+  failStatement = (sql) => {
+    if (sql.includes('INSERT OR IGNORE INTO business_sync_file_parts'))
+      throw new Error('Interrupted receipt');
+  };
+  await expect(
+    uploadBusinessTransactionFilePart(
+      f.actor,
+      id,
+      f.sha,
+      0,
+      request(f.content, f.sha),
+    ),
+  ).rejects.toThrow('Interrupted receipt');
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_file_blobs WHERE transfer_id=?',
+      )
+      .get(id)!.n,
+  ).toBe(0);
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_file_parts WHERE transfer_id=?',
+      )
+      .get(id)!.n,
+  ).toBe(0);
+  failStatement = undefined;
+  await uploadBusinessTransactionFilePart(
+    f.actor,
+    id,
+    f.sha,
+    0,
+    request(f.content, f.sha),
+  );
+  beforeBatch = async () => {
+    beforeBatch = undefined;
+    db.prepare('UPDATE business_sync_spaces SET generation=?').run(
+      crypto.randomUUID(),
+    );
+  };
+  await expect(
+    verifyBusinessTransactionFile(f.actor, id, f.sha),
+  ).rejects.toThrow();
+  expect(
+    db
+      .prepare(
+        'SELECT verified_at FROM business_sync_file_blobs WHERE transfer_id=?',
+      )
+      .get(id)!.verified_at,
+  ).toBeNull();
 });
 
 it('cannot publish a complete validated history with missing source ordering', async () => {
@@ -955,6 +1243,40 @@ it('executes publication, counter reservation, second-device reads and bounded t
         .bind(duplicate.transaction_id)
         .first('n'),
     ).toBe(0);
+    const document = await fileTransaction(
+      new Uint8Array(BUSINESS_FILE_PART_BYTES + 7).fill(81),
+      receipt,
+    );
+    for (const index of [1, 0]) {
+      const bytes = document.content.slice(
+        index * BUSINESS_FILE_PART_BYTES,
+        (index + 1) * BUSINESS_FILE_PART_BYTES,
+      );
+      await uploadBusinessTransactionFilePart(
+        document.actor,
+        document.manifest.transaction_id,
+        document.sha,
+        index,
+        request(bytes, await sha256Hex(bytes)),
+      );
+    }
+    expect(
+      await verifyBusinessTransactionFile(
+        document.actor,
+        document.manifest.transaction_id,
+        document.sha,
+      ),
+    ).toMatchObject({ verified: true, canonical_committed: false });
+    expect(
+      await businessTransactionStatus(
+        document.actor,
+        document.manifest.transaction_id,
+      ),
+    ).toMatchObject({
+      state: 'awaiting_validation',
+      files_pending: 0,
+      pending_files: [],
+    });
     expect(
       await d1
         .prepare('SELECT head_revision FROM business_sync_spaces')

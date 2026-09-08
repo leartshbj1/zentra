@@ -13,6 +13,15 @@ use std::{
 };
 use tauri::State;
 const ENDPOINT: &str = "/api/sync/transactions";
+mod file_transfer;
+struct FileRequest {
+    method: Method,
+    id: String,
+    sha: String,
+    index: Option<usize>,
+    hash: Option<String>,
+    body: Option<Vec<u8>>,
+}
 static RUNNING: AtomicBool = AtomicBool::new(false);
 struct RunGuard;
 impl Drop for RunGuard {
@@ -40,6 +49,7 @@ struct Receipt {
     state: String,
     received_chunks: Vec<Part>,
     files_pending: usize,
+    pending_files: Vec<Blob>,
     canonical_committed: bool,
     replication_active: bool,
 }
@@ -47,6 +57,12 @@ trait Transport {
     fn organization(&self) -> &str;
     fn role(&self) -> &str;
     fn current(&self, store: &LocalStore) -> AppResult<()>;
+    fn file_request(
+        &self,
+        _request: FileRequest,
+    ) -> impl Future<Output = AppResult<(u16, Vec<u8>)>> + Send {
+        async { Err(invalid("Le transport des documents n’est pas disponible.")) }
+    }
     fn request(
         &self,
         method: Method,
@@ -56,6 +72,31 @@ trait Transport {
     ) -> impl Future<Output = AppResult<(u16, Vec<u8>)>> + Send;
 }
 impl Transport for ProjectSyncSession {
+    async fn file_request(&self, r: FileRequest) -> AppResult<(u16, Vec<u8>)> {
+        let index = r.index.map(|i| i.to_string());
+        let mut query = vec![
+            ("transaction_id", r.id.as_str()),
+            ("sha256", r.sha.as_str()),
+        ];
+        if let Some(ref i) = index {
+            query.push(("part", i));
+        }
+        let headers = r
+            .hash
+            .map(|hash| vec![("x-content-sha256", hash)])
+            .unwrap_or_default();
+        let (code, bytes) = self
+            .request_status(
+                r.method,
+                "/api/sync/transactions/file",
+                &query,
+                &headers,
+                r.body,
+                false,
+            )
+            .await?;
+        Ok((code.as_u16(), bytes))
+    }
     fn organization(&self) -> &str {
         &self.organization_id
     }
@@ -127,11 +168,26 @@ fn receipt(
             r.state.as_str(),
             "receiving" | "awaiting_files" | "awaiting_validation" | "invalid"
         )
-        || r.files_pending != m.files.len()
+        || r.files_pending > m.files.len()
+        || r.pending_files.len() != r.files_pending.min(8)
+        || (r.state == "awaiting_validation" && r.files_pending != 0)
+        || (r.state == "awaiting_files" && r.files_pending == 0)
     {
         return Err(invalid(
             "Le reçu de transfert ne correspond pas à l’opération préparée.",
         ));
+    }
+    let mut previous_file = "";
+    for file in &r.pending_files {
+        if file.sha256.as_str() <= previous_file || !m.files.contains(file) {
+            return Err(invalid(
+                "Le serveur demande un document absent de cette transaction.",
+            ));
+        }
+        previous_file = &file.sha256;
+    }
+    if previous.is_some_and(|p| r.files_pending > p.files_pending) {
+        return Err(invalid("Le reçu des documents a régressé."));
     }
     let mut indices = std::collections::BTreeSet::new();
     for part in &r.received_chunks {
@@ -154,9 +210,7 @@ fn receipt(
             "Le reçu annonce une transaction incomplète comme reçue.",
         ));
     }
-    if (r.state == "awaiting_files" && m.files.is_empty())
-        || (r.state == "awaiting_validation" && !m.files.is_empty())
-    {
+    if r.state == "awaiting_files" && m.files.is_empty() {
         return Err(invalid("Le reçu de documents est incohérent."));
     }
     if previous.is_some_and(|old| {
@@ -221,8 +275,18 @@ async fn transfer(store: &LocalStore, t: &impl Transport, p: Prepared) -> AppRes
         result = receipt(code, &bytes, &p, &hash, Some(&result))?;
         sent += 1;
     }
+    let mut sent_files = 0;
+    if result.state == "awaiting_files" && sent < 8 {
+        sent_files = file_transfer::send(store, t, &p, &result.pending_files, 8 - sent).await?;
+        t.current(store)?;
+        bound(store, &p)?;
+        let (code, bytes) = t.request(Method::GET, id, None, None).await?;
+        t.current(store)?;
+        bound(store, &p)?;
+        result = receipt(code, &bytes, &p, &hash, Some(&result))?;
+    }
     Ok(
-        json!({"state":result.state,"transaction_id":id,"received_chunks":result.received_chunks.len(),"total_chunks":p.manifest.chunks.len(),"sent_chunks":sent,"files_pending":result.files_pending,"canonical_committed":false,"replication_active":false}),
+        json!({"state":result.state,"transaction_id":id,"received_chunks":result.received_chunks.len(),"total_chunks":p.manifest.chunks.len(),"sent_chunks":sent,"sent_file_parts":sent_files,"files_pending":result.files_pending,"canonical_committed":false,"replication_active":false}),
     )
 }
 

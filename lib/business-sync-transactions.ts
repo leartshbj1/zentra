@@ -82,6 +82,7 @@ async function required(session: DeviceSessionContext, rawId: unknown) {
     ],
   };
 }
+export { required as requireBusinessTransaction };
 type Context = Awaited<ReturnType<typeof required>>;
 function key(session: DeviceSessionContext, ctx: Context, index: number) {
   return `business-sync/${session.organizationId}/transactions/${ctx.manifest.capture_generation}/${ctx.id}/${index}-${ctx.manifest.chunks[index].sha256}.json`;
@@ -113,6 +114,18 @@ async function response(session: DeviceSessionContext, ctx: Context) {
     new Set(received.map((p) => p.part_index)).size !== received.length
   )
     fail('Un reçu de fragment conservé est incohérent.', 503);
+  const pendingCondition = `NOT EXISTS(SELECT 1 FROM business_sync_file_blobs b WHERE b.transfer_id=t.transfer_id AND b.sha256=json_extract(f.value,'$.sha256') AND b.size_bytes=json_extract(f.value,'$.size_bytes') AND b.verified_at IS NOT NULL)`;
+  const summary = await database()
+    .prepare(`WITH pending AS (SELECT json_extract(f.value,'$.sha256') sha256,json_extract(f.value,'$.size_bytes') size_bytes FROM business_sync_transfers t,json_each(t.manifest_json,'$.files') f WHERE t.transfer_id=? AND ${pendingCondition})
+    SELECT COUNT(*) files_pending,(SELECT json_group_array(json_object('sha256',sha256,'size_bytes',size_bytes)) FROM (SELECT * FROM pending ORDER BY sha256 LIMIT 8)) pending_json FROM pending`)
+    .bind(ctx.id)
+    .first<{ files_pending: number; pending_json: string }>();
+  if (!summary) fail('Le catalogue des documents est indisponible.', 503);
+  const filesPending = summary.files_pending,
+    pendingFiles = JSON.parse(summary.pending_json) as {
+      sha256: string;
+      size_bytes: number;
+    }[];
   return {
     transaction_id: ctx.id,
     organization_id: session.organizationId,
@@ -124,7 +137,7 @@ async function response(session: DeviceSessionContext, ctx: Context) {
       ctx.row.state === 'invalid'
         ? 'invalid'
         : ctx.row.state === 'received'
-          ? ctx.manifest.files.length
+          ? filesPending
             ? 'awaiting_files'
             : 'awaiting_validation'
           : 'receiving',
@@ -134,7 +147,8 @@ async function response(session: DeviceSessionContext, ctx: Context) {
       size_bytes: p.size_bytes,
       change_count: p.change_count,
     })),
-    files_pending: ctx.manifest.files.length,
+    files_pending: filesPending,
+    pending_files: pendingFiles,
     canonical_committed: false,
     replication_active: false,
   };

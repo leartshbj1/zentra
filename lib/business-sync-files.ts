@@ -8,8 +8,13 @@ import {
 } from './account-security';
 import { readBytesBodyWithinLimit } from './request-body';
 import { database, fileArchive } from './runtime';
+import {
+  storedBlobPart as storedBytes,
+  verifyStoredBlob,
+  SYNC_BLOB_PART_BYTES,
+} from './business-sync-blob-store';
 
-export const BUSINESS_FILE_PART_BYTES = 4 * 1024 * 1024;
+export const BUSINESS_FILE_PART_BYTES = SYNC_BLOB_PART_BYTES;
 export const BUSINESS_FILE_PAGE_BYTES = 512 * 1024;
 export const BUSINESS_FILES_PER_PAGE = 200;
 const MAX_FILES = 50_000;
@@ -544,19 +549,6 @@ export async function businessFileStatus(
     replication_active: false,
   };
 }
-async function storedBytes(key: string, expected: number) {
-  const blob = await fileArchive().get(key);
-  if (!blob || blob.size !== expected)
-    invalid('Un fragment de fichier conservé est absent ou incohérent.', 409);
-  return readBytesBodyWithinLimit(
-    new Request('https://storage.invalid/fragment', {
-      method: 'POST',
-      body: blob.body,
-      duplex: 'half',
-    } as RequestInit),
-    expected,
-  );
-}
 export async function uploadBusinessFilePart(
   session: DeviceSessionContext,
   rawId: unknown,
@@ -664,26 +656,9 @@ export async function verifyBusinessFile(
         .bind(id, sha)
         .all<FilePart>()
     ).results ?? [];
-  if (parts.length !== Math.ceil(blob.size_bytes / BUSINESS_FILE_PART_BYTES))
-    invalid('Des fragments du fichier manquent encore.', 409);
-  const digest = createHash('sha256');
-  let size = 0;
-  for (const [index, part] of parts.entries()) {
-    const expected = Math.min(BUSINESS_FILE_PART_BYTES, blob.size_bytes - size);
-    if (
-      part.part_index !== index ||
-      part.size_bytes !== expected ||
-      part.object_key !== partKey(session.organizationId, id, sha, index)
-    )
-      invalid('Les fragments conservés sont incohérents.', 409);
-    const bytes = await storedBytes(part.object_key, expected);
-    if (bytes.length !== expected || (await sha256Hex(bytes)) !== part.sha256)
-      invalid('Un fragment conservé est altéré.', 409);
-    size += bytes.length;
-    digest.update(bytes);
-  }
-  if (size !== blob.size_bytes || digest.digest('hex') !== sha)
-    invalid('Le fichier complet ne correspond pas à la pièce d’origine.', 409);
+  await verifyStoredBlob(parts, blob.size_bytes, sha, (index) =>
+    partKey(session.organizationId, id, sha, index),
+  );
   await database()
     .prepare(`UPDATE business_sync_file_blobs SET verified_at=? WHERE transfer_id=? AND sha256=? AND verified_at IS NULL
     AND ${ACTIVE} AND EXISTS(SELECT 1 FROM business_sync_file_sets WHERE transfer_id=? AND state='uploading')`)

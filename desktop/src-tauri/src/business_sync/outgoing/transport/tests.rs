@@ -1,6 +1,6 @@
 use super::*;
 use std::sync::{atomic::AtomicUsize, Mutex};
-struct Fake {
+pub(super) struct Fake {
     manifest: Manifest,
     exists: AtomicBool,
     received: Mutex<Vec<usize>>,
@@ -11,7 +11,7 @@ struct Fake {
     detach: AtomicBool,
 }
 impl Fake {
-    fn new(manifest: Manifest) -> Self {
+    pub(super) fn new(manifest: Manifest) -> Self {
         Self {
             manifest,
             exists: AtomicBool::new(false),
@@ -55,6 +55,7 @@ impl Fake {
                 })
                 .collect(),
             files_pending: 0,
+            pending_files: vec![],
             canonical_committed: false,
             replication_active: false,
         })

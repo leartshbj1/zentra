@@ -46,6 +46,16 @@ fn valid_hash(hash: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
+pub(super) fn retained_blob_path(data_dir:&Path,hash:&str,size:u64)->AppResult<PathBuf> {
+    if !valid_hash(hash)||size>MAX_BYTES {return Err(invalid("La copie du document est invalide."));}
+    let root=data_dir.join("attachments").join(DIRECTORY);
+    for folder in [data_dir.to_path_buf(),data_dir.join("attachments"),root.clone(),root.join("blobs")] {
+        if !regular_metadata(&folder)?.is_dir(){return Err(invalid("Le dossier des documents conservés est invalide."));}
+    }
+    let path=root.join("blobs").join(hash);let metadata=regular_metadata(&path)?;
+    if !metadata.is_file()||metadata.len()!=size{return Err(invalid("La copie conservée du document est absente ou altérée."));}
+    Ok(path)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
