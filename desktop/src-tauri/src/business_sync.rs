@@ -2,7 +2,7 @@
 //! Network activation is deliberately gated by the authoritative bootstrap.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
 
@@ -104,6 +104,63 @@ fn json_key(alias: &str, keys: &[String]) -> AppResult<String> {
     Ok(format!("json_array({})", values.join(",")))
 }
 
+fn invalid_key(alias: &str, keys: &[String]) -> AppResult<String> {
+    let checks = keys.iter().map(|key| {
+        let column = format!("{alias}.{}", identifier(key)?);
+        Ok(format!(
+            "({column} IS NULL OR typeof({column}) NOT IN ('text','integer') OR {column}='' \
+             OR (typeof({column})='integer' AND {column} NOT BETWEEN -9007199254740991 AND 9007199254740991))"
+        ))
+    }).collect::<AppResult<Vec<_>>>()?;
+    // Stable identifiers are normally UUIDs. Bound their encoded size locally
+    // before they can make an otherwise durable transaction impossible to send.
+    Ok(format!(
+        "({} OR length(CAST({} AS BLOB))>1024)",
+        checks.join(" OR "),
+        json_key(alias, keys)?
+    ))
+}
+
+fn ensure_unique_key(connection: &Connection, table: &str, rule: &TablePolicy) -> AppResult<()> {
+    let expected = rule.key.iter().cloned().collect::<BTreeSet<_>>();
+    if expected.is_empty()
+        || expected.len() != rule.key.len()
+        || !rule.key.iter().all(|key| rule.columns.contains(key))
+    {
+        return Err(AppError::Validation(format!(
+            "La table {table} ne définit pas de référence métier stable."
+        )));
+    }
+    let primary = connection
+        .prepare("SELECT name FROM pragma_table_info(?) WHERE pk>0")?
+        .query_map([table], |row| row.get::<_, String>(0))?
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if primary == expected {
+        return Ok(());
+    }
+    // An index on extra columns, an expression, or only part of the rows does
+    // not guarantee that the protocol key identifies exactly one whole row.
+    let indexes = connection
+        .prepare("SELECT name FROM pragma_index_list(?) WHERE \"unique\"=1 AND partial=0")?
+        .query_map([table], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    for index in indexes {
+        let columns = connection
+            .prepare("SELECT name FROM pragma_index_info(?)")?
+            .query_map([index], |row| row.get::<_, Option<String>>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        if columns.iter().all(Option::is_some)
+            && columns.len() == expected.len()
+            && columns.into_iter().flatten().collect::<BTreeSet<_>>() == expected
+        {
+            return Ok(());
+        }
+    }
+    Err(AppError::Validation(format!(
+        "La référence de la table {table} n'est pas protégée contre les doublons."
+    )))
+}
+
 pub(crate) fn migrate(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction.execute_batch(include_str!("business_sync_schema.sql"))?;
     // Persistent triggers are parsed every time SQLite opens a connection.
@@ -127,7 +184,26 @@ pub(crate) fn migrate(transaction: &Transaction<'_>) -> AppResult<()> {
 }
 
 fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
-    for (table, policy) in policy()?.tables {
+    let contract = policy()?;
+    let present = transaction
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*'")?
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if present.iter().any(|table| {
+        !contract.tables.contains_key(table)
+            && !contract.local_tables.contains_key(table)
+            && ![
+                "business_sync_binding",
+                "business_sync_changes",
+                "business_sync_receipts",
+            ]
+            .contains(&table.as_str())
+    }) {
+        return Err(AppError::Validation(
+            "La base comporte une table absente du contrat de synchronisation.".into(),
+        ));
+    }
+    for (table, policy) in contract.tables {
         let table_sql = identifier(&table)?;
         let columns = transaction
             .prepare(&format!("PRAGMA table_info({table_sql})"))?
@@ -143,15 +219,38 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                 "La table {table} comporte un champ absent du contrat de synchronisation."
             )));
         }
+        ensure_unique_key(transaction, &table, &policy)?;
+        let invalid_existing: bool = transaction.query_row(
+            &format!(
+                "SELECT EXISTS(SELECT 1 FROM {table_sql} r WHERE {})",
+                invalid_key("r", &policy.key)?
+            ),
+            [],
+            |row| row.get(0),
+        )?;
+        if invalid_existing {
+            return Err(AppError::Validation(format!(
+                "Une référence de la table {table} est absente ou incompatible avec la synchronisation. Aucune donnée n'a été envoyée."
+            )));
+        }
         let old_key = json_key("OLD", &policy.key)?;
         let new_key = json_key("NEW", &policy.key)?;
+        let invalid_new_key = invalid_key("NEW", &policy.key)?;
         let old_image = json_image("OLD", &policy.columns)?;
         let new_image = json_image("NEW", &policy.columns)?;
+        // Re-installing after migration must replace an older generated guard.
+        // The caller's transaction preserves the old definitions on failure.
+        for suffix in ["key", "insert", "update", "delete"] {
+            transaction.execute_batch(&format!(
+                "DROP TRIGGER IF EXISTS {}",
+                identifier(&format!("zentra_sync_{table}_{suffix}"))?
+            ))?;
+        }
         transaction.execute_batch(&format!(
-            "CREATE TRIGGER IF NOT EXISTS zentra_sync_{table}_key
+            "CREATE TRIGGER zentra_sync_{table}_key
              BEFORE UPDATE ON {table_sql}
              WHEN EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1)
-               AND {old_key}<>{new_key}
+               AND ({old_key}<>{new_key} OR {invalid_new_key})
              BEGIN SELECT RAISE(ABORT,'Une référence métier partagée ne peut pas changer.'); END;"
         ))?;
         for (operation, before, after, key) in [
@@ -169,11 +268,17 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
             } else {
                 String::new()
             };
+            let key_guard = if operation == "insert" {
+                format!("SELECT CASE WHEN {invalid_new_key} THEN RAISE(ABORT,'La référence métier est absente ou incompatible avec la synchronisation.') END;")
+            } else {
+                String::new()
+            };
             transaction.execute_batch(&format!(
-                "CREATE TRIGGER IF NOT EXISTS zentra_sync_{table}_{operation}
+                "CREATE TRIGGER zentra_sync_{table}_{operation}
                  AFTER {operation} ON {table_sql}
                  WHEN EXISTS(SELECT 1 FROM business_sync_binding WHERE capture_enabled=1){changed}
                  BEGIN
+                   {key_guard}
                    SELECT CASE WHEN EXISTS(SELECT 1 FROM business_sync_binding
                      WHERE installation_id<>zentra_installation_id())
                      THEN RAISE(ABORT,'La synchronisation de cette copie appartient à un autre appareil.') END;
@@ -378,6 +483,191 @@ mod tests {
         assert_eq!(connection.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name GLOB 'zentra_sync_*'", [], |row| row.get::<_,i64>(0)).unwrap(), 0);
         insert_client(&connection, "local-client");
         assert_eq!(count(&connection), 0);
+    }
+
+    #[test]
+    fn stable_key_requires_a_complete_unique_constraint() {
+        let connection = Connection::open_in_memory().unwrap();
+        let rule = TablePolicy {
+            key: vec!["id".into()],
+            columns: vec!["id".into(), "scope".into()],
+            local_columns: vec![],
+        };
+        for (name, definition, index, accepted) in [
+            ("primary_key", "id TEXT PRIMARY KEY,scope TEXT", "", true),
+            ("unique_key", "id TEXT UNIQUE,scope TEXT", "", true),
+            ("no_key", "id TEXT,scope TEXT", "", false),
+            (
+                "wider_key",
+                "id TEXT,scope TEXT,UNIQUE(id,scope)",
+                "",
+                false,
+            ),
+            (
+                "partial_key",
+                "id TEXT,scope TEXT",
+                "CREATE UNIQUE INDEX partial_identity ON partial_key(id) WHERE scope IS NOT NULL",
+                false,
+            ),
+            (
+                "expression_key",
+                "id TEXT,scope TEXT",
+                "CREATE UNIQUE INDEX normalized_identity ON expression_key(lower(id))",
+                false,
+            ),
+        ] {
+            connection
+                .execute_batch(&format!("CREATE TABLE {name}({definition});{index}"))
+                .unwrap();
+            assert_eq!(
+                ensure_unique_key(&connection, name, &rule).is_ok(),
+                accepted,
+                "{name}"
+            );
+        }
+        let composite = TablePolicy {
+            key: vec!["scope".into(), "id".into()],
+            ..rule
+        };
+        assert!(ensure_unique_key(&connection, "wider_key", &composite).is_ok());
+    }
+
+    #[test]
+    fn legacy_invalid_keys_prevent_capture_without_rewriting_the_original_rows() {
+        let (_directory, store) = setup();
+        let mut connection = store.connect().unwrap();
+        for invalid in [
+            rusqlite::types::Value::Null,
+            rusqlite::types::Value::Text(String::new()),
+            rusqlite::types::Value::Blob(vec![1, 2, 3]),
+            rusqlite::types::Value::Text("x".repeat(1025)),
+        ] {
+            connection.execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES(?,'Client fictif','2026-09-08','2026-09-08')", [&invalid]).unwrap();
+            let transaction = connection.transaction().unwrap();
+            transaction
+                .execute(
+                    "INSERT INTO business_sync_binding VALUES(1,'org-test',?,?,1,'2026-09-08')",
+                    params![store.installation_id, Uuid::new_v4().to_string()],
+                )
+                .unwrap();
+            let error = install_capture_triggers(&transaction)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("clients"), "{error}");
+            transaction.rollback().unwrap();
+            assert_eq!(status(&connection).unwrap()["state"], "not_initialized");
+            assert_eq!(count(&connection), 0);
+            assert_eq!(
+                connection
+                    .query_row("SELECT COUNT(*) FROM clients", [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                1
+            );
+            assert_eq!(connection.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name GLOB 'zentra_sync_*'", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+            connection.execute("DELETE FROM clients", []).unwrap();
+        }
+    }
+
+    #[test]
+    fn active_capture_rejects_invalid_new_keys_and_rolls_back_the_business_transaction() {
+        let (_directory, store) = setup();
+        capture(&store);
+        let mut connection = store.connect().unwrap();
+        for invalid in [
+            rusqlite::types::Value::Null,
+            rusqlite::types::Value::Text(String::new()),
+            rusqlite::types::Value::Blob(vec![1, 2, 3]),
+            rusqlite::types::Value::Text("x".repeat(1025)),
+        ] {
+            let transaction = connection.transaction().unwrap();
+            insert_client(&transaction, "also-rolled-back");
+            assert!(transaction.execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES(?,'Client fictif','2026-09-08','2026-09-08')", [&invalid]).is_err());
+            transaction.rollback().unwrap();
+            assert_eq!(count(&connection), 0);
+            assert_eq!(
+                connection
+                    .query_row("SELECT COUNT(*) FROM clients", [], |row| row
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
+        }
+        insert_client(&connection, "valid-client");
+        assert_eq!(count(&connection), 1);
+        assert!(connection
+            .execute("UPDATE clients SET id=NULL WHERE id='valid-client'", [])
+            .is_err());
+        assert_eq!(count(&connection), 1);
+    }
+
+    #[test]
+    fn key_validation_preserves_safe_integers_and_rejects_ambiguous_scalar_types() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE key_cases(id)")
+            .unwrap();
+        let sql = format!(
+            "SELECT {} FROM key_cases r",
+            invalid_key("r", &["id".into()]).unwrap()
+        );
+        use rusqlite::types::Value::{Integer, Real, Text};
+        for (value, invalid) in [
+            (Integer(9_007_199_254_740_991), false),
+            (Integer(-9_007_199_254_740_991), false),
+            (Integer(0), false),
+            (Integer(9_007_199_254_740_992), true),
+            (Integer(i64::MIN), true),
+            (Real(1.0), true),
+            (Text("Référence \"œuvre\"\n2026".into()), false),
+        ] {
+            connection
+                .execute("INSERT INTO key_cases VALUES(?)", [value])
+                .unwrap();
+            assert_eq!(
+                connection
+                    .query_row(&sql, [], |row| row.get::<_, bool>(0))
+                    .unwrap(),
+                invalid
+            );
+            connection.execute("DELETE FROM key_cases", []).unwrap();
+        }
+    }
+
+    #[test]
+    fn unclassified_tables_cannot_be_silently_omitted_from_a_shared_profile() {
+        let (_directory, store) = setup();
+        let mut connection = store.connect().unwrap();
+        connection
+            .execute_batch("CREATE TABLE sqliteextra_private_rows(id TEXT PRIMARY KEY)")
+            .unwrap();
+        let transaction = connection.transaction().unwrap();
+        assert!(install_capture_triggers(&transaction)
+            .unwrap_err()
+            .to_string()
+            .contains("table absente"));
+        transaction.rollback().unwrap();
+        assert_eq!(count(&connection), 0);
+    }
+
+    #[test]
+    fn reinstall_replaces_old_generated_guards_without_touching_pending_evidence() {
+        let (_directory, store) = setup();
+        capture(&store);
+        let mut connection = store.connect().unwrap();
+        insert_client(&connection, "pending-client");
+        let before = count(&connection);
+        connection.execute_batch(
+            "DROP TRIGGER zentra_sync_clients_insert;
+             CREATE TRIGGER zentra_sync_clients_insert AFTER INSERT ON clients BEGIN SELECT 1; END;"
+        ).unwrap();
+        let transaction = connection.transaction().unwrap();
+        install_capture_triggers(&transaction).unwrap();
+        transaction.commit().unwrap();
+        assert_eq!(count(&connection), before);
+        assert!(connection.execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES(NULL,'Client fictif','2026-09-08','2026-09-08')", []).is_err());
+        insert_client(&connection, "next-client");
+        assert_eq!(count(&connection), before + 1);
     }
 
     #[test]

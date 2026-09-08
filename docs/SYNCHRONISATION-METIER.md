@@ -28,6 +28,18 @@ Le service `GET/POST/PUT/DELETE /api/sync/bootstrap` prépare le transfert initi
 
 La migration D1 `0013_concerned_goliath.sql` ajoute uniquement quatre tables et leurs index. Les 22 tests du transfert emploient toutes les migrations réelles sur SQLite avec une simulation transactionnelle de D1 et un stockage R2 en mémoire. Les 13 tests de numérotation passent aussi ; la suite serveur complète comporte 264 tests réussis. TypeScript, le contrôle statique et le build de production passent. Ces tests ne constituent pas un transfert natif authentifié sur deux appareils réels.
 
+Cette réception est publiée dans la **version 73 du site**, source `43ebe0730d9de1aa7d6c316907a4254789693df4`, le 8 septembre 2026. Le déploiement a réussi avec la configuration existante (révision 23). Les quatre tables sont présentes dans D1. Les quatre méthodes de préparation et la réservation de numéros répondent 401 sans session ; la page de téléchargement répond 200. Les installateurs publics restent en 1.46.1, schéma 59, et la réplication métier reste inactive.
+
+## Contrôle des références locales avant capture
+
+La préparation du schéma 60 contrôle les références existantes avant d'installer les déclencheurs. Une clé doit être garantie unique par la clé primaire ou un index unique complet portant exactement sur ses colonnes. Un index partiel, calculé ou comprenant des colonnes supplémentaires ne suffit pas. La présence de tables non classées bloque aussi la préparation : aucune table métier ne doit être omise silencieusement.
+
+Une référence nulle, vide, binaire, réelle ou un entier dépassant la plage exacte du protocole JSON est refusée. La représentation JSON d'une clé est limitée localement à 1 024 octets ; cette borne est conservatrice pour les références Unicode. Un refus annule la liaison et les déclencheurs de la transaction, sans réécrire les anciennes lignes. Les écritures ultérieures d'un profil dont la capture est activée suivent les mêmes contrôles. Une réinstallation transactionnelle remplace les anciennes définitions des déclencheurs sans toucher au journal en attente.
+
+Ces vérifications préparent la capture et ne réparent pas les données automatiquement. La construction de l'instantané, les valeurs de toutes les autres colonnes, les relations, la projection des fichiers et les invariants financiers doivent encore être contrôlés avant de permettre l'envoi puis la publication d'un historique.
+
+La suite ciblée finale passe avec **19 tests réussis sur 19**, zéro échec, en 15,03 secondes. Clippy sur toutes les cibles passe aussi avec les avertissements traités comme des erreurs. Les six nouveaux scénarios couvrent les contraintes uniques complètes, les anciennes références invalides, l'annulation d'une transaction contenant une nouvelle référence invalide, les bornes numériques, les tables non classées et le remplacement des anciennes définitions de déclencheurs. Les treize scénarios précédents de capture, facture, paiement et restauration restent inclus. La suite générale de 658 tests ci-dessous précède ces contrôles supplémentaires ; elle n'est pas présentée comme une nouvelle exécution du code modifié.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.
