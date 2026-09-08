@@ -592,69 +592,72 @@ it.skipIf(!process.env.ZENTRA_CREDIT_QA)(
     });
   },
 );
-it.skipIf(!process.env.ZENTRA_RECOVERY_QA)(
-  'accepts the native recovery through HTTP with real rate limits, then throttles without changing its receipt',
-  async () => {
-    const folder = process.env.ZENTRA_RECOVERY_QA!;
-    const fixture = JSON.parse(readFileSync(`${folder}/prepared.json`, 'utf8'));
-    db.exec('DELETE FROM business_sync_versions');
-    for (let index = 0; index < fixture.manifest.chunks.length; index++) {
-      const chunk = JSON.parse(
-        readFileSync(
-          `${folder}/rows/${String(index).padStart(4, '0')}.json`,
-          'utf8',
+for (const scenario of ['ZENTRA_RECOVERY_QA', 'ZENTRA_SUPPLIER_QA'])
+  it.skipIf(!process.env[scenario])(
+    `accepts native ${scenario} through HTTP with real rate limits, then throttles without changing its receipt`,
+    async () => {
+      const folder = process.env[scenario]!;
+      const fixture = JSON.parse(
+        readFileSync(`${folder}/prepared.json`, 'utf8'),
+      );
+      db.exec('DELETE FROM business_sync_versions');
+      for (let index = 0; index < fixture.manifest.chunks.length; index++) {
+        const chunk = JSON.parse(
+          readFileSync(
+            `${folder}/rows/${String(index).padStart(4, '0')}.json`,
+            'utf8',
+          ),
+        );
+        for (const row of chunk.rows)
+          db.prepare(
+            "INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,'org_first',?,?,?,?)",
+          ).run(
+            id,
+            row.table,
+            row.key_json,
+            row.row_json,
+            await sha256Hex(row.row_json),
+          );
+      }
+      await manifest();
+      await structure();
+      const actual =
+        await vi.importActual<typeof import('./account')>('./account');
+      mocks.rate.mockImplementation(actual.enforceAccountRateLimit);
+      let result:
+        | Awaited<ReturnType<typeof validateBootstrapIntegrity>>
+        | undefined;
+      let calls = 0;
+      for (; calls < 200; calls++) {
+        const response = await POST(
+          new Request('https://zentra.test/api/sync/bootstrap/integrity', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ transfer_id: id }),
+          }),
+        );
+        expect(response.status).toBe(200);
+        result = await response.json();
+        if (result?.state === 'valid') break;
+      }
+      expect(calls).toBeGreaterThan(120);
+      expect(result).toMatchObject({
+        state: 'valid',
+        credit_projection: {
+          phase: 'valid',
+          verified_documents: 6,
+          verified_movements: 14,
+        },
+      });
+      const maximum = mocks.rate.mock.calls[0][3] as number;
+      db.prepare('UPDATE checkout_rate_limits SET count=?').run(maximum);
+      const limited = await GET(
+        new Request(
+          `https://zentra.test/api/sync/bootstrap/integrity?transfer_id=${id}`,
         ),
       );
-      for (const row of chunk.rows)
-        db.prepare(
-          "INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,'org_first',?,?,?,?)",
-        ).run(
-          id,
-          row.table,
-          row.key_json,
-          row.row_json,
-          await sha256Hex(row.row_json),
-        );
-    }
-    await manifest();
-    await structure();
-    const actual =
-      await vi.importActual<typeof import('./account')>('./account');
-    mocks.rate.mockImplementation(actual.enforceAccountRateLimit);
-    let result:
-      | Awaited<ReturnType<typeof validateBootstrapIntegrity>>
-      | undefined;
-    let calls = 0;
-    for (; calls < 200; calls++) {
-      const response = await POST(
-        new Request('https://zentra.test/api/sync/bootstrap/integrity', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ transfer_id: id }),
-        }),
-      );
-      expect(response.status).toBe(200);
-      result = await response.json();
-      if (result?.state === 'valid') break;
-    }
-    expect(calls).toBeGreaterThan(120);
-    expect(result).toMatchObject({
-      state: 'valid',
-      credit_projection: {
-        phase: 'valid',
-        verified_documents: 6,
-        verified_movements: 14,
-      },
-    });
-    const maximum = mocks.rate.mock.calls[0][3] as number;
-    db.prepare('UPDATE checkout_rate_limits SET count=?').run(maximum);
-    const limited = await GET(
-      new Request(
-        `https://zentra.test/api/sync/bootstrap/integrity?transfer_id=${id}`,
-      ),
-    );
-    expect(limited.status).toBe(429);
-    expect(limited.headers.get('cache-control')).toContain('no-store');
-    expect(await bootstrapIntegrityStatus(owner, id)).toEqual(result);
-  },
-);
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get('cache-control')).toContain('no-store');
+      expect(await bootstrapIntegrityStatus(owner, id)).toEqual(result);
+    },
+  );

@@ -8,6 +8,8 @@ mod structure_qa;
 mod integrity_qa;
 #[cfg(test)]
 mod recovery_qa;
+#[cfg(test)]
+mod supplier_qa;
 
 use super::*;
 use crate::account_cloud::ProjectSyncSession;

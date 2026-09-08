@@ -2,10 +2,14 @@
 use super::*;
 
 pub(super) fn seed(store: &LocalStore) -> AppResult<()> {
-    seed_with_recovery(store, super::recovery_qa::enabled())
+    seed_with_scenarios(store, super::recovery_qa::enabled(), super::supplier_qa::enabled())
 }
 
 pub(super) fn seed_with_recovery(store: &LocalStore, recovery: bool) -> AppResult<()> {
+    seed_with_scenarios(store, recovery, false)
+}
+
+pub(super) fn seed_with_scenarios(store: &LocalStore, recovery: bool, supplier: bool) -> AppResult<()> {
     use crate::models::{RecordPaymentInput, SaveDocumentWithItemsInput};
     store.install_swiss_accounting_starter()?;
     let customer=store.create_record("clients",json!({"name":"Client fictif de recette comptable","address_line1":"Rue du Test","postal_code":"1000","city":"Lausanne","country":"CH"}))?;
@@ -43,6 +47,7 @@ pub(super) fn seed_with_recovery(store: &LocalStore, recovery: bool) -> AppResul
         super::recovery_qa::seed(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
     }
     seed_credit_history(store, customer["id"].as_str().ok_or_else(|| invalid("QA customer missing"))?)?;
+    if supplier { super::supplier_qa::seed(store)?; }
     let mut connection = store.connect()?;
     let tx = connection.transaction()?;
     for index in 0..1005 {

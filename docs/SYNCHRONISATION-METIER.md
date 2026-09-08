@@ -256,6 +256,20 @@ La recette native HTTPS réussit en **876,30 secondes** : **1698 lignes**, cinq 
 
 Le transfert `3b96b471-d4ea-498b-bda4-b7ccd6074c8f` est abandonné après l'essai : les quatorze tables temporaires sont vides, sans pagination cachée, la session est révoquée, le compte fictif affiche zéro appareil actif et l'onglet de recette est fermé. GET et POST anonymes renvoient 401 sans cache. Aucune liste indépendante du stockage R2 n'est revendiquée. Preuve détaillée : `.qa/client-readiness-20260908/business-recovery-proof.json`. L'essai utilise un seul ordinateur physique. La synchronisation métier complète reste inactive et le schéma natif 60 non distribué. La prochaine étape couvre les corrections et règlements fournisseurs, puis la paie, les stocks et la publication atomique de l'historique avec ses fichiers et ses bornes de numérotation.
 
+## Achats, avoirs et remboursements fournisseurs
+
+Vingt-quatre contrôles fournisseurs sont intégrés au véritable endpoint d'intégrité et à son empreinte, portant son total à 93. Ils vérifient les calculs en centimes, les totaux, les articles figés, les journaux de validation et leurs comptes, les compensations initiales conservées dans l'avoir, les mouvements ultérieurs et les remboursements bancaires avec leurs annulations. Un journal équilibré avec un montant, un compte ou un projet substitué est refusé. La somme des compensations et remboursements partage le même solde d'avoir ; les dépassements temporaires sont refusés même si une annulation répare le solde final.
+
+Les champs nullable ajoutés par les migrations ne réécrivent pas les snapshots anciens. Le contrôle normalise seulement l'absence du compte de charge figé et de la date de compensation en `null`. Lorsque l'ancien compte n'est pas enregistré, il exige un compte de charge unique dans l'écriture d'origine, avec le même libellé, montant et sens. Il ne prend jamais le paramétrage comptable actuel comme preuve historique. Une date ancienne inconnue reste inconnue : les soldes sont vérifiés, mais aucune chronologie ni validation de TVA sur encaissements n'est inventée pour ce cas.
+
+Le contrat de transfert conserve maintenant les deux colonnes `sequence` des compensations et remboursements fournisseurs. Leur ordre est utilisé par le calcul natif ; il ne doit pas être reconstruit à partir des identifiants. Le contrat natif et serveur porte l'empreinte `4cfe89a2b0bde95c3173481e8e236d26e5bf5df2b20aa1f465fe6d515f6765d8`. L'ancien jeu de protocole est conservé intact et un nouveau jeu est exporté depuis l'application actuelle.
+
+Le scénario natif crée une facture de 10 535 centimes à deux taux et un avoir de 5 268 centimes, puis une compensation initiale, une compensation annulée après un paiement d'un centime, un remboursement annulé et le règlement final. Facture et avoir finissent soldés : 9 535 centimes payés, 1 000 compensés et 4 268 remboursés. Le calcul natif conserve 23 ventilations et 267 centimes de TVA préalable nette. Cette valeur ne prouve pas encore une projection serveur ligne par ligne des règlements fournisseurs.
+
+Les 492 tests serveur passent avec les jeux natifs, dont 28 tests fournisseurs. Les 65 tests natifs de synchronisation passent ; trois essais explicitement dédiés sont ignorés dans cette suite, et l'export du nouveau jeu est exécuté séparément. Les 93 contrôles acceptent le dossier natif dans D1 ; la route HTTP complète passe aussi avec le vrai compteur de requêtes et préserve son reçu en cas de limitation. Les tests des anciens champs absents sont des cas SQLite construits d'après les migrations, pas une preuve d'importation de toutes les anciennes versions.
+
+La projection serveur de TVA fournisseur, les reclassements de charges et de TVA, les stocks, la paie, la publication atomique de l'historique, les modifications ultérieures et les conflits restent nécessaires. Le schéma 60 est en préparation, non distribué ; le partage métier complet reste inactif.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

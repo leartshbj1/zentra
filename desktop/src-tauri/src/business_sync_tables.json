@@ -1626,6 +1626,7 @@
         "id"
       ],
       "columns": [
+        "sequence",
         "id",
         "request_id",
         "supplier_credit_note_id",
@@ -1637,9 +1638,7 @@
         "created_at",
         "effective_date"
       ],
-      "local_columns": [
-        "sequence"
-      ]
+      "local_columns": []
     },
     "supplier_credit_note_items": {
       "key": [
@@ -1698,6 +1697,7 @@
         "id"
       ],
       "columns": [
+        "sequence",
         "id",
         "request_id",
         "request_json",
@@ -1713,9 +1713,7 @@
         "journal_entry_id",
         "created_at"
       ],
-      "local_columns": [
-        "sequence"
-      ]
+      "local_columns": []
     },
     "supplier_email_invoice_imports": {
       "key": [
