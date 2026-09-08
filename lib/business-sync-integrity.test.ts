@@ -75,6 +75,7 @@ const owner: DeviceSessionContext = {
 };
 beforeEach(async () => {
   vi.clearAllMocks();
+  mocks.rate.mockReset();
   beforeQuery = undefined;
   afterRead = undefined;
   beforeBatch = undefined;
@@ -592,7 +593,7 @@ it.skipIf(!process.env.ZENTRA_CREDIT_QA)(
   },
 );
 it.skipIf(!process.env.ZENTRA_RECOVERY_QA)(
-  'accepts the complete native adoption with checked recovery tokens and exact line VAT',
+  'accepts the native recovery through HTTP with real rate limits, then throttles without changing its receipt',
   async () => {
     const folder = process.env.ZENTRA_RECOVERY_QA!;
     const fixture = JSON.parse(readFileSync(`${folder}/prepared.json`, 'utf8'));
@@ -617,7 +618,27 @@ it.skipIf(!process.env.ZENTRA_RECOVERY_QA)(
     }
     await manifest();
     await structure();
-    expect(await finish()).toMatchObject({
+    const actual =
+      await vi.importActual<typeof import('./account')>('./account');
+    mocks.rate.mockImplementation(actual.enforceAccountRateLimit);
+    let result:
+      | Awaited<ReturnType<typeof validateBootstrapIntegrity>>
+      | undefined;
+    let calls = 0;
+    for (; calls < 200; calls++) {
+      const response = await POST(
+        new Request('https://zentra.test/api/sync/bootstrap/integrity', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ transfer_id: id }),
+        }),
+      );
+      expect(response.status).toBe(200);
+      result = await response.json();
+      if (result?.state === 'valid') break;
+    }
+    expect(calls).toBeGreaterThan(120);
+    expect(result).toMatchObject({
       state: 'valid',
       credit_projection: {
         phase: 'valid',
@@ -625,5 +646,15 @@ it.skipIf(!process.env.ZENTRA_RECOVERY_QA)(
         verified_movements: 14,
       },
     });
+    const maximum = mocks.rate.mock.calls[0][3] as number;
+    db.prepare('UPDATE checkout_rate_limits SET count=?').run(maximum);
+    const limited = await GET(
+      new Request(
+        `https://zentra.test/api/sync/bootstrap/integrity?transfer_id=${id}`,
+      ),
+    );
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get('cache-control')).toContain('no-store');
+    expect(await bootstrapIntegrityStatus(owner, id)).toEqual(result);
   },
 );

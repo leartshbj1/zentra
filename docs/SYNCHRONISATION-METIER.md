@@ -240,6 +240,18 @@ Après abandon, les quatorze tables temporaires contrôlées dans D1 sont vides,
 
 Les ventilations des paiements repris sont contrôlées, mais les preuves complètes des sources historiques et de leurs corrections restent à intégrer. Les autres agrégats, la publication atomique des fichiers et des bornes de numérotation, le rejeu des transactions ultérieures et les conflits hors ligne restent nécessaires. La recette utilise un seul ordinateur physique. Le schéma natif 60 n'est pas distribué ; la réplication entre appareils reste inactive.
 
+## Preuves de reprise des anciens avoirs — serveur 86
+
+Quatorze contrôles complètent la reprise d'un dossier historique : correspondance modèle/demande/facture, confirmations conservées, liste des pièces et des articles, identité des paiements et journaux d'origine, puis comptes et montants exacts des corrections. Le contrôle compare les champs JSON dans SQLite sans convertir les centimes en nombres JavaScript. Les journaux et leurs lignes sont comparés par identité, indépendamment de l'ordre des tableaux. Les comptes historiques désactivés restent acceptés ; aucune nouvelle condition de période ouverte n'est imposée à ces pièces anciennes.
+
+Une correction pourtant équilibrée est refusée si ses lignes ne correspondent pas au recalcul attendu, même lorsque son snapshot a été modifié avec elle. Une correction nulle exige l'absence de journal et un snapshot explicitement `null`. La projection passe en version d'algorithme 2 et contrôle aussi le SHA-256 des octets de l'historique contre le jeton de revue enregistré, avant toute préparation des lignes. Toutes ces requêtes font partie de l'empreinte du vrai endpoint d'intégrité ; le contrat des tables reste celui du serveur 85.
+
+Le nouveau scénario Rust crée puis reprend réellement deux dossiers de l'ancien format v52 : paiement partiel, plusieurs taux, correction de TVA de **−1 centime**, restauration de **268 centimes**, correction nulle et remboursement intégral. Il produit quatre preuves, 32 écritures et 93 lignes comptables, avec **822 864 centimes** de débit et de crédit. Le jeu natif figé passe les contrôles D1 et l'endpoint complet. Les 19 tests spécifiques refusent notamment une pièce manquante, un compte substitué et une différence d'un centime au-delà de la précision entière de JavaScript.
+
+Les **462 tests serveur dans 46 fichiers** passent avec les quatre jeux natifs. TypeScript, lint, compilation serveur et Clippy sur toutes les cibles passent aussi. Un ancien test de deux préparations concurrentes supposait que la première requête gagnait ; il suit maintenant la requête réellement acceptée, exige le refus 409 de l'autre et vérifie la reprise idempotente du gagnant. Le code serveur de cette initialisation est inchangé. La version 86 est publiée depuis `c8d2d9b1106bd28c95d0e9e086981afacdb15d8a`, configuration 23.
+
+La recette HTTPS et son nettoyage sont suivis dans `.qa/client-readiness-20260908/business-recovery-proof.json`. La synchronisation métier complète reste inactive et le schéma natif 60 non distribué. La prochaine étape couvre les corrections et règlements fournisseurs, puis la paie, les stocks et la publication atomique de l'historique avec ses fichiers et ses bornes de numérotation.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

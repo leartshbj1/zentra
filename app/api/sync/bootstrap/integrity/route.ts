@@ -17,7 +17,9 @@ async function sessionFor(request: Request) {
     request,
     'business-sync-integrity',
     `${session.organizationId}:${session.installationId}`,
-    120,
+    // A paginated bootstrap can need hundreds of resumable integrity passes.
+    // Keep an hourly device/company budget, independent of the transfer UUID.
+    1800,
   );
   return session;
 }
