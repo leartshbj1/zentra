@@ -4,6 +4,9 @@
 pub(crate) mod files;
 pub(crate) mod snapshot;
 
+#[cfg(test)]
+mod schema_contract;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},

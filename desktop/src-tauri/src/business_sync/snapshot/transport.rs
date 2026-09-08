@@ -2,6 +2,8 @@
 //! An upload receipt never grants shared-history or numbering activation.
 
 mod files;
+#[cfg(test)]
+mod structure_qa;
 
 use super::*;
 use crate::account_cloud::ProjectSyncSession;
@@ -850,6 +852,7 @@ mod tests {
                 assert_eq!(reopened.connect()?.query_row("SELECT COUNT(*) FROM business_sync_changes WHERE table_name='clients'",[],|row|row.get::<_,i64>(0))?,1);
                 println!("QA_BOOTSTRAP_COMPLETE transfer={} rows={} resumed_chunks=2 repeated_sent=0 pending_local_changes=1 replication_active=false",prepared.transfer_id,prepared.manifest.row_count);
                 files::live_qa_files(&reopened,&reconnected).await?;
+                structure_qa::run(&reconnected,&stored.remote).await?;
                 Ok::<(),AppError>(())
             }).catch_unwind().await;
             let removal = if let Some((session, id)) = &cleanup {

@@ -21,6 +21,7 @@ vi.mock('@/lib/account', async (original) => ({
 }));
 import { DELETE, GET, POST, PUT } from '../app/api/sync/bootstrap/route';
 import { AccountPublicError, sha256Hex } from './account-security';
+import { validateBootstrapStructure } from './business-sync-validation';
 import {
   abandonBootstrap,
   beginBootstrap,
@@ -95,7 +96,12 @@ beforeEach(() => {
       for (const key of typeof keys === 'string' ? [keys] : keys)
         blobs.delete(key);
     }),
-    list: vi.fn(async ({ prefix }: { prefix: string }) => ({ objects: [...blobs.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })), truncated: false })),
+    list: vi.fn(async ({ prefix }: { prefix: string }) => ({
+      objects: [...blobs.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => ({ key })),
+      truncated: false,
+    })),
   });
   mocks.session.mockResolvedValue(owner);
 });
@@ -170,6 +176,20 @@ it.skipIf(!process.env.ZENTRA_NATIVE_BOOTSTRAP_QA)(
         )
         .get(session.organizationId),
     ).toMatchObject({ state: 'initializing', head_revision: 0 });
+    let checked = await validateBootstrapStructure(
+      session,
+      prepared.transfer_id,
+    );
+    for (
+      let attempt = 0;
+      attempt < 100 && checked.state === 'checking';
+      attempt++
+    )
+      checked = await validateBootstrapStructure(session, prepared.transfer_id);
+    expect(checked).toMatchObject({
+      state: 'valid',
+      replication_active: false,
+    });
   },
 );
 
@@ -185,6 +205,7 @@ it('cancels only the selected unpublished preparation and permits a new generati
   expect(count('business_sync_spaces')).toBe(0);
   expect(count('business_sync_versions')).toBe(0);
   expect(count('business_sync_transfer_chunks')).toBe(0);
+  expect(count('business_sync_structural_checks')).toBe(0);
   expect(blobs.size).toBe(0);
   await expect(beginBootstrap(owner, f.id, f.manifest)).rejects.toMatchObject({
     status: 409,
@@ -200,6 +221,22 @@ it('cancels only the selected unpublished preparation and permits a new generati
   await expect(
     uploadBootstrapChunk(owner, f.id, 0, uploadRequest(f.bytes[0])),
   ).rejects.toMatchObject({ status: 409 });
+});
+
+it('removes structural receipts when a fully uploaded preparation is cancelled', async () => {
+  const f = await fixture();
+  await beginBootstrap(owner, f.id, f.manifest);
+  for (let index = 0; index < f.bytes.length; index++)
+    await uploadBootstrapChunk(
+      owner,
+      f.id,
+      index,
+      uploadRequest(f.bytes[index]),
+    );
+  await validateBootstrapStructure(owner, f.id);
+  expect(count('business_sync_structural_checks')).toBe(1);
+  await abandonBootstrap(owner, f.id);
+  expect(count('business_sync_structural_checks')).toBe(0);
 });
 
 it('resumes failed cancellation cleanup and does not free the organization until cleanup completes', async () => {

@@ -35,6 +35,18 @@ export const businessSyncTransfers = sqliteTable('business_sync_transfers', {
   index('business_sync_transfer_org_state').on(table.organizationId, table.state, table.createdAt),
 ]);
 
+// Structural approval is deliberately separate from canonical publication.
+export const businessSyncStructuralChecks = sqliteTable('business_sync_structural_checks', {
+  transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
+  validatorSha256: text('validator_sha256').notNull(),
+  manifestSha256: text('manifest_sha256').notNull(),
+  generation: text('generation').notNull(),
+  nextRule: integer('next_rule').notNull().default(0),
+  state: text('state').notNull(),
+  failedRule: text('failed_rule'),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [uniqueIndex('business_sync_structural_identity').on(table.transferId, table.validatorSha256)]);
+
 export const businessSyncTransferChunks = sqliteTable('business_sync_transfer_chunks', {
   transferId: text('transfer_id').notNull().references(() => businessSyncTransfers.transferId),
   chunkIndex: integer('chunk_index').notNull(),

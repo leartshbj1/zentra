@@ -118,6 +118,16 @@ Le catalogue version 2 est publié dans la **version 75 du site**, source `3674f
 
 Le transfert `fa8fcfef-91a4-44f4-a082-489343dbc0a5` a été abandonné après la recette, puis sa session révoquée. Les sept tables temporaires contrôlées directement dans D1 sont vides, sans pagination résiduelle ; le compte de test affiche zéro appareil actif. Les six contrôles anonymes des deux API de fichiers répondent 401. Cette recette emploie un seul ordinateur physique et le code natif du schéma 60 reste non distribué.
 
+## Vérification structurelle de l'historique reçu
+
+Le serveur dispose d'une étape dédiée `GET/POST /api/sync/bootstrap/structure`, indépendante de la publication. Le schéma de confiance est exporté depuis une base native réellement migrée ; un test natif compare les 106 tables et leurs contraintes au fichier suivi. Le serveur ne lit jamais de SQL transmis par un appareil.
+
+Les contrôles vérifient les nombres de lignes annoncés, les champs obligatoires, les types de stockage, les contraintes `CHECK`, les 205 index uniques et les 225 relations. Les index partiels, expressions, valeurs nulles et comparaisons sans distinction de casse gardent leur sens SQLite. Toutes les formes de lignes sont contrôlées avant de parcourir les relations. Un essai de 50 000 projets et 50 000 clients vérifie un accès indexé aux parents et détecte le dernier parent manquant.
+
+Chaque requête traite au plus 16 règles. La progression persistante dépend de l'historique figé, de sa génération, de son manifeste et de l'empreinte du vérificateur. Une coupure reprend les règles non confirmées ; deux requêtes concurrentes ne sautent aucune étape. Le titulaire et les administrateurs de l'appareil préparateur peuvent lancer le contrôle. Une annulation invalide les écritures concurrentes et nettoie les reçus ; un autre appareil ou une autre entreprise ne peut pas récupérer cette progression.
+
+Validation locale du 8 septembre 2026 : 320 tests serveur réussis, y compris l'envoi puis la vérification d'une facture et de son paiement issus du scénario natif. Le test de correspondance du schéma natif, Clippy, TypeScript, lint et la compilation serveur passent. L'essai HTTPS avec ce nouveau contrôle reste à exécuter après publication. **Un résultat structurel `valid` n'active aucune réplication ni réservation de numéros** : les invariants comptables, les branches d'audit, les fichiers, les bornes de numérotation et la publication atomique restent des conditions séparées.
+
 ## Numérotation réservée par appareil
 
 La première brique évite qu’une émission hors ligne réutilise le compteur d’un autre appareil.

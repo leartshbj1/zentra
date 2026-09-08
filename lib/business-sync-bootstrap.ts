@@ -577,6 +577,11 @@ export async function abandonBootstrap(
   await db.batch([
     db
       .prepare(
+        "DELETE FROM business_sync_structural_checks WHERE transfer_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned'))",
+      )
+      .bind(id, id, session.organizationId),
+    db
+      .prepare(
         "DELETE FROM business_sync_versions WHERE transfer_id=? AND organization_id=? AND EXISTS(SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND state IN ('abandoning','abandoned'))",
       )
       .bind(id, session.organizationId, id),

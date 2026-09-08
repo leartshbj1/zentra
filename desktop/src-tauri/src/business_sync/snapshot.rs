@@ -55,7 +55,7 @@ fn valid_id(value: &str) -> bool {
             && id.get_variant() == uuid::Variant::RFC4122
     })
 }
-fn contract_hash() -> AppResult<String> {
+pub(super) fn contract_hash() -> AppResult<String> {
     let tables = policy()?
         .tables
         .into_iter()
