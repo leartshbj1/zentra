@@ -93,6 +93,7 @@ import * as transactionValidationHttp from '../app/api/sync/transactions/validat
 import * as fingerprintHttp from '../app/api/sync/transactions/fingerprint/route';
 import * as deliveryHttp from '../app/api/sync/transactions/delivery/route';
 import * as commitHttp from '../app/api/sync/transactions/commit/route';
+import { committedBusinessTransactionFile } from './business-sync-committed-files';
 import {
   commitBusinessTransaction,
   committedBusinessTransaction,
@@ -4444,6 +4445,204 @@ async function fileTransaction(
   });
   return { ...base, manifest, sha, content };
 }
+async function committedFile(content: Uint8Array) {
+  const f = await fileTransaction(content),
+    id = f.manifest.transaction_id;
+  for (
+    let i = 0;
+    i < Math.ceil(content.length / BUSINESS_FILE_PART_BYTES);
+    i++
+  ) {
+    const part = content.slice(
+      i * BUSINESS_FILE_PART_BYTES,
+      (i + 1) * BUSINESS_FILE_PART_BYTES,
+    );
+    await uploadBusinessTransactionFilePart(
+      f.actor,
+      id,
+      f.sha,
+      i,
+      request(part, await sha256Hex(part)),
+    );
+  }
+  await verifyBusinessTransactionFile(f.actor, id, f.sha);
+  await projectTransaction(f.actor, id);
+  expect((await validateTransaction(f.actor, id)).phase).toBe('valid');
+  await finishFingerprint(f.actor, id);
+  await prepareBusinessTransactionDelivery(f.actor, id);
+  await commitBusinessTransaction(f.actor, id);
+  return f;
+}
+it.each([false, true])(
+  'delivers committed document bytes and their bounded catalogue to another device (D1=%s)',
+  async (useD1) => {
+    const real = useD1 ? await realD1Fixture() : null;
+    try {
+      const content = new Uint8Array(BUSINESS_FILE_PART_BYTES + 19).fill(73),
+        f = await committedFile(content),
+        id = f.manifest.transaction_id;
+      const catalog = await committedBusinessTransactionFile(
+        second,
+        id,
+        f.sha,
+        null,
+      );
+      const data = JSON.parse(new TextDecoder().decode(catalog.bytes));
+      expect(data).toMatchObject({
+        format: 'zentra-canonical-file',
+        version: 1,
+        transaction_id: id,
+        sha256: f.sha,
+        size_bytes: content.length,
+        part_bytes: BUSINESS_FILE_PART_BYTES,
+      });
+      expect(data.parts).toHaveLength(2);
+      expect(catalog.bytes.length).toBeLessThan(32768);
+      const received = [];
+      for (const i of [1, 0]) {
+        const part = await committedBusinessTransactionFile(
+          second,
+          id,
+          f.sha,
+          String(i),
+        );
+        expect(part.contentType).toBe('application/octet-stream');
+        expect(part.sha256).toBe(data.parts[i].sha256);
+        expect(part.receipt_sha256).toBe(catalog.receipt_sha256);
+        received[i] = Buffer.from(part.bytes);
+      }
+      expect(Buffer.concat(received)).toEqual(Buffer.from(content));
+      const next = await deliveryReady(
+        await transactionFixture(undefined, f.receipt),
+      );
+      await prepareBusinessTransactionDelivery(
+        next.actor,
+        next.manifest.transaction_id,
+      );
+      await commitBusinessTransaction(next.actor, next.manifest.transaction_id);
+      expect(
+        (await committedBusinessTransactionFile(second, id, f.sha, null)).bytes,
+      ).toEqual(catalog.bytes);
+      mocks.session.mockResolvedValue(second);
+      const response = await commitHttp.GET(
+        new Request(
+          `https://zentra.test/api/sync/transactions/commit?transaction_id=${id}&resource=file&sha256=${f.sha}&part=1`,
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe(
+        'application/octet-stream',
+      );
+      expect(response.headers.get('cache-control')).toContain('no-store');
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(
+        Buffer.from(content.slice(BUSINESS_FILE_PART_BYTES)),
+      );
+    } finally {
+      await real?.runtime.dispose();
+    }
+  },
+  120000,
+);
+it('serves an empty committed document without inventing binary fragments', async () => {
+  const f = await committedFile(new Uint8Array()),
+    id = f.manifest.transaction_id;
+  const catalog = JSON.parse(
+    new TextDecoder().decode(
+      (await committedBusinessTransactionFile(second, id, f.sha, null)).bytes,
+    ),
+  );
+  expect(catalog).toMatchObject({ size_bytes: 0, parts: [] });
+  await expect(
+    committedBusinessTransactionFile(second, id, f.sha, '0'),
+  ).rejects.toMatchObject({ status: 404 });
+});
+it.each(['unverified', 'size', 'index', 'key', 'hash', 'bytes', 'missing'])(
+  'refuses corrupted committed document %s evidence',
+  async (mode) => {
+    const f = await committedFile(new Uint8Array([1, 2, 3])),
+      id = f.manifest.transaction_id;
+    if (mode === 'unverified')
+      db.prepare(
+        'UPDATE business_sync_file_blobs SET verified_at=NULL WHERE transfer_id=?',
+      ).run(id);
+    if (mode === 'size')
+      db.prepare(
+        'UPDATE business_sync_file_blobs SET size_bytes=4 WHERE transfer_id=?',
+      ).run(id);
+    if (mode === 'index')
+      db.prepare(
+        'UPDATE business_sync_file_parts SET part_index=1 WHERE transfer_id=?',
+      ).run(id);
+    if (mode === 'key')
+      db.prepare(
+        "UPDATE business_sync_file_parts SET object_key='foreign/file' WHERE transfer_id=?",
+      ).run(id);
+    if (mode === 'hash')
+      db.prepare(
+        "UPDATE business_sync_file_parts SET sha256='bad' WHERE transfer_id=?",
+      ).run(id);
+    if (['bytes', 'missing'].includes(mode)) {
+      const key = db
+        .prepare(
+          'SELECT object_key FROM business_sync_file_parts WHERE transfer_id=?',
+        )
+        .get(id)!.object_key as string;
+      if (mode === 'bytes') blobs.set(key, new Uint8Array([4, 5, 6]));
+      else blobs.delete(key);
+    }
+    await expect(
+      committedBusinessTransactionFile(second, id, f.sha, '0'),
+    ).rejects.toThrow();
+  },
+);
+it('keeps committed documents scoped to their company, transaction and exact part', async () => {
+  const f = await committedFile(new Uint8Array([7])),
+    id = f.manifest.transaction_id;
+  await expect(
+    committedBusinessTransactionFile(
+      { ...second, organizationId: 'foreign' },
+      id,
+      f.sha,
+      null,
+    ),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    committedBusinessTransactionFile(second, id, 'a'.repeat(64), null),
+  ).rejects.toMatchObject({ status: 404 });
+  for (const part of ['-1', '00', '0.0', '1e0', '../1', '1000'])
+    await expect(
+      committedBusinessTransactionFile(second, id, f.sha, part),
+    ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    committedBusinessTransactionFile(second, id, f.sha, '1'),
+  ).rejects.toMatchObject({ status: 404 });
+});
+it('refuses a committed document when the company generation changes while its bytes are read', async () => {
+  const f = await committedFile(new Uint8Array([7, 8, 9]));
+  const archive = mocks.files();
+  const originalGet = archive.get.getMockImplementation();
+  let changed = false;
+  archive.get.mockImplementation(async (key: string) => {
+    const result = await originalGet(key);
+    if (key.endsWith(`/files/${f.sha}/0`)) {
+      changed = true;
+      db.prepare(
+        'UPDATE business_sync_spaces SET generation=? WHERE organization_id=?',
+      ).run(crypto.randomUUID(), second.organizationId);
+    }
+    return result;
+  });
+  await expect(
+    committedBusinessTransactionFile(
+      second,
+      f.manifest.transaction_id,
+      f.sha,
+      '0',
+    ),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(changed).toBe(true);
+});
 it('receives deleted transaction documents out of order, resumes exact parts and verifies the complete file without acknowledging business changes', async () => {
   const content = new Uint8Array(BUSINESS_FILE_PART_BYTES + 19).fill(37),
     f = await fileTransaction(content),

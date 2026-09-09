@@ -9,6 +9,7 @@ import {
   committedBusinessTransactionResource,
   committedBusinessTransactionsSince,
 } from '@/lib/business-sync-transaction-commit';
+import { committedBusinessTransactionFile } from '@/lib/business-sync-committed-files';
 export const dynamic = 'force-dynamic';
 async function respond(request: Request, write: boolean) {
   try {
@@ -39,14 +40,26 @@ async function respond(request: Request, write: boolean) {
         ),
         { headers: accountNoStoreHeaders() },
       );
-    const result = await committedBusinessTransactionResource(
-      session,
-      id,
-      query.get('resource') ?? 'receipt',
-      query.get('part'),
-    );
+    const result =
+      query.get('resource') === 'file'
+        ? await committedBusinessTransactionFile(
+            session,
+            id,
+            query.get('sha256'),
+            query.get('part'),
+          )
+        : {
+            ...(await committedBusinessTransactionResource(
+              session,
+              id,
+              query.get('resource') ?? 'receipt',
+              query.get('part'),
+            )),
+            contentType: 'application/json',
+          };
     const headers = new Headers(accountNoStoreHeaders());
-    headers.set('Content-Type', 'application/json');
+    headers.set('Content-Type', result.contentType);
+    headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('X-Content-Sha256', result.sha256);
     headers.set('X-Zentra-Receipt-Sha256', result.receipt_sha256);
     headers.set('X-Zentra-Bundle-Sha256', result.bundle_sha256);

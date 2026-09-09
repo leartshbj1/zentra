@@ -234,6 +234,31 @@ fn receives_exact_files_resumes_after_interruption_and_preserves_the_working_pro
     });
 }
 #[test]
+fn initial_history_can_resume_while_other_devices_commit_newer_revisions() {
+    tauri::async_runtime::block_on(async {
+        let (_root, _source, recipient, mut fake) = setup();
+        fake.head.head_revision = 2;
+        let first = receive_pass(&recipient, &fake, 1).await.unwrap();
+        assert_eq!(first["state"], "receiving");
+        let rows_before = fs::read_dir(fake.folder(&recipient).join("rows"))
+            .unwrap()
+            .count();
+        assert!(rows_before > 0);
+        fake.head.head_revision = 3;
+        assert_eq!(finish(&recipient, &fake).await["revision"], 1);
+        let cached: Head = serde_json::from_slice(
+            &fs::read(fake.folder(&recipient).join("history.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(cached.receipt.revision, 1);
+        assert_eq!(cached.head_revision, 2);
+        for revision in [0, 1, 9_007_199_254_740_992] {
+            fake.head.head_revision = revision;
+            assert!(receive_pass(&recipient, &fake, 8).await.is_err());
+        }
+    });
+}
+#[test]
 fn changed_company_and_damaged_content_never_confirm_reception() {
     tauri::async_runtime::block_on(async {
         let (_root, _source, recipient, mut fake) = setup();
@@ -412,11 +437,25 @@ fn actual_server_publication_is_received_by_another_native_profile() {
         recipient
             .create_record("clients", json!({"name":"Créé sur le second profil"}))
             .unwrap();
-        if let Ok(output)=std::env::var("ZENTRA_TRANSACTION_OUTPUT") {
-            let prepared=crate::business_sync::outgoing::prepare_next(&recipient,"org_first","member").unwrap().unwrap();
-            let output=PathBuf::from(output);fs::create_dir(&output).unwrap();
-            fs::write(output.join("manifest.json"),serde_json::to_vec(&prepared.manifest).unwrap()).unwrap();
-            for (index,_) in prepared.manifest.chunks.iter().enumerate(){fs::copy(prepared.folder.join(format!("{index:04}.json")),output.join(format!("{index:04}.json"))).unwrap();}
+        if let Ok(output) = std::env::var("ZENTRA_TRANSACTION_OUTPUT") {
+            let prepared =
+                crate::business_sync::outgoing::prepare_next(&recipient, "org_first", "member")
+                    .unwrap()
+                    .unwrap();
+            let output = PathBuf::from(output);
+            fs::create_dir(&output).unwrap();
+            fs::write(
+                output.join("manifest.json"),
+                serde_json::to_vec(&prepared.manifest).unwrap(),
+            )
+            .unwrap();
+            for (index, _) in prepared.manifest.chunks.iter().enumerate() {
+                fs::copy(
+                    prepared.folder.join(format!("{index:04}.json")),
+                    output.join(format!("{index:04}.json")),
+                )
+                .unwrap();
+            }
         }
         assert!(
             crate::business_sync::status(&recipient.connect().unwrap()).unwrap()
@@ -499,8 +538,24 @@ fn import_preserves_large_source_positions_and_refuses_existing_local_work() {
         let partial = LocalStore::initialize(root.path().join("partial-setup")).unwrap();
         partial.connect().unwrap().execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,0,'Entreprise en préparation','now','now')",[]).unwrap();
         finish(&partial, &fake).await;
-        assert!(super::import::install_received(&partial,fake.organization(),&fake.head.receipt.transfer_id,||Ok(())).unwrap_err().to_string().contains("dossier de travail"));
-        assert_eq!(partial.connect().unwrap().query_row("SELECT company_name FROM settings",[],|r|r.get::<_,String>(0)).unwrap(),"Entreprise en préparation");
+        assert!(super::import::install_received(
+            &partial,
+            fake.organization(),
+            &fake.head.receipt.transfer_id,
+            || Ok(())
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("dossier de travail"));
+        assert_eq!(
+            partial
+                .connect()
+                .unwrap()
+                .query_row("SELECT company_name FROM settings", [], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            "Entreprise en préparation"
+        );
         assert_eq!(
             occupied
                 .connect()
