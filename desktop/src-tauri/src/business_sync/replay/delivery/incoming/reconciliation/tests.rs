@@ -2,6 +2,7 @@ use super::*;
 use crate::business_sync::replay;
 use rusqlite::params;
 mod installation_tests;
+mod cycle_tests;
 
 fn stage(
     store: &LocalStore,

@@ -16,7 +16,7 @@ use tauri::State;
 const ENDPOINT: &str = "/api/sync/transactions";
 mod file_transfer;
 mod lifecycle;
-struct FileRequest {
+pub(crate) struct FileRequest {
     method: Method,
     id: String,
     sha: String,
@@ -57,7 +57,7 @@ struct Receipt {
     committed_receipt: Option<Value>,
     replication_active: bool,
 }
-trait Transport {
+pub(crate) trait Transport {
     fn organization(&self) -> &str;
     fn role(&self) -> &str;
     fn current(&self, store: &LocalStore) -> AppResult<()>;
@@ -344,6 +344,7 @@ async fn transfer(store: &LocalStore, t: &impl Transport, p: &Prepared) -> AppRe
 
 #[tauri::command]
 pub async fn sync_business_transactions(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let lease = crate::business_sync::cycle::acquire(state.inner()).map_err(command_error)?;
     RUNNING
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .map_err(|_| "Un envoi de modifications est déjà en cours.".to_owned())?;
@@ -354,23 +355,68 @@ pub async fn sync_business_transactions(state: State<'_, LocalStore>) -> Result<
             json!({"state":"waiting_for_connection","canonical_committed":false,"replication_active":false}),
         );
     };
+    let selection = crate::business_sync::replay::delivery::incoming::selection(
+        &store,
+        &session.organization_id,
+    )
+    .map_err(command_error)?;
+    let transport = crate::business_sync::cycle::Guarded::new(session, selection, lease);
+    send_pass(store, std::sync::Arc::new(transport))
+        .await
+        .map_err(command_error)
+}
+
+pub(crate) async fn send_pass<T: Transport + Send + Sync + 'static>(
+    store: LocalStore,
+    session: std::sync::Arc<T>,
+) -> AppResult<Value> {
     let (store, session, prepared) = tauri::async_runtime::spawn_blocking(move || {
-        session.ensure_current_for(&store)?;
-        let prepared = prepare_next(&store, &session.organization_id, &session.role)?;
-        session.ensure_current_for(&store)?;
+        session.current(&store)?;
+        let prepared = prepare_next(&store, session.organization(), session.role())?;
+        session.current(&store)?;
         Ok::<_, AppError>((store, session, prepared))
     })
     .await
-    .map_err(|_| "La préparation des modifications a été interrompue.".to_owned())?
-    .map_err(command_error)?;
+    .map_err(|_| invalid("La préparation des modifications a été interrompue."))??;
     let Some(prepared) = prepared else {
         return Ok(
             json!({"state":"nothing_to_send","canonical_committed":false,"replication_active":false}),
         );
     };
-    synchronize(&store, &session, &prepared)
-        .await
-        .map_err(command_error)
+    synchronize(&store, session.as_ref(), &prepared).await
+}
+
+impl<T: Transport + Send + Sync> Transport for crate::business_sync::cycle::Guarded<T> {
+    fn organization(&self) -> &str {
+        self.transport.organization()
+    }
+    fn role(&self) -> &str {
+        self.transport.role()
+    }
+    fn current(&self, store: &LocalStore) -> AppResult<()> {
+        self.check(store)?;
+        self.transport.current(store)
+    }
+    async fn lifecycle_request(
+        &self,
+        path: &'static str,
+        id: &str,
+        body: Option<Vec<u8>>,
+    ) -> AppResult<(u16, Vec<u8>)> {
+        self.transport.lifecycle_request(path, id, body).await
+    }
+    async fn file_request(&self, request: FileRequest) -> AppResult<(u16, Vec<u8>)> {
+        self.transport.file_request(request).await
+    }
+    async fn request(
+        &self,
+        method: Method,
+        id: &str,
+        index: Option<usize>,
+        body: Option<Vec<u8>>,
+    ) -> AppResult<(u16, Vec<u8>)> {
+        self.transport.request(method, id, index, body).await
+    }
 }
 
 async fn synchronize(store: &LocalStore, t: &impl Transport, p: &Prepared) -> AppResult<Value> {

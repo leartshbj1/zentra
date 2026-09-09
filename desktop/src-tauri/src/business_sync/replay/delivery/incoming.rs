@@ -16,9 +16,9 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use tauri::State;
-mod storage;
 pub(crate) mod installation;
 pub(crate) mod reconciliation;
+mod storage;
 use storage::{assemble, cached, directory, read, write};
 
 const API: &str = "/api/sync/transactions/commit";
@@ -49,9 +49,13 @@ impl Binding {
         }
         let _lock = store.lock()?;
         let c = store.connect()?;
-        Self::from_connection(&c,store,organization)
+        Self::from_connection(&c, store, organization)
     }
-    fn from_connection(c: &rusqlite::Connection, store: &LocalStore, organization: &str) -> AppResult<Self> {
+    fn from_connection(
+        c: &rusqlite::Connection,
+        store: &LocalStore,
+        organization: &str,
+    ) -> AppResult<Self> {
         let result: Option<Self> = c.query_row(
             "SELECT b.organization_id,b.installation_id,b.generation,h.server_generation,h.source_transfer_id,COALESCE(c.revision,1) FROM business_sync_binding b JOIN business_sync_baseline h ON h.id=b.id AND h.organization_id=b.organization_id LEFT JOIN business_sync_cursor c ON c.id=b.id WHERE b.id=1 AND b.capture_enabled=1 AND (c.id IS NULL OR (c.organization_id=b.organization_id AND c.generation=h.server_generation)) AND NOT EXISTS(SELECT 1 FROM business_sync_publication_intent)",
             [], |r| Ok(Self { organization:r.get(0)?, installation:r.get(1)?, capture:r.get(2)?, generation:r.get(3)?, bootstrap:r.get(4)?, revision:r.get(5)? })).optional()?;
@@ -73,7 +77,10 @@ impl Binding {
         Ok(b)
     }
 }
-trait Transport {
+pub(crate) trait Transport {
+    fn run_lease(&self) -> Option<std::sync::Arc<crate::business_sync::cycle::Run>> {
+        None
+    }
     fn organization(&self) -> &str;
     fn ensure_current(&self, store: &LocalStore) -> AppResult<()>;
     fn get(
@@ -92,6 +99,45 @@ impl Transport for ProjectSyncSession {
     async fn get(&self, query: &[(&str, &str)], limit: u64) -> AppResult<Vec<u8>> {
         self.get_bounded(API, query, limit).await
     }
+}
+impl<T: Transport + Send + Sync> Transport for crate::business_sync::cycle::Guarded<T> {
+    fn run_lease(&self) -> Option<std::sync::Arc<crate::business_sync::cycle::Run>> {
+        Some(self.lease())
+    }
+    fn organization(&self) -> &str {
+        self.transport.organization()
+    }
+    fn ensure_current(&self, store: &LocalStore) -> AppResult<()> {
+        self.check(store)?;
+        self.transport.ensure_current(store)
+    }
+    async fn get(&self, query: &[(&str, &str)], limit: u64) -> AppResult<Vec<u8>> {
+        self.transport.get(query, limit).await
+    }
+}
+
+pub(crate) fn selection(
+    store: &LocalStore,
+    organization: &str,
+) -> AppResult<crate::business_sync::cycle::Selection> {
+    // Also called under the profile writer gate during installation: do not
+    // recursively acquire LocalStore's mutex here.
+    if crate::cloud_backup::is_restoring() {
+        return Err(invalid("Attendez la fin de la restauration."));
+    }
+    let c = rusqlite::Connection::open_with_flags(
+        &store.database_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )?;
+    c.busy_timeout(std::time::Duration::ZERO)?;
+    let binding = Binding::from_connection(&c, store, organization)?;
+    Ok(crate::business_sync::cycle::Selection {
+        organization_id: binding.organization,
+        installation_id: binding.installation,
+        capture_generation: binding.capture,
+        generation: binding.generation,
+        bootstrap_transfer_id: binding.bootstrap,
+    })
 }
 fn check(t: &impl Transport, store: &LocalStore, binding: &Binding) -> AppResult<()> {
     t.ensure_current(store)?;
@@ -285,7 +331,11 @@ impl FileCatalogue {
     }
 }
 
-async fn receive_pass(store: &LocalStore, t: &impl Transport, limit: usize) -> AppResult<Value> {
+pub(crate) async fn receive_pass(
+    store: &LocalStore,
+    t: &impl Transport,
+    limit: usize,
+) -> AppResult<Value> {
     t.ensure_current(store)?;
     let binding = Binding::read(store, t.organization())?;
     let after = binding.revision.to_string();
@@ -473,8 +523,11 @@ async fn receive_pass(store: &LocalStore, t: &impl Transport, limit: usize) -> A
         // The whole-file hash comes from the immutable original manifest, not
         // merely from the independently downloaded catalogue of part hashes.
         let file = file.clone();
-        let assembly =
-            tauri::async_runtime::spawn_blocking(move || assemble(&parts, &destination, &file));
+        let lease = t.run_lease();
+        let assembly = tauri::async_runtime::spawn_blocking(move || {
+            let _lease = lease;
+            assemble(&parts, &destination, &file)
+        });
         assembly
             .await
             .map_err(|_| invalid("La préparation du document a été interrompue."))??;
@@ -487,9 +540,13 @@ async fn receive_pass(store: &LocalStore, t: &impl Transport, limit: usize) -> A
     check(t, store, &r.binding)?;
     if complete {
         let folder = r.folder.clone();
-        tauri::async_runtime::spawn_blocking(move || verify_downloaded(&folder, &header))
-            .await
-            .map_err(|_| invalid("La vérification de réception a été interrompue."))??;
+        let lease = t.run_lease();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _lease = lease;
+            verify_downloaded(&folder, &header)
+        })
+        .await
+        .map_err(|_| invalid("La vérification de réception a été interrompue."))??;
         check(t, store, &r.binding)?;
         write(&r.folder.join("received.json"), &raw)?;
     }
@@ -590,6 +647,7 @@ fn staged_candidate(store: &LocalStore, folder: &Path, header: &Header) -> AppRe
 
 #[tauri::command]
 pub async fn receive_business_transactions(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let lease = crate::business_sync::cycle::acquire(state.inner()).map_err(command_error)?;
     if RUNNING
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
@@ -601,7 +659,9 @@ pub async fn receive_business_transactions(state: State<'_, LocalStore>) -> Resu
         .await
         .map_err(command_error)?
         .ok_or_else(|| "Reconnectez votre compte pour recevoir les modifications.".to_owned())?;
-    receive_pass(state.inner(), &session, 8)
+    let selected = selection(state.inner(), &session.organization_id).map_err(command_error)?;
+    let transport = crate::business_sync::cycle::Guarded::new(session, selected, lease);
+    receive_pass(state.inner(), &transport, 8)
         .await
         .map_err(command_error)
 }

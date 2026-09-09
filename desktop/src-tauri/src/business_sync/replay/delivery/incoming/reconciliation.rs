@@ -187,27 +187,48 @@ async fn process(
     transaction_id: String,
     install: bool,
 ) -> Result<Value, String> {
-    if !uuid(&transaction_id) {
-        return Err("Choisissez une transaction reçue valide.".into());
-    }
+    let lease = crate::business_sync::cycle::acquire(&store).map_err(command_error)?;
     let session = project_sync_session(&store)
         .await
         .map_err(command_error)?
         .ok_or_else(|| "Reconnectez votre compte pour réconcilier les modifications.".to_owned())?;
+    let role = session.role.clone();
+    let selected = selection(&store, &session.organization_id).map_err(command_error)?;
+    let transport = crate::business_sync::cycle::Guarded::new(session, selected, lease);
+    process_with_transport(
+        store,
+        std::sync::Arc::new(transport),
+        role,
+        transaction_id,
+        install,
+    )
+    .await
+    .map_err(command_error)
+}
+
+pub(crate) async fn process_with_transport<T: Transport + Send + Sync + 'static>(
+    store: LocalStore,
+    session: std::sync::Arc<T>,
+    role: String,
+    transaction_id: String,
+    install: bool,
+) -> AppResult<Value> {
+    if !uuid(&transaction_id) {
+        return Err(invalid("Choisissez une transaction reçue valide."));
+    }
     if install {
-        let _lock = store.lock().map_err(command_error)?;
-        session.ensure_current_for(&store).map_err(command_error)?;
+        let _lock = store.lock()?;
+        session.ensure_current(&store)?;
         if let Some(raw) =
-            super::installation::installed(&store, &session.organization_id, &transaction_id)
-                .map_err(command_error)?
+            super::installation::installed(&store, session.organization(), &transaction_id)?
         {
-            return install::already_installed(&store, &raw).map_err(command_error);
+            return install::already_installed(&store, &raw);
         }
     }
-    let binding = Binding::read(&store, &session.organization_id).map_err(command_error)?;
+    let binding = Binding::read(&store, session.organization())?;
     let after = binding.revision.to_string();
     let raw = fetch(
-        &session,
+        session.as_ref(),
         &store,
         &binding,
         &[
@@ -216,25 +237,22 @@ async fn process(
         ],
         64 * 1024,
     )
-    .await
-    .map_err(command_error)?;
+    .await?;
     let discovery: Discovery = serde_json::from_slice(&raw)
-        .map_err(|_| "La liste des révisions est illisible.".to_owned())?;
-    discovery.validate(&binding).map_err(command_error)?;
+        .map_err(|_| invalid("La liste des révisions est illisible."))?;
+    discovery.validate(&binding)?;
     let entry = discovery
         .commits
         .first()
         .filter(|e| e.transaction_id == transaction_id)
         .cloned()
         .ok_or_else(|| {
-            "Cette transaction n’est pas la prochaine révision à réconcilier.".to_owned()
+            invalid("Cette transaction n’est pas la prochaine révision à réconcilier.")
         })?;
     let folder = store
         .data_dir
         .join("business-reception")
-        .join(digest(
-            &serde_json::to_vec(&binding).map_err(|_| "Le dossier est illisible.".to_owned())?,
-        ))
+        .join(digest(&serde_json::to_vec(&binding)?))
         .join(&transaction_id);
     let header = Header {
         version: 1,
@@ -247,21 +265,18 @@ async fn process(
                 &store,
                 &folder,
                 &header,
-                &session.role,
-                || session.ensure_current_for(&store),
+                &role,
+                || session.ensure_current(&store),
                 |_| Ok(()),
             )
         } else {
-            prepare(&store, &folder, &header, &session.role, || {
-                session.ensure_current_for(&store)
+            prepare(&store, &folder, &header, &role, || {
+                session.ensure_current(&store)
             })
         }
     })
     .await
-    .map_err(|_| {
-        "La préparation a été interrompue. Le dossier de travail est conservé.".to_owned()
-    })?
-    .map_err(command_error)
+    .map_err(|_| invalid("La préparation a été interrompue. Le dossier de travail est conservé."))?
 }
 
 #[cfg(test)]

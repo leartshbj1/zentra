@@ -162,6 +162,7 @@ pub async fn install_business_transaction(
     state: State<'_, LocalStore>,
     transaction_id: String,
 ) -> Result<Value, String> {
+    let lease = crate::business_sync::cycle::acquire(state.inner()).map_err(command_error)?;
     if !uuid(&transaction_id) {
         return Err("Choisissez une transaction reçue valide.".into());
     }
@@ -218,6 +219,7 @@ pub async fn install_business_transaction(
         entry,
     };
     tauri::async_runtime::spawn_blocking(move || {
+        let _lease = lease;
         install(
             &store,
             &folder,

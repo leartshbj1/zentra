@@ -10,6 +10,7 @@ pub(crate) mod snapshot;
 pub(crate) mod outgoing;
 pub(crate) mod replay;
 pub(crate) mod workspace;
+pub(crate) mod cycle;
 
 #[cfg(test)]
 mod schema_contract;

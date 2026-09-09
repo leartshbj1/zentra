@@ -66,7 +66,7 @@ fn connection(path: &Path, create: bool, timeout: Duration) -> AppResult<Connect
     c.pragma_update(None, "trusted_schema", false)?;
     Ok(c)
 }
-fn gate(root: &Path, timeout: Duration) -> AppResult<Connection> {
+pub(super) fn gate(root: &Path, timeout: Duration) -> AppResult<Connection> {
     if !snapshot::regular_metadata(root)?.is_dir() || fs::canonicalize(root)? != root {
         return Err(invalid("Le dossier du verrou temporaire a changé."));
     }

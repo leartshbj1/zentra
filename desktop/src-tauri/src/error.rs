@@ -22,6 +22,8 @@ pub enum AppError {
     UnsafePath(PathBuf),
     #[error("Cette opération n'est pas prise en charge sur ce système.")]
     UnsupportedPlatform,
+    #[error("La synchronisation est suspendue. Les modifications locales sont conservées.")]
+    BusinessSyncPaused,
 }
 
 pub type AppResult<T> = Result<T, AppError>;

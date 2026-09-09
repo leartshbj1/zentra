@@ -9,6 +9,7 @@ function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
 import { fileBase64 } from './projectDocuments';
 import type { ProjectSyncStatus } from './projectSync';
 import type { BusinessBootstrapStatus } from './businessBootstrapScheduler';
+import type { BusinessCycleState, BusinessCycleStatus, BusinessHistorySelection } from './businessCycleScheduler';
 import type { BusinessHistoryState, BusinessHistoryReception } from './businessHistoryState';
 import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
@@ -4758,6 +4759,9 @@ export const desktopApi = {
   getProjectSyncStatus: () => invoke<ProjectSyncStatus>('get_project_sync_status'),
   syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
   syncBusinessBootstrap: () => invoke<BusinessBootstrapStatus>('sync_business_bootstrap'),
+  getBusinessCycleState: () => invoke<BusinessCycleState>('get_business_cycle_state'),
+  syncBusinessCycle: (selection: BusinessHistorySelection, installReceived: boolean) => invoke<BusinessCycleStatus>('sync_business_cycle', { selection, installReceived }),
+  pauseBusinessCycle: () => invoke<{ state: 'stopping' | 'paused'; in_flight: boolean }>('pause_business_cycle'),
   getBusinessHistoryState: () => invoke<BusinessHistoryState>('get_business_history_state'),
   startBusinessPublication: () => invoke<BusinessBootstrapStatus>('start_business_publication'),
   cancelBusinessPublication: () => invoke<BusinessBootstrapStatus>('cancel_business_publication'),
