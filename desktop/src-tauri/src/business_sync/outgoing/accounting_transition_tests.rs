@@ -1,7 +1,7 @@
 //! Real local accounting operations exported with their original capture order.
 use super::*;
 
-fn source_rows(store: &LocalStore) -> Vec<Value> {
+pub(super) fn source_rows(store: &LocalStore) -> Vec<Value> {
     let c = store.connect().unwrap();
     let mut source = Vec::new();
     for (table, rule) in super::super::super::policy().unwrap().tables {

@@ -873,7 +873,7 @@ it('serializes transition retries, preserves metadata evidence and stops if the 
   expect(arrivals).toBe(2);
   expect(
     (await businessTransactionValidationStatus(f.actor, id)).checked_changes,
-  ).toBe(16);
+  ).toBe(12);
   expect(
     db
       .prepare(
@@ -888,13 +888,23 @@ it('serializes transition retries, preserves metadata evidence and stops if the 
   };
   expect(await validateBusinessTransaction(f.actor, id)).toMatchObject({
     phase: 'stale',
-    checked_changes: 16,
+    checked_changes: 12,
     snapshot_validated: false,
   });
   expect(businessEvidence()).toEqual(evidence);
   expect((await historyHead(f.actor)).head_revision).toBe(2);
 });
 
+const operationalScenarios = [
+  'stock-entry',
+  'stock-exit',
+  'stock-correction',
+  'supplier-receipt',
+  'supplier-receipt-reversal',
+  'delivery',
+  'delivery-reversal',
+  'quote-delete',
+] as const;
 it.for([
   ['invoices', false],
   ['quotes', false],
@@ -924,14 +934,26 @@ it.for([
   ['expense-refund-reversal', true],
   ['supplier-refund', true],
   ['supplier-refund-reversal', true],
+  ...operationalScenarios.flatMap(
+    (name) =>
+      [
+        [name, false],
+        [name, true],
+      ] as const,
+  ),
 ] as const)(
   'validates actual native %s operations including intermediate accounting states (D1=%s)',
   { timeout: 60_000 },
   async ([table, useD1], context) => {
     const document = table === 'invoices' || table === 'quotes';
+    const operational = (operationalScenarios as readonly string[]).includes(
+      table,
+    );
     const root = document
       ? process.env.ZENTRA_DOCUMENT_TRANSITION_QA
-      : process.env.ZENTRA_ACCOUNTING_TRANSITION_QA;
+      : operational
+        ? process.env.ZENTRA_OPERATIONAL_TRANSITION_QA
+        : process.env.ZENTRA_ACCOUNTING_TRANSITION_QA;
     if (!root) return context.skip();
     const real = useD1 ? await realD1Fixture() : null;
     try {
@@ -1004,6 +1026,7 @@ it.for([
           'payroll-post',
           'supplier-validate',
           'supplier-credit',
+          'stock-entry',
         ].includes(table)
       ) {
         await atTransitions(f.actor, f.manifest.transaction_id);
@@ -1038,6 +1061,62 @@ it.for([
         expect(
           (await historyChunk(f.actor, source.id, String(i))).bytes,
         ).toEqual(b);
+      if (operational) {
+        const expected = JSON.parse(
+          readFileSync(join(folder, 'final.json'), 'utf8'),
+        ) as { table: string; key_json: string; row_json: string }[];
+        const sql =
+          'SELECT table_name,row_key_json,row_json FROM business_sync_versions WHERE transfer_id=?';
+        const actual = real
+          ? (await real.d1.prepare(sql).bind(f.manifest.transaction_id).all())
+              .results
+          : db.prepare(sql).all(f.manifest.transaction_id);
+        const sorted = (rows: { table: string; key: string; row: string }[]) =>
+          rows.sort((a, b) =>
+            `${a.table}\0${a.key}`.localeCompare(`${b.table}\0${b.key}`),
+          );
+        expect(
+          sorted(
+            actual.map((r) => ({
+              table: String(r.table_name),
+              key: String(r.row_key_json),
+              row: String(r.row_json),
+            })),
+          ),
+        ).toEqual(
+          sorted(
+            expected.map((r) => ({
+              table: r.table,
+              key: r.key_json,
+              row: r.row_json,
+            })),
+          ),
+        );
+        if (table !== 'quote-delete') {
+          const missingBalance = parts
+            .flat()
+            .filter((c) => c.table !== 'catalog_items')
+            .map((c, i) => ({
+              ...c,
+              sequence: String(BigInt(original.first_sequence) + BigInt(i)),
+            }));
+          const missing = await receiveTransaction(
+            await transactionFixture([missingBalance], receipt),
+          );
+          await projectTransaction(
+            missing.actor,
+            missing.manifest.transaction_id,
+          );
+          expect(
+            await validateTransaction(
+              missing.actor,
+              missing.manifest.transaction_id,
+            ),
+          ).toMatchObject({ phase: 'invalid', snapshot_validated: false });
+          expect((await historyHead(missing.actor)).head_revision).toBe(1);
+        }
+        return;
+      }
       if (table === 'payroll-adult-validate') {
         const changes = parts.flat();
         const assessmentIndex = changes.findIndex(
@@ -1341,6 +1420,18 @@ async function legacyTransactionValidation(version = 1) {
   db.prepare(
     'INSERT INTO business_sync_transaction_accounting_states VALUES(?,?,?,?,?)',
   ).run(id, legacyHash, 'payslips', '["legacy-salary"]', '{"status":"paye"}');
+  db.prepare(
+    'INSERT INTO business_sync_transaction_effects VALUES(?,?,?,?,?,?,?,?)',
+  ).run(
+    id,
+    legacyHash,
+    'stock_movements_apply_balance',
+    0,
+    'catalog_items',
+    '["old"]',
+    null,
+    '{"id":"old"}',
+  );
   return { ...f, id, legacyHash };
 }
 const derivedValidationTables = [
@@ -1350,6 +1441,7 @@ const derivedValidationTables = [
   'business_sync_credit_movements',
   'business_sync_transaction_document_states',
   'business_sync_transaction_accounting_states',
+  'business_sync_transaction_effects',
 ];
 function validationEvidence(id: string) {
   return derivedValidationTables.map((table) =>
@@ -1375,7 +1467,7 @@ function businessEvidence() {
   };
 }
 
-it.each([1, 2, 3, 4, 5, 6, 7])(
+it.each([1, 2, 3, 4, 5, 6, 7, 8])(
   'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
   async (version) => {
     const f = await legacyTransactionValidation(version);
@@ -2987,7 +3079,8 @@ async function realD1Fixture() {
 it('compiles every intermediate accounting query against actual D1 limits', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {
-    const { reject, native, after, row, ...other } = transactionTransitionSql;
+    const { reject, native, after, row, effects, ...other } =
+      transactionTransitionSql;
     const nativeQueries = Object.fromEntries(
       Object.entries(native).map(([key, sql]) => [`native:${key}`, sql]),
     );
@@ -3002,6 +3095,15 @@ it('compiles every intermediate accounting query against actual D1 limits', asyn
       ...nativeQueries,
       ...afterQueries,
       ...rowQueries,
+      ...Object.fromEntries(
+        Object.entries(effects.record).map(([key, sql]) => [
+          `effect:${key}`,
+          sql,
+        ]),
+      ),
+      'effect:check': effects.check,
+      'effect:consume': effects.consume,
+      'effect:finish': effects.finish,
       ...other,
     })) {
       expect(new TextEncoder().encode(sql).length, key).toBeLessThanOrEqual(

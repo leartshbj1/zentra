@@ -26,6 +26,8 @@ import { nativeGuardQueries } from './business-sync-native-guards';
 import { nativeGuardDigests } from './business-sync-native-guard-digests';
 import { rowStructureContract } from './business-sync-row-contract';
 import { rowConstraintQueries } from './business-sync-row-constraints';
+import { nativeEffectQueries } from './business-sync-native-effects';
+import { nativeEffectContract } from './business-sync-native-effect-contract';
 
 export const issuedQuoteFields = [
   'number',
@@ -43,7 +45,7 @@ export const issuedQuoteFields = [
   'terms',
   'snapshot_json',
 ] as const;
-export const TRANSITION_PAGE = 16;
+export const TRANSITION_PAGE = 12;
 const parentIssued = (table: string, foreignKey: string) =>
   transitionParentLocked(
     table,
@@ -87,6 +89,7 @@ export const transactionTransitionContract = {
   nativeAfterGuards: nativeAfterGuardContract,
   receiverNativeGuards,
   rowStructureContract,
+  nativeEffectContract,
 };
 export function transactionTransitionQueries(active: string) {
   const gate = `EXISTS(${active}) AND EXISTS(SELECT 1 FROM business_sync_transaction_validations WHERE transfer_id=?1 AND phase='transitions' AND checked_changes=?16)`;
@@ -94,6 +97,7 @@ export function transactionTransitionQueries(active: string) {
   const args =
     'WITH args AS (SELECT ?16 checked,?17 source,?18 stamp,?19 position,?20 table_name,?21 row_key,?22 before_json,?23 after_json,?24 part_index,?25 change_index)';
   return {
+    effects: nativeEffectQueries(gate, args),
     row: rowConstraintQueries(gate, args),
     native: nativeGuardQueries(gate, args),
     after: nativeGuardQueries(gate, args, 'after'),
@@ -250,6 +254,7 @@ export async function validateTransactionTransitions(ctx: Context) {
       ctx.chunk,
       offset + i,
     ];
+    statements.push(db.prepare(ctx.queries.effects.check).bind(...bindings));
     statements.push(db.prepare(ctx.queries.row[c.table]).bind(...bindings));
     const reject = ctx.queries.reject[c.table];
     if (reject) statements.push(db.prepare(reject).bind(...bindings));
@@ -258,10 +263,18 @@ export async function validateTransactionTransitions(ctx: Context) {
       statements.push(db.prepare(native).bind(...bindings, digests[i]));
     const after = ctx.queries.after[c.table];
     if (after) statements.push(db.prepare(after).bind(...bindings, null));
+    if (ctx.queries.effects.targets.includes(c.table))
+      statements.push(
+        db.prepare(ctx.queries.effects.consume).bind(...bindings),
+      );
+    const effect = ctx.queries.effects.record[c.table];
+    if (effect) statements.push(db.prepare(effect).bind(...bindings));
     if (Object.hasOwn(transitionParentPredicates, c.table))
       statements.push(db.prepare(ctx.queries.document).bind(...bindings));
     if (Object.hasOwn(transitionRowColumns, c.table))
       statements.push(db.prepare(ctx.queries.accountingRow).bind(...bindings));
+    if (ctx.checked + i + 1 === ctx.manifest.change_count)
+      statements.push(db.prepare(ctx.queries.effects.finish).bind(...bindings));
   }
   statements.push(
     db
@@ -275,5 +288,7 @@ export async function validateTransactionTransitions(ctx: Context) {
         ctx.manifest.change_count,
       ),
   );
+  if (statements.length > 100)
+    throw new Error('Native transition batch exceeds the D1 statement limit');
   await db.batch(statements);
 }

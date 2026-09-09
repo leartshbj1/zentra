@@ -35,7 +35,7 @@ const STRUCTURE_PAGE = 16,
   ACCOUNTING_PAGE = 4;
 // Increment on every validation semantic change. Upgrade only forwards: an
 // older running deployment must never replace a newer validation attempt.
-export const TRANSACTION_VALIDATION_VERSION = 8;
+export const TRANSACTION_VALIDATION_VERSION = 9;
 const countAt = new Map(
   structuralRules.flatMap((r, i) =>
     r.kind === 'count' ? [[r.table, i] as const] : [],
@@ -343,6 +343,7 @@ export async function validateBusinessTransaction(
         'business_sync_credit_projection',
         'business_sync_transaction_document_states',
         'business_sync_transaction_accounting_states',
+        'business_sync_transaction_effects',
       ].map((table) =>
         ctx.db
           .prepare(

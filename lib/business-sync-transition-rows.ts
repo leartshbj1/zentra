@@ -2,6 +2,7 @@
 // in the canonical snapshot; a NULL projection is a deletion tombstone.
 import { nativeGuardReadColumns } from './business-sync-native-guard-contract';
 import { rowUniqueColumns } from './business-sync-row-contract';
+import { nativeEffectReadColumns } from './business-sync-native-effect-contract';
 const manualColumns: Record<string, readonly string[]> = {
   supplier_invoice_items: [
     'id',
@@ -50,6 +51,7 @@ export const transitionRowColumns = Object.fromEntries(
       ...Object.keys(manualColumns),
       ...Object.keys(nativeGuardReadColumns),
       ...Object.keys(rowUniqueColumns),
+      ...Object.keys(nativeEffectReadColumns),
     ]),
   ]
     .sort()
@@ -60,6 +62,7 @@ export const transitionRowColumns = Object.fromEntries(
           ...(manualColumns[table] ?? []),
           ...(nativeGuardReadColumns[table] ?? []),
           ...(rowUniqueColumns[table] ?? []),
+          ...(nativeEffectReadColumns[table] ?? []),
         ]),
       ].sort(),
     ]),

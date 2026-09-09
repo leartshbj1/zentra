@@ -211,6 +211,13 @@
       "when": 1788905310924,
       "tag": "0029_marvelous_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1788920400965,
+      "tag": "0030_charming_vivisector",
+      "breakpoints": true
     }
   ]
 }

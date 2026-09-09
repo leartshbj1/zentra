@@ -4,6 +4,8 @@ use serde_json::json;
 
 #[path = "accounting_transition_tests.rs"]
 mod accounting_transitions;
+#[path = "operational_transition_tests.rs"]
+mod operational_transitions;
 
 pub(super) fn setup() -> (tempfile::TempDir, LocalStore) {
     let directory = tempfile::tempdir().unwrap();

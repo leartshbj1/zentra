@@ -2,6 +2,20 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Écritures automatiques obligatoires (algorithme 9)
+
+Le serveur vérifie désormais les sept déclencheurs `AFTER` qui écrivent des données partagées : registre de rapprochement bancaire, deux historiques de décision de petit salaire, solde du stock et trois recalculs de totaux fournisseurs. Leurs expressions sont tirées du SQL natif recensé, avec les mêmes types et sommes SQLite. Les deux files de documents restent des effets locaux à traiter lors de la réception sur l'appareil.
+
+Après une opération, le contrôle conserve les images avant/après des écritures automatiques attendues. Les événements suivants doivent correspondre entièrement à ces images avant qu'une autre opération puisse commencer. Une quantité, une date ou un autre champ modifié, une écriture omise ou intercalée provoque un refus persistant. Les mises à jour sans changement sont exclues, comme dans la capture native. Les effets d'une validation d'avoir sur plusieurs factures sont suivis séparément.
+
+Ces obligations survivent aux interruptions entre pages et fragments. Leur consommation, les états intermédiaires et le curseur avancent dans le même lot atomique. La migration additive `0030` crée leur table ; les validations 1 à 8 recommencent en version 9 en conservant les fichiers, les lignes et les traces originales. Une page comporte au plus 12 changements et 98 instructions SQL ; aucun nombre comptable ne transite par les nombres flottants JavaScript pour calculer ou comparer un effet.
+
+Les essais comparent les résultats aux vrais déclencheurs SQLite. Les scénarios natifs de stock, réception fournisseur, livraison, annulation et suppression d'un devis transportent aussi leur état final réel, comparé intégralement à la projection serveur. Les variantes privées de la mise à jour de stock doivent être refusées. Ces contrôles complètent les protections précédentes ; ils n'activent pas encore la réplication.
+
+La recette valide 771 scénarios dans 61 fichiers : 527 tests de synchronisation en 548,18 secondes, 243 tests des autres services en 3,15 secondes, puis les 19 tests d'effets en 3,65 secondes avec le nouveau scénario D1 de reprise/annulation atomique. Les 22 opérations natives sont acceptées dans SQLite et D1, soit 44 réceptions ; les 14 tests Rust de préparation/envoi et Clippy passent également. TypeScript, lint, compilation, contrôle de l'archive et absence de dérive des migrations sont vérifiés.
+
+Restent notamment les limites d'instructions et autres cascades, les validations propres aux commandes Rust, l'application canonique et son reçu, la réception et la confirmation natives, les conflits, la numérotation partagée et le parcours complet entre collaborateurs. `business_validated`, `canonical_committed` et `replication_active` restent faux. Aucun nouvel installateur n'est distribué par cette étape.
+
 ## Soldes après chaque écriture (algorithme 8)
 
 Les sept déclencheurs financiers natifs `AFTER` qui refusent une opération sont désormais évalués sur le serveur. Ils couvrent le solde disponible des avoirs clients, le cumul des paiements et avoirs affectés à une facture, les remboursements de dépenses et leurs deux chronologies, ainsi que les soldes et dates des affectations et remboursements d'avoirs fournisseurs. Ils complètent les 390 contrôles `BEFORE` et les contraintes de lignes de l'algorithme 7.
