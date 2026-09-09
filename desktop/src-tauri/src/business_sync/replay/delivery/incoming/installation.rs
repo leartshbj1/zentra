@@ -7,6 +7,7 @@ pub(crate) mod journal;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Point {
+    Prepared,
     IntentSaved,
     FileInstalled(usize),
     BeforeCommit,
@@ -73,6 +74,8 @@ pub(super) fn install(
     let context = decoder.context();
     let parts = decoder.bundle.parts.len();
     let chunks = decoder.manifest.chunks.clone();
+    ensure_current()?;
+    checkpoint(Point::Prepared)?;
     let _lock = store.lock()?;
     journal::recover(store)?;
     ensure_current()?;

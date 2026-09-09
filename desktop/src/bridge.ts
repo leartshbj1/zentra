@@ -4761,8 +4761,28 @@ export const desktopApi = {
   syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
   syncBusinessBootstrap: () => invoke<BusinessBootstrapStatus>('sync_business_bootstrap'),
   getBusinessCycleState: () => invoke<BusinessCycleState>('get_business_cycle_state'),
-  syncBusinessCycle: (selection: BusinessHistorySelection, installReceived: boolean) => invoke<BusinessCycleStatus>('sync_business_cycle', { selection, installReceived }),
-  pauseBusinessCycle: () => invoke<{ state: 'stopping' | 'paused'; in_flight: boolean }>('pause_business_cycle'),
+  syncBusinessCycle: (
+    selection: BusinessHistorySelection,
+    installReceived: boolean,
+    permission?: {
+      requestId: string;
+      onRequest: (request: { request_id: string; selection: BusinessHistorySelection }) => void;
+    },
+  ) => {
+    const installationPermission = new Channel<{ request_id: string; selection: BusinessHistorySelection }>();
+    installationPermission.onmessage = request => {
+      if (permission) permission.onRequest(request);
+      else void invoke('respond_business_installation', { requestId: request.request_id, allow: false }).catch(() => {
+        // The native timeout also denies installation if the window disconnects.
+      });
+    };
+    return invoke<BusinessCycleStatus>('sync_business_cycle', {
+      selection, installReceived, installationPermission, requestId: permission?.requestId ?? null,
+    });
+  },
+  respondBusinessInstallation: (requestId: string, allow: boolean) =>
+    invoke<boolean>('respond_business_installation', { requestId, allow }),
+  pauseBusinessCycle: (requestId?: string) => invoke<{ state: 'stopping' | 'paused'; in_flight: boolean }>('pause_business_cycle', { requestId: requestId ?? null }),
   replenishDocumentNumbers: () => invoke<NumberingStatus>('replenish_document_numbers'),
   getBusinessHistoryState: () => invoke<BusinessHistoryState>('get_business_history_state'),
   startBusinessPublication: () => invoke<BusinessBootstrapStatus>('start_business_publication'),

@@ -213,6 +213,25 @@ pub(crate) async fn process_with_transport<T: Transport + Send + Sync + 'static>
     transaction_id: String,
     install: bool,
 ) -> AppResult<Value> {
+    process_with_installation(
+        store,
+        session,
+        role,
+        transaction_id,
+        install,
+        std::sync::Arc::new(|| Ok(())),
+    )
+    .await
+}
+
+pub(crate) async fn process_with_installation<T: Transport + Send + Sync + 'static>(
+    store: LocalStore,
+    session: std::sync::Arc<T>,
+    role: String,
+    transaction_id: String,
+    install: bool,
+    before_install: std::sync::Arc<dyn Fn() -> AppResult<()> + Send + Sync>,
+) -> AppResult<Value> {
     if !uuid(&transaction_id) {
         return Err(invalid("Choisissez une transaction reçue valide."));
     }
@@ -267,7 +286,13 @@ pub(crate) async fn process_with_transport<T: Transport + Send + Sync + 'static>
                 &header,
                 &role,
                 || session.ensure_current(&store),
-                |_| Ok(()),
+                |point| {
+                    if point == install::Point::Prepared {
+                        before_install()
+                    } else {
+                        Ok(())
+                    }
+                },
             )
         } else {
             prepare(&store, &folder, &header, &role, || {

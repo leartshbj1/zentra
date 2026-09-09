@@ -361,6 +361,7 @@ pub fn run() {
             business_sync::cycle::get_business_cycle_state,
             business_sync::cycle::sync_business_cycle,
             business_sync::cycle::pause_business_cycle,
+            business_sync::cycle::installation::respond_business_installation,
             shared_numbering::transport::replenish_document_numbers,
             business_sync::replay::delivery::incoming::receive_business_transactions,
             business_sync::replay::delivery::incoming::installation::install_business_transaction,

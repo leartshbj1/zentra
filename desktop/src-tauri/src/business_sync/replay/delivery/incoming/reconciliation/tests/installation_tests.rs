@@ -1,5 +1,6 @@
 use super::super::install::{reconcile, Point};
 use super::*;
+use crate::error::AppError;
 use std::cell::Cell;
 
 fn journal(store: &LocalStore) -> Vec<String> {
@@ -148,6 +149,9 @@ struct Fixture {
     journal: Vec<String>,
 }
 fn fixture() -> Fixture {
+    fixture_with_pending(true)
+}
+fn fixture_with_pending(pending: bool) -> Fixture {
     let (source_root, source, _) = replay::tests::setup_with(|s| {
         fs::write(s.attachments_dir.join("plan.txt"), OLD).unwrap();
         attachment(&s.connect().unwrap(), "old", "plan.txt", OLD);
@@ -160,7 +164,9 @@ fn fixture() -> Fixture {
     )
     .unwrap();
     let before = replay::state_fingerprint(&source.connect().unwrap()).unwrap();
-    client(&store, "local-pending");
+    if pending {
+        client(&store, "local-pending");
+    }
     retain(&source);
     fs::write(source.attachments_dir.join("plan.txt"), NEW).unwrap();
     fs::write(source.attachments_dir.join("added.txt"), ADDED).unwrap();
@@ -176,11 +182,15 @@ fn fixture() -> Fixture {
         .unwrap()
         .unwrap();
     let (folder, header) = stage_from(&store, &source, &p, &before, &after);
-    let prepared = prepare(&store, &folder, &header, "owner", || Ok(())).unwrap();
-    let merged = prepared["merged_state_sha256"]
-        .as_str()
-        .expect("No conflict")
-        .into();
+    let merged = if pending {
+        let prepared = prepare(&store, &folder, &header, "owner", || Ok(())).unwrap();
+        prepared["merged_state_sha256"]
+            .as_str()
+            .expect("No conflict")
+            .into()
+    } else {
+        after
+    };
     Fixture {
         working: replay::state_fingerprint(&store.connect().unwrap()).unwrap(),
         journal: journal(&store),
@@ -190,6 +200,82 @@ fn fixture() -> Fixture {
         folder,
         header,
         merged,
+    }
+}
+#[test]
+fn installation_permission_gates_both_direct_and_pending_paths_before_live_writes() {
+    for pending in [false, true] {
+        let f = fixture_with_pending(pending);
+        let requested = Cell::new(0);
+        let result = reconcile(
+            &f.store,
+            &f.folder,
+            &f.header,
+            "owner",
+            || Ok(()),
+            |point| {
+                if point == Point::Prepared {
+                    requested.set(requested.get() + 1);
+                    return Err(AppError::BusinessInstallDeferred);
+                }
+                panic!("A denied installation reached a write checkpoint: {point:?}");
+            },
+        );
+        assert!(matches!(result, Err(AppError::BusinessInstallDeferred)));
+        assert_eq!(requested.get(), 1);
+        assert_eq!(
+            replay::state_fingerprint(&f.store.connect().unwrap()).unwrap(),
+            f.working
+        );
+        assert_eq!(journal(&f.store), f.journal);
+        assert_eq!(installed(&f.store), 0);
+        assert_eq!(acknowledge_count(&f.store), 0);
+        assert_eq!(Binding::read(&f.store, "org-replay").unwrap().revision, 1);
+        assert_eq!(
+            fs::read(f.store.attachments_dir.join("plan.txt")).unwrap(),
+            OLD
+        );
+        assert!(!f.store.attachments_dir.join("added.txt").exists());
+        assert!(!f
+            .store
+            .data_dir
+            .join("business-installation/intent.json")
+            .exists());
+
+        let permitted = Cell::new(false);
+        let result = reconcile(
+            &f.store,
+            &f.folder,
+            &f.header,
+            "owner",
+            || Ok(()),
+            |point| {
+                if point == Point::Prepared {
+                    permitted.set(true);
+                } else {
+                    assert!(permitted.get(), "Write before installation permission");
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(permitted.get());
+        assert_eq!(result["installed"], true);
+        assert_eq!(
+            replay::state_fingerprint(&f.store.connect().unwrap()).unwrap(),
+            f.merged
+        );
+        assert_eq!(journal(&f.store), f.journal);
+        assert_eq!(installed(&f.store), 1);
+        assert_eq!(Binding::read(&f.store, "org-replay").unwrap().revision, 2);
+        assert_eq!(
+            fs::read(f.store.attachments_dir.join("plan.txt")).unwrap(),
+            NEW
+        );
+        assert_eq!(
+            fs::read(f.store.attachments_dir.join("added.txt")).unwrap(),
+            ADDED
+        );
     }
 }
 fn assert_state(f: &Fixture, committed: bool) {

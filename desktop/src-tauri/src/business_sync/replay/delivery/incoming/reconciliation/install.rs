@@ -105,6 +105,7 @@ pub(super) fn reconcile(
     let pending:bool=store.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_changes c LEFT JOIN business_sync_receipts r ON r.generation=c.generation AND r.transaction_id=c.transaction_id WHERE c.generation=?1 AND c.sequence>COALESCE(r.acknowledged_through,0))",[&header.binding.capture],|r|r.get(0))?;
     if !pending {
         return installation::install(store, folder, header, ensure_current, |point| match point {
+            installation::Point::Prepared => checkpoint(Point::Prepared),
             installation::Point::IntentSaved => checkpoint(Point::IntentSaved),
             installation::Point::FileInstalled(i) => checkpoint(Point::FileInstalled(i)),
             installation::Point::BeforeCommit => checkpoint(Point::BeforeCommit),

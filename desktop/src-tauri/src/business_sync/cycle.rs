@@ -20,6 +20,7 @@ use std::{
     time::Duration,
 };
 use tauri::State;
+pub(crate) mod installation;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -41,6 +42,7 @@ fn invalid(message: &str) -> AppError {
 pub(crate) struct Run {
     _connection: Mutex<Connection>,
     cancelled: AtomicBool,
+    request_id: OnceLock<String>,
 }
 impl Run {
     pub(crate) fn ensure_running(&self) -> AppResult<()> {
@@ -85,6 +87,7 @@ pub(crate) fn try_acquire(store: &LocalStore) -> AppResult<Option<Arc<Run>>> {
     let run = Arc::new(Run {
         _connection: Mutex::new(connection),
         cancelled: AtomicBool::new(false),
+        request_id: OnceLock::new(),
     });
     runs.retain(|_, value| value.strong_count() > 0);
     runs.insert(profile, Arc::downgrade(&run));
@@ -94,12 +97,19 @@ pub(crate) fn acquire(store: &LocalStore) -> AppResult<Arc<Run>> {
     try_acquire(store)?
         .ok_or_else(|| invalid("Une synchronisation de ce dossier est déjà en cours."))
 }
+#[cfg(test)]
 pub(super) fn cancel(store: &LocalStore) -> AppResult<bool> {
+    cancel_matching(store, None)
+}
+fn cancel_matching(store: &LocalStore, request_id: Option<&str>) -> AppResult<bool> {
     let profile = fs::canonicalize(&store.data_dir)?;
     let runs = runs()
         .lock()
         .map_err(|_| invalid("Le suivi de synchronisation est indisponible."))?;
     if let Some(run) = runs.get(&profile).and_then(Weak::upgrade) {
+        if request_id.is_some_and(|id| run.request_id.get().map(String::as_str) != Some(id)) {
+            return Ok(false);
+        }
         run.cancelled.store(true, Ordering::Release);
         return Ok(true);
     }
@@ -110,6 +120,7 @@ pub(crate) struct Guarded<T> {
     pub transport: T,
     selection: Selection,
     run: Arc<Run>,
+    before_install: Option<Arc<dyn Fn() -> AppResult<()> + Send + Sync>>,
 }
 impl<T> Guarded<T> {
     pub(crate) fn new(transport: T, selection: Selection, run: Arc<Run>) -> Self {
@@ -117,6 +128,7 @@ impl<T> Guarded<T> {
             transport,
             selection,
             run,
+            before_install: None,
         }
     }
     pub(crate) fn lease(&self) -> Arc<Run> {
@@ -158,12 +170,16 @@ where
                 .ok_or_else(|| invalid("La transaction reçue est absente."))?
                 .to_owned();
             let role = outgoing::Transport::role(transport.as_ref()).to_owned();
-            let reconciled = incoming::reconciliation::process_with_transport(
+            let reconciled = incoming::reconciliation::process_with_installation(
                 store,
                 transport.clone(),
                 role,
                 transaction,
                 true,
+                transport
+                    .before_install
+                    .clone()
+                    .unwrap_or_else(|| Arc::new(|| Ok(()))),
             )
             .await?;
             // Finish this pass after one install. The next pass discovers again
@@ -183,6 +199,14 @@ where
             }
         }
         Some("no_new_revision") => {
+            if outgoing::Transport::role(transport.as_ref()) == "read_only" {
+                return Ok(status(
+                    selection,
+                    "idle",
+                    json!({"receive_only":true}),
+                    false,
+                ));
+            }
             let sent = outgoing::send_pass(store, transport.clone()).await?;
             let state =
                 match sent["state"].as_str() {
@@ -245,11 +269,18 @@ pub async fn sync_business_cycle(
     state: State<'_, LocalStore>,
     selection: Selection,
     install_received: bool,
+    installation_permission: tauri::ipc::Channel<installation::Request>,
+    request_id: Option<String>,
 ) -> Result<Value, String> {
     let store = state.inner().clone();
     let Some(run) = try_acquire(&store).map_err(command_error)? else {
         return Ok(status(&selection, "busy", Value::Null, false));
     };
+    if let Some(id) = request_id {
+        uuid::Uuid::parse_str(&id)
+            .map_err(|_| "La demande de synchronisation est invalide.".to_owned())?;
+        let _ = run.request_id.set(id);
+    }
     let Some(session): Option<ProjectSyncSession> =
         project_sync_session(&store).await.map_err(command_error)?
     else {
@@ -263,17 +294,48 @@ pub async fn sync_business_cycle(
     if session.organization_id != selection.organization_id {
         return Err("Le compte connecté ne correspond pas au dossier sélectionné.".into());
     }
-    let transport = Arc::new(Guarded::new(session, selection.clone(), run.clone()));
+    let mut guarded = Guarded::new(session, selection.clone(), run.clone());
+    let permission_store = store.clone();
+    let permission_selection = selection.clone();
+    let permission_run = run.clone();
+    guarded.before_install = Some(Arc::new(move || {
+        installation::request(
+            &permission_store,
+            &permission_selection,
+            || permission_run.ensure_running(),
+            |request| {
+                installation_permission
+                    .send(request)
+                    .map_err(|_| AppError::BusinessInstallDeferred)
+            },
+            Duration::from_secs(5),
+        )
+    }));
+    let transport = Arc::new(guarded);
     match pass(store, transport, install_received).await {
         Ok(result) => Ok(result),
         Err(AppError::BusinessSyncPaused) => Ok(status(&selection, "paused", Value::Null, false)),
+        Err(AppError::BusinessInstallDeferred) => Ok(status(
+            &selection,
+            "awaiting_installation",
+            Value::Null,
+            false,
+        )),
         Err(error) => Err(command_error(error)),
     }
 }
 
 #[tauri::command]
-pub fn pause_business_cycle(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let pending = cancel(state.inner()).map_err(command_error)?;
+pub fn pause_business_cycle(
+    state: State<'_, LocalStore>,
+    request_id: Option<String>,
+) -> Result<Value, String> {
+    let pending = cancel_matching(state.inner(), request_id.as_deref()).map_err(command_error)?;
+    if request_id.is_some() {
+        return Ok(
+            json!({"state":if pending {"stopping"}else{"paused"},"in_flight":pending,"request_id":request_id}),
+        );
+    }
     if !pending && try_acquire(state.inner()).map_err(command_error)?.is_none() {
         return Err("Une autre instance utilise ce dossier. Suspendez la synchronisation depuis cette instance.".into());
     }
