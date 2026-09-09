@@ -1,5 +1,6 @@
-//! A transport receipt confirms bytes only. It must never consume a pending
-//! business transaction, reserve numbers or advance a shared business cursor.
+//! Upload receipts confirm bytes; only the separate validated server lifecycle
+//! can yield a canonical receipt. Neither consumes local pending transactions,
+//! reserves numbers or advances the installed business cursor.
 use super::*;
 use crate::{
     account_cloud::{project_sync_session, ProjectSyncSession},
@@ -14,6 +15,7 @@ use std::{
 use tauri::State;
 const ENDPOINT: &str = "/api/sync/transactions";
 mod file_transfer;
+mod lifecycle;
 struct FileRequest {
     method: Method,
     id: String,
@@ -51,12 +53,22 @@ struct Receipt {
     files_pending: usize,
     pending_files: Vec<Blob>,
     canonical_committed: bool,
+    #[serde(default, rename = "receipt", skip_serializing_if = "Option::is_none")]
+    committed_receipt: Option<Value>,
     replication_active: bool,
 }
 trait Transport {
     fn organization(&self) -> &str;
     fn role(&self) -> &str;
     fn current(&self, store: &LocalStore) -> AppResult<()>;
+    fn lifecycle_request(
+        &self,
+        _path: &'static str,
+        _id: &str,
+        _body: Option<Vec<u8>>,
+    ) -> impl Future<Output = AppResult<(u16, Vec<u8>)>> + Send {
+        async { Err(invalid("Le contrôle serveur n’est pas disponible.")) }
+    }
     fn file_request(
         &self,
         _request: FileRequest,
@@ -72,6 +84,29 @@ trait Transport {
     ) -> impl Future<Output = AppResult<(u16, Vec<u8>)>> + Send;
 }
 impl Transport for ProjectSyncSession {
+    async fn lifecycle_request(
+        &self,
+        path: &'static str,
+        id: &str,
+        body: Option<Vec<u8>>,
+    ) -> AppResult<(u16, Vec<u8>)> {
+        let headers = if body.is_some() {
+            vec![("content-type", "application/json".into())]
+        } else {
+            vec![]
+        };
+        let (code, bytes) = self
+            .request_status(
+                Method::POST,
+                path,
+                &[("transaction_id", id)],
+                &headers,
+                body,
+                false,
+            )
+            .await?;
+        Ok((code.as_u16(), bytes))
+    }
     async fn file_request(&self, r: FileRequest) -> AppResult<(u16, Vec<u8>)> {
         let index = r.index.map(|i| i.to_string());
         let mut query = vec![
@@ -162,15 +197,16 @@ fn receipt(
         || r.generation != m.generation
         || r.capture_generation != m.capture_generation
         || r.manifest_sha256 != hash
-        || r.canonical_committed
+        || r.canonical_committed != (r.state == "committed")
+        || r.committed_receipt.is_some() != r.canonical_committed
         || r.replication_active
         || !matches!(
             r.state.as_str(),
-            "receiving" | "awaiting_files" | "awaiting_validation" | "invalid"
+            "receiving" | "awaiting_files" | "awaiting_validation" | "invalid" | "committed"
         )
         || r.files_pending > m.files.len()
         || r.pending_files.len() != r.files_pending.min(8)
-        || (r.state == "awaiting_validation" && r.files_pending != 0)
+        || (matches!(r.state.as_str(), "awaiting_validation" | "committed") && r.files_pending != 0)
         || (r.state == "awaiting_files" && r.files_pending == 0)
     {
         return Err(invalid(
@@ -225,9 +261,16 @@ fn receipt(
     if r.state == "invalid" {
         return Err(invalid("Le serveur a reçu une transaction incohérente. Les modifications locales restent conservées pour leur réconciliation."));
     }
+    if let Some(committed) = &r.committed_receipt {
+        crate::business_sync::replay::delivery::verify_outgoing_receipt(
+            &serde_json::to_vec(committed)?,
+            m,
+            hash,
+        )?;
+    }
     Ok(r)
 }
-async fn transfer(store: &LocalStore, t: &impl Transport, p: Prepared) -> AppResult<Value> {
+async fn transfer(store: &LocalStore, t: &impl Transport, p: &Prepared) -> AppResult<Value> {
     if t.organization() != p.manifest.organization_id
         || !matches!(t.role(), "owner" | "admin" | "member" | "accountant")
     {
@@ -236,13 +279,13 @@ async fn transfer(store: &LocalStore, t: &impl Transport, p: Prepared) -> AppRes
         ));
     }
     t.current(store)?;
-    bound(store, &p)?;
+    bound(store, p)?;
     let manifest_json = serde_json::to_string(&p.manifest)?;
     let hash = digest(manifest_json.as_bytes());
     let id = &p.manifest.transaction_id;
     let (mut code, mut bytes) = t.request(Method::GET, id, None, None).await?;
     t.current(store)?;
-    bound(store, &p)?;
+    bound(store, p)?;
     if code == 404 {
         (code, bytes) = t
             .request(
@@ -254,8 +297,11 @@ async fn transfer(store: &LocalStore, t: &impl Transport, p: Prepared) -> AppRes
             .await?;
     }
     t.current(store)?;
-    bound(store, &p)?;
-    let mut result = receipt(code, &bytes, &p, &hash, None)?;
+    bound(store, p)?;
+    let mut result = receipt(code, &bytes, p, &hash, None)?;
+    if let Some(committed) = &result.committed_receipt {
+        return Ok(lifecycle::committed_status(committed.clone(), 0));
+    }
     let mut missing = (0..p.manifest.chunks.len())
         .filter(|i| !result.received_chunks.iter().any(|r| r.chunk_index == *i))
         .collect::<Vec<_>>();
@@ -266,24 +312,30 @@ async fn transfer(store: &LocalStore, t: &impl Transport, p: Prepared) -> AppRes
     }
     let mut sent = 0;
     for index in missing.into_iter().take(8) {
+        if result.canonical_committed {
+            break;
+        }
         t.current(store)?;
-        bound(store, &p)?;
+        bound(store, p)?;
         let body = p.read_chunk(index)?;
         let (code, bytes) = t.request(Method::PUT, id, Some(index), Some(body)).await?;
         t.current(store)?;
-        bound(store, &p)?;
-        result = receipt(code, &bytes, &p, &hash, Some(&result))?;
+        bound(store, p)?;
+        result = receipt(code, &bytes, p, &hash, Some(&result))?;
         sent += 1;
     }
     let mut sent_files = 0;
     if result.state == "awaiting_files" && sent < 8 {
-        sent_files = file_transfer::send(store, t, &p, &result.pending_files, 8 - sent).await?;
+        sent_files = file_transfer::send(store, t, p, &result.pending_files, 8 - sent).await?;
         t.current(store)?;
-        bound(store, &p)?;
+        bound(store, p)?;
         let (code, bytes) = t.request(Method::GET, id, None, None).await?;
         t.current(store)?;
-        bound(store, &p)?;
-        result = receipt(code, &bytes, &p, &hash, Some(&result))?;
+        bound(store, p)?;
+        result = receipt(code, &bytes, p, &hash, Some(&result))?;
+    }
+    if let Some(committed) = &result.committed_receipt {
+        return Ok(lifecycle::committed_status(committed.clone(), 0));
     }
     Ok(
         json!({"state":result.state,"transaction_id":id,"received_chunks":result.received_chunks.len(),"total_chunks":p.manifest.chunks.len(),"sent_chunks":sent,"sent_file_parts":sent_files,"files_pending":result.files_pending,"canonical_committed":false,"replication_active":false}),
@@ -316,9 +368,23 @@ pub async fn sync_business_transactions(state: State<'_, LocalStore>) -> Result<
             json!({"state":"nothing_to_send","canonical_committed":false,"replication_active":false}),
         );
     };
-    transfer(&store, &session, prepared)
+    synchronize(&store, &session, &prepared)
         .await
         .map_err(command_error)
+}
+
+async fn synchronize(store: &LocalStore, t: &impl Transport, p: &Prepared) -> AppResult<Value> {
+    let uploaded = transfer(store, t, p).await?;
+    if uploaded["state"] != "awaiting_validation" {
+        return Ok(uploaded);
+    }
+    let used = uploaded["sent_chunks"].as_u64().unwrap_or(0)
+        + uploaded["sent_file_parts"].as_u64().unwrap_or(0);
+    let remaining = 8u64.saturating_sub(used) as usize;
+    if remaining == 0 {
+        return Ok(uploaded);
+    }
+    lifecycle::advance(store, t, p, remaining).await
 }
 
 #[cfg(test)]

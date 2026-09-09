@@ -32,7 +32,7 @@ pub(super) struct ReceiptRequest<'a> {
     pub source_revision: i64,
     pub receipt_sha256: &'a str,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 struct Receipt {
     format: String,
@@ -53,6 +53,35 @@ struct Receipt {
     target_state_sha256: String,
     validation_sha256: String,
     committed_at: String,
+}
+/// A source device may already have later offline edits. Validate the server's
+/// immutable receipt against the original outgoing envelope without consuming
+/// its journal or pretending that canonical row positions are installed locally.
+pub(crate) fn verify_outgoing_receipt(
+    raw: &[u8],
+    manifest: &Manifest,
+    manifest_sha256: &str,
+) -> AppResult<serde_json::Value> {
+    if raw.len() > 16 * 1024 {
+        return Err(invalid("Le reçu dépasse la taille autorisée."));
+    }
+    let r: Receipt = serde_json::from_slice(raw)?;
+    let verified = Expected::from_authenticated_receipt(raw, ReceiptRequest {
+        organization: &manifest.organization_id,
+        generation: &manifest.generation,
+        transaction_id: &manifest.transaction_id,
+        source_revision: r.source_revision,
+        receipt_sha256: &digest(raw),
+    })?;
+    if r.origin_installation_id != manifest.installation_id
+        || r.capture_generation != manifest.capture_generation
+        || r.manifest_sha256 != manifest_sha256
+        || r.source_revision < manifest.base_revision
+        || (r.source_revision == 1 && r.source_transfer_id != manifest.bootstrap_transfer_id)
+    {
+        return Err(invalid("Le reçu définitif ne correspond pas aux modifications de cet appareil."));
+    }
+    Ok(serde_json::to_value(verified.receipt)?)
 }
 impl Expected {
     pub(super) fn from_authenticated_receipt(
@@ -202,7 +231,7 @@ fn integer(raw: &str) -> AppResult<i64> {
         .filter(|n| n.to_string() == raw)
         .ok_or_else(|| invalid("Une position reçue n'est pas un entier exact."))
 }
-fn fingerprint_contract() -> AppResult<String> {
+pub(crate) fn fingerprint_contract() -> AppResult<String> {
     Ok(digest(&serde_json::to_vec(&serde_json::json!([
         "zentra-state-fingerprint",2,"zentra-business-state-v2\0","zentra-business-state-row-v2\0",
         "sqlite-json-object-policy-column-order;sqlite-binary-table-key-order;u64be-utf8-frames;signed64-decimal-rowid",snapshot::contract_hash()?

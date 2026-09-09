@@ -1773,6 +1773,33 @@ it
       expect(clientRowid).toBe('9007199254740993');
       expect(clientRowid).not.toBe(inserted.source_rowid);
       const preparedDeliveryPeak = deliveryPeak;
+      // Preserve real route envelopes for the native outgoing lifecycle checks.
+      // These are local SQLite/D1 fixtures, never live authenticated sessions.
+      mocks.session.mockResolvedValue(f.actor);
+      const lifecycleResponses: { stage: string; response: unknown }[] = [];
+      for (const [stage, route] of [
+        ['review', reviewHttp],
+        ['validate', transactionValidationHttp],
+        ['fingerprint', fingerprintHttp],
+        ['delivery', deliveryHttp],
+      ] as const) {
+        const response = await route.POST(
+          new Request(
+            `https://zentra.test/api/sync/transactions/${stage}?transaction_id=${id}`,
+            {
+              method: 'POST',
+              ...(stage === 'review'
+                ? {
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ action: 'prepare' }),
+                  }
+                : {}),
+            },
+          ),
+        );
+        expect(response.status).toBe(200);
+        lifecycleResponses.push({ stage, response: await response.json() });
+      }
       deliveryPeak = 0;
       const canonicalReceipt = await deliveryRequest(() =>
         commitBusinessTransaction(f.actor, id),
@@ -1781,6 +1808,21 @@ it
         revision: 2,
         bundle_sha256: bundle.sha256,
       });
+      const committedResponse = await commitHttp.POST(
+        new Request(
+          `https://zentra.test/api/sync/transactions/commit?transaction_id=${id}`,
+          { method: 'POST' },
+        ),
+      );
+      expect(committedResponse.status).toBe(200);
+      lifecycleResponses.push({
+        stage: 'commit',
+        response: await committedResponse.json(),
+      });
+      writeFileSync(
+        join(output, 'lifecycle-responses.json'),
+        JSON.stringify(lifecycleResponses),
+      );
       const committedReceipt = await deliveryRequest(() =>
         committedBusinessTransactionResource(second, id, 'receipt', null),
       );

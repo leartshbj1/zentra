@@ -57,6 +57,7 @@ impl Fake {
             files_pending: 0,
             pending_files: vec![],
             canonical_committed: false,
+            committed_receipt: None,
             replication_active: false,
         })
         .unwrap()
@@ -135,12 +136,12 @@ fn lost_chunk_response_resumes_without_consuming_any_local_transaction() {
     tauri::async_runtime::block_on(async {
         let (_dir, store, fake) = fixture();
         fake.lose.store(true, Ordering::Release);
-        assert!(transfer(&store, &fake, super::super::tests::next(&store))
+        assert!(transfer(&store, &fake, &super::super::tests::next(&store))
             .await
             .is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 1);
         let reopened = LocalStore::initialize(store.data_dir.clone()).unwrap();
-        let result = transfer(&reopened, &fake, super::super::tests::next(&reopened))
+        let result = transfer(&reopened, &fake, &super::super::tests::next(&reopened))
             .await
             .unwrap();
         assert_eq!(result["state"], "awaiting_validation");
@@ -176,14 +177,14 @@ fn forged_receipts_and_restoration_do_not_upload_more_or_mark_work_applied() {
         let (_dir, store, fake) = fixture();
         fake.exists.store(true, Ordering::Release);
         fake.forge.store(true, Ordering::Release);
-        assert!(transfer(&store, &fake, super::super::tests::next(&store))
+        assert!(transfer(&store, &fake, &super::super::tests::next(&store))
             .await
             .is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 0);
         fake.forge.store(false, Ordering::Release);
         let p = super::super::tests::next(&store);
         fake.detach.store(true, Ordering::Release);
-        assert!(transfer(&store, &fake, p).await.is_err());
+        assert!(transfer(&store, &fake, &p).await.is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 0);
         assert_eq!(
             crate::business_sync::status(&store.connect().unwrap()).unwrap()

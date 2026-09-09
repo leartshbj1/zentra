@@ -174,15 +174,15 @@ fn a_deleted_document_resumes_lost_part_and_verification_responses_after_restart
     tauri::async_runtime::block_on(async {
         let (_dir, store, fake) = fixture(PART_BYTES as usize + 19);
         fake.lose_part.store(true, Ordering::Release);
-        assert!(transfer(&store, &fake, next(&store)).await.is_err());
+        assert!(transfer(&store, &fake, &next(&store)).await.is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 1);
         pending(&store);
         let reopened = LocalStore::initialize(store.data_dir.clone()).unwrap();
         fake.lose_verify.store(true, Ordering::Release);
-        assert!(transfer(&reopened, &fake, next(&reopened)).await.is_err());
+        assert!(transfer(&reopened, &fake, &next(&reopened)).await.is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 2);
         pending(&reopened);
-        let result = transfer(&reopened, &fake, next(&reopened)).await.unwrap();
+        let result = transfer(&reopened, &fake, &next(&reopened)).await.unwrap();
         assert_eq!(result["files_pending"], 0);
         assert_eq!(result["state"], "awaiting_validation");
         assert_eq!(fake.puts.load(Ordering::Acquire), 2);
@@ -193,15 +193,15 @@ fn a_deleted_document_resumes_lost_part_and_verification_responses_after_restart
 fn large_documents_obey_the_shared_pass_budget_and_empty_documents_have_no_phantom_part() {
     tauri::async_runtime::block_on(async {
         let (_dir, store, fake) = fixture(9 * PART_BYTES as usize + 1);
-        let first = transfer(&store, &fake, next(&store)).await.unwrap();
+        let first = transfer(&store, &fake, &next(&store)).await.unwrap();
         assert_eq!(first["sent_file_parts"], 7);
         assert_eq!(first["files_pending"], 1);
-        let last = transfer(&store, &fake, next(&store)).await.unwrap();
+        let last = transfer(&store, &fake, &next(&store)).await.unwrap();
         assert_eq!(last["sent_file_parts"], 3);
         assert_eq!(last["files_pending"], 0);
         pending(&store);
         let (_dir, empty, fake) = fixture(0);
-        let result = transfer(&empty, &fake, next(&empty)).await.unwrap();
+        let result = transfer(&empty, &fake, &next(&empty)).await.unwrap();
         assert_eq!(result["files_pending"], 0);
         assert_eq!(fake.puts.load(Ordering::Acquire), 0);
         pending(&empty);
@@ -212,7 +212,7 @@ fn forged_receipts_and_changed_local_bytes_do_not_confirm_documents_or_business_
     tauri::async_runtime::block_on(async {
         let (_dir, store, fake) = fixture(37);
         fake.forge.store(true, Ordering::Release);
-        assert!(transfer(&store, &fake, next(&store)).await.is_err());
+        assert!(transfer(&store, &fake, &next(&store)).await.is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 0);
         pending(&store);
         fake.forge.store(false, Ordering::Release);
@@ -224,7 +224,7 @@ fn forged_receipts_and_changed_local_bytes_do_not_confirm_documents_or_business_
         )
         .unwrap();
         fs::write(path, vec![99; 37]).unwrap();
-        assert!(transfer(&store, &fake, prepared).await.is_err());
+        assert!(transfer(&store, &fake, &prepared).await.is_err());
         assert_eq!(fake.puts.load(Ordering::Acquire), 0);
         pending(&store);
     });
