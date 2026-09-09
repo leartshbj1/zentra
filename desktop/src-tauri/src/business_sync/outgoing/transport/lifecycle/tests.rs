@@ -110,7 +110,7 @@ impl Transport for Server {
             } else {
                 "projected"
             }));
-            value["algorithm_version"] = json!(3);
+            value["algorithm_version"] = json!(4);
             value["validator_sha256"] = json!("a".repeat(64));
             value["financial_validated"] = json!(false);
             value["copied_rows"] = json!(100 - remaining);

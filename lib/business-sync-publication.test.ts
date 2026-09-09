@@ -4140,6 +4140,88 @@ it('resumes an established device audit branch and rejects replay of its committ
   ).rejects.toThrow('plus récente');
 });
 
+it.each([[false, false], [true, false], [true, true]])('continues consecutive offline edits without rewriting their installed base (colleague=%s, D1=%s)', async (interleave, useD1) => {
+  const real = useD1 ? await realD1Fixture() : null;
+  try {
+  const insert = transactionInsert('1', 'offline-customer');
+  const initial = JSON.parse(insert.after_json!);
+  const secondImage = JSON.stringify({ ...initial, name: 'Second offline edit' });
+  const thirdImage = JSON.stringify({ ...initial, name: 'Third offline edit' });
+  const a = await auditChange('2', 'offline-audit-one');
+  const b = await auditChange('4', 'offline-audit-two', JSON.parse(a.after_json!).entry_hash);
+  const c = await auditChange('6', 'offline-audit-three', JSON.parse(b.after_json!).entry_hash);
+  const first = await transactionFixture([[insert, a]]);
+  const secondEdit: TransactionChange = { ...insert, sequence:'3',operation:'update',before_json:insert.after_json,after_json:secondImage };
+  const thirdEdit: TransactionChange = { ...secondEdit, sequence:'5',before_json:secondImage,after_json:thirdImage };
+  const later = await Promise.all([[secondEdit,b],[thirdEdit,c]].map(async changes => {
+    const f = await transactionFixture([changes], first.receipt);
+    f.actor = first.actor;
+    f.manifest.installation_id = first.actor.installationId;
+    f.manifest.capture_generation = first.manifest.capture_generation;
+    await receiveTransaction(f);
+    return f;
+  }));
+  await deliveryReady(first);
+  await prepareBusinessTransactionDelivery(first.actor, first.manifest.transaction_id);
+  await commitBusinessTransaction(first.actor, first.manifest.transaction_id);
+  if (interleave) {
+    const colleague = await deliveryReady(await transactionFixture([[await auditChange('1', 'offline-colleague')]], first.receipt));
+    await prepareBusinessTransactionDelivery(colleague.actor, colleague.manifest.transaction_id);
+    await commitBusinessTransaction(colleague.actor, colleague.manifest.transaction_id);
+  }
+  const before = (await historyHead(first.actor)).head_revision;
+  // The third local change cannot skip its second change and audit predecessor.
+  expect(await projectTransaction(later[1].actor, later[1].manifest.transaction_id)).toMatchObject({state:'invalid',failed_rule:'audit:parent'});
+  expect((await historyHead(first.actor)).head_revision).toBe(before);
+  for (const f of later) {
+    const original = f.chunks.map(bytes => new TextDecoder().decode(bytes));
+    expect(await projectTransaction(f.actor, f.manifest.transaction_id)).toMatchObject({state:'projected',audit_entries:1});
+    expect(await validateTransaction(f.actor, f.manifest.transaction_id)).toMatchObject({phase:'valid'});
+    await finishFingerprint(f.actor, f.manifest.transaction_id);
+    await prepareBusinessTransactionDelivery(f.actor, f.manifest.transaction_id);
+    await commitBusinessTransaction(f.actor, f.manifest.transaction_id);
+    expect(f.manifest.base_revision).toBe(1);
+    expect(f.chunks.map(bytes => new TextDecoder().decode(bytes))).toEqual(original);
+    const received = await committedBusinessTransactionResource(second, f.manifest.transaction_id, 'changes', '0');
+    expect(Buffer.from(received.bytes)).toEqual(Buffer.from(f.chunks[0]));
+    const manifest = await committedBusinessTransactionResource(second, f.manifest.transaction_id, 'manifest', null);
+    expect(JSON.parse(new TextDecoder().decode(manifest.bytes)).base_revision).toBe(1);
+  }
+  const final = later[1];
+  expect((await historyHead(first.actor)).head_revision).toBe(before+2);
+  const row = await mocks.db().prepare("SELECT row_json FROM business_sync_versions WHERE transfer_id=? AND table_name='clients' AND row_key_json=?")
+    .bind(final.manifest.transaction_id, insert.key_json).first();
+  expect(JSON.parse(row!.row_json as string).name).toBe('Third offline edit');
+  expect(await mocks.db().prepare('SELECT last_sequence,last_hash FROM business_sync_audit_branches WHERE installation_id=?').bind(first.actor.installationId).first())
+    .toEqual({last_sequence:'6',last_hash:JSON.parse(c.after_json!).entry_hash});
+  } finally {
+    await real?.runtime.dispose();
+  }
+}, 90_000);
+
+it('pins an offline audit predecessor inside the atomic commit after review', async () => {
+  const audit = await auditChange('1', 'offline-atomic-first');
+  const anchor = JSON.parse(audit.after_json!).entry_hash;
+  const first = await commitReady([[audit]]);
+  await commitBusinessTransaction(first.actor, first.manifest.transaction_id);
+  const later = await transactionFixture([[await auditChange('2', 'offline-atomic-next', anchor)]], first.receipt);
+  later.actor = first.actor;
+  later.manifest.installation_id = first.actor.installationId;
+  later.manifest.capture_generation = first.manifest.capture_generation;
+  await deliveryReady(later);
+  await prepareBusinessTransactionDelivery(later.actor, later.manifest.transaction_id);
+  beforeBatch = async sql => {
+    if (!sql.some(s => s.startsWith('INSERT OR IGNORE INTO business_sync_transaction_commits'))) return;
+    beforeBatch = undefined;
+    db.prepare('UPDATE business_sync_audit_branches SET last_hash=? WHERE installation_id=?').run('b'.repeat(64), first.actor.installationId);
+  };
+  await expect(commitBusinessTransaction(later.actor, later.manifest.transaction_id)).rejects.toThrow();
+  expect((await historyHead(first.actor)).head_revision).toBe(2);
+  expect(count('business_sync_transaction_commits')).toBe(1);
+  db.prepare('UPDATE business_sync_audit_branches SET last_hash=? WHERE installation_id=?').run(anchor, first.actor.installationId);
+  expect((await commitBusinessTransaction(later.actor, later.manifest.transaction_id)).revision).toBe(3);
+});
+
 it('preserves concurrent audit branches and lets a returning author use the revision received from a colleague', async () => {
   const first = await commitReady([
     [await auditChange('1', 'audit-author-first')],

@@ -13,13 +13,23 @@ import { sharedRowid, sourceRowid } from './business-sync-order';
 const PAGE_ROWS = 200,
   PAGE_BYTES = 4 * 1024 * 1024,
   APPLY_CHANGES = 12;
-export const TRANSACTION_REVIEW_VERSION = 3;
+export const TRANSACTION_REVIEW_VERSION = 4;
 // The anchor is the audit head the device actually installed, not necessarily
 // the last event it authored before receiving another collaborator's work.
 export const canonicalAuditHeadSql = `(SELECT json_extract(v.row_json,'$.entry_hash') FROM business_sync_versions v
  JOIN business_sync_row_order o ON o.transfer_id=v.transfer_id AND o.table_name=v.table_name AND o.row_key_json=v.row_key_json
  WHERE v.transfer_id=u.transfer_id AND v.organization_id=u.organization_id AND v.table_name='audit_log'
  ORDER BY CAST(o.source_rowid AS INTEGER) DESC LIMIT 1)`;
+// Offline transactions keep their original installed base. Once an earlier
+// transaction from the same capture has committed AFTER that base, its audit
+// head is the next predecessor. A newly installed revision instead supplies
+// the canonical head, including work authored by another collaborator.
+// Aliases: t is the original transaction, u is its installed base transfer.
+const newerCaptureBranch = `b.organization_id=t.organization_id AND b.generation=t.generation
+ AND b.installation_id=t.installation_id AND b.capture_generation=json_extract(t.manifest_json,'$.capture_generation')
+ AND b.revision>CAST(json_extract(t.manifest_json,'$.base_revision') AS INTEGER)`;
+export const transactionAuditAnchorSql = `CASE WHEN EXISTS(SELECT 1 FROM business_sync_audit_branches b WHERE ${newerCaptureBranch})
+ THEN (SELECT b.last_hash FROM business_sync_audit_branches b WHERE ${newerCaptureBranch}) ELSE ${canonicalAuditHeadSql} END`;
 type Review = {
   transfer_id: string;
   algorithm_version: number;
@@ -69,6 +79,7 @@ export function transactionReviewValidatorHash() {
         gate,
         filesComplete,
         canonicalAuditHeadSql,
+        transactionAuditAnchorSql,
         h,
       ]),
     ),
@@ -224,8 +235,6 @@ export async function beginBusinessTransactionReview(
       'La préparation conservée ne correspond plus à cette transaction.',
       503,
     );
-  if (existing?.algorithm_version === TRANSACTION_REVIEW_VERSION)
-    return businessTransactionReviewStatus(session, tx.id);
   if (
     existing &&
     (!Number.isSafeInteger(existing.algorithm_version) ||
@@ -238,6 +247,10 @@ export async function beginBusinessTransactionReview(
     tx.manifest.bootstrap_transfer_id,
   );
   if (!base) fail('L’historique de référence n’est plus disponible.');
+  if (existing?.algorithm_version === TRANSACTION_REVIEW_VERSION && existing.source_revision === base.head_revision)
+    return businessTransactionReviewStatus(session, tx.id);
+  if (existing && existing.source_revision > base.head_revision)
+    fail('La préparation du dossier se réfère à une révision future.', 503);
   const source = await database()
     .prepare(
       "SELECT transfer_id FROM business_sync_transfers WHERE organization_id=? AND generation=? AND revision=? AND state='committed' AND kind IN ('bootstrap','transaction')",
@@ -274,13 +287,15 @@ export async function beginBusinessTransactionReview(
       'Une opération plus récente de cet appareil a déjà été enregistrée. Réconciliez ce journal avant de continuer.',
     );
   const observed = await database()
-    .prepare(`SELECT ${canonicalAuditHeadSql} audit_hash FROM business_sync_transfers u
-    WHERE u.organization_id=? AND u.generation=? AND u.revision=? AND u.state='committed'
+    .prepare(`SELECT ${transactionAuditAnchorSql} audit_hash FROM business_sync_transfers t JOIN business_sync_transfers u
+    ON u.organization_id=t.organization_id AND u.generation=t.generation
+    WHERE u.organization_id=? AND u.generation=? AND u.revision=? AND u.state='committed' AND t.transfer_id=?
     AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=?))`)
     .bind(
       session.organizationId,
       tx.manifest.generation,
       tx.manifest.base_revision,
+      tx.id,
       tx.manifest.bootstrap_transfer_id,
     )
     .first<{ audit_hash: string | null }>();
@@ -321,14 +336,15 @@ export async function beginBusinessTransactionReview(
     0,
   ];
   if (existing) {
-    // Upgrade only disposable state for this exact old attempt. Original
+    // Rebuild only disposable state for this exact old or stale attempt. Original
     // envelopes/files and committed history are never changed by a restart.
     const upgrade = `EXISTS(SELECT 1 FROM business_sync_transaction_reviews r
       JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
       JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
       JOIN business_sync_transfers u ON u.transfer_id=?8 AND u.organization_id=t.organization_id AND u.generation=t.generation
       WHERE t.transfer_id=?1 AND t.organization_id=?2 AND t.installation_id=?3 AND t.generation=?4 AND t.manifest_sha256=?5 AND t.kind='transaction' AND t.state='received'
-      AND r.attempt=?12 AND r.validator_sha256=?13 AND r.algorithm_version=?14 AND r.algorithm_version<${TRANSACTION_REVIEW_VERSION}
+      AND r.attempt=?12 AND r.validator_sha256=?13 AND r.algorithm_version=?14 AND r.algorithm_version<=${TRANSACTION_REVIEW_VERSION}
+      AND (r.algorithm_version<${TRANSACTION_REVIEW_VERSION} OR r.source_revision<?9)
       AND r.generation=t.generation AND r.manifest_sha256=t.manifest_sha256
       AND s.state='ready' AND s.head_revision=?9 AND u.state='committed' AND u.revision=?9 AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=s.bootstrap_transfer_id)) AND ${filesComplete})`;
     const bindings = [

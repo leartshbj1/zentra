@@ -109,7 +109,7 @@ impl Proofs {
         let next = match stage {
             Stage::Review => {
                 require(
-                    v["algorithm_version"] == 3
+                    v["algorithm_version"] == 4
                         && hash(&v["validator_sha256"])
                         && v["financial_validated"] == false
                         && matches!(

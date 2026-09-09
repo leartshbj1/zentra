@@ -12,7 +12,7 @@ import { database } from './runtime';
 import { transactionManifest } from './business-sync-transaction-format';
 import { readBusinessTransactionChunkBytes } from './business-sync-transaction-chunk';
 import { storedBlobPart } from './business-sync-blob-store';
-import { canonicalAuditHeadSql } from './business-sync-transaction-review';
+import { transactionAuditAnchorSql } from './business-sync-transaction-review';
 
 /** An immutable server record transported over authenticated HTTPS, not an Ed25519 token. */
 export type CanonicalTransactionReceipt = {
@@ -60,7 +60,7 @@ const eligible = `NOT EXISTS(SELECT 1 FROM business_sync_transaction_conflicts W
  AND CAST(x.first_sequence AS INTEGER)<=CAST(?26 AS INTEGER) AND CAST(x.last_sequence AS INTEGER)>=CAST(?30 AS INTEGER))
  AND EXISTS(SELECT 1 FROM business_sync_transfers t JOIN business_sync_transfers u ON u.organization_id=t.organization_id AND u.generation=t.generation
  AND u.revision=json_extract(t.manifest_json,'$.base_revision') AND u.state='committed'
- WHERE t.transfer_id=?1 AND ${canonicalAuditHeadSql} IS ?27)`;
+ WHERE t.transfer_id=?1 AND ${transactionAuditAnchorSql} IS ?27)`;
 const ours = `SELECT 1 FROM business_sync_transaction_commits c JOIN business_sync_transfers t ON t.transfer_id=c.transfer_id
  JOIN business_sync_spaces s ON s.organization_id=c.organization_id AND s.generation=c.generation
  WHERE c.transfer_id=?1 AND c.organization_id=?2 AND c.generation=?4 AND c.source_revision=?8 AND c.revision=?23 AND c.receipt_sha256=?22
