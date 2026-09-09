@@ -1,24 +1,24 @@
 @media screen {
   .guided-tour { z-index: 1200; }
-  .guided-tour__veil { background: #15261c55; backdrop-filter: blur(3px); }
-  .guided-tour__highlight { border: 2px solid #739f7b; border-radius: 14px; box-shadow: 0 0 0 9999px #15261c66; pointer-events: none; }
-  .guided-tour__card { position: fixed; inset: auto 24px 24px auto; display: flex; flex-direction: column; width: min(540px, calc(100vw - 48px)); max-height: calc(100dvh - 48px); padding: 28px; overflow: hidden; overscroll-behavior: contain; background: #fff; color: #23372a; border: 1px solid #e3eae2; border-radius: 24px; box-shadow: 0 28px 100px #10221933; }
+  .guided-tour__veil { background: #1d1d1f38; backdrop-filter: blur(3px); }
+  .guided-tour__highlight { border: 2px solid #739f7b; border-radius: 18px; box-shadow: 0 0 0 9999px #1d1d1f45; pointer-events: none; }
+  .guided-tour__card { position: fixed; inset: auto 24px 24px auto; display: flex; flex-direction: column; width: min(540px, calc(100vw - 48px)); max-height: calc(100dvh - 48px); padding: 30px; overflow: hidden; overscroll-behavior: contain; background: #fff; color: #1d1d1f; border: 1px solid #ffffffd9; border-radius: 30px; box-shadow: 0 28px 100px #17182133; }
   .guided-tour__card > :is(header, footer, label, .guided-tour__progress) { flex-shrink: 0; }
   .guided-tour__lesson { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
   .guided-tour__scroll-hint { flex-shrink: 0; min-height: 18px; margin: 8px 0; font-size: 12px; color: #6a7e65; text-align: center; }
   .guided-tour__card > header strong:focus { outline: none; }
   .guided-tour__card > header { display: flex; gap: 12px; align-items: flex-start; padding: 0; }
-  .guided-tour__card > header > span { background: #edf3e9; border: 0; border-radius: 14px; padding: 10px; }
+  .guided-tour__card > header > span { background: #f0f5f1; border: 0; border-radius: 16px; padding: 12px; }
   .guided-tour__card > header p { color: #69816c; font-size: 12px; text-transform: none; letter-spacing: 0; margin: 0 0 7px; }
-  .guided-tour__card > header strong { display: block; font-size: 25px; line-height: 1.2; font-weight: 550; letter-spacing: -.035em; }
+  .guided-tour__card > header strong { display: block; font-size: 27px; line-height: 1.2; font-weight: 600; letter-spacing: -.035em; }
   .guided-tour__card > header > button { flex-shrink: 0; margin-left: auto; min-width: 40px; min-height: 40px; border-radius: 50%; background: #f2f5f0; }
   .guided-tour__contents { display: grid; gap: 7px; margin: 22px 0 18px; color: #657368; font-size: 12px; }
-  .guided-tour__contents select { min-height: 44px; width: 100%; background: #f5f8f3; border: 1px solid #dfe8db; border-radius: 10px; font-size: 14px; color: #36523b; padding: 10px 12px; }
-  .guided-tour__text { padding: 0; font-size: 15px; line-height: 1.65; color: #5d6c61; margin: 0 0 20px; }
+  .guided-tour__contents select { min-height: 46px; width: 100%; background: #f5f5f7; border: 1px solid #e9e9ee; border-radius: 12px; font-size: 14px; color: #424249; padding: 10px 12px; }
+  .guided-tour__text { padding: 0; font-size: 16px; line-height: 1.65; color: #65656d; margin: 0 0 22px; }
   .guided-tour__actions { display: grid; gap: 17px; list-style: none; counter-reset: lesson; padding: 0; margin: 0 0 22px; }
-  .guided-tour__actions li { position: relative; counter-increment: lesson; padding-left: 38px; font-size: 15px; line-height: 1.6; color: #354b3c; }
+  .guided-tour__actions li { position: relative; counter-increment: lesson; padding-left: 38px; font-size: 15px; line-height: 1.6; color: #424249; }
   .guided-tour__actions li::before { content: counter(lesson); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #edf3e8; color: #48734c; font-size: 12px; font-weight: 600; }
-  .guided-tour__tip { margin: 0 0 24px; padding: 15px 17px; border-radius: 12px; background: #f5f7f3; color: #637264; font-size: 13px; line-height: 1.6; }
+  .guided-tour__tip { margin: 0 0 24px; padding: 16px 18px; border-radius: 16px; background: #f5f5f7; color: #65656d; font-size: 14px; line-height: 1.6; }
   .guided-tour__tip > span { display: block; font-size: 12px; font-weight: 600; color: #486347; margin-bottom: 4px; }
   .guided-tour__progress { gap: 14px; padding: 0; }
   .guided-tour__progress > span { height: 4px; background: #e6ede2; border-radius: 8px; }
@@ -40,3 +40,4 @@
 @media screen and (max-height: 500px) { .guided-tour__card { inset-block: 8px; max-height: calc(100dvh - 16px); } }
 @media (prefers-reduced-motion: no-preference) { .guided-tour__lesson { animation: guide-lesson-in 220ms ease-out; } .guided-tour__progress i { transition: width 260ms ease; } }
 @keyframes guide-lesson-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-transparency: reduce) { .guided-tour__veil { backdrop-filter: none; -webkit-backdrop-filter: none; } }

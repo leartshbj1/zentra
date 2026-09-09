@@ -1,5 +1,5 @@
 @media screen {
-  .document-preview.print-preview { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #e9efeb; z-index: 1200; outline: 0; }
+  .document-preview.print-preview { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #ebebef; z-index: 1200; outline: 0; }
   .document-preview__header { display: flex; align-items: center; gap: 14px; padding: max(16px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) 16px max(24px, env(safe-area-inset-left)); background: white; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
   .document-preview__icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 15px; background: #e7efe9; color: #24513b; flex-shrink: 0; }
   .document-preview__identity { flex: 1; min-width: 0; }
@@ -10,9 +10,9 @@
   .document-preview__draft-dot { width: 6px; height: 6px; border-radius: 50%; background: #a77123; }
   .document-preview__state.is-final { background: #e7efe9; color: #24513b; }
   .document-preview__header .button { flex-shrink: 0; min-width: 44px; }
-  .document-preview__controls { display: flex; gap: 18px; align-items: center; padding: 12px 24px; border-bottom: 1px solid #d7e1db; background: #f5f8f6; flex-shrink: 0; flex-wrap: wrap; }
-  .document-preview__modes { display: flex; gap: 4px; padding: 4px; border: 1px solid #d7e1db; background: #e7eee9; border-radius: 13px; }
-  .document-preview__modes button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; border: 0; border-radius: 9px; padding: 8px 14px; background: transparent; color: #5b7065; font-size: 14px; cursor: pointer; }
+  .document-preview__controls { display: flex; gap: 18px; align-items: center; padding: 14px 24px; border-bottom: 1px solid #e2e2e7; background: #f9f9fb; flex-shrink: 0; flex-wrap: wrap; }
+  .document-preview__modes { display: flex; gap: 4px; padding: 4px; border: 1px solid #e3e3e8; background: #ebebef; border-radius: 999px; }
+  .document-preview__modes button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; border: 0; border-radius: 999px; padding: 8px 18px; background: transparent; color: #65656d; font-size: 14px; cursor: pointer; }
   .document-preview__modes [aria-pressed="true"] { background: white; box-shadow: 0 2px 7px #173d2c0d; color: #173d2c; font-weight: 650; }
   .document-preview__zoom { display: flex; align-items: center; gap: 4px; }
   .document-preview__zoom output { min-width: 58px; text-align: center; font-variant-numeric: tabular-nums; font-size: 14px; }
@@ -22,13 +22,13 @@
   .document-preview__amount span { font-size: 12px; color: #5b7065; }
   .document-preview__amount strong { font-size: 20px; letter-spacing: -.03em; }
   .document-preview__body { display: flex; flex: 1; min-height: 0; }
-  .document-preview__outline { display: flex; flex-direction: column; flex: 0 0 220px; min-height: 0; padding: 28px 18px 18px; border-right: 1px solid #d7e1db; background: #f9fbfa; overflow-y: auto; }
+  .document-preview__outline { display: flex; flex-direction: column; flex: 0 0 220px; min-height: 0; padding: 28px 18px 18px; border-right: 1px solid #e1e1e6; background: #f5f5f7; overflow-y: auto; }
   .document-preview__outline-heading { display: flex; align-items: center; gap: 8px; padding: 0 8px 18px; font-size: 14px; color: #5b7065; }
   .document-preview__outline nav { display: grid; gap: 7px; }
   .document-preview__outline nav button { display: flex; align-items: center; gap: 12px; border: 1px solid transparent; border-radius: 12px; padding: 12px; min-height: 46px; font-size: 14px; text-align: left; background: transparent; color: #5b7065; cursor: pointer; }
   .document-preview__outline nav button span { font-size: 12px; font-variant-numeric: tabular-nums; color: #688272; }
   .document-preview__outline nav button:hover { background: #edf3ef; }
-  .document-preview__outline nav button[aria-current] { background: #e7efe9; border-color: #cbdcd0; color: #173d2c; font-weight: 650; box-shadow: inset 3px 0 #34664d; }
+  .document-preview__outline nav button[aria-current] { background: #fff; border-color: #fff; color: #244c35; font-weight: 600; box-shadow: 0 2px 8px #1d1d1f06; }
   .document-preview__document-info { display: grid; gap: 10px; margin: 28px 6px 20px; padding: 20px 14px; background: white; border: 1px solid #d7e1db; border-radius: 14px; color: #34664d; }
   .document-preview__document-info strong { font-size: 14px; }
   .document-preview__document-info span { font-size: 13px; line-height: 1.65; color: #5b7065; }
