@@ -5,6 +5,7 @@ use crate::business_sync::{outgoing, replay::reconciliation as merge};
 mod atomic;
 mod files;
 mod install;
+pub(crate) mod review;
 
 struct Revision {
     prepared: merge::Prepared,
@@ -13,6 +14,7 @@ struct Revision {
     manifest_sha256: String,
     receipt: Vec<u8>,
     files: Option<files::Plan>,
+    chunks: Vec<outgoing::Chunk>,
 }
 impl Revision {
     fn summary(&self, header: &Header) -> Value {
@@ -164,6 +166,7 @@ fn verify(
         manifest_sha256: digest(&manifest),
         receipt: raw,
         files,
+        chunks,
     })
 }
 
@@ -244,40 +247,7 @@ pub(crate) async fn process_with_installation<T: Transport + Send + Sync + 'stat
             return install::already_installed(&store, &raw);
         }
     }
-    let binding = Binding::read(&store, session.organization())?;
-    let after = binding.revision.to_string();
-    let raw = fetch(
-        session.as_ref(),
-        &store,
-        &binding,
-        &[
-            ("generation", &binding.generation),
-            ("after_revision", &after),
-        ],
-        64 * 1024,
-    )
-    .await?;
-    let discovery: Discovery = serde_json::from_slice(&raw)
-        .map_err(|_| invalid("La liste des révisions est illisible."))?;
-    discovery.validate(&binding)?;
-    let entry = discovery
-        .commits
-        .first()
-        .filter(|e| e.transaction_id == transaction_id)
-        .cloned()
-        .ok_or_else(|| {
-            invalid("Cette transaction n’est pas la prochaine révision à réconcilier.")
-        })?;
-    let folder = store
-        .data_dir
-        .join("business-reception")
-        .join(digest(&serde_json::to_vec(&binding)?))
-        .join(&transaction_id);
-    let header = Header {
-        version: 1,
-        binding,
-        entry,
-    };
+    let (folder, header) = next_received(&store, session.as_ref(), &transaction_id).await?;
     tauri::async_runtime::spawn_blocking(move || {
         if install {
             install::reconcile(
@@ -302,6 +272,51 @@ pub(crate) async fn process_with_installation<T: Transport + Send + Sync + 'stat
     })
     .await
     .map_err(|_| invalid("La préparation a été interrompue. Le dossier de travail est conservé."))?
+}
+
+async fn next_received(
+    store: &LocalStore,
+    session: &impl Transport,
+    transaction_id: &str,
+) -> AppResult<(PathBuf, Header)> {
+    if !uuid(transaction_id) {
+        return Err(invalid("Choisissez une transaction reçue valide."));
+    }
+    let binding = Binding::read(store, session.organization())?;
+    let after = binding.revision.to_string();
+    let raw = fetch(
+        session,
+        store,
+        &binding,
+        &[
+            ("generation", &binding.generation),
+            ("after_revision", &after),
+        ],
+        64 * 1024,
+    )
+    .await?;
+    let discovery: Discovery = serde_json::from_slice(&raw)
+        .map_err(|_| invalid("La liste des révisions est illisible."))?;
+    discovery.validate(&binding)?;
+    let entry = discovery
+        .commits
+        .first()
+        .filter(|e| e.transaction_id == transaction_id)
+        .cloned()
+        .ok_or_else(|| {
+            invalid("Cette transaction n’est pas la prochaine révision à réconcilier.")
+        })?;
+    let folder = store
+        .data_dir
+        .join("business-reception")
+        .join(digest(&serde_json::to_vec(&binding)?))
+        .join(transaction_id);
+    let header = Header {
+        version: 1,
+        binding,
+        entry,
+    };
+    Ok((folder, header))
 }
 
 #[cfg(test)]

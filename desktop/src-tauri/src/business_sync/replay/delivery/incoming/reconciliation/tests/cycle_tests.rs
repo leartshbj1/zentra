@@ -3,6 +3,7 @@ use crate::business_sync::{cycle, outgoing::transport as sender};
 use std::sync::{Arc, Mutex};
 
 mod business_commands;
+mod conflict_review;
 
 struct Server {
     header: Header,

@@ -13,7 +13,7 @@ fn pending(store: &LocalStore) -> outgoing::Prepared {
         .unwrap()
         .unwrap()
 }
-fn changes(p: &outgoing::Prepared) -> Vec<RowChange> {
+pub(super) fn changes(p: &outgoing::Prepared) -> Vec<RowChange> {
     p.manifest
         .chunks
         .iter()

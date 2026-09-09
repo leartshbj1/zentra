@@ -60,6 +60,15 @@ pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option
 }
 
 impl ProjectSyncSession {
+    /// Bind a local conflict review to this protected device session without
+    /// exposing its credential. Reconnecting requires a fresh comparison.
+    pub(crate) fn comparison_binding(&self) -> String {
+        let mut hash = Sha256::new();
+        hash.update(b"zentra-conflict-account-session-v1\0");
+        hash.update(self.token.as_bytes());
+        format!("{:x}", hash.finalize())
+    }
+
     /// Download one immutable protocol resource without buffering a larger body
     /// than its caller's declared bound. Authentication stays on the fixed origin.
     pub(crate) async fn get_bounded(&self, path: &str, query: &[(&str, &str)], limit: u64) -> AppResult<Vec<u8>> {

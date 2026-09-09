@@ -5,6 +5,7 @@ use std::path::Path;
 mod cache;
 mod model;
 mod native;
+pub(crate) mod resolution;
 pub(super) use model::Acknowledgement;
 pub(super) use native::internal_fingerprint;
 

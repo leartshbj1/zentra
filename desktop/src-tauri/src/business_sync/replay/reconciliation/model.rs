@@ -541,6 +541,29 @@ pub(super) fn prepare(
     acknowledgement: Option<&Acknowledgement>,
     remote: impl IntoIterator<Item = AppResult<RowChange>>,
 ) -> AppResult<Model> {
+    prepare_with_choices(
+        store,
+        source,
+        context,
+        capture,
+        cache,
+        acknowledgement,
+        remote,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prepare_with_choices(
+    store: &LocalStore,
+    source: &Connection,
+    context: &Context,
+    capture: &str,
+    cache: Option<&Path>,
+    acknowledgement: Option<&Acknowledgement>,
+    remote: impl IntoIterator<Item = AppResult<RowChange>>,
+    choices: Option<&std::collections::BTreeMap<String, super::resolution::Choice>>,
+) -> AppResult<Model> {
     let directory = crate::business_sync::workspace::Workspace::new(store, "reconciliation-model")?;
     let mut c = Connection::open(directory.path().join("model.sqlite"))?;
     c.pragma_update(None, "temp_store", "FILE")?;
@@ -560,7 +583,8 @@ pub(super) fn prepare(
         CREATE TABLE remote_changes(position INTEGER PRIMARY KEY,table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,before_json TEXT,after_json TEXT);
         CREATE TABLE planned_changes(position INTEGER PRIMARY KEY,table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,before_json TEXT,after_json TEXT);
         CREATE TABLE row_aliases(capture_generation TEXT NOT NULL,sequence INTEGER NOT NULL,original_sha256 TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,PRIMARY KEY(capture_generation,sequence));
-        CREATE TABLE overlay_transactions(position INTEGER PRIMARY KEY,transaction_id TEXT NOT NULL,source_sha256 TEXT NOT NULL,target_sha256 TEXT NOT NULL);")?;
+        CREATE TABLE overlay_transactions(position INTEGER PRIMARY KEY,transaction_id TEXT NOT NULL,source_sha256 TEXT NOT NULL,target_sha256 TEXT NOT NULL);
+        CREATE TABLE conflicting_transactions(transaction_id TEXT PRIMARY KEY,sequence INTEGER NOT NULL,table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,expected_json TEXT,current_json TEXT,incoming_json TEXT);")?;
     aliases_from_native(source, &tx)?;
     rows_from_native(source, &tx)?;
     let current_sha256 = fingerprint(&tx, "current_rows")?;
@@ -589,10 +613,23 @@ pub(super) fn prepare(
     apply_remote(&tx, context, remote)?;
     tx.execute("INSERT INTO merged_rows SELECT * FROM canonical_rows", [])?;
     let ids=tx.prepare("SELECT transaction_id FROM pending_changes GROUP BY transaction_id ORDER BY MIN(sequence)")?.query_map([],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
+    if let Some(choices) = choices {
+        let pending_ids = ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+        require(
+            choices.keys().all(|id| {
+                pending_ids.contains(id.as_str())
+                    && acknowledgement.is_none_or(|ack| ack.transaction_id != *id)
+            }),
+            "Un choix ne correspond plus à une transaction locale en attente.",
+        )?;
+    }
     let mut conflicts = Vec::new();
     let mut conflict_count = 0;
     for id in ids {
         if acknowledgement.is_some_and(|ack| ack.transaction_id == id) {
+            continue;
+        }
+        if choices.and_then(|c| c.get(&id)) == Some(&super::resolution::Choice::Shared) {
             continue;
         }
         let before_sha256 = fingerprint(&tx, "merged_rows")?;
@@ -601,23 +638,47 @@ pub(super) fn prepare(
             tx.prepare("SELECT * FROM pending_changes WHERE transaction_id=?1 ORDER BY sequence")?;
         let mut rows = query.query([&id])?;
         let mut conflict = None;
+        let mut applied = false;
         while let Some(r) = rows.next()? {
-            let e = event(r)?;
+            let mut e = event(r)?;
+            if choices.and_then(|c| c.get(&id)) == Some(&super::resolution::Choice::Local) {
+                // The preview uses the selected local image against the actual
+                // canonical row. Only this disposable model changes: journal
+                // events and ordinary outgoing envelopes remain immutable.
+                e.before = row(&tx, "merged_rows", &e.table, &e.key)?.map(|r| r.1);
+                if e.before == e.after {
+                    continue;
+                }
+            }
             if let Some(found) = apply_local(&tx, &e, false)? {
-                conflict = Some(found);
+                let current = row(&tx, "merged_rows", &e.table, &e.key)?.map(|r| r.1);
+                conflict = Some((found, e.before, current, e.after));
                 break;
             }
             tx.execute("INSERT INTO row_aliases SELECT ?1,?2,?3,canonical_rowid FROM planned_changes WHERE position=?2",params![capture,e.sequence,e.sha])?;
+            applied = true;
         }
         drop(rows);
         drop(query);
-        if let Some(found) = conflict {
+        if let Some((found, before, current, after)) = conflict {
             tx.execute_batch("ROLLBACK TO local_overlay")?;
+            tx.execute(
+                "INSERT INTO conflicting_transactions VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![
+                    found.transaction_id,
+                    found.sequence,
+                    found.table,
+                    found.key_json,
+                    before,
+                    current,
+                    after
+                ],
+            )?;
             conflict_count += 1;
             if conflicts.len() < 20 {
                 conflicts.push(found);
             }
-        } else {
+        } else if applied {
             tx.execute("INSERT INTO overlay_transactions(transaction_id,source_sha256,target_sha256) VALUES(?1,?2,?3)",params![id,before_sha256,fingerprint(&tx,"merged_rows")?])?;
         }
         tx.execute_batch("RELEASE local_overlay")?;

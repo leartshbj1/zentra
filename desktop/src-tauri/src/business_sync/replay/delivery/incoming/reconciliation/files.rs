@@ -12,6 +12,48 @@ pub(super) struct Plan {
     pub stage: crate::business_sync::workspace::Workspace,
 }
 impl Plan {
+    pub fn preview(&self, store: &LocalStore) -> AppResult<merge::resolution::DocumentReview> {
+        let mut hash = Sha256::new();
+        hash.update(b"zentra-business-resolution-documents-v1\0");
+        let replacements: BTreeMap<_, _> = self
+            .steps
+            .iter()
+            .map(|step| ((step.root.as_str(), step.path.as_str()), step))
+            .collect();
+        let mut total_size_bytes = 0u64;
+        for file in &self.final_files {
+            let replacement = replacements.get(&(file.root.as_str(), file.path.as_str()));
+            let expected = replacement.map_or(Some(&file.after), |step| step.before.as_ref());
+            if journal::stamp(&journal::target(store, file, false)?)?.as_ref() != expected {
+                return Err(invalid(
+                    "Un document local a changé pendant la comparaison. Actualisez les choix.",
+                ));
+            }
+            if replacement.is_some()
+                && journal::stamp(&self.stage.path().join("files").join(&file.after.sha256))?
+                    .as_ref()
+                    != Some(&file.after)
+            {
+                return Err(invalid(
+                    "Une copie de document a changé pendant la comparaison.",
+                ));
+            }
+            total_size_bytes = total_size_bytes
+                .checked_add(file.after.size_bytes)
+                .ok_or_else(|| invalid("Les documents dépassent la taille autorisée."))?;
+            // Each line binds the path, final bytes and prior bytes (or their
+            // absence). Only counts and the digest leave this private plan.
+            hash.update(serde_json::to_vec(&(file, replacement))?);
+            hash.update(b"\n");
+        }
+        Ok(merge::resolution::DocumentReview {
+            final_count: self.final_files.len(),
+            files_to_replace: self.steps.len(),
+            total_size_bytes,
+            plan_sha256: format!("{:x}", hash.finalize()),
+        })
+    }
+
     pub fn verify_final(&self, store: &LocalStore) -> AppResult<()> {
         for s in &self.final_files {
             if journal::stamp(&journal::target(store, s, false)?)?.as_ref() != Some(&s.after) {
