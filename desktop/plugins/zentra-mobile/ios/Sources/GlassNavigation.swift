@@ -72,7 +72,8 @@ final class GlassNavigation: UIStackView {
         outgoing.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for: .systemFont(ofSize: 11, weight: .medium), maximumPointSize: 15)
         return outgoing
       }
-      button.tintColor = UIColor(red: 0.14, green: 0.36, blue: 0.25, alpha: 1)
+      // Keep secondary controls legible as the system changes the glass appearance.
+      button.tintColor = active ? UIColor(red: 0.14, green: 0.36, blue: 0.25, alpha: 1) : .label
       button.configuration = config
       button.accessibilityTraits = active ? [.button, .selected] : [.button]
       button.showsLargeContentViewer = true

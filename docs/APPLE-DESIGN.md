@@ -8,6 +8,8 @@ La présentation web et les surfaces React utilisent des fonds neutres, le vert 
 
 Le plugin Tauri transmet les sélections par un Channel, limité aux quatre destinations. Le menu HTML reste présent tant que UIKit n'a pas confirmé sa disponibilité. Les anciennes installations et anciens iOS gardent les contrôles web. La navigation native se masque devant les fenêtres modales, le menu, le clavier et lors du rechargement web. Les boutons exposent leurs noms, sélection et grandes étiquettes d'accessibilité. Le système Apple gère les préférences de transparence et d'animation du matériau.
 
+La teinte verte distingue uniquement la destination sélectionnée. Les autres boutons utilisent `UIColor.label`, la couleur sémantique du système, pour suivre les apparences claire et sombre. Un scénario XCTest couvre aussi le retour à cette couleur après un changement de sélection ; son exécution attend le rétablissement du runner macOS.
+
 ## Validation
 
 - `design-experience-journey.mjs` : navigation, devis et factures, export simulé et reprise d'erreur, focus, réduction des animations, 320/390/768/1440 px.
@@ -23,3 +25,4 @@ Au 9 septembre 2026, les validations web locales passent. La tentative GitHub Ac
 - [UIButton.Configuration](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct) : styles `glass()` et `prominentGlass()`.
 - [Build a UIKit app with the new design — WWDC25](https://developer.apple.com/videos/play/wwdc2025/284/) : intégration des contrôles UIKit et regroupement dans les barres.
 - [Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/liquid-glass) : principes et exemple Landmarks.
+- [Materials — Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/materials) : variantes du matériau, couleurs sémantiques et adaptation aux réglages de transparence et de contraste.

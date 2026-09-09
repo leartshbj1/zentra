@@ -22,12 +22,19 @@ final class NavigationTests: XCTestCase {
     }
     let projects = dock.arrangedSubviews[1] as! UIButton
     XCTAssertTrue(projects.accessibilityTraits.contains(.selected))
+    let home = dock.arrangedSubviews[0] as! UIButton
+    for style in [UIUserInterfaceStyle.light, .dark] {
+      let traits = UITraitCollection(userInterfaceStyle: style)
+      XCTAssertEqual(home.tintColor.resolvedColor(with: traits), UIColor.label.resolvedColor(with: traits))
+    }
     projects.sendActions(for: .touchUpInside)
     XCTAssertEqual(destination, "projects")
     NotificationCenter.default.post(name: UIResponder.keyboardWillShowNotification, object: nil)
     XCTAssertTrue(dock.isHidden)
     dock.configure(selected: "quotes", visible: true)
     XCTAssertTrue(dock.isHidden, "Updates must not reopen controls above the keyboard")
+    XCTAssertFalse(projects.accessibilityTraits.contains(.selected))
+    XCTAssertEqual(projects.tintColor, UIColor.label, "Previously selected controls return to the system text color")
     NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil)
     XCTAssertFalse(dock.isHidden)
     dock.configure(selected: "quotes", visible: false)
