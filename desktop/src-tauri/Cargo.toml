@@ -66,6 +66,9 @@ jni = "0.21"
 ndk-context = "0.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSCell", "NSControl", "NSLayoutAnchor", "NSLayoutConstraint", "NSLayoutGuide", "NSResponder", "NSSegmentedControl", "NSView", "NSWindow", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSObject", "NSString", "NSGeometry"] }
 core-foundation = "0.10"
 keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
 security-framework = "3.7"

@@ -5,6 +5,8 @@ import './styles.css';
 import './workspace-design.css';
 import './mobile.css';
 import './experience.css';
+import './workspace-shell.css';
+import './guided-tour.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Le point de montage de l’application est introuvable.');

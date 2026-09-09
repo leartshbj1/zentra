@@ -4,11 +4,29 @@ import {
   guidedTourSteps,
   type TourView,
 } from './GuidedTour';
+import { guideLessons, restoredGuideIndex } from './guideLessons';
 
 describe('guide interactif', () => {
+  it('reprend un sujet existant et ignore une progression inconnue ou supprimée', () => {
+    const ids = guidedTourSteps.map((step) => step.id);
+    expect(restoredGuideIndex(ids, 'invoices')).toBe(ids.indexOf('invoices'));
+    expect(restoredGuideIndex(ids, null)).toBe(0);
+    expect(restoredGuideIndex(ids, 'removed-lesson')).toBe(0);
+    expect(restoredGuideIndex(ids, '999')).toBe(0);
+  });
+  it('accompagne chaque écran avec trois actions et un conseil', () => {
+    for (const step of [...guidedTourSteps, ...automaticGuidedTourSteps]) {
+      const lesson = guideLessons[step.id];
+      expect(lesson.chapter).toBeTruthy();
+      expect(lesson.actions).toHaveLength(3);
+      expect(lesson.actions.every((action) => action.length > 20)).toBe(true);
+      expect(lesson.tip.length).toBeGreaterThan(30);
+    }
+  });
   it('couvre chaque module clé du menu', () => {
     const expectedViews: TourView[] = [
       'dashboard',
+      'agenda',
       'projects',
       'clients',
       'catalog',

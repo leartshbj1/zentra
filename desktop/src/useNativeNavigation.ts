@@ -3,9 +3,10 @@ import { Channel, invoke, isTauri } from '@tauri-apps/api/core';
 
 declare const __ZENTRA_PLATFORM__: string;
 export type NativeDestination = 'dashboard' | 'projects' | 'quotes' | 'menu';
+export const isNativeMacOS = typeof __ZENTRA_PLATFORM__ !== 'undefined' && __ZENTRA_PLATFORM__ === 'macos';
 const destinations: readonly string[] = ['dashboard', 'projects', 'quotes', 'menu'];
 
-/** Keep the web navigation until UIKit confirms that its controls exist. */
+/** Keep the web controls until AppKit or UIKit confirms its native navigation. */
 export function useNativeNavigation(selected: NativeDestination, visible: boolean, onNavigate: (destination: NativeDestination) => void) {
   const [available, setAvailable] = useState(false);
   const current = useRef({ selected, visible, onNavigate });
@@ -13,7 +14,7 @@ export function useNativeNavigation(selected: NativeDestination, visible: boolea
   const synchronize = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (typeof __ZENTRA_PLATFORM__ === 'undefined' || __ZENTRA_PLATFORM__ !== 'ios' || !isTauri()) return;
+    if (typeof __ZENTRA_PLATFORM__ === 'undefined' || !['ios', 'macos'].includes(__ZENTRA_PLATFORM__) || !isTauri()) return;
     let disposed = false;
     let pending = Promise.resolve();
     const hasDialog = () => [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].some((node) => node.getClientRects().length > 0);
@@ -25,7 +26,7 @@ export function useNativeNavigation(selected: NativeDestination, visible: boolea
       pending = pending.then(async () => {
         const state = current.current;
         try {
-          const result = await invoke<{ available: boolean }>('plugin:zentra-mobile|configure_navigation', {
+          const result = await invoke<{ available: boolean }>(isNativeMacOS ? 'configure_macos_navigation' : 'plugin:zentra-mobile|configure_navigation', {
             selected: state.selected, visible: !disposed && state.visible && !hasDialog(), onNavigate: channel,
           });
           if (!disposed) setAvailable(result.available);

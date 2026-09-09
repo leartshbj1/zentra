@@ -39,6 +39,8 @@ import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
 import '../src/experience.css';
+import '../src/workspace-shell.css';
+import '../src/guided-tour.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
 let data = {
