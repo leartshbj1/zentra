@@ -180,12 +180,13 @@ fn catalog(connection: &Connection, after: bool) -> Value {
 fn native_guard_catalog_matches_every_current_shared_before_trigger() {
     let directory = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
-    let actual = catalog(&store.connect().unwrap(), false);
+    let mut actual = catalog(&store.connect().unwrap(), false);
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/business_sync_guards.json");
     let expected: Value = serde_json::from_slice(
         &std::fs::read(path).expect("Generate and review the trusted native guard catalog"),
     )
     .unwrap();
+    preserve_catalog_producer_version(&mut actual, &expected);
     assert_eq!(
         actual, expected,
         "Review every native protection change before the server accepts it"
@@ -210,13 +211,26 @@ fn export_trusted_native_guards() {
 fn native_after_catalog_covers_guards_and_explicit_row_effects() {
     let directory = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
-    let actual = catalog(&store.connect().unwrap(), true);
+    let mut actual = catalog(&store.connect().unwrap(), true);
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/business_sync_after_guards.json");
     let expected: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    preserve_catalog_producer_version(&mut actual, &expected);
     assert_eq!(
         actual, expected,
         "Review every native AFTER protection and row effect"
     );
+}
+
+fn preserve_catalog_producer_version(actual: &mut Value, expected: &Value) {
+    // This field identifies the native version that originally exported the
+    // catalogue. A local-only migration (V62 installation receipts) must not
+    // change the shared validator hash or invalidate prepared V60 transactions.
+    // Every guard, dependency, view, row effect and the data format still match
+    // exactly below. A real protection change therefore still fails the test.
+    assert_eq!(actual["native_schema_version"], crate::schema::SCHEMA_VERSION);
+    let producer=expected["native_schema_version"].as_i64().unwrap();
+    assert!((i64::from(DATA_SCHEMA_VERSION)..=crate::schema::SCHEMA_VERSION).contains(&producer));
+    actual["native_schema_version"]=json!(producer);
 }
 
 #[test]

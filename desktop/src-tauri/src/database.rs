@@ -1481,13 +1481,18 @@ impl LocalStore {
             operation_lock: Arc::new(Mutex::new(())),
         };
         store.migrate()?;
+        crate::business_sync::replay::delivery::incoming::installation::journal::recover(&store)?;
         Ok(store)
     }
 
     pub fn lock(&self) -> AppResult<MutexGuard<'_, ()>> {
-        self.operation_lock.lock().map_err(|_| {
+        let guard = self.operation_lock.lock().map_err(|_| {
             AppError::Validation("Le verrou de la base locale est indisponible.".into())
-        })
+        })?;
+        // A failed file recovery must be resolved before another ordinary
+        // operation can modify this profile and invalidate its rollback evidence.
+        crate::business_sync::replay::delivery::incoming::installation::journal::recover(self)?;
+        Ok(guard)
     }
 
     pub fn connect(&self) -> AppResult<Connection> {
@@ -1802,6 +1807,10 @@ impl LocalStore {
         }
         if current < 61 {
             crate::document_parent_guards::migrate(&transaction)?;
+        }
+        if current < 62 {
+            transaction.execute_batch(include_str!("business_sync_installed.sql"))?;
+            transaction.pragma_update(None,"user_version",62)?;
         }
         transaction.commit()?;
         if moves_plaintext_license {

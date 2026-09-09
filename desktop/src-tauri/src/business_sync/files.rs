@@ -75,11 +75,11 @@ struct Receipt {
     files: Vec<RetainedFile>,
 }
 
-struct Reference {
-    root: &'static str,
-    path: String,
-    sha256: Option<String>,
-    size: Option<u64>,
+pub(in crate::business_sync) struct Reference {
+    pub root: &'static str,
+    pub path: String,
+    pub sha256: Option<String>,
+    pub size: Option<u64>,
 }
 
 fn text<'a>(row: &'a Value, name: &str) -> AppResult<&'a str> {
@@ -107,7 +107,7 @@ fn managed_name(reference: &str, folder: &str) -> AppResult<String> {
     Ok(path)
 }
 
-fn reference(table: &str, row: &Value) -> AppResult<Option<Reference>> {
+pub(in crate::business_sync) fn reference(table: &str, row: &Value) -> AppResult<Option<Reference>> {
     let (root, path, hash_field, size_field) = match table {
         "attachments" => (
             "attachments",

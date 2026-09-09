@@ -17,6 +17,7 @@ use std::{
 };
 use tauri::State;
 mod storage;
+pub(crate) mod installation;
 use storage::{assemble, cached, directory, read, write};
 
 const API: &str = "/api/sync/transactions/commit";
@@ -47,6 +48,9 @@ impl Binding {
         }
         let _lock = store.lock()?;
         let c = store.connect()?;
+        Self::from_connection(&c,store,organization)
+    }
+    fn from_connection(c: &rusqlite::Connection, store: &LocalStore, organization: &str) -> AppResult<Self> {
         let result: Option<Self> = c.query_row(
             "SELECT b.organization_id,b.installation_id,b.generation,h.server_generation,h.source_transfer_id,COALESCE(c.revision,1) FROM business_sync_binding b JOIN business_sync_baseline h ON h.id=b.id AND h.organization_id=b.organization_id LEFT JOIN business_sync_cursor c ON c.id=b.id WHERE b.id=1 AND b.capture_enabled=1 AND (c.id IS NULL OR (c.organization_id=b.organization_id AND c.generation=h.server_generation)) AND NOT EXISTS(SELECT 1 FROM business_sync_publication_intent)",
             [], |r| Ok(Self { organization:r.get(0)?, installation:r.get(1)?, capture:r.get(2)?, generation:r.get(3)?, bootstrap:r.get(4)?, revision:r.get(5)? })).optional()?;
@@ -540,6 +544,7 @@ fn verify_downloaded(folder: &Path, expected_header: &Header) -> AppResult<()> {
 /// Installation must freshly pin this header to server discovery and hold the
 /// working-profile gate when replacing data. This prepares only a disposable
 /// candidate and rejects pending local changes through the existing replay gate.
+#[cfg(test)]
 fn staged_candidate(store: &LocalStore, folder: &Path, header: &Header) -> AppResult<Candidate> {
     if Binding::read(store, &header.binding.organization)? != header.binding {
         return Err(invalid("La révision installée a changé."));

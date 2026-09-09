@@ -1,7 +1,9 @@
 //! Verified canonical positions accompany the original immutable transaction.
-//! This builds only a disposable candidate; it never installs or acknowledges.
+//! Decode them for guarded native replay; decoding never acknowledges a change.
+#[cfg(test)]
+use super::{build, Candidate};
 use super::{
-    build, invalid, Candidate, Context, RowChange, MAX_BYTES, MAX_ROWS, MAX_ROW_BYTES,
+    invalid, Context, RowChange, MAX_BYTES, MAX_ROWS, MAX_ROW_BYTES,
     STATE_FINGERPRINT_VERSION,
 };
 use crate::{
@@ -448,6 +450,7 @@ impl Decoder {
         Ok(())
     }
 }
+#[cfg(test)]
 pub(super) fn prepare_candidate(
     store: &LocalStore,
     expected: &Expected,
@@ -455,12 +458,18 @@ pub(super) fn prepare_candidate(
     manifest: &[u8],
     parts: impl IntoIterator<Item = AppResult<(Vec<u8>, Vec<u8>)>>,
 ) -> AppResult<Candidate> {
-    let mut decoder = Decoder::new(bundle, manifest, expected)?;
+    let decoder = Decoder::new(bundle, manifest, expected)?;
     let context = decoder.context();
+    build(store, &context, decoded_parts(decoder, parts))
+}
+fn decoded_parts(
+    mut decoder: Decoder,
+    parts: impl IntoIterator<Item=AppResult<(Vec<u8>, Vec<u8>)>>,
+) -> impl Iterator<Item=AppResult<RowChange>> {
     let mut parts = parts.into_iter();
     let mut queued = VecDeque::new();
     let mut finished = false;
-    let changes = std::iter::from_fn(move || {
+    std::iter::from_fn(move || {
         if let Some(row) = queued.pop_front() {
             return Some(Ok(row));
         }
@@ -487,8 +496,7 @@ pub(super) fn prepare_candidate(
                 decoder.finish().err().map(Err)
             }
         }
-    });
-    build(store, &context, changes)
+    })
 }
 
 #[cfg(test)]

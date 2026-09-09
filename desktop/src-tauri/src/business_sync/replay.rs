@@ -1,14 +1,18 @@
-//! Prepare a native database candidate without modifying the working database.
-//! This is not a commit receipt, an acknowledgement, or an installation API.
+//! Replay canonical rows with native guards, either into a disposable candidate
+//! or inside the recoverable installer's SQLite transaction. No acknowledgement.
 use super::{identifier, json_image, json_key, policy, TablePolicy};
 use crate::{
     database::LocalStore,
     error::{AppError, AppResult},
 };
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension};
+#[cfg(test)]
+use rusqlite::TransactionBehavior;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, fs, time::Duration};
+use std::collections::BTreeSet;
+#[cfg(test)]
+use std::{fs, time::Duration};
 pub(crate) mod delivery;
 
 const MAX_ROWS: usize = 200_000;
@@ -56,6 +60,7 @@ pub(super) struct Context {
     pub source_state_sha256: String,
     pub target_state_sha256: String,
 }
+#[cfg(test)]
 pub(super) struct Candidate {
     _directory: tempfile::TempDir,
     store: LocalStore,
@@ -65,6 +70,7 @@ pub(super) struct Candidate {
     pub statements: usize,
     pub automatic: usize,
 }
+#[cfg(test)]
 impl Candidate {
     pub(super) fn database_path(&self) -> &std::path::Path {
         &self.store.database_path
@@ -203,6 +209,7 @@ fn local_fingerprint(connection: &Connection) -> AppResult<String> {
 }
 /// Content and canonical row order, independent of local-only tables. The
 /// server receipt must bind this digest to the exact source/target revision.
+#[cfg(test)]
 pub(super) fn state_fingerprint(connection: &Connection) -> AppResult<String> {
     let mut hash = StateFingerprint::new();
     for (table, rule) in policy()?.tables {
@@ -312,6 +319,7 @@ fn check_context(connection: &Connection, store: &LocalStore, context: &Context)
 
 /// The iterator comes from verified, bounded chunks. The caller remains
 /// responsible for authentication, receipt/hash/file checks and installation.
+#[cfg(test)]
 pub(super) fn build(
     store: &LocalStore,
     context: &Context,
@@ -349,13 +357,49 @@ pub(super) fn build(
     check_context(&connection, &copied, context)?;
     connection.pragma_update(None, "temp_store", "FILE")?;
     let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let applied = apply_rows(&tx, &copied, context, input)?;
+    tx.commit()?;
+    let integrity: String = connection.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
+    if integrity != "ok" {
+        return Err(invalid(
+            "La copie préparée n'a pas passé le contrôle d'intégrité.",
+        ));
+    }
+    connection.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
+    drop(connection);
+    Ok(Candidate {
+        _directory: directory,
+        store: copied,
+        before_sha256: applied.before_sha256,
+        after_sha256: applied.after_sha256,
+        changes: applied.changes,
+        statements: applied.statements,
+        automatic: applied.automatic,
+    })
+}
+
+pub(super) struct Applied {
+    pub before_sha256: String,
+    pub after_sha256: String,
+    pub changes: usize,
+    pub statements: usize,
+    pub automatic: usize,
+}
+
+/// The caller owns the transaction: append the durable installation receipt and
+/// cursor before committing. An error rolls back rows, native effects and capture.
+pub(super) fn apply_rows(
+    tx: &rusqlite::Transaction<'_>, store: &LocalStore, context: &Context,
+    input: impl IntoIterator<Item=AppResult<RowChange>>,
+) -> AppResult<Applied> {
+    check_context(tx,store,context)?;
     tx.execute_batch("CREATE TEMP TABLE receive_expected(table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(table_name,row_key_json),UNIQUE(table_name,canonical_rowid));
         CREATE TEMP TABLE receive_actual(table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(table_name,row_key_json),UNIQUE(table_name,canonical_rowid));
         CREATE TEMP TABLE receive_changes(position INTEGER PRIMARY KEY,table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,before_json TEXT,after_json TEXT);
         CREATE TEMP TABLE receive_document_queue AS SELECT rowid AS local_rowid,* FROM project_document_sync;")?;
-    snapshot(&tx, "receive_expected")?;
-    let local_before_sha256 = local_fingerprint(&tx)?;
-    let before_sha256 = fingerprint(&tx, "receive_expected")?;
+    snapshot(tx, "receive_expected")?;
+    let local_before_sha256 = local_fingerprint(tx)?;
+    let before_sha256 = fingerprint(tx, "receive_expected")?;
     if before_sha256 != context.source_state_sha256 {
         return Err(invalid(
             "La copie locale ne correspond pas à l'empreinte de la révision partagée.",
@@ -381,12 +425,12 @@ pub(super) fn build(
         let before = row
             .before_json
             .as_deref()
-            .map(|v| normalize(&tx, rule, &row.key_json, v))
+            .map(|v| normalize(tx, rule, &row.key_json, v))
             .transpose()?;
         let after = row
             .after_json
             .as_deref()
-            .map(|v| normalize(&tx, rule, &row.key_json, v))
+            .map(|v| normalize(tx, rule, &row.key_json, v))
             .transpose()?;
         if before == after {
             return Err(invalid("La transaction contient une écriture vide."));
@@ -422,12 +466,12 @@ pub(super) fn build(
     if changes == 0 {
         return Err(invalid("La transaction reçue est vide."));
     }
-    if fingerprint(&tx, "receive_expected")? != context.target_state_sha256 {
+    if fingerprint(tx, "receive_expected")? != context.target_state_sha256 {
         return Err(invalid(
             "Les changements reçus ne produisent pas la révision attendue.",
         ));
     }
-    // Suppress only outgoing capture on the disposable copy. Native BEFORE,
+    // Suppress only outgoing capture inside this atomic transaction. Native BEFORE,
     // AFTER, foreign keys and financial constraints remain enabled throughout.
     tx.execute(
         "UPDATE business_sync_binding SET capture_enabled=0 WHERE id=1",
@@ -445,7 +489,7 @@ pub(super) fn build(
             let before: Option<String> = row.get(3)?;
             let after: Option<String> = row.get(4)?;
             let rule = &contract.tables[&table];
-            let actual = current(&tx, &table, rule, &key)?;
+            let actual = current(tx, &table, rule, &key)?;
             if actual.as_ref().map(|r| r.1.as_str()) != before.as_deref() {
                 if actual.as_ref().map(|r| r.1.as_str()) == after.as_deref()
                     && actual.as_ref().is_none_or(|r| r.0 == rowid)
@@ -511,7 +555,7 @@ pub(super) fn build(
                 _ => return Err(invalid("L'écriture reçue est incomplète.")),
             }
             statements += 1;
-            let actual = current(&tx, &table, rule, &key)?;
+            let actual = current(tx, &table, rule, &key)?;
             if actual.as_ref().map(|r| r.1.as_str()) != after.as_deref()
                 || actual.as_ref().is_some_and(|r| r.0 != rowid)
             {
@@ -521,9 +565,9 @@ pub(super) fn build(
             }
         }
     }
-    snapshot(&tx, "receive_actual")?;
-    let after_sha256 = fingerprint(&tx, "receive_actual")?;
-    if after_sha256 != fingerprint(&tx, "receive_expected")? {
+    snapshot(tx, "receive_actual")?;
+    let after_sha256 = fingerprint(tx, "receive_actual")?;
+    if after_sha256 != fingerprint(tx, "receive_expected")? {
         return Err(invalid(
             "Le résultat natif contient une modification absente de la transaction reçue.",
         ));
@@ -531,7 +575,7 @@ pub(super) fn build(
     // Suppress transport echo from the two native document-queue triggers, then
     // verify every local table and foreign key in the final candidate state.
     tx.execute_batch("DELETE FROM project_document_sync; INSERT INTO project_document_sync(rowid,document_id,project_id,state,last_error,attempts,updated_at) SELECT * FROM receive_document_queue; UPDATE business_sync_binding SET capture_enabled=1 WHERE id=1;")?;
-    if local_fingerprint(&tx)? != local_before_sha256 {
+    if local_fingerprint(tx)? != local_before_sha256 {
         return Err(invalid("La réception modifierait des données propres à cet appareil. Le travail local est conservé."));
     }
     let foreign_keys: i64 =
@@ -543,26 +587,10 @@ pub(super) fn build(
             "Le résultat natif contient une relation incohérente.",
         ));
     }
-    crate::audit::verify_audit_chain(&tx)?;
-    tx.commit()?;
-    let integrity: String = connection.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
-    if integrity != "ok" {
-        return Err(invalid(
-            "La copie préparée n'a pas passé le contrôle d'intégrité.",
-        ));
-    }
-    connection.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
-    drop(connection);
-    Ok(Candidate {
-        _directory: directory,
-        store: copied,
-        before_sha256,
-        after_sha256,
-        changes,
-        statements,
-        automatic,
-    })
+    crate::audit::verify_audit_chain(tx)?;
+    Ok(Applied { before_sha256, after_sha256, changes, statements, automatic })
 }
+
 
 #[cfg(test)]
 pub(super) mod tests;

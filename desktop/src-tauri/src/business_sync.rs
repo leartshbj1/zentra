@@ -2,14 +2,12 @@
 //! Network activation is deliberately gated by the authoritative bootstrap.
 
 /// Shared table and wire format, independent of the local migration counter.
-/// Local V61 only tightens update guards; prepared V60 transfers stay compatible.
+/// Local V61 tightens guards; V62 records installed receipts. Shared V60 stays compatible.
 pub(crate) const DATA_SCHEMA_VERSION: u32 = 60;
 
 pub(crate) mod files;
 pub(crate) mod snapshot;
 pub(crate) mod outgoing;
-// Remove this expectation when recoverable installation calls the builder.
-#[cfg_attr(not(test), expect(dead_code, reason = "Receipt download is enabled; recoverable candidate installation remains under construction"))]
 pub(crate) mod replay;
 
 #[cfg(test)]
@@ -220,6 +218,7 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                 "business_sync_baseline",
                 "business_sync_publication_intent",
                 "business_sync_cursor",
+                "business_sync_installed_revisions",
             ]
             .contains(&table.as_str())
     }) {
@@ -498,7 +497,8 @@ mod tests {
                         "business_sync_receipts",
                         "business_sync_baseline",
                         "business_sync_publication_intent",
-                        "business_sync_cursor"
+                        "business_sync_cursor",
+                        "business_sync_installed_revisions"
                     ]
                     .contains(&table.as_str()),
                 "Unclassified table: {table}"

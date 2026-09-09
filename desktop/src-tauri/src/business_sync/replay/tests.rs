@@ -126,7 +126,7 @@ pub(in crate::business_sync) fn verify_candidate(
     );
 }
 
-fn setup_with(before_bind: impl FnOnce(&LocalStore)) -> (tempfile::TempDir, LocalStore, Context) {
+pub(in crate::business_sync) fn setup_with(before_bind: impl FnOnce(&LocalStore)) -> (tempfile::TempDir, LocalStore, Context) {
     let directory = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
     store

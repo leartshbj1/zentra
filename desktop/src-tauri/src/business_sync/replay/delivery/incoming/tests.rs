@@ -164,6 +164,7 @@ fn downloads_actual_d1_revision_then_builds_a_native_candidate() {
         target.execute("UPDATE business_sync_binding SET organization_id=?1,installation_id=?2,generation=?3 WHERE id=1",rusqlite::params![organization,store.installation_id,Uuid::new_v4().to_string()]).unwrap();
         target.execute("UPDATE business_sync_baseline SET organization_id=?1,server_generation=?2 WHERE id=1",rusqlite::params![organization,generation]).unwrap();
         drop(target);
+        store.migrate().unwrap();
         fake.organization = organization.into();
         fake.responses.clear();
         for (kind, name) in [
