@@ -93,6 +93,8 @@ import * as transactionValidationHttp from '../app/api/sync/transactions/validat
 import * as fingerprintHttp from '../app/api/sync/transactions/fingerprint/route';
 import * as deliveryHttp from '../app/api/sync/transactions/delivery/route';
 import * as commitHttp from '../app/api/sync/transactions/commit/route';
+import * as retirementHttp from '../app/api/sync/transactions/retirement/route';
+import { businessRetirement, retireBusinessTransactions } from './business-sync-retirement';
 import { committedBusinessTransactionFile } from './business-sync-committed-files';
 import {
   commitBusinessTransaction,
@@ -578,7 +580,9 @@ it('fingerprints the validated source and candidate without publishing either, a
   });
   expect(await fingerprintBusinessTransaction(f.actor, id)).toEqual(final);
   expect((await historyHead(f.actor)).head_revision).toBe(1);
-});
+  // Includes staging, projection, full validation and multi-page fingerprints for
+  // 135 rows. Allow the bounded fixture to finish under full-suite contention.
+}, 20_000);
 it('fingerprint checkpoint failure leaves the same page available for retry', async () => {
   const f = await receiveTransaction(await transactionFixture());
   const id = f.manifest.transaction_id;
@@ -815,6 +819,118 @@ async function commitReady(parts?: TransactionChange[][]) {
     );
   return f;
 }
+
+async function retirementFixture(sequence = '2', parts = [[transactionInsert(sequence, 'client-retired')]]) {
+  const first = await commitReady([[transactionInsert('1', 'client-established')]]);
+  await commitBusinessTransaction(first.actor, first.manifest.transaction_id);
+  const next = await transactionFixture(parts, first.receipt);
+  next.actor = first.actor;
+  next.manifest.installation_id = first.actor.installationId;
+  next.manifest.capture_generation = first.manifest.capture_generation;
+  await deliveryReady(next);
+  await prepareBusinessTransactionDelivery(next.actor, next.manifest.transaction_id);
+  const body = {
+    resolution_id: crypto.randomUUID(), generation: next.manifest.generation,
+    capture_generation: next.manifest.capture_generation,
+    first_sequence: next.manifest.first_sequence, last_sequence: next.manifest.last_sequence,
+    base_revision: 2,
+    receipt_sha256: db.prepare('SELECT receipt_sha256 FROM business_sync_transaction_commits WHERE transfer_id=?').get(first.manifest.transaction_id)!.receipt_sha256 as string,
+    review_id: 'a'.repeat(64), decision_sha256: 'b'.repeat(64),
+  };
+  return { first, next, body };
+}
+
+it('retirement preserves originals, blocks their late publication and permits later replacement events', async () => {
+  const f = await retirementFixture();
+  const original = db.prepare('SELECT manifest_json FROM business_sync_transfers WHERE transfer_id=?').get(f.next.manifest.transaction_id);
+  const parts = db.prepare('SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?').all(f.next.manifest.transaction_id);
+  const result = await retireBusinessTransactions(f.next.actor, f.body);
+  expect(result).toMatchObject({ retired: true, business_revision_changed: false, transaction_acknowledged: false, ...f.body });
+  await expect(beginBusinessTransaction(f.next.actor, JSON.stringify(f.next.manifest))).rejects.toMatchObject({ status: 409 });
+  await expect(commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).rejects.toMatchObject({ status: 409 });
+  expect(count('business_sync_transaction_commits')).toBe(1);
+  expect(db.prepare('SELECT manifest_json FROM business_sync_transfers WHERE transfer_id=?').get(f.next.manifest.transaction_id)).toEqual(original);
+  expect(db.prepare('SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?').all(f.next.manifest.transaction_id)).toEqual(parts);
+  const replacement = await transactionFixture([[transactionInsert('3', 'client-retired')]], f.first.receipt);
+  replacement.actor = f.next.actor;
+  replacement.manifest.installation_id = f.next.actor.installationId;
+  replacement.manifest.capture_generation = f.next.manifest.capture_generation;
+  await deliveryReady(replacement);
+  await prepareBusinessTransactionDelivery(replacement.actor, replacement.manifest.transaction_id);
+  expect((await commitBusinessTransaction(replacement.actor, replacement.manifest.transaction_id)).revision).toBe(3);
+  // Re-reading a lost response must recover the same proof even after the head advances.
+  expect(await retireBusinessTransactions(f.next.actor, f.body)).toEqual(result);
+  expect(await businessRetirement(f.next.actor, f.body.resolution_id)).toEqual(result);
+  await expect(retireBusinessTransactions(f.next.actor, { ...f.body, decision_sha256: 'c'.repeat(64) })).rejects.toMatchObject({ status: 409 });
+});
+
+it('retirement wins atomically against a previously prepared commit', async () => {
+  const f = await retirementFixture();
+  beforeBatch = async sql => {
+    if (!sql.some(s => s.startsWith('INSERT OR IGNORE INTO business_sync_transaction_commits'))) return;
+    beforeBatch = undefined;
+    await retireBusinessTransactions(f.next.actor, f.body);
+  };
+  await expect(commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).rejects.toThrow();
+  expect(count('business_sync_retirements')).toBe(1);
+  expect(count('business_sync_transaction_commits')).toBe(1);
+  expect(db.prepare('SELECT head_revision FROM business_sync_spaces WHERE organization_id=?').get(f.next.actor.organizationId)?.head_revision).toBe(2);
+});
+
+it('retirement refuses to discard an operation whose commit won the race', async () => {
+  const f = await retirementFixture();
+  beforeRun = async sql => {
+    if (!sql.startsWith('INSERT OR IGNORE INTO business_sync_retirements')) return;
+    beforeRun = undefined;
+    expect((await commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).revision).toBe(3);
+  };
+  await expect(retireBusinessTransactions(f.next.actor, f.body)).rejects.toThrow();
+  expect(count('business_sync_retirements')).toBe(0);
+  expect(count('business_sync_transaction_commits')).toBe(2);
+});
+
+it('retirement keeps sequence boundaries exact beyond JavaScript precision', async () => {
+  const f = await retirementFixture('9007199254740993');
+  expect((await retireBusinessTransactions(f.next.actor, f.body)).first_sequence).toBe('9007199254740993');
+  await expect(commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).rejects.toThrow();
+  const neighbor = { ...f.body, resolution_id: crypto.randomUUID(), first_sequence: '9007199254740994', last_sequence: '9007199254740994' };
+  expect((await retireBusinessTransactions(f.next.actor, neighbor)).last_sequence).toBe('9007199254740994');
+  await expect(retireBusinessTransactions(f.next.actor, { ...f.body, resolution_id: crypto.randomUUID() })).rejects.toThrow();
+});
+
+it('retirement rejects a partial transaction, a stale receipt, another organization and read-only decisions', async () => {
+  const f = await retirementFixture('2', [[transactionInsert('2', 'one-operation-a'), transactionInsert('3', 'one-operation-b')]]);
+  for (const patch of [
+    { last_sequence: '2' }, { first_sequence: '1' }, { base_revision: 3 },
+    { receipt_sha256: 'f'.repeat(64) }, { generation: crypto.randomUUID() },
+    { last_sequence: 3 }, { first_sequence: '02' }, { last_sequence: '9223372036854775808' },
+    { organization_id: 'org_other' },
+  ]) await expect(retireBusinessTransactions(f.next.actor, { ...f.body, ...patch })).rejects.toThrow();
+  await expect(retireBusinessTransactions({ ...f.next.actor, role: 'read_only' }, f.body)).rejects.toMatchObject({ status: 403 });
+  await expect(retireBusinessTransactions({ ...f.next.actor, organizationId: 'org_other' }, f.body)).rejects.toThrow();
+  expect(count('business_sync_retirements')).toBe(0);
+  const result = await retireBusinessTransactions(f.next.actor, f.body);
+  await expect(businessRetirement(second, f.body.resolution_id)).rejects.toMatchObject({ status: 404 });
+  expect(await businessRetirement(f.next.actor, f.body.resolution_id)).toEqual(result);
+});
+
+it('retirement routes require authentication, bound body size and private responses', async () => {
+  mocks.session.mockRejectedValueOnce(new AccountPublicError('Connexion requise.', 401));
+  const denied = await retirementHttp.GET(new Request('https://test.invalid/api/sync/transactions/retirement?resolution_id=' + crypto.randomUUID()));
+  expect(denied.status).toBe(401);
+  expect(denied.headers.get('cache-control')).toContain('no-store');
+  const f = await retirementFixture();
+  mocks.session.mockResolvedValue(f.next.actor);
+  const post = (body: unknown) => retirementHttp.POST(new Request('https://test.invalid/api/sync/transactions/retirement', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+  expect((await post({ text: 'x'.repeat(5000) })).status).toBe(413);
+  const saved = await post(f.body);
+  expect(saved.status).toBe(200);
+  expect(saved.headers.get('cache-control')).toContain('no-store');
+  expect(await saved.json()).toMatchObject({ retired: true, transaction_acknowledged: false });
+  const recovered = await retirementHttp.GET(new Request('https://test.invalid/api/sync/transactions/retirement?resolution_id=' + f.body.resolution_id));
+  expect(recovered.status).toBe(200);
+  expect(recovered.headers.get('cache-control')).toContain('no-store');
+});
 it('commits one exact canonical receipt, candidate and capture branch atomically', async () => {
   const f = await commitReady(),
     id = f.manifest.transaction_id;

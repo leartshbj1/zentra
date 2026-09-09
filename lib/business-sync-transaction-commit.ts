@@ -56,6 +56,8 @@ const eligible = `NOT EXISTS(SELECT 1 FROM business_sync_transaction_conflicts W
  AND NOT EXISTS(SELECT 1 FROM business_sync_transfers t JOIN json_each(t.manifest_json,'$.files') f WHERE t.transfer_id=?1
  AND NOT EXISTS(SELECT 1 FROM business_sync_file_blobs b WHERE b.transfer_id=t.transfer_id AND b.sha256=json_extract(f.value,'$.sha256') AND b.size_bytes=json_extract(f.value,'$.size_bytes') AND b.verified_at IS NOT NULL))
  AND (${branchEligible})
+ AND NOT EXISTS(SELECT 1 FROM business_sync_retirements x WHERE x.organization_id=?2 AND x.generation=?4 AND x.installation_id=?3 AND x.capture_generation=?25
+ AND CAST(x.first_sequence AS INTEGER)<=CAST(?26 AS INTEGER) AND CAST(x.last_sequence AS INTEGER)>=CAST(?30 AS INTEGER))
  AND EXISTS(SELECT 1 FROM business_sync_transfers t JOIN business_sync_transfers u ON u.organization_id=t.organization_id AND u.generation=t.generation
  AND u.revision=json_extract(t.manifest_json,'$.base_revision') AND u.state='committed'
  WHERE t.transfer_id=?1 AND ${canonicalAuditHeadSql} IS ?27)`;

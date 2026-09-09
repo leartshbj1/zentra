@@ -8,6 +8,7 @@ import {
 } from './business-sync-transaction-format';
 import { readBytesBodyWithinLimit } from './request-body';
 import { database, fileArchive } from './runtime';
+import { requireUnretiredTransaction } from './business-sync-retirement';
 
 function fail(message: string, status = 409): never {
   throw new AccountPublicError(message, status);
@@ -187,6 +188,7 @@ export async function beginBusinessTransaction(
       'La copie initiale et la révision de cette transaction doivent être installées avant son envoi.',
     );
   const hash = await sha256Hex(raw as string);
+  await requireUnretiredTransaction(session, manifest);
   await database()
     .prepare(`INSERT OR IGNORE INTO business_sync_transfers
       (transfer_id,organization_id,installation_id,created_by,generation,kind,state,base_revision,manifest_json,manifest_sha256,created_at)
