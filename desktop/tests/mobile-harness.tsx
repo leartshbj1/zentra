@@ -12,6 +12,7 @@ import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
 import { installBusinessCycleFixture } from './business-cycle-fixture';
+import { installBusinessConflictFixture } from './business-conflict-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -171,6 +172,7 @@ if (new URLSearchParams(location.search).has('wizard')) {
   };
 }
 const cycleAccount = new URLSearchParams(location.search).has('businessCycle') ? installBusinessCycleFixture(() => data) : undefined;
+if (cycleAccount && new URLSearchParams(location.search).has('businessConflicts')) installBusinessConflictFixture();
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

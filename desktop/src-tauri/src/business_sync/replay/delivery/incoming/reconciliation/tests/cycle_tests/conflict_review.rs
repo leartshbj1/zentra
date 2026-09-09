@@ -219,6 +219,59 @@ fn conflict_review_checks_both_document_choices_and_rejects_missing_or_changed_b
         .await
         .unwrap();
         assert_eq!(reopened, saved);
+        let listed = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::ListSaved {
+                review_id: report["review_id"].as_str().unwrap().into(),
+            },
+            "d".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert_eq!(listed["proposals"].as_array().unwrap().len(), 1);
+        assert_eq!(listed["proposals"][0]["resolution_id"], proposal_id);
+        assert!(listed["proposals"][0].get("decisions").is_none());
+        assert!(review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::ListSaved {
+                review_id: report["review_id"].as_str().unwrap().into()
+            },
+            "e".repeat(64)
+        )
+        .await
+        .is_err());
+        let other_review = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::Inspect {
+                after_sequence: None,
+                review_id: None,
+            },
+            "e".repeat(64),
+        )
+        .await
+        .unwrap();
+        let other_list = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::ListSaved {
+                review_id: other_review["review_id"].as_str().unwrap().into(),
+            },
+            "e".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert!(other_list["proposals"].as_array().unwrap().is_empty());
         assert_eq!(
             review::process_with_transport(
                 local.clone(),
@@ -458,6 +511,62 @@ fn conflict_review_rechecks_received_proofs_and_never_installs_its_preview() {
         .unwrap();
         assert_eq!(report["state"], "conflict_review");
         assert_eq!(report["transaction_id"], transaction_id);
+        let rows_request = || merge::resolution::details::RowsRequest {
+            review_id: report["review_id"].as_str().unwrap().into(),
+            local_transaction_id: report["transactions"][0]["transaction_id"]
+                .as_str()
+                .unwrap()
+                .into(),
+            after_sequence: None,
+        };
+        let details = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction_id.clone(),
+            Action::Changes(rows_request()),
+            "d".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            details["change_count"],
+            report["transactions"][0]["change_count"]
+        );
+        assert!(review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction_id.clone(),
+            Action::Changes(rows_request()),
+            "e".repeat(64)
+        )
+        .await
+        .is_err());
+        let client = details["changes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["table"] == "clients")
+            .unwrap();
+        let text = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction_id.clone(),
+            Action::Text(merge::resolution::details::TextRequest {
+                review_id: report["review_id"].as_str().unwrap().into(),
+                local_transaction_id: rows_request().local_transaction_id,
+                sequence: client["sequence"].as_str().unwrap().into(),
+                image: merge::resolution::details::Image::Local,
+                field: "name".into(),
+                offset: 0,
+            }),
+            "d".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert_eq!(text["text"], "Choix local");
         assert_eq!(
             report["transactions"][0]["conflict"]["local"]["fields"]["name"]["value"],
             "Choix local"

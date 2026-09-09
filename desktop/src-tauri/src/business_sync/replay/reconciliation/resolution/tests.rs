@@ -181,6 +181,185 @@ fn explicit_review_shows_three_images_and_transaction_scope_without_leaking_into
 }
 
 #[test]
+fn every_deleted_quote_line_is_reviewable_with_exact_unicode_text_and_bound_pages() {
+    let description = format!("Conditions\n{}\nFin", "é🧾".repeat(5_001));
+    let (root, store, mut context) = replay::tests::setup_with(|s| {
+        let client = s
+            .create_record("clients", json!({"name":"Client du devis de comparaison"}))
+            .unwrap();
+        s.save_document_with_items(crate::models::SaveDocumentWithItemsInput {
+            entity:"quotes".into(), id:None,
+            data:json!({"client_id":client["id"],"title":"Devis initial","currency":"CHF"}),
+            items:(0..7).map(|n| json!({"description":if n==0 {description.clone()} else {format!("Prestation {n}")},"quantity":1,"unit":"forfait","unit_price_cents":5_000,"discount_bp":0,"vat_bp":0})).collect(),
+        }).unwrap();
+    });
+    let (remote_root, remote) = replay::tests::copy_receiver(&store);
+    let quote: String = store
+        .connect()
+        .unwrap()
+        .query_row("SELECT id FROM quotes", [], |r| r.get(0))
+        .unwrap();
+    store.delete_record("quotes", &quote).unwrap();
+    remote
+        .update_record(
+            "quotes",
+            &quote,
+            json!({"title":"Devis modifié par le collègue"}),
+        )
+        .unwrap();
+    let sent = outgoing::prepare_next(&remote, "org-replay", "owner")
+        .unwrap()
+        .unwrap();
+    context.target_state_sha256 = state_fingerprint(&remote.connect().unwrap()).unwrap();
+    let capture: String = store
+        .connect()
+        .unwrap()
+        .query_row("SELECT generation FROM business_sync_binding", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let prepared = super::super::prepare(
+        &store,
+        &context,
+        &capture,
+        None,
+        super::super::tests::changes(&sent).into_iter().map(Ok),
+        || Ok(()),
+    )
+    .unwrap();
+    let f = Fixture {
+        _roots: (root, remote_root),
+        store,
+        prepared,
+        context,
+        capture,
+        receipt: "a".repeat(64),
+        account: "d".repeat(64),
+        object: quote,
+    };
+    let original = evidence(&f.store);
+    assert!(f.prepared.model.conflict_count > 0);
+    let id = f.ids()[0].clone();
+    let review_id = review_id(&f.prepared, &f.scope()).unwrap();
+    let mut after = None;
+    let mut changes = Vec::new();
+    loop {
+        let result = details::rows(
+            &f.prepared,
+            &f.scope(),
+            details::RowsRequest {
+                review_id: review_id.clone(),
+                local_transaction_id: id.clone(),
+                after_sequence: after,
+            },
+        )
+        .unwrap();
+        let page = result["changes"].as_array().unwrap();
+        assert!(page.len() <= 3);
+        changes.extend(page.clone());
+        after = result["next_after_sequence"].as_str().map(str::to_owned);
+        if after.is_none() {
+            assert_eq!(
+                changes.len(),
+                result["change_count"].as_u64().unwrap() as usize
+            );
+            break;
+        }
+    }
+    assert_eq!(
+        changes
+            .iter()
+            .filter(|r| r["table"] == "quote_items")
+            .count(),
+        7
+    );
+    assert!(changes.iter().any(|r| r["table"] == "quotes"
+        && r["local"].is_null()
+        && r["shared"]["fields"]["title"]["value"] == "Devis modifié par le collègue"));
+    assert!(changes.iter().any(|r| r["table"] == "audit_log"));
+    let row = changes
+        .iter()
+        .find(|r| r["base"]["fields"]["description"]["truncated"] == true)
+        .unwrap();
+    let sequence = row["sequence"].as_str().unwrap().to_owned();
+    let mut offset = 0;
+    let mut full = String::new();
+    loop {
+        let part = details::text(
+            &f.prepared,
+            &f.scope(),
+            details::TextRequest {
+                review_id: review_id.clone(),
+                local_transaction_id: id.clone(),
+                sequence: sequence.clone(),
+                image: details::Image::Base,
+                field: "description".into(),
+                offset,
+            },
+        )
+        .unwrap();
+        assert!(part["text"].as_str().unwrap().chars().count() <= 8_000);
+        full.push_str(part["text"].as_str().unwrap());
+        let Some(next) = part["next_offset"].as_u64() else {
+            break;
+        };
+        offset = next as usize;
+    }
+    assert_eq!(full, description);
+    for (expected, transaction, after) in [
+        ("f".repeat(64), id.clone(), None),
+        (review_id.clone(), Uuid::new_v4().to_string(), None),
+        (review_id.clone(), id.clone(), Some(i64::MAX.to_string())),
+        (review_id.clone(), id.clone(), Some("0".into())),
+    ] {
+        assert!(details::rows(
+            &f.prepared,
+            &f.scope(),
+            details::RowsRequest {
+                review_id: expected,
+                local_transaction_id: transaction,
+                after_sequence: after
+            }
+        )
+        .is_err());
+    }
+    for (image, field, offset) in [
+        (details::Image::Local, "description", 0),
+        (details::Image::Base, "unknown", 0),
+        (details::Image::Base, "description", usize::MAX),
+    ] {
+        assert!(details::text(
+            &f.prepared,
+            &f.scope(),
+            details::TextRequest {
+                review_id: review_id.clone(),
+                local_transaction_id: id.clone(),
+                sequence: sequence.clone(),
+                image,
+                field: field.into(),
+                offset
+            }
+        )
+        .is_err());
+    }
+    let mut reader = f.scope();
+    reader.role = "read_only";
+    let read = inspect(&f.prepared, &reader, None, None).unwrap();
+    assert_eq!(read["can_choose"], false);
+    assert!(details::rows(
+        &f.prepared,
+        &reader,
+        details::RowsRequest {
+            review_id: read["review_id"].as_str().unwrap().into(),
+            local_transaction_id: id,
+            after_sequence: None
+        }
+    )
+    .is_ok());
+    assert_eq!(evidence(&f.store), original);
+}
+
+#[test]
 fn both_choices_pass_native_guards_but_cannot_install_or_acknowledge_the_original_transaction() {
     let f = fixture(0, false);
     let original = evidence(&f.store);
@@ -360,6 +539,18 @@ fn comparison_cells_and_page_cursors_are_bounded_without_changing_original_image
         2_000
     );
     assert_eq!(image["fields"]["notes"]["truncated"], true);
+    let different_tail = display_image(Some(
+        json!({"notes":format!("{}fin", "é".repeat(2_000))}).to_string(),
+    ))
+    .unwrap();
+    assert_eq!(
+        image["fields"]["notes"]["value"],
+        different_tail["fields"]["notes"]["value"]
+    );
+    assert_ne!(
+        image["fields"]["notes"]["text_sha256"],
+        different_tail["fields"]["notes"]["text_sha256"]
+    );
     assert_eq!(image["fields"]["amount_cents"]["value"], 900);
     assert_eq!(display_image(None).unwrap(), Value::Null);
     let exact = display_image(Some(

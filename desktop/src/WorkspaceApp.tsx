@@ -496,7 +496,7 @@ export function WorkspaceApp({
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
   const businessCycle = useBusinessCycleBackground({
-    accountScope: `${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}`,
+    accountScope: `${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}:${cloudAccount?.sessionBinding}`,
     connected: cloudAccount?.status === 'connected',
     onWorkspace: next => { workspaceRef.current = next; setWorkspace(next); },
     canInstall: () => !businessWorkspaceLocked() && !businessActivityPending()

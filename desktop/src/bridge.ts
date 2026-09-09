@@ -10,7 +10,7 @@ import { fileBase64 } from './projectDocuments';
 import type { ProjectSyncStatus } from './projectSync';
 import type { BusinessBootstrapStatus } from './businessBootstrapScheduler';
 import type { BusinessCycleState, BusinessCycleStatus, BusinessHistorySelection } from './businessCycleScheduler';
-import type { BusinessConflictReview, BusinessResolutionPreview, BusinessResolutionRequest, BusinessResolutionSaved } from './businessConflictReview';
+import type { BusinessConflictReview, BusinessConflictChangesRequest, BusinessConflictChanges, BusinessConflictTextRequest, BusinessConflictText, BusinessSavedResolutions, BusinessResolutionPreview, BusinessResolutionRequest, BusinessResolutionSaved } from './businessConflictReview';
 import type { NumberingStatus } from './numberingScheduler';
 import type { BusinessHistoryState, BusinessHistoryReception } from './businessHistoryState';
 import type { CloudBackupState } from './cloudBackup';
@@ -227,6 +227,7 @@ export type CloudAccountState = {
   organizationName?: string;
   role?: 'owner' | 'admin' | 'accountant' | 'member' | 'read_only';
   sessionExpiresAt?: string;
+  sessionBinding?: string;
   userCode?: string;
   verificationUri?: string;
   authorizationExpiresAt?: string;
@@ -332,6 +333,7 @@ function cloudAccountStateFromRaw(raw: RawRecord): CloudAccountState {
       ? (role as CloudAccountState['role'])
       : undefined,
     sessionExpiresAt: stringValue(raw.sessionExpiresAt) || undefined,
+    sessionBinding: stringValue(raw.sessionBinding) || undefined,
     userCode: stringValue(raw.userCode) || undefined,
     verificationUri: stringValue(raw.verificationUri) || undefined,
     authorizationExpiresAt:
@@ -4762,8 +4764,14 @@ export const desktopApi = {
   syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
   syncBusinessBootstrap: () => invoke<BusinessBootstrapStatus>('sync_business_bootstrap'),
   getBusinessCycleState: () => invoke<BusinessCycleState>('get_business_cycle_state'),
-  inspectBusinessConflicts: (transactionId: string, page?: { afterSequence: string; reviewId: string }) =>
+  inspectBusinessConflicts: (transactionId: string, page?: { afterSequence?: string; reviewId: string }) =>
     invoke<BusinessConflictReview>('inspect_business_conflicts', { transactionId, afterSequence: page?.afterSequence ?? null, reviewId: page?.reviewId ?? null }),
+  inspectBusinessConflictChanges: (transactionId: string, request: BusinessConflictChangesRequest) =>
+    invoke<BusinessConflictChanges>('inspect_business_conflict_changes', { transactionId, request }),
+  readBusinessConflictText: (transactionId: string, request: BusinessConflictTextRequest) =>
+    invoke<BusinessConflictText>('read_business_conflict_text', { transactionId, request }),
+  listSavedBusinessResolutions: (transactionId: string, reviewId: string) =>
+    invoke<BusinessSavedResolutions>('list_saved_business_resolutions', { transactionId, reviewId }),
   previewBusinessResolution: (transactionId: string, request: BusinessResolutionRequest) =>
     invoke<BusinessResolutionPreview>('preview_business_resolution', { transactionId, request }),
   saveBusinessResolution: (transactionId: string, resolutionId: string, request: BusinessResolutionRequest) =>

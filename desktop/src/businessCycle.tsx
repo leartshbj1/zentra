@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { createContext, lazy, Suspense, useContext, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { Cloud, LoaderCircle, Pause, RefreshCw } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -20,7 +20,8 @@ type State = {
   status?: BusinessCycleStatus;
   error?: string;
 };
-type Controls = State & { enable: () => void; pause: () => void; wake: () => void };
+type Controls = State & { accountScope: string; enable: () => void; pause: () => void; wake: () => void };
+const BusinessConflictDialog = lazy(() => import('./BusinessConflictDialog'));
 export const BusinessCycleContext = createContext<Controls | null>(null);
 let previousDrain: Promise<void> = Promise.resolve();
 let drainPending = false;
@@ -160,7 +161,7 @@ export function useBusinessCycleBackground(options: {
       void draining.finally(() => { if (previousDrain === draining) drainPending = false; });
     };
   }, [options.accountScope, options.connected]);
-  return { ...state, enable: () => commands.current.enable(), pause: () => commands.current.pause(), wake: () => commands.current.wake() };
+  return { ...state, accountScope: options.accountScope, enable: () => commands.current.enable(), pause: () => commands.current.pause(), wake: () => commands.current.wake() };
 }
 
 export function businessCycleLabel(state: Pick<State, 'enabled' | 'online' | 'status'>): string {
@@ -181,10 +182,14 @@ export function businessCycleLabel(state: Pick<State, 'enabled' | 'online' | 'st
 }
 export function BusinessCycleControls({ compact = false }: { compact?: boolean }) {
   const cycle = useContext(BusinessCycleContext);
+  const [reviewOpen, setReviewOpen] = useState<string>();
   if (!cycle) return null;
   if (cycle.phase !== 'ready') return compact ? null : <div className="business-cycle-controls"><p role="status">{cycle.error || (cycle.phase === 'loading' ? 'Recherche du dossier à synchroniser…' : 'Connectez le compte de cette entreprise pour synchroniser ce dossier.')}</p><Button size="small" variant="ghost" disabled={cycle.working} onClick={cycle.wake}>Vérifier la connexion</Button></div>;
   if (compact) return <details className="business-cycle-disclosure"><summary><Cloud size={15} />{businessCycleLabel(cycle)}{cycle.error ? ' · À vérifier' : ''}</summary><BusinessCycleControls /></details>;
   const held = cycle.status?.state === 'conflict' || cycle.status?.state === 'invalid';
+  const detail = cycle.status?.detail;
+  const transaction = cycle.status?.state === 'conflict' && detail?.state === 'reconciliation_conflict' && typeof detail.transaction_id === 'string' ? detail.transaction_id : undefined;
+  const reviewKey = transaction ? `${cycle.accountScope}:${cycle.selection?.generation}:${cycle.selection?.capture_generation}:${transaction}` : undefined;
   return <div className="business-cycle-controls">
     <div role="status"><Cloud size={16} /><strong>{businessCycleLabel(cycle)}</strong></div>
     {!compact && <p>{held
@@ -193,12 +198,14 @@ export function BusinessCycleControls({ compact = false }: { compact?: boolean }
         ? 'Enregistrez et fermez la saisie en cours. L’application reprendra depuis les listes ou l’accueil.'
         : 'Les données et documents de cette entreprise seront échangés sur cet appareil. Après une coupure, les envois reprendront au retour du réseau.'}</p>}
     <div className="business-cycle-actions">
+      {transaction && <Button size="small" disabled={cycle.working || !cycle.online} onClick={() => setReviewOpen(reviewKey)}>Comparer les modifications</Button>}
       <Button size="small" variant="secondary" disabled={cycle.working} onClick={cycle.enabled && !cycle.error ? cycle.wake : cycle.enable}>
         <RefreshCw size={15} />{cycle.error || held ? 'Réessayer' : cycle.enabled ? 'Synchroniser' : 'Activer sur cet appareil'}
       </Button>
       {cycle.enabled && <Button size="small" variant="ghost" disabled={cycle.working} onClick={cycle.pause}><Pause size={15} /> Pause</Button>}
     </div>
     {cycle.error && <p role="alert" className="business-history-error">{cycle.error}</p>}
+    {transaction && reviewKey === reviewOpen && <Suspense fallback={<output>Ouverture de la comparaison…</output>}><BusinessConflictDialog key={reviewKey} transactionId={transaction} onClose={() => setReviewOpen(undefined)} /></Suspense>}
   </div>;
 }
 

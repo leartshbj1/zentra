@@ -258,10 +258,20 @@ pub struct CloudAccountState {
     organization_name: Option<String>,
     role: Option<String>,
     session_expires_at: Option<String>,
+    session_binding: Option<String>,
     user_code: Option<String>,
     verification_uri: Option<String>,
     authorization_expires_at: Option<String>,
     interval_seconds: Option<u64>,
+}
+
+// Public UI identity, never an authentication credential. It changes even if
+// a different user reconnects to the same company with the same role/expiry.
+fn ui_session_binding(token: &str) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"zentra-ui-account-session-v1\0");
+    hash.update(token.as_bytes());
+    format!("{:x}", hash.finalize())
 }
 
 impl CloudAccountState {
@@ -272,6 +282,7 @@ impl CloudAccountState {
             organization_name: None,
             role: None,
             session_expires_at: None,
+            session_binding: None,
             user_code: None,
             verification_uri: None,
             authorization_expires_at: None,
@@ -292,6 +303,7 @@ impl CloudAccountState {
             organization_name: Some(session.organization_name.clone()),
             role: Some(session.role.clone()),
             session_expires_at: Some(session.session_expires_at.clone()),
+            session_binding: Some(ui_session_binding(&session.session_token)),
             user_code: None,
             verification_uri: None,
             authorization_expires_at: None,
@@ -307,6 +319,7 @@ impl CloudAccountState {
             organization_name: Some(session.organization_name.clone()),
             role: Some(session.role.clone()),
             session_expires_at: Some(session.session_expires_at.clone()),
+            session_binding: Some(ui_session_binding(&session.session_token)),
             user_code: None,
             verification_uri: None,
             authorization_expires_at: None,
@@ -322,6 +335,7 @@ impl CloudAccountState {
             organization_name: None,
             role: None,
             session_expires_at: None,
+            session_binding: None,
             user_code: Some(pending.user_code.clone()),
             verification_uri: Some(pending.verification_uri.clone()),
             authorization_expires_at: Some(pending.expires_at.clone()),
@@ -1368,6 +1382,23 @@ mod tests {
             role: "owner".into(),
             connected_at: "2026-09-04T12:00:00Z".into(),
         }
+    }
+
+    #[test]
+    fn public_session_identity_changes_without_exposing_credentials_or_role_changes() {
+        let mut session = session_for(&Uuid::new_v4().to_string());
+        let first = CloudAccountState::from_session(&session).unwrap();
+        let first_raw = serde_json::to_string(&first).unwrap();
+        assert!(!first_raw.contains(&session.session_token));
+        assert_eq!(first.session_binding.as_ref().unwrap().len(), 64);
+        assert_eq!(CloudAccountState::from_session(&session).unwrap().session_binding, first.session_binding);
+        session.session_token = format!("zds_{}", "C".repeat(43));
+        let second = CloudAccountState::from_session(&session).unwrap();
+        assert_ne!(first.session_binding, second.session_binding);
+        assert_eq!(first.role, second.role);
+        assert_eq!(first.organization_id, second.organization_id);
+        assert_eq!(first.session_expires_at, second.session_expires_at);
+        assert!(CloudAccountState::disconnected().session_binding.is_none());
     }
 
     #[test]

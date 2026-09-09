@@ -9,6 +9,11 @@ pub(super) enum Action {
         review_id: Option<String>,
     },
     Preview(resolution::Request),
+    Changes(resolution::details::RowsRequest),
+    Text(resolution::details::TextRequest),
+    ListSaved {
+        review_id: String,
+    },
     Save {
         resolution_id: String,
         request: resolution::Request,
@@ -16,6 +21,47 @@ pub(super) enum Action {
     ReadSaved {
         resolution_id: String,
     },
+}
+
+#[tauri::command]
+pub async fn list_saved_business_resolutions(
+    state: State<'_, LocalStore>,
+    transaction_id: String,
+    review_id: String,
+) -> Result<Value, String> {
+    process(
+        state.inner().clone(),
+        transaction_id,
+        Action::ListSaved { review_id },
+    )
+    .await
+    .map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn inspect_business_conflict_changes(
+    state: State<'_, LocalStore>,
+    transaction_id: String,
+    request: resolution::details::RowsRequest,
+) -> Result<Value, String> {
+    process(
+        state.inner().clone(),
+        transaction_id,
+        Action::Changes(request),
+    )
+    .await
+    .map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn read_business_conflict_text(
+    state: State<'_, LocalStore>,
+    transaction_id: String,
+    request: resolution::details::TextRequest,
+) -> Result<Value, String> {
+    process(state.inner().clone(), transaction_id, Action::Text(request))
+        .await
+        .map_err(command_error)
 }
 
 #[tauri::command]
@@ -139,6 +185,20 @@ pub(super) async fn process_with_transport<T: Transport + Send + Sync + 'static>
             acknowledgement: revision.acknowledgement.as_ref(),
         };
         let mut result = match action {
+            Action::ListSaved { review_id } => {
+                if resolution::review_id(&revision.prepared, &scope)? != review_id {
+                    return Err(invalid(
+                        "La comparaison a changé. Actualisez-la avant de retrouver vos choix.",
+                    ));
+                }
+                saved::list_saved(&store, &header, &review_id)?
+            }
+            Action::Changes(request) => {
+                resolution::details::rows(&revision.prepared, &scope, request)?
+            }
+            Action::Text(request) => {
+                resolution::details::text(&revision.prepared, &scope, request)?
+            }
             Action::Inspect {
                 after_sequence,
                 review_id,

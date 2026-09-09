@@ -3,6 +3,7 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+pub(crate) mod details;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -116,7 +117,7 @@ fn display_image(raw: Option<String>) -> AppResult<Value> {
                 let shortened: String = text.chars().take(2_000).collect();
                 let truncated = shortened.len() < text.len();
                 clipped |= truncated;
-                serde_json::json!({"value":shortened,"truncated":truncated,"exact_integer":false})
+                serde_json::json!({"value":shortened,"truncated":truncated,"exact_integer":false,"text_sha256":format!("{:x}",Sha256::digest(text.as_bytes()))})
             } else if value.as_i64().is_some_and(|n| !(-9_007_199_254_740_991..=9_007_199_254_740_991).contains(&n))
                 || value.as_u64().is_some_and(|n| n > 9_007_199_254_740_991)
             {
@@ -180,6 +181,10 @@ pub(in crate::business_sync::replay) fn inspect(
     }
     let mut result = review(prepared, &current, after_sequence)?;
     result["organization_id"] = serde_json::json!(scope.context.organization);
+    result["can_choose"] = serde_json::json!(matches!(
+        scope.role,
+        "owner" | "admin" | "member" | "accountant"
+    ));
     result["revision"] = serde_json::json!(scope.context.base_revision + 1);
     result["receipt_sha256"] = serde_json::json!(scope.receipt_sha256);
     result["confirmed_transaction_id"] =

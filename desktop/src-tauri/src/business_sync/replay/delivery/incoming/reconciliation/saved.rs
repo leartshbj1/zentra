@@ -179,6 +179,68 @@ fn report(proposal: Proposal) -> Value {
     result
 }
 
+// List metadata only. Loading a listed proposal still revalidates every byte
+// and the current working files in read_saved. Never expose another session's
+// choices, and never treat an unfinished .preparing directory as a proposal.
+pub(super) fn list_saved(store: &LocalStore, header: &Header, review_id: &str) -> AppResult<Value> {
+    let mut proposals = Vec::new();
+    let mut scanned = 0usize;
+    let mut metadata_bytes = 0u64;
+    for entry in fs::read_dir(root(store)?)? {
+        let entry = entry?;
+        scanned += 1;
+        if scanned > 1_000 {
+            return Err(invalid("Le dossier contient trop de propositions. Son nettoyage est nécessaire avant de continuer."));
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !uuid(&name) {
+            continue;
+        }
+        let folder = entry.path();
+        if !snapshot::regular_metadata(&folder)?.is_dir() {
+            continue;
+        }
+        let raw = read(&folder.join("proposal.json"), MAX_METADATA)?;
+        metadata_bytes = metadata_bytes
+            .checked_add(raw.len() as u64)
+            .ok_or_else(|| invalid("Les propositions sont trop volumineuses."))?;
+        if metadata_bytes > MAX_METADATA {
+            return Err(invalid(
+                "Les propositions sauvegardées sont trop volumineuses pour une seule consultation.",
+            ));
+        }
+        if read(&folder.join("proposal.sha256"), 64)? != digest(&raw).as_bytes() {
+            return Err(invalid(
+                "Une proposition sauvegardée est altérée. Les choix doivent être vérifiés.",
+            ));
+        }
+        let proposal: Proposal = serde_json::from_slice(&raw)?;
+        if proposal.version == 1
+            && proposal.resolution_id == name
+            && proposal.binding == header.binding
+            && proposal.transaction_id == header.entry.transaction_id
+            && proposal.receipt_sha256 == header.entry.receipt_sha256
+            && proposal.request.review_id == review_id
+            && proposal.preview["review_id"] == review_id
+            && proposal.preview["state"] == "resolution_preview"
+            && proposal.preview["can_install"] == false
+        {
+            proposals.push(json!({"resolution_id":name,"created_at":proposal.created_at}));
+        }
+    }
+    proposals.sort_by(|a, b| {
+        b["created_at"]
+            .as_str()
+            .cmp(&a["created_at"].as_str())
+            .then_with(|| {
+                a["resolution_id"]
+                    .as_str()
+                    .cmp(&b["resolution_id"].as_str())
+            })
+    });
+    Ok(json!({"state":"saved_resolutions","review_id":review_id,"proposals":proposals}))
+}
+
 pub(super) fn read_saved(
     store: &LocalStore,
     header: &Header,
