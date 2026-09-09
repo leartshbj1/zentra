@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { BusinessCycleControls } from './businessCycle';
+import { businessWorkspaceLocked, holdBusinessActivity } from './businessWorkspaceLock';
 import { ArrowLeft, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { ProjectFilePreview } from './ProjectFilePreview';
@@ -34,9 +36,13 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   const billingQuotes = contents.quotes.filter((quote) => contents.invoices.some((invoice) => invoice.quoteId === quote.id));
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useLayoutEffect(() => {
+    if (files.length || saving || preview || removing) return holdBusinessActivity();
+  }, [files.length, saving, preview, removing]);
 
   async function upload() {
-    if (saving || busy || readOnly) return;
+    if (businessWorkspaceLocked() || saving || busy || readOnly) return;
+    const release = holdBusinessActivity();
     setSaving(true); setError('');
     const remaining: File[] = [];
     const errors: string[] = [];
@@ -49,9 +55,11 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     try { onWorkspaceChange(await desktopApi.loadWorkspace()); }
     catch (reason) { errors.push(errorMessage(reason, 'Actualisation impossible. Rouvrez le projet.')); }
     setError(errors.join(' ')); setProgress(''); setSaving(false);
+    release();
   }
   async function open(file: Attachment, trigger: HTMLElement) {
-    if (saving) return;
+    if (businessWorkspaceLocked() || saving) return;
+    const release = holdBusinessActivity();
     previewTrigger.current = trigger;
     setSaving(true); setError('');
     try {
@@ -60,7 +68,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       const bytes = Uint8Array.from(atob(encoded), (value) => value.charCodeAt(0));
       setPreview({ file, bytes, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })) });
     } catch (reason) { setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
-    finally { setSaving(false); }
+    finally { setSaving(false); release(); }
   }
   function closePreview() {
     setPreview(null);
@@ -70,11 +78,12 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     requestAnimationFrame(() => { if (trigger?.isConnected) trigger.focus({ preventScroll: true }); });
   }
   async function remove() {
-    if (!removing || saving || busy || readOnly) return;
+    if (businessWorkspaceLocked() || !removing || saving || busy || readOnly) return;
+    const release = holdBusinessActivity();
     setSaving(true); setError('');
     try { onWorkspaceChange(await desktopApi.deleteProjectDocument(removing.id)); setRemoving(null); }
     catch (reason) { setError(errorMessage(reason, 'Suppression impossible.')); }
-    finally { setSaving(false); }
+    finally { setSaving(false); release(); }
   }
   const client = workspace.clients.find((item) => item.id === project.clientId);
   return <section className="project-folder stack-layout" aria-label={`Dossier du projet ${project.name}`}>
@@ -94,6 +103,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         <div><strong>{syncPresentation.title}</strong><p>{syncPresentation.description}</p></div>
         {syncPresentation.canSynchronize ? <Button size="small" variant="secondary" disabled={sync.syncing || sync.busy} onClick={requestProjectSync}>Synchroniser</Button> : !sync.mode || sync.mode === 'legacy' ? <CloudAccountAccess /> : null}
       </div>
+      {sync.mode === 'business' ? <BusinessCycleControls compact /> : null}
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy} />
       {files.length ? <Button onClick={() => void upload()} disabled={saving || busy}>{saving ? progress : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}
       <ul className="project-document-list">{contents.files.map((file) => {

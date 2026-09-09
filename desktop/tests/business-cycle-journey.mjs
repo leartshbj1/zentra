@@ -1,0 +1,131 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+const { chromium } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const output = new URL('../../.qa/client-readiness-20260908/business-cycle-ui/', import.meta.url);
+await mkdir(output, { recursive: true });
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const results = [];
+try {
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+    const page = await browser.newPage({ viewport, hasTouch: viewport.width < 900 });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.setDefaultTimeout(15000);
+    const qa = async method => page.evaluate(method => window.__businessCycleQa[method](), method);
+    const waiting = () => page.waitForFunction(() => window.__businessCycleQa.waiting);
+    const openControls = async () => {
+      if (!await page.locator('.business-cycle-disclosure').evaluate(element => element.open))
+        await page.locator('.business-cycle-disclosure > summary').click();
+    };
+    const navigate = async name => {
+      await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+      await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name);
+      await page.locator('.navigation-palette__results button').filter({ has: page.getByText(name, { exact: true }) }).click();
+    };
+    await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&businessCycle=1`);
+    await page.getByRole('dialog', { name: 'Bienvenue dans votre espace' }).waitFor();
+    await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
+    await openControls();
+    await page.getByRole('button', { name: 'Activer sur cet appareil', exact: true }).click();
+    await waiting();
+    await navigate('Devis');
+    await page.getByRole('button', { name: 'Nouveau devis', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Nouveau devis', exact: true });
+    await dialog.waitFor();
+    const draft = dialog.getByRole('textbox').first();
+    await draft.fill('Brouillon à conserver');
+    await qa('ask'); await qa('finish');
+    assert.equal(await draft.inputValue(), 'Brouillon à conserver');
+    assert.equal(await page.locator('.desktop-app').evaluate(el => el.inert), false);
+    const denied = await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'permission').at(-1));
+    assert.equal(denied.allow, false);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    await waiting();
+    await qa('ask');
+    await page.getByRole('dialog', { name: 'Actualisation du dossier', exact: true }).waitFor();
+    assert.equal(await page.locator('.desktop-app').evaluate(el => el.inert), true);
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    assert.equal(await page.locator('.navigation-palette').count(), 0);
+    const allowed = await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'permission').at(-1));
+    assert.equal(allowed.allow, true); assert.equal(allowed.locked, true);
+    await qa('failNextRead'); await qa('finish');
+    await page.getByRole('dialog', { name: 'Actualisation à reprendre', exact: true }).waitFor();
+    assert.equal(await page.locator('.desktop-app').evaluate(el => el.inert), true);
+    await page.screenshot({ path: new URL(`${viewport.width}-refresh-retry.png`, output).pathname.replace(/^\/(.:)/, '$1') });
+    await page.context().setOffline(true);
+    await page.getByRole('button', { name: 'Réessayer l’actualisation', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Actualisation à reprendre', exact: true }).waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.desktop-app').evaluate(el => el.inert), false);
+    assert.equal(await page.getByText('Lecture locale interrompue pour la recette', { exact: true }).count(), 0);
+    await page.context().setOffline(false);
+    await navigate('Clients');
+    await page.getByText('Dossier reçu', { exact: true }).first().waitFor();
+    await openControls();
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await page.getByRole('button', { name: 'Activer sur cet appareil', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('zentra.business-cycle.v1')), null);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal overflow');
+    await page.screenshot({ path: new URL(`${viewport.width}-paused.png`, output).pathname.replace(/^\/(.:)/, '$1') });
+    // Preferences never select a different restored history automatically.
+    await page.evaluate(() => localStorage.setItem('zentra.business-cycle.v1', JSON.stringify({ ...window.__businessCycleQa.selection, generation: 'another-history' })));
+    await page.reload();
+    await page.locator('.business-cycle-disclosure').waitFor();
+    await page.waitForTimeout(650);
+    assert.equal(await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'cycle').length), 0);
+    await page.evaluate(() => localStorage.setItem('zentra.business-cycle.v1', JSON.stringify(window.__businessCycleQa.selection)));
+    await page.reload(); await waiting();
+    await page.evaluate(() => { for (let i = 0; i < 15; i++) window.dispatchEvent(new Event('focus')); });
+    assert.equal(await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'cycle').length), 1);
+    // Switching scope while an installation is authorized retains a startup
+    // barrier until the old native call drains, then refreshes the new view.
+    await qa('ask');
+    await page.getByRole('dialog', { name: 'Actualisation du dossier', exact: true }).waitFor();
+    await page.evaluate(() => {
+      window.__businessCycleQa.selection.organization_id = 'other-org';
+      window.__qaSetCycleAccount({ status: 'connected', organizationId: 'other-org', organizationName: 'Autre entreprise', role: 'owner' });
+    });
+    assert.equal(await page.locator('.desktop-app').evaluate(el => el.inert), true);
+    await page.waitForFunction(() => window.__businessCycleQa.calls.some(call => call.action === 'pause'));
+    assert.equal(await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'cycle').length), 1);
+    await qa('finish');
+    await page.getByRole('dialog', { name: 'Actualisation du dossier', exact: true }).waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.desktop-app').evaluate(el => el.inert), false);
+    await openControls();
+    await page.getByRole('button', { name: 'Activer sur cet appareil', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'cycle').length), 1);
+
+    await page.getByRole('button', { name: 'Activer sur cet appareil', exact: true }).click(); await waiting();
+    await navigate('Projets');
+    await page.getByRole('button', { name: 'Rénovation · Résidence Bellevue', exact: true }).click();
+    await page.locator('.project-folder').waitFor();
+    await page.locator('.project-file-picker input[type=file]').first().setInputFiles({ name: 'plan-en-attente.txt', mimeType: 'text/plain', buffer: Buffer.from('Dessin choisi et non enregistré') });
+    await qa('ask'); await qa('finish');
+    const fileDenied = await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'permission').at(-1));
+    assert.equal(fileDenied.allow, false);
+    await page.getByRole('button', { name: 'Enregistrer 1 fichier', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Retirer plan-en-attente.txt', exact: true }).click();
+    await waiting(); await qa('ask'); await qa('finish');
+    await page.waitForFunction(() => !document.querySelector('.desktop-app').inert);
+    await qa('queue'); await waiting(); await openControls();
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await qa('ask');
+    assert.equal(await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'permission').at(-1).allow), false);
+    await qa('finish');
+    await page.getByRole('button', { name: 'Activer sur cet appareil', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Activer sur cet appareil', exact: true }).click(); await waiting();
+    const choosing = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Ajouter des documents', exact: true }).click();
+    await choosing;
+    await qa('ask'); await qa('finish');
+    assert.equal(await page.evaluate(() => window.__businessCycleQa.calls.filter(call => call.action === 'permission').at(-1).allow), false);
+    await page.locator('.project-file-picker input[type=file]').first().dispatchEvent('cancel');
+    await waiting(); await qa('ask'); await qa('finish');
+    await page.waitForFunction(() => !document.querySelector('.desktop-app').inert);
+    assert.deepEqual(errors, []);
+    results.push({ viewport, preservedDraft: true, permissionAfterLock: true, refreshFailureHeld: true, offlineRefreshRetry: true, pausedPreferenceRemoved: true, exactPreferenceResume: true, accountChangeDrained: true, pendingFilePreserved: true, pickerCancelResumes: true, manualPauseDrained: true, passed: true });
+    await page.close();
+  }
+} finally { await browser.close(); await writeFile(new URL('results.json', output), JSON.stringify(results, null, 2)); }
+console.log(results);

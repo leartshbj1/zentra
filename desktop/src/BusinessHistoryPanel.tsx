@@ -18,6 +18,7 @@ import type { BusinessBootstrapStatus } from './businessBootstrapScheduler';
 import { Button, Modal, SectionHeading } from './ui';
 import { errorMessage } from './utils';
 import './BusinessHistoryPanel.css';
+import { BusinessCycleControls } from './businessCycle';
 
 export function BusinessHistoryPanel({
   joinOnly = false,
@@ -195,11 +196,8 @@ export function BusinessHistoryPanel({
             <div className="business-history-status">
               <Check size={22} />
               <div>
-                <strong>La copie initiale est installée</strong>
-                <p>
-                  Les nouvelles modifications restent sur cet appareil. Les
-                  échanges continus entre appareils sont encore en préparation.
-                </p>
+                <strong>Le dossier partagé est installé</strong>
+                <BusinessCycleControls />
               </div>
             </div>
           ) : state.state === 'needs_reconciliation' ? (
@@ -239,8 +237,8 @@ export function BusinessHistoryPanel({
           state.state !== 'needs_reconciliation' ? (
             <>
               <p className="business-history-scope">
-                Cette étape reprend la copie initiale. Elle n’échange pas encore
-                les modifications suivantes entre appareils.
+                Cette étape reprend la copie initiale. Activez ensuite la
+                synchronisation sur cet appareil pour échanger les modifications suivantes.
               </p>
               <div className="business-history-actions">
                 {!joinOnly &&

@@ -18,7 +18,7 @@ export type BusinessCycleStatus = {
   replication_active: false;
 };
 
-function sameSelection(a: BusinessHistorySelection, b: BusinessHistorySelection) {
+export function sameBusinessSelection(a: BusinessHistorySelection, b: BusinessHistorySelection) {
   return a && b && a.organization_id === b.organization_id
     && a.installation_id === b.installation_id && a.generation === b.generation
     && a.capture_generation === b.capture_generation
@@ -33,6 +33,7 @@ export function startBusinessCycleScheduler(options: {
   pauseNative: () => Promise<unknown>;
   isOnline: () => boolean;
   canInstall: () => boolean;
+  beforePass?: () => Promise<void>;
   onStatus?: (status: BusinessCycleStatus) => void;
   onError?: (reason: unknown) => void;
   // Check the signal after loading and before replacing the visible workspace.
@@ -68,13 +69,15 @@ export function startBusinessCycleScheduler(options: {
     let delay = 60_000;
     try {
       if (!active) return;
+      await options.beforePass?.();
+      if (!active) return;
       // A refresh that failed after an install must be retried even if the next
       // native pass would be idle, and does not require an internet connection.
       await refresh();
       if (!active || !options.isOnline()) return;
       const status = await options.synchronize(selection, options.canInstall());
       if (!active) return;
-      if (!sameSelection(status.selection, selection)) {
+      if (!sameBusinessSelection(status.selection, selection)) {
         held = true;
         throw new Error('Le dossier synchronisé a changé. Sélectionnez à nouveau votre entreprise.');
       }

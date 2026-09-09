@@ -5,6 +5,8 @@ import { useNumberingBackground } from './numbering';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 import { BusinessHistoryPanel } from './BusinessHistoryPanel';
+import { BusinessCycleContext, BusinessCycleControls, BusinessInstallOverlay, useBusinessCycleBackground } from './businessCycle';
+import { businessWorkspaceLocked, businessActivityPending } from './businessWorkspaceLock';
 import { DocumentDesignStudio } from './DocumentDesignStudio';
 import { EmployeeDocumentImport } from './EmployeeDocumentImport';
 import { SalaryCertificates } from './SalaryCertificates';
@@ -432,11 +434,13 @@ export function WorkspaceApp({
   cloudAccount?: CloudAccountState | null;
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
-  const [view, setView] = useState<View>('dashboard');
+  const [view, updateView] = useState<View>('dashboard');
+  const setView = useCallback<Dispatch<SetStateAction<View>>>(next => { if (!businessWorkspaceLocked()) updateView(next); }, []);
   useProjectSyncBackground(setWorkspace, `${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}`);
   useBusinessBootstrapBackground();
   useNumberingBackground();
-  const [modal, setModal] = useState<ModalState>(null);
+  const [modal, updateModal] = useState<ModalState>(null);
+  const setModal = useCallback<Dispatch<SetStateAction<ModalState>>>(next => { if (!businessWorkspaceLocked()) updateModal(next); }, []);
   const [search, setSearch] = useState('');
   const [projectFolderId, setProjectFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -444,6 +448,7 @@ export function WorkspaceApp({
   const [navigationOpen, setNavigationOpen] = useState(false);
   useEffect(() => {
     function openNavigation(event: globalThis.KeyboardEvent) {
+      if (businessWorkspaceLocked()) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !event.altKey && !document.querySelector('[role="dialog"], [role="alertdialog"]')) {
         event.preventDefault();
         setMenuOpen(false);
@@ -490,7 +495,23 @@ export function WorkspaceApp({
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
+  const businessCycle = useBusinessCycleBackground({
+    accountScope: `${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}`,
+    connected: cloudAccount?.status === 'connected',
+    onWorkspace: next => { workspaceRef.current = next; setWorkspace(next); },
+    canInstall: () => !businessWorkspaceLocked() && !businessActivityPending()
+      && !modal && !busy && !printTarget && !guidedTour.open && !menuOpen && !navigationOpen
+      && !actionInFlight.current && !recurrenceScanInFlight.current && !reminderScanInFlight.current
+      && quoteRevisionInFlight.current.size === 0 && !isWorkspaceRecoveryPending()
+      // These list screens keep edits in root modals or registered file drafts.
+      // Inline accounting, payroll and settings drafts defer until the user leaves.
+      && ['dashboard', 'projects', 'clients', 'catalog', 'quotes', 'invoices', 'time'].includes(view)
+      && !document.querySelector('[role="dialog"], [role="alertdialog"], dialog[open]')
+      && !(document.activeElement instanceof HTMLElement && document.activeElement.matches('input, textarea, select, [contenteditable="true"]')),
+  });
+  useEffect(() => { businessCycle.wake(); }, [view, modal, busy, printTarget, menuOpen, navigationOpen, guidedTour.open, workspace]);
   const navigateTour = useCallback((nextView: TourView) => {
+    if (businessWorkspaceLocked()) return;
     setAccountingEntryFocus(null);
     setProjectFolderId(null);
     setView(nextView);
@@ -500,7 +521,7 @@ export function WorkspaceApp({
   const nativeNavigation = useNativeNavigation(
     view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu',
     (compactNavigation || isNativeMacOS) && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open,
-    (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
+    (destination) => { if (businessWorkspaceLocked()) return; if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
   const navigationRef = useRef<HTMLElement>(null);
@@ -674,7 +695,7 @@ export function WorkspaceApp({
   }, []);
 
   const runRecurrenceScan = useCallback(async () => {
-    if (readOnly || actionInFlight.current || recurrenceScanInFlight.current || isWorkspaceRecoveryPending()) return;
+    if (businessWorkspaceLocked() || readOnly || actionInFlight.current || recurrenceScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
       typeof document !== 'undefined' &&
       document.visibilityState === 'hidden'
@@ -802,7 +823,7 @@ export function WorkspaceApp({
   }, [readOnly, recurrenceScheduleSignal, runRecurrenceScan]);
 
   const runReminderScan = useCallback(async () => {
-    if (readOnly || reminderScanInFlight.current || isWorkspaceRecoveryPending()) return;
+    if (businessWorkspaceLocked() || readOnly || reminderScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
       typeof document !== 'undefined' &&
       document.visibilityState === 'hidden'
@@ -881,7 +902,7 @@ export function WorkspaceApp({
       });
       return false;
     }
-    if (actionInFlight.current || isWorkspaceRecoveryPending()) return false;
+    if (businessWorkspaceLocked() || actionInFlight.current || isWorkspaceRecoveryPending()) return false;
     actionInFlight.current = true;
     setBusy(true);
     setNotice(null);
@@ -1402,6 +1423,7 @@ export function WorkspaceApp({
   );
 
   return (
+    <BusinessCycleContext.Provider value={businessCycle}>
     <div className="desktop-app" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       {navigationDrawerOpen ? <div className="navigation-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
       <aside
@@ -1615,6 +1637,7 @@ export function WorkspaceApp({
             ) : null}
           </div>
         </div> : <div className="project-folder-spacing" />}
+        {!activeProjectFolder && view !== 'settings' ? <BusinessCycleControls compact /> : null}
         {notice ? (
           <div
             className={`notice notice--${notice.tone} ${modal || notice.tone === 'error' ? 'notice--floating' : ''}`}
@@ -2160,6 +2183,8 @@ export function WorkspaceApp({
       />
       {workspaceRecoveryReason !== null ? <WorkspaceRecoveryDialog reason={workspaceRecoveryReason} onReload={retryWorkspaceRefresh} /> : null}
     </div>
+    <BusinessInstallOverlay />
+    </BusinessCycleContext.Provider>
   );
 }
 

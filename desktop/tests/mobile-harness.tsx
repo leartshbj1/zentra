@@ -11,6 +11,7 @@ import { installBankCustomerRefundFixture } from './bank-customer-refund-fixture
 import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
+import { installBusinessCycleFixture } from './business-cycle-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -169,13 +170,16 @@ if (new URLSearchParams(location.search).has('wizard')) {
     return structuredClone(data);
   };
 }
+const cycleAccount = new URLSearchParams(location.search).has('businessCycle') ? installBusinessCycleFixture(() => data) : undefined;
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
+  const [cloudAccount, setCloudAccount] = useState(cycleAccount);
+  if (cycleAccount) Object.assign(window, { __qaSetCycleAccount: setCloudAccount });
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
   if (['readOnlyAudit', 'wizard'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
-  return <><WorkspaceApp readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
+  return <><WorkspaceApp cloudAccount={cloudAccount} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }

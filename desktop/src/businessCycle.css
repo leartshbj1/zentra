@@ -1,0 +1,13 @@
+.business-cycle-controls { display: grid; gap: 12px; min-width: 0; }
+.business-cycle-disclosure { margin: 8px 0 16px; font-size: .84rem; }
+.app-main > .business-cycle-disclosure { margin-inline: clamp(20px, 2.5vw, 40px); }
+.business-cycle-disclosure > summary { display: flex; align-items: center; gap: 8px; width: fit-content; min-height: 36px; cursor: pointer; color: var(--text-muted, #686863); }
+.business-cycle-disclosure > .business-cycle-controls { margin-top: 8px; padding: 18px; border: 1px solid var(--border, #e4e1dd); border-radius: 16px; }
+.business-cycle-controls > div[role="status"] { display: flex; align-items: center; gap: 8px; font-size: .86rem; }
+.business-cycle-controls p { margin: 0; line-height: 1.6; max-width: 70ch; color: var(--text-muted, #686863); }
+.business-cycle-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.business-install-backdrop { position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center; padding: 20px; background: rgb(26 25 23 / 24%); backdrop-filter: blur(6px); }
+.business-install-dialog { width: min(100%, 430px); padding: 28px; border-radius: 24px; background: var(--surface, #fff); color: var(--text, #292623); box-shadow: 0 20px 80px rgb(0 0 0 / 16%); outline: none; }
+.business-install-dialog h2 { margin: 16px 0 8px; font-size: 1.25rem; }
+.business-install-dialog p { margin: 0 0 20px; line-height: 1.6; }
+@media (max-width: 640px) { .business-cycle-actions > button { min-height: 44px; flex: 1 1 auto; scroll-margin-block: 16px 110px; } }
