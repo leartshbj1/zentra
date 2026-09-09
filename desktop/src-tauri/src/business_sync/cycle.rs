@@ -42,12 +42,21 @@ pub(crate) struct Run {
     _connection: Mutex<Connection>,
     cancelled: AtomicBool,
 }
+impl Run {
+    pub(crate) fn ensure_running(&self) -> AppResult<()> {
+        if self.cancelled.load(Ordering::Acquire) {
+            Err(AppError::BusinessSyncPaused)
+        } else {
+            Ok(())
+        }
+    }
+}
 static RUNS: OnceLock<Mutex<BTreeMap<PathBuf, Weak<Run>>>> = OnceLock::new();
 fn runs() -> &'static Mutex<BTreeMap<PathBuf, Weak<Run>>> {
     RUNS.get_or_init(Mutex::default)
 }
 
-fn try_acquire(store: &LocalStore) -> AppResult<Option<Arc<Run>>> {
+pub(crate) fn try_acquire(store: &LocalStore) -> AppResult<Option<Arc<Run>>> {
     if !snapshot::regular_metadata(&store.data_dir)?.is_dir() {
         return Err(invalid("Le profil local est invalide."));
     }
@@ -114,9 +123,7 @@ impl<T> Guarded<T> {
         self.run.clone()
     }
     pub(crate) fn check(&self, store: &LocalStore) -> AppResult<()> {
-        if self.run.cancelled.load(Ordering::Acquire) {
-            return Err(AppError::BusinessSyncPaused);
-        }
+        self.run.ensure_running()?;
         if incoming::selection(store, &self.selection.organization_id)? != self.selection {
             return Err(invalid("L’historique sélectionné a changé. Choisissez à nouveau le dossier à synchroniser."));
         }

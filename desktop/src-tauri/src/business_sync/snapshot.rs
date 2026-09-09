@@ -136,7 +136,7 @@ struct PortableRow {
     source_rowid: String,
 }
 
-pub(super) fn regular_metadata(path: &Path) -> AppResult<fs::Metadata> {
+pub(crate) fn regular_metadata(path: &Path) -> AppResult<fs::Metadata> {
     let metadata = fs::symlink_metadata(path)?;
     #[cfg(windows)]
     let linked = {

@@ -1,11 +1,11 @@
+use crate::database::LocalStore;
 use crate::error::{AppError, AppResult};
-use crate::{account_cloud::ProjectSyncSession, database::LocalStore};
-use chrono::Datelike;
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_NUMBER: i64 = 999_999_999;
+pub(crate) mod transport;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub(crate) struct ReservationRequest {
@@ -101,11 +101,22 @@ pub(crate) fn prepare(
     Ok(Some(request))
 }
 
+#[cfg(test)]
 pub(crate) fn adopt(
     store: &LocalStore,
     organization: &str,
     request: &ReservationRequest,
     response: &ReservationResponse,
+) -> AppResult<()> {
+    adopt_checked(store, organization, request, response, || Ok(()))
+}
+
+fn adopt_checked(
+    store: &LocalStore,
+    organization: &str,
+    request: &ReservationRequest,
+    response: &ReservationResponse,
+    ensure_current: impl Fn() -> AppResult<()>,
 ) -> AppResult<()> {
     if response.request_id != request.request_id
         || response.organization_id != organization
@@ -121,6 +132,7 @@ pub(crate) fn adopt(
         ));
     }
     let _lock = store.lock()?;
+    ensure_current()?;
     let mut connection = store.connect()?;
     let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     bound_to(&tx, organization)?;
@@ -157,6 +169,7 @@ pub(crate) fn adopt(
             request.request_id
         ],
     )?;
+    ensure_current()?;
     tx.commit()?;
     Ok(())
 }
@@ -289,72 +302,6 @@ fn active_series(
     Ok(Some((organization, series)))
 }
 
-// The existing online/focus scheduler calls this, but no requests are prepared
-// until a verified company bootstrap has created the shared-numbering binding.
-pub(crate) async fn replenish_active_series(
-    store: &LocalStore,
-    session: &ProjectSyncSession,
-) -> AppResult<()> {
-    let current_year = i64::from(chrono::Local::now().year());
-    let Some((organization, series)) = active_series(store, current_year)? else {
-        return Ok(());
-    };
-    if session.organization_id != organization {
-        return Err(invalid(
-            "Le compte connecté ne correspond pas à la numérotation de cette entreprise.",
-        ));
-    }
-    if session.role == "read_only" {
-        return Ok(());
-    }
-    let mut ordered: Vec<_> = series.into_iter().collect();
-    // Prioritize today's issuance over older or next-year drafts, and bound the
-    // network work in each pass. Completed ranges are skipped on the next pass.
-    ordered.sort_by_key(|((year, prefix), _)| ((year - current_year).abs(), *year, prefix.clone()));
-    let mut sent = 0;
-    for ((year, prefix), minimum) in ordered {
-        if crate::cloud_backup::is_restoring() {
-            break;
-        }
-        if replenish(store, session, &prefix, year, minimum).await? {
-            sent += 1;
-        }
-        if sent >= 8 {
-            break;
-        }
-    }
-    Ok(())
-}
-
-async fn replenish(
-    store: &LocalStore,
-    session: &ProjectSyncSession,
-    prefix: &str,
-    year: i64,
-    minimum: i64,
-) -> AppResult<bool> {
-    let organization = &session.organization_id;
-    let Some(request) = prepare(store, organization, prefix, year, minimum)? else {
-        return Ok(false);
-    };
-    let (status, bytes) = session
-        .request(
-            reqwest::Method::POST,
-            "/api/sync/numbers",
-            &[],
-            &[("Content-Type", "application/json".into())],
-            Some(serde_json::to_vec(&request)?),
-            false,
-        )
-        .await?;
-    if !status.is_success() {
-        return Err(invalid("La réservation n’a pas été confirmée. La demande sera reprise lors de la prochaine connexion."));
-    }
-    let response: ReservationResponse = serde_json::from_slice(&bytes)?;
-    adopt(store, organization, &request, &response)?;
-    Ok(true)
-}
-
 // No binding is created automatically. Company bootstrap must first publish
 // its historical numbering floors before enabling this mode on any device.
 pub(crate) fn consume(
@@ -386,7 +333,12 @@ pub(crate) fn consume(
         )
         .optional()?;
     let Some((request, previous, next)) = range else {
-        return Err(AppError::Validation(format!("Les numéros réservés pour {prefix}-{year} sont épuisés sur cet appareil. Reconnectez Zentra pour en obtenir de nouveaux. Le brouillon reste disponible.")));
+        return Err(AppError::NumberRangeRequired {
+            organization,
+            prefix: prefix.into(),
+            year,
+            minimum,
+        });
     };
     let updated = tx.execute(
         "UPDATE device_number_ranges SET next_value=? WHERE request_id=? AND next_value=?",

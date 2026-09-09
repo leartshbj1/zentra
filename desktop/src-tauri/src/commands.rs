@@ -1157,15 +1157,13 @@ pub fn list_vat_return_exports(
     state.list_vat_return_exports(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn post_manual_journal_entry(
+pub async fn post_manual_journal_entry(
     state: State<'_, LocalStore>,
     input: ManualJournalInput,
     request_id: String,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .post_manual_journal_entry_with_request_id(input, &request_id)
+    crate::shared_numbering::transport::post_manual(state.inner().clone(), input, request_id)
+        .await
         .map_err(command_error)
 }
 #[tauri::command]

@@ -366,7 +366,6 @@ async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
         "UPDATE project_sync_binding SET last_synced_at=? WHERE id=1",
         params![now_iso()],
     )?;
-    crate::shared_numbering::replenish_active_series(store, &session).await?;
     Ok((true, changed))
 }
 

@@ -24,6 +24,13 @@ pub enum AppError {
     UnsupportedPlatform,
     #[error("La synchronisation est suspendue. Les modifications locales sont conservées.")]
     BusinessSyncPaused,
+    #[error("Les numéros réservés pour {prefix}-{year} sont épuisés sur cet appareil. Reconnectez Zentra pour en obtenir de nouveaux. Le brouillon reste disponible.")]
+    NumberRangeRequired {
+        organization: String,
+        prefix: String,
+        year: i64,
+        minimum: i64,
+    },
 }
 
 pub type AppResult<T> = Result<T, AppError>;
