@@ -16,6 +16,8 @@ use std::{
 use tauri::State;
 use uuid::Uuid;
 
+mod ownership;
+
 static SYNCING: AtomicBool = AtomicBool::new(false);
 struct SyncGuard;
 impl Drop for SyncGuard {
@@ -53,6 +55,12 @@ pub fn get_project_sync_status(state: State<'_, LocalStore>) -> Result<Value, St
 #[tauri::command]
 pub async fn sync_project_documents(state: State<'_, LocalStore>) -> Result<Value, String> {
     let store = state.inner().clone();
+    if let Some(status) =
+        ownership::business_status(&store, &store.connect().map_err(command_error)?)
+            .map_err(command_error)?
+    {
+        return Ok(status);
+    }
     if crate::cloud_backup::is_restoring() {
         return store.project_sync_status().map_err(command_error);
     }
@@ -63,7 +71,13 @@ pub async fn sync_project_documents(state: State<'_, LocalStore>) -> Result<Valu
         return store.project_sync_status().map_err(command_error);
     }
     let _guard = SyncGuard;
-    let result = synchronize(&store).await;
+    let Some(lease) = crate::business_sync::cycle::try_acquire(&store).map_err(command_error)?
+    else {
+        let mut status = store.project_sync_status().map_err(command_error)?;
+        status["busy"] = json!(true);
+        return Ok(status);
+    };
+    let result = synchronize(&store, lease).await;
     let mut status = store.project_sync_status().map_err(command_error)?;
     match result {
         Ok((connected, changed)) => {
@@ -82,6 +96,9 @@ pub async fn sync_project_documents(state: State<'_, LocalStore>) -> Result<Valu
 impl LocalStore {
     pub fn project_sync_status(&self) -> AppResult<Value> {
         let connection = self.connect()?;
+        if let Some(status) = ownership::business_status(self, &connection)? {
+            return Ok(status);
+        }
         let binding = query_all(
             &connection,
             "SELECT organization_id,last_synced_at FROM project_sync_binding WHERE id=1",
@@ -93,7 +110,7 @@ impl LocalStore {
             .filter(|row| matches!(row["state"].as_str(), Some("upload" | "delete")))
             .count();
         Ok(
-            json!({"organizationId":binding.first().map(|row|&row["organization_id"]),"lastSyncedAt":binding.first().map(|row|&row["last_synced_at"]),"pending":pending,"documents":documents,"syncing":SYNCING.load(Ordering::Acquire)}),
+            json!({"mode":"legacy","organizationId":binding.first().map(|row|&row["organization_id"]),"lastSyncedAt":binding.first().map(|row|&row["last_synced_at"]),"pending":pending,"documents":documents,"syncing":SYNCING.load(Ordering::Acquire)}),
         )
     }
 
@@ -102,6 +119,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ownership::legacy_allowed(&tx)?;
         tx.execute(
             "INSERT OR IGNORE INTO project_sync_binding(id,organization_id) VALUES(1,?)",
             params![organization],
@@ -118,18 +136,30 @@ impl LocalStore {
         Ok(cursor)
     }
 
+    #[cfg(test)]
     fn apply_remote_document(
         &self,
         remote: &RemoteDocument,
         bytes: Option<&[u8]>,
+    ) -> AppResult<bool> {
+        self.apply_remote_document_checked(remote, bytes, || Ok(()))
+    }
+
+    fn apply_remote_document_checked(
+        &self,
+        remote: &RemoteDocument,
+        bytes: Option<&[u8]>,
+        current: impl Fn() -> AppResult<()>,
     ) -> AppResult<bool> {
         Uuid::parse_str(&remote.document_id)
             .map_err(|_| AppError::Validation("Référence de fichier reçue invalide.".into()))?;
         Uuid::parse_str(&remote.project_id)
             .map_err(|_| AppError::Validation("Référence de projet reçue invalide.".into()))?;
         let _guard = self.lock()?;
+        current()?;
         let mut connection = self.connect()?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ownership::legacy_allowed(&tx)?;
         let local_state: Option<String> = tx
             .query_row(
                 "SELECT state FROM project_document_sync WHERE document_id=?",
@@ -158,6 +188,7 @@ impl LocalStore {
                 params![remote.document_id, remote.project_id],
             )?;
             tx.execute("INSERT INTO project_document_sync(document_id,project_id,state,updated_at) VALUES(?,?,'deleted',?) ON CONFLICT(document_id) DO UPDATE SET state='deleted',last_error=NULL,updated_at=excluded.updated_at",params![remote.document_id,remote.project_id,now_iso()])?;
+            current()?;
             tx.commit()?;
             if let Some(name) = &path {
                 let _ = fs::remove_file(self.safe_attachment_path(name)?);
@@ -220,6 +251,7 @@ impl LocalStore {
                 .is_ok_and(|local| format!("{:x}", Sha256::digest(&local)) == remote.sha256)
             {
                 tx.execute("UPDATE project_document_sync SET state='synced',last_error=NULL WHERE document_id=? AND state='upload'",params![remote.document_id])?;
+                current()?;
                 tx.commit()?;
                 return Ok(false);
             }
@@ -234,6 +266,15 @@ impl LocalStore {
             .map(|row| row.2.clone())
             .unwrap_or_else(|| format!("{}.{extension}", remote.document_id));
         let path = self.safe_attachment_path(&stored_name)?;
+        let path_existed = path.try_exists()?;
+        if existing.is_none()
+            && path_existed
+            && format!("{:x}", Sha256::digest(fs::read(&path)?)) != remote.sha256
+        {
+            return Err(AppError::Validation(
+                "Un fichier local utilise déjà ce chemin. Il a été conservé.".into(),
+            ));
+        }
         let mut staged = tempfile::NamedTempFile::new_in(&self.attachments_dir)?;
         staged.write_all(bytes)?;
         staged.as_file().sync_all()?;
@@ -241,23 +282,46 @@ impl LocalStore {
         staged
             .persist(&path)
             .map_err(|error| AppError::Io(error.error))?;
-        tx.execute("INSERT OR IGNORE INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'project',?,?,?,?,?,?,?,?)",params![remote.document_id,remote.project_id,remote.project_id,remote.original_name,stored_name,mime,remote.size_bytes,remote.sha256,remote.created_at,now])?;
-        tx.execute("INSERT INTO project_document_sync(document_id,project_id,state,updated_at) VALUES(?,?,'synced',?) ON CONFLICT(document_id) DO UPDATE SET state='synced',last_error=NULL,updated_at=excluded.updated_at",params![remote.document_id,remote.project_id,now])?;
-        tx.commit()?;
+        let result = (|| -> AppResult<()> {
+            tx.execute("INSERT OR IGNORE INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,?,'project',?,?,?,?,?,?,?,?)",params![remote.document_id,remote.project_id,remote.project_id,remote.original_name,stored_name,mime,remote.size_bytes,remote.sha256,remote.created_at,now])?;
+            tx.execute("INSERT INTO project_document_sync(document_id,project_id,state,updated_at) VALUES(?,?,'synced',?) ON CONFLICT(document_id) DO UPDATE SET state='synced',last_error=NULL,updated_at=excluded.updated_at",params![remote.document_id,remote.project_id,now])?;
+            current()?;
+            tx.commit()?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            if !path_existed {
+                fs::remove_file(&path)?;
+            }
+            return Err(error);
+        }
         Ok(true)
     }
 }
 
-async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
+async fn synchronize(
+    store: &LocalStore,
+    run: std::sync::Arc<crate::business_sync::cycle::Run>,
+) -> AppResult<(bool, bool)> {
+    if ownership::business_status(store, &store.connect()?)?.is_some() {
+        return Ok((true, false));
+    }
     let Some(session) = project_sync_session(store).await? else {
         return Ok((false, false));
     };
+    let network = ownership::Legacy {
+        store,
+        session,
+        run,
+    };
+    network.check()?;
+    let session = &network.session;
     let mut cursor = store.bind_project_sync(&session.organization_id)?;
     let mut changed = false;
     // Bound each pass. The persisted cursor resumes remaining pages on the next pass.
     for _ in 0..20 {
         let after = cursor.to_string();
-        let (_, bytes) = session
+        let (_, bytes) = network
             .request(
                 Method::GET,
                 "/api/projects/sync",
@@ -295,7 +359,7 @@ async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
                 });
             let locally_deleted:bool=store.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM project_document_sync WHERE document_id=? AND state IN ('delete','deleted'))",params![remote.document_id],|row|row.get(0))?;
             let bytes = if remote.action == "stored" && cached.is_none() && !locally_deleted {
-                let (status, bytes) = session
+                let (status, bytes) = network
                     .request(
                         Method::GET,
                         "/api/projects/sync/file",
@@ -314,12 +378,15 @@ async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
             } else {
                 cached
             };
-            changed |= store.apply_remote_document(&remote, bytes.as_deref())?;
+            changed |= network.apply(&remote, bytes.as_deref())?;
             cursor = remote.sequence;
-            store.connect()?.execute(
-                "UPDATE project_sync_binding SET cursor=? WHERE id=1 AND organization_id=?",
-                params![cursor, session.organization_id],
-            )?;
+            network.write(|tx| {
+                tx.execute(
+                    "UPDATE project_sync_binding SET cursor=? WHERE id=1 AND organization_id=?",
+                    params![cursor, session.organization_id],
+                )?;
+                Ok(())
+            })?;
         }
         if !feed.has_more {
             break;
@@ -334,38 +401,41 @@ async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
             let result=async {
                 let query=[("id",id),("projectId",project)];
                 if state=="delete" {
-                    session.request(Method::DELETE,"/api/projects/sync",&query,&[],None,false).await?;
-                    store.connect()?.execute("UPDATE project_document_sync SET state='deleted',last_error=NULL WHERE document_id=? AND state='delete'",params![id])?;
+                    network.request(Method::DELETE,"/api/projects/sync",&query,&[],None,false).await?;
+                    network.write(|tx| {tx.execute("UPDATE project_document_sync SET state='deleted',last_error=NULL WHERE document_id=? AND state='delete'",params![id])?;Ok(())})?;
                 } else {
                     let row=query_all(&store.connect()?,"SELECT a.*,p.name AS project_name FROM attachments a JOIN projects p ON p.id=a.project_id WHERE a.id=? AND a.entity_type='project'",params![id])?.into_iter().next();
                     let Some(row)=row else {return Ok::<(),AppError>(());}; // A concurrent local deletion is already queued.
                     let bytes=fs::read(store.verified_attachment_path(id)?)?;
                     let encode=|value:&str|url::form_urlencoded::byte_serialize(value.as_bytes()).collect::<String>().replace('+',"%20");
                     let headers=[("X-Zentra-Name",encode(row["original_name"].as_str().unwrap_or_default())),("X-Zentra-Project",encode(row["project_name"].as_str().unwrap_or_default())),("X-Zentra-Sha256",row["sha256"].as_str().unwrap_or_default().to_owned())];
-                    let (_,response)=session.request(Method::PUT,"/api/projects/sync",&query,&headers,Some(bytes),false).await?;
+                    let (_,response)=network.request(Method::PUT,"/api/projects/sync",&query,&headers,Some(bytes),false).await?;
                     let response:Value=serde_json::from_slice(&response)?;
                     if response["deleted"]==true {
                         let remote=RemoteDocument {sequence:0,document_id:id.into(),project_id:project.into(),project_name:String::new(),action:"deleted".into(),original_name:String::new(),media_type:String::new(),size_bytes:0,sha256:String::new(),created_at:String::new()};
-                        changed|=store.apply_remote_document(&remote,None)?;
+                        changed|=network.apply(&remote,None)?;
                     } else {
                         if response["document"]["document_id"]!=id || response["document"]["sha256"]!=row["sha256"] || response["document"]["project_id"]!=project {
                             return Err(AppError::Validation("La confirmation ne correspond pas au document envoyé.".into()));
                         }
-                        store.connect()?.execute("UPDATE project_document_sync SET state='synced',last_error=NULL WHERE document_id=? AND state='upload'",params![id])?;
+                        network.write(|tx| {tx.execute("UPDATE project_document_sync SET state='synced',last_error=NULL WHERE document_id=? AND state='upload'",params![id])?;Ok(())})?;
                     }
                 }
                 Ok(())
             }.await;
             if let Err(error) = result {
-                store.connect()?.execute("UPDATE project_document_sync SET last_error=?,attempts=attempts+1 WHERE document_id=? AND state IN ('upload','delete')",params![error.to_string(),id])?;
+                network.write(|tx| {tx.execute("UPDATE project_document_sync SET last_error=?,attempts=attempts+1 WHERE document_id=? AND state IN ('upload','delete')",params![error.to_string(),id])?;Ok(())})?;
                 return Err(error);
             }
         }
     }
-    store.connect()?.execute(
-        "UPDATE project_sync_binding SET last_synced_at=? WHERE id=1",
-        params![now_iso()],
-    )?;
+    network.write(|tx| {
+        tx.execute(
+            "UPDATE project_sync_binding SET last_synced_at=? WHERE id=1",
+            params![now_iso()],
+        )?;
+        Ok(())
+    })?;
     Ok((true, changed))
 }
 

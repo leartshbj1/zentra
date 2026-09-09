@@ -354,11 +354,13 @@ async fn cancel(store: &LocalStore, t: &impl PublicationTransport) -> AppResult<
 pub async fn start_business_publication(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _run = exclusive().map_err(command_error)?;
     let store = state.inner().clone();
+    let lease = crate::business_sync::cycle::acquire(&store).map_err(command_error)?;
     let session = project_sync_session(&store)
         .await
         .map_err(command_error)?
         .ok_or_else(|| "Connectez votre compte avant de partager ce dossier.".to_owned())?;
     tauri::async_runtime::spawn_blocking(move || {
+        lease.ensure_running()?;
         session.ensure_current_for(&store)?;
         let p =
             store.prepare_business_snapshot_mode(&session.organization_id, &session.role, true)?;
@@ -374,6 +376,7 @@ pub async fn start_business_publication(state: State<'_, LocalStore>) -> Result<
 #[tauri::command]
 pub async fn cancel_business_publication(state: State<'_, LocalStore>) -> Result<Value, String> {
     let _run = exclusive().map_err(command_error)?;
+    let _lease = crate::business_sync::cycle::acquire(state.inner()).map_err(command_error)?;
     let session = project_sync_session(state.inner())
         .await
         .map_err(command_error)?

@@ -447,6 +447,9 @@ pub(crate) async fn synchronize_if_prepared(store: &LocalStore) -> AppResult<Opt
         return Ok(Some(json!({"state":"sending","replication_active":false})));
     }
     let _guard = RunGuard;
+    let Some(_lease) = crate::business_sync::cycle::try_acquire(store)? else {
+        return Ok(Some(json!({"state":"sending","replication_active":false})));
+    };
     let Some(session) = project_sync_session(store).await? else {
         return Ok(Some(
             json!({"state":"waiting_for_connection","replication_active":false}),

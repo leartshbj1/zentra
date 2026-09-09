@@ -433,7 +433,7 @@ export function WorkspaceApp({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
-  useProjectSyncBackground(setWorkspace);
+  useProjectSyncBackground(setWorkspace, `${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}`);
   useBusinessBootstrapBackground();
   useNumberingBackground();
   const [modal, setModal] = useState<ModalState>(null);

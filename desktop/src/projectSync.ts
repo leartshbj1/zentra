@@ -1,9 +1,13 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { desktopApi } from './bridge';
 import { errorMessage } from './utils';
 import type { Workspace } from './types';
+import { startProjectSyncScheduler } from './projectSyncScheduler';
+import { BUSINESS_HISTORY_CHANGED, BUSINESS_HISTORY_STATUS } from './businessHistoryState';
 
 export type ProjectSyncStatus = {
+  mode?: 'legacy' | 'preparing' | 'business';
+  busy?: boolean;
   organizationId?: string | null;
   lastSyncedAt?: string | null;
   pending: number;
@@ -48,102 +52,36 @@ export function requestProjectSync() {
 
 export function useProjectSyncBackground(
   onWorkspace: (workspace: Workspace) => void,
+  accountScope = 'local',
 ) {
   const onWorkspaceRef = useRef(onWorkspace);
-  useEffect(() => {
+  useLayoutEffect(() => {
     onWorkspaceRef.current = onWorkspace;
   }, [onWorkspace]);
-  useEffect(() => {
-    let active = true,
-      running = false,
-      again = false,
-      failures = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const schedule = (delay: number) => {
-      clearTimeout(timer);
-      if (active) timer = setTimeout(() => void synchronize(), delay);
-    };
-    async function synchronize() {
-      if (!active) return;
-      if (running) {
-        again = true;
-        return;
-      }
-      if (navigator.onLine === false) {
-        const local = await desktopApi
-          .getProjectSyncStatus()
-          .catch(() => snapshot);
-        if (active)
-          publish({
-            ...local,
-            syncing: false,
-            error:
-              'Hors ligne. Vos fichiers sont disponibles sur cet appareil. Les envois reprendront au retour du réseau.',
-          });
-        schedule(60_000);
-        return;
-      }
-      running = true;
-      publish({ ...snapshot, syncing: true, error: undefined });
-      try {
-        const status = await desktopApi.syncProjectDocuments();
-        if (active) {
-          publish(status);
-          if (status.changed) {
-            const workspace = await desktopApi.loadWorkspace();
-            if (active) onWorkspaceRef.current(workspace);
-          }
-        }
-        failures = status.error ? failures + 1 : 0;
-      } catch (reason) {
-        failures++;
-        if (active)
-          publish({
-            ...snapshot,
-            syncing: false,
-            error: errorMessage(
-              reason,
-              'La synchronisation reprendra automatiquement. Les fichiers locaux sont conservés.',
-            ),
-          });
-      } finally {
-        running = false;
-        schedule(
-          again
-            ? 500
-            : failures
-              ? Math.min(300_000, 30_000 * 2 ** Math.min(failures, 4))
-              : snapshot.connected && snapshot.pending
-                ? 5_000
-                : 60_000,
-        );
-        again = false;
-      }
-    }
-    const wake = () => schedule(300);
-    const visible = () => {
-      if (document.visibilityState === 'visible') wake();
-    };
-    window.addEventListener('online', wake);
-    window.addEventListener('offline', wake);
-    window.addEventListener('focus', wake);
-    window.addEventListener('zentra-project-documents-changed', wake);
+  useLayoutEffect(() => {
+    publish(initial);
+    const scheduler = startProjectSyncScheduler({
+      local: desktopApi.getProjectSyncStatus,
+      synchronize: desktopApi.syncProjectDocuments,
+      isOnline: () => navigator.onLine !== false,
+      onStatus: publish,
+      onRunning: syncing => publish({ ...snapshot, syncing }),
+      onError: reason => publish({ ...snapshot, syncing: false,
+        error: errorMessage(reason, 'La synchronisation reprendra automatiquement. Les fichiers locaux sont conservés.') }),
+      onWorkspaceChanged: async signal => {
+        const workspace = await desktopApi.loadWorkspace();
+        if (!signal.aborted) onWorkspaceRef.current(workspace);
+      },
+    });
+    const wake = () => scheduler.wake();
+    const visible = () => { if (document.visibilityState === 'visible') wake(); };
+    const events = ['online', 'offline', 'focus', 'zentra-project-documents-changed', BUSINESS_HISTORY_CHANGED, BUSINESS_HISTORY_STATUS];
+    events.forEach(event => window.addEventListener(event, wake));
     document.addEventListener('visibilitychange', visible);
-    void desktopApi
-      .getProjectSyncStatus()
-      .then((local) => {
-        if (active) publish(local);
-      })
-      .catch(() => {});
-    schedule(1500);
     return () => {
-      active = false;
-      clearTimeout(timer);
-      window.removeEventListener('online', wake);
-      window.removeEventListener('offline', wake);
-      window.removeEventListener('focus', wake);
-      window.removeEventListener('zentra-project-documents-changed', wake);
+      scheduler.stop();
+      events.forEach(event => window.removeEventListener(event, wake));
       document.removeEventListener('visibilitychange', visible);
     };
-  }, []);
+  }, [accountScope]);
 }

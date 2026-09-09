@@ -4,6 +4,7 @@ import { desktopApi } from './bridge';
 import { ProjectFilePreview } from './ProjectFilePreview';
 import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { requestProjectSync, useProjectSyncStatus } from './projectSync';
+import { projectSyncPresentation } from './projectSyncPresentation';
 import { CloudAccountAccess } from './CloudAccountAccess';
 import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocuments';
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
@@ -29,6 +30,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   const contents = projectDocuments(workspace, project.id);
   const sync = useProjectSyncStatus();
   const projectPending = sync.documents.filter(file=>file.project_id===project.id && file.state!=='synced').length;
+  const syncPresentation = projectSyncPresentation(sync, projectPending);
   const billingQuotes = contents.quotes.filter((quote) => contents.invoices.some((invoice) => invoice.quoteId === quote.id));
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -89,9 +91,8 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     {(tab === 'all' || tab === 'files') ? <section className="panel project-folder__section">
       <h3>Documents et photos</h3>
       <div className="project-sync" role="status" aria-live="polite">
-        <div><strong>{sync.syncing ? 'Synchronisation…' : projectPending ? `${projectPending} fichier${projectPending>1?'s':''} à synchroniser` : sync.connected ? 'Fichiers synchronisés' : 'Fichiers sur cet appareil'}</strong>
-          <p>{sync.error || (sync.connected ? 'Les plans et photos de ce dossier restent accessibles hors ligne. Les changements sont partagés avec votre entreprise.' : 'Connectez ce poste à votre compte pour partager les documents de vos projets entre vos appareils et votre équipe.')}</p></div>
-        {sync.connected || sync.organizationId ? <Button size="small" variant="secondary" disabled={sync.syncing} onClick={requestProjectSync}>Synchroniser</Button> : <CloudAccountAccess />}
+        <div><strong>{syncPresentation.title}</strong><p>{syncPresentation.description}</p></div>
+        {syncPresentation.canSynchronize ? <Button size="small" variant="secondary" disabled={sync.syncing || sync.busy} onClick={requestProjectSync}>Synchroniser</Button> : !sync.mode || sync.mode === 'legacy' ? <CloudAccountAccess /> : null}
       </div>
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy} />
       {files.length ? <Button onClick={() => void upload()} disabled={saving || busy}>{saving ? progress : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}

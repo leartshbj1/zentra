@@ -333,12 +333,14 @@ pub async fn import_business_history(
     transfer_id: String,
 ) -> Result<Value, String> {
     let store = state.inner().clone();
+    let lease = crate::business_sync::cycle::acquire(&store).map_err(command_error)?;
     let session = project_sync_session(&store)
         .await
         .map_err(command_error)?
         .ok_or_else(|| "Connectez votre compte avant de rejoindre l’entreprise.".to_owned())?;
     tauri::async_runtime::spawn_blocking(move || {
         install_received(&store, &session.organization_id, &transfer_id, || {
+            lease.ensure_running()?;
             session.ensure_current_for(&store)
         })
     })
