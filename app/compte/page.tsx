@@ -164,7 +164,7 @@ export default async function AccountPage() {
   if (!user) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
-        <div className="w-full max-w-xl rounded-[2rem] border border-[#d9d4c9] bg-white p-8 shadow-[0_30px_90px_rgba(29,45,35,.1)] sm:p-10">
+        <div className="w-full max-w-xl rounded-[2rem] border border-[#dedee3] bg-white p-8 shadow-[0_30px_90px_rgba(29,45,35,.1)] sm:p-10">
           <ShieldCheck className="size-11 text-[#a66b1f]" />
           <h1 className="mt-5 text-4xl font-semibold tracking-[-.04em]">
             Compte Zentra
@@ -232,7 +232,7 @@ export default async function AccountPage() {
             {organizations.map((organization) => (
               <section
                 key={organization.organizationId}
-                className="overflow-hidden rounded-[2rem] border border-[#d9d4c9] bg-[#fbfaf7] shadow-[0_20px_70px_rgba(29,45,35,.06)]"
+                className="overflow-hidden rounded-[2rem] border border-[#dedee3] bg-[#fbfaf7] shadow-[0_20px_70px_rgba(29,45,35,.06)]"
               >
                 <div className="p-6 sm:p-8">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -335,7 +335,7 @@ export default async function AccountPage() {
                       }
                     />
                   </div>
-                  <div className="mt-6 rounded-3xl border border-[#d9d4c9] bg-white p-5 sm:p-6">
+                  <div className="mt-6 rounded-3xl border border-[#dedee3] bg-white p-5 sm:p-6">
                     <div className="flex items-start gap-3">
                       <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#edf5ef] text-[#24593d]">
                         <Archive className="size-5" />

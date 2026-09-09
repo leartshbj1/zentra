@@ -1,0 +1,7 @@
+{
+  "identifier": "ios-navigation",
+  "description": "Navigation locale avec les boutons UIKit de l’iPhone",
+  "platforms": ["iOS"],
+  "windows": ["main"],
+  "permissions": ["zentra-mobile:allow-configure-navigation"]
+}

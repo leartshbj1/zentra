@@ -23,13 +23,10 @@ export function HeroDashboard() {
   return (
     <div
       className="hero-motion-stage relative"
-      data-pointer-depth
       aria-hidden="true"
     >
-      <div className="hero-orbit hero-orbit-one" />
-      <div className="hero-orbit hero-orbit-two" />
       <div className="hero-motion-depth">
-        <div className="hero-product-window relative overflow-hidden rounded-[26px] border border-[#ced5ce] bg-[#f8faf8] shadow-[0_38px_100px_rgba(16,43,30,.22)]">
+        <div className="hero-product-window relative overflow-hidden rounded-[26px] border border-[#ced5ce] bg-[#f5f5f7] shadow-[0_38px_100px_rgba(16,43,30,.22)]">
           <div className="flex h-11 items-center justify-between border-b border-[#dfe4df] bg-white/90 px-4">
             <div className="flex items-center gap-2 text-[11px] font-semibold text-[#34473c]">
               <BrandMark className="size-5 rounded-md" />
@@ -43,8 +40,8 @@ export function HeroDashboard() {
           </div>
 
           <div className="grid min-h-[430px] grid-cols-1 sm:grid-cols-[148px_1fr] lg:min-h-[500px]">
-            <aside className="hidden bg-[#153b2a] p-3 text-white sm:flex sm:flex-col">
-              <p className="px-2 pt-2 text-[11px] font-semibold uppercase tracking-[.11em] text-white/70">
+            <aside className="hidden bg-[#eeeef0] p-3 text-[#55585e] sm:flex sm:flex-col">
+              <p className="px-2 pt-2 text-[11px] font-semibold uppercase tracking-[.11em] text-[#818187]">
                 Espace de travail
               </p>
               <div className="mt-4 space-y-1">
@@ -52,7 +49,7 @@ export function HeroDashboard() {
                   <div
                     key={label}
                     className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] ${
-                      index === 0 ? 'bg-white/12 text-white' : 'text-white/72'
+                      index === 0 ? 'bg-white text-[#245b40] shadow-sm' : 'text-[#62646b]'
                     }`}
                   >
                     <Icon className="size-3.5" />
@@ -60,12 +57,12 @@ export function HeroDashboard() {
                   </div>
                 ))}
               </div>
-              <div className="mt-auto rounded-xl border border-white/10 bg-white/6 p-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold text-white/85">
-                  <span className="local-pulse size-1.5 rounded-full bg-[#5ed38a]" />
-                  Base locale active
+              <div className="mt-auto rounded-xl border border-transparent bg-transparent p-3">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-[#537561]">
+                  <span className="size-1.5 rounded-full bg-[#5ed38a]" />
+                  Données locales
                 </div>
-                <p className="mt-1.5 text-[11px] leading-4 text-white/68">
+                <p className="mt-1.5 text-[11px] leading-4 text-[#75777c]">
                   Données enregistrées sur ce PC
                 </p>
               </div>
@@ -75,10 +72,10 @@ export function HeroDashboard() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-medium text-[#647169]">
-                    LUNDI 31 AOÛT
+                    ATELIER DU LÉMAN
                   </p>
                   <h2 className="mt-1 text-lg font-semibold tracking-[-.03em] text-[#1d2d24] sm:text-xl">
-                    Bonjour, votre activité en un coup d’œil.
+                    Tout commence ici.
                   </h2>
                 </div>
                 <span className="hidden max-w-full flex-wrap items-center gap-1.5 rounded-full bg-[#e7f1e9] px-2.5 py-1 text-[11px] font-semibold leading-4 text-[#2f6647] min-[430px]:inline-flex">
@@ -94,7 +91,7 @@ export function HeroDashboard() {
                 ].map(([label, value, detail], index) => (
                   <div
                     key={label}
-                    className={`hero-stat rounded-xl border border-[#dde4de] bg-white p-3 ${
+                    className={`hero-stat rounded-xl border border-transparent bg-white p-3 ${
                       index === 2
                         ? 'hidden min-[430px]:col-span-2 min-[430px]:block lg:col-span-1'
                         : ''
@@ -115,7 +112,7 @@ export function HeroDashboard() {
               </div>
 
               <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1.08fr_.92fr]">
-                <div className="hidden rounded-xl border border-[#dde4de] bg-white p-3.5 lg:block">
+                <div className="hidden rounded-xl border border-transparent bg-white p-3.5 lg:block">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[11px] font-semibold text-[#2d4135]">
@@ -147,7 +144,7 @@ export function HeroDashboard() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#dde4de] bg-white p-3.5">
+                <div className="rounded-xl border border-transparent bg-white p-3.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] font-semibold text-[#2d4135]">
                       Dossiers actifs

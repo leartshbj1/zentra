@@ -65,7 +65,7 @@ export default async function AccountArchivesPage({
   if (!user) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
-        <div className="w-full max-w-xl rounded-[2rem] border border-[#d9d4c9] bg-white p-8 shadow-[0_30px_90px_rgba(29,45,35,.1)] sm:p-10">
+        <div className="w-full max-w-xl rounded-[2rem] border border-[#dedee3] bg-white p-8 shadow-[0_30px_90px_rgba(29,45,35,.1)] sm:p-10">
           <ShieldCheck className="size-11 text-[#a66b1f]" />
           <h1 className="mt-5 text-4xl font-semibold tracking-[-.04em]">
             Archives Zentra
@@ -193,7 +193,7 @@ export default async function AccountArchivesPage({
 
         <form
           method="get"
-          className="mt-8 flex flex-col gap-3 rounded-3xl border border-[#d9d4c9] bg-white p-4 sm:flex-row"
+          className="mt-8 flex flex-col gap-3 rounded-3xl border border-[#dedee3] bg-white p-4 sm:flex-row"
         >
           <input
             type="hidden"
@@ -209,7 +209,7 @@ export default async function AccountArchivesPage({
               defaultValue={query}
               maxLength={100}
               placeholder="Rechercher un numéro ou une date…"
-              className="h-12 w-full rounded-2xl border border-[#cbc7bd] bg-[#fffdf9] pl-12 pr-4 outline-none"
+              className="h-12 w-full rounded-2xl border border-[#cbc7bd] bg-[#ffffff] pl-12 pr-4 outline-none"
             />
           </label>
           <button
@@ -231,7 +231,7 @@ export default async function AccountArchivesPage({
         </div>
 
         {rows.results.length === 0 ? (
-          <section className="mt-5 rounded-[2rem] border border-[#d9d4c9] bg-white p-8 text-center">
+          <section className="mt-5 rounded-[2rem] border border-[#dedee3] bg-white p-8 text-center">
             <Archive className="mx-auto size-10 text-[#a66b1f]" />
             <h2 className="mt-4 text-2xl font-semibold">Aucun résultat</h2>
             <p className="mt-2 text-[#667168]">
@@ -239,7 +239,7 @@ export default async function AccountArchivesPage({
             </p>
           </section>
         ) : (
-          <ul className="mt-5 overflow-hidden rounded-[2rem] border border-[#d9d4c9] bg-white px-5 sm:px-7">
+          <ul className="mt-5 overflow-hidden rounded-[2rem] border border-[#dedee3] bg-white px-5 sm:px-7">
             {rows.results.map((archive) => (
               <li
                 key={archive.archive_id}

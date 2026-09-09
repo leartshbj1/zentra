@@ -263,13 +263,13 @@ export default function FeaturesPage() {
       <main
         id="contenu"
         tabIndex={-1}
-        className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]"
+        className="min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#18221d]"
       >
         <section className="px-5 pb-16 pt-12 sm:pb-24 sm:pt-18 lg:px-8 lg:pt-24">
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-10 lg:grid-cols-[.78fr_1.22fr] lg:items-end">
               <div data-reveal="left">
-                <p className="inline-flex items-center gap-2 rounded-full border border-[#d9d4c9] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f]">
+                <p className="inline-flex items-center gap-2 rounded-full border border-[#dedee3] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#46604f]">
                   <BadgeCheck className="size-3.5 text-[#3f7454]" />
                   Les fonctions, sans promesse cachée
                 </p>
@@ -572,7 +572,7 @@ export default function FeaturesPage() {
 
         <section
           id="salaires"
-          className="scroll-mt-24 border-y border-[#ded9ce] bg-[#fffdf9] px-5 py-16 sm:py-24 lg:px-8"
+          className="scroll-mt-24 border-y border-[#ded9ce] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal
         >
           <div className="mx-auto max-w-7xl">

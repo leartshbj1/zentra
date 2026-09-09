@@ -11,7 +11,7 @@ const links = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[#dcd8ce] bg-[#f0eee8] px-5 py-10 lg:px-8">
+    <footer className="border-t border-[#dedee3] bg-[#eeeef0] px-5 py-10 lg:px-8">
       <div className="mx-auto grid max-w-7xl gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
           <a href="/" className="inline-flex min-h-11 items-center">

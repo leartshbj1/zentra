@@ -5,5 +5,8 @@ let package = Package(
   platforms: [.iOS(.v13)],
   products: [.library(name: "tauri-plugin-zentra-mobile", type: .static, targets: ["tauri-plugin-zentra-mobile"])],
   dependencies: [.package(name: "Tauri", path: "../.tauri/tauri-api")],
-  targets: [.target(name: "tauri-plugin-zentra-mobile", dependencies: [.byName(name: "Tauri")], path: "Sources")]
+  targets: [
+    .target(name: "tauri-plugin-zentra-mobile", dependencies: [.byName(name: "Tauri")], path: "Sources"),
+    .testTarget(name: "NavigationTests", dependencies: ["tauri-plugin-zentra-mobile"], path: "Tests")
+  ]
 )

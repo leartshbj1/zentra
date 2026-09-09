@@ -90,6 +90,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Select Xcode with native Liquid Glass support
+        run: bash desktop/scripts/select-xcode-glass.sh
       - name: Configure the native Apple toolchain
         run: |
           # Xcode filters environment variables from its Rust build phase.
@@ -137,6 +139,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Select Xcode with native Liquid Glass support
+        run: bash desktop/scripts/select-xcode-glass.sh
       - name: Configure the native Apple toolchain
         run: |
           printf '[toolchain]\nchannel = "stable"\n' > desktop/src-tauri/rust-toolchain.toml

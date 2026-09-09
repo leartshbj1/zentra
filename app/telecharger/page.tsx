@@ -284,7 +284,7 @@ export default function DownloadPage() {
         </section>
 
         <section
-          className="border-y border-[#ded9ce] bg-[#fffdf9] px-5 py-12 sm:py-16 lg:px-8"
+          className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-12 sm:py-16 lg:px-8"
           data-reveal
           aria-labelledby="application-desktop-title"
         >

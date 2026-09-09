@@ -8,7 +8,7 @@ struct Mobile(PluginHandle<Wry>);
 tauri::ios_plugin_binding!(init_plugin_zentra_mobile);
 
 pub fn init() -> TauriPlugin<Wry> {
-    Builder::new("zentra-mobile").setup(|app, api| {
+    Builder::new("zentra-mobile").invoke_handler(tauri::generate_handler![configure_navigation]).setup(|app, api| {
         #[cfg(target_os = "android")]
         let handle = api.register_android_plugin("ch.zentra.mobile", "ZentraMobilePlugin")?;
         #[cfg(target_os = "ios")]
@@ -17,6 +17,24 @@ pub fn init() -> TauriPlugin<Wry> {
         let _ = APP.set(app.clone());
         Ok(())
     }).build()
+}
+
+#[tauri::command]
+async fn configure_navigation(app: AppHandle, selected: String, visible: bool, on_navigate: tauri::ipc::Channel<Value>) -> Result<Value, String> {
+    #[cfg(target_os = "ios")]
+    {
+        if !["dashboard", "projects", "quotes", "menu"].contains(&selected.as_str()) {
+            return Err("Navigation inconnue".into());
+        }
+        app.state::<Mobile>().0.run_mobile_plugin_async("configureNavigation", json!({
+            "selected": selected, "visible": visible, "onNavigate": on_navigate
+        })).await.map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = (app, selected, visible, on_navigate);
+        Ok(json!({"available": false}))
+    }
 }
 
 /// Only the Rust application calls these APIs after checking the selected local path or URL.
