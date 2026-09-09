@@ -392,14 +392,18 @@ fn retain_image(data_dir: &Path, table: &str, image: &str) -> AppResult<()> {
             size_bytes,
         }],
     };
-    let bytes = serde_json::to_vec(&receipt)?;
+    publish_receipt(&root, &destination, &receipt)
+}
+
+fn publish_receipt(root: &Path, destination: &Path, receipt: &Receipt) -> AppResult<()> {
+    let bytes = serde_json::to_vec(receipt)?;
     let mut output = tempfile::NamedTempFile::new_in(root.join("references"))?;
     output.write_all(&bytes)?;
     output.as_file().sync_all()?;
-    match output.persist_noclobber(&destination) {
+    match output.persist_noclobber(destination) {
         Ok(_) => (),
         Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
-            if regular_metadata(&destination)?.len() > 4096 || fs::read(destination)? != bytes {
+            if regular_metadata(destination)?.len() > 4096 || fs::read(destination)? != bytes {
                 return Err(invalid(
                     "Deux copies contradictoires du document ont été détectées.",
                 ));
@@ -408,6 +412,24 @@ fn retain_image(data_dir: &Path, table: &str, image: &str) -> AppResult<()> {
         Err(error) => return Err(error.error.into()),
     }
     sync_directory(&root.join("references"))?;
+    Ok(())
+}
+
+/// Retain exact, already authenticated replacement row evidence. Its before
+/// image may only exist in received blobs, never in today's working file.
+pub(super) fn retain_verified_image(data_dir: &Path, table: &str, image: &str, file: &RetainedFile, source: &Path) -> AppResult<()> {
+    let row:Value=serde_json::from_str(image)?;
+    let reference=reference(table,&row)?.ok_or_else(||invalid("La ligne ne décrit aucun document."))?;
+    if reference.root!=file.root || reference.path!=file.path
+        || reference.sha256.as_ref().is_some_and(|s|s!=&file.sha256)
+        || reference.size.is_some_and(|size|size!=file.size_bytes) || !valid_hash(&file.sha256) || file.size_bytes>MAX_BYTES {
+        return Err(invalid("Le document de remplacement ne correspond pas à sa ligne."));
+    }
+    let root=cache_root(data_dir)?;
+    seal(&root,source,Some(&file.sha256),Some(file.size_bytes))?;
+    let destination=root.join("references").join(format!("{}.json",receipt_key(table,image)));
+    publish_receipt(&root,&destination,&Receipt {version:1,table_name:table.into(),image_sha256:digest(image.as_bytes()),files:vec![file.clone()]})?;
+    retained_image_files(data_dir,table,image)?;
     Ok(())
 }
 

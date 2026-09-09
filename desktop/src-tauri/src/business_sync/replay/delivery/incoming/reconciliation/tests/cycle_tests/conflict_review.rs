@@ -272,6 +272,99 @@ fn conflict_review_checks_both_document_choices_and_rejects_missing_or_changed_b
         .await
         .unwrap();
         assert!(other_list["proposals"].as_array().unwrap().is_empty());
+        let local_proposal_id = uuid::Uuid::new_v4().to_string();
+        let kept = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::Save {
+                resolution_id: local_proposal_id.clone(),
+                request: request(Choice::Local),
+            },
+            "d".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert_eq!(kept["state"], "resolution_saved");
+        let kept_folder = local
+            .attachments_dir
+            .join(crate::business_sync::files::DIRECTORY)
+            .join("resolutions")
+            .join(&local_proposal_id);
+        let metadata: Value =
+            serde_json::from_slice(&fs::read(kept_folder.join("proposal.json")).unwrap()).unwrap();
+        assert_eq!(metadata["version"], 2);
+        let replacements: merge::replacements::Plan =
+            serde_json::from_slice(&fs::read(kept_folder.join("replacement.json")).unwrap())
+                .unwrap();
+        assert_eq!(replacements.originals.len(), 1);
+        assert_eq!(replacements.transactions.len(), 1);
+        // Recreate only the saved replacement DB and its retained row evidence
+        // in a fresh disposable profile; no current working documents copied.
+        let probe_root = tempfile::tempdir().unwrap();
+        let mut probe = local.clone();
+        probe.data_dir = probe_root.path().to_path_buf();
+        probe.database_path = probe.data_dir.join("probe.sqlite");
+        probe.attachments_dir = probe.data_dir.join("attachments");
+        probe.exports_dir = probe.data_dir.join("exports");
+        probe.backups_dir = probe.data_dir.join("backups");
+        for folder in [
+            &probe.attachments_dir,
+            &probe.exports_dir,
+            &probe.backups_dir,
+        ] {
+            fs::create_dir(folder).unwrap();
+        }
+        fs::copy(kept_folder.join("replacement.sqlite"), &probe.database_path).unwrap();
+        for row in replacements.transactions.iter().flat_map(|t| &t.changes) {
+            if !crate::business_sync::files::has_files(&row.table) {
+                continue;
+            }
+            for raw in row.before_json.iter().chain(row.after_json.iter()) {
+                let key = format!("{}:{}", row.table, digest(raw.as_bytes()));
+                let files: Vec<crate::business_sync::files::RetainedFile> =
+                    serde_json::from_value(metadata["replacement_files"][&key].clone()).unwrap();
+                for file in files {
+                    crate::business_sync::files::retain_verified_image(
+                        &probe.data_dir,
+                        &row.table,
+                        raw,
+                        &file,
+                        &kept_folder.join("blobs").join(&file.sha256),
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        let outgoing = outgoing::prepare_next(&probe, "org-replay", "owner")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            outgoing.manifest.capture_generation,
+            replacements.replacement_capture_generation
+        );
+        assert_eq!(outgoing.manifest.base_revision, 2);
+        assert_eq!(outgoing.manifest.files.len(), 2);
+        for bytes in [shared_bytes.as_slice(), local_bytes.as_slice()] {
+            assert!(outgoing
+                .manifest
+                .files
+                .iter()
+                .any(|f| f.sha256 == digest(bytes)));
+            assert_eq!(
+                fs::read(kept_folder.join("blobs").join(digest(bytes))).unwrap(),
+                bytes
+            );
+        }
+        assert_eq!(
+            replay::state_fingerprint(&local.connect().unwrap()).unwrap(),
+            original_state
+        );
+        assert_eq!(
+            merge::internal_fingerprint(&local.connect().unwrap()).unwrap(),
+            original_internal
+        );
         assert_eq!(
             review::process_with_transport(
                 local.clone(),

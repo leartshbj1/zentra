@@ -29,6 +29,8 @@ struct Proposal {
     // Original row-image references remain available even when Shared was
     // chosen and those versions disappear from the proposed business rows.
     original_files: BTreeMap<String, Vec<retained::RetainedFile>>,
+    #[serde(default)]
+    replacement_files: BTreeMap<String, Vec<retained::RetainedFile>>,
     steps: Vec<Step>,
     final_files: Vec<Step>,
     prior_files: Vec<files::PriorFile>,
@@ -54,8 +56,14 @@ fn root(store: &LocalStore) -> AppResult<PathBuf> {
 }
 
 fn artifact(folder: &Path, name: &str) -> AppResult<PathBuf> {
-    let valid = matches!(name, "candidate.sqlite" | "model.sqlite" | "receipt.json")
-        || name.strip_prefix("blobs/").is_some_and(hash);
+    let valid = matches!(
+        name,
+        "candidate.sqlite"
+            | "model.sqlite"
+            | "receipt.json"
+            | "replacement.sqlite"
+            | "replacement.json"
+    ) || name.strip_prefix("blobs/").is_some_and(hash);
     if !valid {
         return Err(invalid("Une pièce de la proposition est inconnue."));
     }
@@ -130,6 +138,15 @@ fn verify_artifacts(folder: &Path, proposal: &Proposal) -> AppResult<()> {
             return Err(invalid("La proposition sauvegardée est incomplète."));
         }
     }
+    if proposal.version == 2
+        && ["replacement.sqlite", "replacement.json"]
+            .iter()
+            .any(|name| !proposal.artifacts.contains_key(*name))
+    {
+        return Err(invalid(
+            "La proposition ne contient pas ses opérations de remplacement.",
+        ));
+    }
     for (name, expected) in &proposal.artifacts {
         if !hash(&expected.sha256)
             || journal::stamp(&artifact(folder, name)?)?.as_ref() != Some(expected)
@@ -157,7 +174,12 @@ fn verify_artifacts(folder: &Path, proposal: &Proposal) -> AppResult<()> {
             ));
         }
     }
-    for file in proposal.original_files.values().flatten() {
+    for file in proposal
+        .original_files
+        .values()
+        .chain(proposal.replacement_files.values())
+        .flatten()
+    {
         if proposal.artifacts.get(&format!("blobs/{}", file.sha256))
             != Some(&Stamp {
                 sha256: file.sha256.clone(),
@@ -215,7 +237,7 @@ pub(super) fn list_saved(store: &LocalStore, header: &Header, review_id: &str) -
             ));
         }
         let proposal: Proposal = serde_json::from_slice(&raw)?;
-        if proposal.version == 1
+        if matches!(proposal.version, 1 | 2)
             && proposal.resolution_id == name
             && proposal.binding == header.binding
             && proposal.transaction_id == header.entry.transaction_id
@@ -262,7 +284,7 @@ pub(super) fn read_saved(
         ));
     }
     let proposal: Proposal = serde_json::from_slice(&raw)?;
-    if proposal.version != 1
+    if !matches!(proposal.version, 1 | 2)
         || proposal.resolution_id != id
         || proposal.binding != header.binding
         || proposal.transaction_id != header.entry.transaction_id
@@ -442,16 +464,78 @@ pub(super) fn save_with_checkpoint(
             "Les documents ont changé avant la sauvegarde des choix.",
         ));
     }
+    for file in plan.replacement_images.values().flatten() {
+        copy_blob(
+            folder,
+            &mut artifacts,
+            &plan.stage.path().join("files").join(&file.sha256),
+            &Stamp {
+                sha256: file.sha256.clone(),
+                size_bytes: file.size_bytes,
+            },
+        )?;
+    }
+    let occurred_at = chrono::Utc::now().to_rfc3339();
+    let replacement = merge::replacements::prepare(prepared, store, id, preview, &occurred_at)?;
+    for row in replacement
+        .plan
+        .transactions
+        .iter()
+        .flat_map(|t| &t.changes)
+    {
+        if !retained::has_files(&row.table) {
+            continue;
+        }
+        for raw in row.before_json.iter().chain(row.after_json.iter()) {
+            let image_key = format!("{}:{}", row.table, digest(raw.as_bytes()));
+            let evidence = plan.replacement_images.get(&image_key).ok_or_else(|| {
+                invalid("Une version de remplacement n’a pas sa preuve documentaire.")
+            })?;
+            for file in evidence {
+                retained::retain_verified_image(
+                    &replacement.store().data_dir,
+                    &row.table,
+                    raw,
+                    file,
+                    &folder.join("blobs").join(&file.sha256),
+                )?;
+            }
+        }
+    }
+    let stamp = copy_database(
+        &replacement.store().connect()?,
+        &artifact(folder, "replacement.sqlite")?,
+    )?;
+    budget(&artifacts, stamp.size_bytes)?;
+    artifacts.insert("replacement.sqlite".into(), stamp);
+    let replacement_raw = serde_json::to_vec(&replacement.plan)?;
+    budget(&artifacts, replacement_raw.len() as u64)?;
+    let replacement_path = artifact(folder, "replacement.json")?;
+    let mut replacement_file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&replacement_path)?;
+    replacement_file.write_all(&replacement_raw)?;
+    replacement_file.sync_all()?;
+    drop(replacement_file);
+    artifacts.insert(
+        "replacement.json".into(),
+        Stamp {
+            sha256: digest(&replacement_raw),
+            size_bytes: replacement_raw.len() as u64,
+        },
+    );
     let proposal = Proposal {
-        version: 1,
+        version: 2,
         resolution_id: id.into(),
         binding: header.binding.clone(),
         transaction_id: header.entry.transaction_id.clone(),
         receipt_sha256: header.entry.receipt_sha256.clone(),
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: occurred_at,
         request,
         preview: preview.clone(),
         original_files,
+        replacement_files: plan.replacement_images.clone(),
         steps: plan.steps.clone(),
         final_files: plan.final_files.clone(),
         prior_files: plan.prior_files.clone(),

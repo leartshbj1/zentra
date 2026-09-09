@@ -655,3 +655,108 @@ fn comparison_and_preview_pages_require_the_same_review_and_preserve_every_trans
     assert_eq!(next["review_id"], id);
     assert_eq!(next["next_after_sequence"], Value::Null);
 }
+
+#[test]
+fn replacement_journals_preserve_originals_and_rebuild_audits_after_discarding_a_parent() {
+    for selected in [
+        [Choice::Local, Choice::Local],
+        [Choice::Shared, Choice::Local],
+        [Choice::Shared, Choice::Shared],
+    ] {
+        let f = fixture(1, false);
+        let original = evidence(&f.store);
+        let id = Uuid::new_v4().to_string();
+        let captured = std::cell::RefCell::new(None);
+        preview_impl(
+            &f.prepared,
+            &f.scope(),
+            f.request(&selected),
+            || Ok(()),
+            |_| {
+                Ok(Some(DocumentReview {
+                    final_count: 0,
+                    files_to_replace: 0,
+                    total_size_bytes: 0,
+                    plan_sha256: "0".repeat(64),
+                }))
+            },
+            |candidate, report| {
+                let replacement = super::super::replacements::prepare(
+                    candidate,
+                    &f.store,
+                    &id,
+                    report,
+                    "2026-09-09T12:00:00Z",
+                )?;
+                let repeated = super::super::replacements::prepare(
+                    candidate,
+                    &f.store,
+                    &id,
+                    report,
+                    "2026-09-09T12:00:00Z",
+                )?;
+                assert_eq!(
+                    serde_json::to_value(&replacement.plan).unwrap(),
+                    serde_json::to_value(&repeated.plan).unwrap()
+                );
+                *captured.borrow_mut() = Some(replacement);
+                Ok(())
+            },
+        )
+        .unwrap();
+        let replacement = captured.into_inner().unwrap();
+        let plan = &replacement.plan;
+        assert_eq!(plan.originals.len(), 2);
+        assert_eq!(
+            plan.transactions.len(),
+            selected.iter().filter(|c| **c == Choice::Local).count()
+        );
+        assert_ne!(plan.replacement_capture_generation, f.capture);
+        let generated = replacement.store().connect().unwrap();
+        crate::audit::verify_audit_chain(&generated).unwrap();
+        let live = f.store.connect().unwrap();
+        let rows = |c: &Connection| {
+            c.prepare("SELECT sequence,generation,transaction_id,table_name,before_json,after_json,source_rowid,base_revision FROM business_sync_changes WHERE generation=?1 ORDER BY sequence").unwrap().query_map([&f.capture],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,Option<String>>(4)?,r.get::<_,Option<String>>(5)?,r.get::<_,String>(6)?,r.get::<_,i64>(7)?))).unwrap().collect::<rusqlite::Result<Vec<_>>>().unwrap()
+        };
+        assert_eq!(rows(&live), rows(&generated));
+        let audit_count: i64 = generated
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE action='sync.conflict_resolution'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_count as usize, plan.transactions.len());
+        let original_audits:Vec<String>=live.prepare("SELECT json_extract(after_json,'$.id') FROM business_sync_changes WHERE generation=?1 AND table_name='audit_log'").unwrap().query_map([&f.capture],|r|r.get(0)).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        for audit_id in original_audits {
+            assert!(!generated
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM audit_log WHERE id=?1)",
+                    [audit_id],
+                    |r| r.get::<_, bool>(0)
+                )
+                .unwrap());
+        }
+        let outgoing = outgoing::prepare_next(replacement.store(), "org-replay", "owner").unwrap();
+        if let Some(first) = plan.transactions.first() {
+            let outgoing = outgoing.unwrap();
+            assert_eq!(outgoing.manifest.transaction_id, first.transaction_id);
+            assert_eq!(outgoing.manifest.base_revision, 2);
+            assert_eq!(
+                outgoing.manifest.capture_generation,
+                plan.replacement_capture_generation
+            );
+            assert_eq!(outgoing.manifest.first_sequence, first.first_sequence);
+            assert_eq!(outgoing.manifest.last_sequence, first.last_sequence);
+            assert_eq!(outgoing.manifest.change_count, first.changes.len());
+            assert!(plan
+                .originals
+                .iter()
+                .all(|o| o.transaction_id != outgoing.manifest.transaction_id));
+        } else {
+            assert!(outgoing.is_none());
+            assert_eq!(plan.replacement_state_sha256, f.context.target_state_sha256);
+        }
+        assert_eq!(evidence(&f.store), original);
+    }
+}

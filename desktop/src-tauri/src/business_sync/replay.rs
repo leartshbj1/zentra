@@ -46,6 +46,8 @@ fn invalid(message: &str) -> AppError {
 
 /// The receiver must obtain these values from the verified canonical receipt.
 /// Source-device rowids must not be substituted for canonical rowids.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct RowChange {
     pub table: String,
     pub key_json: String,

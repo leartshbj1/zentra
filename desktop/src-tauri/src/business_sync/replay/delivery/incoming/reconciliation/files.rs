@@ -11,6 +11,7 @@ pub(super) struct Plan {
     pub final_files: Vec<Step>,
     pub stage: crate::business_sync::workspace::Workspace,
     pub prior_files: Vec<PriorFile>,
+    pub replacement_images: BTreeMap<String, Vec<RetainedFile>>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -51,7 +52,17 @@ impl Plan {
     pub fn preview(&self, store: &LocalStore) -> AppResult<merge::resolution::DocumentReview> {
         verify_prior(store, &self.prior_files)?;
         let mut hash = Sha256::new();
-        hash.update(b"zentra-business-resolution-documents-v1\0");
+        hash.update(b"zentra-business-resolution-documents-v2\0");
+        hash.update(serde_json::to_vec(&self.replacement_images)?);
+        for file in self.replacement_images.values().flatten() {
+            if journal::stamp(&self.stage.path().join("files").join(&file.sha256))?.as_ref()
+                != Some(&record(file).after)
+            {
+                return Err(invalid(
+                    "Une version nécessaire aux remplacements a changé.",
+                ));
+            }
+        }
         hash.update(serde_json::to_vec(&self.prior_files)?);
         hash.update(b"\n");
         let replacements: BTreeMap<_, _> = self
@@ -427,10 +438,47 @@ pub(super) fn plan(
         }
         steps.push(step);
     }
+    let mut replacement_images = BTreeMap::new();
+    let mut q = c.prepare("SELECT table_name,row_key_json,before_json,after_json FROM planned_changes ORDER BY position")?;
+    let mut rows = q.query([])?;
+    while let Some(row) = rows.next()? {
+        let table: String = row.get(0)?;
+        if !retained::has_files(&table) {
+            continue;
+        }
+        let row_key: String = row.get(1)?;
+        let before: Option<String> = row.get(2)?;
+        let after: Option<String> = row.get(3)?;
+        for image in before.iter().chain(after.iter()) {
+            let image_key = format!("{table}:{}", digest(image.as_bytes()));
+            if replacement_images.contains_key(&image_key) {
+                continue;
+            }
+            let Some(_) = retained::reference(&table, &serde_json::from_str(image)?)? else {
+                replacement_images.insert(image_key, vec![]);
+                continue;
+            };
+            let file = remembered(c, &table, &row_key, image)?.ok_or_else(|| {
+                invalid("Une version nécessaire au remplacement n’a pas sa preuve d’origine.")
+            })?;
+            let target = stage.path().join("files").join(&file.sha256);
+            if !target.try_exists()? {
+                let incoming = received.join("files").join(&file.sha256);
+                let source = if incoming.try_exists()? {
+                    incoming
+                } else {
+                    retained::retained_blob_path(&store.data_dir, &file.sha256, file.size_bytes)?
+                };
+                journal::copy_verified(&source, &target, &record(&file).after)?;
+            }
+            replacement_images.insert(image_key, vec![file]);
+        }
+    }
     Ok(Plan {
         steps,
         final_files: verified,
         stage,
         prior_files: prior.into_values().collect(),
+        replacement_images,
     })
 }

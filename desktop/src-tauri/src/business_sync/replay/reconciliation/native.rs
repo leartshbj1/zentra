@@ -68,7 +68,7 @@ pub(in crate::business_sync::replay) fn internal_fingerprint(c: &Connection) -> 
     }
     Ok(format!("{:x}", hash.finalize()))
 }
-fn load_canonical(copy: &Copy, model: &model::Model) -> AppResult<()> {
+pub(super) fn load_canonical(copy: &Copy, model: &model::Model) -> AppResult<()> {
     let mut c = copy.store.connect()?;
     c.pragma_update(None, "foreign_keys", false)?;
     let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
@@ -150,7 +150,7 @@ fn mapped(r: &rusqlite::Row<'_>) -> rusqlite::Result<RowChange> {
         after_json: r.get(4)?,
     })
 }
-fn restore_local(copy: &Copy, expected: &str) -> AppResult<()> {
+pub(super) fn restore_local(copy: &Copy, expected: &str) -> AppResult<()> {
     let mut c = copy.store.connect()?;
     let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     for table in policy()?.local_tables.keys() {
@@ -193,6 +193,12 @@ pub(super) fn build(
     local_sha256: &str,
 ) -> AppResult<Copy> {
     let internal_sha256 = internal_fingerprint(source)?;
+    let copy = copy_source(store, source)?;
+    complete(&copy, context, model, local_sha256, &internal_sha256)?;
+    Ok(copy)
+}
+
+pub(super) fn copy_source(store: &LocalStore, source: &Connection) -> AppResult<Copy> {
     let directory =
         crate::business_sync::workspace::Workspace::new(store, "reconciliation-native")?;
     let mut candidate = store.clone();
@@ -215,11 +221,20 @@ pub(super) fn build(
         None,
     )?;
     drop(destination);
-    let copy = Copy {
+    Ok(Copy {
         store: candidate,
         _directory: directory,
-    };
-    load_canonical(&copy, model)?;
+    })
+}
+
+fn complete(
+    copy: &Copy,
+    context: &Context,
+    model: &model::Model,
+    local_sha256: &str,
+    internal_sha256: &str,
+) -> AppResult<()> {
+    load_canonical(copy, model)?;
     let mut c = copy.store.connect()?;
     c.pragma_update(None, "temp_store", "FILE")?;
     {
@@ -249,7 +264,7 @@ pub(super) fn build(
         tx.commit()?;
     }
     drop(c);
-    restore_local(&copy, local_sha256)?;
+    restore_local(copy, local_sha256)?;
     let c = copy.store.connect()?;
     if internal_fingerprint(&c)? != internal_sha256 {
         return Err(invalid(
@@ -269,5 +284,5 @@ pub(super) fn build(
     }
     c.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
     drop(c);
-    Ok(copy)
+    Ok(())
 }

@@ -6,6 +6,7 @@ mod cache;
 mod model;
 mod native;
 pub(crate) mod resolution;
+pub(super) mod replacements;
 pub(super) use model::Acknowledgement;
 pub(super) use native::internal_fingerprint;
 

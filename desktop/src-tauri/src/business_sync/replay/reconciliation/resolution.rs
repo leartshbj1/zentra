@@ -307,23 +307,22 @@ fn preview_impl(
         Some(&decisions),
     )?;
     ensure_current()?;
-    let native = if model.conflict_count == 0 {
-        Some(native::build(
-            scope.store,
-            &source,
-            scope.context,
-            &model,
-            &prepared.original_local_sha256,
-        )?)
-    } else {
-        None
-    };
-    let preview = Prepared {
+    let mut preview = Prepared {
         model,
-        native,
+        native: None,
         original_local_sha256: prepared.original_local_sha256.clone(),
         original_internal_sha256: prepared.original_internal_sha256.clone(),
     };
+    if preview.model.conflict_count == 0 {
+        let metadata = serde_json::json!({"state":"resolution_preview","review_id":expected_review,
+            "decision_sha256":format!("{:x}",decision_hash.clone().finalize()),"decisions":decisions,
+            "confirmed_transaction_id":scope.acknowledgement.map(|a|a.transaction_id.as_str())});
+        preview.native = Some(super::replacements::preview_copy(
+            &mut preview,
+            scope.store,
+            &metadata,
+        )?);
+    }
     let mut result = inspect(
         &preview,
         scope,
