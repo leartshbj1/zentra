@@ -2,6 +2,18 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Empreintes de révision reprenables
+
+Le serveur calcule maintenant les empreintes des états de départ et d'arrivée après le contrôle de la copie candidate. `GET/POST /api/sync/transactions/fingerprint` conserve la progression dans la migration additive `0032`. Chaque point de reprise est lié à l'entreprise, l'appareil émetteur, la génération, la tentative, le manifeste, le validateur et la révision courante. Le même garde est revérifié lors de l'écriture et de la réponse : une tentative remplacée, un changement de révision ou de validation ne peut pas confirmer une empreinte périmée. Les mises à niveau de contrôle effacent seulement ce calcul dérivé.
+
+L'algorithme 2 remplace le prototype natif de SHA256 continu, jamais exposé dans un reçu ni activé en réception. La graine est `SHA256("zentra-business-state-v2\0")`. Pour chaque ligne triée par table et clé selon l'ordre binaire SQLite, le nouveau maillon est `SHA256("zentra-business-state-row-v2\0" || précédent[32 octets] || champs)`. Les quatre champs sont la table, la clé JSON, le rowid canonique décimal et l'image JSON normalisée ; chacun est préfixé par sa longueur UTF-8 sur huit octets non signés, grand-boutiste. Le résultat ne dépend pas de la taille des lots. Le contexte de réception native exige explicitement cette version et refuse les autres.
+
+La normalisation JSON est faite par SQLite dans l'ordre des colonnes du contrat partagé, sans conversion des montants en nombres JavaScript. Clés, types scalaires, colonnes absentes ou inconnues, doublons, alias de rowid et empreintes des images conservées sont vérifiés. Un passage lit au plus 64 lignes et 4 Mio ; l'état complet reste limité à 200 000 lignes et 512 Mio, avec 1 Mio par ligne. La pagination utilise une recherche composée dans l'index `(transfer_id, table_name, row_key_json)` pour éviter de relire tout le début du dossier à chaque lot.
+
+Les vecteurs indépendants de hachage sont partagés entre les tests Rust et TypeScript. Un export réel SQLite natif confronte aussi les deux moteurs et D1 sur les valeurs Unicode, les caractères nuls, les positions signées et les montants dépassant la précision de JavaScript. Les tests de protocole couvrent la reprise après interruption, les demandes concurrentes, les données altérées et le maintien de la révision publiée.
+
+Une empreinte complète n'est pas un reçu de commit. Le scellement, la validation métier restante, l'application canonique et l'installation native avec confirmation restent à relier. `business_validated`, `canonical_committed` et `replication_active` restent faux ; aucun nouvel installateur natif n'est distribué par cette étape.
+
 ## Positions canoniques de chaque modification
 
 La préparation serveur conserve désormais la position canonique de chaque événement dans `business_sync_transaction_canonical_order`, avec sa tentative de contrôle et sa position dans le fragment original. Une insertion suivie d'une modification et d'une suppression garde ainsi les trois références, même si la ligne disparaît de la copie finale. Les positions restent des chaînes décimales exactes, y compris au-delà de la précision des nombres JavaScript. Elles sont enregistrées dans la même transaction que les changements et le point de reprise.

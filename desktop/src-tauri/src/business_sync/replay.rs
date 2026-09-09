@@ -13,6 +13,27 @@ use std::{collections::BTreeSet, fs, time::Duration};
 const MAX_ROWS: usize = 200_000;
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 const MAX_ROW_BYTES: usize = 1024 * 1024;
+const STATE_FINGERPRINT_VERSION: u32 = 2;
+// Page-independent chain, shared with business-sync-state-hash.ts. Only SHA256
+// digests (not implementation-specific internal SHA state) cross checkpoints.
+struct StateFingerprint([u8; 32]);
+impl StateFingerprint {
+    fn new() -> Self {
+        Self(Sha256::digest(b"zentra-business-state-v2\0").into())
+    }
+    fn row(&mut self, fields: [&str; 4]) {
+        let mut hash = Sha256::new();
+        hash.update(b"zentra-business-state-row-v2\0");
+        hash.update(self.0);
+        for field in fields {
+            frame(&mut hash, field.as_bytes());
+        }
+        self.0 = hash.finalize().into();
+    }
+    fn hex(&self) -> String {
+        self.0.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+}
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
@@ -27,6 +48,7 @@ pub(super) struct RowChange {
     pub canonical_rowid: i64,
 }
 pub(super) struct Context {
+    pub fingerprint_version: u32,
     pub organization: String,
     pub generation: String,
     pub base_revision: i64,
@@ -181,8 +203,7 @@ fn local_fingerprint(connection: &Connection) -> AppResult<String> {
 /// Content and canonical row order, independent of local-only tables. The
 /// server receipt must bind this digest to the exact source/target revision.
 pub(super) fn state_fingerprint(connection: &Connection) -> AppResult<String> {
-    let mut hash = Sha256::new();
-    hash.update(b"zentra-native-replay-state-v1\0");
+    let mut hash = StateFingerprint::new();
     for (table, rule) in policy()?.tables {
         let mut statement = connection.prepare(&format!(
             "SELECT {},CAST(r.rowid AS TEXT),{} FROM {} r ORDER BY {}",
@@ -193,25 +214,29 @@ pub(super) fn state_fingerprint(connection: &Connection) -> AppResult<String> {
         ))?;
         let mut rows = statement.query([])?;
         while let Some(row) = rows.next()? {
-            frame(&mut hash, table.as_bytes());
-            for i in 0..3 {
-                frame(&mut hash, row.get::<_, String>(i)?.as_bytes());
-            }
+            hash.row([
+                &table,
+                &row.get::<_, String>(0)?,
+                &row.get::<_, String>(1)?,
+                &row.get::<_, String>(2)?,
+            ]);
         }
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(hash.hex())
 }
 fn fingerprint(connection: &Connection, table: &str) -> AppResult<String> {
-    let mut hash = Sha256::new();
-    hash.update(b"zentra-native-replay-state-v1\0");
+    let mut hash = StateFingerprint::new();
     let mut statement=connection.prepare(&format!("SELECT table_name,row_key_json,CAST(canonical_rowid AS TEXT),row_json FROM {table} ORDER BY table_name,row_key_json"))?;
     let mut rows = statement.query([])?;
     while let Some(row) = rows.next()? {
-        for i in 0..4 {
-            frame(&mut hash, row.get::<_, String>(i)?.as_bytes());
-        }
+        hash.row([
+            &row.get::<_, String>(0)?,
+            &row.get::<_, String>(1)?,
+            &row.get::<_, String>(2)?,
+            &row.get::<_, String>(3)?,
+        ]);
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(hash.hex())
 }
 fn snapshot(connection: &Connection, destination: &str) -> AppResult<()> {
     let contract = policy()?;
@@ -243,6 +268,11 @@ fn snapshot(connection: &Connection, destination: &str) -> AppResult<()> {
     Ok(())
 }
 fn check_context(connection: &Connection, store: &LocalStore, context: &Context) -> AppResult<()> {
+    if context.fingerprint_version != STATE_FINGERPRINT_VERSION {
+        return Err(invalid(
+            "La version de vérification du dossier n'est pas prise en charge.",
+        ));
+    }
     if [&context.source_state_sha256, &context.target_state_sha256]
         .iter()
         .any(|s| {

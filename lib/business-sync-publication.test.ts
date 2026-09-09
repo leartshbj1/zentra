@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -83,6 +84,13 @@ import {
   transactionTransitionSql,
 } from './business-sync-transaction-validation';
 import * as transactionValidationHttp from '../app/api/sync/transactions/validate/route';
+import * as fingerprintHttp from '../app/api/sync/transactions/fingerprint/route';
+import {
+  businessTransactionFingerprintStatus,
+  fingerprintBusinessTransaction,
+} from './business-sync-transaction-fingerprint';
+import { fingerprintStatePage } from './business-sync-state-fingerprint';
+import { initialStateHash } from './business-sync-state-hash';
 import {
   businessTransactionFileStatus,
   uploadBusinessTransactionFilePart,
@@ -465,7 +473,294 @@ async function validateTransaction(actor: DeviceSessionContext, id: string) {
   expect(['valid', 'invalid', 'stale']).toContain(status.phase);
   return status;
 }
+async function finishFingerprint(actor: DeviceSessionContext, id: string) {
+  let status = await fingerprintBusinessTransaction(actor, id);
+  for (let pass = 0; pass < 50 && status.phase !== 'complete'; pass++)
+    status = await fingerprintBusinessTransaction(actor, id);
+  expect(status).toMatchObject({
+    phase: 'complete',
+    fingerprint_complete: true,
+    business_validated: false,
+    canonical_committed: false,
+    replication_active: false,
+  });
+  return status;
+}
+function fingerprintEvidence(id: string) {
+  return db
+    .prepare(
+      'SELECT * FROM business_sync_transaction_fingerprints WHERE transfer_id=?',
+    )
+    .get(id);
+}
+function snapshotHash(id: string) {
+  const rows = db
+    .prepare(
+      'SELECT v.table_name,v.row_key_json,v.row_json,o.source_rowid FROM business_sync_versions v JOIN business_sync_row_order o ON o.transfer_id=v.transfer_id AND o.table_name=v.table_name AND o.row_key_json=v.row_key_json WHERE v.transfer_id=? ORDER BY v.table_name,v.row_key_json',
+    )
+    .all(id);
+  let head = createHash('sha256').update('zentra-business-state-v2\0').digest();
+  for (const row of rows) {
+    const hash = createHash('sha256')
+      .update('zentra-business-state-row-v2\0')
+      .update(head);
+    for (const value of [
+      row.table_name,
+      row.row_key_json,
+      row.source_rowid,
+      row.row_json,
+    ]) {
+      const b = Buffer.from(String(value)),
+        size = Buffer.alloc(8);
+      size.writeBigUInt64BE(BigInt(b.length));
+      hash.update(size).update(b);
+    }
+    head = hash.digest();
+  }
+  return head.toString('hex');
+}
+it('fingerprints the validated source and candidate without publishing either, and survives a lost response', async () => {
+  const f = await receiveTransaction(
+    await transactionFixture([
+      Array.from({ length: 135 }, (_, i) =>
+        transactionInsert(String(i + 1), `hash-${i}`),
+      ),
+    ]),
+  );
+  const id = f.manifest.transaction_id;
+  await expect(fingerprintBusinessTransaction(f.actor, id)).rejects.toThrow();
+  await projectTransaction(f.actor, id);
+  await expect(fingerprintBusinessTransaction(f.actor, id)).rejects.toThrow(
+    'contrôlé',
+  );
+  await validateTransaction(f.actor, id);
+  expect(await businessTransactionFingerprintStatus(f.actor, id)).toMatchObject(
+    { phase: 'pending', fingerprint_complete: false },
+  );
+  expect(fingerprintEvidence(id)).toBeUndefined();
+  const first = await fingerprintBusinessTransaction(f.actor, id);
+  expect(first).toMatchObject({
+    phase: 'target',
+    source_state_sha256: snapshotHash(f.receipt.transfer_id),
+    checked_rows: 0,
+    target_state_sha256: null,
+  });
+  const page = await fingerprintBusinessTransaction(f.actor, id);
+  expect(page.checked_rows).toBe(64);
+  expect(await businessTransactionFingerprintStatus(f.actor, id)).toEqual(page);
+  const final = await finishFingerprint(f.actor, id);
+  expect(final).toMatchObject({
+    fingerprint_version: 2,
+    source_rows: 1,
+    target_rows: 136,
+    target_state_sha256: snapshotHash(id),
+    source_revision: 1,
+  });
+  expect(await fingerprintBusinessTransaction(f.actor, id)).toEqual(final);
+  expect((await historyHead(f.actor)).head_revision).toBe(1);
+});
+it('fingerprint checkpoint failure leaves the same page available for retry', async () => {
+  const f = await receiveTransaction(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  await projectTransaction(f.actor, id);
+  await validateTransaction(f.actor, id);
+  await fingerprintBusinessTransaction(f.actor, id);
+  const saved = fingerprintEvidence(id);
+  failStatement = (sql) => {
+    if (sql.startsWith('UPDATE business_sync_transaction_fingerprints'))
+      throw new Error('fingerprint checkpoint interrupted');
+  };
+  await expect(fingerprintBusinessTransaction(f.actor, id)).rejects.toThrow(
+    'checkpoint interrupted',
+  );
+  failStatement = undefined;
+  expect(fingerprintEvidence(id)).toEqual(saved);
+  await finishFingerprint(f.actor, id);
+});
+it('concurrent fingerprint passes do not skip a page or hash it twice', async () => {
+  const f = await receiveTransaction(
+    await transactionFixture([
+      Array.from({ length: 70 }, (_, i) =>
+        transactionInsert(String(i + 1), `race-${i}`),
+      ),
+    ]),
+  );
+  const id = f.manifest.transaction_id;
+  await projectTransaction(f.actor, id);
+  await validateTransaction(f.actor, id);
+  await fingerprintBusinessTransaction(f.actor, id);
+  let competing: unknown;
+  beforeRun = async (sql) => {
+    if (sql.startsWith('UPDATE business_sync_transaction_fingerprints')) {
+      beforeRun = undefined;
+      competing = await fingerprintBusinessTransaction(f.actor, id);
+    }
+  };
+  expect(await fingerprintBusinessTransaction(f.actor, id)).toEqual(competing);
+  expect(fingerprintEvidence(id)).toMatchObject({ phase: 'target', rows: 64 });
+  expect((await finishFingerprint(f.actor, id)).target_state_sha256).toBe(
+    snapshotHash(id),
+  );
+});
+it.each(['head', 'attempt', 'validation', 'credit'])(
+  'a changed %s cannot certify or advance a fingerprint page',
+  async (change) => {
+    const f = await receiveTransaction(await transactionFixture());
+    const id = f.manifest.transaction_id;
+    await projectTransaction(f.actor, id);
+    await validateTransaction(f.actor, id);
+    await fingerprintBusinessTransaction(f.actor, id);
+    const saved = fingerprintEvidence(id);
+    beforeRun = async (sql) => {
+      if (sql.startsWith('UPDATE business_sync_transaction_fingerprints')) {
+        beforeRun = undefined;
+        if (change === 'head')
+          db.exec(
+            'UPDATE business_sync_spaces SET head_revision=head_revision+1',
+          );
+        if (change === 'attempt')
+          db.prepare(
+            "UPDATE business_sync_transaction_reviews SET attempt='replaced' WHERE transfer_id=?",
+          ).run(id);
+        if (change === 'validation')
+          db.prepare(
+            "UPDATE business_sync_transaction_validations SET phase='invalid',failed_rule='qa' WHERE transfer_id=?",
+          ).run(id);
+        if (change === 'credit')
+          db.prepare(
+            'DELETE FROM business_sync_credit_projection WHERE transfer_id=?',
+          ).run(id);
+      }
+    };
+    const status = await fingerprintBusinessTransaction(f.actor, id);
+    expect(status).toMatchObject({
+      phase: 'stale',
+      target_state_sha256: null,
+      fingerprint_complete: false,
+    });
+    expect(fingerprintEvidence(id)).toEqual(saved);
+  },
+);
+it.each(['hash', 'order', 'truncated', 'version', 'cursor'])(
+  'refuses altered fingerprint %s evidence without certifying a target',
+  async (change) => {
+    const f = await receiveTransaction(await transactionFixture());
+    const id = f.manifest.transaction_id;
+    await projectTransaction(f.actor, id);
+    await validateTransaction(f.actor, id);
+    await fingerprintBusinessTransaction(f.actor, id);
+    if (change === 'hash')
+      db.prepare(
+        "UPDATE business_sync_versions SET row_sha256='bad' WHERE transfer_id=?",
+      ).run(id);
+    if (change === 'order')
+      db.prepare('DELETE FROM business_sync_row_order WHERE transfer_id=?').run(
+        id,
+      );
+    if (change === 'truncated')
+      db.prepare('DELETE FROM business_sync_versions WHERE transfer_id=?').run(
+        id,
+      );
+    if (change === 'version')
+      db.prepare(
+        'UPDATE business_sync_transaction_fingerprints SET algorithm_version=3 WHERE transfer_id=?',
+      ).run(id);
+    if (change === 'cursor')
+      db.prepare(
+        'UPDATE business_sync_transaction_fingerprints SET sha256=? WHERE transfer_id=?',
+      ).run('0'.repeat(64), id);
+    const saved = fingerprintEvidence(id);
+    await expect(fingerprintBusinessTransaction(f.actor, id)).rejects.toThrow();
+    expect(fingerprintEvidence(id)).toEqual(saved);
+  },
+);
+it('authenticates fingerprint routes and keeps both progress and hashes private to the publishing device', async () => {
+  const f = await receiveTransaction(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  await projectTransaction(f.actor, id);
+  await validateTransaction(f.actor, id);
+  const request = () =>
+    new Request(
+      `https://zentra.test/api/sync/transactions/fingerprint?transaction_id=${id}`,
+    );
+  mocks.session.mockRejectedValue(
+    new AccountPublicError('Connexion requise', 401),
+  );
+  for (const action of [fingerprintHttp.GET, fingerprintHttp.POST]) {
+    const response = await action(request());
+    expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  }
+  for (const actor of [
+    { ...f.actor, organizationId: 'org_other' },
+    owner,
+    { ...f.actor, role: 'read_only' as const },
+  ])
+    await expect(
+      businessTransactionFingerprintStatus(actor, id),
+    ).rejects.toThrow();
+  mocks.session.mockResolvedValue(f.actor);
+  const response = await fingerprintHttp.POST(request());
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toContain('no-store');
+  expect(await response.json()).toMatchObject({
+    phase: 'target',
+    canonical_committed: false,
+  });
+});
 
+it.each(['review', 'validation'])(
+  'rebuilding a legacy %s discards derived fingerprints and preserves original transaction evidence',
+  async (kind) => {
+    const f = await receiveTransaction(await transactionFixture());
+    const id = f.manifest.transaction_id;
+    await projectTransaction(f.actor, id);
+    await validateTransaction(f.actor, id);
+    await finishFingerprint(f.actor, id);
+    const chunks = db
+      .prepare(
+        'SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?',
+      )
+      .all(id);
+    const changes = db
+      .prepare(
+        'SELECT * FROM business_sync_transaction_changes WHERE transaction_id=? ORDER BY part_index,change_index',
+      )
+      .all(id);
+    if (kind === 'review') {
+      db.prepare(
+        'UPDATE business_sync_transaction_reviews SET algorithm_version=1 WHERE transfer_id=?',
+      ).run(id);
+      await beginBusinessTransactionReview(f.actor, id);
+      expect(fingerprintEvidence(id)).toBeUndefined();
+      await projectTransaction(f.actor, id);
+    } else {
+      db.prepare(
+        'UPDATE business_sync_transaction_validations SET algorithm_version=1 WHERE transfer_id=?',
+      ).run(id);
+      await validateBusinessTransaction(f.actor, id);
+      expect(fingerprintEvidence(id)).toBeUndefined();
+    }
+    await validateTransaction(f.actor, id);
+    expect((await finishFingerprint(f.actor, id)).target_state_sha256).toBe(
+      snapshotHash(id),
+    );
+    expect(
+      db
+        .prepare(
+          'SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?',
+        )
+        .all(id),
+    ).toEqual(chunks);
+    expect(
+      db
+        .prepare(
+          'SELECT * FROM business_sync_transaction_changes WHERE transaction_id=? ORDER BY part_index,change_index',
+        )
+        .all(id),
+    ).toEqual(changes);
+  },
+);
 function transactionDocument(
   table: 'invoices' | 'quotes',
   values: Record<string, unknown>,
@@ -3392,6 +3687,150 @@ it('prepares canonical event positions and upgrades reviews within 100 D1 querie
     await runtime.dispose();
   }
 }, 120_000);
+it('fingerprints real D1 pages below the request budget and agrees with the native SQLite export', async (context) => {
+  const path = process.env.ZENTRA_STATE_FINGERPRINT_QA;
+  if (!path) return context.skip();
+  const { runtime, d1 } = await realD1Fixture();
+  try {
+    const f = await receiveTransaction(
+      await transactionFixture([
+        Array.from({ length: 130 }, (_, i) =>
+          transactionInsert(String(i + 1), `d1-hash-${i}`),
+        ),
+      ]),
+    );
+    const id = f.manifest.transaction_id;
+    await projectTransaction(f.actor, id);
+    await validateTransaction(f.actor, id);
+    let queries = 0,
+      peak = 0;
+    const wrap = (native: D1PreparedStatement) => ({
+      bind: (...args: unknown[]) => wrap(native.bind(...args)),
+      async first<T>(column?: string) {
+        queries++;
+        return column === undefined
+          ? native.first<T>()
+          : native.first<T>(column);
+      },
+      async all<T>() {
+        queries++;
+        return native.all<T>();
+      },
+      async run<T>() {
+        queries++;
+        return native.run<T>();
+      },
+      async raw<T>() {
+        queries++;
+        return native.raw<T>();
+      },
+    });
+    const counted = {
+      prepare: (sql: string) => wrap(d1.prepare(sql)),
+    } as unknown as D1Database;
+    mocks.db.mockReturnValue(counted);
+    let result;
+    let passes = 0;
+    do {
+      queries = 0;
+      result = await fingerprintBusinessTransaction(f.actor, id);
+      peak = Math.max(peak, queries);
+      expect(queries).toBeLessThanOrEqual(100);
+      passes++;
+      expect(passes).toBeLessThan(10);
+    } while (result.phase !== 'complete');
+    expect(result).toMatchObject({
+      phase: 'complete',
+      source_rows: 1,
+      target_rows: 131,
+      fingerprint_complete: true,
+      canonical_committed: false,
+    });
+    expect(peak).toBeGreaterThan(64);
+    expect(passes).toBe(4);
+    expect((await historyHead(f.actor)).head_revision).toBe(1);
+    // Independent native export, inserted only in this disposable Miniflare DB.
+    // The endpoint path above already verified authorization/validation gates.
+    const fixture = JSON.parse(readFileSync(path, 'utf8')) as {
+      sha256: string;
+      rows: {
+        table: string;
+        key_json: string;
+        source_rowid: string;
+        row_json: string;
+      }[];
+    };
+    await d1.batch([
+      d1
+        .prepare('DELETE FROM business_sync_versions WHERE transfer_id=?')
+        .bind(id),
+      d1
+        .prepare('DELETE FROM business_sync_row_order WHERE transfer_id=?')
+        .bind(id),
+    ]);
+    for (let offset = 0; offset < fixture.rows.length; offset += 40)
+      await d1.batch(
+        (
+          await Promise.all(
+            fixture.rows
+              .slice(offset, offset + 40)
+              .map(async (row) => [
+                d1
+                  .prepare(
+                    'INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256) VALUES(?,?,?,?,?,?)',
+                  )
+                  .bind(
+                    id,
+                    f.actor.organizationId,
+                    row.table,
+                    row.key_json,
+                    row.row_json,
+                    await sha256Hex(row.row_json),
+                  ),
+                d1
+                  .prepare(
+                    'INSERT INTO business_sync_row_order VALUES(?,?,?,?)',
+                  )
+                  .bind(id, row.table, row.key_json, row.source_rowid),
+              ]),
+          )
+        ).flat(),
+      );
+    let cursor = {
+      last_table: '',
+      last_key: '',
+      rows: 0,
+      bytes: 0,
+      sha256: await initialStateHash(),
+    };
+    for (let n = 0; n < 20; n++) {
+      queries = 0;
+      const page = await fingerprintStatePage(
+        counted,
+        id,
+        f.actor.organizationId,
+        cursor,
+      );
+      expect(queries).toBeLessThanOrEqual(65);
+      cursor = page.cursor;
+      if (page.complete) break;
+    }
+    expect(cursor.rows).toBe(fixture.rows.length);
+    expect(cursor.sha256).toBe(fixture.sha256);
+    console.info(
+      'QA_STATE_FINGERPRINT',
+      JSON.stringify({
+        apiPages: passes,
+        peakQueries: peak,
+        nativeRows: cursor.rows,
+        nativeHashMatches: true,
+        canonicalCommitted: false,
+      }),
+    );
+  } finally {
+    await runtime.dispose();
+  }
+}, 120000);
 it('compiles every intermediate accounting query against actual D1 limits', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {

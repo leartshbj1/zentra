@@ -145,6 +145,28 @@ async function context(session: DeviceSessionContext, id: unknown) {
   };
 }
 type Context = Awaited<ReturnType<typeof context>>;
+export const validatedTransactionGateSql = `EXISTS(${active} AND v.phase='valid'
+ AND v.next_structural_rule=${structuralRules.length} AND v.next_accounting_rule=${transactionStateRules.length}
+ AND v.failed_rule IS NULL AND v.checked_changes=(SELECT json_extract(manifest_json,'$.change_count') FROM business_sync_transfers WHERE transfer_id=?1)
+ AND EXISTS(SELECT 1 FROM business_sync_credit_projection p WHERE p.transfer_id=v.transfer_id AND p.validator_sha256=v.validator_sha256
+ AND p.manifest_sha256=?5 AND p.generation=?4 AND json_extract(p.state_json,'$.phase')='valid'))`;
+export async function validatedTransactionContext(
+  session: DeviceSessionContext,
+  id: unknown,
+) {
+  const ctx = await context(session, id);
+  const row = await progress(ctx);
+  if (
+    !row ||
+    row.phase !== 'valid' ||
+    !(await response(ctx, row)).snapshot_validated
+  )
+    fail('Le dossier doit être contrôlé avant de vérifier son empreinte.');
+  return {
+    ...ctx,
+    expectedTargetRows: Object.values(counts(row)).reduce((n, v) => n + v, 0),
+  };
+}
 function counts(row: Progress) {
   let value: Record<string, number>;
   try {
@@ -344,6 +366,7 @@ export async function validateBusinessTransaction(
         'business_sync_transaction_document_states',
         'business_sync_transaction_accounting_states',
         'business_sync_transaction_effects',
+        'business_sync_transaction_fingerprints',
       ].map((table) =>
         ctx.db
           .prepare(

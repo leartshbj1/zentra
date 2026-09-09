@@ -209,6 +209,24 @@ export const businessSyncTransactionValidations=sqliteTable('business_sync_trans
   failedRule:text('failed_rule'),
   updatedAt:text('updated_at').notNull(),
 });
+export const businessSyncTransactionFingerprints=sqliteTable('business_sync_transaction_fingerprints',{
+  transferId:text('transfer_id').primaryKey().references(()=>businessSyncTransfers.transferId),
+  attempt:text('attempt').notNull(),
+  validatorSha256:text('validator_sha256').notNull(),
+  algorithmVersion:integer('algorithm_version').notNull(),
+  fingerprintContractSha256:text('fingerprint_contract_sha256').notNull(),
+  phase:text('phase').notNull(),
+  lastTable:text('last_table').notNull().default(''),
+  lastKey:text('last_key').notNull().default(''),
+  rows:integer('rows').notNull().default(0),
+  bytes:integer('bytes').notNull().default(0),
+  sha256:text('sha256').notNull(),
+  sourceSha256:text('source_sha256'),
+  sourceRows:integer('source_rows'),
+  sourceBytes:integer('source_bytes'),
+  targetSha256:text('target_sha256'),
+  updatedAt:text('updated_at').notNull(),
+});
 export const businessSyncTransactionDocumentStates=sqliteTable('business_sync_transaction_document_states',{
   transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
   validatorSha256:text('validator_sha256').notNull(),

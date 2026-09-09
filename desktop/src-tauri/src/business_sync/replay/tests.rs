@@ -82,6 +82,7 @@ pub(in crate::business_sync) fn verify_candidate(
     let candidate = build(
         receiver,
         &Context {
+            fingerprint_version: STATE_FINGERPRINT_VERSION,
             organization: prepared.manifest.organization_id.clone(),
             generation: prepared.manifest.generation.clone(),
             base_revision: prepared.manifest.base_revision,
@@ -150,6 +151,7 @@ fn setup_with(before_bind: impl FnOnce(&LocalStore)) -> (tempfile::TempDir, Loca
         directory,
         store,
         Context {
+            fingerprint_version: STATE_FINGERPRINT_VERSION,
             organization: "org-replay".into(),
             generation,
             base_revision: 1,
@@ -160,6 +162,82 @@ fn setup_with(before_bind: impl FnOnce(&LocalStore)) -> (tempfile::TempDir, Loca
 }
 fn setup() -> (tempfile::TempDir, LocalStore, Context) {
     setup_with(|_| {})
+}
+#[test]
+fn resumable_state_fingerprint_matches_independent_vectors() {
+    let vector: Value =
+        serde_json::from_str(include_str!("../../business_sync_state_hash_vectors.json")).unwrap();
+    assert_eq!(vector["version"], STATE_FINGERPRINT_VERSION);
+    let mut hash = StateFingerprint::new();
+    assert_eq!(hash.hex(), vector["seed"].as_str().unwrap());
+    for row in vector["rows"].as_array().unwrap() {
+        let fields = row["fields"].as_array().unwrap();
+        hash.row(std::array::from_fn(|i| fields[i].as_str().unwrap()));
+        assert_eq!(hash.hex(), row["sha256"].as_str().unwrap());
+        // Reconstructing from a saved chain head is enough to resume.
+        hash = StateFingerprint(hash.0);
+    }
+}
+#[test]
+fn state_fingerprint_exports_native_sqlite_unicode_and_i64_rows() {
+    let (_directory, store, _) = setup_with(|store| {
+        let c = store.connect().unwrap();
+        for i in 0..131 {
+            let id = if i == 0 {
+                "😀\u{e000}\0é".to_string()
+            } else {
+                format!("client-{i:03}")
+            };
+            let rowid = if i == 0 {
+                i64::MIN
+            } else if i == 130 {
+                i64::MAX
+            } else {
+                i
+            };
+            c.execute("INSERT INTO clients(rowid,id,name,notes,created_at,updated_at) VALUES(?1,?2,'Client fictif',?3,'2026-09-09','2026-09-09')",params![rowid,id,"Conditions\nAcompte 30 %\nÉchéance 😀\0suite"]).unwrap();
+        }
+        c.execute("INSERT INTO catalog_items(id,kind,name,sales_price_cents,purchase_cost_cents,created_at,updated_at) VALUES('precise','service','Fictif',9223372036854775807,9007199254740993,'2026-09-09','2026-09-09')",[]).unwrap();
+        c.execute("INSERT INTO quotes(id,title,created_at,updated_at) VALUES('decimal','Décimales','2026-09-09','2026-09-09')",[]).unwrap();
+        for (i, quantity) in [0.0, 1.0, 1.25, 0.1, 0.0000001, 1.2345678901234567]
+            .into_iter()
+            .enumerate()
+        {
+            c.execute("INSERT INTO quote_items(id,quote_id,description,quantity,created_at,updated_at) VALUES(?1,'decimal','Quantité',?2,'2026-09-09','2026-09-09')",params![format!("decimal-{i}"),quantity]).unwrap();
+        }
+    });
+    let data = rows(&store);
+    let sha256 = state_fingerprint(&store.connect().unwrap()).unwrap();
+    let mut hash = StateFingerprint::new();
+    for (table, key, rowid, image) in &data {
+        hash.row([table, key, &rowid.to_string(), image]);
+    }
+    assert_eq!(sha256, hash.hex());
+    if let Ok(path) = std::env::var("ZENTRA_STATE_FINGERPRINT_QA") {
+        let rows = data.into_iter().map(|(table,key,rowid,image)| json!({"table":table,"key_json":key,"source_rowid":rowid.to_string(),"row_json":image})).collect::<Vec<_>>();
+        fs::write(
+            path,
+            serde_json::to_vec_pretty(
+                &json!({"version":STATE_FINGERPRINT_VERSION,"sha256":sha256,"rows":rows}),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    }
+}
+#[test]
+fn replay_rejects_unrecognized_fingerprint_version() {
+    let (_directory, store, mut context) = setup();
+    let original = rows(&store);
+    for version in [0, 1, 3, u32::MAX] {
+        context.fingerprint_version = version;
+        let error = build(&store, &context, std::iter::empty()).err().unwrap();
+        assert!(
+            error.to_string().contains("version de vérification"),
+            "{error}"
+        );
+    }
+    assert_eq!(rows(&store), original);
 }
 fn expected_hash(store: &LocalStore, changes: &[RowChange]) -> String {
     let mut data = rows(store)
@@ -181,14 +259,11 @@ fn expected_hash(store: &LocalStore, changes: &[RowChange]) -> String {
             data.remove(&key);
         }
     }
-    let mut hash = Sha256::new();
-    hash.update(b"zentra-native-replay-state-v1\0");
+    let mut hash = StateFingerprint::new();
     for ((table, key), (rowid, image)) in data {
-        for value in [table, key, rowid.to_string(), image] {
-            frame(&mut hash, value.as_bytes());
-        }
+        hash.row([&table, &key, &rowid.to_string(), &image]);
     }
-    format!("{:x}", hash.finalize())
+    hash.hex()
 }
 fn update_row(store: &LocalStore, table: &str, id: &str, field: &str, value: &str) -> RowChange {
     let rule = &policy().unwrap().tables[table];
@@ -315,6 +390,7 @@ pub(in crate::business_sync) fn verify_missing_stock_effect(
     prepared: &Prepared,
 ) {
     let mut context = Context {
+        fingerprint_version: STATE_FINGERPRINT_VERSION,
         organization: prepared.manifest.organization_id.clone(),
         generation: prepared.manifest.generation.clone(),
         base_revision: prepared.manifest.base_revision,
