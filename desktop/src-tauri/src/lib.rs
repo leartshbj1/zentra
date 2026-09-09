@@ -355,6 +355,7 @@ pub fn run() {
             business_sync::replay::delivery::incoming::receive_business_transactions,
             business_sync::replay::delivery::incoming::installation::install_business_transaction,
             business_sync::replay::delivery::incoming::reconciliation::prepare_business_reconciliation,
+            business_sync::replay::delivery::incoming::reconciliation::reconcile_business_transaction,
             cloud_backup::get_cloud_backup_state,
             cloud_backup::set_cloud_backup_enabled,
             cloud_backup::run_cloud_backup,

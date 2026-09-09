@@ -1,9 +1,19 @@
 use super::*;
 use crate::business_sync::replay;
 use rusqlite::params;
+mod installation_tests;
 
 fn stage(
     store: &LocalStore,
+    p: &outgoing::Prepared,
+    before: &str,
+    after: &str,
+) -> (PathBuf, Header) {
+    stage_from(store, store, p, before, after)
+}
+fn stage_from(
+    store: &LocalStore,
+    source: &LocalStore,
     p: &outgoing::Prepared,
     before: &str,
     after: &str,
@@ -18,6 +28,15 @@ fn stage(
         fs::create_dir_all(folder.join(name)).unwrap();
     }
     let manifest = serde_json::to_vec(&p.manifest).unwrap();
+    for f in &p.manifest.files {
+        let path = crate::business_sync::files::retained_blob_path(
+            &source.data_dir,
+            &f.sha256,
+            f.size_bytes,
+        )
+        .unwrap();
+        fs::copy(path, folder.join("files").join(&f.sha256)).unwrap();
+    }
     let mut parts = vec![];
     for (i, _) in p.manifest.chunks.iter().enumerate() {
         let original = fs::read(p.folder.join(format!("{i:04}.json"))).unwrap();
@@ -42,13 +61,14 @@ fn stage(
         "fingerprint_contract_sha256":fingerprint_contract().unwrap(),"source_state_sha256":before,"target_state_sha256":after,"source_rows":1,"target_rows":2,"parts":parts});
     let receipt = serde_json::to_vec(&replay::delivery::tests::receipt(&bundle)).unwrap();
     let bundle = serde_json::to_vec(&bundle).unwrap();
+    let base_revision = binding.revision;
     let header = Header {
         version: 1,
         binding,
         entry: Entry {
             transaction_id: p.manifest.transaction_id.clone(),
-            source_revision: 1,
-            revision: 2,
+            source_revision: base_revision,
+            revision: base_revision + 1,
             bundle_sha256: digest(&bundle),
             receipt_sha256: digest(&receipt),
             origin_installation_id: p.manifest.installation_id.clone(),

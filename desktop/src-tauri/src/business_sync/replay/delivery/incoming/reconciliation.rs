@@ -1,7 +1,29 @@
-//! Authenticate a received next revision and prepare a disposable origin/remote
-//! merge. This endpoint does not install a database or acknowledge its journal.
+//! Authenticate a received next revision, prepare an isolated origin/remote
+//! merge, and optionally install it with a durable receipt and whole-transaction ack.
 use super::*;
 use crate::business_sync::{outgoing, replay::reconciliation as merge};
+mod atomic;
+mod files;
+mod install;
+
+struct Revision {
+    prepared: merge::Prepared,
+    context: crate::business_sync::replay::Context,
+    acknowledgement: Option<merge::Acknowledgement>,
+    manifest_sha256: String,
+    receipt: Vec<u8>,
+    files: Option<files::Plan>,
+}
+impl Revision {
+    fn summary(&self, header: &Header) -> Value {
+        let mut value = self.prepared.summary();
+        value["transaction_id"] = json!(header.entry.transaction_id);
+        value["revision"] = json!(header.entry.revision);
+        value["origin_transaction_verified"] = json!(self.acknowledgement.is_some());
+        value["documents_verified"] = json!(self.files.is_some());
+        value
+    }
+}
 
 fn prepare(
     store: &LocalStore,
@@ -10,6 +32,15 @@ fn prepare(
     role: &str,
     ensure_current: impl Fn() -> AppResult<()>,
 ) -> AppResult<Value> {
+    Ok(verify(store, folder, header, role, ensure_current)?.summary(header))
+}
+fn verify(
+    store: &LocalStore,
+    folder: &Path,
+    header: &Header,
+    role: &str,
+    ensure_current: impl Fn() -> AppResult<()>,
+) -> AppResult<Revision> {
     ensure_current()?;
     if Binding::read(store, &header.binding.organization)? != header.binding {
         return Err(invalid(
@@ -95,6 +126,7 @@ fn prepare(
     };
     let context = decoder.context();
     let count = decoder.bundle.parts.len();
+    let chunks = decoder.manifest.chunks.clone();
     let rows = super::super::decoded_parts(
         decoder,
         (0..count).map(|i| {
@@ -119,13 +151,20 @@ fn prepare(
         &ensure_current,
     )?;
     ensure_current()?;
-    let mut result = prepared.summary();
-    result["transaction_id"] = json!(header.entry.transaction_id);
-    result["revision"] = json!(header.entry.revision);
-    result["origin_transaction_verified"] = json!(own);
-    // The candidate intentionally stays private and is removed on drop. A
-    // subsequent installer must prepare again and verify its final live cutoff.
-    Ok(result)
+    let files = if prepared.candidate().is_ok() {
+        Some(files::plan(&prepared, store, folder, &chunks)?)
+    } else {
+        None
+    };
+    ensure_current()?;
+    Ok(Revision {
+        prepared,
+        context,
+        acknowledgement,
+        manifest_sha256: digest(&manifest),
+        receipt: raw,
+        files,
+    })
 }
 
 #[tauri::command]
@@ -133,14 +172,38 @@ pub async fn prepare_business_reconciliation(
     state: State<'_, LocalStore>,
     transaction_id: String,
 ) -> Result<Value, String> {
+    process(state.inner().clone(), transaction_id, false).await
+}
+
+#[tauri::command]
+pub async fn reconcile_business_transaction(
+    state: State<'_, LocalStore>,
+    transaction_id: String,
+) -> Result<Value, String> {
+    process(state.inner().clone(), transaction_id, true).await
+}
+async fn process(
+    store: LocalStore,
+    transaction_id: String,
+    install: bool,
+) -> Result<Value, String> {
     if !uuid(&transaction_id) {
         return Err("Choisissez une transaction reçue valide.".into());
     }
-    let store = state.inner().clone();
     let session = project_sync_session(&store)
         .await
         .map_err(command_error)?
         .ok_or_else(|| "Reconnectez votre compte pour réconcilier les modifications.".to_owned())?;
+    if install {
+        let _lock = store.lock().map_err(command_error)?;
+        session.ensure_current_for(&store).map_err(command_error)?;
+        if let Some(raw) =
+            super::installation::installed(&store, &session.organization_id, &transaction_id)
+                .map_err(command_error)?
+        {
+            return install::already_installed(&store, &raw).map_err(command_error);
+        }
+    }
     let binding = Binding::read(&store, &session.organization_id).map_err(command_error)?;
     let after = binding.revision.to_string();
     let raw = fetch(
@@ -179,9 +242,20 @@ pub async fn prepare_business_reconciliation(
         entry,
     };
     tauri::async_runtime::spawn_blocking(move || {
-        prepare(&store, &folder, &header, &session.role, || {
-            session.ensure_current_for(&store)
-        })
+        if install {
+            install::reconcile(
+                &store,
+                &folder,
+                &header,
+                &session.role,
+                || session.ensure_current_for(&store),
+                |_| Ok(()),
+            )
+        } else {
+            prepare(&store, &folder, &header, &session.role, || {
+                session.ensure_current_for(&store)
+            })
+        }
     })
     .await
     .map_err(|_| {

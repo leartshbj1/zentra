@@ -6,14 +6,18 @@ mod files;
 pub(crate) mod journal;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Point {
+pub(super) enum Point {
     IntentSaved,
     FileInstalled(usize),
     BeforeCommit,
     Committed,
 }
 
-fn installed(store: &LocalStore, organization: &str, id: &str) -> AppResult<Option<String>> {
+pub(super) fn installed(
+    store: &LocalStore,
+    organization: &str,
+    id: &str,
+) -> AppResult<Option<String>> {
     let c = store.connect()?;
     let found:Option<(String,String)>=c.query_row("SELECT r.receipt_sha256,r.receipt_json FROM business_sync_installed_revisions r JOIN business_sync_baseline b ON b.organization_id=r.organization_id AND b.server_generation=r.generation WHERE r.organization_id=?1 AND r.transaction_id=?2",params![organization,id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
     let Some((sha, raw)) = found else {
@@ -24,7 +28,7 @@ fn installed(store: &LocalStore, organization: &str, id: &str) -> AppResult<Opti
     }
     Ok(Some(raw))
 }
-fn install(
+pub(super) fn install(
     store: &LocalStore,
     folder: &Path,
     header: &Header,

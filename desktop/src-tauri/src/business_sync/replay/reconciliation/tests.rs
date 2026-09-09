@@ -64,21 +64,7 @@ fn merged_store(prepared: &Prepared) -> &LocalStore {
     &prepared.native.as_ref().unwrap().store
 }
 fn copy_cache(prepared: &Prepared, store: &LocalStore, context: &Context) {
-    let root = store
-        .data_dir
-        .join("business-canonical")
-        .join(&context.generation);
-    fs::create_dir_all(&root).unwrap();
-    let mut cache = Connection::open(root.join(format!(
-        "{}-{}.sqlite",
-        context.base_revision + 1,
-        context.target_state_sha256
-    )))
-    .unwrap();
-    rusqlite::backup::Backup::new(&prepared.model.connection, &mut cache)
-        .unwrap()
-        .run_to_completion(256, std::time::Duration::from_millis(1), None)
-        .unwrap();
+    prepared.persist_cache(store, context).unwrap();
 }
 
 #[test]
@@ -528,11 +514,14 @@ fn damaged_or_missing_canonical_alias_cache_cannot_replace_the_working_state() {
     )
     .is_err());
     copy_cache(&first, working, &context);
-    let path = working
-        .data_dir
-        .join("business-canonical")
-        .join(&context.generation)
-        .join(format!("2-{}.sqlite", context.target_state_sha256));
+    let path = cache::path(
+        working,
+        &context.generation,
+        2,
+        &context.target_state_sha256,
+        false,
+    )
+    .unwrap();
     let cache = Connection::open(&path).unwrap();
     cache
         .execute("UPDATE row_aliases SET canonical_rowid=3", [])

@@ -103,7 +103,7 @@ pub(super) fn receipt(bundle: &Value) -> Value {
         "transaction_id":bundle["transaction_id"],"organization_id":bundle["organization_id"],
         "generation":bundle["generation"],"origin_installation_id":bundle["origin_installation_id"],
         "capture_generation":bundle["capture_generation"],"source_transfer_id":bundle["source_transfer_id"],
-        "source_revision":bundle["source_revision"],"revision":2,
+        "source_revision":bundle["source_revision"],"revision":bundle["source_revision"].as_i64().unwrap()+1,
         "manifest_sha256":bundle["original_manifest_sha256"],"bundle_sha256":digest(&serde_json::to_vec(bundle).unwrap()),
         "fingerprint_version":2,"fingerprint_contract_sha256":bundle["fingerprint_contract_sha256"],
         "source_state_sha256":bundle["source_state_sha256"],"target_state_sha256":bundle["target_state_sha256"],

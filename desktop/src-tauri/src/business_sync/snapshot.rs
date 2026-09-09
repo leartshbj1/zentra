@@ -1362,6 +1362,8 @@ fn private_pending_file_versions_are_not_bootstrap_business_documents() {
     let private = root.path().join(".BUSINESS-SYNC-PENDING");
     fs::create_dir(&private).unwrap();
     fs::write(private.join("old-content"), b"abandoned").unwrap();
+    fs::create_dir_all(private.join("canonical/generation")).unwrap();
+    fs::write(private.join("canonical/generation/reference.sqlite"), b"private canonical rows").unwrap();
     let files = freeze_files(root.path(), output.path()).unwrap();
     assert_eq!(files.len(), 1);
     assert_eq!(files[0].path, "current.txt");

@@ -2,16 +2,61 @@
 //! Installing it and acknowledging journal entries require separate validation.
 use super::*;
 use std::path::Path;
+mod cache;
 mod model;
 mod native;
 pub(super) use model::Acknowledgement;
+pub(super) use native::internal_fingerprint;
 
 pub(super) struct Prepared {
     model: model::Model,
     native: Option<native::Copy>,
     original_local_sha256: String,
+    original_internal_sha256: String,
 }
 impl Prepared {
+    pub(super) fn rows(&self) -> &Connection {
+        &self.model.connection
+    }
+    pub(super) fn candidate(&self) -> AppResult<&LocalStore> {
+        self.native
+            .as_ref()
+            .map(|c| &c.store)
+            .ok_or_else(|| invalid("Résolvez les conflits avant d’installer cette révision."))
+    }
+    pub(super) fn verify_live(
+        &self,
+        c: &Connection,
+        store: &LocalStore,
+        context: &Context,
+    ) -> AppResult<()> {
+        check_binding(c, store, context)?;
+        if state_fingerprint(c)? != self.model.current_sha256
+            || local_fingerprint(c)? != self.original_local_sha256
+            || native::internal_fingerprint(c)? != self.original_internal_sha256
+        {
+            return Err(invalid("Le dossier a changé pendant la préparation. Relancez la fusion pour conserver ces nouvelles écritures."));
+        }
+        Ok(())
+    }
+    pub(super) fn verify_candidate(&self, c: &Connection) -> AppResult<()> {
+        self.verify_finalized(c, &self.original_internal_sha256)
+    }
+    pub(super) fn verify_finalized(&self, c: &Connection, internal_sha256: &str) -> AppResult<()> {
+        if Some(state_fingerprint(c)?) != self.model.merged_sha256
+            || local_fingerprint(c)? != self.original_local_sha256
+            || native::internal_fingerprint(c)? != internal_sha256
+        {
+            return Err(invalid(
+                "La copie préparée a changé avant son installation.",
+            ));
+        }
+        Ok(())
+    }
+    pub(super) fn persist_cache(&self, store: &LocalStore, context: &Context) -> AppResult<()> {
+        self.candidate()?;
+        cache::write(&self.model, store, context)
+    }
     pub(super) fn summary(&self) -> Value {
         serde_json::json!({"state":if self.model.conflict_count>0 {"reconciliation_conflict"} else {"reconciliation_rows_prepared"},
             "pending_changes":self.model.pending_count,"conflict_count":self.model.conflict_count,"conflicts":self.model.conflicts,
@@ -40,20 +85,17 @@ pub(super) fn prepare(
         return Err(invalid("La référence locale a changé."));
     }
     let original_local_sha256 = local_fingerprint(&source)?;
+    let original_internal_sha256 = native::internal_fingerprint(&source)?;
     // WAL readers retain a coherent cutoff without blocking later local edits.
     // Installation must compare this cutoff again before changing the profile.
     drop(guard);
-    let cache_root = store.data_dir.join("business-canonical");
-    let cache_generation = cache_root.join(&context.generation);
-    let cache = cache_generation.join(format!(
-        "{}-{}.sqlite",
-        context.base_revision, context.source_state_sha256
-    ));
-    for dir in [&cache_root, &cache_generation] {
-        if dir.try_exists()? && !crate::business_sync::snapshot::regular_metadata(dir)?.is_dir() {
-            return Err(invalid("Le cache canonique est invalide."));
-        }
-    }
+    let cache = cache::path(
+        store,
+        &context.generation,
+        context.base_revision,
+        &context.source_state_sha256,
+        false,
+    )?;
     let exists = cache.try_exists()?;
     let model = model::prepare(
         store,
@@ -81,6 +123,7 @@ pub(super) fn prepare(
         model,
         native,
         original_local_sha256,
+        original_internal_sha256,
     })
 }
 

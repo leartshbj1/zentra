@@ -15,9 +15,18 @@ fn columns(c: &Connection, table: &str) -> AppResult<Vec<String>> {
 }
 // Neither canonical import nor guarded replay may change the original capture
 // evidence, acknowledgements, installation binding or local sequence counters.
-fn internal_fingerprint(c: &Connection) -> AppResult<String> {
+pub(in crate::business_sync::replay) fn internal_fingerprint(c: &Connection) -> AppResult<String> {
     let mut hash = Sha256::new();
     hash.update(b"zentra-reconciliation-internal-v1\0");
+    for pragma in ["user_version", "application_id"] {
+        frame(&mut hash, pragma.as_bytes());
+        frame(
+            &mut hash,
+            c.pragma_query_value(None, pragma, |r| r.get::<_, i64>(0))?
+                .to_string()
+                .as_bytes(),
+        );
+    }
     for table in [
         "business_sync_binding",
         "business_sync_changes",

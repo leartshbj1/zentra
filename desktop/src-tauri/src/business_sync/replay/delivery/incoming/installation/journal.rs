@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 const MAX_INTENT: u64 = 64 * 1024 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Stamp {
+pub(in crate::business_sync::replay::delivery::incoming) struct Stamp {
     pub sha256: String,
     pub size_bytes: u64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Step {
+pub(in crate::business_sync::replay::delivery::incoming) struct Step {
     pub root: String,
     pub path: String,
     pub before: Option<Stamp>,
@@ -20,7 +20,7 @@ pub(super) struct Step {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Journal {
+pub(in crate::business_sync::replay::delivery::incoming) struct Journal {
     version: u32,
     installation_id: String,
     organization_id: String,
@@ -36,7 +36,11 @@ pub(super) struct Journal {
 fn root(store: &LocalStore) -> PathBuf {
     store.data_dir.join("business-installation")
 }
-pub(super) fn target(store: &LocalStore, step: &Step, create: bool) -> AppResult<PathBuf> {
+pub(in crate::business_sync::replay::delivery::incoming) fn target(
+    store: &LocalStore,
+    step: &Step,
+    create: bool,
+) -> AppResult<PathBuf> {
     if !matches!(step.root.as_str(), "attachments" | "exports") {
         return Err(invalid("Le document sort du stockage géré."));
     }
@@ -76,14 +80,20 @@ pub(super) fn target(store: &LocalStore, step: &Step, create: bool) -> AppResult
     }
     Ok(path)
 }
-pub(super) fn stamp(path: &Path) -> AppResult<Option<Stamp>> {
+pub(in crate::business_sync::replay::delivery::incoming) fn stamp(
+    path: &Path,
+) -> AppResult<Option<Stamp>> {
     if !path.try_exists()? {
         return Ok(None);
     }
     let (sha256, size_bytes) = snapshot::fingerprint_file(path)?;
     Ok(Some(Stamp { sha256, size_bytes }))
 }
-fn copy_verified(source: &Path, destination: &Path, expected: &Stamp) -> AppResult<()> {
+pub(in crate::business_sync::replay::delivery::incoming) fn copy_verified(
+    source: &Path,
+    destination: &Path,
+    expected: &Stamp,
+) -> AppResult<()> {
     let metadata = snapshot::regular_metadata(source)?;
     if !metadata.is_file() || metadata.len() != expected.size_bytes {
         return Err(invalid("La copie du document est absente ou altérée."));
@@ -156,7 +166,11 @@ impl Journal {
         }
         Ok(())
     }
-    pub(super) fn prepare(store: &LocalStore, h: &Header, steps: Vec<Step>) -> AppResult<Self> {
+    pub(in crate::business_sync::replay::delivery::incoming) fn prepare(
+        store: &LocalStore,
+        h: &Header,
+        steps: Vec<Step>,
+    ) -> AppResult<Self> {
         let directory_path = root(store);
         directory(&directory_path)?;
         // Persist the journal directory's entry before any working file changes.
@@ -198,7 +212,7 @@ impl Journal {
         write(&directory_path.join("intent.json"), &bytes)?;
         Ok(value)
     }
-    pub(super) fn apply(
+    pub(in crate::business_sync::replay::delivery::incoming) fn apply(
         &self,
         store: &LocalStore,
         received: &Path,
@@ -220,7 +234,10 @@ impl Journal {
         }
         Ok(())
     }
-    pub(super) fn verify_installed_files(&self, store: &LocalStore) -> AppResult<()> {
+    pub(in crate::business_sync::replay::delivery::incoming) fn verify_installed_files(
+        &self,
+        store: &LocalStore,
+    ) -> AppResult<()> {
         for step in &self.steps {
             if stamp(&target(store, step, false)?)?.as_ref() != Some(&step.after) {
                 return Err(invalid("Un document installé a changé. Le journal et les copies de sécurité sont conservés."));
