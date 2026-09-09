@@ -240,6 +240,7 @@ import { projectTerminology } from './terminology';
 import { ProjectFolder } from './ProjectFolder';
 import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { isMobileRuntime } from './mobileRuntime';
+import { useNativeNavigation } from './useNativeNavigation';
 import {
   COMPACT_NAVIGATION_QUERY,
   compactSidebarHidden,
@@ -534,6 +535,11 @@ export function WorkspaceApp({
     setSearch('');
     setMenuOpen(false);
   }, []);
+  const nativeNavigation = useNativeNavigation(
+    view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu',
+    compactNavigation && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open,
+    (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
+  );
   const openAccountingEntry = useCallback((focus: AccountingEntryFocus) => {
     setAccountingEntryFocus(focus);
     setView('accounting');
@@ -2084,7 +2090,7 @@ export function WorkspaceApp({
         { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
         { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
       ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
-      <nav className="mobile-navigation" aria-label="Navigation mobile">
+      <nav className="mobile-navigation" aria-label="Navigation mobile" hidden={nativeNavigation}>
         {([
           ['dashboard', 'Accueil', Home], ['projects', 'Projets', FolderKanban], ['quotes', 'Ventes', Receipt],
         ] as const).map(([target, label, Icon]) => <button key={target} type="button" aria-current={view === target || (target === 'quotes' && ['orders', 'invoices'].includes(view)) ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} /><span>{label}</span></button>)}

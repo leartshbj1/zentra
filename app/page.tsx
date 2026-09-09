@@ -137,66 +137,18 @@ export default function Home() {
       <main
         id="contenu"
         tabIndex={-1}
-        className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]"
+        className="min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#18221d]"
       >
-        <section
-          id="accueil"
-          className="relative mx-auto grid w-full max-w-7xl gap-12 px-5 pb-16 pt-10 sm:pb-20 sm:pt-16 lg:grid-cols-[.86fr_1.14fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-20"
-        >
-          <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#d8d5cb] bg-white/72 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.12em] text-[#42614e]">
-              <span className="local-pulse size-1.5 rounded-full bg-[#4f9b68]" />
-              Logiciel de gestion PME Suisse
+        <section id="accueil" className="home-hero mx-auto w-full max-w-7xl px-5 lg:px-8">
+          <div className="home-hero__intro">
+            <p className="home-hero__eyebrow">Zentra pour les PME suisses</p>
+            <h1>Votre entreprise.<br /><span>L’esprit libre.</span></h1>
+            <p className="home-hero__description">Devis, factures, projets et salaires.<br className="hidden sm:block" /> Tout votre quotidien, dans un espace simple.</p>
+            <div className="home-hero__actions">
+              <a href="/demo-facture" className={cn(buttonVariants({ size: 'lg' }), 'home-hero__primary')}>Essayer Zentra <ArrowRight className="size-4" /></a>
+              <a href="#workflow" className="home-hero__link">Découvrir le logiciel <ArrowRight className="size-4" /></a>
             </div>
-            <h1 className="mt-6 max-w-2xl text-balance text-[2.85rem] font-semibold leading-[.96] tracking-[-.06em] min-[390px]:text-5xl sm:text-6xl lg:text-[4.65rem]">
-              Toute votre PME.
-              <br />
-              <span className="text-[#b86b16]">Un seul logiciel.</span>
-            </h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-[#616d65] sm:text-xl sm:leading-9">
-              Facturation, comptabilité, salaires, achats et gestion réunis dans
-              un ERP conçu pour les PME suisses.
-            </p>
-
-            <div
-              className="mt-7 flex flex-wrap gap-2"
-              aria-label="Tarif Zentra"
-            >
-              <strong className="rounded-full bg-[#173d2c] px-4 py-2 text-sm text-white">
-                Dès 49 CHF / mois
-              </strong>
-              <span className="rounded-full border border-[#d7d2c6] bg-white/70 px-4 py-2 text-sm font-semibold text-[#48564e]">
-                Prix fixe
-              </span>
-              <span className="rounded-full border border-[#d7d2c6] bg-white/70 px-4 py-2 text-sm font-semibold text-[#48564e]">
-                Collaborateurs inclus
-              </span>
-            </div>
-
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <a
-                href="/demo-facture"
-                className={cn(
-                  buttonVariants({ size: 'lg' }),
-                  'h-12 rounded-full bg-[#e79b2f] px-6 text-[#1f281f] shadow-[0_12px_32px_rgba(201,117,21,.2)] hover:bg-[#f1aa42]',
-                )}
-              >
-                Essayer Zentra <ArrowRight className="size-4" />
-              </a>
-              <a
-                href="#workflow"
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'lg' }),
-                  'h-12 rounded-full border-[#cfcabf] bg-white/60 px-6 hover:bg-white',
-                )}
-              >
-                Découvrir Zentra
-              </a>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-[#667169]">
-              Démonstration web sans compte · Windows · macOS en accès anticipé
-              · données métier principalement locales
-            </p>
+            <p className="home-hero__price">Dès 49 CHF / mois · Démonstration sans compte</p>
           </div>
 
           <HeroDashboard />
@@ -209,7 +161,7 @@ export default function Home() {
                 ['Facturation', 'QR-factures suisses'],
                 ['Équipe', 'Accès sans prix par siège'],
               ].map(([label, value]) => (
-                <div key={label} className="bg-[#fbfaf6] px-5 py-4">
+                <div key={label} className="bg-[#ffffff] px-5 py-4">
                   <span className="block text-[10px] font-bold uppercase tracking-[.14em] text-[#899088]">
                     {label}
                   </span>
@@ -223,7 +175,7 @@ export default function Home() {
         </section>
 
         <section
-          className="border-y border-[#dedad0] bg-[#fffdf9] px-5 py-16 sm:py-24 lg:px-8"
+          className="border-y border-[#dedad0] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal
           aria-labelledby="valeur-title"
         >
@@ -512,7 +464,7 @@ export default function Home() {
 
         <section
           id="tarif"
-          className="border-y border-[#ddd8cd] bg-[#fffdf9] px-5 py-16 sm:py-24 lg:px-8"
+          className="border-y border-[#ddd8cd] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal
           aria-labelledby="pricing-title"
         >

@@ -49,8 +49,9 @@
 }
 
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-  background: #f6f4ef;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", var(--font-geist-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f5f5f7;
   overflow-x: clip;
 }
 
@@ -87,10 +88,10 @@ html {
 }
 
 .site-eyebrow {
-  color: #a56b22;
+  color: #567160;
   font-size: 0.75rem;
-  font-weight: 750;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0.07em;
   line-height: 1.35;
   text-transform: uppercase;
 }
@@ -155,7 +156,7 @@ html {
   height: 100%;
   transform: scaleX(0);
   transform-origin: left;
-  background: linear-gradient(90deg, #e79b2f, #f4bf61);
+  background: linear-gradient(90deg, #245b40, #83a792);
   box-shadow: 0 1px 8px rgb(183 107 22 / 35%);
   will-change: transform;
 }
@@ -979,4 +980,35 @@ body {
   .print-hidden {
     display: none !important;
   }
+}
+
+/* Calm presentation surfaces; native iOS glass is implemented by UIKit. */
+.home-hero { padding-top: clamp(56px, 7vw, 104px); padding-bottom: 72px; }
+.home-hero__intro { text-align: center; max-width: 880px; margin: 0 auto 64px; }
+.home-hero__eyebrow { font-size: 15px; font-weight: 550; color: #567160; margin-bottom: 20px; }
+.home-hero h1 { font-size: clamp(44px, 7.5vw, 92px); line-height: 1.02; letter-spacing: -.055em; font-weight: 600; color: #1d1d1f; text-wrap: balance; }
+.home-hero h1 span { color: #49765a; }
+.home-hero__description { font-size: clamp(18px, 2.2vw, 24px); line-height: 1.5; letter-spacing: -.018em; color: #68686e; margin-top: 28px; }
+.home-hero__actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 28px; margin-top: 30px; }
+.home-hero__primary { height: 48px; padding-inline: 24px; border-radius: 999px; background: #245b40; color: white; font-size: 15px; font-weight: 500; box-shadow: none; }
+.home-hero__primary:hover { background: #1b4832; }
+.home-hero__link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; color: #245b40; font-size: 15px; }
+.home-hero__link:hover { text-decoration: underline; text-underline-offset: 5px; }
+.home-hero__price { margin-top: 18px; color: #737378; font-size: 12px; }
+.home-hero > .hero-motion-stage { max-width: 1040px; margin: 0 auto 64px; }
+.home-hero > div:last-child > div { border: 0; background: transparent; gap: 24px; border-radius: 0; text-align: center; }
+.home-hero > div:last-child > div > div { background: transparent; padding: 8px; }
+.hero-product-window { animation: none !important; transform: none !important; border-color: #1d1d1f12; border-radius: 20px; box-shadow: 0 24px 70px #1d1d1f10, 0 2px 8px #1d1d1f05; }
+.hero-proof-chip { position: static; justify-content: center; border: 0; background: transparent; margin: 20px auto 0; padding: 0; box-shadow: none; color: #72767a; font-weight: 400; }
+.site-header { background: #f5f5f7eb; border-color: #1d1d1f0b; }
+.site-header > div { min-height: 64px; }
+.site-header nav a { font-size: 13px; font-weight: 400; }
+@media (max-width: 640px) {
+  .home-hero { padding-top: 48px; padding-bottom: 48px; }
+  .home-hero__intro { margin-bottom: 38px; }
+  .home-hero__eyebrow { font-size: 13px; }
+  .home-hero__description { margin-top: 22px; }
+  .home-hero > .hero-motion-stage { margin-bottom: 36px; }
+  .home-hero > div:last-child > div { grid-template-columns: 1fr 1fr; gap: 20px 8px; }
+  .hero-product-window { border-radius: 16px; }
 }

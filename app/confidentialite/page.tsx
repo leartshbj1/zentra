@@ -73,7 +73,7 @@ export default function PrivacyPage() {
             {sections.map(({ icon: Icon, title, text }) => (
               <article
                 key={title}
-                className="rounded-[1.6rem] border border-[#d9d4c9] bg-white p-6 shadow-[0_18px_50px_rgba(29,45,35,.05)]"
+                className="rounded-[1.6rem] border border-[#dedee3] bg-white p-6 shadow-[0_18px_50px_rgba(29,45,35,.05)]"
               >
                 <Icon className="size-6 text-[#397150]" />
                 <h2 className="mt-5 text-xl font-semibold">{title}</h2>
@@ -100,7 +100,7 @@ export default function PrivacyPage() {
             </div>
           </section>
 
-          <section className="mt-8 rounded-[1.8rem] border border-[#d9d4c9] bg-[#fffdf9] p-7 sm:p-9">
+          <section className="mt-8 rounded-[1.8rem] border border-[#dedee3] bg-[#ffffff] p-7 sm:p-9">
             <h2 className="text-2xl font-semibold">
               Accès, rectification et contact
             </h2>

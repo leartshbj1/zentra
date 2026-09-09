@@ -15,7 +15,7 @@ const navigation = [
 
 export function SiteHeader() {
   return (
-    <header className="site-header sticky top-0 z-40 border-b border-[#d9d4c9]/75 bg-[#f6f4ef]/92 backdrop-blur-xl">
+    <header className="site-header sticky top-0 z-40 border-b border-[#dedee3]/75 bg-[#f5f5f7]/92 backdrop-blur-xl">
       <div className="mx-auto flex min-h-[68px] w-full max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
         <a
           href="/"

@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 export default function InvoiceDemoPage() {
   return (
     <main className="min-h-screen bg-[#f4f2ed] text-[#17231d]">
-      <header className="print-hidden sticky top-0 z-40 border-b border-[#d9d4c9]/75 bg-[#f4f2ed]/92 backdrop-blur-xl">
+      <header className="print-hidden sticky top-0 z-40 border-b border-[#dedee3]/75 bg-[#f4f2ed]/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
           <a href="/" className="flex min-h-11 items-center gap-2.5">
             <span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#efaa3c]">

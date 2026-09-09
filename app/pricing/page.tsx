@@ -47,7 +47,7 @@ export default function PricingPage() {
       <main
         id="contenu"
         tabIndex={-1}
-        className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]"
+        className="min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#18221d]"
       >
         <section className="px-5 pb-14 pt-12 text-center sm:pb-20 sm:pt-20 lg:px-8">
           <div className="mx-auto max-w-4xl">
@@ -72,7 +72,7 @@ export default function PricingPage() {
         </section>
 
         <section
-          className="border-y border-[#ded9ce] bg-[#fffdf9] px-5 py-16 sm:py-24 lg:px-8"
+          className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal
         >
           <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[.75fr_1.25fr]">

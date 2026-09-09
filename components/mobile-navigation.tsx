@@ -89,7 +89,7 @@ export function MobileNavigation() {
       <nav
         ref={navRef}
         id="zentra-mobile-navigation"
-        className="fixed inset-x-4 top-[4.75rem] z-50 grid min-w-0 gap-1 rounded-2xl border border-[#d9d5ca] bg-[#fffdf9] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)] sm:left-auto sm:w-80"
+        className="fixed inset-x-4 top-[4.75rem] z-50 grid min-w-0 gap-1 rounded-2xl border border-[#dedee3] bg-[#ffffff] p-2 text-sm shadow-[0_22px_55px_rgba(24,52,36,.18)] sm:left-auto sm:w-80"
         aria-label="Navigation mobile"
         aria-hidden={!open}
         inert={!open}

@@ -627,7 +627,7 @@ export function InvoiceDemo() {
 
   return (
     <section className="invoice-demo mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)] gap-7 px-5 pb-20 xl:grid-cols-[minmax(420px,.78fr)_minmax(650px,1.22fr)] xl:px-8">
-      <div className="print-hidden min-w-0 self-start rounded-[26px] border border-[#d9d4c9] bg-white p-5 shadow-[0_20px_55px_rgba(32,48,38,.08)] sm:p-7 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+      <div className="print-hidden min-w-0 self-start rounded-[26px] border border-[#dedee3] bg-white p-5 shadow-[0_20px_55px_rgba(32,48,38,.08)] sm:p-7 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
         <div className="flex items-center gap-3">
           <FileText className="size-5 text-[#a5661c]" />
           <h2 className="text-xl font-semibold">Informations de la facture</h2>

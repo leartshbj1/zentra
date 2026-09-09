@@ -72,7 +72,7 @@ export default function SecurityPage() {
       <main
         id="contenu"
         tabIndex={-1}
-        className="min-h-screen overflow-x-clip bg-[#f6f4ef] text-[#18221d]"
+        className="min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#18221d]"
       >
         <section className="px-5 pb-16 pt-12 sm:pb-24 sm:pt-20 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
@@ -182,7 +182,7 @@ export default function SecurityPage() {
         </section>
 
         <section
-          className="border-y border-[#ded9ce] bg-[#fffdf9] px-5 py-16 sm:py-24 lg:px-8"
+          className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal
         >
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.76fr_1.24fr]">
@@ -193,7 +193,7 @@ export default function SecurityPage() {
               </h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <article className="rounded-[1.5rem] border border-[#d9d4c9] bg-white p-6">
+              <article className="rounded-[1.5rem] border border-[#dedee3] bg-white p-6">
                 <Database className="size-5 text-[#3f7454]" />
                 <h3 className="mt-5 text-xl font-semibold">
                   Sauvegarde locale
@@ -215,7 +215,7 @@ export default function SecurityPage() {
                   SQLite et n’est pas présenté comme un support WORM certifié.
                 </p>
               </article>
-              <article className="rounded-[1.5rem] border border-[#d9d4c9] bg-white p-6 sm:col-span-2">
+              <article className="rounded-[1.5rem] border border-[#dedee3] bg-white p-6 sm:col-span-2">
                 <Database className="size-5 text-[#3f7454]" />
                 <h3 className="mt-5 text-xl font-semibold">
                   Sauvegarde complète distante
@@ -252,7 +252,7 @@ export default function SecurityPage() {
                   La chaîne technique actuelle.
                 </h2>
               </div>
-              <div className="overflow-hidden rounded-[1.6rem] border border-[#d9d4c9] bg-white">
+              <div className="overflow-hidden rounded-[1.6rem] border border-[#dedee3] bg-white">
                 {[
                   [
                     'Supabase',
@@ -281,7 +281,7 @@ export default function SecurityPage() {
                 ))}
               </div>
             </div>
-            <div className="mt-5 rounded-[1.4rem] border border-[#d9d4c9] bg-[#f0eee8] p-5 text-sm leading-6 text-[#626c65]">
+            <div className="mt-5 rounded-[1.4rem] border border-[#dedee3] bg-[#eeeef0] p-5 text-sm leading-6 text-[#626c65]">
               L’authentification Supabase est reliée à Zurich. Le schéma, les
               règles d’accès et le coffre cible y sont prêts. Les API de compte
               et d’archives utilisent encore temporairement leur couche actuelle
@@ -355,7 +355,7 @@ export default function SecurityPage() {
                 Une question sur vos données ?
               </h2>
             </div>
-            <div className="rounded-[1.6rem] border border-[#d9d4c9] bg-white p-6 sm:p-8">
+            <div className="rounded-[1.6rem] border border-[#dedee3] bg-white p-6 sm:p-8">
               {/* TODO(legal): ajouter raison sociale, forme juridique, adresse, UID/IDE
                   et responsable du traitement dès que l'éditeur les aura fournis. */}
               <p className="text-sm leading-7 text-[#657068]">
