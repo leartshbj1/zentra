@@ -499,9 +499,11 @@ export function WorkspaceApp({
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
   const navigationRef = useRef<HTMLElement>(null);
+  const mobileNavigationRef = useRef<HTMLElement>(null);
   const navigationDrawerOpen = menuOpen && (compactNavigation || (isNativeMacOS && nativeNavigation));
   useNavigationDrawer(navigationDrawerOpen, navigationRef, () => setMenuOpen(false));
   useNavigationSelection(navigationRef, view, sidebarHidden);
+  useNavigationSelection(mobileNavigationRef, view, !compactNavigation || nativeNavigation);
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [view]);
@@ -1493,10 +1495,7 @@ export function WorkspaceApp({
             >
               <Menu size={20} />
             </Button>
-            <div>
-              <p>{settings.organization.legalName || 'Mon entreprise'}</p>
-              <h1 key={view}>{title[0]}</h1>
-            </div>
+            <span className="topbar__company">{settings.organization.legalName || 'Mon entreprise'}</span>
           </div>
           <div className="topbar__tools">
             {searchableView ? (
@@ -1581,6 +1580,7 @@ export function WorkspaceApp({
 
         {!activeProjectFolder ? <div className="page-header">
           <div>
+            <h1 key={view}>{title[0]}</h1>
             <p>{view === 'dashboard' ? new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' }) : title[1]}</p>
           </div>
           <div className="page-header__actions">
@@ -1613,7 +1613,7 @@ export function WorkspaceApp({
               />
             ) : null}
           </div>
-        </div> : <div className="project-folder-spacing" />}
+        </div> : <div className="project-folder-spacing"><h1 className="sr-only">{title[0]}</h1></div>}
         {notice ? (
           <div
             className={`notice notice--${notice.tone} ${modal || notice.tone === 'error' ? 'notice--floating' : ''}`}
@@ -2106,11 +2106,12 @@ export function WorkspaceApp({
         { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
         { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
       ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
-      <nav className="mobile-navigation" aria-label="Navigation mobile" hidden={nativeNavigation}>
+      <nav ref={mobileNavigationRef} className="mobile-navigation" aria-label="Navigation mobile" hidden={nativeNavigation}>
+        <span className="mobile-navigation__selection" aria-hidden="true" />
         {([
           ['dashboard', 'Accueil', Home], ['projects', 'Projets', FolderKanban], ['quotes', 'Ventes', Receipt],
         ] as const).map(([target, label, Icon]) => <button key={target} type="button" aria-current={view === target || (target === 'quotes' && ['orders', 'invoices'].includes(view)) ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} /><span>{label}</span></button>)}
-        <button type="button" aria-label="Tous les modules" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
+        <button type="button" aria-label="Tous les modules" aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
       </nav>
 
       {modal ? (
@@ -2304,7 +2305,7 @@ function Dashboard({
     );
   return (
     <div className="dashboard-grid">
-      <div className="metric-grid">
+      <div className="metric-grid dashboard-summary" role="group" aria-label="Résumé de votre activité">
         <MetricCard
           label="Facturé TTC"
           value={formatSalesTotals(financialTotals, 'invoicedCents')}
@@ -2366,7 +2367,7 @@ function Dashboard({
           <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{terminology.pluralTitle} actifs</span></span><ArrowRight size={17} /></button>
         </div>
       </section>
-      <section className="panel panel--span">
+      <section className="panel panel--span dashboard-project-panel">
         <SectionHeading
           eyebrow="En cours"
           title={`${terminology.pluralTitle} actifs`}

@@ -30,7 +30,7 @@ try {
       window.__nativeNavigate = (id) => channel.onmessage({ id });
     }, { mode, platform });
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5189'}/tests/mobile-harness.html?browsing=1&design=1&designQr=1`);
-    await page.locator('.topbar h1').waitFor();
+    await page.locator('.page-header h1').waitFor();
     await page.waitForFunction(() => window.__nativeCalls.length > 0);
     if (mode === 'available') {
       await page.locator('.mobile-navigation').waitFor({ state: 'hidden' });
@@ -40,9 +40,9 @@ try {
       await page.evaluate(() => window.__nativeNavigate('quotes'));
       await page.getByRole('button', { name: 'Nouveau devis', exact: true }).click();
       await page.waitForFunction(() => window.__nativeCalls.at(-1).visible === false);
-      const heading = await page.locator('.topbar h1').innerText();
+      const heading = await page.locator('.page-header h1').innerText();
       await page.evaluate(() => window.__nativeNavigate('dashboard'));
-      assert.equal(await page.locator('.topbar h1').innerText(), heading, 'modal blocks navigation');
+      assert.equal(await page.locator('.page-header h1').innerText(), heading, 'modal blocks navigation');
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => window.__nativeCalls.at(-1).visible === true);
       await page.evaluate(() => window.__nativeNavigate('menu'));

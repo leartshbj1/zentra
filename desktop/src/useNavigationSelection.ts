@@ -6,12 +6,17 @@ export function useNavigationSelection(ref: RefObject<HTMLElement | null>, selec
     const navigation = ref.current;
     if (!navigation || hidden) return;
     const measure = () => {
-      const active = navigation.querySelector<HTMLElement>('[aria-current="page"]');
-      if (!active) return;
+      const active = navigation.querySelector<HTMLElement>('[aria-current]');
+      if (!active) {
+        delete navigation.dataset.selectionReady;
+        return;
+      }
       const frame = navigation.getBoundingClientRect();
       const item = active.getBoundingClientRect();
       navigation.style.setProperty('--selection-y', `${item.top - frame.top + navigation.scrollTop}px`);
+      navigation.style.setProperty('--selection-x', `${item.left - frame.left + navigation.scrollLeft}px`);
       navigation.style.setProperty('--selection-height', `${item.height}px`);
+      navigation.style.setProperty('--selection-width', `${item.width}px`);
       navigation.dataset.selectionReady = 'true';
     };
     measure();
