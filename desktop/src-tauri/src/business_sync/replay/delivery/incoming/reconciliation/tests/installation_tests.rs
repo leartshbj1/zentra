@@ -221,6 +221,16 @@ fn assert_state(f: &Fixture, committed: bool) {
         .data_dir
         .join("business-installation/intent.json")
         .exists());
+    assert!(
+        fs::read_dir(f.store.data_dir.join("business-workspaces"))
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("v1-")),
+        "Disposed or recovered reconciliation workspaces must be collected"
+    );
 }
 #[test]
 fn remote_install_keeps_pending_work_and_recovers_errors_before_and_after_sqlite_commit() {

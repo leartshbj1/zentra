@@ -27,7 +27,7 @@ pub(super) struct Model {
     pub pending_count: usize,
     pub conflict_count: usize,
     pub conflicts: Vec<Conflict>,
-    _directory: tempfile::TempDir,
+    _directory: crate::business_sync::workspace::Workspace,
 }
 #[derive(Clone)]
 struct Event {
@@ -541,9 +541,7 @@ pub(super) fn prepare(
     acknowledgement: Option<&Acknowledgement>,
     remote: impl IntoIterator<Item = AppResult<RowChange>>,
 ) -> AppResult<Model> {
-    let directory = tempfile::Builder::new()
-        .prefix("reconciliation-model-")
-        .tempdir_in(&store.data_dir)?;
+    let directory = crate::business_sync::workspace::Workspace::new(store, "reconciliation-model")?;
     let mut c = Connection::open(directory.path().join("model.sqlite"))?;
     c.pragma_update(None, "temp_store", "FILE")?;
     let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;

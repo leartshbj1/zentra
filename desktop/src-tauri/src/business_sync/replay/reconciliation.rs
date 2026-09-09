@@ -75,6 +75,7 @@ pub(super) fn prepare(
     remote: impl IntoIterator<Item = AppResult<RowChange>>,
     ensure_current: impl Fn() -> AppResult<()>,
 ) -> AppResult<Prepared> {
+    crate::business_sync::workspace::cleanup(store)?;
     let guard = store.lock()?;
     ensure_current()?;
     let mut connection = store.connect()?;

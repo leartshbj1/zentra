@@ -9,6 +9,7 @@ pub(crate) mod files;
 pub(crate) mod snapshot;
 pub(crate) mod outgoing;
 pub(crate) mod replay;
+pub(crate) mod workspace;
 
 #[cfg(test)]
 mod schema_contract;

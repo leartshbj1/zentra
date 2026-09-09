@@ -1482,6 +1482,9 @@ impl LocalStore {
         };
         store.migrate()?;
         crate::business_sync::replay::delivery::incoming::installation::journal::recover(&store)?;
+        // Optional orphan maintenance must not prevent opening intact business
+        // data. The next synchronization retries it with an explicit result.
+        let _ = crate::business_sync::workspace::cleanup(&store);
         Ok(store)
     }
 

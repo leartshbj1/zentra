@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 pub(super) struct Plan {
     pub steps: Vec<Step>,
     pub final_files: Vec<Step>,
-    pub stage: tempfile::TempDir,
+    pub stage: crate::business_sync::workspace::Workspace,
 }
 impl Plan {
     pub fn verify_final(&self, store: &LocalStore) -> AppResult<()> {
@@ -281,9 +281,7 @@ pub(super) fn plan(
         };
         insert(&mut final_files, file)?;
     }
-    let stage = tempfile::Builder::new()
-        .prefix("reconciliation-files-")
-        .tempdir_in(&store.data_dir)?;
+    let stage = crate::business_sync::workspace::Workspace::new(store, "reconciliation-files")?;
     fs::create_dir(stage.path().join("files"))?;
     let mut steps = Vec::new();
     let mut verified = Vec::new();

@@ -5,7 +5,7 @@ use std::{fs, time::Duration};
 
 pub(super) struct Copy {
     pub store: LocalStore,
-    _directory: tempfile::TempDir,
+    _directory: crate::business_sync::workspace::Workspace,
 }
 fn columns(c: &Connection, table: &str) -> AppResult<Vec<String>> {
     c.prepare("SELECT name FROM pragma_table_info(?1) ORDER BY cid")?
@@ -193,9 +193,8 @@ pub(super) fn build(
     local_sha256: &str,
 ) -> AppResult<Copy> {
     let internal_sha256 = internal_fingerprint(source)?;
-    let directory = tempfile::Builder::new()
-        .prefix("reconciliation-native-")
-        .tempdir_in(&store.data_dir)?;
+    let directory =
+        crate::business_sync::workspace::Workspace::new(store, "reconciliation-native")?;
     let mut candidate = store.clone();
     candidate.data_dir = directory.path().to_path_buf();
     candidate.database_path = directory.path().join("candidate.sqlite");
