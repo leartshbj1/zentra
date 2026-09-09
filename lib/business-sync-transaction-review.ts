@@ -331,6 +331,7 @@ export async function beginBusinessTransactionReview(
         'business_sync_transaction_conflicts',
         'business_sync_transaction_canonical_order',
         'business_sync_transaction_fingerprints',
+        'business_sync_transaction_delivery_parts',
         'business_sync_credit_lines',
         'business_sync_credit_movements',
         'business_sync_credit_projection',

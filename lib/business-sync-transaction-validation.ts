@@ -367,6 +367,7 @@ export async function validateBusinessTransaction(
         'business_sync_transaction_accounting_states',
         'business_sync_transaction_effects',
         'business_sync_transaction_fingerprints',
+        'business_sync_transaction_delivery_parts',
       ].map((table) =>
         ctx.db
           .prepare(

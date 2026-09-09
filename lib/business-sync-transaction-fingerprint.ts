@@ -53,6 +53,41 @@ function fail(
 ): never {
   throw new AccountPublicError(message, status);
 }
+export const completedTransactionFingerprintGateSql = `${validatedTransactionGateSql} AND EXISTS(
+ SELECT 1 FROM business_sync_transaction_fingerprints f WHERE f.transfer_id=?1 AND f.attempt=?6 AND f.validator_sha256=?15
+ AND f.algorithm_version=${STATE_FINGERPRINT_VERSION} AND f.fingerprint_contract_sha256=?16 AND f.phase='complete'
+ AND f.source_sha256=?17 AND f.target_sha256=?18 AND f.sha256=f.target_sha256)`;
+export async function completedTransactionFingerprint(
+  session: DeviceSessionContext,
+  id: unknown,
+) {
+  const ctx = await validatedTransactionContext(session, id),
+    contractHash = await stateFingerprintContractHash();
+  const fingerprint = await progress(ctx, contractHash);
+  if (!fingerprint || fingerprint.phase !== 'complete')
+    fail(
+      'Terminez la vérification des empreintes avant de préparer la réception.',
+    );
+  const fingerprintBindings = [
+    ...ctx.validationBindings,
+    contractHash,
+    fingerprint.source_sha256!,
+    fingerprint.target_sha256!,
+  ];
+  if (
+    !(await ctx.db
+      .prepare(`SELECT 1 WHERE ${completedTransactionFingerprintGateSql}`)
+      .bind(...fingerprintBindings)
+      .first())
+  )
+    fail();
+  return {
+    ...ctx,
+    fingerprint,
+    fingerprintBindings,
+    fingerprintContractHash: contractHash,
+  };
+}
 async function progress(ctx: Context, contractHash: string) {
   const row = await ctx.db
     .prepare(

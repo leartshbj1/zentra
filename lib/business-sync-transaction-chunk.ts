@@ -6,7 +6,7 @@ import {
 } from './business-sync-transaction-format';
 import { database } from './runtime';
 
-export async function readBusinessTransactionChunk(
+export async function readBusinessTransactionChunkBytes(
   id: string,
   manifest: TransactionManifest,
   index: number,
@@ -49,5 +49,16 @@ export async function readBusinessTransactionChunk(
       'Le fragment de transaction conservé est altéré.',
       503,
     );
-  return transactionChanges(bytes, manifest, index);
+  return bytes;
+}
+export async function readBusinessTransactionChunk(
+  id: string,
+  manifest: TransactionManifest,
+  index: number,
+) {
+  return transactionChanges(
+    await readBusinessTransactionChunkBytes(id, manifest, index),
+    manifest,
+    index,
+  );
 }

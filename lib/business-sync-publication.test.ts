@@ -1,6 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  writeFileSync,
+  copyFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
@@ -85,6 +91,12 @@ import {
 } from './business-sync-transaction-validation';
 import * as transactionValidationHttp from '../app/api/sync/transactions/validate/route';
 import * as fingerprintHttp from '../app/api/sync/transactions/fingerprint/route';
+import * as deliveryHttp from '../app/api/sync/transactions/delivery/route';
+import {
+  prepareBusinessTransactionDelivery,
+  businessTransactionDeliveryStatus,
+  businessTransactionDeliveryResource,
+} from './business-sync-transaction-delivery';
 import {
   businessTransactionFingerprintStatus,
   fingerprintBusinessTransaction,
@@ -710,13 +722,22 @@ it('authenticates fingerprint routes and keeps both progress and hashes private 
 });
 
 it.each(['review', 'validation'])(
-  'rebuilding a legacy %s discards derived fingerprints and preserves original transaction evidence',
+  'rebuilding a legacy %s discards derived fingerprints and delivery receipts while preserving original evidence',
   async (kind) => {
     const f = await receiveTransaction(await transactionFixture());
     const id = f.manifest.transaction_id;
     await projectTransaction(f.actor, id);
     await validateTransaction(f.actor, id);
     await finishFingerprint(f.actor, id);
+    const delivery = await prepareBusinessTransactionDelivery(f.actor, id);
+    expect(delivery.state).toBe('prepared');
+    const deliveryCount = () =>
+      db
+        .prepare(
+          'SELECT count(*) n FROM business_sync_transaction_delivery_parts WHERE transfer_id=?',
+        )
+        .get(id)?.n;
+    expect(deliveryCount()).toBe(1);
     const chunks = db
       .prepare(
         'SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?',
@@ -733,6 +754,7 @@ it.each(['review', 'validation'])(
       ).run(id);
       await beginBusinessTransactionReview(f.actor, id);
       expect(fingerprintEvidence(id)).toBeUndefined();
+      expect(deliveryCount()).toBe(0);
       await projectTransaction(f.actor, id);
     } else {
       db.prepare(
@@ -740,11 +762,16 @@ it.each(['review', 'validation'])(
       ).run(id);
       await validateBusinessTransaction(f.actor, id);
       expect(fingerprintEvidence(id)).toBeUndefined();
+      expect(deliveryCount()).toBe(0);
     }
     await validateTransaction(f.actor, id);
     expect((await finishFingerprint(f.actor, id)).target_state_sha256).toBe(
       snapshotHash(id),
     );
+    expect((await prepareBusinessTransactionDelivery(f.actor, id)).state).toBe(
+      'prepared',
+    );
+    expect(deliveryCount()).toBe(1);
     expect(
       db
         .prepare(
@@ -760,6 +787,449 @@ it.each(['review', 'validation'])(
         .all(id),
     ).toEqual(changes);
   },
+);
+async function deliveryReady(
+  f: Awaited<ReturnType<typeof transactionFixture>>,
+) {
+  const id = f.manifest.transaction_id;
+  await receiveTransaction(f);
+  await projectTransaction(f.actor, id);
+  await validateTransaction(f.actor, id);
+  await finishFingerprint(f.actor, id);
+  return f;
+}
+it('prepares bounded canonical sidecars without rewriting source chunks, and serves only the pinned bundle', async () => {
+  const f = await deliveryReady(
+    await transactionFixture([
+      [transactionInsert('1', 'first')],
+      [transactionInsert('2', 'second')],
+    ]),
+  );
+  const id = f.manifest.transaction_id;
+  const original = [...blobs.entries()].map(
+    ([key, value]) => [key, Buffer.from(value)] as const,
+  );
+  expect(await businessTransactionDeliveryStatus(f.actor, id)).toMatchObject({
+    state: 'preparing',
+    prepared_parts: 0,
+    bundle_sha256: null,
+  });
+  await expect(
+    businessTransactionDeliveryResource(f.actor, id, 'bundle', null),
+  ).rejects.toThrow('encore');
+  expect(await prepareBusinessTransactionDelivery(f.actor, id)).toMatchObject({
+    state: 'preparing',
+    prepared_parts: 1,
+  });
+  const complete = await prepareBusinessTransactionDelivery(f.actor, id);
+  expect(complete).toMatchObject({
+    state: 'prepared',
+    prepared_parts: 2,
+    canonical_committed: false,
+  });
+  expect(await prepareBusinessTransactionDelivery(f.actor, id)).toEqual(
+    complete,
+  );
+  const bundle = await businessTransactionDeliveryResource(
+    f.actor,
+    id,
+    'bundle',
+    null,
+  );
+  expect(bundle.sha256).toBe(complete.bundle_sha256);
+  const manifest = JSON.parse(new TextDecoder().decode(bundle.bytes));
+  expect(manifest.parts).toHaveLength(2);
+  expect(manifest.source_state_sha256).toBe(
+    snapshotHash(f.receipt.transfer_id),
+  );
+  expect(manifest.target_state_sha256).toBe(snapshotHash(id));
+  for (const [index, bytes] of f.chunks.entries()) {
+    expect(
+      (
+        await businessTransactionDeliveryResource(
+          f.actor,
+          id,
+          'changes',
+          String(index),
+        )
+      ).bytes,
+    ).toEqual(bytes);
+    const sidecar = await businessTransactionDeliveryResource(
+      f.actor,
+      id,
+      'positions',
+      String(index),
+    );
+    expect(sidecar.sha256).toBe(manifest.parts[index].positions_sha256);
+    const payload = JSON.parse(new TextDecoder().decode(sidecar.bytes));
+    expect(payload).toMatchObject({
+      version: 1,
+      part_index: index,
+      source_sha256: manifest.parts[index].source_sha256,
+    });
+    expect(payload.positions[0].canonical_rowid).toBe(String(index + 1));
+  }
+  for (const [key, value] of original)
+    expect(Buffer.from(blobs.get(key)!)).toEqual(value);
+  expect((await historyHead(f.actor)).head_revision).toBe(1);
+});
+it('recovers a lost R2 response or D1 receipt without producing a second canonical sidecar', async () => {
+  const f = await deliveryReady(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  const archive = mocks.files();
+  const put = archive.put.getMockImplementation();
+  archive.put.mockImplementationOnce(async (...args: unknown[]) => {
+    await put(...args);
+    throw new Error('R2 response lost');
+  });
+  await expect(prepareBusinessTransactionDelivery(f.actor, id)).rejects.toThrow(
+    'R2 response lost',
+  );
+  expect(
+    db
+      .prepare(
+        'SELECT count(*) n FROM business_sync_transaction_delivery_parts',
+      )
+      .get()!.n,
+  ).toBe(0);
+  const count = blobs.size;
+  failStatement = (sql) => {
+    if (
+      sql.startsWith(
+        'INSERT OR IGNORE INTO business_sync_transaction_delivery_parts',
+      )
+    )
+      throw new Error('D1 interrupted');
+  };
+  await expect(prepareBusinessTransactionDelivery(f.actor, id)).rejects.toThrow(
+    'D1 interrupted',
+  );
+  failStatement = undefined;
+  expect((await prepareBusinessTransactionDelivery(f.actor, id)).state).toBe(
+    'prepared',
+  );
+  expect(blobs.size).toBe(count);
+});
+it('simultaneous canonical sidecar requests share one exact part receipt', async () => {
+  const f = await deliveryReady(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  let other: unknown;
+  beforeRun = async (sql) => {
+    if (
+      sql.startsWith(
+        'INSERT OR IGNORE INTO business_sync_transaction_delivery_parts',
+      )
+    ) {
+      beforeRun = undefined;
+      other = await prepareBusinessTransactionDelivery(f.actor, id);
+    }
+  };
+  expect(await prepareBusinessTransactionDelivery(f.actor, id)).toEqual(other);
+  expect(
+    db
+      .prepare(
+        'SELECT count(*) n FROM business_sync_transaction_delivery_parts',
+      )
+      .get()!.n,
+  ).toBe(1);
+});
+it.each(['head', 'attempt', 'fingerprint'])(
+  'a changed %s cannot publish canonical sidecar metadata',
+  async (field) => {
+    const f = await deliveryReady(await transactionFixture());
+    const id = f.manifest.transaction_id;
+    beforeRun = async (sql) => {
+      if (
+        sql.startsWith(
+          'INSERT OR IGNORE INTO business_sync_transaction_delivery_parts',
+        )
+      ) {
+        beforeRun = undefined;
+        if (field === 'head')
+          db.exec(
+            'UPDATE business_sync_spaces SET head_revision=head_revision+1',
+          );
+        if (field === 'attempt')
+          db.prepare(
+            "UPDATE business_sync_transaction_reviews SET attempt='replaced' WHERE transfer_id=?",
+          ).run(id);
+        if (field === 'fingerprint')
+          db.prepare(
+            "UPDATE business_sync_transaction_fingerprints SET phase='source' WHERE transfer_id=?",
+          ).run(id);
+      }
+    };
+    expect(await prepareBusinessTransactionDelivery(f.actor, id)).toMatchObject(
+      { state: 'stale', bundle_sha256: null },
+    );
+    expect(
+      db
+        .prepare(
+          'SELECT count(*) n FROM business_sync_transaction_delivery_parts',
+        )
+        .get()!.n,
+    ).toBe(0);
+  },
+);
+it.each(['missing', 'key', 'rowid', 'stored'])(
+  'refuses corrupted %s canonical delivery evidence',
+  async (kind) => {
+    const f = await deliveryReady(await transactionFixture());
+    const id = f.manifest.transaction_id;
+    if (kind === 'missing')
+      db.prepare(
+        'DELETE FROM business_sync_transaction_canonical_order WHERE transfer_id=?',
+      ).run(id);
+    if (kind === 'key')
+      db.prepare(
+        "UPDATE business_sync_transaction_canonical_order SET row_key_json='[]' WHERE transfer_id=?",
+      ).run(id);
+    if (kind === 'rowid')
+      db.prepare(
+        "UPDATE business_sync_transaction_canonical_order SET canonical_rowid='9223372036854775808' WHERE transfer_id=?",
+      ).run(id);
+    if (kind === 'stored') {
+      await prepareBusinessTransactionDelivery(f.actor, id);
+      const key = db
+        .prepare(
+          'SELECT object_key FROM business_sync_transaction_delivery_parts WHERE transfer_id=?',
+        )
+        .get(id)!.object_key as string;
+      blobs.get(key)![0] ^= 1;
+      await expect(
+        businessTransactionDeliveryResource(f.actor, id, 'positions', '0'),
+      ).rejects.toThrow('altérées');
+    } else
+      await expect(
+        prepareBusinessTransactionDelivery(f.actor, id),
+      ).rejects.toThrow();
+  },
+);
+it('keeps canonical delivery resources authenticated and uncommitted', async () => {
+  const f = await deliveryReady(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  mocks.session.mockRejectedValue(
+    new AccountPublicError('Connexion requise', 401),
+  );
+  for (const call of [deliveryHttp.GET, deliveryHttp.POST]) {
+    const response = await call(
+      new Request(
+        `https://zentra.test/api/sync/transactions/delivery?transaction_id=${id}&resource=bundle`,
+      ),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  }
+  for (const actor of [
+    owner,
+    { ...f.actor, organizationId: 'org_other' },
+    { ...f.actor, role: 'read_only' as const },
+  ])
+    await expect(
+      businessTransactionDeliveryStatus(actor, id),
+    ).rejects.toThrow();
+  await prepareBusinessTransactionDelivery(f.actor, id);
+  mocks.session.mockResolvedValue(f.actor);
+  const r = await deliveryHttp.GET(
+    new Request(
+      `https://zentra.test/api/sync/transactions/delivery?transaction_id=${id}&resource=bundle`,
+    ),
+  );
+  expect(r.status).toBe(200);
+  expect(r.headers.get('cache-control')).toContain('no-store');
+  expect(await sha256Hex(new Uint8Array(await r.arrayBuffer()))).toBe(
+    r.headers.get('x-content-sha256'),
+  );
+});
+it
+  .skipIf(
+    !process.env.ZENTRA_CANONICAL_DELIVERY_EXPORT ||
+      !process.env.ZENTRA_CANONICAL_DELIVERY_QA,
+  )
+  .each([false, true])(
+  'exports a server canonical delivery that uses a different i64 rowid from the real native sender (D1=%s)',
+  async (useD1) => {
+    const root = process.env.ZENTRA_CANONICAL_DELIVERY_EXPORT,
+      outputRoot = process.env.ZENTRA_CANONICAL_DELIVERY_QA;
+    if (!root || !outputRoot)
+      throw new Error('Explicit canonical delivery fixtures are required');
+    const output = join(outputRoot, useD1 ? 'd1' : 'sqlite'),
+      real = useD1 ? await realD1Fixture() : null;
+    try {
+      const rows = JSON.parse(
+        readFileSync(join(root, 'source.json'), 'utf8'),
+      ) as {
+        table: string;
+        key_json: string;
+        row_json: string;
+        source_rowid: string;
+      }[];
+      const source = await fixture();
+      source.chunks = [encode({ version: 2, rows })];
+      const tables = Object.fromEntries(
+        Object.keys(contract.tables).map((name) => [
+          name,
+          rows.filter((r) => r.table === name).length,
+        ]),
+      );
+      source.manifest = await bootstrapManifest({
+        ...source.manifest,
+        tables,
+        row_count: rows.length,
+        size_bytes: source.chunks[0].length,
+        chunks: [
+          {
+            sha256: await sha256Hex(source.chunks[0]),
+            size_bytes: source.chunks[0].length,
+            row_count: rows.length,
+          },
+        ],
+      });
+      await stage(source);
+      await validate(source.id);
+      const receipt = await publishBootstrap(owner, source.id);
+      const native = JSON.parse(
+        readFileSync(join(root, 'manifest.json'), 'utf8'),
+      ) as TransactionManifest;
+      const bytes = native.chunks.map(
+        (_, i) =>
+          new Uint8Array(
+            readFileSync(join(root, `${String(i).padStart(4, '0')}.json`)),
+          ),
+      );
+      const changes = bytes.map(
+        (b) =>
+          JSON.parse(new TextDecoder().decode(b))
+            .changes as TransactionChange[],
+      );
+      const f = await transactionFixture(changes, receipt);
+      const id = f.manifest.transaction_id;
+      await receiveTransaction(f);
+      await beginBusinessTransactionReview(f.actor, id);
+      await (mocks.db() as D1Database)
+        .prepare(
+          "UPDATE business_sync_candidate_order SET last_value=9007199254740992 WHERE transfer_id=? AND table_name='clients'",
+        )
+        .bind(id)
+        .run();
+      await projectTransaction(f.actor, id);
+      expect((await validateTransaction(f.actor, id)).phase).toBe('valid');
+      await finishFingerprint(f.actor, id);
+      let deliveryQueries = 0,
+        deliveryPeak = 0;
+      if (real) {
+        const wrap = (native: D1PreparedStatement) => ({
+          native,
+          bind(...values: Scalar[]) {
+            return wrap(native.bind(...values));
+          },
+          async first(column?: string) {
+            deliveryQueries++;
+            return column === undefined ? native.first() : native.first(column);
+          },
+          async all() {
+            deliveryQueries++;
+            return native.all();
+          },
+          async run() {
+            deliveryQueries++;
+            return native.run();
+          },
+        });
+        mocks.db.mockReturnValue({
+          prepare: (sql: string) => wrap(real.d1.prepare(sql)),
+          batch: async (statements: ReturnType<typeof wrap>[]) => {
+            deliveryQueries += statements.length;
+            return real.d1.batch(statements.map((s) => s.native));
+          },
+        });
+      }
+      const deliveryRequest = async <T>(action: () => Promise<T>) => {
+        deliveryQueries = 0;
+        const result = await action();
+        if (real) {
+          expect(deliveryQueries).toBeGreaterThan(0);
+          expect(deliveryQueries).toBeLessThanOrEqual(100);
+          deliveryPeak = Math.max(deliveryPeak, deliveryQueries);
+        }
+        return result;
+      };
+      for (let i = 0; i < f.manifest.chunks.length; i++)
+        await deliveryRequest(() =>
+          prepareBusinessTransactionDelivery(f.actor, id),
+        );
+      mkdirSync(output, { recursive: true });
+      copyFileSync(
+        join(root, 'baseline.sqlite'),
+        join(output, 'baseline.sqlite'),
+      );
+      const bundle = await deliveryRequest(() =>
+        businessTransactionDeliveryResource(f.actor, id, 'bundle', null),
+      );
+      writeFileSync(join(output, 'bundle.json'), bundle.bytes);
+      writeFileSync(
+        join(output, 'original-manifest.json'),
+        (
+          await deliveryRequest(() =>
+            businessTransactionDeliveryResource(f.actor, id, 'manifest', null),
+          )
+        ).bytes,
+      );
+      for (let i = 0; i < f.manifest.chunks.length; i++)
+        for (const type of ['changes', 'positions']) {
+          const resource = await deliveryRequest(() =>
+            businessTransactionDeliveryResource(f.actor, id, type, String(i)),
+          );
+          if (type === 'changes')
+            expect(Buffer.from(resource.bytes)).toEqual(Buffer.from(bytes[i]));
+          writeFileSync(
+            join(output, `${type}-${String(i).padStart(4, '0')}.json`),
+            resource.bytes,
+          );
+        }
+      const data = JSON.parse(new TextDecoder().decode(bundle.bytes));
+      const inserted = changes
+        .flat()
+        .find((c) => c.table === 'clients' && c.operation === 'insert')!;
+      const clientRowid = (await (mocks.db() as D1Database)
+        .prepare(
+          "SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=? AND table_name='clients' AND row_key_json=?",
+        )
+        .bind(id, inserted.key_json)
+        .first<{ source_rowid: string }>())!.source_rowid;
+      expect(clientRowid).toBe('9007199254740993');
+      expect(clientRowid).not.toBe(inserted.source_rowid);
+      const proof = {
+        organization_id: f.actor.organizationId,
+        generation: f.manifest.generation,
+        source_revision: data.source_revision,
+        bundle_sha256: bundle.sha256,
+        target_state_sha256: data.target_state_sha256,
+        parts: data.parts.length,
+        client_id: JSON.parse(inserted.key_json)[0],
+        client_rowid: clientRowid,
+        origin_rowid: inserted.source_rowid,
+        delivery_max_queries: real ? deliveryPeak : null,
+      };
+      writeFileSync(join(output, 'proof.json'), JSON.stringify(proof, null, 2));
+      console.info(
+        'QA_CANONICAL_DELIVERY',
+        JSON.stringify({
+          d1: useD1,
+          changes: f.manifest.change_count,
+          canonicalRowid: clientRowid,
+          originRowid: inserted.source_rowid,
+          deliveryMaxQueries: real ? deliveryPeak : null,
+          sourceBytesUnchanged: bytes.every((b, i) =>
+            Buffer.from(b).equals(Buffer.from(f.chunks[i])),
+          ),
+        }),
+      );
+    } finally {
+      await real?.runtime.dispose();
+    }
+  },
+  120000,
 );
 function transactionDocument(
   table: 'invoices' | 'quotes',

@@ -164,6 +164,139 @@ fn setup() -> (tempfile::TempDir, LocalStore, Context) {
     setup_with(|_| {})
 }
 #[test]
+#[ignore = "Explicit fictitious native database and outgoing transfer export for server delivery acceptance"]
+fn export_native_canonical_delivery_fixture() {
+    let path = std::path::PathBuf::from(std::env::var("ZENTRA_CANONICAL_DELIVERY_EXPORT").unwrap());
+    fs::create_dir_all(&path).unwrap();
+    assert!(!path.join("baseline.sqlite").exists());
+    let (_directory, source, _) = setup();
+    let data=rows(&source).into_iter().map(|(table,key,rowid,row)|json!({"table":table,"key_json":key,"source_rowid":rowid.to_string(),"row_json":row})).collect::<Vec<_>>();
+    fs::write(
+        path.join("source.json"),
+        serde_json::to_vec_pretty(&data).unwrap(),
+    )
+    .unwrap();
+    let mut copy = Connection::open(path.join("baseline.sqlite")).unwrap();
+    rusqlite::backup::Backup::new(&source.connect().unwrap(), &mut copy)
+        .unwrap()
+        .run_to_completion(256, Duration::from_millis(1), None)
+        .unwrap();
+    drop(copy);
+    source
+        .create_record(
+            "clients",
+            json!({"name":"Client réception","notes":"Conditions\nAcompte 30 % 😀"}),
+        )
+        .unwrap();
+    let prepared = crate::business_sync::outgoing::prepare_next(&source, "org-replay", "owner")
+        .unwrap()
+        .unwrap();
+    fs::copy(
+        prepared.folder.join("manifest.json"),
+        path.join("manifest.json"),
+    )
+    .unwrap();
+    for (index, _) in prepared.manifest.chunks.iter().enumerate() {
+        fs::copy(
+            prepared.folder.join(format!("{index:04}.json")),
+            path.join(format!("{index:04}.json")),
+        )
+        .unwrap();
+    }
+}
+#[test]
+#[ignore = "Requires the exact delivery bundle exported by the real server acceptance test"]
+fn receive_actual_server_canonical_delivery_on_native_candidate() {
+    let path = std::path::PathBuf::from(std::env::var("ZENTRA_CANONICAL_DELIVERY_QA").unwrap());
+    let proof: Value = serde_json::from_slice(&fs::read(path.join("proof.json")).unwrap()).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let receiver = LocalStore::initialize(directory.path().join("receiver")).unwrap();
+    let source = Connection::open(path.join("baseline.sqlite")).unwrap();
+    let mut target = receiver.connect().unwrap();
+    rusqlite::backup::Backup::new(&source, &mut target)
+        .unwrap()
+        .run_to_completion(256, Duration::from_millis(1), None)
+        .unwrap();
+    target.execute("UPDATE business_sync_binding SET organization_id=?1,installation_id=?2,generation=?3 WHERE id=1",params![proof["organization_id"].as_str().unwrap(),receiver.installation_id,Uuid::new_v4().to_string()]).unwrap();
+    target
+        .execute(
+            "UPDATE business_sync_baseline SET organization_id=?1,server_generation=?2 WHERE id=1",
+            params![
+                proof["organization_id"].as_str().unwrap(),
+                proof["generation"].as_str().unwrap()
+            ],
+        )
+        .unwrap();
+    drop(target);
+    let expected = delivery::Expected {
+        organization: proof["organization_id"].as_str().unwrap().into(),
+        generation: proof["generation"].as_str().unwrap().into(),
+        source_revision: proof["source_revision"].as_i64().unwrap(),
+        bundle_sha256: proof["bundle_sha256"].as_str().unwrap().into(),
+    };
+    let bundle = fs::read(path.join("bundle.json")).unwrap();
+    let manifest = fs::read(path.join("original-manifest.json")).unwrap();
+    let raw = || {
+        (0..proof["parts"].as_u64().unwrap())
+            .map(|i| {
+                (
+                    fs::read(path.join(format!("changes-{i:04}.json"))).unwrap(),
+                    fs::read(path.join(format!("positions-{i:04}.json"))).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let before = rows(&receiver);
+    let candidate = delivery::prepare_candidate(
+        &receiver,
+        &expected,
+        &bundle,
+        &manifest,
+        raw().into_iter().map(Ok),
+    )
+    .unwrap();
+    assert_eq!(
+        candidate.after_sha256,
+        proof["target_state_sha256"].as_str().unwrap()
+    );
+    let client_rowid: String = candidate
+        .store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT CAST(rowid AS TEXT) FROM clients WHERE id=?1",
+            [proof["client_id"].as_str().unwrap()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(client_rowid, proof["client_rowid"].as_str().unwrap());
+    assert_ne!(client_rowid, proof["origin_rowid"].as_str().unwrap());
+    drop(candidate);
+    assert_eq!(rows(&receiver), before);
+    for mode in ["missing", "extra", "altered"] {
+        let mut parts = raw();
+        if mode == "missing" {
+            parts.pop();
+        } else if mode == "extra" {
+            parts.push(parts[0].clone());
+        } else {
+            parts[0].1[0] ^= 1;
+        }
+        assert!(
+            delivery::prepare_candidate(
+                &receiver,
+                &expected,
+                &bundle,
+                &manifest,
+                parts.into_iter().map(Ok)
+            )
+            .is_err(),
+            "{mode}"
+        );
+        assert_eq!(rows(&receiver), before);
+    }
+}
+#[test]
 fn resumable_state_fingerprint_matches_independent_vectors() {
     let vector: Value =
         serde_json::from_str(include_str!("../../business_sync_state_hash_vectors.json")).unwrap();
