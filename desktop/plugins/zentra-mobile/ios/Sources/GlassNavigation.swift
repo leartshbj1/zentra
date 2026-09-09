@@ -11,9 +11,22 @@ final class GlassNavigation: UIStackView {
   private var requestedVisible = false
   private var keyboardVisible = false
   private var observers: [NSObjectProtocol] = []
+  private let scrollEdge = UIScrollEdgeElementContainerInteraction()
+  private static let selectionTint = UIColor { traits in
+    switch (traits.userInterfaceStyle, traits.accessibilityContrast) {
+    case (.dark, .high): return UIColor(red: 0.42, green: 0.84, blue: 0.58, alpha: 1)
+    case (.dark, _): return UIColor(red: 0.34, green: 0.72, blue: 0.49, alpha: 1)
+    case (_, .high): return UIColor(red: 0.09, green: 0.28, blue: 0.18, alpha: 1)
+    default: return UIColor(red: 0.14, green: 0.36, blue: 0.25, alpha: 1)
+    }
+  }
 
-  init(host: UIView) {
+  init(host: UIView, scrollView: UIScrollView) {
     super.init(frame: .zero)
+    // UIKit computes the treatment behind these floating controls from the real
+    // content scroll view. Keep it detached whenever the navigation is hidden.
+    scrollEdge.scrollView = scrollView
+    scrollEdge.edge = .bottom
     axis = .horizontal
     spacing = 6
     distribution = .fillEqually
@@ -28,6 +41,7 @@ final class GlassNavigation: UIStackView {
       config.title = title
       config.image = UIImage(systemName: symbol)
       button.configuration = config
+      button.titleLabel?.adjustsFontForContentSizeCategory = true
       addArrangedSubview(button)
     }
     host.addSubview(self)
@@ -69,11 +83,11 @@ final class GlassNavigation: UIStackView {
       config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 19, weight: active ? .semibold : .regular)
       config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
         var outgoing = incoming
-        outgoing.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for: .systemFont(ofSize: 11, weight: .medium), maximumPointSize: 15)
+        outgoing.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for: .systemFont(ofSize: 12, weight: .medium), maximumPointSize: 15)
         return outgoing
       }
       // Keep secondary controls legible as the system changes the glass appearance.
-      button.tintColor = active ? UIColor(red: 0.14, green: 0.36, blue: 0.25, alpha: 1) : .label
+      button.tintColor = active ? Self.selectionTint : .label
       button.configuration = config
       button.accessibilityTraits = active ? [.button, .selected] : [.button]
       button.showsLargeContentViewer = true
@@ -89,5 +103,10 @@ final class GlassNavigation: UIStackView {
   private func updateVisibility() {
     isHidden = !requestedVisible || keyboardVisible
     accessibilityElementsHidden = isHidden
+    if isHidden {
+      if scrollEdge.view != nil { removeInteraction(scrollEdge) }
+    } else if scrollEdge.view == nil {
+      addInteraction(scrollEdge)
+    }
   }
 }

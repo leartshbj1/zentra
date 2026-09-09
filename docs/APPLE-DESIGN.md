@@ -8,7 +8,9 @@ La présentation web et les surfaces React utilisent des fonds neutres, le vert 
 
 Le plugin Tauri transmet les sélections par un Channel, limité aux quatre destinations. Le menu HTML reste présent tant que UIKit n'a pas confirmé sa disponibilité. Les anciennes installations et anciens iOS gardent les contrôles web. La navigation native se masque devant les fenêtres modales, le menu, le clavier et lors du rechargement web. Les boutons exposent leurs noms, sélection et grandes étiquettes d'accessibilité. Le système Apple gère les préférences de transparence et d'animation du matériau.
 
-La teinte verte distingue uniquement la destination sélectionnée. Les autres boutons utilisent `UIColor.label`, la couleur sémantique du système, pour suivre les apparences claire et sombre. Un scénario XCTest couvre aussi le retour à cette couleur après un changement de sélection ; son exécution attend le rétablissement du runner macOS.
+La teinte verte distingue uniquement la destination sélectionnée. Elle possède quatre variantes : clair, sombre et contraste renforcé pour chacune des deux apparences. Les autres boutons utilisent `UIColor.label`, la couleur sémantique du système. Les libellés démarrent à 12 points et utilisent Dynamic Type, avec un plafond de 15 points dans la barre compacte et le grand aperçu système sur appui prolongé. Les couleurs et les préférences d'accessibilité doivent encore être contrôlées sur iOS.
+
+La barre est reliée à `WKWebView.scrollView` par `UIScrollEdgeElementContainerInteraction` sur le bord inférieur. UIKit gère ainsi le traitement de contraste du contenu sous les boutons flottants, sans ajouter de fond opaque personnalisé. L'interaction est détachée avec la barre devant le clavier ou une modale, puis rétablie à sa réapparition ; les mises à jour répétées ne créent pas d'effets supplémentaires. Les XCTest vérifient cette association, le masquage et les variantes de couleur ; leur exécution attend le rétablissement du runner macOS.
 
 ## Validation
 
@@ -17,7 +19,7 @@ La teinte verte distingue uniquement la destination sélectionnée. Les autres b
 - `native-navigation-journey.mjs` : pont JavaScript avec backend simulé, disponibilité, ancien iOS, plugin absent et blocage des actions derrière les modales. Démarrer Vite avec `TAURI_ENV_PLATFORM=ios`, puis définir `ZENTRA_QA_ORIGIN` et `ZENTRA_PLAYWRIGHT_MODULE` si nécessaire.
 - Workflow `mobile-preview.yml`, option `ios-glass` : compilation du plugin Swift complet et XCTest sur simulateur avec de vrais UIButton. Les options `ios` et `ipa` construisent l'application complète.
 
-Au 9 septembre 2026, les validations web locales passent. La tentative GitHub Actions 34295916743 a été refusée avant toute étape : compte verrouillé pour un problème de facturation. La compilation Swift, le rendu natif, VoiceOver, les préférences d'accessibilité iOS, le passage portrait/paysage et l'installation sur un iPhone physique restent à vérifier. Aucun nouvel IPA validé n'est fourni par cette modification.
+Au 9 septembre 2026, les trois scénarios du pont JavaScript ont été rejoués avec succès : composant disponible, ancien iOS et plugin absent. Ce test emploie un backend simulé et ne valide pas le rendu Liquid Glass. Le refus de la tentative GitHub Actions 34295916743 a été revérifié : compte verrouillé pour un problème de facturation, avant toute étape. La compilation Swift, le rendu natif, VoiceOver, les préférences d'accessibilité iOS, le passage portrait/paysage et l'installation sur un iPhone physique restent à vérifier. Aucun nouvel IPA validé n'est fourni par cette modification.
 
 ## Documentation officielle consultée
 
@@ -26,3 +28,4 @@ Au 9 septembre 2026, les validations web locales passent. La tentative GitHub Ac
 - [Build a UIKit app with the new design — WWDC25](https://developer.apple.com/videos/play/wwdc2025/284/) : intégration des contrôles UIKit et regroupement dans les barres.
 - [Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/liquid-glass) : principes et exemple Landmarks.
 - [Materials — Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/materials) : variantes du matériau, couleurs sémantiques et adaptation aux réglages de transparence et de contraste.
+- [UIScrollEdgeElementContainerInteraction](https://developer.apple.com/documentation/uikit/uiscrolledgeelementcontainerinteraction) : traitement du bord de défilement sous un groupe de commandes flottantes.

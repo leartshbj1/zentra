@@ -26,10 +26,10 @@ class ZentraMobilePlugin: Plugin {
     let args = try invoke.parseArgs(NavigationArgs.self)
     guard ["dashboard", "projects", "quotes", "menu"].contains(args.selected) else { invoke.reject("Navigation inconnue"); return }
     DispatchQueue.main.async {
-      if #available(iOS 26.0, *), let host = self.manager.viewController?.view {
+      if #available(iOS 26.0, *), let host = self.manager.viewController?.view, let webview = self.webview {
         let dock: GlassNavigation
         if let existing = self.navigation as? GlassNavigation { dock = existing }
-        else { dock = GlassNavigation(host: host); self.navigation = dock }
+        else { dock = GlassNavigation(host: host, scrollView: webview.scrollView); self.navigation = dock }
         dock.onSelect = { id in try? args.onNavigate.send(["id": id] as [String: String]) }
         dock.configure(selected: args.selected, visible: args.visible)
         invoke.resolve(["available": true])
