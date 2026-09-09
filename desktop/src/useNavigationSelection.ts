@@ -20,9 +20,14 @@ export function useNavigationSelection(ref: RefObject<HTMLElement | null>, selec
       navigation.dataset.selectionReady = 'true';
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     observer.observe(navigation);
-    for (const child of navigation.children) observer.observe(child);
-    return () => observer.disconnect();
+    // The moving indicator must not observe the dimensions it writes itself.
+    for (const child of navigation.children) if (!child.hasAttribute('aria-hidden')) observer.observe(child);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   }, [ref, selection, hidden]);
 }

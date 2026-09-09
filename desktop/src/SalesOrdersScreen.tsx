@@ -20,6 +20,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigationSelection } from './useNavigationSelection';
 import { desktopApi } from './bridge';
 import { formatCatalogQuantity, stockQuantityFromInput } from './catalog';
 import { RecurringDocumentsPanel } from './RecurringDocumentsPanel';
@@ -95,8 +96,11 @@ export function SalesTabs({
   active: SalesView;
   onChange: (view: SalesView) => void;
 }) {
+  const navigation = useRef<HTMLElement>(null);
+  useNavigationSelection(navigation, active, false);
   return (
-    <nav className="sales-tabs" aria-label="Cycle de vente">
+    <nav ref={navigation} className="sales-tabs" aria-label="Cycle de vente">
+      <span className="sales-tabs__selection" aria-hidden="true" />
       {(
         [
           ['quotes', 'Devis'],

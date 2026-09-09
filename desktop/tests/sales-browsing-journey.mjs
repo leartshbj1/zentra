@@ -25,8 +25,7 @@ async function capture(name) {
 }
 try {
   await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5175'}/tests/mobile-harness.html?browsing=1`);
-  const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-  if (await tour.isVisible()) await tour.click();
+  await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const label of ['Devis', 'Factures']) {
@@ -40,6 +39,8 @@ try {
     }
   }
   await page.setViewportSize({ width: 390, height: 844 });
+  const filterToggle = page.locator('.document-list-tools__compact button');
+  if (await filterToggle.isVisible() && await filterToggle.getAttribute('aria-expanded') === 'false') await filterToggle.click();
   const filter = page.getByRole('combobox', { name: 'État des factures' });
   for (const [value, count] of [['overdue', 1], ['open', 1], ['paid', 1], ['draft', 1], ['cancelled', 0], ['all', 3]]) {
     await filter.selectOption(value);

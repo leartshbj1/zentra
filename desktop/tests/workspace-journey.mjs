@@ -23,6 +23,11 @@ async function gotoModule(label) {
   await page.locator('.navigation-palette').waitFor({ state: 'detached' });
   await page.locator('.settings-cloud-status').filter({hasText: /Ouverture/}).waitFor({ state: 'detached' });
 }
+async function openSettings(category) {
+  const back = page.getByRole('button', { name: 'Tous les paramètres', exact: true });
+  if (await back.isVisible()) await back.click();
+  await page.getByRole('navigation', { name: 'Rubriques des paramètres' }).getByRole('button', { name: category, exact: false }).click();
+}
 try {
   await page.goto(process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5175/tests/mobile-harness.html');
   const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
@@ -87,19 +92,19 @@ try {
       await gotoModule(label);
       await capture(`${width}-${label.replace(/[^\p{L}\p{N}]+/gu,'-')}`);
     }
-    for (const category of ['État de la configuration', 'Compte et accès', 'Entreprise et facturation', 'Comptabilité', 'Temps et coûts', 'Équipe et paie', 'Sauvegardes et mises à jour']) {
-      await page.locator('.settings-category > summary').filter({hasText:category}).click();
+    for (const category of ['État de la configuration', 'Compte et accès', 'Entreprise et facturation', 'Comptabilité', 'Temps et coûts', 'Équipe et paie', 'Partage, sauvegardes et mises à jour']) {
+      await openSettings(category);
       await capture(`${width}-settings-${category.replace(/[^\p{L}\p{N}]+/gu,'-')}`);
     }
   }
-  await page.locator('.settings-category > summary').filter({hasText:'Entreprise et facturation'}).click();
+  await openSettings('Entreprise et facturation');
   await page.getByRole('textbox', {name:'Raison sociale'}).fill('Saisie conservée pendant la navigation');
-  await page.locator('.settings-category > summary').filter({hasText:'Temps et coûts'}).click();
-  await page.locator('.settings-category > summary').filter({hasText:'Entreprise et facturation'}).click();
+  await openSettings('Temps et coûts');
+  await openSettings('Entreprise et facturation');
   assert.equal(await page.getByRole('textbox', {name:'Raison sociale'}).inputValue(), 'Saisie conservée pendant la navigation');
   await page.getByRole('button', {name:'Ouvrir les mises à jour de Zentra'}).click();
-  await page.locator('.settings-category[open]').filter({hasText:'Sauvegardes et mises à jour'}).waitFor({state:'visible'});
-  assert.equal(await page.locator('.settings-category').filter({hasText:'Sauvegardes et mises à jour'}).getAttribute('open'), '');
+  await page.locator('[data-settings-id="storage"][open]').waitFor({state:'visible'});
+  assert.equal(await page.locator('[data-settings-id="storage"]').getAttribute('open'), '');
   await page.keyboard.press('Control+k');
   await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('comptabilite');
   assert.equal(await page.locator('.navigation-palette__results button').count() >= 1, true);
