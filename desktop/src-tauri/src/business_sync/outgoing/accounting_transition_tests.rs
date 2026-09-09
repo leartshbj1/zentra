@@ -37,6 +37,15 @@ fn supplier_invoice(store: &LocalStore) -> String {
     store.save_supplier_invoice_draft(serde_json::from_value(json!({"id":id,"supplier_id":supplier["id"],"date":"2026-09-01","due_date":"2026-09-30","reference":"RECETTE-ACHAT","items":[{"description":"Marchandises","quantity_milli":1000,"unit_price_cents":10000,"vat_bp":0,"category":"Marchandises"}]})).unwrap()).unwrap();
     id
 }
+fn expense_refund_input(
+    id: &str,
+    reverses_id: Option<String>,
+) -> crate::expense_refunds::ExpenseRefundInput {
+    serde_json::from_value(json!({"request_id":Uuid::new_v4().to_string(),"expense_id":id,"credit_date":"2026-09-08","payment_date":"2026-09-08","reference":"RECETTE-RETOUR","reason":"Retour de marchandises fictif","net_cents":3000,"vat_cents":0,"reverses_id":reverses_id})).unwrap()
+}
+fn supplier_refund_input(id: &str) -> crate::supplier_credit_refunds::SupplierCreditRefundInput {
+    serde_json::from_value(json!({"request_id":Uuid::new_v4().to_string(),"supplier_credit_note_id":id,"date":"2026-09-08","amount_cents":1000,"reference":"RECETTE-RETOUR","reason":"Retour de marchandises fictif"})).unwrap()
+}
 #[test]
 fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
     let output = std::env::var("ZENTRA_ACCOUNTING_TRANSITION_OUTPUT")
@@ -54,17 +63,22 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
         "supplier-validate",
         "supplier-payment",
         "supplier-credit",
+        "expense-refund",
+        "expense-refund-reversal",
+        "supplier-refund",
+        "supplier-refund-reversal",
     ] {
         let (_directory, store) = setup();
         store.install_swiss_accounting_starter().unwrap();
         let mut id = String::new();
         let mut pending_payroll = None;
+        let mut refund_id = None;
         if scenario.starts_with("supplier-") {
             id = supplier_invoice(&store);
             if scenario != "supplier-validate" {
                 store.validate_supplier_invoice(&id).unwrap();
             }
-            if scenario == "supplier-credit" {
+            if scenario == "supplier-credit" || scenario.starts_with("supplier-refund") {
                 let supplier: String = store
                     .connect()
                     .unwrap()
@@ -77,6 +91,31 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                 let credit = Uuid::new_v4().to_string();
                 store.save_supplier_credit_note_draft(serde_json::from_value(json!({"id":credit,"supplier_id":supplier,"document_date":"2026-09-02","reference":"RECETTE-AVOIR","items":[{"description":"Retour","quantity_milli":1000,"unit_price_cents":3000,"vat_bp":0,"category":"Marchandises"}],"allocations":[{"supplier_invoice_id":id,"amount_cents":2000,"effective_date":"2026-09-03"}]})).unwrap()).unwrap();
                 id = credit;
+                if scenario.starts_with("supplier-refund") {
+                    store
+                        .validate_supplier_credit_note(
+                            crate::models::ValidateSupplierCreditNoteInput {
+                                request_id: Uuid::new_v4().to_string(),
+                                supplier_credit_note_id: id.clone(),
+                            },
+                        )
+                        .unwrap();
+                    if scenario == "supplier-refund-reversal" {
+                        let result = store
+                            .record_supplier_credit_refund(supplier_refund_input(&id))
+                            .unwrap();
+                        refund_id = Some(result["refund"]["id"].as_str().unwrap().to_string());
+                    }
+                }
+            }
+        } else if scenario.starts_with("expense-refund") {
+            let expense = store.create_record("expenses",json!({"date":"2026-09-08","paid_at":"2026-09-08","payment_status":"paid","supplier":"Fournisseur fictif","reference":"RECETTE-DEPENSE","net_cents":10000,"vat_cents":0})).unwrap();
+            id = expense["id"].as_str().unwrap().to_string();
+            if scenario == "expense-refund-reversal" {
+                let result = store
+                    .record_expense_refund(expense_refund_input(&id, None))
+                    .unwrap();
+                refund_id = Some(result["refund"]["id"].as_str().unwrap().to_string());
             }
         } else if scenario.starts_with("payroll") {
             let employee = store
@@ -186,6 +225,19 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                         supplier_credit_note_id: id,
                     })
                     .unwrap();
+            }
+            "expense-refund" | "expense-refund-reversal" => {
+                store
+                    .record_expense_refund(expense_refund_input(&id, refund_id))
+                    .unwrap();
+            }
+            "supplier-refund" => {
+                store
+                    .record_supplier_credit_refund(supplier_refund_input(&id))
+                    .unwrap();
+            }
+            "supplier-refund-reversal" => {
+                store.reverse_supplier_credit_refund(serde_json::from_value(json!({"request_id":Uuid::new_v4().to_string(),"refund_id":refund_id.unwrap(),"date":"2026-09-08","reason":"Correction du remboursement fictif"})).unwrap()).unwrap();
             }
             _ => unreachable!(),
         }

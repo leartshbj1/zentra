@@ -1,4 +1,5 @@
 import catalog from '../desktop/src-tauri/src/business_sync_guards.json';
+import afterCatalog from '../desktop/src-tauri/src/business_sync_after_guards.json';
 import tables from '../desktop/src-tauri/src/business_sync_tables.json';
 import schema from '../desktop/src-tauri/src/business_sync_schema.json';
 
@@ -8,17 +9,29 @@ export type NativeGuard = {
   operation: 'insert' | 'update' | 'delete';
   update_columns: string[];
   condition: string;
+  message: string;
   reads: Record<string, string[]>;
   local_reads: string[];
   functions: string[];
 };
-export const nativeGuardContract = catalog as unknown as {
+type NativeGuardCatalog = {
   version: number;
   native_schema_version: number;
   data_schema_version: number;
   guards: NativeGuard[];
   views: Record<string, string>;
 };
+export const nativeGuardContract = catalog as unknown as NativeGuardCatalog;
+export const nativeAfterGuardContract =
+  afterCatalog as unknown as NativeGuardCatalog & {
+    effects: { name: string; table: string; sql: string }[];
+  };
+export const nativeGuardViews = { ...nativeGuardContract.views };
+for (const [name, sql] of Object.entries(nativeAfterGuardContract.views)) {
+  if (nativeGuardViews[name] && nativeGuardViews[name] !== sql)
+    throw new Error(`Inconsistent trusted native view: ${name}`);
+  nativeGuardViews[name] = sql;
+}
 const shared = tables.tables as Record<string, { columns: string[] }>;
 const columnTypes = Object.fromEntries(
   Object.entries(schema.tables).map(([table, definition]) => [
@@ -57,8 +70,11 @@ if (
 export const serverNativeGuards = nativeGuardContract.guards.filter(
   (g) => !g.local_reads.length,
 );
+export const serverNativeAfterGuards = nativeAfterGuardContract.guards;
+if (serverNativeAfterGuards.some((g) => g.local_reads.length))
+  throw new Error('Review native AFTER protections that depend on local state');
 export const nativeGuardReadColumns: Record<string, string[]> = {};
-for (const guard of serverNativeGuards) {
+for (const guard of [...serverNativeGuards, ...serverNativeAfterGuards]) {
   const imageColumns = [
     ...guard.update_columns,
     ...[...guard.condition.matchAll(/\b(?:OLD|NEW)\.(\w+)\b/gi)].map(
@@ -71,7 +87,7 @@ for (const guard of serverNativeGuards) {
   )
     throw new Error(`Unmapped native image: ${guard.name}/${guard.table}`);
   for (const [table, columns] of Object.entries(guard.reads)) {
-    if (Object.hasOwn(nativeGuardContract.views, table)) continue;
+    if (Object.hasOwn(nativeGuardViews, table)) continue;
     if (
       !Object.hasOwn(shared, table) ||
       columns.some(

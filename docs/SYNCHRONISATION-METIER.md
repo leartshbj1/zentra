@@ -2,6 +2,18 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Soldes après chaque écriture (algorithme 8)
+
+Les sept déclencheurs financiers natifs `AFTER` qui refusent une opération sont désormais évalués sur le serveur. Ils couvrent le solde disponible des avoirs clients, le cumul des paiements et avoirs affectés à une facture, les remboursements de dépenses et leurs deux chronologies, ainsi que les soldes et dates des affectations et remboursements d'avoirs fournisseurs. Ils complètent les 390 contrôles `BEFORE` et les contraintes de lignes de l'algorithme 7.
+
+Le contrôle voit la ligne entrante et les seuls événements déjà présents à cet instant. Une correction ultérieure ne finance pas un dépassement temporaire, même si l'état final est équilibré. Les regroupements par date conservent la sémantique native, y compris les annulations le même jour. La ligne n'est pas inscrite dans la projection tant que les contrôles ne passent pas. Le premier refus conserve sa position et ne fait avancer aucun curseur. Les pages restent bornées à 16 changements et au plus 97 instructions SQL atomiques. Les validations 1 à 7 reprennent en version 8 en conservant les preuves originales.
+
+Le catalogue `business_sync_after_guards.json` est généré depuis un profil natif neuf. Il contient également le SQL exact des neuf déclencheurs qui produisent d'autres écritures : registre bancaire, historique des décisions de petit salaire, file locale des documents, solde du stock et totaux fournisseurs. Ces effets sont explicitement recensés ; ils ne sont pas réexécutés par le serveur à ce stade. Toute nouvelle protection ou modification d'un effet fait échouer la comparaison avec le catalogue validé.
+
+La recette couvre 735 scénarios dans 60 fichiers. Le passage complet en valide 731 en 381,53 secondes ; quatre essais de remboursement de dépense échouaient dans leur helper de réécriture, qui cherchait une facture fournisseur. Après correction de la cible et prise en compte du refus anticipé des écritures immuables, les huit parcours de remboursement/annulation et le test D1 direct passent en 66,37 secondes. Les 14 opérations natives sont ainsi reçues dans SQLite et D1, soit 28 réceptions vérifiées. Le catalogue natif, l'export des 12 opérations comptables, Clippy toutes cibles, TypeScript, lint et compilation de production passent. Aucun contrôle financier natif n'a été assoupli pour ces essais.
+
+Restent à vérifier les cascades et limites d'instructions natives, les neuf effets d'écriture, les validations propres aux commandes Rust, puis l'application canonique des transactions, leur réception native et le parcours partagé complet. `business_validated`, `canonical_committed` et `replication_active` restent faux. Cette étape ne distribue aucun nouvel installateur.
+
 ## Contraintes des lignes intermédiaires (algorithme 7)
 
 Chaque insertion ou modification est désormais contrôlée avant les déclencheurs natifs : présence et type des champs partagés des 106 tables, valeurs obligatoires, contraintes `CHECK` et 205 index d'unicité natifs. Les valeurs nulles autorisées et les entiers signés 64 bits sont conservés. Les index composites, partiels, sur expressions et avec collation `NOCASE` gardent leur sémantique SQLite.

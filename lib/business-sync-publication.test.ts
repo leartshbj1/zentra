@@ -916,6 +916,14 @@ it.for([
   ['supplier-validate', true],
   ['supplier-payment', true],
   ['supplier-credit', true],
+  ['expense-refund', false],
+  ['expense-refund-reversal', false],
+  ['supplier-refund', false],
+  ['supplier-refund-reversal', false],
+  ['expense-refund', true],
+  ['expense-refund-reversal', true],
+  ['supplier-refund', true],
+  ['supplier-refund-reversal', true],
 ] as const)(
   'validates actual native %s operations including intermediate accounting states (D1=%s)',
   { timeout: 60_000 },
@@ -1153,17 +1161,24 @@ it.for([
           failed_change: 200,
         });
       }
-      const targetTable = document
-        ? table === 'invoices'
-          ? 'invoice_items'
-          : 'quote_items'
-        : table === 'expense'
-          ? 'expenses'
-          : table.startsWith('payroll')
-            ? 'payslips'
-            : table === 'supplier-credit'
-              ? 'supplier_credit_notes'
-              : 'supplier_invoices';
+      const refundTable = table.startsWith('expense-refund')
+        ? 'expense_refunds'
+        : table.startsWith('supplier-refund')
+          ? 'supplier_credit_refunds'
+          : null;
+      const targetTable =
+        refundTable ??
+        (document
+          ? table === 'invoices'
+            ? 'invoice_items'
+            : 'quote_items'
+          : table === 'expense'
+            ? 'expenses'
+            : table.startsWith('payroll')
+              ? 'payslips'
+              : table === 'supplier-credit'
+                ? 'supplier_credit_notes'
+                : 'supplier_invoices');
       const finalChange = parts
         .flat()
         .filter((c) => c.table === targetTable && c.after_json !== null)
@@ -1179,11 +1194,13 @@ it.for([
             })
           : JSON.stringify({
               ...JSON.parse(item.row_json),
-              [document
-                ? 'description'
-                : table.startsWith('payroll')
-                  ? 'notes'
-                  : 'note']: 'Texte réécrit après comptabilisation',
+              [refundTable
+                ? 'reason'
+                : document
+                  ? 'description'
+                  : table.startsWith('payroll')
+                    ? 'notes'
+                    : 'note']: 'Texte réécrit après comptabilisation',
             });
       const change: TransactionChange = {
         sequence: String(BigInt(original.last_sequence) + BigInt(1)),
@@ -1217,20 +1234,22 @@ it.for([
         await validateTransaction(bad.actor, bad.manifest.transaction_id),
       ).toMatchObject({
         phase: 'invalid',
-        failed_rule: document
-          ? table === 'invoices'
-            ? 'transition:issued-invoice-items'
-            : 'transition:issued-quote-items'
-          : table === 'expense'
-            ? 'transition:posted-expense'
-            : table === 'payroll-adult-validate'
-              ? 'native:payslips_small_salary_posted_trace_update_guard'
-              : table.startsWith('payroll')
-                ? 'transition:posted-payslip'
-                : table === 'supplier-credit'
-                  ? 'transition:validated-supplier-credit'
-                  : 'transition:validated-supplier-invoice',
-        failed_change: original.change_count,
+        failed_rule: refundTable
+          ? 'immutable:append-only'
+          : document
+            ? table === 'invoices'
+              ? 'transition:issued-invoice-items'
+              : 'transition:issued-quote-items'
+            : table === 'expense'
+              ? 'transition:posted-expense'
+              : table === 'payroll-adult-validate'
+                ? 'native:payslips_small_salary_posted_trace_update_guard'
+                : table.startsWith('payroll')
+                  ? 'transition:posted-payslip'
+                  : table === 'supplier-credit'
+                    ? 'transition:validated-supplier-credit'
+                    : 'transition:validated-supplier-invoice',
+        failed_change: refundTable ? null : original.change_count,
         snapshot_validated: false,
       });
     } finally {
@@ -1356,7 +1375,7 @@ function businessEvidence() {
   };
 }
 
-it.each([1, 2, 3, 4, 5, 6])(
+it.each([1, 2, 3, 4, 5, 6, 7])(
   'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
   async (version) => {
     const f = await legacyTransactionValidation(version);
@@ -2968,9 +2987,12 @@ async function realD1Fixture() {
 it('compiles every intermediate accounting query against actual D1 limits', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {
-    const { reject, native, row, ...other } = transactionTransitionSql;
+    const { reject, native, after, row, ...other } = transactionTransitionSql;
     const nativeQueries = Object.fromEntries(
       Object.entries(native).map(([key, sql]) => [`native:${key}`, sql]),
+    );
+    const afterQueries = Object.fromEntries(
+      Object.entries(after).map(([key, sql]) => [`after:${key}`, sql]),
     );
     const rowQueries = Object.fromEntries(
       Object.entries(row).map(([key, sql]) => [`row:${key}`, sql]),
@@ -2978,6 +3000,7 @@ it('compiles every intermediate accounting query against actual D1 limits', asyn
     for (const [key, sql] of Object.entries({
       ...reject,
       ...nativeQueries,
+      ...afterQueries,
       ...rowQueries,
       ...other,
     })) {

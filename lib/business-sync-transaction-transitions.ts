@@ -19,6 +19,7 @@ import { supplierPostingConditions } from './business-sync-supplier-posting-tran
 import { payrollTransitionConditions } from './business-sync-payroll-transitions';
 import {
   nativeGuardContract,
+  nativeAfterGuardContract,
   receiverNativeGuards,
 } from './business-sync-native-guard-contract';
 import { nativeGuardQueries } from './business-sync-native-guards';
@@ -83,6 +84,7 @@ export const transactionTransitionContract = {
   conditions,
   rowColumns: transitionRowColumns,
   nativeGuards: nativeGuardContract,
+  nativeAfterGuards: nativeAfterGuardContract,
   receiverNativeGuards,
   rowStructureContract,
 };
@@ -94,6 +96,7 @@ export function transactionTransitionQueries(active: string) {
   return {
     row: rowConstraintQueries(gate, args),
     native: nativeGuardQueries(gate, args),
+    after: nativeGuardQueries(gate, args, 'after'),
     reject: Object.fromEntries(
       [...new Set(conditions.map((rule) => rule.table))].map((table) => {
         const rules = conditions.filter((rule) => rule.table === table);
@@ -253,6 +256,8 @@ export async function validateTransactionTransitions(ctx: Context) {
     const native = ctx.queries.native[c.table];
     if (native)
       statements.push(db.prepare(native).bind(...bindings, digests[i]));
+    const after = ctx.queries.after[c.table];
+    if (after) statements.push(db.prepare(after).bind(...bindings, null));
     if (Object.hasOwn(transitionParentPredicates, c.table))
       statements.push(db.prepare(ctx.queries.document).bind(...bindings));
     if (Object.hasOwn(transitionRowColumns, c.table))

@@ -1,0 +1,310 @@
+{
+  "data_schema_version": 60,
+  "effects": [
+    {
+      "name": "bank_expense_register",
+      "sql": "CREATE TRIGGER bank_expense_register AFTER INSERT ON bank_expense_reconciliations\nBEGIN INSERT INTO bank_expense_reconciliation_registry VALUES(NEW.id,NEW.confirmed_at); END",
+      "table": "bank_expense_reconciliations"
+    },
+    {
+      "name": "employees_small_salary_decision_insert_history",
+      "sql": "CREATE TRIGGER employees_small_salary_decision_insert_history\nAFTER INSERT ON employees\nWHEN NEW.small_salary_assessment_year IS NOT NULL\nBEGIN\n  INSERT INTO employee_small_salary_decisions(\n    employee_id,assessment_year,revision,revision_kind,decision_date,sector,\n    employee_requested_contributions,opening_gross_cents,\n    opening_contributed_basis_cents,evidence_reference,created_at\n  ) VALUES(\n    NEW.id,NEW.small_salary_assessment_year,1,'initial',NEW.small_salary_decision_date,\n    NEW.small_salary_sector,NEW.small_salary_employee_requested_contributions,\n    NEW.small_salary_opening_gross_cents,NEW.small_salary_opening_contributed_basis_cents,\n    NEW.small_salary_evidence_reference,NEW.created_at\n  );\nEND",
+      "table": "employees"
+    },
+    {
+      "name": "employees_small_salary_decision_update_history",
+      "sql": "CREATE TRIGGER employees_small_salary_decision_update_history\nAFTER UPDATE OF small_salary_assessment_year,small_salary_sector,\n  small_salary_employee_requested_contributions,small_salary_opening_gross_cents,\n  small_salary_opening_contributed_basis_cents,small_salary_evidence_reference,\n  small_salary_decision_date ON employees\nWHEN NEW.small_salary_assessment_year IS NOT NULL AND NOT EXISTS(\n  SELECT 1 FROM employee_small_salary_decisions d\n  WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year\n    AND d.revision=(SELECT MAX(latest.revision) FROM employee_small_salary_decisions latest\n                    WHERE latest.employee_id=NEW.id AND latest.assessment_year=NEW.small_salary_assessment_year)\n    AND d.decision_date=NEW.small_salary_decision_date\n    AND d.sector=NEW.small_salary_sector\n    AND d.employee_requested_contributions=NEW.small_salary_employee_requested_contributions\n    AND d.opening_gross_cents=NEW.small_salary_opening_gross_cents\n    AND d.opening_contributed_basis_cents=NEW.small_salary_opening_contributed_basis_cents\n    AND d.evidence_reference=NEW.small_salary_evidence_reference\n)\nBEGIN\n  INSERT INTO employee_small_salary_decisions(\n    employee_id,assessment_year,revision,revision_kind,decision_date,sector,\n    employee_requested_contributions,opening_gross_cents,\n    opening_contributed_basis_cents,evidence_reference,created_at\n  ) VALUES(\n    NEW.id,NEW.small_salary_assessment_year,\n    COALESCE((SELECT MAX(d.revision)+1 FROM employee_small_salary_decisions d\n              WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year),1),\n    CASE\n      WHEN NOT EXISTS(SELECT 1 FROM employee_small_salary_decisions d\n                      WHERE d.employee_id=NEW.id AND d.assessment_year=NEW.small_salary_assessment_year)\n        THEN 'initial'\n      WHEN EXISTS(SELECT 1 FROM payslips p WHERE p.employee_id=NEW.id\n                    AND SUBSTR(p.period,1,4)=PRINTF('%04d',NEW.small_salary_assessment_year)\n                    AND p.status IN ('valide','comptabilise','paye'))\n        THEN 'prospective_request'\n      ELSE 'prevalidation_correction'\n    END,\n    NEW.small_salary_decision_date,NEW.small_salary_sector,\n    NEW.small_salary_employee_requested_contributions,NEW.small_salary_opening_gross_cents,\n    NEW.small_salary_opening_contributed_basis_cents,NEW.small_salary_evidence_reference,\n    NEW.updated_at\n  );\nEND",
+      "table": "employees"
+    },
+    {
+      "name": "project_document_queue_delete",
+      "sql": "CREATE TRIGGER project_document_queue_delete AFTER DELETE ON attachments\nWHEN OLD.entity_type='project' AND OLD.entity_id=OLD.project_id\nBEGIN\n  INSERT INTO project_document_sync(document_id,project_id,state,updated_at)\n    VALUES(OLD.id,OLD.project_id,'delete',strftime('%Y-%m-%dT%H:%M:%fZ','now'))\n    ON CONFLICT(document_id) DO UPDATE SET state='delete',last_error=NULL,updated_at=excluded.updated_at;\nEND",
+      "table": "attachments"
+    },
+    {
+      "name": "project_document_queue_insert",
+      "sql": "CREATE TRIGGER project_document_queue_insert AFTER INSERT ON attachments\nWHEN NEW.entity_type='project' AND NEW.entity_id=NEW.project_id\nBEGIN\n  INSERT OR IGNORE INTO project_document_sync(document_id,project_id,state,updated_at)\n    VALUES(NEW.id,NEW.project_id,'upload',NEW.updated_at);\nEND",
+      "table": "attachments"
+    },
+    {
+      "name": "stock_movements_apply_balance",
+      "sql": "CREATE TRIGGER stock_movements_apply_balance\nAFTER INSERT ON stock_movements WHEN NEW.source_type<>'opening'\nBEGIN UPDATE catalog_items SET stock_quantity_milli=NEW.balance_after_milli,updated_at=NEW.created_at WHERE id=NEW.catalog_item_id; END",
+      "table": "stock_movements"
+    },
+    {
+      "name": "supplier_credit_allocations_apply_after_insert",
+      "sql": "CREATE TRIGGER supplier_credit_allocations_apply_after_insert\nAFTER INSERT ON supplier_credit_allocations WHEN (SELECT status FROM supplier_credit_notes WHERE id=NEW.supplier_credit_note_id)='validated'\nBEGIN\n  UPDATE supplier_invoices\n  SET credited_cents=COALESCE((\n        SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END)\n        FROM supplier_credit_allocations allocation JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id\n        WHERE allocation.supplier_invoice_id=NEW.supplier_invoice_id AND credit.status='validated'\n      ),0),updated_at=NEW.created_at\n  WHERE id=NEW.supplier_invoice_id;\nEND",
+      "table": "supplier_credit_allocations"
+    },
+    {
+      "name": "supplier_credit_allocations_apply_invoice_total",
+      "sql": "CREATE TRIGGER supplier_credit_allocations_apply_invoice_total\nAFTER UPDATE OF status ON supplier_credit_notes WHEN OLD.status='draft' AND NEW.status='validated'\nBEGIN\n  UPDATE supplier_invoices\n  SET credited_cents=COALESCE((\n        SELECT SUM(CASE allocation.event_type WHEN 'apply' THEN allocation.amount_cents ELSE -allocation.amount_cents END) FROM supplier_credit_allocations allocation\n        JOIN supplier_credit_notes credit ON credit.id=allocation.supplier_credit_note_id\n        WHERE allocation.supplier_invoice_id=supplier_invoices.id AND credit.status='validated'\n      ),0),\n      updated_at=NEW.validated_at\n  WHERE id IN (SELECT supplier_invoice_id FROM supplier_credit_allocations WHERE supplier_credit_note_id=NEW.id);\nEND",
+      "table": "supplier_credit_notes"
+    },
+    {
+      "name": "supplier_payments_update_invoice_total",
+      "sql": "CREATE TRIGGER supplier_payments_update_invoice_total\nAFTER INSERT ON supplier_payments\nBEGIN\n  UPDATE supplier_invoices\n  SET paid_cents=(SELECT COALESCE(SUM(amount_cents),0) FROM supplier_payments WHERE supplier_invoice_id=NEW.supplier_invoice_id),updated_at=NEW.created_at\n  WHERE id=NEW.supplier_invoice_id;\nEND",
+      "table": "supplier_payments"
+    }
+  ],
+  "guards": [
+    {
+      "condition": "EXISTS(SELECT 1 FROM customer_credit_balances b WHERE b.credit_note_id=NEW.credit_note_id AND (b.remaining_cents<0 OR b.allocated_cents<0 OR b.refunded_cents<0))\n OR (NEW.invoice_id IS NOT NULL AND EXISTS(SELECT 1 FROM invoices i WHERE i.id=NEW.invoice_id AND\n   (COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id=i.id),0)\n   +COALESCE((SELECT SUM(e.amount_cents) FROM customer_invoice_credit_movements e WHERE e.invoice_id=i.id),0)>i.total_cents\n   OR COALESCE((SELECT SUM(e.amount_cents) FROM customer_invoice_credit_movements e WHERE e.invoice_id=i.id),0)<0)))",
+      "functions": [
+        "coalesce",
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "Le règlement dépasse le solde disponible de l’avoir ou de la facture.",
+      "name": "customer_credit_settlement_balance",
+      "operation": "insert",
+      "reads": {
+        "customer_credit_balances": [
+          "allocated_cents",
+          "credit_note_id",
+          "refunded_cents",
+          "remaining_cents"
+        ],
+        "customer_credit_documents": [
+          "credit_note_id"
+        ],
+        "customer_credit_settlements": [
+          "amount_cents",
+          "created_at",
+          "credit_note_id",
+          "date",
+          "event_type",
+          "id",
+          "invoice_id"
+        ],
+        "customer_invoice_credit_movements": [
+          "amount_cents",
+          "invoice_id"
+        ],
+        "invoices": [
+          "created_at",
+          "id",
+          "issue_date",
+          "number",
+          "original_invoice_id",
+          "status",
+          "total_cents",
+          "type"
+        ],
+        "payments": [
+          "amount_cents",
+          "invoice_id"
+        ]
+      },
+      "table": "customer_credit_settlements",
+      "update_columns": []
+    },
+    {
+      "condition": "NOT EXISTS(SELECT 1 FROM expenses e WHERE e.id=NEW.expense_id AND e.payment_status='paid' AND e.currency='CHF'\n  AND (SELECT SUM(CASE event_type WHEN 'refund' THEN net_cents ELSE -net_cents END) FROM expense_refunds WHERE expense_id=e.id) BETWEEN 0 AND e.net_cents\n  AND (SELECT SUM(CASE event_type WHEN 'refund' THEN vat_cents ELSE -vat_cents END) FROM expense_refunds WHERE expense_id=e.id) BETWEEN 0 AND e.vat_cents)",
+      "functions": [
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "Le remboursement dépasse le solde de la dépense.",
+      "name": "expense_refund_bounds",
+      "operation": "insert",
+      "reads": {
+        "expense_refunds": [
+          "event_type",
+          "expense_id",
+          "net_cents",
+          "vat_cents"
+        ],
+        "expenses": [
+          "currency",
+          "id",
+          "net_cents",
+          "payment_status",
+          "vat_cents"
+        ]
+      },
+      "table": "expense_refunds",
+      "update_columns": []
+    },
+    {
+      "condition": "EXISTS(\n  WITH dated_events AS (\n    SELECT 'credit' AS timeline,credit_date AS event_date,\n      CASE event_type WHEN 'refund' THEN net_cents ELSE -net_cents END AS net,\n      CASE event_type WHEN 'refund' THEN vat_cents ELSE -vat_cents END AS vat\n    FROM expense_refunds WHERE expense_id=NEW.expense_id\n    UNION ALL\n    SELECT 'payment',payment_date,\n      CASE event_type WHEN 'refund' THEN net_cents ELSE -net_cents END,\n      CASE event_type WHEN 'refund' THEN vat_cents ELSE -vat_cents END\n    FROM expense_refunds WHERE expense_id=NEW.expense_id\n  ), balances AS (\n    SELECT SUM(net) OVER (PARTITION BY timeline ORDER BY event_date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS net,\n      SUM(vat) OVER (PARTITION BY timeline ORDER BY event_date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS vat\n    FROM dated_events\n  )\n  SELECT 1 FROM balances b JOIN expenses e ON e.id=NEW.expense_id\n  WHERE b.net<0 OR b.net>e.net_cents OR b.vat<0 OR b.vat>e.vat_cents\n)",
+      "functions": [
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "Cette date dépasse le solde historique de la dépense. Une correction ultérieure ne peut pas financer un remboursement antérieur.",
+      "name": "expense_refund_timeline_bounds",
+      "operation": "insert",
+      "reads": {
+        "expense_refunds": [
+          "credit_date",
+          "event_type",
+          "expense_id",
+          "net_cents",
+          "payment_date",
+          "vat_cents"
+        ],
+        "expenses": [
+          "id",
+          "net_cents",
+          "vat_cents"
+        ]
+      },
+      "table": "expense_refunds",
+      "update_columns": []
+    },
+    {
+      "condition": "EXISTS(SELECT 1 FROM supplier_credit_balances WHERE supplier_credit_note_id=NEW.supplier_credit_note_id AND (remaining_cents<0 OR refunded_cents<0 OR allocated_cents<0))",
+      "functions": [
+        "coalesce",
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "Une part de cet avoir a déjà été remboursée ; vérifiez le solde disponible.",
+      "name": "supplier_credit_allocation_refund_balance",
+      "operation": "insert",
+      "reads": {
+        "supplier_credit_allocations": [
+          "amount_cents",
+          "event_type",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_balances": [
+          "allocated_cents",
+          "refunded_cents",
+          "remaining_cents",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_notes": [
+          "id",
+          "total_cents"
+        ],
+        "supplier_credit_refunds": [
+          "amount_cents",
+          "event_type",
+          "supplier_credit_note_id"
+        ]
+      },
+      "table": "supplier_credit_allocations",
+      "update_columns": []
+    },
+    {
+      "condition": "EXISTS(SELECT 1 FROM supplier_credit_settlement_timeline t JOIN supplier_credit_notes c ON c.id=t.supplier_credit_note_id WHERE c.id=NEW.supplier_credit_note_id AND (t.settled_cents<0 OR t.settled_cents>c.total_cents))",
+      "functions": [
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "La chronologie des règlements dépasse le solde historique de l’avoir fournisseur.",
+      "name": "supplier_credit_allocation_refund_chronology",
+      "operation": "insert",
+      "reads": {
+        "supplier_credit_allocations": [
+          "amount_cents",
+          "effective_date",
+          "event_type",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_notes": [
+          "id",
+          "total_cents"
+        ],
+        "supplier_credit_refunds": [
+          "amount_cents",
+          "date",
+          "event_type",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_settlement_timeline": [
+          "settled_cents",
+          "supplier_credit_note_id"
+        ]
+      },
+      "table": "supplier_credit_allocations",
+      "update_columns": []
+    },
+    {
+      "condition": "EXISTS(SELECT 1 FROM supplier_credit_balances WHERE supplier_credit_note_id=NEW.supplier_credit_note_id AND (remaining_cents<0 OR refunded_cents<0 OR allocated_cents<0))",
+      "functions": [
+        "coalesce",
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "Le remboursement dépasse le solde disponible de l’avoir.",
+      "name": "supplier_credit_refund_balance",
+      "operation": "insert",
+      "reads": {
+        "supplier_credit_allocations": [
+          "amount_cents",
+          "event_type",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_balances": [
+          "allocated_cents",
+          "refunded_cents",
+          "remaining_cents",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_notes": [
+          "id",
+          "total_cents"
+        ],
+        "supplier_credit_refunds": [
+          "amount_cents",
+          "event_type",
+          "supplier_credit_note_id"
+        ]
+      },
+      "table": "supplier_credit_refunds",
+      "update_columns": []
+    },
+    {
+      "condition": "EXISTS(SELECT 1 FROM supplier_credit_settlement_timeline t JOIN supplier_credit_notes c ON c.id=t.supplier_credit_note_id WHERE c.id=NEW.supplier_credit_note_id AND (t.settled_cents<0 OR t.settled_cents>c.total_cents))",
+      "functions": [
+        "json_extract",
+        "sum"
+      ],
+      "local_reads": [],
+      "message": "La chronologie des règlements dépasse le solde historique de l’avoir fournisseur.",
+      "name": "supplier_credit_refund_chronology",
+      "operation": "insert",
+      "reads": {
+        "supplier_credit_allocations": [
+          "amount_cents",
+          "effective_date",
+          "event_type",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_notes": [
+          "id",
+          "total_cents"
+        ],
+        "supplier_credit_refunds": [
+          "amount_cents",
+          "date",
+          "event_type",
+          "supplier_credit_note_id"
+        ],
+        "supplier_credit_settlement_timeline": [
+          "settled_cents",
+          "supplier_credit_note_id"
+        ]
+      },
+      "table": "supplier_credit_refunds",
+      "update_columns": []
+    }
+  ],
+  "native_schema_version": 61,
+  "version": 1,
+  "views": {
+    "customer_credit_balances": "SELECT c.id AS credit_note_id,-c.total_cents AS total_cents,\n COALESCE(SUM(CASE e.event_type WHEN 'apply' THEN e.amount_cents WHEN 'reverse_apply' THEN -e.amount_cents ELSE 0 END),0) AS allocated_cents,\n COALESCE(SUM(CASE e.event_type WHEN 'refund' THEN e.amount_cents WHEN 'reverse_refund' THEN -e.amount_cents ELSE 0 END),0) AS refunded_cents,\n -c.total_cents-COALESCE(SUM(CASE WHEN e.event_type IN ('apply','refund') THEN e.amount_cents ELSE -e.amount_cents END),0) AS remaining_cents\nFROM customer_credit_documents d JOIN invoices c ON c.id=d.credit_note_id\nLEFT JOIN customer_credit_settlements e ON e.credit_note_id=c.id GROUP BY c.id",
+    "customer_invoice_credit_movements": "SELECT c.id,c.original_invoice_id AS invoice_id,c.id AS credit_note_id,c.issue_date AS date,c.created_at,-c.total_cents AS amount_cents\nFROM invoices c WHERE c.type='avoir' AND c.number IS NOT NULL AND c.status<>'annulee'\n AND NOT EXISTS(SELECT 1 FROM customer_credit_documents d WHERE d.credit_note_id=c.id)\nUNION ALL\nSELECT e.id,e.invoice_id,e.credit_note_id,e.date,e.created_at,\n CASE e.event_type WHEN 'apply' THEN e.amount_cents ELSE -e.amount_cents END\nFROM customer_credit_settlements e WHERE e.event_type IN ('apply','reverse_apply')",
+    "supplier_credit_balances": "SELECT c.id AS supplier_credit_note_id,c.total_cents,\n  COALESCE(a.amount,0) AS allocated_cents,COALESCE(r.amount,0) AS refunded_cents,\n  c.total_cents-COALESCE(a.amount,0)-COALESCE(r.amount,0) AS remaining_cents\nFROM supplier_credit_notes c\nLEFT JOIN (SELECT supplier_credit_note_id,SUM(CASE event_type WHEN 'apply' THEN amount_cents ELSE -amount_cents END) AS amount FROM supplier_credit_allocations GROUP BY supplier_credit_note_id) a ON a.supplier_credit_note_id=c.id\nLEFT JOIN (SELECT supplier_credit_note_id,SUM(CASE event_type WHEN 'refund' THEN amount_cents ELSE -amount_cents END) AS amount FROM supplier_credit_refunds GROUP BY supplier_credit_note_id) r ON r.supplier_credit_note_id=c.id",
+    "supplier_credit_settlement_timeline": "WITH events AS (\n SELECT supplier_credit_note_id,effective_date AS date,CASE event_type WHEN 'apply' THEN amount_cents ELSE -amount_cents END AS amount FROM supplier_credit_allocations WHERE effective_date IS NOT NULL\n UNION ALL\n SELECT supplier_credit_note_id,date,CASE event_type WHEN 'refund' THEN amount_cents ELSE -amount_cents END FROM supplier_credit_refunds\n)\nSELECT supplier_credit_note_id,date,SUM(amount) OVER (PARTITION BY supplier_credit_note_id ORDER BY date RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS settled_cents FROM events"
+  }
+}

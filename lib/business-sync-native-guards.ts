@@ -1,8 +1,9 @@
 import {
-  nativeGuardContract,
+  nativeGuardViews,
   nativeGuardReadColumns,
   nativeGuardField,
   serverNativeGuards,
+  serverNativeAfterGuards,
   type NativeGuard,
 } from './business-sync-native-guard-contract';
 import {
@@ -45,16 +46,25 @@ export function nativeGuardViewSql(name: string, sql: string) {
   if (arms.length !== 7) throw new Error('Review native fiscal date sources');
   return `${parts[1]}WITH fiscal_a AS MATERIALIZED (${arms.slice(0, 4).join(' UNION ALL ')}),fiscal_b AS MATERIALIZED (${arms.slice(4).join(' UNION ALL ')}) SELECT * FROM fiscal_a UNION ALL SELECT * FROM fiscal_b ${parts[3]}`;
 }
-export function nativeGuardQueries(gate: string, args: string) {
+export function nativeGuardQueries(
+  gate: string,
+  args: string,
+  timing: 'before' | 'after' = 'before',
+) {
+  const pool =
+    timing === 'after' ? serverNativeAfterGuards : serverNativeGuards;
   return Object.fromEntries(
-    [...new Set(serverNativeGuards.map((g) => g.table))].sort().map((table) => {
-      const guards = serverNativeGuards.filter((g) => g.table === table);
+    [...new Set(pool.map((g) => g.table))].sort().map((table) => {
+      const guards = pool.filter((g) => g.table === table);
       const dependencies = [
         ...new Set(guards.flatMap((g) => Object.keys(g.reads))),
       ].sort();
       const shared = dependencies.filter((t) =>
         Object.hasOwn(nativeGuardReadColumns, t),
       );
+      // AFTER guards see this row's new image, while every other row remains
+      // at its prior captured state. Do not borrow the final candidate or
+      // persist a failing row merely to evaluate its post-insert constraints.
       const ctes = shared.map(
         (t) =>
           `"${t}" AS MATERIALIZED (SELECT ${
@@ -66,13 +76,17 @@ export function nativeGuardQueries(gate: string, args: string) {
                   )
                   .join(',')
               : '1 AS __exists'
-          } FROM (${transitionRows(t)}))`,
+          } FROM (${
+            timing === 'after' && t === table
+              ? `SELECT row_key_json,row_json FROM (${transitionRows(t)}) WHERE row_key_json<>?21 UNION ALL SELECT ?21,?23 WHERE ?23 IS NOT NULL`
+              : transitionRows(t)
+          }))`,
       );
       for (const view of dependencies.filter((t) =>
-        Object.hasOwn(nativeGuardContract.views, t),
+        Object.hasOwn(nativeGuardViews, t),
       ))
         ctes.push(
-          `"${view}" AS MATERIALIZED (${nativeGuardViewSql(view, nativeGuardContract.views[view])})`,
+          `"${view}" AS MATERIALIZED (${nativeGuardViewSql(view, nativeGuardViews[view])})`,
         );
       const fields = [
         ...new Set(
