@@ -9,6 +9,7 @@ final class GlassNavigation: UIStackView {
   ]
   var onSelect: ((String) -> Void)?
   private var requestedVisible = false
+  private var selectedDestination: String?
   private var keyboardVisible = false
   private var observers: [NSObjectProtocol] = []
   private let scrollEdge = UIScrollEdgeElementContainerInteraction()
@@ -36,7 +37,10 @@ final class GlassNavigation: UIStackView {
       let button = UIButton(configuration: .glass())
       button.accessibilityIdentifier = "zentra.native.\(id)"
       button.accessibilityLabel = id == "menu" ? "Tous les modules" : title
-      button.addAction(UIAction { [weak self] _ in self?.onSelect?(id) }, for: .touchUpInside)
+      button.addAction(UIAction { [weak self] _ in
+        guard let self, self.requestedVisible, !self.keyboardVisible else { return }
+        self.onSelect?(id)
+      }, for: .touchUpInside)
       var config = button.configuration!
       config.title = title
       config.image = UIImage(systemName: symbol)
@@ -69,6 +73,10 @@ final class GlassNavigation: UIStackView {
 
   func configure(selected: String, visible: Bool) {
     requestedVisible = visible
+    // Visibility changes do not rebuild every glass configuration. UIKit keeps
+    // ownership of its material, pressed-state animation and accessibility traits.
+    guard selectedDestination != selected else { updateVisibility(); return }
+    selectedDestination = selected
     for (index, view) in arrangedSubviews.enumerated() {
       guard let button = view as? UIButton else { continue }
       let (id, title, symbol) = destinations[index]
@@ -101,12 +109,19 @@ final class GlassNavigation: UIStackView {
   }
 
   private func updateVisibility() {
+    let wasHidden = isHidden
     isHidden = !requestedVisible || keyboardVisible
     accessibilityElementsHidden = isHidden
     if isHidden {
+      layer.removeAllAnimations()
+      alpha = 1
       if scrollEdge.view != nil { removeInteraction(scrollEdge) }
     } else if scrollEdge.view == nil {
       addInteraction(scrollEdge)
+    }
+    if wasHidden && !isHidden && !UIAccessibility.isReduceMotionEnabled {
+      alpha = 0
+      UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) { self.alpha = 1 }
     }
   }
 }

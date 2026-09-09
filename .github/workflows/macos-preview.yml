@@ -26,7 +26,7 @@ concurrency:
 jobs:
   build-universal-preview:
     name: Universal app and DMG (ad hoc)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
@@ -53,6 +53,9 @@ jobs:
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Select Xcode with the Liquid Glass SDK
+        run: bash desktop/scripts/select-xcode-glass.sh
 
       - name: Test desktop interface
         run: pnpm --dir desktop test:ui

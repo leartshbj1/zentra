@@ -9,9 +9,11 @@ import {
 import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { Button } from './ui';
+import { GUIDE_PROGRESS_KEY, guideLessons, restoredGuideIndex } from './guideLessons';
 
 export type TourView =
   | 'dashboard'
+  | 'agenda'
   | 'projects'
   | 'clients'
   | 'catalog'
@@ -53,8 +55,8 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     id: 'overview',
     view: 'dashboard',
     eyebrow: 'Bienvenue',
-    title: 'Votre activité réelle, au même endroit',
-    text: 'Zentra démarre vide. Les indicateurs se construisent uniquement à partir de vos clients, projets, heures, documents et paiements. Commencez par l’action utile à votre entreprise.',
+    title: 'Bienvenue dans votre espace',
+    text: 'Un client, un projet, un premier devis. Avancez à votre rythme : nous allons vous montrer où retrouver vos informations et comment préparer la suite.',
     target: '.topbar__title',
   },
   {
@@ -87,6 +89,12 @@ export const guidedTourSteps: readonly GuidedTourStep[] = [
     eyebrow: 'Vente',
     title: 'Passez du devis accepté à la facture',
     text: 'Émettez le devis, enregistrez son acceptation puis convertissez-le. Zentra conserve la liaison et empêche une double conversion.',
+    target: '.page-header',
+  },
+  {
+    id: 'agenda', view: 'agenda', eyebrow: 'Agenda',
+    title: 'Gardez une place pour chaque rendez-vous',
+    text: 'Retrouvez votre planning et organisez les événements liés à votre activité. Une date et un projet bien renseignés vous aident à préparer la prochaine intervention.',
     target: '.page-header',
   },
   {
@@ -186,7 +194,6 @@ export const automaticGuidedTourSteps: readonly GuidedTourStep[] = [
 
 function initialOpen() {
   try {
-    if (window.matchMedia?.('(max-width: 860px)').matches) return false;
     return window.localStorage.getItem(TOUR_STORAGE_KEY) !== 'completed';
   } catch {
     return true;
@@ -238,16 +245,29 @@ function GuidedTourDialog({
   onClose: () => void;
   onNavigate: (view: TourView) => void;
 }) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => {
+    if (mode === 'automatic') return 0;
+    try { return restoredGuideIndex(guidedTourSteps.map((item) => item.id), window.localStorage.getItem(GUIDE_PROGRESS_KEY)); }
+    catch { return 0; }
+  });
   const [rect, setRect] = useState<DOMRect | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const steps = mode === 'automatic' ? automaticGuidedTourSteps : guidedTourSteps;
   const step = steps[index];
+  const lesson = guideLessons[step.id];
+
+  useEffect(() => {
+    if (mode !== 'complete') return;
+    try { window.localStorage.setItem(GUIDE_PROGRESS_KEY, step.id); } catch { /* Storage may be disabled. */ }
+  }, [mode, step.id]);
 
   const finish = useCallback((completed: boolean) => {
     if (mode === 'automatic' && completed) rememberCompletion();
+    if (mode === 'complete' && completed) {
+      try { window.localStorage.removeItem(GUIDE_PROGRESS_KEY); } catch { /* The guide remains usable. */ }
+    }
     onClose();
   }, [mode, onClose]);
 
@@ -263,6 +283,14 @@ function GuidedTourDialog({
     return () => {
       previousFocusRef.current?.focus({ preventScroll: true });
     };
+  }, []);
+
+  useEffect(() => {
+    const root = dialogRef.current?.closest('.guided-tour');
+    const siblings = Array.from(root?.parentElement?.children ?? []).filter((node): node is HTMLElement => node instanceof HTMLElement && node !== root);
+    const states = siblings.map((node) => [node, node.inert] as const);
+    for (const [node] of states) node.inert = true;
+    return () => { for (const [node, inert] of states) node.inert = inert; };
   }, []);
 
   useLayoutEffect(() => {
@@ -377,14 +405,23 @@ function GuidedTourDialog({
       <header>
         <span><BrandMark size={34} /></span>
         <div>
-          <p>{step.eyebrow}</p>
+          <p>{mode === 'automatic' ? 'Vos premiers pas' : lesson.chapter}</p>
           <strong id="guided-tour-title" ref={titleRef} tabIndex={-1}>{step.title}</strong>
         </div>
         <button type="button" onClick={() => finish(mode === 'automatic')} aria-label={mode === 'automatic' ? 'Fermer le guide automatique' : 'Fermer le guide complet'}>
           <X size={18} />
         </button>
       </header>
-      <p className="guided-tour__text" id="guided-tour-description">{step.text}</p>
+      <label className="guided-tour__contents">Explorer le guide
+        <select aria-label="Choisir un sujet du guide" value={index} onChange={(event) => setIndex(Number(event.target.value))}>
+          {Array.from(new Set(steps.map((item) => guideLessons[item.id].chapter))).map((chapter) => <optgroup key={chapter} label={chapter}>{steps.map((item, itemIndex) => guideLessons[item.id].chapter === chapter ? <option key={item.id} value={itemIndex}>{itemIndex + 1}. {item.eyebrow}</option> : null)}</optgroup>)}
+        </select>
+      </label>
+      <div className="guided-tour__lesson" key={step.id}>
+        <p className="guided-tour__text" id="guided-tour-description">{step.text}</p>
+        <ol className="guided-tour__actions">{lesson.actions.map((action) => <li key={action}>{action}</li>)}</ol>
+        <p className="guided-tour__tip"><span>À retenir</span>{lesson.tip}</p>
+      </div>
       <div
         className="guided-tour__progress"
         role="progressbar"
@@ -399,7 +436,7 @@ function GuidedTourDialog({
       </div>
       <footer>
         <Button type="button" variant="ghost" size="small" onClick={() => finish(mode === 'automatic')}>
-          {mode === 'automatic' ? 'Ne plus afficher automatiquement' : 'Fermer le guide'}
+          {mode === 'automatic' ? 'Découvrir plus tard' : 'Reprendre plus tard'}
         </Button>
         <span />
         <Button

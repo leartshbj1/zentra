@@ -32,15 +32,24 @@ export function GettingStartedChecklist({
   workspace,
   readOnly,
   onAction,
+  compact = false,
 }: {
   workspace: Workspace;
   readOnly: boolean;
   onAction: (action: GettingStartedAction) => void;
+  compact?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const stepsId = useId();
   const journey = buildGettingStartedJourney(workspace);
   const action = journey.nextAction;
+
+  if (compact && !expanded && action) return <section className="setup-strip" aria-label="Votre prochaine étape">
+    <span className="setup-strip__count" aria-label={`${journey.completedCount} étapes terminées sur ${journey.totalCount}`}>{journey.completedCount}/{journey.totalCount}</span>
+    <div><span>Pour bien démarrer</span><strong>{readOnly ? action.readOnlyLabel : action.label}</strong></div>
+    <Button type="button" variant="ghost" onClick={() => setExpanded(true)}>Voir les étapes</Button>
+    <Button type="button" onClick={() => onAction(action)}>{readOnly ? 'Consulter' : 'Continuer'} <ArrowRight size={16} /></Button>
+  </section>;
 
   return (
     <section

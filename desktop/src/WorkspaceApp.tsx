@@ -242,7 +242,8 @@ import { projectTerminology } from './terminology';
 import { ProjectFolder } from './ProjectFolder';
 import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { isMobileRuntime } from './mobileRuntime';
-import { useNativeNavigation } from './useNativeNavigation';
+import { isNativeMacOS, useNativeNavigation } from './useNativeNavigation';
+import { useNavigationSelection } from './useNavigationSelection';
 import {
   COMPACT_NAVIGATION_QUERY,
   compactSidebarHidden,
@@ -486,8 +487,21 @@ export function WorkspaceApp({
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
-  const sidebarHidden = compactSidebarHidden(compactNavigation, menuOpen);
+  const navigateTour = useCallback((nextView: TourView) => {
+    setAccountingEntryFocus(null);
+    setProjectFolderId(null);
+    setView(nextView);
+    setSearch('');
+    setMenuOpen(false);
+  }, []);
+  const nativeNavigation = useNativeNavigation(
+    view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu',
+    (compactNavigation || isNativeMacOS) && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open,
+    (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
+  );
+  const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
   const navigationRef = useRef<HTMLElement>(null);
+  useNavigationSelection(navigationRef, view, sidebarHidden);
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [view]);
@@ -531,18 +545,6 @@ export function WorkspaceApp({
     media.addEventListener('change', synchronize);
     return () => media.removeEventListener('change', synchronize);
   }, []);
-  const navigateTour = useCallback((nextView: TourView) => {
-    setAccountingEntryFocus(null);
-    setProjectFolderId(null);
-    setView(nextView);
-    setSearch('');
-    setMenuOpen(false);
-  }, []);
-  const nativeNavigation = useNativeNavigation(
-    view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu',
-    compactNavigation && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open,
-    (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
-  );
   const openAccountingEntry = useCallback((focus: AccountingEntryFocus) => {
     setAccountingEntryFocus(focus);
     setView('accounting');
@@ -1395,7 +1397,7 @@ export function WorkspaceApp({
   );
 
   return (
-    <div className="desktop-app" data-view={view}>
+    <div className="desktop-app" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       <aside
         id="primary-navigation"
         className={`sidebar ${menuOpen ? 'is-open' : ''}`}
@@ -1405,7 +1407,7 @@ export function WorkspaceApp({
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
             <BrandWordmark />
-            <small>Votre espace de travail</small>
+            <small>Tout simplement.</small>
           </div>
           <Button
             variant="ghost"
@@ -1419,7 +1421,10 @@ export function WorkspaceApp({
             <X size={18} />
           </Button>
         </div>
+        <div className="sidebar__company"><Building2 size={19} /><div><strong>{workspace.settings?.organization.legalName || 'Mon entreprise'}</strong><span>Mon espace</span></div></div>
+        <button type="button" className="sidebar__search" aria-label="Aller à un écran" onClick={() => { setMenuOpen(false); setNavigationOpen(true); }}><Search size={17} /><span>Aller à…</span><kbd aria-hidden="true">⌘ / Ctrl K</kbd></button>
         <nav ref={navigationRef} className="sidebar__nav" aria-label="Navigation principale">
+          <span className="sidebar__selection" aria-hidden="true" />
           {navigation.map((item) => {
             const Icon =
               item.id === 'projects' && terminology.icon === 'hard-hat'
@@ -1459,7 +1464,7 @@ export function WorkspaceApp({
             );
           })}
         </nav>
-        <Button variant="ghost" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={17} /> Guide de prise en main</Button>
+        <button type="button" className="sidebar__guide" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={22} /><span><strong>Un peu d’aide ?</strong><small>Découvrir Zentra, pas à pas</small></span><ArrowRight size={16} /></button>
         <div className="sidebar__local">
           <ShieldCheck size={17} />
           <div>
@@ -1504,7 +1509,7 @@ export function WorkspaceApp({
                 {search ? <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => setSearch('')}><X size={15} /></button> : null}
               </label>
             ) : null}
-            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label="Aller à un écran" title="Aller à un écran (Ctrl / ⌘ K)" onClick={() => setNavigationOpen(true)}><Search size={19} /><kbd aria-hidden="true">⌘ / Ctrl K</kbd></Button>
+            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label="Aller à un écran" title="Aller à un écran (Ctrl / ⌘ K)" onClick={() => setNavigationOpen(true)}><Search size={19} /></Button>
             <Button
               type="button"
               variant="ghost"
@@ -1514,7 +1519,7 @@ export function WorkspaceApp({
               title="Vérifier les mises à jour"
               onClick={openUpdater}
             >
-              <RefreshCw size={16} /> <span>Mise à jour</span>
+              <RefreshCw size={18} />
             </Button>
             <Button
               type="button"
@@ -1525,7 +1530,7 @@ export function WorkspaceApp({
               title="Ouvrir le guide complet"
               onClick={guidedTour.start}
             >
-              <CircleHelp size={16} /> Guide
+              <CircleHelp size={18} />
             </Button>
             <CloudAccountAccess account={cloudAccount} onAccountChange={onCloudAccountChange} />
           </div>
@@ -2295,13 +2300,14 @@ function Dashboard({
       <section className="workspace-welcome" aria-label="Votre activité aujourd’hui">
         <div>
           <span className="eyebrow">{new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-          <h2>Une belle journée pour avancer.</h2>
-          <p>Vos projets, vos clients et les prochaines étapes. Tout est ici.</p>
+          <h2>Place à l’essentiel.</h2>
+          <p>Votre activité en un regard. Et la suite, à portée de main.</p>
         </div>
         <Button disabled={readOnly || Boolean(quoteBlock)} title={quoteBlock || undefined} onClick={() => onCreate({ type: 'document', entity: 'quotes' })}>Préparer un devis <ArrowRight size={16} /></Button>
       </section>
       {!gettingStarted.complete ? (
         <GettingStartedChecklist
+          compact
           workspace={workspace}
           readOnly={readOnly}
           onAction={runGettingStartedAction}

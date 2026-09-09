@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 
 mod account_cloud;
+mod macos_navigation;
 mod accounting;
 mod accounting_closure;
 mod agenda;
@@ -128,6 +129,10 @@ pub fn run() {
     builder
         .on_page_load(|webview, payload| {
             use tauri::Manager;
+            #[cfg(target_os = "macos")]
+            if payload.event() == tauri::webview::PageLoadEvent::Started && webview.label() == "main" {
+                let _ = webview.app_handle().run_on_main_thread(macos_navigation::hide_on_reload);
+            }
             if payload.event() == tauri::webview::PageLoadEvent::Finished
                 && webview.label() == "main"
                 && webview.try_state::<LocalStore>().is_some()
@@ -153,6 +158,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            macos_navigation::configure_macos_navigation,
             is_native_ready,
             add_project_document,
             delete_project_document,
