@@ -756,6 +756,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        super::ensure_no_resolution(&transaction)?;
         let binding:Option<(String,String,String,bool)>=transaction.query_row("SELECT organization_id,installation_id,generation,capture_enabled FROM business_sync_binding WHERE id=1",[],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?))).optional()?;
         if let Some((org, installation, id, enabled)) = binding {
             if org != organization || installation != self.installation_id || !enabled {

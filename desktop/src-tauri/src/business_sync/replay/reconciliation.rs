@@ -82,6 +82,7 @@ pub(super) fn prepare(
     ensure_current()?;
     let mut connection = store.connect()?;
     let source = connection.transaction()?;
+    crate::business_sync::ensure_no_resolution(&source)?;
     check_binding(&source, store, context)?;
     let bound:bool=source.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding WHERE id=1 AND generation=?1) AND NOT EXISTS(SELECT 1 FROM business_sync_publication_intent)",[capture],|r|r.get(0))?;
     if !bound || uuid::Uuid::parse_str(&context.generation).is_err() {

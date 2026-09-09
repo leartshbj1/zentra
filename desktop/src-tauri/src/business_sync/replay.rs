@@ -315,6 +315,7 @@ fn check_binding(connection: &Connection, store: &LocalStore, context: &Context)
     Ok(())
 }
 fn check_context(connection: &Connection, store: &LocalStore, context: &Context) -> AppResult<()> {
+    super::ensure_no_resolution(connection)?;
     check_binding(connection,store,context)?;
     let pending:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_changes c JOIN business_sync_binding b ON b.generation=c.generation LEFT JOIN business_sync_receipts r ON r.generation=c.generation AND r.transaction_id=c.transaction_id WHERE c.sequence>COALESCE(r.acknowledged_through,0)) OR EXISTS(SELECT 1 FROM business_sync_publication_intent)",[],|r|r.get(0))?;
     if pending {

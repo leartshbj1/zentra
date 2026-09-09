@@ -300,6 +300,28 @@ fn conflict_review_checks_both_document_choices_and_rejects_missing_or_changed_b
                 .unwrap();
         assert_eq!(replacements.originals.len(), 1);
         assert_eq!(replacements.transactions.len(), 1);
+        // Even self-consistent file hashes cannot rebind a saved choice to a
+        // different server revision. Reject it before freezing the live store.
+        let original_plan = fs::read(kept_folder.join("replacement.json")).unwrap();
+        let original_metadata = fs::read(kept_folder.join("proposal.json")).unwrap();
+        let original_seal = fs::read(kept_folder.join("proposal.sha256")).unwrap();
+        let mut changed_plan: Value = serde_json::from_slice(&original_plan).unwrap();
+        changed_plan["base_revision"] = json!(replacements.base_revision + 1);
+        let changed_plan = serde_json::to_vec(&changed_plan).unwrap();
+        let mut changed_metadata = metadata.clone();
+        changed_metadata["artifacts"]["replacement.json"]["sha256"] = json!(digest(&changed_plan));
+        changed_metadata["artifacts"]["replacement.json"]["size_bytes"] = json!(changed_plan.len());
+        let changed_metadata = serde_json::to_vec(&changed_metadata).unwrap();
+        fs::write(kept_folder.join("replacement.json"), changed_plan).unwrap();
+        fs::write(kept_folder.join("proposal.json"), &changed_metadata).unwrap();
+        fs::write(kept_folder.join("proposal.sha256"), digest(&changed_metadata)).unwrap();
+        assert!(review::process_with_transport(
+            local.clone(), server.clone(), "owner".into(), transaction.clone(),
+            Action::ReadSaved { resolution_id: local_proposal_id.clone() }, "d".repeat(64),
+        ).await.is_err());
+        fs::write(kept_folder.join("replacement.json"), original_plan).unwrap();
+        fs::write(kept_folder.join("proposal.json"), original_metadata).unwrap();
+        fs::write(kept_folder.join("proposal.sha256"), original_seal).unwrap();
         // Recreate only the saved replacement DB and its retained row evidence
         // in a fresh disposable profile; no current working documents copied.
         let probe_root = tempfile::tempdir().unwrap();

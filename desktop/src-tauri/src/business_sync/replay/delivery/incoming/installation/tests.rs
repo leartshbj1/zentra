@@ -527,7 +527,7 @@ fn migrating_61_adds_only_local_receipt_metadata_and_preserves_the_shared_contra
             .unwrap()
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        62
+        crate::schema::SCHEMA_VERSION
     );
     assert_eq!(snapshot::contract_hash().unwrap(), contract);
     assert_eq!(business_sync::DATA_SCHEMA_VERSION, 60);

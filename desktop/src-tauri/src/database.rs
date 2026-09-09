@@ -1815,6 +1815,10 @@ impl LocalStore {
             transaction.execute_batch(include_str!("business_sync_installed.sql"))?;
             transaction.pragma_update(None,"user_version",62)?;
         }
+        if current < 63 {
+            transaction.execute_batch(include_str!("business_sync_resolution.sql"))?;
+            transaction.pragma_update(None,"user_version",63)?;
+        }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM

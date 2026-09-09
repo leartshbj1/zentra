@@ -2,7 +2,7 @@
 //! Network activation is deliberately gated by the authoritative bootstrap.
 
 /// Shared table and wire format, independent of the local migration counter.
-/// Local V61 tightens guards; V62 records installed receipts. Shared V60 stays compatible.
+/// Local migrations also retain receipts and conflict intents. Shared V60 stays compatible.
 pub(crate) const DATA_SCHEMA_VERSION: u32 = 60;
 
 pub(crate) mod files;
@@ -11,11 +11,14 @@ pub(crate) mod outgoing;
 pub(crate) mod replay;
 pub(crate) mod workspace;
 pub(crate) mod cycle;
+pub(crate) mod retirement;
 
 #[cfg(test)]
 mod schema_contract;
 #[cfg(test)]
 mod guard_contract;
+#[cfg(test)]
+mod resolution_tests;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -78,6 +81,7 @@ pub(crate) fn register_connection(
     data_dir: &std::path::Path,
 ) -> AppResult<()> {
     files::register(connection, data_dir)?;
+    retirement::register(connection)?;
     let transaction_id = Arc::new(Mutex::new(Uuid::new_v4()));
     let current = transaction_id.clone();
     connection.create_scalar_function(
@@ -221,6 +225,8 @@ fn install_capture_triggers(transaction: &Transaction<'_>) -> AppResult<()> {
                 "business_sync_publication_intent",
                 "business_sync_cursor",
                 "business_sync_installed_revisions",
+                "business_sync_resolution_intent",
+                "business_sync_resolutions",
             ]
             .contains(&table.as_str())
     }) {
@@ -437,6 +443,19 @@ pub(crate) fn status(connection: &Connection) -> AppResult<Value> {
     )
 }
 
+/// A frozen proposal may have reached the server even if the response was lost.
+/// Ordinary capture, sending and installation must not race its recovery.
+pub(crate) fn ensure_no_resolution(connection: &Connection) -> AppResult<()> {
+    let pending: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM business_sync_resolution_intent)",
+        [], |row| row.get(0),
+    )?;
+    if pending {
+        return Err(AppError::Validation("Une résolution de conflit est en cours. Reprenez son application avant de poursuivre la synchronisation.".into()));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,7 +519,9 @@ mod tests {
                         "business_sync_baseline",
                         "business_sync_publication_intent",
                         "business_sync_cursor",
-                        "business_sync_installed_revisions"
+                        "business_sync_installed_revisions",
+                        "business_sync_resolution_intent",
+                        "business_sync_resolutions"
                     ]
                     .contains(&table.as_str()),
                 "Unclassified table: {table}"

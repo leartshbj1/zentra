@@ -131,7 +131,55 @@ fn copy_database(source: &rusqlite::Connection, path: &Path) -> AppResult<Stamp>
     journal::stamp(path)?.ok_or_else(|| invalid("La copie proposée a disparu."))
 }
 
-fn verify_artifacts(folder: &Path, proposal: &Proposal) -> AppResult<()> {
+fn application_intent(
+    folder: &Path,
+    proposal: &Proposal,
+    proposal_sha256: &str,
+) -> AppResult<crate::business_sync::retirement::Intent> {
+    use crate::business_sync::retirement::Intent;
+    let plan: merge::replacements::Plan = serde_json::from_slice(&read(
+        &artifact(folder, "replacement.json")?, MAX_METADATA,
+    )?)?;
+    if plan.version != 1 || plan.resolution_id != proposal.resolution_id
+        || plan.original_capture_generation != proposal.binding.capture
+        || plan.base_revision != proposal.binding.revision.checked_add(1).ok_or_else(|| invalid("La révision est trop élevée."))?
+        || plan.occurred_at != proposal.created_at
+        || Some(plan.decision_sha256.as_str()) != proposal.preview["decision_sha256"].as_str()
+        || proposal.request.review_id != proposal.preview["review_id"]
+        || plan.originals.is_empty()
+    {
+        return Err(invalid("Les remplacements sauvegardés ne correspondent pas à la proposition."));
+    }
+    let mut previous = 0;
+    let mut seen = std::collections::BTreeSet::new();
+    for original in &plan.originals {
+        let first = integer(&original.first_sequence)?;
+        let last = integer(&original.last_sequence)?;
+        let choice = proposal.preview["decisions"][&original.transaction_id].as_str().unwrap_or("automatic");
+        if first <= previous || last < first || !uuid(&original.transaction_id)
+            || !hash(&original.original_sha256) || !seen.insert(&original.transaction_id)
+            || original.choice != choice
+        {
+            return Err(invalid("Les opérations originales de la proposition ont changé."));
+        }
+        previous = last;
+    }
+    let value = Intent {
+        format: "zentra-conflict-application".into(), version: 1,
+        resolution_id: proposal.resolution_id.clone(), proposal_sha256: proposal_sha256.into(),
+        organization_id: proposal.binding.organization.clone(), installation_id: proposal.binding.installation.clone(),
+        generation: proposal.binding.generation.clone(), capture_generation: proposal.binding.capture.clone(),
+        replacement_capture_generation: plan.replacement_capture_generation,
+        source_revision: proposal.binding.revision, base_revision: plan.base_revision,
+        received_transaction_id: proposal.transaction_id.clone(),
+        first_sequence: plan.originals[0].first_sequence.clone(), last_sequence: previous.to_string(),
+        receipt_sha256: proposal.receipt_sha256.clone(), review_id: proposal.request.review_id.clone(),
+        decision_sha256: plan.decision_sha256,
+    };
+    Intent::read(&serde_json::to_vec(&value)?)
+}
+
+fn verify_artifacts(folder: &Path, proposal: &Proposal, proposal_sha256: &str) -> AppResult<()> {
     budget(&proposal.artifacts, 0)?;
     for name in ["candidate.sqlite", "model.sqlite", "receipt.json"] {
         if !proposal.artifacts.contains_key(name) {
@@ -160,6 +208,9 @@ fn verify_artifacts(folder: &Path, proposal: &Proposal) -> AppResult<()> {
         return Err(invalid(
             "Le reçu sauvegardé ne correspond plus à la comparaison.",
         ));
+    }
+    if proposal.version == 2 {
+        application_intent(folder, proposal, proposal_sha256)?;
     }
     for stamp in proposal
         .final_files
@@ -299,7 +350,7 @@ pub(super) fn read_saved(
             "La proposition appartient à une autre comparaison. Actualisez les choix.",
         ));
     }
-    verify_artifacts(&folder, &proposal)?;
+    verify_artifacts(&folder, &proposal, &digest(&raw))?;
     files::verify_prior(store, &proposal.prior_files)?;
     Ok(report(proposal))
 }
@@ -541,8 +592,8 @@ pub(super) fn save_with_checkpoint(
         prior_files: plan.prior_files.clone(),
         artifacts,
     };
-    verify_artifacts(folder, &proposal)?;
     let raw = serde_json::to_vec(&proposal)?;
+    verify_artifacts(folder, &proposal, &digest(&raw))?;
     if raw.len() as u64 > MAX_METADATA {
         return Err(invalid("La proposition contient trop de détails."));
     }

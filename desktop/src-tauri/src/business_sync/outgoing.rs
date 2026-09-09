@@ -195,6 +195,7 @@ pub(crate) fn prepare_next(
     }
     let mut connection = store.connect()?;
     let tx = connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    super::ensure_no_resolution(&tx)?;
     let binding:Option<(String,String,String,bool)>=tx.query_row("SELECT organization_id,installation_id,generation,capture_enabled FROM business_sync_binding WHERE id=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
     let Some((org, installation, capture, enabled)) = binding else {
         return Ok(None);

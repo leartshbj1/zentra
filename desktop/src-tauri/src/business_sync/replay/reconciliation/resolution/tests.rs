@@ -30,6 +30,7 @@ struct Fixture {
     receipt: String,
     account: String,
     object: String,
+    remote: outgoing::Prepared,
 }
 impl Fixture {
     fn scope(&self) -> Scope<'_> {
@@ -145,6 +146,7 @@ fn fixture(later_edits: usize, invoice: bool) -> Fixture {
         receipt: "a".repeat(64),
         account: "d".repeat(64),
         object: id,
+        remote: sent,
     }
 }
 
@@ -236,6 +238,7 @@ fn every_deleted_quote_line_is_reviewable_with_exact_unicode_text_and_bound_page
         receipt: "a".repeat(64),
         account: "d".repeat(64),
         object: quote,
+        remote: sent,
     };
     let original = evidence(&f.store);
     assert!(f.prepared.model.conflict_count > 0);
@@ -613,6 +616,7 @@ fn choosing_local_when_both_images_already_match_requires_no_empty_replay_transa
         receipt: "a".repeat(64),
         account: "d".repeat(64),
         object: String::new(),
+        remote: sent,
     };
     let before = evidence(&f.store);
     let result = preview(&f.prepared, &f.scope(), f.request(&[Choice::Local]), || {
@@ -759,4 +763,84 @@ fn replacement_journals_preserve_originals_and_rebuild_audits_after_discarding_a
         }
         assert_eq!(evidence(&f.store), original);
     }
+}
+
+#[test]
+#[ignore = "Explicit synthetic replacement envelopes for real D1 acceptance"]
+fn export_native_conflict_replacement_fixture() {
+    use std::{fs, path::Path};
+    let root = std::path::PathBuf::from(std::env::var("ZENTRA_REPLACEMENT_EXPORT").unwrap());
+    fs::create_dir_all(&root).unwrap();
+    assert!(!root.join("source.json").exists());
+    let f = fixture(1, false);
+    let original = evidence(&f.store);
+    let rows = f.prepared.rows().prepare("SELECT table_name,row_key_json,canonical_rowid,row_json FROM source_rows ORDER BY table_name,row_key_json").unwrap().query_map([],|r|Ok(json!({"table":r.get::<_,String>(0)?,"key_json":r.get::<_,String>(1)?,"source_rowid":r.get::<_,i64>(2)?.to_string(),"row_json":r.get::<_,String>(3)?}))).unwrap().collect::<rusqlite::Result<Vec<_>>>().unwrap();
+    fs::write(root.join("source.json"), serde_json::to_vec(&rows).unwrap()).unwrap();
+    fn transfer(root: &Path, label: &str, prepared: &outgoing::Prepared) {
+        let folder = root.join(label);
+        fs::create_dir_all(&folder).unwrap();
+        fs::copy(
+            prepared.folder.join("manifest.json"),
+            folder.join("manifest.json"),
+        )
+        .unwrap();
+        for i in 0..prepared.manifest.chunks.len() {
+            fs::copy(
+                prepared.folder.join(format!("{i:04}.json")),
+                folder.join(format!("{i:04}.json")),
+            )
+            .unwrap();
+        }
+        assert!(prepared.manifest.files.is_empty());
+    }
+    transfer(
+        &root,
+        "original",
+        &outgoing::prepare_next(&f.store, "org-replay", "owner")
+            .unwrap()
+            .unwrap(),
+    );
+    transfer(&root, "remote", &f.remote);
+    let id = Uuid::new_v4().to_string();
+    let generated = std::cell::RefCell::new(None);
+    preview_impl(
+        &f.prepared,
+        &f.scope(),
+        f.request(&[Choice::Shared, Choice::Local]),
+        || Ok(()),
+        |_| {
+            Ok(Some(DocumentReview {
+                final_count: 0,
+                files_to_replace: 0,
+                total_size_bytes: 0,
+                plan_sha256: "0".repeat(64),
+            }))
+        },
+        |candidate, report| {
+            let replacement = super::super::replacements::prepare(
+                candidate,
+                &f.store,
+                &id,
+                report,
+                "2026-09-10T00:00:00Z",
+            )?;
+            assert_eq!(replacement.plan.originals.len(), 2);
+            assert_eq!(replacement.plan.transactions.len(), 1);
+            fs::write(
+                root.join("plan.json"),
+                serde_json::to_vec(&replacement.plan)?,
+            )?;
+            fs::write(root.join("preview.json"), serde_json::to_vec(report)?)?;
+            *generated.borrow_mut() = Some(replacement);
+            Ok(())
+        },
+    )
+    .unwrap();
+    // Copies share the store mutex. Export only after preview_impl releases it.
+    let replacement = generated.into_inner().unwrap();
+    let outgoing = outgoing::prepare_next(replacement.store(), "org-replay", "owner")
+        .unwrap()
+        .unwrap();
+    transfer(&root, "replacement", &outgoing);
+    assert_eq!(evidence(&f.store), original);
 }

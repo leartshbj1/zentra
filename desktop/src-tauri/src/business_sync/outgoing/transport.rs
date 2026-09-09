@@ -165,6 +165,7 @@ impl Transport for ProjectSyncSession {
     }
 }
 fn bound(store: &LocalStore, p: &Prepared) -> AppResult<()> {
+    crate::business_sync::ensure_no_resolution(&store.connect()?)?;
     let valid:bool=store.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding b JOIN business_sync_baseline a ON a.organization_id=b.organization_id WHERE b.id=1 AND b.organization_id=? AND b.installation_id=? AND b.generation=? AND b.capture_enabled=1 AND a.server_generation=? AND a.source_transfer_id=?)",params![p.manifest.organization_id,store.installation_id,p.manifest.capture_generation,p.manifest.generation,p.manifest.bootstrap_transfer_id],|r|r.get(0))?;
     if !valid {
         return Err(invalid(

@@ -5336,6 +5336,81 @@ async function realD1Fixture() {
     throw error;
   }
 }
+it.skipIf(!process.env.ZENTRA_REPLACEMENT_EXPORT)(
+  'retires original native conflicts and commits their exact replacement on real D1',
+  async () => {
+    const root = process.env.ZENTRA_REPLACEMENT_EXPORT!;
+    const { runtime, d1 } = await realD1Fixture();
+    try {
+      const rows = JSON.parse(readFileSync(join(root, 'source.json'), 'utf8')) as { table: string; key_json: string; row_json: string; source_rowid: string }[];
+      const source = await fixture();
+      source.chunks = [encode({ version: 2, rows })];
+      source.manifest = await bootstrapManifest({
+        ...source.manifest,
+        tables: Object.fromEntries(Object.keys(contract.tables).map(name => [name, rows.filter(r => r.table === name).length])),
+        row_count: rows.length, size_bytes: source.chunks[0].length,
+        chunks: [{ sha256: await sha256Hex(source.chunks[0]), size_bytes: source.chunks[0].length, row_count: rows.length }],
+      });
+      await stage(source);
+      await validate(source.id);
+      const initial = await publishBootstrap(owner, source.id);
+      const load = async (label: string) => {
+        const native = JSON.parse(readFileSync(join(root, label, 'manifest.json'), 'utf8')) as TransactionManifest;
+        const chunks = native.chunks.map((_, i) => new Uint8Array(readFileSync(join(root, label, `${String(i).padStart(4, '0')}.json`))));
+        const f = await transactionFixture(chunks.map(b => JSON.parse(new TextDecoder().decode(b)).changes as TransactionChange[]), initial);
+        // Only the synthetic server binding is adapted. Every native change,
+        // sequence, identity, hash and serialized chunk remains untouched.
+        f.actor.installationId = native.installation_id;
+        f.manifest = { ...native, organization_id: f.actor.organizationId, generation: initial.generation, bootstrap_transfer_id: initial.transfer_id };
+        f.chunks = chunks;
+        return f;
+      };
+      const original = await load('original'), remote = await load('remote'), replacement = await load('replacement');
+      const plan = JSON.parse(readFileSync(join(root, 'plan.json'), 'utf8')) as {
+        resolution_id: string; original_capture_generation: string; replacement_capture_generation: string;
+        base_revision: number; decision_sha256: string; canonical_state_sha256: string; replacement_state_sha256: string;
+        originals: { first_sequence: string; last_sequence: string; transaction_id: string }[];
+      };
+      const preview = JSON.parse(readFileSync(join(root, 'preview.json'), 'utf8')) as { review_id: string };
+      await receiveTransaction(original);
+      const originalParts = await d1.prepare('SELECT * FROM business_sync_transaction_parts WHERE transaction_id=? ORDER BY part_index').bind(original.manifest.transaction_id).all();
+      await deliveryReady(remote);
+      for (const _ of remote.manifest.chunks) await prepareBusinessTransactionDelivery(remote.actor, remote.manifest.transaction_id);
+      const received = await commitBusinessTransaction(remote.actor, remote.manifest.transaction_id);
+      expect(received.revision).toBe(2);
+      expect(received.target_state_sha256).toBe(plan.canonical_state_sha256);
+      const receiptResource = await committedBusinessTransactionResource(original.actor, remote.manifest.transaction_id, 'receipt', null);
+      const body = {
+        resolution_id: plan.resolution_id, generation: initial.generation,
+        capture_generation: plan.original_capture_generation,
+        first_sequence: plan.originals[0].first_sequence, last_sequence: plan.originals.at(-1)!.last_sequence,
+        base_revision: plan.base_revision, receipt_sha256: receiptResource.sha256,
+        review_id: preview.review_id, decision_sha256: plan.decision_sha256,
+      };
+      const retired = await retireBusinessTransactions(original.actor, body);
+      expect(retired).toMatchObject({ retired: true, business_revision_changed: false, transaction_acknowledged: false });
+      await expect(beginBusinessTransaction(original.actor, JSON.stringify(original.manifest))).rejects.toMatchObject({ status: 409 });
+      await expect(commitBusinessTransaction(original.actor, original.manifest.transaction_id)).rejects.toThrow();
+      expect(replacement.actor.installationId).toBe(original.actor.installationId);
+      expect(replacement.manifest.capture_generation).toBe(plan.replacement_capture_generation);
+      expect(replacement.manifest.capture_generation).not.toBe(plan.original_capture_generation);
+      await deliveryReady(replacement);
+      for (const _ of replacement.manifest.chunks) await prepareBusinessTransactionDelivery(replacement.actor, replacement.manifest.transaction_id);
+      const committed = await commitBusinessTransaction(replacement.actor, replacement.manifest.transaction_id);
+      expect(committed).toMatchObject({ source_revision: 2, revision: 3, target_state_sha256: plan.replacement_state_sha256 });
+      expect(await businessRetirement(original.actor, body.resolution_id)).toEqual(retired);
+      expect(await retireBusinessTransactions(original.actor, body)).toEqual(retired);
+      expect((await d1.prepare('SELECT * FROM business_sync_transaction_parts WHERE transaction_id=? ORDER BY part_index').bind(original.manifest.transaction_id).all()).results).toEqual(originalParts.results);
+      for (let i = 0; i < replacement.chunks.length; i++) {
+        const resource = await committedBusinessTransactionResource(remote.actor, replacement.manifest.transaction_id, 'changes', String(i));
+        expect(Buffer.from(resource.bytes)).toEqual(Buffer.from(replacement.chunks[i]));
+      }
+      const history = await committedBusinessTransactionsSince(remote.actor, initial.generation, '1');
+      expect(history.commits.map(c => c.transaction_id)).toEqual([remote.manifest.transaction_id, replacement.manifest.transaction_id]);
+      writeFileSync(join(root, 'd1-proof.json'), JSON.stringify({ retired, committed, originalPartsPreserved: true, exactNativeReplacementBytes: true, simulatedBindings: true, nativePreviewReceiptIsSynthetic: true }, null, 2));
+    } finally { await runtime.dispose(); }
+  }, 120000,
+);
 it('prepares canonical event positions and upgrades reviews within 100 D1 queries per request', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {
