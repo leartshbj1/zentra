@@ -2,6 +2,16 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Préparation native d'une transaction reçue
+
+Le module interne `business_sync::replay` prépare une copie SQLite temporaire, sans remplacer la base utilisée par l'application. Il exige la même entreprise, la même génération et la révision attendue, ainsi que les empreintes complètes de départ et d'arrivée. Les changements locaux non confirmés bloquent cette préparation. Les images reçues doivent contenir exactement les colonnes partagées, sans champ JSON répété, avec des clés et des identifiants de ligne cohérents.
+
+Les contrôles SQLite restent actifs pendant l'application : protections des factures émises, déclencheurs, contraintes et relations. Un effet déjà produit par un déclencheur n'est pas appliqué deux fois. Le résultat complet des 106 tables partagées doit correspondre à l'état attendu, puis les relations et la chaîne d'audit sont vérifiées. Les huit tables propres à l'appareil sont comparées séparément : une suppression distante ne peut pas détacher le chronomètre local. La file de documents conserve ses entrées, identifiants locaux et métadonnées de nouvelle tentative pour éviter un renvoi provoqué par la réception.
+
+La recette native du 9 septembre valide 99 tests en 303,91 secondes, sans échec ; six exports ou essais HTTPS nécessitant une activation explicite restent ignorés. Elle applique 24 opérations réelles à une seconde copie isolée : devis, factures, stock, achats, paie, remboursements et métadonnées des documents de projet. Chaque résultat est comparé aux 106 tables de l'appareil émetteur. Les essais négatifs refusent notamment une empreinte incorrecte, un champ répété, une facture émise réécrite, un effet de stock omis et la perte d'un chronomètre local. Ces essais ne constituent pas un transfert réseau de transactions entre deux appareils physiques.
+
+Cette copie est détruite lorsqu'elle est abandonnée. Le module ne reçoit pas encore de transaction en production, n'installe pas la copie et ne confirme aucune révision. Les empreintes et les identifiants canoniques doivent provenir d'un reçu serveur vérifié ; les identifiants de l'appareil émetteur ne conviennent pas en présence d'insertions concurrentes. Le transport des reçus et des fichiers, la vérification du profil avant installation, la reprise après interruption et les conflits restent à raccorder. Les validations propres aux commandes Rust et les autres limites d'instructions/cascades restent également à terminer.
+
 ## Écritures automatiques obligatoires (algorithme 9)
 
 Le serveur vérifie désormais les sept déclencheurs `AFTER` qui écrivent des données partagées : registre de rapprochement bancaire, deux historiques de décision de petit salaire, solde du stock et trois recalculs de totaux fournisseurs. Leurs expressions sont tirées du SQL natif recensé, avec les mêmes types et sommes SQLite. Les deux files de documents restent des effets locaux à traiter lors de la réception sur l'appareil.

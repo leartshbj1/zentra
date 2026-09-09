@@ -173,6 +173,8 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
             }
         }
         bind(&store);
+        let (_receiver_directory, receiver) =
+            crate::business_sync::replay::tests::copy_receiver(&store);
         match scenario {
             "expense" => {
                 store.create_record("expenses",json!({"date":"2026-09-08","paid_at":"2026-09-08","payment_status":"paid","supplier":"Fournisseur fictif","reference":"RECETTE-DEPENSE","net_cents":10000,"vat_cents":0})).unwrap();
@@ -242,6 +244,7 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
             _ => unreachable!(),
         }
         let prepared = next(&store);
+        crate::business_sync::replay::tests::verify_candidate(&receiver, &prepared, &store);
         let changes = all(&prepared);
         assert!(
             scenario == "payroll-adult-validate"

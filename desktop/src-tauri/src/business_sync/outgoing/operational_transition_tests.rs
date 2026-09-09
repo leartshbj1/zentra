@@ -88,6 +88,8 @@ fn stock_receipts_deliveries_and_quote_cascades_preserve_native_order() {
         }
         let source = source_rows(&store);
         bind(&store);
+        let (_receiver_directory, receiver) =
+            crate::business_sync::replay::tests::copy_receiver(&store);
         let request = Uuid::new_v4().to_string();
         match scenario {
             "stock-entry" => {
@@ -125,6 +127,10 @@ fn stock_receipts_deliveries_and_quote_cascades_preserve_native_order() {
             _ => unreachable!(),
         }
         let prepared = next(&store);
+        crate::business_sync::replay::tests::verify_candidate(&receiver, &prepared, &store);
+        if scenario == "stock-entry" {
+            crate::business_sync::replay::tests::verify_missing_stock_effect(&receiver, &prepared);
+        }
         let changes = all(&prepared);
         assert!(prepared.manifest.files.is_empty(), "{scenario}");
         if scenario == "quote-delete" {

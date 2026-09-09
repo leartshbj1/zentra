@@ -97,7 +97,10 @@ fn exact_images_order_and_original_revision_survive_deletion_and_restart() {
     crate::document_parent_tests::restore_v60_guards(&c);
     let reopened = LocalStore::initialize(store.data_dir.clone()).unwrap();
     assert_eq!(next(&reopened).manifest, p.manifest);
-    assert_eq!(fs::read(p.folder.join("manifest.json")).unwrap(), descriptor_before);
+    assert_eq!(
+        fs::read(p.folder.join("manifest.json")).unwrap(),
+        descriptor_before
+    );
     assert_eq!(
         super::super::status(&reopened.connect().unwrap()).unwrap()["pending_transactions"],
         1
@@ -344,6 +347,8 @@ fn native_document_emission_preserves_original_intermediate_images() {
         }
         drop(c);
         bind(&store);
+        let (_receiver_directory, receiver) =
+            crate::business_sync::replay::tests::copy_receiver(&store);
         if entity == "invoices" {
             store
                 .issue_invoice(id, Some("2026-09-08".into()), None)
@@ -354,6 +359,7 @@ fn native_document_emission_preserves_original_intermediate_images() {
                 .unwrap();
         }
         let p = next(&store);
+        crate::business_sync::replay::tests::verify_candidate(&receiver, &p, &store);
         let changes = all(&p);
         assert!(changes.iter().any(|c| c["table"] == entity
             && c["operation"] == "update"

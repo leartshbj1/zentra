@@ -8,6 +8,9 @@ pub(crate) const DATA_SCHEMA_VERSION: u32 = 60;
 pub(crate) mod files;
 pub(crate) mod snapshot;
 pub(crate) mod outgoing;
+// Remove this expectation when canonical-receipt transport calls the builder.
+#[cfg_attr(not(test), expect(dead_code, reason = "The native candidate builder cannot be installed before canonical transaction receipts are implemented"))]
+pub(crate) mod replay;
 
 #[cfg(test)]
 mod schema_contract;
