@@ -10,7 +10,7 @@ import { fileBase64 } from './projectDocuments';
 import type { ProjectSyncStatus } from './projectSync';
 import type { BusinessBootstrapStatus } from './businessBootstrapScheduler';
 import type { BusinessCycleState, BusinessCycleStatus, BusinessHistorySelection } from './businessCycleScheduler';
-import type { BusinessConflictReview, BusinessResolutionPreview, BusinessResolutionRequest } from './businessConflictReview';
+import type { BusinessConflictReview, BusinessResolutionPreview, BusinessResolutionRequest, BusinessResolutionSaved } from './businessConflictReview';
 import type { NumberingStatus } from './numberingScheduler';
 import type { BusinessHistoryState, BusinessHistoryReception } from './businessHistoryState';
 import type { CloudBackupState } from './cloudBackup';
@@ -4766,6 +4766,10 @@ export const desktopApi = {
     invoke<BusinessConflictReview>('inspect_business_conflicts', { transactionId, afterSequence: page?.afterSequence ?? null, reviewId: page?.reviewId ?? null }),
   previewBusinessResolution: (transactionId: string, request: BusinessResolutionRequest) =>
     invoke<BusinessResolutionPreview>('preview_business_resolution', { transactionId, request }),
+  saveBusinessResolution: (transactionId: string, resolutionId: string, request: BusinessResolutionRequest) =>
+    invoke<BusinessResolutionSaved | BusinessResolutionPreview>('save_business_resolution', { transactionId, resolutionId, request }),
+  readSavedBusinessResolution: (transactionId: string, resolutionId: string) =>
+    invoke<BusinessResolutionSaved>('read_saved_business_resolution', { transactionId, resolutionId }),
   syncBusinessCycle: (
     selection: BusinessHistorySelection,
     installReceived: boolean,

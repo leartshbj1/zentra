@@ -9,6 +9,47 @@ pub(super) enum Action {
         review_id: Option<String>,
     },
     Preview(resolution::Request),
+    Save {
+        resolution_id: String,
+        request: resolution::Request,
+    },
+    ReadSaved {
+        resolution_id: String,
+    },
+}
+
+#[tauri::command]
+pub async fn save_business_resolution(
+    state: State<'_, LocalStore>,
+    transaction_id: String,
+    resolution_id: String,
+    request: resolution::Request,
+) -> Result<Value, String> {
+    process(
+        state.inner().clone(),
+        transaction_id,
+        Action::Save {
+            resolution_id,
+            request,
+        },
+    )
+    .await
+    .map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn read_saved_business_resolution(
+    state: State<'_, LocalStore>,
+    transaction_id: String,
+    resolution_id: String,
+) -> Result<Value, String> {
+    process(
+        state.inner().clone(),
+        transaction_id,
+        Action::ReadSaved { resolution_id },
+    )
+    .await
+    .map_err(command_error)
 }
 
 #[tauri::command]
@@ -118,6 +159,47 @@ pub(super) async fn process_with_transport<T: Transport + Send + Sync + 'static>
                     plan.preview(&store)
                 },
             )?,
+            Action::Save {
+                resolution_id,
+                request,
+            } => {
+                let saved_request = request.clone();
+                let plan = std::cell::RefCell::new(None);
+                resolution::preview_and_save(
+                    &revision.prepared,
+                    &scope,
+                    request,
+                    || session.ensure_current(&store),
+                    |candidate| {
+                        let files = files::plan(candidate, &store, &folder, &revision.chunks)?;
+                        let report = files.preview(&store)?;
+                        *plan.borrow_mut() = Some(files);
+                        Ok(report)
+                    },
+                    |candidate, result| {
+                        let plan = plan
+                            .borrow_mut()
+                            .take()
+                            .ok_or_else(|| invalid("Le plan des documents est absent."))?;
+                        *result = saved::save(
+                            &store,
+                            &header,
+                            &resolution_id,
+                            saved_request,
+                            result,
+                            candidate,
+                            &plan,
+                            &revision.receipt,
+                            || session.ensure_current(&store),
+                        )?;
+                        Ok(())
+                    },
+                )?
+            }
+            Action::ReadSaved { resolution_id } => {
+                let id = resolution::review_id(&revision.prepared, &scope)?;
+                saved::read_saved(&store, &header, &resolution_id, &id)?
+            }
         };
         // Comparison may be slow. Reject edits, a different account/history or
         // a cancellation that occurred after its snapshot was opened.

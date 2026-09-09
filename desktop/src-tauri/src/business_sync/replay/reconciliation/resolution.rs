@@ -11,14 +11,14 @@ pub(crate) enum Choice {
     Shared,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Decision {
     pub transaction_id: String,
     pub choice: Choice,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Request {
     pub review_id: String,
@@ -44,7 +44,10 @@ pub(in crate::business_sync::replay) struct Scope<'a> {
     pub acknowledgement: Option<&'a Acknowledgement>,
 }
 
-fn review_id(prepared: &Prepared, scope: &Scope<'_>) -> AppResult<String> {
+pub(in crate::business_sync::replay) fn review_id(
+    prepared: &Prepared,
+    scope: &Scope<'_>,
+) -> AppResult<String> {
     let Scope {
         store,
         context,
@@ -214,9 +217,32 @@ pub(in crate::business_sync::replay) fn preview(
     ensure_current: impl Fn() -> AppResult<()>,
     documents: impl FnOnce(&Prepared) -> AppResult<DocumentReview>,
 ) -> AppResult<Value> {
-    preview_impl(prepared, scope, request, ensure_current, |candidate| {
-        documents(candidate).map(Some)
-    })
+    preview_impl(
+        prepared,
+        scope,
+        request,
+        ensure_current,
+        |candidate| documents(candidate).map(Some),
+        |_, _| Ok(()),
+    )
+}
+
+pub(in crate::business_sync::replay) fn preview_and_save(
+    prepared: &Prepared,
+    scope: &Scope<'_>,
+    request: Request,
+    ensure_current: impl Fn() -> AppResult<()>,
+    documents: impl FnOnce(&Prepared) -> AppResult<DocumentReview>,
+    save: impl FnOnce(&Prepared, &mut Value) -> AppResult<()>,
+) -> AppResult<Value> {
+    preview_impl(
+        prepared,
+        scope,
+        request,
+        ensure_current,
+        |candidate| documents(candidate).map(Some),
+        save,
+    )
 }
 
 fn preview_impl(
@@ -225,6 +251,7 @@ fn preview_impl(
     request: Request,
     ensure_current: impl Fn() -> AppResult<()>,
     documents: impl FnOnce(&Prepared) -> AppResult<Option<DocumentReview>>,
+    save: impl FnOnce(&Prepared, &mut Value) -> AppResult<()>,
 ) -> AppResult<Value> {
     if !matches!(scope.role, "owner" | "admin" | "member" | "accountant") {
         return Err(invalid("Votre accès permet de consulter les modifications, mais pas de préparer leur résolution."));
@@ -326,6 +353,11 @@ fn preview_impl(
     let _guard = scope.store.lock()?;
     ensure_current()?;
     prepared.verify_live(&scope.store.connect()?, scope.store, scope.context)?;
+    if preview.native.is_some() && result["documents_verified"] == true {
+        save(&preview, &mut result)?;
+        ensure_current()?;
+        prepared.verify_live(&scope.store.connect()?, scope.store, scope.context)?;
+    }
     Ok(result)
 }
 

@@ -1,6 +1,86 @@
+use super::super::super::{files, saved, verify};
 use super::*;
 use crate::business_sync::replay::delivery::incoming::reconciliation::review::{self, Action};
 use crate::business_sync::replay::reconciliation::resolution::{Choice, Decision, Request};
+
+#[test]
+#[ignore = "Isolated process worker invoked by the saved proposal recovery test"]
+fn saved_proposal_crash_worker() {
+    let local = LocalStore::initialize(PathBuf::from(
+        std::env::var("ZENTRA_PROPOSAL_PROFILE").unwrap(),
+    ))
+    .unwrap();
+    let folder = PathBuf::from(std::env::var("ZENTRA_PROPOSAL_FOLDER").unwrap());
+    let id = std::env::var("ZENTRA_PROPOSAL_ID").unwrap();
+    let point = std::env::var("ZENTRA_PROPOSAL_POINT").unwrap();
+    let header: Header =
+        serde_json::from_slice(&fs::read(folder.join("header.json")).unwrap()).unwrap();
+    let revision = verify(&local, &folder, &header, "owner", || Ok(())).unwrap();
+    let account = "d".repeat(64);
+    let scope = merge::resolution::Scope {
+        store: &local,
+        context: &revision.context,
+        capture: &header.binding.capture,
+        receipt_sha256: &header.entry.receipt_sha256,
+        role: "owner",
+        account_binding: &account,
+        acknowledgement: revision.acknowledgement.as_ref(),
+    };
+    let request = Request {
+        review_id: merge::resolution::review_id(&revision.prepared, &scope).unwrap(),
+        after_sequence: None,
+        decisions: revision
+            .prepared
+            .rows()
+            .prepare("SELECT DISTINCT transaction_id FROM pending_changes")
+            .unwrap()
+            .query_map([], |r| {
+                Ok(Decision {
+                    transaction_id: r.get(0)?,
+                    choice: Choice::Shared,
+                })
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap(),
+    };
+    let saved_request = request.clone();
+    let plan = std::cell::RefCell::new(None);
+    merge::resolution::preview_and_save(
+        &revision.prepared,
+        &scope,
+        request,
+        || Ok(()),
+        |candidate| {
+            let files = files::plan(candidate, &local, &folder, &revision.chunks)?;
+            let report = files.preview(&local)?;
+            *plan.borrow_mut() = Some(files);
+            Ok(report)
+        },
+        |candidate, result| {
+            *result = saved::save_with_checkpoint(
+                &local,
+                &header,
+                &id,
+                saved_request,
+                result,
+                candidate,
+                &plan.borrow_mut().take().unwrap(),
+                &revision.receipt,
+                || Ok(()),
+                |p| {
+                    if format!("{p:?}") == point {
+                        std::process::exit(75);
+                    }
+                    Ok(())
+                },
+            )?;
+            Ok(())
+        },
+    )
+    .unwrap();
+    panic!("Crash boundary not reached");
+}
 
 fn drawing(store: &LocalStore, c: &rusqlite::Connection, name: &str, bytes: &[u8]) {
     fs::write(store.attachments_dir.join(name), bytes).unwrap();
@@ -42,6 +122,7 @@ fn conflict_review_checks_both_document_choices_and_rejects_missing_or_changed_b
         );
         let received = folder.clone();
         let transaction = header.entry.transaction_id.clone();
+        let saved_header = header.clone();
         let server = transport(&local, folder, header);
         let mut state = String::new();
         for _ in 0..10 {
@@ -104,6 +185,169 @@ fn conflict_review_checks_both_document_choices_and_rejects_missing_or_changed_b
             hashes.push(preview["documents"]["plan_sha256"].clone());
         }
         assert_ne!(hashes[0], hashes[1]);
+        // A durable proposal survives disposal of every temporary model and
+        // native candidate used by process_with_transport. No working data or
+        // receipt changes until a separate, future installation is authorized.
+        let proposal_id = uuid::Uuid::new_v4().to_string();
+        let saved = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::Save {
+                resolution_id: proposal_id.clone(),
+                request: request(Choice::Shared),
+            },
+            "d".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert_eq!(saved["state"], "resolution_saved");
+        assert_eq!(saved["saved"]["candidate_and_documents_preserved"], true);
+        assert_eq!(saved["saved"]["server_retirement_requested"], false);
+        assert_eq!(saved["can_install"], false);
+        let reopened = review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::ReadSaved {
+                resolution_id: proposal_id.clone(),
+            },
+            "d".repeat(64),
+        )
+        .await
+        .unwrap();
+        assert_eq!(reopened, saved);
+        assert_eq!(
+            review::process_with_transport(
+                local.clone(),
+                server.clone(),
+                "owner".into(),
+                transaction.clone(),
+                Action::Save {
+                    resolution_id: proposal_id.clone(),
+                    request: request(Choice::Shared)
+                },
+                "d".repeat(64),
+            )
+            .await
+            .unwrap(),
+            saved
+        );
+        assert!(review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::Save {
+                resolution_id: proposal_id.clone(),
+                request: request(Choice::Local)
+            },
+            "d".repeat(64),
+        )
+        .await
+        .is_err());
+        assert!(review::process_with_transport(
+            local.clone(),
+            server.clone(),
+            "owner".into(),
+            transaction.clone(),
+            Action::ReadSaved {
+                resolution_id: proposal_id.clone()
+            },
+            "e".repeat(64),
+        )
+        .await
+        .is_err());
+        let saved_folder = local
+            .attachments_dir
+            .join(crate::business_sync::files::DIRECTORY)
+            .join("resolutions")
+            .join(&proposal_id);
+        for bytes in [
+            original_bytes.as_slice(),
+            local_bytes.as_slice(),
+            shared_bytes.as_slice(),
+        ] {
+            assert_eq!(
+                fs::read(saved_folder.join("blobs").join(digest(bytes))).unwrap(),
+                bytes
+            );
+        }
+        let read_saved = || {
+            super::super::super::saved::read_saved(
+                &local,
+                &saved_header,
+                &proposal_id,
+                report["review_id"].as_str().unwrap(),
+            )
+        };
+        let native = saved_folder.join("candidate.sqlite");
+        let native_bytes = fs::read(&native).unwrap();
+        fs::write(&native, b"truncated after interruption").unwrap();
+        assert!(read_saved().is_err());
+        fs::write(&native, native_bytes).unwrap();
+        let saved_blob = saved_folder.join("blobs").join(digest(shared_bytes));
+        fs::remove_file(&saved_blob).unwrap();
+        assert!(read_saved().is_err());
+        fs::write(&saved_blob, shared_bytes).unwrap();
+        assert_eq!(read_saved().unwrap(), saved);
+        for (point, durable) in [
+            (saved::Point::Flushed, false),
+            (saved::Point::Published, true),
+        ] {
+            let crash_id = uuid::Uuid::new_v4().to_string();
+            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                command.creation_flags(0x08000000);
+            }
+            let mut child = command.args(["business_sync::replay::delivery::incoming::reconciliation::tests::cycle_tests::conflict_review::saved_proposal_crash_worker", "--exact", "--ignored", "--nocapture"])
+                .env("ZENTRA_PROPOSAL_PROFILE", &local.data_dir).env("ZENTRA_PROPOSAL_FOLDER", &received)
+                .env("ZENTRA_PROPOSAL_ID", &crash_id).env("ZENTRA_PROPOSAL_POINT", format!("{point:?}"))
+                .spawn().unwrap();
+            let started = std::time::Instant::now();
+            loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    assert_eq!(status.code(), Some(75));
+                    break;
+                }
+                if started.elapsed() > std::time::Duration::from_secs(90) {
+                    child.kill().unwrap();
+                    child.wait().unwrap();
+                    panic!("Proposal crash worker timed out");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            let reopened = LocalStore::initialize(local.data_dir.clone()).unwrap();
+            assert_eq!(reopened.installation_id, local.installation_id);
+            let recovered = saved::read_saved(
+                &reopened,
+                &saved_header,
+                &crash_id,
+                report["review_id"].as_str().unwrap(),
+            );
+            if durable {
+                let recovered = recovered.unwrap();
+                assert_eq!(recovered["decision_sha256"], saved["decision_sha256"]);
+                assert_eq!(recovered["saved"]["resolution_id"], crash_id);
+            } else {
+                assert!(
+                    recovered.is_err(),
+                    "An unfinished copy must not appear as a saved proposal"
+                );
+            }
+            assert_eq!(
+                replay::state_fingerprint(&reopened.connect().unwrap()).unwrap(),
+                original_state
+            );
+            assert_eq!(
+                merge::internal_fingerprint(&reopened.connect().unwrap()).unwrap(),
+                original_internal
+            );
+        }
         // A missing received blob cannot be certified from the row's hash alone.
         let blob = received.join("files").join(digest(shared_bytes));
         fs::remove_file(&blob).unwrap();
@@ -120,6 +364,10 @@ fn conflict_review_checks_both_document_choices_and_rejects_missing_or_changed_b
         fs::write(&blob, shared_bytes).unwrap();
         // Uncaptured edits on disk must not be overwritten by a chosen version.
         fs::write(local.attachments_dir.join("local.txt"), b"Unrecorded edit").unwrap();
+        assert!(
+            read_saved().is_err(),
+            "Even a document discarded by Shared remains part of the comparison preconditions"
+        );
         assert!(review::process_with_transport(
             local.clone(),
             server.clone(),

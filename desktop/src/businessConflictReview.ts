@@ -59,3 +59,13 @@ export type BusinessResolutionPreview = Omit<BusinessConflictReview, 'state'> & 
     plan_sha256: string;
   } | null;
 };
+
+export type BusinessResolutionSaved = Omit<BusinessResolutionPreview, 'state'> & {
+  state: 'resolution_saved';
+  saved: {
+    resolution_id: string;
+    created_at: string;
+    candidate_and_documents_preserved: true;
+    server_retirement_requested: false;
+  };
+};

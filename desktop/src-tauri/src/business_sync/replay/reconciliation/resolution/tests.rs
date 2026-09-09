@@ -11,7 +11,14 @@ fn preview(
     request: Request,
     ensure_current: impl Fn() -> AppResult<()>,
 ) -> AppResult<Value> {
-    preview_impl(prepared, scope, request, ensure_current, |_| Ok(None))
+    preview_impl(
+        prepared,
+        scope,
+        request,
+        ensure_current,
+        |_| Ok(None),
+        |_, _| Ok(()),
+    )
 }
 
 struct Fixture {

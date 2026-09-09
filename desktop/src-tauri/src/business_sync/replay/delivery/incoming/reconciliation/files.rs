@@ -10,11 +10,50 @@ pub(super) struct Plan {
     pub steps: Vec<Step>,
     pub final_files: Vec<Step>,
     pub stage: crate::business_sync::workspace::Workspace,
+    pub prior_files: Vec<PriorFile>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PriorFile {
+    pub root: String,
+    pub path: String,
+    pub stamp: Option<Stamp>,
+}
+impl PriorFile {
+    pub fn target(&self, store: &LocalStore) -> AppResult<PathBuf> {
+        journal::target(
+            store,
+            &Step {
+                root: self.root.clone(),
+                path: self.path.clone(),
+                before: None,
+                after: Stamp {
+                    sha256: "0".repeat(64),
+                    size_bytes: 0,
+                },
+            },
+            false,
+        )
+    }
+}
+pub(super) fn verify_prior(store: &LocalStore, files: &[PriorFile]) -> AppResult<()> {
+    for file in files {
+        if journal::stamp(&file.target(store)?)? != file.stamp {
+            return Err(invalid(
+                "Un document de travail a changé depuis la comparaison. Actualisez les choix.",
+            ));
+        }
+    }
+    Ok(())
 }
 impl Plan {
     pub fn preview(&self, store: &LocalStore) -> AppResult<merge::resolution::DocumentReview> {
+        verify_prior(store, &self.prior_files)?;
         let mut hash = Sha256::new();
         hash.update(b"zentra-business-resolution-documents-v1\0");
+        hash.update(serde_json::to_vec(&self.prior_files)?);
+        hash.update(b"\n");
         let replacements: BTreeMap<_, _> = self
             .steps
             .iter()
@@ -267,6 +306,7 @@ pub(super) fn plan(
     evidence(prepared, store, received, chunks)?;
     let c = prepared.rows();
     let mut current = BTreeMap::new();
+    let mut prior = BTreeMap::new();
     let mut q=c.prepare("SELECT table_name,row_key_json,row_json FROM current_rows ORDER BY table_name,row_key_json")?;
     let mut rows = q.query([])?;
     while let Some(r) = rows.next()? {
@@ -284,13 +324,23 @@ pub(super) fn plan(
         else {
             continue;
         };
-        if journal::stamp(&journal::target(store, &record(&file), false)?)?
-            .is_some_and(|actual| actual != record(&file).after)
+        let stamp = journal::stamp(&journal::target(store, &record(&file), false)?)?;
+        if stamp
+            .as_ref()
+            .is_some_and(|actual| actual != &record(&file).after)
         {
             return Err(invalid(
                 "Un fichier local diffère de sa version enregistrée. La fusion l’a conservé.",
             ));
         }
+        prior.insert(
+            key(&file),
+            PriorFile {
+                root: file.root.clone(),
+                path: file.path.clone(),
+                stamp,
+            },
+        );
         insert(&mut current, file)?;
     }
     let mut final_files = BTreeMap::new();
@@ -337,6 +387,20 @@ pub(super) fn plan(
         }
         let mut step = record(&file);
         let actual = journal::stamp(&journal::target(store, &step, false)?)?;
+        if let Some(prior) = prior.get(&key) {
+            if prior.stamp != actual {
+                return Err(invalid("Un document a changé pendant la préparation."));
+            }
+        } else {
+            prior.insert(
+                key.clone(),
+                PriorFile {
+                    root: file.root.clone(),
+                    path: file.path.clone(),
+                    stamp: actual.clone(),
+                },
+            );
+        }
         verified.push(step.clone());
         if actual.as_ref() == Some(&step.after) {
             continue;
@@ -367,5 +431,6 @@ pub(super) fn plan(
         steps,
         final_files: verified,
         stage,
+        prior_files: prior.into_values().collect(),
     })
 }

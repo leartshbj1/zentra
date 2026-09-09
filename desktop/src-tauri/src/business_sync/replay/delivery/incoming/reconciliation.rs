@@ -5,6 +5,7 @@ use crate::business_sync::{outgoing, replay::reconciliation as merge};
 mod atomic;
 mod files;
 mod install;
+mod saved;
 pub(crate) mod review;
 
 struct Revision {
