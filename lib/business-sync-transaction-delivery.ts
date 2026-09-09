@@ -134,6 +134,15 @@ export async function businessTransactionDeliveryStatus(
 ) {
   return response(await completedTransactionFingerprint(session, id));
 }
+export async function preparedBusinessTransactionDelivery(
+  session: DeviceSessionContext,
+  id: unknown,
+) {
+  const ctx = await completedTransactionFingerprint(session, id);
+  const bundle = descriptor(ctx, await parts(ctx));
+  if (!(await current(ctx))) fail();
+  return { ctx, bundle, bundleSha256: await sha256Hex(bundle) };
+}
 export async function prepareBusinessTransactionDelivery(
   session: DeviceSessionContext,
   id: unknown,

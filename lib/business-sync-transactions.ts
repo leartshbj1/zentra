@@ -51,7 +51,7 @@ async function required(session: DeviceSessionContext, rawId: unknown) {
       'Cette transaction est introuvable pour ce dossier et cet appareil.',
       404,
     );
-  if (!['receiving', 'received', 'invalid'].includes(row.state))
+  if (!['receiving', 'received', 'invalid', 'committed'].includes(row.state))
     fail(
       'L’état de cette transaction nécessite une version plus récente de l’application.',
     );
@@ -108,6 +108,14 @@ function matches(p: Part, ctx: Context, session: DeviceSessionContext) {
   );
 }
 async function response(session: DeviceSessionContext, ctx: Context) {
+  const committed =
+    ctx.row.state === 'committed'
+      ? await (
+          await import('./business-sync-transaction-commit')
+        ).committedBusinessTransaction(session, ctx.id)
+      : null;
+  if (ctx.row.state === 'committed' && !committed)
+    fail('Le reçu de cette opération enregistrée est introuvable.', 503);
   const received = await parts(ctx);
   if (
     received.some((p) => !matches(p, ctx, session)) ||
@@ -133,8 +141,9 @@ async function response(session: DeviceSessionContext, ctx: Context) {
     generation: ctx.manifest.generation,
     capture_generation: ctx.manifest.capture_generation,
     manifest_sha256: ctx.row.manifest_sha256,
-    state:
-      ctx.row.state === 'invalid'
+    state: committed
+      ? 'committed'
+      : ctx.row.state === 'invalid'
         ? 'invalid'
         : ctx.row.state === 'received'
           ? filesPending
@@ -149,7 +158,8 @@ async function response(session: DeviceSessionContext, ctx: Context) {
     })),
     files_pending: filesPending,
     pending_files: pendingFiles,
-    canonical_committed: false,
+    canonical_committed: !!committed,
+    ...(committed ? { receipt: committed.receipt } : {}),
     replication_active: false,
   };
 }
@@ -210,8 +220,8 @@ export async function businessTransactionStatus(
   return response(session, await required(session, id));
 }
 
-// This seals transport metadata only. Financial validation, conflict resolution
-// and canonical application have their own future transaction and receipt.
+// This seals transport metadata only. Canonical commitment has its own guarded
+// transaction and receipt; receiving all chunks cannot publish an operation.
 async function sealRows(session: DeviceSessionContext, ctx: Context) {
   const m = ctx.manifest;
   await database()

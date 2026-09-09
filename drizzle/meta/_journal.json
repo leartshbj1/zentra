@@ -239,6 +239,13 @@
       "when": 1788946282464,
       "tag": "0033_young_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1788949133603,
+      "tag": "0034_ancient_ricochet",
+      "breakpoints": true
     }
   ]
 }

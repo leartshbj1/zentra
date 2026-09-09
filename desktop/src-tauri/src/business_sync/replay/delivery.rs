@@ -17,13 +17,96 @@ const BUNDLE_BYTES: usize = 512 * 1024;
 const POSITION_BYTES: usize = 512 * 1024;
 const CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
-/// Supplied by the authenticated canonical receipt, never by an uploaded file.
-/// Verifying this bundle is not proof that the server has committed it.
+/// Bound to the receipt obtained over authenticated HTTPS and to its discovery
+/// entry. A transport hash alone is not a signature or an acknowledgement.
 pub(super) struct Expected {
-    pub organization: String,
-    pub generation: String,
+    receipt: Receipt,
+}
+pub(super) struct ReceiptRequest<'a> {
+    pub organization: &'a str,
+    pub generation: &'a str,
+    pub transaction_id: &'a str,
     pub source_revision: i64,
-    pub bundle_sha256: String,
+    pub receipt_sha256: &'a str,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Receipt {
+    format: String,
+    version: u32,
+    transaction_id: String,
+    organization_id: String,
+    generation: String,
+    origin_installation_id: String,
+    capture_generation: String,
+    source_transfer_id: String,
+    source_revision: i64,
+    revision: i64,
+    manifest_sha256: String,
+    bundle_sha256: String,
+    fingerprint_version: u32,
+    fingerprint_contract_sha256: String,
+    source_state_sha256: String,
+    target_state_sha256: String,
+    validation_sha256: String,
+    committed_at: String,
+}
+impl Expected {
+    pub(super) fn from_authenticated_receipt(
+        raw: &[u8],
+        request: ReceiptRequest<'_>,
+    ) -> AppResult<Self> {
+        if raw.len() > 16 * 1024
+            || !hash(request.receipt_sha256)
+            || digest(raw) != request.receipt_sha256
+        {
+            return Err(invalid(
+                "Le reçu téléchargé ne correspond pas à la révision annoncée.",
+            ));
+        }
+        let r: Receipt = serde_json::from_slice(raw)?;
+        if r.format != "zentra-canonical-transaction-receipt"
+            || r.version != 1
+            || r.organization_id != request.organization
+            || r.organization_id.is_empty()
+            || r.generation != request.generation
+            || r.transaction_id != request.transaction_id
+            || r.source_revision != request.source_revision
+            || r.source_revision < 1
+            || r.source_revision >= 9_007_199_254_740_991
+            || r.revision != r.source_revision + 1
+            || r.fingerprint_version != STATE_FINGERPRINT_VERSION
+            || r.fingerprint_contract_sha256 != fingerprint_contract()?
+            || [
+                &r.generation,
+                &r.transaction_id,
+                &r.origin_installation_id,
+                &r.capture_generation,
+                &r.source_transfer_id,
+            ]
+            .iter()
+            .any(|v| !uuid(v))
+            || [
+                &r.manifest_sha256,
+                &r.bundle_sha256,
+                &r.source_state_sha256,
+                &r.target_state_sha256,
+                &r.validation_sha256,
+            ]
+            .iter()
+            .any(|v| !hash(v))
+            || !chrono::DateTime::parse_from_rfc3339(&r.committed_at).is_ok_and(|date| {
+                date.with_timezone(&chrono::Utc)
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                    == r.committed_at
+            })
+        {
+            return Err(invalid(
+                "Le reçu ne correspond pas à cette entreprise, révision ou version du logiciel.",
+            ));
+        }
+        Ok(Self { receipt: r })
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -132,10 +215,11 @@ struct Decoder {
 }
 impl Decoder {
     fn new(raw: &[u8], original: &[u8], expected: &Expected) -> AppResult<Self> {
+        let receipt = &expected.receipt;
         if raw.len() > BUNDLE_BYTES
             || original.len() > 8 * 1024 * 1024
-            || !hash(&expected.bundle_sha256)
-            || digest(raw) != expected.bundle_sha256
+            || digest(raw) != receipt.bundle_sha256
+            || digest(original) != receipt.manifest_sha256
         {
             return Err(invalid(
                 "Le descriptif reçu ne correspond pas à la confirmation du serveur.",
@@ -147,9 +231,16 @@ impl Decoder {
             || b.version != 1
             || b.schema_version != 60
             || b.contract_sha256 != snapshot::contract_hash()?
-            || b.organization_id != expected.organization
-            || b.generation != expected.generation
-            || b.source_revision != expected.source_revision
+            || b.organization_id != receipt.organization_id
+            || b.generation != receipt.generation
+            || b.source_revision != receipt.source_revision
+            || b.transaction_id != receipt.transaction_id
+            || b.origin_installation_id != receipt.origin_installation_id
+            || b.capture_generation != receipt.capture_generation
+            || b.source_transfer_id != receipt.source_transfer_id
+            || b.validation_sha256 != receipt.validation_sha256
+            || b.source_state_sha256 != receipt.source_state_sha256
+            || b.target_state_sha256 != receipt.target_state_sha256
             || b.source_revision < 1
             || b.source_revision > 9_007_199_254_740_991
             || b.fingerprint_version != STATE_FINGERPRINT_VERSION

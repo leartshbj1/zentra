@@ -13,7 +13,13 @@ import { sharedRowid, sourceRowid } from './business-sync-order';
 const PAGE_ROWS = 200,
   PAGE_BYTES = 4 * 1024 * 1024,
   APPLY_CHANGES = 12;
-export const TRANSACTION_REVIEW_VERSION = 2;
+export const TRANSACTION_REVIEW_VERSION = 3;
+// The anchor is the audit head the device actually installed, not necessarily
+// the last event it authored before receiving another collaborator's work.
+export const canonicalAuditHeadSql = `(SELECT json_extract(v.row_json,'$.entry_hash') FROM business_sync_versions v
+ JOIN business_sync_row_order o ON o.transfer_id=v.transfer_id AND o.table_name=v.table_name AND o.row_key_json=v.row_key_json
+ WHERE v.transfer_id=u.transfer_id AND v.organization_id=u.organization_id AND v.table_name='audit_log'
+ ORDER BY CAST(o.source_rowid AS INTEGER) DESC LIMIT 1)`;
 type Review = {
   transfer_id: string;
   algorithm_version: number;
@@ -62,6 +68,7 @@ export function transactionReviewValidatorHash() {
         APPLY_CHANGES,
         gate,
         filesComplete,
+        canonicalAuditHeadSql,
         h,
       ]),
     ),
@@ -266,7 +273,20 @@ export async function beginBusinessTransactionReview(
     fail(
       'Une opération plus récente de cet appareil a déjà été enregistrée. Réconciliez ce journal avant de continuer.',
     );
-  const anchor = branch ? branch.last_hash : base.receipt.last_audit_hash;
+  const observed = await database()
+    .prepare(`SELECT ${canonicalAuditHeadSql} audit_hash FROM business_sync_transfers u
+    WHERE u.organization_id=? AND u.generation=? AND u.revision=? AND u.state='committed'
+    AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=?))`)
+    .bind(
+      session.organizationId,
+      tx.manifest.generation,
+      tx.manifest.base_revision,
+      tx.manifest.bootstrap_transfer_id,
+    )
+    .first<{ audit_hash: string | null }>();
+  if (!observed)
+    fail('La révision installée avant cette opération est introuvable.', 503);
+  const anchor = observed.audit_hash;
   const review: Review = {
     transfer_id: tx.id,
     algorithm_version: TRANSACTION_REVIEW_VERSION,

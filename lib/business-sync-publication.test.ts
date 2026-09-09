@@ -92,6 +92,13 @@ import {
 import * as transactionValidationHttp from '../app/api/sync/transactions/validate/route';
 import * as fingerprintHttp from '../app/api/sync/transactions/fingerprint/route';
 import * as deliveryHttp from '../app/api/sync/transactions/delivery/route';
+import * as commitHttp from '../app/api/sync/transactions/commit/route';
+import {
+  commitBusinessTransaction,
+  committedBusinessTransaction,
+  committedBusinessTransactionResource,
+  committedBusinessTransactionsSince,
+} from './business-sync-transaction-commit';
 import {
   prepareBusinessTransactionDelivery,
   businessTransactionDeliveryStatus,
@@ -798,6 +805,571 @@ async function deliveryReady(
   await finishFingerprint(f.actor, id);
   return f;
 }
+async function commitReady(parts?: TransactionChange[][]) {
+  const f = await deliveryReady(await transactionFixture(parts));
+  for (let i = 0; i < f.manifest.chunks.length; i++)
+    await prepareBusinessTransactionDelivery(
+      f.actor,
+      f.manifest.transaction_id,
+    );
+  return f;
+}
+it('commits one exact canonical receipt, candidate and capture branch atomically', async () => {
+  const f = await commitReady(),
+    id = f.manifest.transaction_id;
+  const targetHash = snapshotHash(id);
+  const original = db
+    .prepare(
+      'SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?',
+    )
+    .all(id);
+  const receipt = await commitBusinessTransaction(f.actor, id);
+  expect(receipt).toMatchObject({
+    transaction_id: id,
+    revision: 2,
+    source_revision: 1,
+    target_state_sha256: targetHash,
+  });
+  expect(
+    db
+      .prepare(
+        'SELECT head_revision FROM business_sync_spaces WHERE organization_id=?',
+      )
+      .get(f.actor.organizationId)?.head_revision,
+  ).toBe(2);
+  expect(
+    db
+      .prepare(
+        'SELECT state,revision FROM business_sync_transfers WHERE transfer_id=?',
+      )
+      .get(id),
+  ).toEqual({ state: 'committed', revision: 2 });
+  expect(
+    db
+      .prepare(
+        'SELECT last_sequence,revision FROM business_sync_audit_branches WHERE installation_id=?',
+      )
+      .get(f.actor.installationId),
+  ).toEqual({ last_sequence: f.manifest.last_sequence, revision: 2 });
+  expect((await committedBusinessTransaction(second, id))?.receipt).toEqual(
+    receipt,
+  );
+  expect(await commitBusinessTransaction(f.actor, id)).toEqual(receipt);
+  expect(await businessTransactionStatus(f.actor, id)).toMatchObject({
+    state: 'committed',
+    canonical_committed: true,
+    receipt,
+  });
+  expect(
+    await beginBusinessTransaction(f.actor, JSON.stringify(f.manifest)),
+  ).toMatchObject({ state: 'committed', receipt });
+  expect(
+    db
+      .prepare(
+        'SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?',
+      )
+      .all(id),
+  ).toEqual(original);
+  expect(snapshotHash(id)).toBe(targetHash);
+  expect(
+    await committedBusinessTransaction(
+      { ...second, organizationId: 'org_other' },
+      id,
+    ),
+  ).toBeNull();
+  await expect(commitBusinessTransaction(second, id)).rejects.toMatchObject({
+    status: 403,
+  });
+  await expect(
+    commitBusinessTransaction({ ...f.actor, role: 'read_only' }, id),
+  ).rejects.toMatchObject({ status: 403 });
+});
+it.each([
+  'INSERT OR IGNORE INTO business_sync_transaction_commits',
+  'INSERT INTO business_sync_audit_branches',
+  'UPDATE business_sync_transfers SET',
+  'UPDATE business_sync_spaces SET',
+])(
+  'rolls back every canonical commit effect when %s fails',
+  async (statement) => {
+    const f = await commitReady(),
+      id = f.manifest.transaction_id;
+    failStatement = (sql) => {
+      if (sql.startsWith(statement)) throw Error('commit interrupted');
+    };
+    await expect(commitBusinessTransaction(f.actor, id)).rejects.toThrow(
+      'commit interrupted',
+    );
+    expect(
+      db
+        .prepare('SELECT COUNT(*) n FROM business_sync_transaction_commits')
+        .get()?.n,
+    ).toBe(0);
+    expect(
+      db
+        .prepare(
+          'SELECT COUNT(*) n FROM business_sync_audit_branches WHERE installation_id=?',
+        )
+        .get(f.actor.installationId)?.n,
+    ).toBe(0);
+    expect(
+      db
+        .prepare(
+          'SELECT head_revision FROM business_sync_spaces WHERE organization_id=?',
+        )
+        .get(f.actor.organizationId)?.head_revision,
+    ).toBe(1);
+    expect(
+      db
+        .prepare(
+          'SELECT state FROM business_sync_transfers WHERE transfer_id=?',
+        )
+        .get(id)?.state,
+    ).toBe('received');
+    failStatement = undefined;
+    expect((await commitBusinessTransaction(f.actor, id)).revision).toBe(2);
+  },
+);
+it('recovers the durable canonical receipt after losing the batch response', async () => {
+  const f = await commitReady(),
+    id = f.manifest.transaction_id;
+  const current = mocks.db();
+  mocks.db.mockReturnValue({
+    ...current,
+    batch: async (s: ReturnType<typeof prepare>[]) => {
+      await current.batch(s);
+      throw Error('commit response lost');
+    },
+  });
+  const receipt = await commitBusinessTransaction(f.actor, id);
+  expect(receipt.revision).toBe(2);
+  expect(await commitBusinessTransaction(f.actor, id)).toEqual(receipt);
+  expect(
+    db.prepare('SELECT COUNT(*) n FROM business_sync_transaction_commits').get()
+      ?.n,
+  ).toBe(1);
+});
+it('shares the same canonical receipt across simultaneous identical commit requests', async () => {
+  const f = await commitReady(),
+    id = f.manifest.transaction_id;
+  const receipts = await Promise.all([
+    commitBusinessTransaction(f.actor, id),
+    commitBusinessTransaction(f.actor, id),
+  ]);
+  expect(receipts[0]).toEqual(receipts[1]);
+  expect(
+    db.prepare('SELECT COUNT(*) n FROM business_sync_transaction_commits').get()
+      ?.n,
+  ).toBe(1);
+});
+it.each(['head', 'attempt', 'positions', 'branch'])(
+  'does not commit if the canonical %s changes before the batch',
+  async (change) => {
+    const f = await commitReady(),
+      id = f.manifest.transaction_id;
+    beforeBatch = async () => {
+      beforeBatch = undefined;
+      if (change === 'head')
+        db.prepare(
+          'UPDATE business_sync_spaces SET head_revision=2 WHERE organization_id=?',
+        ).run(f.actor.organizationId);
+      if (change === 'attempt')
+        db.prepare(
+          'UPDATE business_sync_transaction_reviews SET attempt=? WHERE transfer_id=?',
+        ).run(crypto.randomUUID(), id);
+      if (change === 'positions')
+        db.prepare(
+          'UPDATE business_sync_transaction_delivery_parts SET positions_sha256=? WHERE transfer_id=?',
+        ).run('f'.repeat(64), id);
+      if (change === 'branch')
+        db.prepare(
+          'INSERT INTO business_sync_audit_branches VALUES(?,?,?,?,?,?,?)',
+        ).run(
+          f.actor.organizationId,
+          f.manifest.generation,
+          f.actor.installationId,
+          f.manifest.capture_generation,
+          null,
+          f.manifest.first_sequence,
+          1,
+        );
+    };
+    await expect(commitBusinessTransaction(f.actor, id)).rejects.toThrow();
+    expect(
+      db
+        .prepare('SELECT COUNT(*) n FROM business_sync_transaction_commits')
+        .get()?.n,
+    ).toBe(0);
+    expect(
+      db
+        .prepare(
+          'SELECT state FROM business_sync_transfers WHERE transfer_id=?',
+        )
+        .get(id)?.state,
+    ).toBe('received');
+  },
+);
+it('prepares the next transaction from the committed revision and preserves earlier receipts', async () => {
+  const first = await commitReady([[transactionInsert('1', 'client-first')]]);
+  const initial = await commitBusinessTransaction(
+    first.actor,
+    first.manifest.transaction_id,
+  );
+  const next = await transactionFixture(
+    [[transactionInsert('2', 'client-next')]],
+    first.receipt,
+  );
+  next.actor = first.actor;
+  next.manifest.installation_id = first.actor.installationId;
+  next.manifest.capture_generation = first.manifest.capture_generation;
+  await deliveryReady(next);
+  await prepareBusinessTransactionDelivery(
+    next.actor,
+    next.manifest.transaction_id,
+  );
+  const receipt = await commitBusinessTransaction(
+    next.actor,
+    next.manifest.transaction_id,
+  );
+  expect(receipt).toMatchObject({
+    revision: 3,
+    source_revision: 2,
+    source_transfer_id: first.manifest.transaction_id,
+    source_state_sha256: initial.target_state_sha256,
+  });
+  expect(
+    (await committedBusinessTransaction(second, first.manifest.transaction_id))
+      ?.receipt,
+  ).toEqual(initial);
+  expect(
+    await commitBusinessTransaction(first.actor, first.manifest.transaction_id),
+  ).toEqual(initial);
+  expect(
+    db
+      .prepare(
+        'SELECT last_sequence,revision FROM business_sync_audit_branches WHERE installation_id=?',
+      )
+      .get(first.actor.installationId),
+  ).toEqual({ last_sequence: '2', revision: 3 });
+});
+it('commits only one competing transaction at the same canonical revision', async () => {
+  const first = await commitReady([
+    [transactionInsert('1', 'competitor-first')],
+  ]);
+  const next = await deliveryReady(
+    await transactionFixture(
+      [[transactionInsert('1', 'competitor-next')]],
+      first.receipt,
+    ),
+  );
+  await prepareBusinessTransactionDelivery(
+    next.actor,
+    next.manifest.transaction_id,
+  );
+  const results = await Promise.allSettled([
+    commitBusinessTransaction(first.actor, first.manifest.transaction_id),
+    commitBusinessTransaction(next.actor, next.manifest.transaction_id),
+  ]);
+  expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  expect(
+    db.prepare('SELECT COUNT(*) n FROM business_sync_transaction_commits').get()
+      ?.n,
+  ).toBe(1);
+  expect(
+    db
+      .prepare(
+        'SELECT head_revision FROM business_sync_spaces WHERE organization_id=?',
+      )
+      .get(first.actor.organizationId)?.head_revision,
+  ).toBe(2);
+});
+it.each(['receipt', 'bundle', 'revision', 'transfer'])(
+  'rejects corrupted canonical %s evidence',
+  async (field) => {
+    const f = await commitReady(),
+      id = f.manifest.transaction_id;
+    await commitBusinessTransaction(f.actor, id);
+    if (field === 'receipt')
+      db.prepare(
+        "UPDATE business_sync_transaction_commits SET receipt_json='{}' WHERE transfer_id=?",
+      ).run(id);
+    if (field === 'bundle')
+      db.prepare(
+        "UPDATE business_sync_transaction_commits SET bundle_json='{}' WHERE transfer_id=?",
+      ).run(id);
+    if (field === 'revision') {
+      const row = db
+        .prepare(
+          'SELECT receipt_json FROM business_sync_transaction_commits WHERE transfer_id=?',
+        )
+        .get(id)!;
+      const raw = JSON.stringify({
+        ...JSON.parse(row.receipt_json as string),
+        revision: 3,
+      });
+      db.prepare(
+        'UPDATE business_sync_transaction_commits SET receipt_json=?,receipt_sha256=? WHERE transfer_id=?',
+      ).run(raw, await sha256Hex(raw), id);
+    }
+    if (field === 'transfer')
+      db.prepare(
+        "UPDATE business_sync_transfers SET committed_at='changed' WHERE transfer_id=?",
+      ).run(id);
+    await expect(committedBusinessTransaction(second, id)).rejects.toThrow();
+  },
+);
+it('paginates every committed revision without skipping a change arriving between pages', async () => {
+  const first = await commitReady([[transactionInsert('1', 'page-1')]]);
+  await commitBusinessTransaction(first.actor, first.manifest.transaction_id);
+  const publish = async (i: number) => {
+    const next = await transactionFixture(
+      [[transactionInsert(String(i), `page-${i}`)]],
+      first.receipt,
+    );
+    next.actor = first.actor;
+    next.manifest.installation_id = first.actor.installationId;
+    next.manifest.capture_generation = first.manifest.capture_generation;
+    next.manifest.base_revision = i;
+    await deliveryReady(next);
+    await prepareBusinessTransactionDelivery(
+      next.actor,
+      next.manifest.transaction_id,
+    );
+    return commitBusinessTransaction(next.actor, next.manifest.transaction_id);
+  };
+  for (let i = 2; i <= 21; i++) await publish(i);
+  const page = await committedBusinessTransactionsSince(
+    second,
+    first.receipt.generation,
+    '1',
+  );
+  expect(page.commits.map((c) => c.revision)).toEqual(
+    Array.from({ length: 20 }, (_, i) => i + 2),
+  );
+  expect(page).toMatchObject({
+    head_revision: 22,
+    next_revision: 21,
+    has_more: true,
+  });
+  await publish(22);
+  const next = await committedBusinessTransactionsSince(
+    second,
+    first.receipt.generation,
+    String(page.next_revision),
+  );
+  expect(next.commits.map((c) => c.revision)).toEqual([22, 23]);
+  expect(next).toMatchObject({
+    head_revision: 23,
+    next_revision: 23,
+    has_more: false,
+  });
+  expect(
+    (
+      await committedBusinessTransactionsSince(
+        second,
+        first.receipt.generation,
+        '23',
+      )
+    ).commits,
+  ).toEqual([]);
+}, 30000);
+it.each(['receipt-json', 'bundle-json', 'part', 'contract', 'attempt'])(
+  'rejects malformed stored canonical %s even when the stored transport hashes match',
+  async (mode) => {
+    const f = await commitReady(),
+      id = f.manifest.transaction_id;
+    await commitBusinessTransaction(f.actor, id);
+    const saved = (await committedBusinessTransaction(second, id))!;
+    let receipt = saved.receipt_json,
+      bundle = saved.bundle_json;
+    if (mode === 'receipt-json') receipt = '{broken';
+    else {
+      const b = JSON.parse(bundle);
+      if (mode === 'part') b.parts[0].source_bytes++;
+      if (mode === 'contract') b.contract_sha256 = 'e'.repeat(64);
+      if (mode === 'attempt') b.review_attempt = '../replaced';
+      bundle = mode === 'bundle-json' ? '{broken' : JSON.stringify(b);
+      receipt = JSON.stringify({
+        ...saved.receipt,
+        bundle_sha256: await sha256Hex(bundle),
+      });
+    }
+    db.prepare(
+      'UPDATE business_sync_transaction_commits SET receipt_json=?,receipt_sha256=?,bundle_json=?,bundle_sha256=? WHERE transfer_id=?',
+    ).run(
+      receipt,
+      await sha256Hex(receipt),
+      bundle,
+      await sha256Hex(bundle),
+      id,
+    );
+    await expect(
+      committedBusinessTransaction(second, id),
+    ).rejects.toMatchObject({ status: 503 });
+  },
+);
+it('serves original canonical resources and ordered discovery to another authorized device', async () => {
+  const first = await commitReady([[transactionInsert('1', 'shared-first')]]);
+  const firstId = first.manifest.transaction_id;
+  const prepared = (
+    await businessTransactionDeliveryResource(
+      first.actor,
+      firstId,
+      'bundle',
+      null,
+    )
+  ).bytes;
+  const receipt = await commitBusinessTransaction(first.actor, firstId);
+  const next = await deliveryReady(
+    await transactionFixture(
+      [[transactionInsert('1', 'shared-next')]],
+      first.receipt,
+    ),
+  );
+  await prepareBusinessTransactionDelivery(
+    next.actor,
+    next.manifest.transaction_id,
+  );
+  await commitBusinessTransaction(next.actor, next.manifest.transaction_id);
+  const listing = await committedBusinessTransactionsSince(
+    second,
+    receipt.generation,
+    '1',
+  );
+  expect(listing).toMatchObject({
+    head_revision: 3,
+    next_revision: 3,
+    has_more: false,
+  });
+  expect(listing.commits.map((r) => r.revision)).toEqual([2, 3]);
+  expect(
+    await committedBusinessTransactionsSince(second, receipt.generation, '3'),
+  ).toMatchObject({ commits: [], has_more: false });
+  const bundle = await committedBusinessTransactionResource(
+    second,
+    firstId,
+    'bundle',
+    null,
+  );
+  expect(bundle.bytes).toEqual(prepared);
+  expect(bundle.bundle_sha256).toBe(receipt.bundle_sha256);
+  expect(
+    (
+      await committedBusinessTransactionResource(
+        second,
+        firstId,
+        'changes',
+        '0',
+      )
+    ).bytes,
+  ).toEqual(first.chunks[0]);
+  expect(
+    JSON.parse(
+      new TextDecoder().decode(
+        (
+          await committedBusinessTransactionResource(
+            second,
+            firstId,
+            'receipt',
+            null,
+          )
+        ).bytes,
+      ),
+    ),
+  ).toEqual(receipt);
+  expect(
+    JSON.parse(
+      new TextDecoder().decode(
+        (
+          await committedBusinessTransactionResource(
+            second,
+            firstId,
+            'manifest',
+            null,
+          )
+        ).bytes,
+      ),
+    ),
+  ).toEqual(first.manifest);
+  const positions = await committedBusinessTransactionResource(
+    second,
+    firstId,
+    'positions',
+    '0',
+  );
+  expect(await sha256Hex(positions.bytes)).toBe(
+    JSON.parse(new TextDecoder().decode(prepared)).parts[0].positions_sha256,
+  );
+  await expect(
+    committedBusinessTransactionResource(
+      { ...second, organizationId: 'org_other' },
+      firstId,
+      'bundle',
+      null,
+    ),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    committedBusinessTransactionsSince(second, receipt.generation, '4'),
+  ).rejects.toThrow();
+  for (const after of ['0', '-1', '01', '1.0', '9007199254740992'])
+    await expect(
+      committedBusinessTransactionsSince(second, receipt.generation, after),
+    ).rejects.toMatchObject({ status: 400 });
+  db.prepare(
+    'DELETE FROM business_sync_transaction_commits WHERE transfer_id=?',
+  ).run(firstId);
+  await expect(
+    committedBusinessTransactionsSince(second, receipt.generation, '1'),
+  ).rejects.toMatchObject({ status: 503 });
+});
+it('authenticates canonical commit and discovery routes with no cached private response', async () => {
+  const f = await commitReady(),
+    id = f.manifest.transaction_id;
+  const request = () =>
+    new Request(
+      `https://zentra.test/api/sync/transactions/commit?transaction_id=${id}`,
+    );
+  mocks.session.mockRejectedValue(
+    new AccountPublicError('Connexion requise', 401),
+  );
+  for (const call of [commitHttp.GET, commitHttp.POST]) {
+    const response = await call(request());
+    expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  }
+  expect(
+    db.prepare('SELECT COUNT(*) n FROM business_sync_transaction_commits').get()
+      ?.n,
+  ).toBe(0);
+  mocks.session.mockResolvedValue(f.actor);
+  const committed = await commitHttp.POST(request());
+  expect(committed.status).toBe(200);
+  const body = (await committed.json()) as { receipt: unknown };
+  expect(body).toMatchObject({
+    canonical_committed: true,
+    replication_active: false,
+    receipt: { revision: 2 },
+  });
+  mocks.session.mockResolvedValue(second);
+  const received = await commitHttp.GET(request());
+  expect(received.status).toBe(200);
+  expect(received.headers.get('cache-control')).toContain('no-store');
+  const raw = await received.text();
+  expect(await sha256Hex(raw)).toBe(
+    received.headers.get('x-zentra-receipt-sha256'),
+  );
+  expect(JSON.parse(raw)).toEqual(body.receipt);
+  const list = await commitHttp.GET(
+    new Request(
+      `https://zentra.test/api/sync/transactions/commit?generation=${f.manifest.generation}&after_revision=1`,
+    ),
+  );
+  expect(list.status).toBe(200);
+  expect(await list.json()).toMatchObject({
+    commits: [expect.objectContaining({ revision: 2 })],
+  });
+});
 it('prepares bounded canonical sidecars without rewriting source chunks, and serves only the pinned bundle', async () => {
   const f = await deliveryReady(
     await transactionFixture([
@@ -1199,7 +1771,61 @@ it
         .first<{ source_rowid: string }>())!.source_rowid;
       expect(clientRowid).toBe('9007199254740993');
       expect(clientRowid).not.toBe(inserted.source_rowid);
+      const preparedDeliveryPeak = deliveryPeak;
+      deliveryPeak = 0;
+      const canonicalReceipt = await deliveryRequest(() =>
+        commitBusinessTransaction(f.actor, id),
+      );
+      expect(canonicalReceipt).toMatchObject({
+        revision: 2,
+        bundle_sha256: bundle.sha256,
+      });
+      const committedReceipt = await deliveryRequest(() =>
+        committedBusinessTransactionResource(second, id, 'receipt', null),
+      );
+      expect(
+        JSON.parse(new TextDecoder().decode(committedReceipt.bytes)),
+      ).toEqual(canonicalReceipt);
+      writeFileSync(
+        join(output, 'commit-receipt.json'),
+        committedReceipt.bytes,
+      );
+      const discovered = await deliveryRequest(() =>
+        committedBusinessTransactionsSince(second, f.manifest.generation, '1'),
+      );
+      expect(discovered.commits).toMatchObject([
+        {
+          transaction_id: id,
+          revision: 2,
+          receipt_sha256: committedReceipt.sha256,
+        },
+      ]);
+      for (const type of ['bundle', 'manifest', 'changes', 'positions']) {
+        const indexes = ['changes', 'positions'].includes(type)
+          ? f.manifest.chunks.map((_, i) => String(i))
+          : [null];
+        for (const index of indexes) {
+          const resource = await deliveryRequest(() =>
+            committedBusinessTransactionResource(second, id, type, index),
+          );
+          const filename =
+            index === null
+              ? type === 'bundle'
+                ? 'bundle.json'
+                : 'original-manifest.json'
+              : `${type}-${index.padStart(4, '0')}.json`;
+          expect(Buffer.from(resource.bytes)).toEqual(
+            readFileSync(join(output, filename)),
+          );
+          expect(resource.receipt_sha256).toBe(committedReceipt.sha256);
+        }
+      }
       const proof = {
+        transaction_id: id,
+        receipt_sha256: committedReceipt.sha256,
+        revision: canonicalReceipt.revision,
+        canonical_committed: true,
+        replication_active: false,
         organization_id: f.actor.organizationId,
         generation: f.manifest.generation,
         source_revision: data.source_revision,
@@ -1209,7 +1835,8 @@ it
         client_id: JSON.parse(inserted.key_json)[0],
         client_rowid: clientRowid,
         origin_rowid: inserted.source_rowid,
-        delivery_max_queries: real ? deliveryPeak : null,
+        delivery_max_queries: real ? preparedDeliveryPeak : null,
+        commit_max_queries: real ? deliveryPeak : null,
       };
       writeFileSync(join(output, 'proof.json'), JSON.stringify(proof, null, 2));
       console.info(
@@ -1219,7 +1846,9 @@ it
           changes: f.manifest.change_count,
           canonicalRowid: clientRowid,
           originRowid: inserted.source_rowid,
-          deliveryMaxQueries: real ? deliveryPeak : null,
+          deliveryMaxQueries: real ? preparedDeliveryPeak : null,
+          commitMaxQueries: real ? deliveryPeak : null,
+          canonicalCommitted: true,
           sourceBytesUnchanged: bytes.every((b, i) =>
             Buffer.from(b).equals(Buffer.from(f.chunks[i])),
           ),
@@ -1227,6 +1856,167 @@ it
       );
     } finally {
       await real?.runtime.dispose();
+    }
+  },
+  120000,
+);
+it.skipIf(
+  !process.env.ZENTRA_OFFLINE_BRANCHES_EXPORT ||
+    !process.env.ZENTRA_OFFLINE_BRANCHES_QA,
+)(
+  'commits both real native offline audit branches on D1 for sequential native reception',
+  async () => {
+    const root = process.env.ZENTRA_OFFLINE_BRANCHES_EXPORT!,
+      output = process.env.ZENTRA_OFFLINE_BRANCHES_QA!;
+    const real = await realD1Fixture();
+    try {
+      const rows = JSON.parse(
+        readFileSync(join(root, 'source.json'), 'utf8'),
+      ) as {
+        table: string;
+        key_json: string;
+        row_json: string;
+        source_rowid: string;
+      }[];
+      const source = await fixture();
+      source.chunks = [encode({ version: 2, rows })];
+      source.manifest = await bootstrapManifest({
+        ...source.manifest,
+        tables: Object.fromEntries(
+          Object.keys(contract.tables).map((name) => [
+            name,
+            rows.filter((r) => r.table === name).length,
+          ]),
+        ),
+        row_count: rows.length,
+        size_bytes: source.chunks[0].length,
+        chunks: [
+          {
+            sha256: await sha256Hex(source.chunks[0]),
+            size_bytes: source.chunks[0].length,
+            row_count: rows.length,
+          },
+        ],
+      });
+      await stage(source);
+      await validate(source.id);
+      const initial = await publishBootstrap(owner, source.id);
+      mkdirSync(output, { recursive: true });
+      copyFileSync(
+        join(root, 'baseline.sqlite'),
+        join(output, 'baseline.sqlite'),
+      );
+      const commits = [];
+      for (const label of ['first', 'second']) {
+        const native = JSON.parse(
+          readFileSync(join(root, label, 'manifest.json'), 'utf8'),
+        ) as TransactionManifest;
+        const bytes = native.chunks.map(
+          (_, i) =>
+            new Uint8Array(
+              readFileSync(
+                join(root, label, `${String(i).padStart(4, '0')}.json`),
+              ),
+            ),
+        );
+        const changes = bytes.map(
+          (b) =>
+            JSON.parse(new TextDecoder().decode(b))
+              .changes as TransactionChange[],
+        );
+        const f = await transactionFixture(changes, initial);
+        f.actor.installationId = native.installation_id;
+        f.manifest.installation_id = native.installation_id;
+        f.manifest.capture_generation = native.capture_generation;
+        f.manifest.transaction_id = native.transaction_id;
+        await deliveryReady(f);
+        for (let i = 0; i < bytes.length; i++)
+          await prepareBusinessTransactionDelivery(
+            f.actor,
+            f.manifest.transaction_id,
+          );
+        const receipt = await commitBusinessTransaction(
+          f.actor,
+          f.manifest.transaction_id,
+        );
+        const folder = join(output, label);
+        mkdirSync(folder, { recursive: true });
+        let receiptHash = '';
+        for (const type of [
+          'receipt',
+          'bundle',
+          'manifest',
+          'changes',
+          'positions',
+        ]) {
+          const indexes = ['changes', 'positions'].includes(type)
+            ? bytes.map((_, i) => String(i))
+            : [null];
+          for (const index of indexes) {
+            const resource = await committedBusinessTransactionResource(
+              second,
+              f.manifest.transaction_id,
+              type,
+              index,
+            );
+            if (type === 'receipt') receiptHash = resource.sha256;
+            if (type === 'changes')
+              expect(Buffer.from(resource.bytes)).toEqual(
+                Buffer.from(bytes[Number(index)]),
+              );
+            writeFileSync(
+              join(
+                folder,
+                index === null
+                  ? `${type}.json`
+                  : `${type}-${index.padStart(4, '0')}.json`,
+              ),
+              resource.bytes,
+            );
+          }
+        }
+        const audit = JSON.parse(
+          changes.flat().find((c) => c.table === 'audit_log')!.after_json!,
+        );
+        const client = JSON.parse(
+          changes.flat().find((c) => c.table === 'clients')!.after_json!,
+        );
+        commits.push({
+          label,
+          transaction_id: receipt.transaction_id,
+          source_revision: receipt.source_revision,
+          revision: receipt.revision,
+          receipt_sha256: receiptHash,
+          target_state_sha256: receipt.target_state_sha256,
+          audit_sha256: audit.entry_hash,
+          audit_payload: audit.payload_json,
+          client_id: client.id,
+          parts: bytes.length,
+        });
+      }
+      expect(commits.map((c) => c.revision)).toEqual([2, 3]);
+      const listing = await committedBusinessTransactionsSince(
+        second,
+        initial.generation,
+        '1',
+      );
+      expect(listing.commits.map((c) => c.transaction_id)).toEqual(
+        commits.map((c) => c.transaction_id),
+      );
+      writeFileSync(
+        join(output, 'proof.json'),
+        JSON.stringify(
+          {
+            organization_id: owner.organizationId,
+            generation: initial.generation,
+            commits,
+          },
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await real.runtime.dispose();
     }
   },
   120000,
@@ -3141,24 +3931,23 @@ it.each([
 );
 
 it('resumes an established device audit branch and rejects replay of its committed source sequence', async () => {
-  const anchor = 'b'.repeat(64);
-  const f = await receiveTransaction(
-    await transactionFixture([
-      [await auditChange('9007199254740994', 'continued-audit', anchor)],
-    ]),
+  const first = await commitReady([
+    [await auditChange('9007199254740993', 'anchor-audit')],
+  ]);
+  await commitBusinessTransaction(first.actor, first.manifest.transaction_id);
+  const anchor = JSON.parse(
+    JSON.parse(new TextDecoder().decode(first.chunks[0])).changes[0].after_json,
+  ).entry_hash;
+  const f = await transactionFixture(
+    [[await auditChange('9007199254740994', 'continued-audit', anchor)]],
+    first.receipt,
   );
+  f.actor = first.actor;
+  f.manifest.installation_id = first.actor.installationId;
+  f.manifest.capture_generation = first.manifest.capture_generation;
+  f.manifest.base_revision = 2;
+  await receiveTransaction(f);
   const m = f.manifest;
-  db.prepare(
-    'INSERT INTO business_sync_audit_branches VALUES(?,?,?,?,?,?,?)',
-  ).run(
-    m.organization_id,
-    m.generation,
-    m.installation_id,
-    m.capture_generation,
-    anchor,
-    '9007199254740993',
-    1,
-  );
   expect(await projectTransaction(f.actor, m.transaction_id)).toMatchObject({
     state: 'projected',
     audit_entries: 1,
@@ -3190,6 +3979,62 @@ it('resumes an established device audit branch and rejects replay of its committ
   await expect(
     beginBusinessTransactionReview(next.actor, next.manifest.transaction_id),
   ).rejects.toThrow('plus récente');
+});
+
+it('preserves concurrent audit branches and lets a returning author use the revision received from a colleague', async () => {
+  const first = await commitReady([
+    [await auditChange('1', 'audit-author-first')],
+  ]);
+  const receiptA = await commitBusinessTransaction(
+    first.actor,
+    first.manifest.transaction_id,
+  );
+  const offline = await deliveryReady(
+    await transactionFixture(
+      [[await auditChange('1', 'audit-colleague-offline')]],
+      first.receipt,
+    ),
+  );
+  await prepareBusinessTransactionDelivery(
+    offline.actor,
+    offline.manifest.transaction_id,
+  );
+  const receiptB = await commitBusinessTransaction(
+    offline.actor,
+    offline.manifest.transaction_id,
+  );
+  const colleagueHash = JSON.parse(
+    JSON.parse(new TextDecoder().decode(offline.chunks[0])).changes[0]
+      .after_json,
+  ).entry_hash;
+  const returning = await transactionFixture(
+    [[await auditChange('2', 'audit-author-after-receive', colleagueHash)]],
+    first.receipt,
+  );
+  returning.actor = first.actor;
+  returning.manifest.installation_id = first.actor.installationId;
+  returning.manifest.capture_generation = first.manifest.capture_generation;
+  returning.manifest.base_revision = 3;
+  await deliveryReady(returning);
+  await prepareBusinessTransactionDelivery(
+    returning.actor,
+    returning.manifest.transaction_id,
+  );
+  const receiptC = await commitBusinessTransaction(
+    returning.actor,
+    returning.manifest.transaction_id,
+  );
+  expect([receiptA.revision, receiptB.revision, receiptC.revision]).toEqual([
+    2, 3, 4,
+  ]);
+  expect(receiptC.source_state_sha256).toBe(receiptB.target_state_sha256);
+  expect(
+    db
+      .prepare(
+        "SELECT COUNT(*) n FROM business_sync_versions WHERE transfer_id=? AND table_name='audit_log'",
+      )
+      .get(returning.manifest.transaction_id)?.n,
+  ).toBe(3);
 });
 
 async function auditChange(

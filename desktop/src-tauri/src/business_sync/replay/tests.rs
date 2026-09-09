@@ -205,6 +205,139 @@ fn export_native_canonical_delivery_fixture() {
     }
 }
 #[test]
+#[ignore = "Explicit original transactions from two fictitious offline native profiles"]
+fn export_native_offline_branches_fixture() {
+    let path = std::path::PathBuf::from(std::env::var("ZENTRA_OFFLINE_BRANCHES_EXPORT").unwrap());
+    fs::create_dir_all(&path).unwrap();
+    assert!(!path.join("baseline.sqlite").exists());
+    let (_directory, first, _) = setup();
+    let (_second_directory, second) = copy_receiver(&first);
+    let data = rows(&first)
+        .into_iter()
+        .map(|(table, key, rowid, row)| {
+            json!({
+                "table":table,"key_json":key,"source_rowid":rowid.to_string(),"row_json":row
+            })
+        })
+        .collect::<Vec<_>>();
+    fs::write(path.join("source.json"), serde_json::to_vec(&data).unwrap()).unwrap();
+    let mut baseline = Connection::open(path.join("baseline.sqlite")).unwrap();
+    rusqlite::backup::Backup::new(&first.connect().unwrap(), &mut baseline)
+        .unwrap()
+        .run_to_completion(256, Duration::from_millis(1), None)
+        .unwrap();
+    drop(baseline);
+    for (name, store) in [("first", &first), ("second", &second)] {
+        let folder = path.join(name);
+        fs::create_dir_all(&folder).unwrap();
+        store.create_record("clients",json!({"name":format!("Client hors ligne {name}"),"notes":"Conditions\nAcompte 30 % 😀"})).unwrap();
+        let original = crate::business_sync::outgoing::prepare_next(store, "org-replay", "owner")
+            .unwrap()
+            .unwrap();
+        fs::copy(
+            original.folder.join("manifest.json"),
+            folder.join("manifest.json"),
+        )
+        .unwrap();
+        for i in 0..original.manifest.chunks.len() {
+            fs::copy(
+                original.folder.join(format!("{i:04}.json")),
+                folder.join(format!("{i:04}.json")),
+            )
+            .unwrap();
+        }
+    }
+}
+#[test]
+#[ignore = "Requires two real server commits from the explicit native offline branches fixture"]
+fn receive_actual_offline_branches_in_native_candidates() {
+    let path = std::path::PathBuf::from(std::env::var("ZENTRA_OFFLINE_BRANCHES_QA").unwrap());
+    let proof: Value = serde_json::from_slice(&fs::read(path.join("proof.json")).unwrap()).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let receiver = LocalStore::initialize(directory.path().join("receiver")).unwrap();
+    let baseline = Connection::open(path.join("baseline.sqlite")).unwrap();
+    let mut c = receiver.connect().unwrap();
+    rusqlite::backup::Backup::new(&baseline, &mut c)
+        .unwrap()
+        .run_to_completion(256, Duration::from_millis(1), None)
+        .unwrap();
+    c.execute("UPDATE business_sync_binding SET organization_id=?1,installation_id=?2,generation=?3 WHERE id=1",
+        params![proof["organization_id"].as_str().unwrap(),receiver.installation_id,Uuid::new_v4().to_string()]).unwrap();
+    c.execute(
+        "UPDATE business_sync_baseline SET organization_id=?1,server_generation=?2 WHERE id=1",
+        params![
+            proof["organization_id"].as_str().unwrap(),
+            proof["generation"].as_str().unwrap()
+        ],
+    )
+    .unwrap();
+    drop(c);
+    let before = rows(&receiver);
+    // Each temporary candidate lives under its source's data directory. Keep
+    // those source directories alive through the complete sequential QA read.
+    let mut staged: Vec<Candidate> = Vec::new();
+    for entry in proof["commits"].as_array().unwrap() {
+        let folder = path.join(entry["label"].as_str().unwrap());
+        let expected = delivery::Expected::from_authenticated_receipt(
+            &fs::read(folder.join("receipt.json")).unwrap(),
+            delivery::ReceiptRequest {
+                organization: proof["organization_id"].as_str().unwrap(),
+                generation: proof["generation"].as_str().unwrap(),
+                transaction_id: entry["transaction_id"].as_str().unwrap(),
+                source_revision: entry["source_revision"].as_i64().unwrap(),
+                receipt_sha256: entry["receipt_sha256"].as_str().unwrap(),
+            },
+        )
+        .unwrap();
+        let source = staged.last().map_or(&receiver, |v| &v.store);
+        let candidate = delivery::prepare_candidate(
+            source,
+            &expected,
+            &fs::read(folder.join("bundle.json")).unwrap(),
+            &fs::read(folder.join("manifest.json")).unwrap(),
+            (0..entry["parts"].as_u64().unwrap()).map(|i| {
+                Ok((
+                    fs::read(folder.join(format!("changes-{i:04}.json"))).unwrap(),
+                    fs::read(folder.join(format!("positions-{i:04}.json"))).unwrap(),
+                ))
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            candidate.after_sha256,
+            entry["target_state_sha256"].as_str().unwrap()
+        );
+        // Advance only this disposable test candidate. This is not the production
+        // installation/acknowledgement protocol and never writes to receiver.
+        candidate.store.connect().unwrap().execute("INSERT INTO business_sync_cursor VALUES(1,?1,?2,?3) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision",
+            params![proof["organization_id"].as_str().unwrap(),proof["generation"].as_str().unwrap(),entry["revision"].as_i64().unwrap()]).unwrap();
+        staged.push(candidate);
+    }
+    let candidate = staged.last().unwrap();
+    let c = candidate.store.connect().unwrap();
+    let audit = crate::audit::verify_audit_chain(&c).unwrap();
+    assert_eq!(audit["heads"], 2);
+    for entry in proof["commits"].as_array().unwrap() {
+        let audit_row: String = c
+            .query_row(
+                "SELECT payload_json FROM audit_log WHERE entry_hash=?1",
+                [entry["audit_sha256"].as_str().unwrap()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_row, entry["audit_payload"].as_str().unwrap());
+        let client: String = c
+            .query_row(
+                "SELECT name FROM clients WHERE id=?1",
+                [entry["client_id"].as_str().unwrap()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(client.starts_with("Client hors ligne "));
+    }
+    assert_eq!(rows(&receiver), before);
+}
+#[test]
 #[ignore = "Requires the exact delivery bundle exported by the real server acceptance test"]
 fn receive_actual_server_canonical_delivery_on_native_candidate() {
     let path = std::path::PathBuf::from(std::env::var("ZENTRA_CANONICAL_DELIVERY_QA").unwrap());
@@ -228,12 +361,17 @@ fn receive_actual_server_canonical_delivery_on_native_candidate() {
         )
         .unwrap();
     drop(target);
-    let expected = delivery::Expected {
-        organization: proof["organization_id"].as_str().unwrap().into(),
-        generation: proof["generation"].as_str().unwrap().into(),
-        source_revision: proof["source_revision"].as_i64().unwrap(),
-        bundle_sha256: proof["bundle_sha256"].as_str().unwrap().into(),
-    };
+    let expected = delivery::Expected::from_authenticated_receipt(
+        &fs::read(path.join("commit-receipt.json")).unwrap(),
+        delivery::ReceiptRequest {
+            organization: proof["organization_id"].as_str().unwrap(),
+            generation: proof["generation"].as_str().unwrap(),
+            transaction_id: proof["transaction_id"].as_str().unwrap(),
+            source_revision: proof["source_revision"].as_i64().unwrap(),
+            receipt_sha256: proof["receipt_sha256"].as_str().unwrap(),
+        },
+    )
+    .unwrap();
     let bundle = fs::read(path.join("bundle.json")).unwrap();
     let manifest = fs::read(path.join("original-manifest.json")).unwrap();
     let raw = || {

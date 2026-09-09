@@ -239,6 +239,19 @@ export const businessSyncTransactionDeliveryParts=sqliteTable('business_sync_tra
   changeCount:integer('change_count').notNull(),
   objectKey:text('object_key').notNull(),
 },table=>[uniqueIndex('business_sync_transaction_delivery_part').on(table.transferId,table.attempt,table.partIndex)]);
+export const businessSyncTransactionCommits=sqliteTable('business_sync_transaction_commits',{
+  transferId:text('transfer_id').primaryKey().references(()=>businessSyncTransfers.transferId),
+  organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+  generation:text('generation').notNull(),
+  sourceTransferId:text('source_transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  sourceRevision:integer('source_revision').notNull(),
+  revision:integer('revision').notNull(),
+  bundleJson:text('bundle_json').notNull(),
+  bundleSha256:text('bundle_sha256').notNull(),
+  receiptJson:text('receipt_json').notNull(),
+  receiptSha256:text('receipt_sha256').notNull(),
+  committedAt:text('committed_at').notNull(),
+},table=>[uniqueIndex('business_sync_transaction_commit_revision').on(table.organizationId,table.revision)]);
 export const businessSyncTransactionDocumentStates=sqliteTable('business_sync_transaction_document_states',{
   transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
   validatorSha256:text('validator_sha256').notNull(),
