@@ -13,6 +13,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, VecDeque};
 use uuid::Uuid;
+pub(crate) mod incoming;
 const BUNDLE_BYTES: usize = 512 * 1024;
 const POSITION_BYTES: usize = 512 * 1024;
 const CHUNK_BYTES: usize = 4 * 1024 * 1024;

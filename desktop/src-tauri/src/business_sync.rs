@@ -8,8 +8,8 @@ pub(crate) const DATA_SCHEMA_VERSION: u32 = 60;
 pub(crate) mod files;
 pub(crate) mod snapshot;
 pub(crate) mod outgoing;
-// Remove this expectation when canonical-receipt transport calls the builder.
-#[cfg_attr(not(test), expect(dead_code, reason = "The native candidate builder cannot be installed before canonical transaction receipts are implemented"))]
+// Remove this expectation when recoverable installation calls the builder.
+#[cfg_attr(not(test), expect(dead_code, reason = "Receipt download is enabled; recoverable candidate installation remains under construction"))]
 pub(crate) mod replay;
 
 #[cfg(test)]

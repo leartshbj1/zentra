@@ -1,6 +1,6 @@
 use super::*;
 use serde_json::{json, Value};
-fn fixture() -> (Value, Vec<u8>, Vec<u8>, Vec<u8>, Expected) {
+pub(super) fn fixture() -> (Value, Vec<u8>, Vec<u8>, Vec<u8>, Expected) {
     let id = "11111111-1111-4111-8111-111111111111";
     let original=serde_json::to_vec(&json!({"version":1,"changes":[{"sequence":"9007199254740993","table":"clients","key_json":"[\"client\"]","operation":"insert",
         "before_json":null,"after_json":"{\"id\":\"client\",\"money\":9223372036854775807}","source_rowid":"1","files_before":[],"files_after":[]}]})).unwrap();
@@ -98,7 +98,7 @@ fn forged_position_catalogues_fail_even_when_their_transport_hashes_match() {
     }
 }
 
-fn receipt(bundle: &Value) -> Value {
+pub(super) fn receipt(bundle: &Value) -> Value {
     json!({"format":"zentra-canonical-transaction-receipt","version":1,
         "transaction_id":bundle["transaction_id"],"organization_id":bundle["organization_id"],
         "generation":bundle["generation"],"origin_installation_id":bundle["origin_installation_id"],

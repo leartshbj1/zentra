@@ -352,6 +352,7 @@ pub fn run() {
             business_sync::snapshot::transport::publication::cancel_business_publication,
             business_sync::snapshot::transport::publication::get_business_history_state,
             business_sync::outgoing::transport::sync_business_transactions,
+            business_sync::replay::delivery::incoming::receive_business_transactions,
             cloud_backup::get_cloud_backup_state,
             cloud_backup::set_cloud_backup_enabled,
             cloud_backup::run_cloud_backup,

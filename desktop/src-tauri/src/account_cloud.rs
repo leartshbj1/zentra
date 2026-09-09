@@ -60,6 +60,19 @@ pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option
 }
 
 impl ProjectSyncSession {
+    /// Download one immutable protocol resource without buffering a larger body
+    /// than its caller's declared bound. Authentication stays on the fixed origin.
+    pub(crate) async fn get_bounded(&self, path: &str, query: &[(&str, &str)], limit: u64) -> AppResult<Vec<u8>> {
+        if limit == 0 || limit > 25 * 1024 * 1024 {
+            return Err(AppError::Validation("La limite de réception est invalide.".into()));
+        }
+        let mut url = endpoint(path)?;
+        url.query_pairs_mut().extend_pairs(query.iter().copied());
+        let request = self.client.get(url).header(AUTHORIZATION, format!("Bearer {}", self.token));
+        let (status, bytes) = sync_response_bounded(request, limit).await?;
+        if !status.is_success() { return Err(server_response_error(status, &bytes)); }
+        Ok(bytes)
+    }
     pub(crate) fn ensure_current_for(&self, store: &LocalStore) -> AppResult<()> {
         let current = read_session_secret(store)?;
         if !current.is_some_and(|current| current.installation_id == store.installation_id
@@ -91,9 +104,13 @@ impl ProjectSyncSession {
 }
 
 async fn sync_response(request: reqwest::RequestBuilder, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
+    sync_response_bounded(request, if file {25*1024*1024} else {1024*1024}).await
+}
+
+async fn sync_response_bounded(request: reqwest::RequestBuilder, limit: u64) -> AppResult<(StatusCode,Vec<u8>)> {
     let response = request.send().await.map_err(|_| AppError::Validation("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
     let status = response.status();
-    let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
+    let bytes = read_response_with_limit(response,if status.is_success() {limit} else {limit.min(1024*1024)}).await?;
     Ok((status,bytes))
 }
 
@@ -1522,6 +1539,30 @@ mod tests {
             session_profile_changes(&session, &role_changed),
             (true, true)
         );
+    }
+
+    #[test]
+    fn bounded_sync_download_rejects_large_declared_and_streamed_bodies() {
+        use std::{io::{Read,Write},net::TcpListener};
+        for declared in [false,true] {
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+            let url=format!("http://{}/bounded",listener.local_addr().unwrap());
+            let server=std::thread::spawn(move || {
+                let (mut socket,_)=listener.accept().unwrap();
+                socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                assert!(socket.read(&mut [0;2048]).unwrap()>0);
+                let body="x".repeat(128);
+                let header=if declared {"Content-Length: 128\r\n"} else {""};
+                let _=write!(socket,"HTTP/1.1 200 OK\r\n{header}Connection: close\r\n\r\n{body}");
+            });
+            tauri::async_runtime::block_on(async {
+                crate::app_updater::ensure_rustls_crypto_provider().unwrap();
+                let result=sync_response_bounded(reqwest::Client::new().get(url),16).await;
+                assert!(result.unwrap_err().to_string().contains("volumineuse"));
+            });
+            server.join().unwrap();
+        }
     }
 
     #[test]

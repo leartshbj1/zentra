@@ -9,7 +9,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, time::Duration};
-pub(super) mod delivery;
+pub(crate) mod delivery;
 
 const MAX_ROWS: usize = 200_000;
 const MAX_BYTES: usize = 512 * 1024 * 1024;
