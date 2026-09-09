@@ -1,6 +1,7 @@
 // Sparse projections of changed accounting rows. Unchanged source rows remain
 // in the canonical snapshot; a NULL projection is a deletion tombstone.
-export const transitionRowColumns: Record<string, readonly string[]> = {
+import { nativeGuardReadColumns } from './business-sync-native-guard-contract';
+const manualColumns: Record<string, readonly string[]> = {
   supplier_invoice_items: [
     'id',
     'supplier_invoice_id',
@@ -42,10 +43,44 @@ export const transitionRowColumns: Record<string, readonly string[]> = {
   accounting_periods: ['id', 'status', 'date_from', 'date_to'],
   payslips: ['id', 'employee_id', 'period', 'status'],
 };
+export const transitionRowColumns = Object.fromEntries(
+  [
+    ...new Set([
+      ...Object.keys(manualColumns),
+      ...Object.keys(nativeGuardReadColumns),
+    ]),
+  ]
+    .sort()
+    .map((table) => [
+      table,
+      [
+        ...new Set([
+          ...(manualColumns[table] ?? []),
+          ...(nativeGuardReadColumns[table] ?? []),
+        ]),
+      ].sort(),
+    ]),
+);
+function projectedField(table: string, column: string, row: string) {
+  // Stock movements are append-only. Their canonical insertion order is
+  // already fixed by review and cannot be taken from another device's counter.
+  if (table === 'stock_movements' && column === 'sequence')
+    return `CAST((SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=?1 AND table_name='stock_movements' AND row_key_json=json_array(json_extract(${row},'$.id'))) AS INTEGER)`;
+  return `json_extract(${row},'$.${column}')`;
+}
 export function transitionRowProjection(table: string, row: string) {
   const columns = transitionRowColumns[table];
   if (!columns) throw new Error('Unknown accounting transition table');
-  return `CASE WHEN ${row} IS NULL THEN NULL ELSE json_object(${columns.flatMap((c) => [`'${c}'`, `json_extract(${row},'$.${c}')`]).join(',')}) END`;
+  let result = `json_object(${columns
+    .slice(0, 16)
+    .flatMap((c) => [`'${c}'`, projectedField(table, c, row)])
+    .join(',')})`;
+  for (let i = 16; i < columns.length; i += 15)
+    result = `json_set(${result},${columns
+      .slice(i, i + 15)
+      .flatMap((c) => [`'$.${c}'`, projectedField(table, c, row)])
+      .join(',')})`;
+  return `CASE WHEN ${row} IS NULL THEN NULL ELSE ${result} END`;
 }
 export function transitionRows(table: string) {
   if (!transitionRowColumns[table])

@@ -643,7 +643,7 @@ mod tests {
     /// de la comptabilisation. Elle installe explicitement le profil figé 2026,
     /// une police AAP et une retenue contractuelle dont la fenêtre se termine
     /// avec août 2026.
-    fn configure_adult_test_payroll(
+    pub(crate) fn configure_adult_test_payroll(
         store: &LocalStore,
         employee_id: &str,
     ) -> Vec<ContributionSelectionInput> {

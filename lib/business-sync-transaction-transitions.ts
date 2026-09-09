@@ -17,6 +17,12 @@ import {
 } from './business-sync-transition-rows';
 import { supplierPostingConditions } from './business-sync-supplier-posting-transitions';
 import { payrollTransitionConditions } from './business-sync-payroll-transitions';
+import {
+  nativeGuardContract,
+  receiverNativeGuards,
+} from './business-sync-native-guard-contract';
+import { nativeGuardQueries } from './business-sync-native-guards';
+import { nativeGuardDigests } from './business-sync-native-guard-digests';
 
 export const issuedQuoteFields = [
   'number',
@@ -34,7 +40,7 @@ export const issuedQuoteFields = [
   'terms',
   'snapshot_json',
 ] as const;
-export const TRANSITION_PAGE = 32;
+export const TRANSITION_PAGE = 16;
 const parentIssued = (table: string, foreignKey: string) =>
   transitionParentLocked(
     table,
@@ -74,6 +80,8 @@ export const transactionTransitionContract = {
   page: TRANSITION_PAGE,
   conditions,
   rowColumns: transitionRowColumns,
+  nativeGuards: nativeGuardContract,
+  receiverNativeGuards,
 };
 export function transactionTransitionQueries(active: string) {
   const gate = `EXISTS(${active}) AND EXISTS(SELECT 1 FROM business_sync_transaction_validations WHERE transfer_id=?1 AND phase='transitions' AND checked_changes=?16)`;
@@ -81,6 +89,7 @@ export function transactionTransitionQueries(active: string) {
   const args =
     'WITH args AS (SELECT ?16 checked,?17 source,?18 stamp,?19 position,?20 table_name,?21 row_key,?22 before_json,?23 after_json,?24 part_index,?25 change_index)';
   return {
+    native: nativeGuardQueries(gate, args),
     reject: Object.fromEntries(
       [...new Set(conditions.map((rule) => rule.table))].map((table) => {
         const rules = conditions.filter((rule) => rule.table === table);
@@ -212,6 +221,13 @@ export async function validateTransactionTransitions(ctx: Context) {
       503,
     );
   const stamp = new Date().toISOString();
+  const digests = await nativeGuardDigests(
+    ctx.id,
+    String(ctx.validationBindings[1]),
+    String(ctx.validationBindings[14]),
+    ctx.sourceTransferId,
+    changes,
+  );
   const statements = [];
   for (const [i, c] of changes.entries()) {
     const bindings = [
@@ -229,6 +245,9 @@ export async function validateTransactionTransitions(ctx: Context) {
     ];
     const reject = ctx.queries.reject[c.table];
     if (reject) statements.push(db.prepare(reject).bind(...bindings));
+    const native = ctx.queries.native[c.table];
+    if (native)
+      statements.push(db.prepare(native).bind(...bindings, digests[i]));
     if (Object.hasOwn(transitionParentPredicates, c.table))
       statements.push(db.prepare(ctx.queries.document).bind(...bindings));
     if (Object.hasOwn(transitionRowColumns, c.table))

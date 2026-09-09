@@ -735,7 +735,7 @@ it('serializes transition retries, preserves metadata evidence and stops if the 
   expect(arrivals).toBe(2);
   expect(
     (await businessTransactionValidationStatus(f.actor, id)).checked_changes,
-  ).toBe(32);
+  ).toBe(16);
   expect(
     db
       .prepare(
@@ -750,7 +750,7 @@ it('serializes transition retries, preserves metadata evidence and stops if the 
   };
   expect(await validateBusinessTransaction(f.actor, id)).toMatchObject({
     phase: 'stale',
-    checked_changes: 32,
+    checked_changes: 16,
     snapshot_validated: false,
   });
   expect(businessEvidence()).toEqual(evidence);
@@ -765,12 +765,16 @@ it.for([
   ['expense', false],
   ['payroll', false],
   ['payroll-post', false],
+  ['payroll-adult-post', false],
+  ['payroll-adult-validate', false],
   ['supplier-validate', false],
   ['supplier-payment', false],
   ['supplier-credit', false],
   ['expense', true],
   ['payroll', true],
   ['payroll-post', true],
+  ['payroll-adult-post', true],
+  ['payroll-adult-validate', true],
   ['supplier-validate', true],
   ['supplier-payment', true],
   ['supplier-credit', true],
@@ -888,6 +892,40 @@ it.for([
         expect(
           (await historyChunk(f.actor, source.id, String(i))).bytes,
         ).toEqual(b);
+      if (table === 'payroll-adult-validate') {
+        const changes = parts.flat();
+        const assessmentIndex = changes.findIndex(
+          (c) => c.table === 'payslip_small_salary_assessments',
+        );
+        expect(assessmentIndex).toBeGreaterThanOrEqual(0);
+        const damaged = changes.map((c, i) =>
+          i === assessmentIndex
+            ? {
+                ...c,
+                after_json: JSON.stringify({
+                  ...JSON.parse(c.after_json!),
+                  assessment_sha256: '0'.repeat(64),
+                }),
+              }
+            : c,
+        );
+        const forged = await receiveTransaction(
+          await transactionFixture([damaged], receipt),
+        );
+        await projectTransaction(forged.actor, forged.manifest.transaction_id);
+        expect(
+          await validateTransaction(
+            forged.actor,
+            forged.manifest.transaction_id,
+          ),
+        ).toMatchObject({
+          phase: 'invalid',
+          failed_rule:
+            'native:payslip_small_salary_assessments_integrity_insert_guard',
+          failed_change: assessmentIndex,
+          snapshot_validated: false,
+        });
+      }
       if (table === 'supplier-validate' || table === 'supplier-credit') {
         const changes = parts.flat();
         const target =
@@ -953,7 +991,7 @@ it.for([
           lost.actor,
           lost.manifest.transaction_id,
         );
-        for (let i = 0; i < 10 && status.checked_changes < 200; i++)
+        for (let i = 0; i < 20 && status.checked_changes < 200; i++)
           status = await validateBusinessTransaction(
             lost.actor,
             lost.manifest.transaction_id,
@@ -972,9 +1010,9 @@ it.for([
           ),
         ).toMatchObject({
           phase: 'invalid',
-          failed_rule: 'transition:supplier-invoice-posting',
+          failed_rule: 'native:missing-state:journal_lines',
           checked_changes: 200,
-          failed_change: 202,
+          failed_change: 200,
         });
       }
       const targetTable = document
@@ -995,14 +1033,20 @@ it.for([
       const item = finalChange
         ? { ...finalChange, row_json: finalChange.after_json! }
         : rows.find((r) => r.table === targetTable)!;
-      const rewritten = JSON.stringify({
-        ...JSON.parse(item.row_json),
-        [document
-          ? 'description'
-          : table.startsWith('payroll')
-            ? 'notes'
-            : 'note']: 'Texte réécrit après comptabilisation',
-      });
+      const rewritten =
+        table === 'payroll-adult-validate'
+          ? JSON.stringify({
+              ...JSON.parse(item.row_json),
+              gross_cents: JSON.parse(item.row_json).gross_cents + 1,
+            })
+          : JSON.stringify({
+              ...JSON.parse(item.row_json),
+              [document
+                ? 'description'
+                : table.startsWith('payroll')
+                  ? 'notes'
+                  : 'note']: 'Texte réécrit après comptabilisation',
+            });
       const change: TransactionChange = {
         sequence: String(BigInt(original.last_sequence) + BigInt(1)),
         table: targetTable,
@@ -1041,11 +1085,13 @@ it.for([
             : 'transition:issued-quote-items'
           : table === 'expense'
             ? 'transition:posted-expense'
-            : table.startsWith('payroll')
-              ? 'transition:posted-payslip'
-              : table === 'supplier-credit'
-                ? 'transition:validated-supplier-credit'
-                : 'transition:validated-supplier-invoice',
+            : table === 'payroll-adult-validate'
+              ? 'native:payslips_small_salary_posted_trace_update_guard'
+              : table.startsWith('payroll')
+                ? 'transition:posted-payslip'
+                : table === 'supplier-credit'
+                  ? 'transition:validated-supplier-credit'
+                  : 'transition:validated-supplier-invoice',
         failed_change: original.change_count,
         snapshot_validated: false,
       });
@@ -1172,7 +1218,7 @@ function businessEvidence() {
   };
 }
 
-it.each([1, 2, 3, 4])(
+it.each([1, 2, 3, 4, 5])(
   'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
   async (version) => {
     const f = await legacyTransactionValidation(version);
@@ -2784,8 +2830,15 @@ async function realD1Fixture() {
 it('compiles every intermediate accounting query against actual D1 limits', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {
-    const { reject, ...other } = transactionTransitionSql;
-    for (const [key, sql] of Object.entries({ ...reject, ...other })) {
+    const { reject, native, ...other } = transactionTransitionSql;
+    const nativeQueries = Object.fromEntries(
+      Object.entries(native).map(([key, sql]) => [`native:${key}`, sql]),
+    );
+    for (const [key, sql] of Object.entries({
+      ...reject,
+      ...nativeQueries,
+      ...other,
+    })) {
       expect(new TextEncoder().encode(sql).length, key).toBeLessThanOrEqual(
         100_000,
       );

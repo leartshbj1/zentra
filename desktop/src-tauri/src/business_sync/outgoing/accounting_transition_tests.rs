@@ -49,6 +49,8 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
         "expense",
         "payroll",
         "payroll-post",
+        "payroll-adult-post",
+        "payroll-adult-validate",
         "supplier-validate",
         "supplier-payment",
         "supplier-credit",
@@ -56,6 +58,7 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
         let (_directory, store) = setup();
         store.install_swiss_accounting_starter().unwrap();
         let mut id = String::new();
+        let mut pending_payroll = None;
         if scenario.starts_with("supplier-") {
             id = supplier_invoice(&store);
             if scenario != "supplier-validate" {
@@ -80,9 +83,25 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                 .create_record("employees", json!({"name":"Employé fictif"}))
                 .unwrap();
             let employee_id = employee["id"].as_str().unwrap().to_string();
-            let aap = crate::tests::configure_minor_test_payroll(&store, &employee_id, 50000);
-            let saved=store.save_payslip_with_contributions(serde_json::from_value(json!({"id":null,"employee_id":employee_id,"period":"2026-08","status":"valide","payment_date":null,"notes":null,"lines":[{"id":null,"label":"Salaire fictif","kind":"earning","amount_cents":50000,"posting_account_id":null,"expense_account_id":null}],"contributions":[aap]})).unwrap()).unwrap();
-            id = saved["payslip"]["id"].as_str().unwrap().into();
+            let adult = scenario.starts_with("payroll-adult-");
+            let contributions = if adult {
+                crate::tests::configure_adult_test_payroll(&store, &employee_id)
+            } else {
+                vec![crate::tests::configure_minor_test_payroll(
+                    &store,
+                    &employee_id,
+                    50000,
+                )]
+            };
+            let input = json!({"id":null,"employee_id":employee_id,"period":"2026-08","status":"valide","payment_date":null,"notes":null,"lines":[{"id":null,"label":"Salaire fictif","kind":"earning","amount_cents":if adult {500000} else {50000},"posting_account_id":null,"expense_account_id":null}],"contributions":contributions});
+            if scenario == "payroll-adult-validate" {
+                pending_payroll = Some(input);
+            } else {
+                let saved = store
+                    .save_payslip_with_contributions(serde_json::from_value(input).unwrap())
+                    .unwrap();
+                id = saved["payslip"]["id"].as_str().unwrap().into();
+            }
             if scenario == "payroll" {
                 store
                     .post_payslip(crate::models::PostPayslipInput {
@@ -129,7 +148,14 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
                     })
                     .unwrap();
             }
-            "payroll-post" => {
+            "payroll-adult-validate" => {
+                store
+                    .save_payslip_with_contributions(
+                        serde_json::from_value(pending_payroll.unwrap()).unwrap(),
+                    )
+                    .unwrap();
+            }
+            "payroll-post" | "payroll-adult-post" => {
                 store
                     .post_payslip(crate::models::PostPayslipInput {
                         payslip_id: id,
@@ -166,7 +192,8 @@ fn native_accounting_transitions_preserve_posting_payment_and_credit_order() {
         let prepared = next(&store);
         let changes = all(&prepared);
         assert!(
-            changes.iter().any(|c| c["table"] == "journal_entries"),
+            scenario == "payroll-adult-validate"
+                || changes.iter().any(|c| c["table"] == "journal_entries"),
             "{scenario}"
         );
         assert!(

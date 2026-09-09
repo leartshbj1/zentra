@@ -11,6 +11,8 @@ pub(crate) mod outgoing;
 
 #[cfg(test)]
 mod schema_contract;
+#[cfg(test)]
+mod guard_contract;
 
 use std::{
     collections::{BTreeMap, BTreeSet},

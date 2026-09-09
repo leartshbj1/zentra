@@ -78,6 +78,9 @@ for (const name of ['ZENTRA_RECOVERY_QA', 'ZENTRA_SUPPLIER_QA'])
           rule.id,
         ).toBeNull();
     },
+    // These real profiles load thousands of rows before querying every rule.
+    // The default five seconds can interrupt a load under full-suite contention.
+    30_000,
   );
 beforeAll(async () => {
   runtime = new Miniflare({

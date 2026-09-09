@@ -25,6 +25,7 @@ function fixture() {
     CREATE TABLE business_sync_transaction_changes(transaction_id TEXT,organization_id TEXT,table_name TEXT,row_key_json TEXT,sequence TEXT,part_index INTEGER,change_index INTEGER,operation TEXT,after_sha256 TEXT);
     CREATE INDEX business_sync_transaction_row_timeline ON business_sync_transaction_changes(transaction_id,table_name,row_key_json,part_index,change_index);
     CREATE TABLE business_sync_versions(transfer_id TEXT,organization_id TEXT,table_name TEXT,row_key_json TEXT,row_json TEXT,row_sha256 TEXT,UNIQUE(transfer_id,table_name,row_key_json));
+    CREATE TABLE business_sync_row_order(transfer_id TEXT,table_name TEXT,row_key_json TEXT,source_rowid TEXT,UNIQUE(transfer_id,table_name,row_key_json));
     CREATE TABLE business_sync_transaction_document_states(transfer_id TEXT,validator_sha256 TEXT,table_name TEXT,row_key_json TEXT,issued INTEGER,UNIQUE(transfer_id,validator_sha256,table_name,row_key_json));
     CREATE TABLE business_sync_transaction_accounting_states(transfer_id TEXT,validator_sha256 TEXT,table_name TEXT,row_key_json TEXT,row_json TEXT,UNIQUE(transfer_id,validator_sha256,table_name,row_key_json));`);
   db.exec(
