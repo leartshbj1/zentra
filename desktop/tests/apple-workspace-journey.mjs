@@ -29,6 +29,13 @@ try {
     const check = async stage => {
       await page.waitForTimeout(400);
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth + 1), `${viewport.width} overflow at ${stage}`);
+      if (viewport.width <= 860 && stage !== 'editor') {
+        const dock = page.getByRole('navigation', {name: 'Navigation mobile', exact: true});
+        const selected = await dock.locator('[aria-current]').boundingBox();
+        const indicator = await dock.locator('.mobile-navigation__selection').boundingBox();
+        assert.ok(selected && indicator, 'The current section has a visible dock selection');
+        assert.ok(Math.abs(selected.x - indicator.x) <= 1 && Math.abs(selected.width - indicator.width) <= 1, 'The dock selection follows its actual button');
+      }
       await page.screenshot({path:new URL(`${viewport.width}-${stage}.png`,output).pathname.replace(/^\/(.:)/,'$1')});
     };
     await check('dashboard');
