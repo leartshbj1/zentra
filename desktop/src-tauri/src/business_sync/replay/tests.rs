@@ -510,7 +510,7 @@ fn replay_rejects_unrecognized_fingerprint_version() {
     }
     assert_eq!(rows(&store), original);
 }
-fn expected_hash(store: &LocalStore, changes: &[RowChange]) -> String {
+pub(super) fn expected_hash(store: &LocalStore, changes: &[RowChange]) -> String {
     let mut data = rows(store)
         .into_iter()
         .map(|(table, key, rowid, image)| ((table, key), (rowid, image)))

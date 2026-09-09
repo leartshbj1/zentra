@@ -14,6 +14,7 @@ use std::collections::BTreeSet;
 #[cfg(test)]
 use std::{fs, time::Duration};
 pub(crate) mod delivery;
+pub(crate) mod reconciliation;
 
 const MAX_ROWS: usize = 200_000;
 const MAX_BYTES: usize = 512 * 1024 * 1024;
@@ -209,7 +210,6 @@ fn local_fingerprint(connection: &Connection) -> AppResult<String> {
 }
 /// Content and canonical row order, independent of local-only tables. The
 /// server receipt must bind this digest to the exact source/target revision.
-#[cfg(test)]
 pub(super) fn state_fingerprint(connection: &Connection) -> AppResult<String> {
     let mut hash = StateFingerprint::new();
     for (table, rule) in policy()?.tables {
@@ -275,7 +275,7 @@ fn snapshot(connection: &Connection, destination: &str) -> AppResult<()> {
     }
     Ok(())
 }
-fn check_context(connection: &Connection, store: &LocalStore, context: &Context) -> AppResult<()> {
+fn check_binding(connection: &Connection, store: &LocalStore, context: &Context) -> AppResult<()> {
     if context.fingerprint_version != STATE_FINGERPRINT_VERSION {
         return Err(invalid(
             "La version de vérification du dossier n'est pas prise en charge.",
@@ -310,6 +310,10 @@ fn check_context(connection: &Connection, store: &LocalStore, context: &Context)
             "La transaction ne correspond pas à l'entreprise ou à la révision installée.",
         ));
     }
+    Ok(())
+}
+fn check_context(connection: &Connection, store: &LocalStore, context: &Context) -> AppResult<()> {
+    check_binding(connection,store,context)?;
     let pending:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_changes c JOIN business_sync_binding b ON b.generation=c.generation LEFT JOIN business_sync_receipts r ON r.generation=c.generation AND r.transaction_id=c.transaction_id WHERE c.sequence>COALESCE(r.acknowledged_through,0)) OR EXISTS(SELECT 1 FROM business_sync_publication_intent)",[],|r|r.get(0))?;
     if pending {
         return Err(invalid("Des modifications locales attendent une réconciliation. La réception ne les a pas remplacées."));
@@ -393,6 +397,16 @@ pub(super) fn apply_rows(
     input: impl IntoIterator<Item=AppResult<RowChange>>,
 ) -> AppResult<Applied> {
     check_context(tx,store,context)?;
+    apply_checked_rows(tx,store,context,input)
+}
+// The strict receiver above rejects pending local work. The only other caller
+// rebuilds a verified canonical base in a disposable reconciliation copy first.
+// It never grants pending writes an exception on the working database.
+fn apply_checked_rows(
+    tx: &rusqlite::Transaction<'_>, store: &LocalStore, context: &Context,
+    input: impl IntoIterator<Item=AppResult<RowChange>>,
+) -> AppResult<Applied> {
+    check_binding(tx,store,context)?;
     tx.execute_batch("CREATE TEMP TABLE receive_expected(table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(table_name,row_key_json),UNIQUE(table_name,canonical_rowid));
         CREATE TEMP TABLE receive_actual(table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(table_name,row_key_json),UNIQUE(table_name,canonical_rowid));
         CREATE TEMP TABLE receive_changes(position INTEGER PRIMARY KEY,table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,before_json TEXT,after_json TEXT);
@@ -588,6 +602,7 @@ pub(super) fn apply_rows(
         ));
     }
     crate::audit::verify_audit_chain(tx)?;
+    tx.execute_batch("DROP TABLE receive_expected; DROP TABLE receive_actual; DROP TABLE receive_changes; DROP TABLE receive_document_queue;")?;
     Ok(Applied { before_sha256, after_sha256, changes, statements, automatic })
 }
 

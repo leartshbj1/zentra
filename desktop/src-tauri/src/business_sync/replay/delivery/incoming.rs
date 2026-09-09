@@ -18,6 +18,7 @@ use std::{
 use tauri::State;
 mod storage;
 pub(crate) mod installation;
+pub(crate) mod reconciliation;
 use storage::{assemble, cached, directory, read, write};
 
 const API: &str = "/api/sync/transactions/commit";
