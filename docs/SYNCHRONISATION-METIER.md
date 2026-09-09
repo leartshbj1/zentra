@@ -2,6 +2,18 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Contraintes des lignes intermédiaires (algorithme 7)
+
+Chaque insertion ou modification est désormais contrôlée avant les déclencheurs natifs : présence et type des champs partagés des 106 tables, valeurs obligatoires, contraintes `CHECK` et 205 index d'unicité natifs. Les valeurs nulles autorisées et les entiers signés 64 bits sont conservés. Les index composites, partiels, sur expressions et avec collation `NOCASE` gardent leur sémantique SQLite.
+
+L'unicité est évaluée à partir de l'historique de départ et des modifications précédentes de la tentative. Une suppression ou un changement de code antérieur libère la valeur, y compris entre deux fragments ; une suppression future ne justifie pas un doublon temporaire. L'entreprise, la révision, le validateur et le curseur doivent correspondre. Une projection intermédiaire manquante provoque un refus. Le premier échec conserve sa position et empêche l'avancement des états dérivés.
+
+Les contrôles `CHECK` sont exécutés avec un prédicat `WHERE`, pour préserver le court-circuit des fonctions JSON natives. Un contenu JSON invalide dans les détails d'acompte est enregistré comme une ligne refusée ; il ne déclenche plus une erreur SQL à chaque reprise. Les pages contiennent au plus 16 changements et 81 instructions SQL atomiques. Les validations 1 à 6 recommencent en version 7 sans effacer les données et fichiers reçus ni les traces originales.
+
+La recette du 9 septembre 2026 couvre 717 scénarios dans 59 fichiers, dont les dix opérations natives rejouées dans SQLite et D1. Le passage complet valide 715 scénarios en 301,51 secondes ; deux essais fournisseur avaient reçu le jeu réduit au lieu du jeu contenant les reprises de crédit. Leur relance avec le jeu natif prévu valide les deux derniers scénarios en 5,84 secondes, sans modification supplémentaire du code. Les 12 essais de contraintes confrontent aussi les requêtes au vrai schéma SQLite. TypeScript, lint et compilation de production passent. Les migrations et le schéma natif ne changent pas.
+
+Les clés étrangères restent contrôlées dans l'état final. Le protocole transporte des événements de lignes, sans les limites des instructions natives dont les cascades peuvent temporairement modifier plusieurs relations. Leur validation intermédiaire, les effets des déclencheurs `AFTER` et les contrôles propres aux commandes Rust nécessitent encore une recette dédiée. L'application canonique des transactions et son reçu, la réception/confirmation native, les conflits, la numérotation partagée et le parcours sur deux appareils restent à terminer. `business_validated`, `canonical_committed` et `replication_active` restent faux. Aucun nouveau binaire natif n'est distribué par cette étape.
+
 ## Contrôles natifs partagés (algorithme 6)
 
 Le serveur reprend les 390 protections `BEFORE` qui dépendent uniquement des données partagées. Le catalogue est extrait d'un profil natif neuf au schéma 61 et comparé exactement au code courant par un test Rust. SQLite identifie lui-même les tables, colonnes et fonctions réellement lues par chaque règle. La seule protection restante dans ce catalogue concerne le chronomètre actif de l'installation destinataire : son état local doit être contrôlé lors de la réception native.

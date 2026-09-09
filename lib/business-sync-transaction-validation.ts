@@ -35,7 +35,7 @@ const STRUCTURE_PAGE = 16,
   ACCOUNTING_PAGE = 4;
 // Increment on every validation semantic change. Upgrade only forwards: an
 // older running deployment must never replace a newer validation attempt.
-export const TRANSACTION_VALIDATION_VERSION = 6;
+export const TRANSACTION_VALIDATION_VERSION = 7;
 const countAt = new Map(
   structuralRules.flatMap((r, i) =>
     r.kind === 'count' ? [[r.table, i] as const] : [],

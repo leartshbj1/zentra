@@ -567,6 +567,137 @@ async function atTransitions(actor: DeviceSessionContext, id: string) {
   return status;
 }
 
+it.for([false, true])(
+  'rejects intermediate structural failures even when every temporary project is deleted (D1=%s)',
+  { timeout: 60_000 },
+  async (useD1) => {
+    const real = useD1 ? await realD1Fixture() : null;
+    try {
+      const local = new DatabaseSync(':memory:');
+      let first: string, secondProject: string;
+      try {
+        local.exec('PRAGMA foreign_keys=OFF');
+        local.exec(structuralSchema.tables.projects.sql);
+        local.exec(
+          "INSERT INTO projects(id,code,name,created_at,updated_at) VALUES('first','P-2026','Projet fictif','2026-09-09','2026-09-09'),('second','P-2026','Autre projet','2026-09-09','2026-09-09')",
+        );
+        const rows = local
+          .prepare(
+            `SELECT json_object(${contract.tables.projects.columns.flatMap((c) => [`'${c}'`, `"${c}"`]).join(',')}) image FROM projects ORDER BY id`,
+          )
+          .all();
+        first = rows[0].image as string;
+        secondProject = rows[1].image as string;
+      } finally {
+        local.close();
+      }
+      let receipt: { generation: string; transfer_id: string } | undefined;
+      for (const failure of ['unique', 'fields', 'check'] as const) {
+        const malformed = JSON.stringify({
+          ...JSON.parse(first),
+          progress: failure === 'fields' ? '50' : 101,
+        });
+        const pairs =
+          failure === 'unique'
+            ? [
+                [null, first],
+                [null, secondProject],
+                [secondProject, null],
+                [first, null],
+              ]
+            : [
+                [null, first],
+                [first, malformed],
+                [malformed, first],
+                [first, null],
+              ];
+        const changes: TransactionChange[] = pairs.map(
+          ([before_json, after_json], index) => {
+            const identity = JSON.parse((before_json ?? after_json)!).id;
+            return {
+              table: 'projects',
+              key_json: JSON.stringify([identity]),
+              sequence: String(index + 1),
+              source_rowid: identity === 'first' ? '1' : '2',
+              operation:
+                before_json === null
+                  ? 'insert'
+                  : after_json === null
+                    ? 'delete'
+                    : 'update',
+              before_json,
+              after_json,
+              files_before: [],
+              files_after: [],
+            };
+          },
+        );
+        const f = await receiveTransaction(
+          await transactionFixture([changes], receipt),
+        );
+        receipt = f.receipt;
+        await projectTransaction(f.actor, f.manifest.transaction_id);
+        expect(
+          await validateTransaction(f.actor, f.manifest.transaction_id),
+        ).toMatchObject({
+          phase: 'invalid',
+          failed_change: 1,
+          failed_rule:
+            failure === 'unique'
+              ? 'row:unique:idx_projects_code'
+              : `row:${failure}:projects`,
+          snapshot_validated: false,
+        });
+        expect((await historyHead(f.actor)).head_revision).toBe(1);
+        const sql =
+          "SELECT COUNT(*) n FROM business_sync_versions WHERE transfer_id=? AND table_name='projects'";
+        const canonical = real
+          ? await real.d1.prepare(sql).bind(receipt.transfer_id).first()
+          : db.prepare(sql).get(receipt.transfer_id);
+        expect(canonical).toMatchObject({ n: 0 });
+      }
+    } finally {
+      await real?.runtime.dispose();
+    }
+  },
+);
+
+it.for([false, true])(
+  'records an intermediate malformed invoice JSON as a stable rejection (D1=%s)',
+  { timeout: 30_000 },
+  async (useD1) => {
+    const real = useD1 ? await realD1Fixture() : null;
+    try {
+      const changes = documentChanges('invoices', false);
+      const invalid = JSON.stringify({
+        ...JSON.parse(changes[1].after_json!),
+        deposit_basis_json: 'broken',
+      });
+      changes[1].after_json = invalid;
+      changes[2].before_json = invalid;
+      const f = await receiveTransaction(
+        await transactionFixture([[transactionInsert('1'), ...changes]]),
+      );
+      await projectTransaction(f.actor, f.manifest.transaction_id);
+      const rejected = {
+        phase: 'invalid',
+        failed_change: 2,
+        failed_rule: 'row:check:invoices',
+        snapshot_validated: false,
+      };
+      expect(
+        await validateTransaction(f.actor, f.manifest.transaction_id),
+      ).toMatchObject(rejected);
+      expect(
+        await validateBusinessTransaction(f.actor, f.manifest.transaction_id),
+      ).toMatchObject(rejected);
+      expect((await historyHead(f.actor)).head_revision).toBe(1);
+    } finally {
+      await real?.runtime.dispose();
+    }
+  },
+);
+
 it.each(['invoices', 'quotes'] as const)(
   'rejects intermediate issued %s rewrites even if the final snapshot has no document',
   async (table) => {
@@ -660,6 +791,13 @@ it('rolls back document state and its transition cursor together and never accep
     db
       .prepare(
         'SELECT COUNT(*) n FROM business_sync_transaction_document_states WHERE transfer_id=?',
+      )
+      .get(id),
+  ).toEqual({ n: 0 });
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_transaction_accounting_states WHERE transfer_id=?',
       )
       .get(id),
   ).toEqual({ n: 0 });
@@ -1218,7 +1356,7 @@ function businessEvidence() {
   };
 }
 
-it.each([1, 2, 3, 4, 5])(
+it.each([1, 2, 3, 4, 5, 6])(
   'upgrades legacy validation v%s atomically and rechecks the preserved candidate without losing original evidence',
   async (version) => {
     const f = await legacyTransactionValidation(version);
@@ -2830,13 +2968,17 @@ async function realD1Fixture() {
 it('compiles every intermediate accounting query against actual D1 limits', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {
-    const { reject, native, ...other } = transactionTransitionSql;
+    const { reject, native, row, ...other } = transactionTransitionSql;
     const nativeQueries = Object.fromEntries(
       Object.entries(native).map(([key, sql]) => [`native:${key}`, sql]),
+    );
+    const rowQueries = Object.fromEntries(
+      Object.entries(row).map(([key, sql]) => [`row:${key}`, sql]),
     );
     for (const [key, sql] of Object.entries({
       ...reject,
       ...nativeQueries,
+      ...rowQueries,
       ...other,
     })) {
       expect(new TextEncoder().encode(sql).length, key).toBeLessThanOrEqual(

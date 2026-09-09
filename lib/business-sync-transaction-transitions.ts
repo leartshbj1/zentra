@@ -23,6 +23,8 @@ import {
 } from './business-sync-native-guard-contract';
 import { nativeGuardQueries } from './business-sync-native-guards';
 import { nativeGuardDigests } from './business-sync-native-guard-digests';
+import { rowStructureContract } from './business-sync-row-contract';
+import { rowConstraintQueries } from './business-sync-row-constraints';
 
 export const issuedQuoteFields = [
   'number',
@@ -82,6 +84,7 @@ export const transactionTransitionContract = {
   rowColumns: transitionRowColumns,
   nativeGuards: nativeGuardContract,
   receiverNativeGuards,
+  rowStructureContract,
 };
 export function transactionTransitionQueries(active: string) {
   const gate = `EXISTS(${active}) AND EXISTS(SELECT 1 FROM business_sync_transaction_validations WHERE transfer_id=?1 AND phase='transitions' AND checked_changes=?16)`;
@@ -89,6 +92,7 @@ export function transactionTransitionQueries(active: string) {
   const args =
     'WITH args AS (SELECT ?16 checked,?17 source,?18 stamp,?19 position,?20 table_name,?21 row_key,?22 before_json,?23 after_json,?24 part_index,?25 change_index)';
   return {
+    row: rowConstraintQueries(gate, args),
     native: nativeGuardQueries(gate, args),
     reject: Object.fromEntries(
       [...new Set(conditions.map((rule) => rule.table))].map((table) => {
@@ -243,6 +247,7 @@ export async function validateTransactionTransitions(ctx: Context) {
       ctx.chunk,
       offset + i,
     ];
+    statements.push(db.prepare(ctx.queries.row[c.table]).bind(...bindings));
     const reject = ctx.queries.reject[c.table];
     if (reject) statements.push(db.prepare(reject).bind(...bindings));
     const native = ctx.queries.native[c.table];

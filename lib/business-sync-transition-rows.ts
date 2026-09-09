@@ -1,6 +1,7 @@
 // Sparse projections of changed accounting rows. Unchanged source rows remain
 // in the canonical snapshot; a NULL projection is a deletion tombstone.
 import { nativeGuardReadColumns } from './business-sync-native-guard-contract';
+import { rowUniqueColumns } from './business-sync-row-contract';
 const manualColumns: Record<string, readonly string[]> = {
   supplier_invoice_items: [
     'id',
@@ -48,6 +49,7 @@ export const transitionRowColumns = Object.fromEntries(
     ...new Set([
       ...Object.keys(manualColumns),
       ...Object.keys(nativeGuardReadColumns),
+      ...Object.keys(rowUniqueColumns),
     ]),
   ]
     .sort()
@@ -57,6 +59,7 @@ export const transitionRowColumns = Object.fromEntries(
         ...new Set([
           ...(manualColumns[table] ?? []),
           ...(nativeGuardReadColumns[table] ?? []),
+          ...(rowUniqueColumns[table] ?? []),
         ]),
       ].sort(),
     ]),
