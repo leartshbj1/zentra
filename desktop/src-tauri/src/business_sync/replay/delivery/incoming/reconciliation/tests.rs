@@ -1,8 +1,8 @@
 use super::*;
 use crate::business_sync::replay;
 use rusqlite::params;
-mod installation_tests;
 mod cycle_tests;
+mod installation_tests;
 
 fn stage(
     store: &LocalStore,
@@ -18,6 +18,18 @@ fn stage_from(
     p: &outgoing::Prepared,
     before: &str,
     after: &str,
+) -> (PathBuf, Header) {
+    stage_from_positions(store, source, p, before, after, |change| {
+        change["source_rowid"].clone()
+    })
+}
+fn stage_from_positions(
+    store: &LocalStore,
+    source: &LocalStore,
+    p: &outgoing::Prepared,
+    before: &str,
+    after: &str,
+    position: impl Fn(&Value) -> Value,
 ) -> (PathBuf, Header) {
     let binding = Binding::read(store, "org-replay").unwrap();
     let folder = store
@@ -42,7 +54,7 @@ fn stage_from(
     for (i, _) in p.manifest.chunks.iter().enumerate() {
         let original = fs::read(p.folder.join(format!("{i:04}.json"))).unwrap();
         let changes: Value = serde_json::from_slice(&original).unwrap();
-        let positions=serde_json::to_vec(&json!({"version":1,"part_index":i,"source_sha256":digest(&original),"positions":changes["changes"].as_array().unwrap().iter().map(|c|json!({"table":c["table"],"key_json":c["key_json"],"canonical_rowid":c["source_rowid"]})).collect::<Vec<_>>()})).unwrap();
+        let positions=serde_json::to_vec(&json!({"version":1,"part_index":i,"source_sha256":digest(&original),"positions":changes["changes"].as_array().unwrap().iter().map(|c|json!({"table":c["table"],"key_json":c["key_json"],"canonical_rowid":position(c)})).collect::<Vec<_>>()})).unwrap();
         fs::write(
             folder.join("changes").join(format!("{i:04}.json")),
             &original,
