@@ -14,8 +14,8 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  page.setDefaultTimeout(12000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&wizard=1`);
- const tour=page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true});
- if(viewport.width > 860) await tour.click();
+ const tour=page.getByRole('button',{name:'Découvrir plus tard',exact:true});
+ await tour.click();
  const nav=async(name)=>{
   await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
   await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill(name);
@@ -45,8 +45,8 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  };
  await shot('dashboard');
  await nav('Devis');
- assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationName),'experience-page-in');
- assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationDuration),'0.44s');
+ assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationName),'workspace-arrive');
+ assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationDuration),'0.32s');
  await shot('quotes');
  await page.getByRole('button',{name:'Nouveau devis',exact:true}).click();
  await step(0);await shot('client');

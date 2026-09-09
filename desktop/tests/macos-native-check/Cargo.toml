@@ -1,0 +1,13 @@
+[package]
+name = "zentra-appkit-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "../../src-tauri/src/macos_navigation/native.rs"
+
+[dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSCell", "NSControl", "NSLayoutAnchor", "NSLayoutConstraint", "NSLayoutGuide", "NSResponder", "NSSegmentedControl", "NSView", "NSWindow", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSObject", "NSString", "NSGeometry"] }

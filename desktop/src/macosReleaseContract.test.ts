@@ -36,7 +36,8 @@ describe('macOS ad-hoc early-access build contract', () => {
     const workflow = readFileSync(workflowUrl, 'utf8');
     const script = readFileSync(buildScriptUrl, 'utf8');
 
-    expect(workflow).toContain('runs-on: macos-14');
+    expect(workflow).toMatch(/runs-on: macos-(?:15|26)/);
+    expect(workflow).toContain('bash desktop/scripts/select-xcode-glass.sh');
     expect(workflow).toContain('pnpm --dir desktop build:macos:preview');
     expect(workflow).toContain(
       'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',

@@ -253,10 +253,23 @@ function GuidedTourDialog({
   const [rect, setRect] = useState<DOMRect | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLElement>(null);
+  const lessonRef = useRef<HTMLDivElement>(null);
+  const [moreToRead, setMoreToRead] = useState(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const steps = mode === 'automatic' ? automaticGuidedTourSteps : guidedTourSteps;
   const step = steps[index];
   const lesson = guideLessons[step.id];
+
+  useEffect(() => {
+    const reading = lessonRef.current;
+    if (!reading) return;
+    const measure = () => setMoreToRead(reading.scrollHeight - reading.scrollTop - reading.clientHeight > 8);
+    const observer = new ResizeObserver(measure);
+    observer.observe(reading);
+    reading.addEventListener('scroll', measure, { passive: true });
+    measure();
+    return () => { observer.disconnect(); reading.removeEventListener('scroll', measure); };
+  }, [step.id]);
 
   useEffect(() => {
     if (mode !== 'complete') return;
@@ -417,11 +430,12 @@ function GuidedTourDialog({
           {Array.from(new Set(steps.map((item) => guideLessons[item.id].chapter))).map((chapter) => <optgroup key={chapter} label={chapter}>{steps.map((item, itemIndex) => guideLessons[item.id].chapter === chapter ? <option key={item.id} value={itemIndex}>{itemIndex + 1}. {item.eyebrow}</option> : null)}</optgroup>)}
         </select>
       </label>
-      <div className="guided-tour__lesson" key={step.id}>
+      <div className="guided-tour__lesson" ref={lessonRef} key={step.id} tabIndex={0} aria-label="Explications et étapes du guide">
         <p className="guided-tour__text" id="guided-tour-description">{step.text}</p>
         <ol className="guided-tour__actions">{lesson.actions.map((action) => <li key={action}>{action}</li>)}</ol>
         <p className="guided-tour__tip"><span>À retenir</span>{lesson.tip}</p>
       </div>
+      <p className="guided-tour__scroll-hint" aria-hidden="true" style={{visibility: moreToRead ? 'visible' : 'hidden'}}>Faites défiler pour lire la suite ↓</p>
       <div
         className="guided-tour__progress"
         role="progressbar"
