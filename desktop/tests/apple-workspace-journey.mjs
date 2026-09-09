@@ -14,6 +14,9 @@ try {
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1`, {timeout:60000});
     const guide = page.getByRole('dialog', {name:'Bienvenue dans votre espace'});
     await guide.waitFor();
+    await page.waitForTimeout(450);
+    const footerBounds = await page.locator(".guided-tour__card footer").boundingBox();
+    assert.ok(footerBounds && footerBounds.y >= 0 && footerBounds.y + footerBounds.height <= viewport.height, "Guide controls stay in view");
     assert.equal(await page.locator('.app-main').evaluate(el=>el.inert), true);
     await page.screenshot({path:new URL(`${viewport.width}-welcome.png`,output).pathname.replace(/^\/(.:)/,'$1')});
     await page.getByRole('button',{name:'Découvrir plus tard',exact:true}).click();

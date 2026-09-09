@@ -242,6 +242,7 @@ import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { isMobileRuntime } from './mobileRuntime';
 import { isNativeMacOS, useNativeNavigation } from './useNativeNavigation';
 import { useNavigationSelection } from './useNavigationSelection';
+import { useNavigationDrawer } from './useNavigationDrawer';
 import {
   COMPACT_NAVIGATION_QUERY,
   compactSidebarHidden,
@@ -498,6 +499,8 @@ export function WorkspaceApp({
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
   const navigationRef = useRef<HTMLElement>(null);
+  const navigationDrawerOpen = menuOpen && (compactNavigation || (isNativeMacOS && nativeNavigation));
+  useNavigationDrawer(navigationDrawerOpen, navigationRef, () => setMenuOpen(false));
   useNavigationSelection(navigationRef, view, sidebarHidden);
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -1395,11 +1398,15 @@ export function WorkspaceApp({
 
   return (
     <div className="desktop-app" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
+      {navigationDrawerOpen ? <div className="navigation-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
       <aside
         id="primary-navigation"
         className={`sidebar ${menuOpen ? 'is-open' : ''}`}
         aria-hidden={sidebarHidden ? true : undefined}
         inert={sidebarHidden ? true : undefined}
+        role={navigationDrawerOpen ? 'dialog' : undefined}
+        aria-modal={navigationDrawerOpen ? true : undefined}
+        aria-label={navigationDrawerOpen ? 'Tous les modules' : undefined}
       >
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
@@ -1472,7 +1479,7 @@ export function WorkspaceApp({
         </div>
       </aside>
 
-      <main className="app-main">
+      <main className="app-main" inert={navigationDrawerOpen ? true : undefined}>
         <header className="topbar">
           <div className="topbar__title">
             <Button

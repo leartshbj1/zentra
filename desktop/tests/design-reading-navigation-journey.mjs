@@ -16,7 +16,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&designQr=1`);
-    if (viewport.width > 860) await page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true }).click();
+    await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
     const navigate = async name => {
       await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name);

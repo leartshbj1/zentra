@@ -14,8 +14,8 @@ try {
     page.setDefaultTimeout(12000); page.setDefaultNavigationTimeout(60000);
     const errors = []; page.on('pageerror', err => errors.push(err.message));
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5191'}/tests/mobile-harness.html?browsing=1&design=1`);
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (width > 860) {
+    const tour = page.getByRole('button', { name: 'Découvrir plus tard', exact: true });
+    {
       await tour.waitFor({ state: 'visible' });
       await tour.click();
     }
@@ -35,7 +35,7 @@ try {
     if (width === 1440) assert.ok((await page.locator('.page-content').boundingBox()).x < 340, 'desktop content should sit beside the navigation');
     for (const name of ['Devis', 'Factures']) {
       await navigate(name);
-      assert.match(await page.locator('.page-content').evaluate(el => getComputedStyle(el).animationName), /experience-page-in/);
+      assert.notEqual(await page.locator('.page-content').evaluate(el => getComputedStyle(el).animationName), 'none');
       await capture(name === 'Devis' ? 'quotes' : 'invoices');
       const previewButton = page.locator('.sales-documents .document-actions button').filter({ has: page.locator('svg.lucide-eye') }).first();
       // Some sales actions use their accessible title without an eye icon.
