@@ -6,7 +6,7 @@ on:
       platform:
         description: Mobile platform to build
         type: choice
-        options: [both, android, ios, ipa]
+        options: [both, android, ios, ipa, ios-glass]
         default: both
 
 permissions:
@@ -172,3 +172,29 @@ jobs:
           path: desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa
           if-no-files-found: error
           retention-days: 7
+
+  glass-navigation:
+    if: inputs.platform == 'ios-glass'
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: bash desktop/scripts/select-xcode-glass.sh
+      - name: Prepare the pinned Tauri Swift dependency
+        run: |
+          cargo +stable fetch --manifest-path desktop/src-tauri/Cargo.toml --locked --target aarch64-apple-ios-sim
+          api=$(find "$HOME/.cargo/registry/src" -path '*/tauri-2.11.5/mobile/ios-api' -type d -print -quit)
+          test -n "$api"
+          mkdir -p desktop/plugins/zentra-mobile/.tauri
+          ln -s "$api" desktop/plugins/zentra-mobile/.tauri/tauri-api
+      - name: Compile the complete Swift plugin and test real UIKit controls
+        working-directory: desktop/plugins/zentra-mobile/ios
+        run: |
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime,devices in d.items() if "iOS-26" in runtime for x in devices if x["name"].startswith("iPhone")))')
+          xcodebuild test -scheme tauri-plugin-zentra-mobile -destination "platform=iOS Simulator,id=$device" -resultBundlePath /tmp/liquid-glass.xcresult CODE_SIGNING_ALLOWED=NO
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: native-liquid-glass-${{ github.sha }}
+          path: /tmp/liquid-glass.xcresult
+          retention-days: 14
