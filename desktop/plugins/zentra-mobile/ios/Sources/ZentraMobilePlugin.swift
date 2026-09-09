@@ -10,7 +10,17 @@ struct NavigationArgs: Decodable { let visible: Bool; let selected: String; let 
 class ZentraMobilePlugin: Plugin {
   private weak var webview: WKWebView?
   private var navigation: UIStackView?
-  override func load(webview: WKWebView) { self.webview = webview }
+  private var loadingObservation: NSKeyValueObservation?
+  override func load(webview: WKWebView) {
+    self.webview = webview
+    loadingObservation = webview.observe(\.isLoading, options: [.new]) { [weak self] webview, _ in
+      // A web reload can return to login without running React's unmount cleanup.
+      if webview.isLoading, #available(iOS 26.0, *), let dock = self?.navigation as? GlassNavigation {
+        dock.configure(selected: "dashboard", visible: false)
+        dock.onSelect = nil
+      }
+    }
+  }
 
   @objc func configureNavigation(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(NavigationArgs.self)

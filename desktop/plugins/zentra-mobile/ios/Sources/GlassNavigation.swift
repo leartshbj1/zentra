@@ -51,7 +51,7 @@ final class GlassNavigation: UIStackView {
   }
 
   required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  deinit { observers.forEach(NotificationCenter.default.removeObserver) }
+  deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
 
   func configure(selected: String, visible: Bool) {
     requestedVisible = visible

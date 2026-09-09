@@ -107,9 +107,9 @@ export function ZentraAuthForm({
 
   return (
     <div className="w-full min-w-0 max-w-md">
-      <div className="rounded-[2rem] border border-[#d8d4c9] bg-white p-6 shadow-[0_28px_90px_rgba(20,55,38,.12)] sm:p-8">
+      <div className="rounded-[2rem] border border-[#e5e5e9] bg-white p-6 shadow-[0_8px_40px_rgba(29,29,31,.04)] sm:p-8">
         <div
-          className="grid grid-cols-2 rounded-full bg-[#f0eee8] p-1"
+          className="grid grid-cols-2 rounded-full bg-[#eeeef0] p-1"
           role="tablist"
           aria-label="Accès au compte"
         >
@@ -153,7 +153,7 @@ export function ZentraAuthForm({
           {mode === 'inscription' ? (
             <label className="block text-sm font-semibold text-[#31483a]">
               Nom et prénom
-              <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#fbfaf7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
+              <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#f5f5f7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
                 <UserRound
                   className="size-4 shrink-0 text-[#7b877f]"
                   aria-hidden="true"
@@ -171,7 +171,7 @@ export function ZentraAuthForm({
 
           <label className="block text-sm font-semibold text-[#31483a]">
             Adresse e-mail
-            <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#fbfaf7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
+            <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#f5f5f7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
               <Mail
                 className="size-4 shrink-0 text-[#7b877f]"
                 aria-hidden="true"
@@ -191,7 +191,7 @@ export function ZentraAuthForm({
 
           <label className="block text-sm font-semibold text-[#31483a]">
             Mot de passe
-            <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#fbfaf7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
+            <span className="mt-2 flex min-h-12 items-center gap-3 rounded-2xl border border-[#d5d8d2] bg-[#f5f5f7] px-4 focus-within:border-[#5a856d] focus-within:ring-3 focus-within:ring-[#bcd4c3]/40">
               <LockKeyhole
                 className="size-4 shrink-0 text-[#7b877f]"
                 aria-hidden="true"
@@ -236,7 +236,7 @@ export function ZentraAuthForm({
           <button
             type="submit"
             disabled={busy}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(23,61,44,.2)] transition hover:-translate-y-0.5 hover:bg-[#204d38] disabled:translate-y-0 disabled:cursor-wait disabled:opacity-65"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white shadow-none transition hover:-translate-y-0.5 hover:bg-[#204d38] disabled:translate-y-0 disabled:cursor-wait disabled:opacity-65"
           >
             {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
             {busy

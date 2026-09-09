@@ -272,8 +272,8 @@
   .workspace-welcome h2 { font-size: 30px; }
   .workspace-welcome p { margin-top: 10px; font-size: 13px; }
   .workspace-welcome .button { width: 100%; }
-  .metric-grid { gap: 1px; }
-  .metric-card { padding: 20px 16px; border-radius: 0; }
+  .metric-grid { gap: 10px; }
+  .metric-card { padding: 20px 16px; border-radius: 18px; }
   .metric-card__icon { top: 16px; right: 12px; width: 22px; height: 22px; }
   .metric-card span { font-size: 12px; padding-right: 26px; }
   .metric-card strong { font-size: 25px; margin-top: 22px; }

@@ -65,7 +65,8 @@
   .document-preview--reading .print-recipient p { font-size: 14px; line-height: 1.7; }
   .document-preview--reading .print-title { font-size: 24px; line-height: 1.4; letter-spacing: -.025em; margin: 28px 0 20px; }
   .document-preview--reading .print-table { width: 100%; }
-  .document-preview--reading .print-table th { font-size: 12px; white-space: normal; background: #e7efe9; color: #345d46; overflow-wrap: normal; }
+  .document-preview--reading .print-table th,
+  .document-preview--reading .print-sheet.document-styled .print-table th { font-size: 12px; white-space: normal; background: #e7efe9; color: #345d46; overflow-wrap: normal; }
   .document-preview--reading .print-table :is(th, td):not(:first-child) { overflow-wrap: normal; }
   .document-preview--reading .print-table td { font-size: 14px; line-height: 1.6; padding-block: 14px; white-space: normal; }
   .document-preview--reading .print-table tbody tr:nth-child(even) { background: #fafcfb; }
