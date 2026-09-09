@@ -131,7 +131,8 @@ import { parseSmallSalaryEmployeeForm } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { NavigationPalette } from './NavigationPalette';
-import { SettingsCategory, revealSettingsTarget } from './SettingsCategory';
+import { SettingsBrowser, SettingsCategory, revealSettingsTarget } from './SettingsCategory';
+import { DocumentListToolbar } from './DocumentListToolbar';
 import {
   buildGettingStartedJourney,
   type GettingStartedAction,
@@ -1607,7 +1608,7 @@ export function WorkspaceApp({
 
         {!activeProjectFolder ? <div className="page-header">
           <div>
-            <h1 key={view}>{title[0]}</h1>
+            <h1 key={view}>{view === 'quotes' ? 'Devis' : view === 'invoices' ? 'Factures' : view === 'orders' ? 'Commandes' : title[0]}</h1>
             <p>{view === 'dashboard' ? new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' }) : title[1]}</p>
           </div>
           <div className="page-header__actions">
@@ -1668,7 +1669,7 @@ export function WorkspaceApp({
           </div>
         ) : null}
 
-        <section className="page-content" key={view} aria-label={title[0]}>
+        <section className="page-content" key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -3357,7 +3358,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     <span role="status">{page * 25 + 1}–{Math.min((page + 1) * 25, filtered.length)} sur {filtered.length}</span>
     <Button variant="secondary" disabled={page === pageCount - 1} onClick={() => changePage(page + 1)} aria-label="Page suivante">Suivant</Button>
   </nav> : null;
-  const filterBar = <div className="sales-list-toolbar">
+  const filterBar = <DocumentListToolbar count={`${filtered.length} / ${documents.length} ${entity === 'quotes' ? 'devis' : 'factures'}`} orderLabel={documentOrders[order]} filtered={status !== 'all'}>
     <label><span>Afficher</span><select aria-label={entity === 'quotes' ? 'État des devis' : 'État des factures'} value={status} onChange={(event) => setStatuses({ ...statuses, [entity]: event.target.value })}>
       <option value="all">Tous les états</option>
       {entity === 'invoices' ? <><option value="open">À encaisser</option><option value="overdue">En retard</option><option value="partially_paid">Partiellement payées</option><option value="paid">Payées</option></> : <><option value="accepted">Acceptés</option><option value="refused">Refusés</option><option value="expired">Expirés</option></>}
@@ -3370,8 +3371,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     }}>
       {Object.entries(documentOrders).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
     </select></label>
-    <span role="status">{filtered.length} / {documents.length} {entity === 'quotes' ? 'devis' : 'factures'}</span>
-  </div>;
+  </DocumentListToolbar>;
   if (!documents.length) {
     return (
       <EmptyState disabled={mutationsDisabled}
@@ -4758,18 +4758,18 @@ function SettingsScreen({
   }
 
   return (
-    <div className="settings-categories">
-      <SettingsCategory title="État de la configuration" description="Les réglages prêts et les prochaines étapes" icon={ListChecks}>
+    <SettingsBrowser>
+      <SettingsCategory id="readiness" title="État de la configuration" description="Les réglages prêts et les prochaines étapes" icon={ListChecks}>
       <SetupReadinessCenter
         workspace={workspace}
         settings={settings}
         onNavigate={navigateToSetting}
       />
       </SettingsCategory>
-      <SettingsCategory title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
+      <SettingsCategory id="account" title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
       <CloudAccountPanel onAccountChange={onCloudAccountChange} />
       </SettingsCategory>
-      <SettingsCategory title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
+      <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Activité"
@@ -5195,10 +5195,10 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
+      <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
         <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={() => void execute(() => desktopApi.saveSettings(settings), 'Les présentations des documents ont été enregistrées.')} />
       </SettingsCategory>
-      <SettingsCategory title="Comptabilité" description="Activation et comptes de liaison" icon={Landmark}>
+      <SettingsCategory id="accounting" title="Comptabilité" description="Activation et comptes de liaison" icon={Landmark}>
       <section
         id={SETTINGS_READINESS_TARGETS.accounting}
         className="panel settings-card settings-card--wide settings-scroll-target"
@@ -5241,7 +5241,7 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory title="Temps et coûts" description="Horaires, taux et catégories de dépenses" icon={Clock3}>
+      <SettingsCategory id="time" title="Temps et coûts" description="Horaires, taux et catégories de dépenses" icon={Clock3}>
       <section
         id={SETTINGS_READINESS_TARGETS.work}
         className="panel settings-card settings-card--wide settings-scroll-target"
@@ -5344,7 +5344,7 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory title="Équipe et paie" description="Règles, cotisations et organismes sociaux" icon={Users}>
+      <SettingsCategory id="payroll" title="Équipe et paie" description="Règles, cotisations et organismes sociaux" icon={Users}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
           eyebrow="Référentiel officiel"
@@ -5782,7 +5782,7 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory title="Partage, sauvegardes et mises à jour" description="Retrouver, protéger et restaurer votre dossier" icon={Database}>
+      <SettingsCategory id="storage" title="Partage, sauvegardes et mises à jour" description="Retrouver, protéger et restaurer votre dossier" icon={Database}>
       <AppUpdater />
       <BusinessHistoryPanel key={`${cloudAccount?.organizationId}:${cloudAccount?.role}:${cloudAccount?.status}`} disabled={busy} onBusyChange={setBusy} />
       <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
@@ -5911,7 +5911,7 @@ function SettingsScreen({
         </div>
       </section>
       </SettingsCategory>
-    </div>
+    </SettingsBrowser>
   );
 }
 

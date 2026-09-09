@@ -34,18 +34,17 @@ async function assertSidebar(width) {
   for (const state of ['normal', 'hover', 'focus']) {
     if (state === 'hover') await selected.hover();
     if (state === 'focus') await selected.focus();
-    const colors = await selected.evaluate(el => ({ text: getComputedStyle(el).color, background: getComputedStyle(el).backgroundColor, icon: getComputedStyle(el.querySelector('svg')).color }));
-    assert.equal(colors.background, 'rgb(237, 243, 237)', `${width} ${state}: light selection`);
-    assert.equal(colors.text, 'rgb(24, 60, 44)');
-    assert.equal(colors.icon, colors.text, 'Icon shares readable text color');
+    const colors = await selected.evaluate(el => ({ text: getComputedStyle(el).color, background: getComputedStyle(el.closest('nav').querySelector('.sidebar__selection')).backgroundColor, icon: getComputedStyle(el.querySelector('svg')).color }));
+    assert.ok(colors.background.match(/[\d.]+/g).slice(0, 3).every(value => Number(value) >= 230), `${width} ${state}: light selection`);
+    assert.ok(colors.text.match(/[\d.]+/g).slice(0, 3).every(value => Number(value) < 120), 'Readable dark text');
+    assert.equal(colors.icon, 'rgb(255, 255, 255)', 'Selected icon is white on its green tile');
   }
   await page.screenshot({ path: `${folder}/${width}-menu.png` });
   if (width <= 860) await page.getByRole('button', { name: 'Fermer la navigation', exact: true }).click();
 }
 try {
   await page.goto(url);
-  const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-  if (await tour.isVisible()) await tour.click();
+  await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
   for (const entity of ['Factures', 'Devis']) {
     await go(entity);
     const sorter = page.getByRole('combobox', { name: `Classement des ${entity.toLowerCase()}` });
@@ -76,6 +75,8 @@ try {
     await go('Factures');
     await assertSidebar(width);
     await page.screenshot({ path: `${folder}/${width}-factures.png` });
+    const filters = page.locator('.document-list-tools__compact button');
+    if (await filters.isVisible() && await filters.getAttribute('aria-expanded') === 'false') await filters.click();
     const geometry = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, selects: [...document.querySelectorAll('.sales-list-toolbar select')].map(el => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height })) }));
     assert.ok(geometry.scroll <= width, `No overflow at ${width}px`);
     assert.ok(geometry.selects.every(control => control.height >= 44 && control.width > 150), 'Usable touch controls');

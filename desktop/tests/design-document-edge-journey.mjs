@@ -14,11 +14,7 @@ try {
     const errors = []; page.on('pageerror', err => errors.push(err.message));
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&designQr=1&readOnly=1`);
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (width > 860) {
-      await tour.waitFor({ state: 'visible' });
-      await tour.click();
-    }
+    await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Factures');
     await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Factures', { exact: true }) }).click();
