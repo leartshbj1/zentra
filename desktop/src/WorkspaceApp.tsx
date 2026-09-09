@@ -1438,7 +1438,6 @@ export function WorkspaceApp({
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
             <BrandWordmark />
-            <small>Tout simplement.</small>
           </div>
           <Button
             variant="ghost"
@@ -1609,18 +1608,23 @@ export function WorkspaceApp({
 
         {!activeProjectFolder ? <div className="page-header">
           <div>
-            <p>{title[1]}</p>
+            <p>{view === 'dashboard' ? new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' }) : title[1]}</p>
           </div>
           <div className="page-header__actions">
             {view === 'dashboard' ? (
+              <>
               <Button
                 variant="secondary"
+                className="dashboard-timer"
+                aria-label="Démarrer un pointage"
                 disabled={Boolean(dashboardTimerBlock)}
                 title={dashboardTimerBlock || 'Démarrer un pointage réel'}
                 onClick={() => setModal({ type: 'timer' })}
               >
-                <Play size={16} /> Démarrer un pointage
+                <Play size={16} /> <span>Démarrer un pointage</span>
               </Button>
+              <Button disabled={readOnly || Boolean(creationBlockReason('quotes', prerequisites))} title={creationBlockReason('quotes', prerequisites) || undefined} onClick={() => setModal({ type: 'document', entity: 'quotes' })}><Plus size={17} /> Préparer un devis</Button>
+              </>
             ) : null}
             {view !== 'settings' &&
             view !== 'reports' &&
@@ -2331,22 +2335,6 @@ function Dashboard({
     );
   return (
     <div className="dashboard-grid">
-      <section className="workspace-welcome" aria-label="Votre activité aujourd’hui">
-        <div>
-          <span className="eyebrow">{new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-          <h2>Place à l’essentiel.</h2>
-          <p>Votre activité en un regard. Et la suite, à portée de main.</p>
-        </div>
-        <Button disabled={readOnly || Boolean(quoteBlock)} title={quoteBlock || undefined} onClick={() => onCreate({ type: 'document', entity: 'quotes' })}>Préparer un devis <ArrowRight size={16} /></Button>
-      </section>
-      {!gettingStarted.complete ? (
-        <GettingStartedChecklist
-          compact
-          workspace={workspace}
-          readOnly={readOnly}
-          onAction={runGettingStartedAction}
-        />
-      ) : null}
       <div className="metric-grid">
         <MetricCard
           label="Facturé TTC"
@@ -2393,6 +2381,14 @@ function Dashboard({
           tone="violet"
         />
       </div>
+      {!gettingStarted.complete ? (
+        <GettingStartedChecklist
+          compact
+          workspace={workspace}
+          readOnly={readOnly}
+          onAction={runGettingStartedAction}
+        />
+      ) : null}
       <section className="activity-shortcuts" aria-label="Activité à suivre">
         <div className="activity-shortcuts__heading"><span className="eyebrow">À suivre</span><span>{new Intl.DateTimeFormat('fr-CH', { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
         <div className="activity-shortcuts__items">

@@ -28,7 +28,7 @@ export function NavigationPalette<T extends string>({ destinations, onSelect, on
   const results = destinations.filter((item) => terms.every((term) => normalize(`${item.label} ${item.description}`).includes(term))).sort((left, right) => rank(left) - rank(right));
 
   return (
-    <Modal title="Aller à…" description="Retrouvez un écran de votre espace de travail." onClose={onClose}>
+    <Modal className="navigation-dialog" title="Aller à…" description="Retrouvez un écran de votre espace de travail." onClose={onClose}>
       <div className="navigation-palette">
         <label className="navigation-palette__search">
           <Search size={20} aria-hidden="true" />
