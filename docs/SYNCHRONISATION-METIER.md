@@ -2,6 +2,20 @@
 
 La réplication métier complète n’est pas encore active. Les fichiers de projet et les sauvegardes distantes restent deux parcours distincts ; ils ne fusionnent pas les écritures métier de plusieurs appareils.
 
+## Positions canoniques de chaque modification
+
+La préparation serveur conserve désormais la position canonique de chaque événement dans `business_sync_transaction_canonical_order`, avec sa tentative de contrôle et sa position dans le fragment original. Une insertion suivie d'une modification et d'une suppression garde ainsi les trois références, même si la ligne disparaît de la copie finale. Les positions restent des chaînes décimales exactes, y compris au-delà de la précision des nombres JavaScript. Elles sont enregistrées dans la même transaction que les changements et le point de reprise.
+
+La version 2 du contrôle prépare douze modifications par passage. Le contrôle précédent pouvait produire 161 instructions pour un fragment d'insertions ; la nouvelle limite garde de la place pour les lectures dans le budget du serveur. Chaque passage vérifie sa tranche indexée de positions ; le dernier vérifie aussi le total. Une position manquante empêche la préparation de se terminer.
+
+La migration 0031 ajoute cette table et un numéro de version au contrôle. Une ancienne tentative peut être reconstruite atomiquement à partir des pièces originales. Une interruption annule toute cette reconstruction ; deux demandes simultanées retrouvent la même nouvelle tentative. Les versions futures, les liaisons incohérentes et un changement concurrent de révision ne peuvent pas provoquer de remise à zéro. Les pièces originales, les documents reçus et l'historique publié sont conservés.
+
+Le scénario D1 de 65 événements, rejoué après mise à niveau, mesure au plus 84 instructions par demande, lectures comprises, pour une limite de 100. Il retrouve exactement les mêmes positions après reprise et conserve la révision publiée. Les tests couvrent aussi les limites des entiers SQLite, une position manquante, l'annulation après erreur et les demandes simultanées.
+
+La recette cumulée valide 777 scénarios dans 61 fichiers. Le passage de synchronisation valide 528 scénarios ; six parcours D1 de paie et d'achats, interrompus par des erreurs de connexion locale `EADDRINUSE`, passent ensuite séparément sans modification du code en 112,93 secondes. Les 243 tests des autres services passent également. Les 22 opérations natives restent vérifiées dans SQLite et D1 ; TypeScript, lint, compilation et absence de dérive des migrations sont contrôlés.
+
+Ces positions préparent le reçu canonique, mais ne constituent pas une confirmation de publication. Restent notamment le calcul des empreintes de révision, le scellement du reçu et l'application canonique, puis leur transport et l'installation native vérifiée.
+
 ## Préparation native d'une transaction reçue
 
 Le module interne `business_sync::replay` prépare une copie SQLite temporaire, sans remplacer la base utilisée par l'application. Il exige la même entreprise, la même génération et la révision attendue, ainsi que les empreintes complètes de départ et d'arrivée. Les changements locaux non confirmés bloquent cette préparation. Les images reçues doivent contenir exactement les colonnes partagées, sans champ JSON répété, avec des clés et des identifiants de ligne cohérents.

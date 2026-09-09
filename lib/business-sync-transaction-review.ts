@@ -12,9 +12,11 @@ import { sharedRowid, sourceRowid } from './business-sync-order';
 
 const PAGE_ROWS = 200,
   PAGE_BYTES = 4 * 1024 * 1024,
-  APPLY_CHANGES = 32;
+  APPLY_CHANGES = 12;
+export const TRANSACTION_REVIEW_VERSION = 2;
 type Review = {
   transfer_id: string;
+  algorithm_version: number;
   attempt: string;
   generation: string;
   manifest_sha256: string;
@@ -39,7 +41,7 @@ export const transactionReviewGateSql = `EXISTS(SELECT 1 FROM business_sync_tran
  JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
  JOIN business_sync_transfers u ON u.transfer_id=r.source_transfer_id AND u.organization_id=t.organization_id AND u.generation=t.generation
  WHERE t.transfer_id=?1 AND t.organization_id=?2 AND t.installation_id=?3 AND t.generation=?4 AND t.manifest_sha256=?5 AND t.kind='transaction' AND t.state='received'
- AND r.attempt=?6 AND r.validator_sha256=?7 AND r.source_revision=?8 AND r.state=?9 AND r.last_table=?10 AND r.last_key=?11 AND r.next_chunk=?12 AND r.applied_changes=?13 AND r.copied_rows=?14
+ AND r.attempt=?6 AND r.validator_sha256=?7 AND r.algorithm_version=${TRANSACTION_REVIEW_VERSION} AND r.source_revision=?8 AND r.state=?9 AND r.last_table=?10 AND r.last_key=?11 AND r.next_chunk=?12 AND r.applied_changes=?13 AND r.copied_rows=?14
  AND r.generation=t.generation AND r.manifest_sha256=t.manifest_sha256 AND s.state='ready' AND s.head_revision=r.source_revision
  AND u.state='committed' AND u.revision=r.source_revision AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=s.bootstrap_transfer_id)))`;
 const gate = transactionReviewGateSql;
@@ -54,7 +56,7 @@ export function transactionReviewValidatorHash() {
     sha256Hex(
       JSON.stringify([
         'zentra-transaction-candidate',
-        1,
+        TRANSACTION_REVIEW_VERSION,
         PAGE_ROWS,
         PAGE_BYTES,
         APPLY_CHANGES,
@@ -82,6 +84,7 @@ export async function transactionReviewContext(
   if (!review)
     fail('Le contrôle de cette transaction n’a pas été préparé.', 404);
   if (
+    review.algorithm_version !== TRANSACTION_REVIEW_VERSION ||
     review.generation !== tx.row.generation ||
     review.manifest_sha256 !== tx.row.manifest_sha256 ||
     review.validator_sha256 !== (await transactionReviewValidatorHash())
@@ -167,6 +170,7 @@ async function response(ctx: Context) {
     manifest_sha256: ctx.row.manifest_sha256,
     attempt: ctx.review.attempt,
     validator_sha256: ctx.review.validator_sha256,
+    algorithm_version: ctx.review.algorithm_version,
     source_revision: ctx.review.source_revision,
     state:
       head?.head_revision === ctx.review.source_revision
@@ -200,11 +204,28 @@ export async function beginBusinessTransactionReview(
     );
   const existing = await database()
     .prepare(
-      'SELECT transfer_id FROM business_sync_transaction_reviews WHERE transfer_id=?',
+      'SELECT * FROM business_sync_transaction_reviews WHERE transfer_id=?',
     )
     .bind(tx.id)
-    .first();
-  if (existing) return businessTransactionReviewStatus(session, tx.id);
+    .first<Review>();
+  if (
+    existing &&
+    (existing.generation !== tx.row.generation ||
+      existing.manifest_sha256 !== tx.row.manifest_sha256)
+  )
+    fail(
+      'La préparation conservée ne correspond plus à cette transaction.',
+      503,
+    );
+  if (existing?.algorithm_version === TRANSACTION_REVIEW_VERSION)
+    return businessTransactionReviewStatus(session, tx.id);
+  if (
+    existing &&
+    (!Number.isSafeInteger(existing.algorithm_version) ||
+      existing.algorithm_version < 1 ||
+      existing.algorithm_version > TRANSACTION_REVIEW_VERSION)
+  )
+    fail('Cette préparation nécessite une version plus récente du logiciel.');
   const base = await publishedHistory(
     session,
     tx.manifest.bootstrap_transfer_id,
@@ -248,6 +269,7 @@ export async function beginBusinessTransactionReview(
   const anchor = branch ? branch.last_hash : base.receipt.last_audit_hash;
   const review: Review = {
     transfer_id: tx.id,
+    algorithm_version: TRANSACTION_REVIEW_VERSION,
     attempt: crypto.randomUUID(),
     generation: tx.manifest.generation,
     manifest_sha256: tx.row.manifest_sha256,
@@ -278,10 +300,68 @@ export async function beginBusinessTransactionReview(
     0,
     0,
   ];
+  if (existing) {
+    // Upgrade only disposable state for this exact old attempt. Original
+    // envelopes/files and committed history are never changed by a restart.
+    const upgrade = `EXISTS(SELECT 1 FROM business_sync_transaction_reviews r
+      JOIN business_sync_transfers t ON t.transfer_id=r.transfer_id
+      JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
+      JOIN business_sync_transfers u ON u.transfer_id=?8 AND u.organization_id=t.organization_id AND u.generation=t.generation
+      WHERE t.transfer_id=?1 AND t.organization_id=?2 AND t.installation_id=?3 AND t.generation=?4 AND t.manifest_sha256=?5 AND t.kind='transaction' AND t.state='received'
+      AND r.attempt=?12 AND r.validator_sha256=?13 AND r.algorithm_version=?14 AND r.algorithm_version<${TRANSACTION_REVIEW_VERSION}
+      AND r.generation=t.generation AND r.manifest_sha256=t.manifest_sha256
+      AND s.state='ready' AND s.head_revision=?9 AND u.state='committed' AND u.revision=?9 AND (u.kind='transaction' OR (u.kind='bootstrap' AND u.transfer_id=s.bootstrap_transfer_id)) AND ${filesComplete})`;
+    const bindings = [
+      ...tx.binding,
+      review.attempt,
+      review.validator_sha256,
+      review.source_transfer_id,
+      review.source_revision,
+      anchor,
+      new Date().toISOString(),
+      existing.attempt,
+      existing.validator_sha256,
+      existing.algorithm_version,
+    ];
+    await database().batch([
+      ...[
+        'business_sync_versions',
+        'business_sync_row_order',
+        'business_sync_candidate_order',
+        'business_sync_transaction_conflicts',
+        'business_sync_transaction_canonical_order',
+        'business_sync_credit_lines',
+        'business_sync_credit_movements',
+        'business_sync_credit_projection',
+        'business_sync_transaction_document_states',
+        'business_sync_transaction_accounting_states',
+        'business_sync_transaction_effects',
+        'business_sync_transaction_validations',
+      ].map((table) =>
+        database()
+          .prepare(`DELETE FROM ${table} WHERE transfer_id=?1 AND ${upgrade}`)
+          .bind(...bindings),
+      ),
+      database()
+        .prepare(
+          `UPDATE business_sync_transaction_reviews SET algorithm_version=${TRANSACTION_REVIEW_VERSION},attempt=?6,validator_sha256=?7,source_transfer_id=?8,source_revision=?9,state='copying',last_table='',last_key='',copied_rows=0,copied_bytes=0,next_chunk=0,applied_changes=0,base_audit_hash=?10,last_audit_hash=?10,audit_entries=0,failed_rule=NULL,updated_at=?11 WHERE transfer_id=?1 AND ${upgrade}`,
+        )
+        .bind(...bindings),
+      database()
+        .prepare(`INSERT INTO business_sync_candidate_order(transfer_id,table_name,last_value)
+        SELECT ?1,c.value,MAX(0,COALESCE((SELECT last_value FROM business_sync_candidate_order WHERE transfer_id=?15 AND table_name=c.value),(SELECT MAX(CAST(source_rowid AS INTEGER)) FROM business_sync_row_order WHERE transfer_id=?15 AND table_name=c.value),0)) FROM json_each(?16) c WHERE ${gate}`)
+        .bind(
+          ...values,
+          review.source_transfer_id,
+          JSON.stringify(Object.keys(contract.tables)),
+        ),
+    ]);
+    return businessTransactionReviewStatus(session, tx.id);
+  }
   await database().batch([
     database()
-      .prepare(`INSERT OR IGNORE INTO business_sync_transaction_reviews(transfer_id,attempt,generation,manifest_sha256,validator_sha256,source_transfer_id,source_revision,state,base_audit_hash,last_audit_hash,updated_at)
-      SELECT ?1,?6,?4,?5,?7,?8,?9,'copying',?10,?10,?11 FROM business_sync_transfers t JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
+      .prepare(`INSERT OR IGNORE INTO business_sync_transaction_reviews(transfer_id,algorithm_version,attempt,generation,manifest_sha256,validator_sha256,source_transfer_id,source_revision,state,base_audit_hash,last_audit_hash,updated_at)
+      SELECT ?1,${TRANSACTION_REVIEW_VERSION},?6,?4,?5,?7,?8,?9,'copying',?10,?10,?11 FROM business_sync_transfers t JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
       WHERE t.transfer_id=?1 AND t.organization_id=?2 AND t.installation_id=?3 AND t.generation=?4 AND t.manifest_sha256=?5 AND t.kind='transaction' AND t.state='received' AND s.state='ready' AND s.head_revision=?9 AND ${filesComplete}`)
       .bind(
         ...tx.binding,
@@ -457,6 +537,7 @@ async function applyChunk(ctx: Context) {
         .bind(...values),
     );
     if (c.operation === 'delete') {
+      statements.push(canonicalPosition(db, values));
       for (const table of ['business_sync_versions', 'business_sync_row_order'])
         statements.push(
           db
@@ -517,29 +598,45 @@ async function applyChunk(ctx: Context) {
       }
     }
     statements.push(
+      canonicalPosition(db, values),
       db
         .prepare(`INSERT INTO business_sync_versions(transfer_id,organization_id,table_name,row_key_json,row_json,row_sha256,before_sha256)
       SELECT ?1,?2,?15,?16,?18,?19,?17 WHERE ${gate} AND ${clear} ON CONFLICT(transfer_id,table_name,row_key_json) DO UPDATE SET row_json=excluded.row_json,row_sha256=excluded.row_sha256,before_sha256=excluded.before_sha256`)
         .bind(...values.slice(0, 19)),
     );
   }
+  // At most 73 mutations per pass, leaving room for context/receipt reads
+  // within the Worker's 100-query budget even for all-insert fragments.
+  if (statements.length > 72)
+    fail('La préparation dépasse la limite du serveur.', 503);
+  const completeSnapshot =
+    finishedChunk && index + 1 === ctx.manifest.chunks.length;
+  // The ordinary checkpoint only counts this indexed slice. Count the whole
+  // transaction once at the end, not on every pass of a 200,000-row journal.
+  const positionsComplete = `(SELECT COUNT(*) FROM business_sync_transaction_canonical_order WHERE transfer_id=?1 AND attempt=?6 AND part_index=?12 AND change_index>=?21 AND change_index<?22)=?16${completeSnapshot ? ' AND (SELECT COUNT(*) FROM business_sync_transaction_canonical_order WHERE transfer_id=?1 AND attempt=?6)=?13+?16' : ''}`;
   statements.push(
     db
-      .prepare(`UPDATE business_sync_transaction_reviews SET state=CASE WHEN ${clear} THEN ?15 ELSE 'conflict' END,failed_rule=CASE WHEN ${clear} THEN NULL ELSE 'conflict:before-image-or-order' END,
-    next_chunk=CASE WHEN ${clear} THEN ?20 ELSE next_chunk END,applied_changes=CASE WHEN ${clear} THEN applied_changes+?16 ELSE applied_changes END,last_audit_hash=CASE WHEN ${clear} THEN ?17 ELSE last_audit_hash END,audit_entries=CASE WHEN ${clear} THEN audit_entries+?18 ELSE audit_entries END,updated_at=?19 WHERE transfer_id=?1 AND ${gate}`)
+      .prepare(`UPDATE business_sync_transaction_reviews SET state=CASE WHEN NOT ${clear} THEN 'conflict' WHEN ${positionsComplete} THEN ?15 ELSE 'invalid' END,failed_rule=CASE WHEN NOT ${clear} THEN 'conflict:before-image-or-order' WHEN ${positionsComplete} THEN NULL ELSE 'candidate:canonical-order' END,
+    next_chunk=CASE WHEN ${clear} AND ${positionsComplete} THEN ?20 ELSE next_chunk END,applied_changes=CASE WHEN ${clear} AND ${positionsComplete} THEN applied_changes+?16 ELSE applied_changes END,last_audit_hash=CASE WHEN ${clear} AND ${positionsComplete} THEN ?17 ELSE last_audit_hash END,audit_entries=CASE WHEN ${clear} AND ${positionsComplete} THEN audit_entries+?18 ELSE audit_entries END,updated_at=?19 WHERE transfer_id=?1 AND ${gate}`)
       .bind(
         ...ctx.values,
-        finishedChunk && index + 1 === ctx.manifest.chunks.length
-          ? 'projected'
-          : 'applying',
+        completeSnapshot ? 'projected' : 'applying',
         changes.length,
         audit,
         auditCount,
         new Date().toISOString(),
         index + (finishedChunk ? 1 : 0),
+        ctx.changeOffset,
+        ctx.changeOffset + changes.length,
       ),
   );
   await db.batch(statements);
+}
+function canonicalPosition(db: D1Database, values: (string | number | null)[]) {
+  return db
+    .prepare(`INSERT INTO business_sync_transaction_canonical_order(transfer_id,attempt,part_index,change_index,table_name,row_key_json,canonical_rowid)
+    SELECT ?1,?6,?20,?21,?15,?16,o.source_rowid FROM business_sync_row_order o WHERE o.transfer_id=?1 AND o.table_name=?15 AND o.row_key_json=?16 AND ${gate} AND ${clear}`)
+    .bind(...values);
 }
 export async function reviewBusinessTransaction(
   session: DeviceSessionContext,

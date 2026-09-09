@@ -174,6 +174,7 @@ export const businessSyncTransactionParts = sqliteTable('business_sync_transacti
 // never authoritative merely because every transport fragment was received.
 export const businessSyncTransactionReviews = sqliteTable('business_sync_transaction_reviews', {
   transferId:text('transfer_id').primaryKey().references(()=>businessSyncTransfers.transferId),
+  algorithmVersion:integer('algorithm_version').notNull().default(1),
   attempt:text('attempt').notNull(),
   generation:text('generation').notNull(),
   manifestSha256:text('manifest_sha256').notNull(),
@@ -249,6 +250,17 @@ export const businessSyncCandidateOrder=sqliteTable('business_sync_candidate_ord
   tableName:text('table_name').notNull(),
   lastValue:integer('last_value').notNull(),
 },table=>[uniqueIndex('business_sync_candidate_order_identity').on(table.transferId,table.tableName)]);
+// Canonical positions for every original event, including deleted/recreated
+// rows absent from the final snapshot. These are derived per review attempt.
+export const businessSyncTransactionCanonicalOrder=sqliteTable('business_sync_transaction_canonical_order',{
+  transferId:text('transfer_id').notNull().references(()=>businessSyncTransfers.transferId),
+  attempt:text('attempt').notNull(),
+  partIndex:integer('part_index').notNull(),
+  changeIndex:integer('change_index').notNull(),
+  tableName:text('table_name').notNull(),
+  rowKeyJson:text('row_key_json').notNull(),
+  canonicalRowid:text('canonical_rowid').notNull(),
+},table=>[uniqueIndex('business_sync_transaction_canonical_position').on(table.transferId,table.attempt,table.partIndex,table.changeIndex)]);
 // Original device chains remain distinct, even when they share the bootstrap
 // audit anchor. Only canonical commitment may advance a branch's last hash.
 export const businessSyncAuditBranches=sqliteTable('business_sync_audit_branches',{

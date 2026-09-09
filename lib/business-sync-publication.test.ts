@@ -72,6 +72,7 @@ import {
   beginBusinessTransactionReview,
   businessTransactionReviewStatus,
   reviewBusinessTransaction,
+  TRANSACTION_REVIEW_VERSION,
 } from './business-sync-transaction-review';
 import { auditHashFields } from './business-sync-audit';
 import {
@@ -1847,6 +1848,18 @@ it('projects exact insert/update/delete images without overwriting the canonical
     )
     .get(id)!.object_key as string;
   expect(blobs.get(stored)).toEqual(f.chunks[0]);
+  expect(
+    db
+      .prepare(
+        'SELECT part_index,change_index,canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=? ORDER BY part_index,change_index',
+      )
+      .all(id),
+  ).toEqual([
+    { part_index: 0, change_index: 0, canonical_rowid: '1' },
+    { part_index: 0, change_index: 1, canonical_rowid: '1' },
+    { part_index: 0, change_index: 2, canonical_rowid: '1' },
+    { part_index: 0, change_index: 3, canonical_rowid: '2' },
+  ]);
 });
 
 it('records a before-image conflict without changing the committed row or hiding the original modification', async () => {
@@ -1988,6 +2001,13 @@ it('rolls back failed candidate copies and applications, and resumes simultaneou
       )
       .get(id),
   ).toEqual({ last_value: 0 });
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_transaction_canonical_order WHERE transfer_id=?',
+      )
+      .get(id),
+  ).toEqual({ n: 0 });
   failStatement = undefined;
   await Promise.all([
     reviewBusinessTransaction(f.actor, id),
@@ -2045,16 +2065,18 @@ it('resumes within large fragments and records the original change offset on a l
   await reviewBusinessTransaction(f.actor, id);
   await reviewBusinessTransaction(f.actor, id);
   beforeBatch = async (sql) => {
-    expect(sql.length).toBeLessThanOrEqual(161);
+    expect(sql.length).toBeLessThanOrEqual(100);
   };
   expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
     state: 'applying',
-    applied_changes: 32,
+    applied_changes: 12,
     next_chunk: 0,
   });
+  for (let pass = 0; pass < 2; pass++)
+    await reviewBusinessTransaction(f.actor, id);
   expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
     state: 'conflict',
-    applied_changes: 32,
+    applied_changes: 36,
     next_chunk: 0,
     conflicts: [{ part_index: 0, change_index: 40, reason: 'before_mismatch' }],
   });
@@ -2103,6 +2125,187 @@ it('requires verified documents and the original authorized device for transacti
     expect(result.status).toBe(401);
     expect(result.headers.get('cache-control')).toContain('no-store');
   }
+});
+
+function reviewEvidence(id: string) {
+  return [
+    'business_sync_transaction_reviews',
+    'business_sync_versions',
+    'business_sync_row_order',
+    'business_sync_candidate_order',
+    'business_sync_transaction_canonical_order',
+    'business_sync_transaction_conflicts',
+    ...derivedValidationTables,
+  ].map((table) =>
+    db
+      .prepare(`SELECT * FROM ${table} WHERE transfer_id=? ORDER BY rowid`)
+      .all(id),
+  );
+}
+function originalReviewEvidence(id: string) {
+  return {
+    changes: businessEvidence().changes,
+    blobs: businessEvidence().blobs,
+    source: db
+      .prepare(
+        "SELECT v.* FROM business_sync_versions v JOIN business_sync_transfers t ON t.transfer_id=v.transfer_id WHERE t.state='committed' ORDER BY v.sequence",
+      )
+      .all(),
+    envelope: db
+      .prepare('SELECT * FROM business_sync_transfers WHERE transfer_id=?')
+      .get(id),
+  };
+}
+async function legacyReview() {
+  const f = await receiveTransaction(await transactionFixture());
+  const id = f.manifest.transaction_id;
+  await projectTransaction(f.actor, id);
+  await validateTransaction(f.actor, id);
+  db.prepare(
+    'UPDATE business_sync_transaction_reviews SET algorithm_version=1,validator_sha256=? WHERE transfer_id=?',
+  ).run('a'.repeat(64), id);
+  db.prepare(
+    'DELETE FROM business_sync_transaction_canonical_order WHERE transfer_id=?',
+  ).run(id);
+  return { ...f, id };
+}
+it('upgrades legacy reviews atomically and rebuilds canonical positions from original evidence', async () => {
+  const f = await legacyReview(),
+    original = originalReviewEvidence(f.id),
+    old = reviewEvidence(f.id);
+  await expect(
+    businessTransactionReviewStatus(f.actor, f.id),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(reviewEvidence(f.id)).toEqual(old);
+  failStatement = (sql) => {
+    if (
+      sql.startsWith(
+        'UPDATE business_sync_transaction_reviews SET algorithm_version',
+      )
+    )
+      throw new Error('upgrade interruption');
+  };
+  await expect(beginBusinessTransactionReview(f.actor, f.id)).rejects.toThrow(
+    'upgrade interruption',
+  );
+  expect(reviewEvidence(f.id)).toEqual(old);
+  expect(originalReviewEvidence(f.id)).toEqual(original);
+  failStatement = undefined;
+  const result = await beginBusinessTransactionReview(f.actor, f.id);
+  expect(result).toMatchObject({
+    algorithm_version: TRANSACTION_REVIEW_VERSION,
+    state: 'copying',
+    copied_rows: 0,
+    applied_changes: 0,
+  });
+  expect(validationEvidence(f.id).every((rows) => rows.length === 0)).toBe(
+    true,
+  );
+  expect(originalReviewEvidence(f.id)).toEqual(original);
+  expect((await projectTransaction(f.actor, f.id)).state).toBe('projected');
+  expect(
+    db
+      .prepare(
+        'SELECT canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=?',
+      )
+      .all(f.id),
+  ).toEqual([{ canonical_rowid: '1' }]);
+  expect((await validateTransaction(f.actor, f.id)).phase).toBe('valid');
+  expect(originalReviewEvidence(f.id)).toEqual(original);
+});
+it('never downgrades future review algorithms or resets an unrecognized current contract', async () => {
+  const f = await legacyReview();
+  for (const version of [
+    TRANSACTION_REVIEW_VERSION,
+    TRANSACTION_REVIEW_VERSION + 1,
+    0,
+  ]) {
+    db.prepare(
+      'UPDATE business_sync_transaction_reviews SET algorithm_version=? WHERE transfer_id=?',
+    ).run(version, f.id);
+    const before = reviewEvidence(f.id);
+    await expect(
+      beginBusinessTransactionReview(f.actor, f.id),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(reviewEvidence(f.id)).toEqual(before);
+  }
+});
+it('keeps legacy review data when the canonical head changes before an upgrade', async () => {
+  const f = await legacyReview(),
+    before = reviewEvidence(f.id),
+    original = originalReviewEvidence(f.id);
+  beforeBatch = async () => {
+    beforeBatch = undefined;
+    db.exec('UPDATE business_sync_spaces SET head_revision=2');
+  };
+  await expect(
+    beginBusinessTransactionReview(f.actor, f.id),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(reviewEvidence(f.id)).toEqual(before);
+  expect(originalReviewEvidence(f.id)).toEqual(original);
+});
+it('shares one upgraded review attempt across simultaneous retries', async () => {
+  const f = await legacyReview(),
+    original = originalReviewEvidence(f.id);
+  let release!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let arrivals = 0;
+  beforeBatch = async (sql) => {
+    if (
+      !sql.some((s) =>
+        s.startsWith(
+          'UPDATE business_sync_transaction_reviews SET algorithm_version',
+        ),
+      )
+    )
+      return;
+    if (++arrivals === 2) release();
+    await barrier;
+  };
+  const responses = await Promise.all([
+    beginBusinessTransactionReview(f.actor, f.id),
+    beginBusinessTransactionReview(f.actor, f.id),
+  ]);
+  beforeBatch = undefined;
+  expect(arrivals).toBe(2);
+  expect(responses[0].attempt).toBe(responses[1].attempt);
+  expect(responses[0].algorithm_version).toBe(TRANSACTION_REVIEW_VERSION);
+  expect(originalReviewEvidence(f.id)).toEqual(original);
+  expect((await projectTransaction(f.actor, f.id)).state).toBe('projected');
+  expect(
+    db
+      .prepare(
+        'SELECT COUNT(*) n FROM business_sync_transaction_canonical_order WHERE transfer_id=?',
+      )
+      .get(f.id),
+  ).toEqual({ n: 1 });
+});
+it('cannot finish a candidate with a missing canonical event position', async () => {
+  const f = await receiveTransaction(
+    await transactionFixture([
+      Array.from({ length: 13 }, (_, i) =>
+        transactionInsert(String(i + 1), `ordered-${i}`),
+      ),
+    ]),
+  );
+  const id = f.manifest.transaction_id;
+  await beginBusinessTransactionReview(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  await reviewBusinessTransaction(f.actor, id);
+  expect((await reviewBusinessTransaction(f.actor, id)).applied_changes).toBe(
+    12,
+  );
+  db.prepare(
+    'DELETE FROM business_sync_transaction_canonical_order WHERE transfer_id=? AND change_index=0',
+  ).run(id);
+  expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
+    state: 'invalid',
+    failed_rule: 'candidate:canonical-order',
+    applied_changes: 12,
+  });
+  expect((await historyHead(f.actor)).head_revision).toBe(1);
 });
 
 it('refuses altered stored transaction bytes and missing or mismatched source ordering before projection', async () => {
@@ -2154,8 +2357,16 @@ it.each([
         "SELECT source_rowid FROM business_sync_row_order WHERE transfer_id=? AND table_name='clients'",
       )
       .get(id);
-    if (expected) expect(row).toEqual({ source_rowid: expected });
-    else {
+    if (expected) {
+      expect(row).toEqual({ source_rowid: expected });
+      expect(
+        db
+          .prepare(
+            'SELECT canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=?',
+          )
+          .get(id),
+      ).toEqual({ canonical_rowid: expected });
+    } else {
       expect(row).toBeUndefined();
       expect(await businessTransactionReviewStatus(f.actor, id)).toMatchObject({
         conflicts: [{ reason: 'order_exhausted' }],
@@ -3076,6 +3287,111 @@ async function realD1Fixture() {
     throw error;
   }
 }
+it('prepares canonical event positions and upgrades reviews within 100 D1 queries per request', async () => {
+  const { runtime, d1 } = await realD1Fixture();
+  try {
+    const f = await receiveTransaction(
+      await transactionFixture([
+        Array.from({ length: 65 }, (_, i) =>
+          transactionInsert(String(i + 1), `bounded-${i}`),
+        ),
+      ]),
+    );
+    const id = f.manifest.transaction_id;
+    let queries = 0,
+      peak = 0;
+    const wrap = (native: D1PreparedStatement) => ({
+      native,
+      bind(...values: Scalar[]) {
+        return wrap(native.bind(...values));
+      },
+      async first(column?: string) {
+        queries++;
+        return column === undefined ? native.first() : native.first(column);
+      },
+      async all() {
+        queries++;
+        return native.all();
+      },
+      async run() {
+        queries++;
+        return native.run();
+      },
+    });
+    mocks.db.mockReturnValue({
+      prepare: (sql: string) => wrap(d1.prepare(sql)),
+      batch: async (statements: ReturnType<typeof wrap>[]) => {
+        queries += statements.length;
+        return d1.batch(statements.map((s) => s.native));
+      },
+    });
+    const requestPass = async <T>(action: () => Promise<T>) => {
+      queries = 0;
+      const result = await action();
+      peak = Math.max(peak, queries);
+      expect(queries).toBeLessThanOrEqual(100);
+      return result;
+    };
+    let status = await requestPass(() =>
+      beginBusinessTransactionReview(f.actor, id),
+    );
+    while (['copying', 'applying'].includes(status.state))
+      status = await requestPass(() => reviewBusinessTransaction(f.actor, id));
+    expect(status).toMatchObject({
+      state: 'projected',
+      applied_changes: 65,
+      algorithm_version: TRANSACTION_REVIEW_VERSION,
+    });
+    expect(peak).toBeGreaterThan(70);
+    const before = await d1
+      .prepare(
+        'SELECT change_index,canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=? ORDER BY part_index,change_index',
+      )
+      .bind(id)
+      .all();
+    expect(before.results).toEqual(
+      Array.from({ length: 65 }, (_, i) => ({
+        change_index: i,
+        canonical_rowid: String(i + 1),
+      })),
+    );
+    await d1
+      .prepare(
+        'UPDATE business_sync_transaction_reviews SET algorithm_version=1,validator_sha256=? WHERE transfer_id=?',
+      )
+      .bind('a'.repeat(64), id)
+      .run();
+    status = await requestPass(() =>
+      beginBusinessTransactionReview(f.actor, id),
+    );
+    expect(status).toMatchObject({ state: 'copying', applied_changes: 0 });
+    while (['copying', 'applying'].includes(status.state))
+      status = await requestPass(() => reviewBusinessTransaction(f.actor, id));
+    expect(status.state).toBe('projected');
+    expect(
+      (
+        await d1
+          .prepare(
+            'SELECT change_index,canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=? ORDER BY part_index,change_index',
+          )
+          .bind(id)
+          .all()
+      ).results,
+    ).toEqual(before.results);
+    expect((await historyHead(f.actor)).head_revision).toBe(1);
+    console.info(
+      'QA_CANONICAL_ORDER',
+      JSON.stringify({
+        events: 65,
+        peakQueries: peak,
+        upgradeReplayed: true,
+        headRevision: 1,
+      }),
+    );
+  } finally {
+    await runtime.dispose();
+  }
+}, 120_000);
 it('compiles every intermediate accounting query against actual D1 limits', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {
