@@ -1,0 +1,50 @@
+{
+  "verified": true,
+  "case": "ledger_case",
+  "comparison": {
+    "actual": {
+      "assets_with_vat_unoffset": 1062290,
+      "bank": 1059455,
+      "liabilities_and_equity_with_vat_unoffset": 1062290,
+      "profit_before_tax": 55000,
+      "purchases_net": 35000,
+      "sales_net": 90000,
+      "vat_due": 7290,
+      "vat_payable": 4455,
+      "vat_recoverable": 2835
+    },
+    "equal": true,
+    "expected": {
+      "assets_with_vat_unoffset": 1062290,
+      "bank": 1059455,
+      "liabilities_and_equity_with_vat_unoffset": 1062290,
+      "profit_before_tax": 55000,
+      "purchases_net": 35000,
+      "sales_net": 90000,
+      "vat_due": 7290,
+      "vat_payable": 4455,
+      "vat_recoverable": 2835
+    },
+    "scope": "Commandes natives, profil isolé fictif; aucune validation professionnelle"
+  },
+  "pdfs": [
+    {
+      "name": "facture-fictive.pdf",
+      "pages": 1,
+      "sha256": "4a3197e94c7882f2aed4b69a6bcf6b378e782b535e61ab31b2553ef757219fe3"
+    },
+    {
+      "name": "avoir-fictif.pdf",
+      "pages": 1,
+      "sha256": "e0e28d96d2d2bed8c78776e3e9715ceda7bbf3953d5208958d0db75311970984"
+    },
+    {
+      "name": "comptes-annuels-fictifs.pdf",
+      "pages": 2,
+      "sha256": "a0a6620f7ac9932b906550b9dfddc5b007d5272774ca7ccd8729f9fcf0306115"
+    }
+  ],
+  "zip_members_checked": 21,
+  "professional_approval": false,
+  "scope": "Native API and file consistency only; visual, XSD and professional review are separate."
+}

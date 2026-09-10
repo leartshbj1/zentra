@@ -6,7 +6,9 @@ Le dossier `output/pdf/Zentra-dossier-recette-fiduciaire.pdf` contient cinq page
 
 ## État de la validation
 
-Ce sont des **valeurs attendues**, pas des exports constatés dans l'application. La matrice professionnelle reste à remplir. Aucun cabinet n'a été contacté et aucune validation comptable, fiscale ou Swissdec n'est acquise.
+Les valeurs d’`attendus.json` restent des **attendus indépendants**. Le premier scénario TVA/bilan a été exécuté le 10 septembre 2026 avec les commandes natives, dans un profil temporaire fictif : les neuf montants concordent, les neuf écritures sont équilibrées, le justificatif fournisseur est vérifié et les PDF/XML/ZIP ont été conservés. Voir [le compte rendu d’exécution](execution-2026-09-10.md).
+
+Les scénarios acompte/banque et paie/certificat annuel restent à exécuter pour ce dossier. La matrice professionnelle reste à remplir. Aucun cabinet n'a été contacté et aucune validation comptable, fiscale ou Swissdec n'est acquise. Un essai des commandes natives ne constitue pas une recette sur deux appareils ni une validation de toute l’interface.
 
 Pour chaque scénario :
 

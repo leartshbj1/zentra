@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eCH-0217:VATDeclaration xmlns:eCH-0058="http://www.ech.ch/xmlns/eCH-0058/5" xmlns:eCH-0108="http://www.ech.ch/xmlns/eCH-0108/7" xmlns:eCH-0217="http://www.ech.ch/xmlns/eCH-0217/2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <eCH-0217:generalInformation>
+    <eCH-0217:uid>CHE123456789</eCH-0217:uid>
+    <eCH-0217:organisationName>Recette fiduciaire fictive Sàrl</eCH-0217:organisationName>
+    <eCH-0217:generationTime>2026-09-10T04:18:57Z</eCH-0217:generationTime>
+    <eCH-0217:reportingPeriodFrom>2026-01-01</eCH-0217:reportingPeriodFrom>
+    <eCH-0217:reportingPeriodTill>2026-03-31</eCH-0217:reportingPeriodTill>
+    <eCH-0217:typeOfSubmission>1</eCH-0217:typeOfSubmission>
+    <eCH-0217:formOfReporting>1</eCH-0217:formOfReporting>
+    <eCH-0217:businessReferenceId>RECETTE-FICTIVE-2026-T1</eCH-0217:businessReferenceId>
+    <eCH-0217:sendingApplication>
+      <eCH-0058:manufacturer>Zentra</eCH-0058:manufacturer>
+      <eCH-0058:product>Zentra</eCH-0058:product>
+      <eCH-0058:productVersion>1.46.1</eCH-0058:productVersion>
+    </eCH-0217:sendingApplication>
+  </eCH-0217:generalInformation>
+  <eCH-0217:turnoverComputation>
+    <eCH-0217:totalConsideration>900.00</eCH-0217:totalConsideration>
+  </eCH-0217:turnoverComputation>
+  <eCH-0217:effectiveReportingMethod>
+    <eCH-0217:grossOrNet>1</eCH-0217:grossOrNet>
+    <eCH-0217:suppliesPerTaxRate>
+      <eCH-0217:taxRate>8.10</eCH-0217:taxRate>
+      <eCH-0217:turnover>900.00</eCH-0217:turnover>
+    </eCH-0217:suppliesPerTaxRate>
+    <eCH-0217:inputTaxMaterialAndServices>28.35</eCH-0217:inputTaxMaterialAndServices>
+  </eCH-0217:effectiveReportingMethod>
+  <eCH-0217:payableTax>44.55</eCH-0217:payableTax>
+</eCH-0217:VATDeclaration>

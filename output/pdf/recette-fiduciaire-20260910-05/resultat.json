@@ -1,0 +1,63 @@
+{
+  "currency": {
+    "base_currency": "CHF",
+    "currencies": [
+      "CHF"
+    ],
+    "exchange_rates_applied": false,
+    "single_currency": true
+  },
+  "expense_cents": 35000,
+  "previous_expense_cents": 0,
+  "previous_profit_cents": 0,
+  "previous_revenue_cents": 0,
+  "previous_sections": {
+    "cost_of_goods": 0,
+    "net_revenue": 0
+  },
+  "profit_cents": 55000,
+  "revenue_cents": 90000,
+  "rows": [
+    {
+      "account_type": "revenue",
+      "amount_cents": 90000,
+      "code": "3000",
+      "credit_cents": 100000,
+      "debit_cents": 10000,
+      "id": "e4939abb-a0c6-4ba2-ab87-807b6e34b602",
+      "name": "Produits",
+      "normal_balance": "credit",
+      "previous_amount_cents": 0,
+      "previous_credit_cents": 0,
+      "previous_debit_cents": 0,
+      "report_section": "net_revenue"
+    },
+    {
+      "account_type": "expense",
+      "amount_cents": 35000,
+      "code": "4000",
+      "credit_cents": 5000,
+      "debit_cents": 40000,
+      "id": "aec89a95-e9f5-40dc-aba7-c6a2ca1f0372",
+      "name": "Achats de marchandises",
+      "normal_balance": "debit",
+      "previous_amount_cents": 0,
+      "previous_credit_cents": 0,
+      "previous_debit_cents": 0,
+      "report_section": "cost_of_goods"
+    }
+  ],
+  "scope": {
+    "comparison_label": "Exercice 2025",
+    "comparison_source": "same_dates_previous_year",
+    "date_from": "2026-01-01",
+    "date_to": "2026-12-31",
+    "previous_date_from": "2025-01-01",
+    "previous_date_to": "2025-12-31",
+    "previous_has_activity": false
+  },
+  "sections": {
+    "cost_of_goods": 35000,
+    "net_revenue": 90000
+  }
+}

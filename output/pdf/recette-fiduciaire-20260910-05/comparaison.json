@@ -1,0 +1,26 @@
+{
+  "actual": {
+    "assets_with_vat_unoffset": 1062290,
+    "bank": 1059455,
+    "liabilities_and_equity_with_vat_unoffset": 1062290,
+    "profit_before_tax": 55000,
+    "purchases_net": 35000,
+    "sales_net": 90000,
+    "vat_due": 7290,
+    "vat_payable": 4455,
+    "vat_recoverable": 2835
+  },
+  "equal": true,
+  "expected": {
+    "assets_with_vat_unoffset": 1062290,
+    "bank": 1059455,
+    "liabilities_and_equity_with_vat_unoffset": 1062290,
+    "profit_before_tax": 55000,
+    "purchases_net": 35000,
+    "sales_net": 90000,
+    "vat_due": 7290,
+    "vat_payable": 4455,
+    "vat_recoverable": 2835
+  },
+  "scope": "Commandes natives, profil isolé fictif; aucune validation professionnelle"
+}

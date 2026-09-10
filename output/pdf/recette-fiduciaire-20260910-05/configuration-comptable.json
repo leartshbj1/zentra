@@ -1,0 +1,18 @@
+{
+  "ar_account_id": "b3e7d883-3113-4564-a2d6-e21aea47d3ab",
+  "bank_account_id": "da721cc1-4e55-4ca6-aad2-8968a8f06efe",
+  "created_at": "2026-09-10T04:18:56.399379900+00:00",
+  "enabled": true,
+  "expense_account_id": "aec89a95-e9f5-40dc-aba7-c6a2ca1f0372",
+  "id": 1,
+  "revenue_account_id": "e4939abb-a0c6-4ba2-ab87-807b6e34b602",
+  "social_expense_account_id": "b42c06a2-2b00-474c-97e2-76e165d65ba2",
+  "social_payable_account_id": "687220ff-1753-4a8e-95f7-32d4c6dd6bc3",
+  "supplier_payable_account_id": "808a5c9b-a8c0-4d4e-b019-9601a042742d",
+  "updated_at": "2026-09-10T04:18:56.399379900+00:00",
+  "vat_deferred_payable_account_id": "470c0506-5892-4ef7-b697-4a20be3e0d3b",
+  "vat_payable_account_id": "bcddc5e1-2765-47c2-8fd8-baeb8ce5b098",
+  "vat_receivable_account_id": "349216be-59ae-4fbb-abdb-73b5d4014fe4",
+  "wages_expense_account_id": "5fd852cb-90ec-403e-8313-e176b63eb043",
+  "wages_payable_account_id": "26f5ea0f-cbf9-4c6a-b935-b19919ea1b82"
+}

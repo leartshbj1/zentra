@@ -31,6 +31,8 @@ mod database;
 mod customer_credit_tests;
 mod error;
 mod fiduciary_closing;
+#[cfg(test)]
+mod fiduciary_acceptance;
 mod financial_pdf;
 mod input_vat_accounting;
 mod expense_journal;

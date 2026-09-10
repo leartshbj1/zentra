@@ -1,0 +1,48 @@
+{
+  "company_name": "Recette fiduciaire fictive Sàrl",
+  "legal_form": "Sàrl",
+  "owner_name": "Responsable test",
+  "email": "test@example.invalid",
+  "phone": null,
+  "address_line1": "Adresse de test",
+  "address_line2": null,
+  "postal_code": "1000",
+  "city": "Ville test",
+  "canton": "VD",
+  "country": "CH",
+  "noga_section": "F",
+  "noga_division": "43",
+  "activity_description": "Travaux de construction spécialisés",
+  "noga_detailed_code": "432100",
+  "uid_number": "CHE-123.456.789",
+  "vat_number": "CHE-123.456.789 TVA",
+  "vat_registered": true,
+  "default_vat_bp": 810,
+  "iban": "CH9300762011623852957",
+  "bank_name": null,
+  "currency": "CHF",
+  "quote_prefix": "D",
+  "invoice_prefix": "F",
+  "credit_note_prefix": "A",
+  "quote_start_number": 1,
+  "invoice_start_number": 1,
+  "credit_note_start_number": 1,
+  "payment_terms_days": 30,
+  "quote_validity_days": 30,
+  "default_hourly_rate_cents": 0,
+  "logo_path": null,
+  "extra_settings_json": {
+    "organization": {
+      "address": {
+        "buildingNumber": "17B"
+      }
+    },
+    "payroll": {
+      "enabled": false
+    },
+    "work": {
+      "breakMinutes": 5,
+      "roundingMinutes": 15
+    }
+  }
+}

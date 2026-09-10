@@ -1,0 +1,99 @@
+{
+  "standard": "eCH-0217",
+  "standard_version": "2.0.0",
+  "currency": "CHF",
+  "profile": {
+    "id": "2e2980f7-e43d-4689-9b50-e2f91c9d4830",
+    "effective_from": "2026-01-01",
+    "effective_to": null,
+    "reporting_method": "effective",
+    "form_of_reporting": "agreed",
+    "periodicity": "quarterly",
+    "gross_or_net": "net",
+    "tdfn_activity_id": null,
+    "tdfn_rate_bp": null,
+    "afc_authorization_confirmed": false,
+    "notes": "Recette fictive, sans transmission",
+    "created_at": "2026-09-10T04:18:56.549470800+00:00",
+    "updated_at": "2026-09-10T04:18:56.549470800+00:00"
+  },
+  "date_from": "2026-01-01",
+  "date_to": "2026-03-31",
+  "submission_type": "initial",
+  "exportable": true,
+  "blocking_issues": [],
+  "warnings": [
+    "Pré-déclaration locale : le fichier n'est ni transmis à l'AFC, ni accepté, ni certifié par Zentra. Il doit être contrôlé puis importé manuellement dans « Décompter la TVA ».",
+    "L'identité CHE est normalisée localement; sa concordance avec le compte AFC ne peut être vérifiée hors ligne."
+  ],
+  "unclassified_sources": [],
+  "classified_sources": [
+    {
+      "source_type": "supplier_credit_note_item",
+      "source_id": "99af08d0-4c50-4193-89de-0890a08b84b6",
+      "parent_id": "5d771b0f-0356-4ce8-8c47-1fcbd88b5ff7",
+      "occurrence_date": "2026-01-22",
+      "description": "Avoir fournisseur · Réduction sur marchandises",
+      "amount_cents": -5000,
+      "vat_cents": -405,
+      "vat_rate_bp": 810,
+      "treatment": "input_materials",
+      "currency": "CHF"
+    },
+    {
+      "source_type": "supplier_invoice_item",
+      "source_id": "e4153683-13dc-4f16-93eb-1b26692125f1",
+      "parent_id": "4965c673-f5d9-445d-b1a6-1ed7cd56c7cd",
+      "occurrence_date": "2026-01-12",
+      "description": "Marchandises intégralement consommées",
+      "amount_cents": 40000,
+      "vat_cents": 3240,
+      "vat_rate_bp": 810,
+      "treatment": "input_materials",
+      "currency": "CHF"
+    }
+  ],
+  "received_allocations": [],
+  "pre_closing_sources": [],
+  "source_sha256": "6b81accc48b7d9e0393d2a77332be57457e0ae996b09b3839feb3f8677e303a4",
+  "turnover_computation": {
+    "total_consideration_cents": 90000,
+    "supplies_to_foreign_countries_cents": 0,
+    "supplies_abroad_cents": 0,
+    "transfer_notification_procedure_cents": 0,
+    "supplies_exempt_from_tax_cents": 0,
+    "reduction_of_consideration_cents": 0,
+    "various_deduction": null,
+    "taxable_turnover_cents": 90000
+  },
+  "effective_reporting_method": {
+    "gross_or_net": "net",
+    "gross_or_net_code": 1,
+    "opted_cents": 0,
+    "supplies_per_tax_rate": [
+      {
+        "tax_rate_bp": 810,
+        "turnover_cents": 90000,
+        "calculated_tax_cents": 7290
+      }
+    ],
+    "acquisition_tax": [],
+    "input_tax_material_and_services_cents": 2835,
+    "input_tax_investments_cents": 0,
+    "subsequent_input_tax_deduction_cents": 0,
+    "input_tax_corrections_cents": 0,
+    "input_tax_reductions_cents": 0,
+    "output_tax_cents": 7290,
+    "acquisition_tax_cents": 0
+  },
+  "simple_tax_rate_method": null,
+  "payable_tax_cents": 4455,
+  "payable_code": "500",
+  "other_flows_of_funds": {
+    "subsidies_cents": 0,
+    "donations_cents": 0
+  },
+  "source_count": 4,
+  "adjustment_count": 0,
+  "transmission_wording": "Généré localement pour contrôle et import manuel; aucune transmission AFC n'a été effectuée."
+}

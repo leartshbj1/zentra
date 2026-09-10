@@ -1,0 +1,13 @@
+{
+  "created_at": "2026-09-10T04:18:56.955992900+00:00",
+  "entity_id": "4965c673-f5d9-445d-b1a6-1ed7cd56c7cd",
+  "entity_type": "supplier_invoice",
+  "id": "5fca48cd-2b98-4af4-837f-b22cac05093a",
+  "mime_type": "application/pdf",
+  "original_name": "pieces-fournisseur-fictives.pdf",
+  "project_id": null,
+  "sha256": "9913b2f61a9534b6de30c09be60eb825ce496b16bd3b229c58485298b7291326",
+  "size_bytes": 3557,
+  "stored_name": "5fca48cd-2b98-4af4-837f-b22cac05093a.pdf",
+  "updated_at": "2026-09-10T04:18:56.955992900+00:00"
+}

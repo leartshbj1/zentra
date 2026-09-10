@@ -1,0 +1,23 @@
+{
+  "created_at": "2026-09-10T04:18:57.879881700+00:00",
+  "disclaimer": "Ce dossier facilite la revue et la conservation locale des données comptables. Il ne constitue ni une certification, ni une garantie de conformité légale, fiscale ou professionnelle. L'entreprise reste responsable de la clôture, de l'annexe, des décisions d'approbation, de la conservation durable et de la validation par les personnes compétentes.",
+  "export_id": "a87eb0b7-e96b-4894-a114-61972d4d483a",
+  "file_count": 21,
+  "file_name": "zentra-dossier-fiduciaire-2026-01-01-2026-12-31-draft-20260910T041857Z-a87eb0b7-e96b-4894-a114-61972d4d483a.zip",
+  "manifest_sha256": "8355f1174d60079d4d8b1d2d588f0070c5d0b3ceb038885a66ff7aca012a9460",
+  "package_status": "DRAFT",
+  "path": "C:\\Users\\alb\\AppData\\Local\\Temp\\.tmpyIutOj\\profile\\exports\\zentra-dossier-fiduciaire-2026-01-01-2026-12-31-draft-20260910T041857Z-a87eb0b7-e96b-4894-a114-61972d4d483a.zip",
+  "period": {
+    "closed_at": null,
+    "created_at": "2026-09-10T04:18:56.578810400+00:00",
+    "date_from": "2026-01-01",
+    "date_to": "2026-12-31",
+    "id": "430d4a65-0b37-43c4-965f-77ac0bde9c67",
+    "name": "Recette 2026",
+    "status": "open",
+    "updated_at": "2026-09-10T04:18:56.578810400+00:00"
+  },
+  "review_id": "ec4a2992-41fd-43a6-9861-84b52324c8f6",
+  "schema": "elyko.fiduciary-package-export.v1",
+  "source_sha256": "228115725185c3f60a5186334f7b8e97a690bd979e5157fa4e71c8f5ba026f82"
+}

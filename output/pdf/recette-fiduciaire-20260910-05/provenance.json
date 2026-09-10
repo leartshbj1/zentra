@@ -1,0 +1,13 @@
+{
+  "application_version": "1.46.1",
+  "case": "ledger_case",
+  "execution": "LocalStore commands used by the application, isolated temporary profile",
+  "expected_sha256": "830366f176b5aa1e4d864931e6b3c366b07b4d65c08d2614a7baa6f9874fe41e",
+  "harness_sha256": "1f06a0a8843f0ac8bf553479c728822630627cd5a0d977195a9366c0aa6bc7ed",
+  "professional_approval": false,
+  "schema_version": 65,
+  "source_hash_newlines": "LF",
+  "source_revision": "2528620004442a90adff35d6105767616d3c99c6-working-tree",
+  "submission_to_afc": false,
+  "synthetic": true
+}
