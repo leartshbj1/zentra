@@ -64,6 +64,7 @@ desktopApi.loadWorkspace = async () => structuredClone(data);
 // The preview has no native bridge or remote backup account. Specialized
 // backup and business-cycle fixtures override these local defaults themselves.
 desktopApi.getCloudBackupState = async () => ({ enabled: false, connected: false, backups: [] });
+desktopApi.getBusinessHistoryState = async () => ({ connected: false });
 desktopApi.runCloudBackup = async () => ({ enabled: false, connected: false, backups: [] });
 desktopApi.getReminderSettings = async () => ({ enabled: false, senderName: '', lastScanAt: '' });
 desktopApi.listReminderTemplates = async () => [];

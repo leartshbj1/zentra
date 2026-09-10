@@ -15,7 +15,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&payroll=1&designLedger=1`);
+    await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&payroll=1&designLedger=1&designTrial=1`);
     await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Comptabilité');
@@ -29,6 +29,27 @@ try {
       if (await tabs.isVisible()) await tabs.getByRole('tab', { name: title, exact: true }).click();
       else await page.getByRole('combobox', { name: 'Section comptable', exact: true }).selectOption(value);
     };
+    // A populated footer used to widen the entire screen, including its menu.
+    await section('trial', 'Balance');
+    const totals = page.locator('.accounting-screen tfoot');
+    await totals.waitFor();
+    const expectedTotals = ['Totaux', '1 234 567.89 CHF', '1 234 567.89 CHF', '12 345.67 CHF', '12 345.67 CHF', '1 246 913.56 CHF', '1 246 913.56 CHF'];
+    assert.deepEqual(await totals.locator('tr > *').allTextContents(), expectedTotals);
+    await page.waitForFunction(() => {
+      const toolbar = document.querySelector('.accounting-toolbar')?.getBoundingClientRect();
+      return toolbar && toolbar.left >= 0 && toolbar.right <= innerWidth + 1;
+    });
+    if (width <= 860) {
+      await page.waitForFunction(() => document.querySelector('tfoot tr > :last-child')?.getAttribute('data-label') === 'Clôture crédit');
+      const bounds = await totals.boundingBox();
+      assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width, 'Every total stays inside the mobile screen');
+      assert.equal(await totals.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true);
+      assert.deepEqual(await totals.locator('tr > :not(:first-child)').evaluateAll(cells => cells.map(cell => cell.getAttribute('data-label'))), ['Ouverture débit', 'Ouverture crédit', 'Mouvements débit', 'Mouvements crédit', 'Clôture débit', 'Clôture crédit']);
+    }
+    await page.setViewportSize({ width: width <= 860 ? 1440 : 390, height: 900 });
+    assert.deepEqual(await totals.locator('tr > *').allTextContents(), expectedTotals, 'Changing layout preserves every amount');
+    await page.setViewportSize({ width, height: 900 });
+    await section('journal', 'Journal');
     assert.equal(await from.isVisible(), width > 1100);
     if (width <= 1100) {
       await toggle.focus();
@@ -72,7 +93,7 @@ try {
     assert.deepEqual(layout.clipped, []);
     assert.deepEqual(errors, []);
     await page.locator('.accounting-toolbar').screenshot({ path: `${out}/${width}-filters.png` });
-    report.push({ width, filtersPreserved: true, keyboardAndResize: true, layout });
+    report.push({ width, filtersPreserved: true, keyboardAndResize: true, populatedTotalsPreserved: true, layout });
     await page.close();
   }
 } finally {
