@@ -12,7 +12,7 @@ export function SectionTabs<T extends string>({ items, value, onChange, label }:
         event.preventDefault(); onChange(items[next][0]);
         const button = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next];
         button?.focus(); button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      }}>{icon}{title}</button>)}
+      }}><span className="section-navigation__icon" aria-hidden="true">{icon}</span><span className="section-navigation__title">{title}</span></button>)}
     </div>
   </div>;
 }

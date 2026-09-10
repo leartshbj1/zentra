@@ -11,8 +11,7 @@ try {
     page.on('pageerror', error => report.push({ width, error: error.message }));
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(`${process.env.ZENTRA_QA_BASE_URL || 'http://127.0.0.1:5175'}/tests/mobile-harness.html?projectCosts=1`, { waitUntil: 'domcontentloaded' });
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (await tour.isVisible()) await tour.click();
+    await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
     const navigate = async name => {
       await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name);
