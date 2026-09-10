@@ -4240,9 +4240,9 @@ function TeamScreen({
   return (
     <div className="stack-layout team-screen">
       <nav className="team-navigation" aria-label="Équipe et paie">
-        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}>Collaborateurs <span>{workspace.employees.length}</span></button>
-        <button type="button" aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}>Fiches de salaire <span>{workspace.payslips.length}</span></button>
-        <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}>Certificats annuels</button>
+        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">Équipe</span><span className="team-navigation__count">{workspace.employees.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">Fiches de salaire</span><span className="team-navigation__count">{workspace.payslips.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">Certificats annuels</span></button>
       </nav>
       {teamSection === 'certificates' ? <SalaryCertificates workspace={workspace} disabled={busy} /> : null}
       {teamSection === 'employees' ? <section className="team-directory">

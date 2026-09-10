@@ -476,9 +476,6 @@
 }
 @media screen and (max-width: 800px) {
   .section-navigation { width: 100%; }
-  .section-navigation__tabs { display: none !important; }
-  .section-navigation__mobile { display: flex; flex-direction: column; gap: 7px; width: 100%; color: #53655b; font-size: 13px; }
-  .section-navigation__mobile select { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; color: #174d35; }
   .accounting-export-bar { align-items: stretch; flex-direction: column; }
   .vat-overview__totals { grid-template-columns: 1fr; }
   .vat-overview__totals article { padding: 16px; }

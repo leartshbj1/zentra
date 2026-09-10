@@ -544,7 +544,9 @@
   .tab-strip { border-radius: 16px; }
   .tab-strip button { justify-content: center; text-align: center; white-space: normal; overflow-wrap: anywhere; border-radius: 12px; min-width: 0; line-height: 1.4; }
   .tab-strip button > svg { flex-shrink: 0; }
-  .section-navigation { container-type: inline-size; }
+  .section-navigation { container: section-menu / inline-size; width: 100%; min-width: 0; font-size: 1rem; }
+  .section-navigation__mobile { display: none; flex-direction: column; gap: 8px; min-width: 0; width: 100%; color: #53655b; font-size: .875rem; line-height: 1.5; }
+  .section-navigation__mobile select { width: 100%; min-width: 0; min-height: 48px; font-size: 1rem; font-weight: 600; color: #174d35; }
   .section-navigation__tabs { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(var(--section-compact-columns, 3), minmax(0, 1fr)); width: 100%; padding: 6px; gap: 4px; border: 1px solid #e7e7ec; border-radius: 18px; background: #f0f0f3; }
   .section-navigation__tabs button { position: relative; display: flex; width: 100%; min-height: 58px; height: 100%; padding: 12px; gap: 8px; max-width: 100%; align-items: center; justify-content: center; font-size: .875rem; font-weight: 500; }
   .section-navigation__tabs button:hover:not([aria-selected=true]) { background: #ffffff80; color: #244c35; }
@@ -582,7 +584,12 @@
   .module-toggle > span, .check-card > span { min-width: 0; overflow-wrap: anywhere; }
   .module-toggle small, .check-card small { font-size: 13px; line-height: 1.5; }
 }
-@container (min-width: 58em) {
+/* Adapt to the available panel width, including desktop sidebars and text zoom. */
+@container section-menu (max-width: 38em) {
+  .section-navigation__tabs { display: none; }
+  .section-navigation__mobile { display: flex; }
+}
+@container section-menu (min-width: 58em) {
   .section-navigation__tabs { grid-template-columns: repeat(var(--section-columns, 3), minmax(0, 1fr)); }
   .section-navigation__tabs button { flex-direction: column; padding: 12px 8px; gap: 8px; }
   .section-navigation__title { display: flex; align-items: center; justify-content: center; min-height: 2.8em; width: 100%; }
@@ -612,4 +619,19 @@
   .bank-screen .bank-hero { grid-template-columns: minmax(0, 1fr); }
   .time-hero { grid-template-columns: minmax(0, 1fr); padding: 24px; }
   .time-hero__actions { grid-column: 1; }
+}
+
+@media screen {
+  .team-navigation { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; width: 100%; max-width: 720px; gap: 4px; padding: 5px; border: 1px solid #e7e7ec; border-radius: 18px; background: #f0f0f3; overflow: visible; }
+  .team-navigation button { display: grid; grid-template-rows: 1fr minmax(1.5rem, auto); align-items: center; justify-items: center; gap: 5px; min-width: 0; min-height: 64px; padding: 10px 8px; border: 0; border-radius: 12px; text-align: center; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+  .team-navigation button[aria-pressed=true] { background: #fff; color: #234c36; box-shadow: 0 2px 6px #1d1d1f08; }
+  .team-navigation button:hover:not([aria-pressed=true]) { background: #ffffff80; }
+  .team-navigation button .team-navigation__title { display: flex; align-items: center; justify-content: center; min-height: 2.8em; margin: 0; color: inherit; font-size: .875rem; line-height: 1.4; text-wrap: balance; }
+  .team-navigation button .team-navigation__count { min-width: 1.5rem; margin: 0; padding: 2px 6px; border-radius: 6px; background: #e5e9e6; color: #435a4b; font-size: .75rem; line-height: 1.4; }
+  .team-directory .employee-card__main > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 8px 20px; padding: 12px 0 0; background: transparent; }
+  .team-directory .employee-card__main > div > span { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; min-width: 0; color: var(--muted); font-size: .875rem; line-height: 1.5; }
+  .team-directory .employee-card__main strong { color: #304b38; font-size: .875rem; line-height: 1.5; font-weight: 550; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}
+@media (forced-colors: active) {
+  .team-navigation button[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
