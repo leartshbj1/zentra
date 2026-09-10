@@ -1,3 +1,4 @@
+import { expandAccountingPeriodFilters } from './accounting-navigation.mjs';
 import assert from 'node:assert/strict';
 import { mkdir,writeFile } from 'node:fs/promises';
 import { pathToFileURL,fileURLToPath } from 'node:url';
@@ -34,6 +35,7 @@ try {
     assert.equal(await panel.locator('.customer-credit-checks__body').evaluate(node=>getComputedStyle(node).animationName),'none');
     await panel.getByRole('button',{name:'Voir l’écriture de J-2026-999',exact:true}).click();
     const entry=page.locator('[data-journal-entry-id="entry-9"]');
+    await expandAccountingPeriodFilters(page);
     await page.getByLabel('Date de début de la période',{exact:true}).waitFor();
     await page.locator('.accounting-filters').getByText('Du',{exact:true}).waitFor();
     await page.locator('.accounting-filters').getByText('Au',{exact:true}).waitFor();
