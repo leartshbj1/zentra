@@ -5,6 +5,7 @@ import {
   Check,
   Clock3,
   Database,
+  Download,
   FileCheck2,
   FolderKanban,
   HardDrive,
@@ -42,6 +43,9 @@ import {
   ZENTRA_MAC_DMG_SHA256,
   ZENTRA_MAC_DMG_SIZE_MIB,
   ZENTRA_VERSION,
+  ZENTRA_WINDOWS_PREVIEW_VERSION,
+  ZENTRA_WINDOWS_PREVIEW_PATH,
+  ZENTRA_WINDOWS_PREVIEW_SHA256,
 } from '@/lib/downloads';
 
 export const metadata = {
@@ -125,6 +129,21 @@ export default function DownloadPage() {
         tabIndex={-1}
         className="min-h-screen overflow-x-clip bg-[#f5f3ee] pb-24 text-[#17231d] md:pb-0"
       >
+        <section aria-labelledby="windows-preview-title" className="mx-auto max-w-7xl px-5 pt-8 lg:px-8">
+          <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 max-w-2xl">
+              <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Découvrez la nouvelle interface.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Des menus plus lisibles, des transitions douces et un tutoriel pour vous accompagner. Cette préversion s’installe manuellement ; la version stable et les téléchargements Mac et mobiles restent disponibles ci-dessous.</p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
+              <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
+                <Download className="size-4 shrink-0" aria-hidden="true" /> Télécharger la préversion Windows
+              </a>
+              <a href={`${ZENTRA_WINDOWS_PREVIEW_PATH}.sha256.txt`} className="inline-flex min-h-11 items-center justify-center text-sm text-[#496054] underline underline-offset-4" title={`SHA-256 : ${ZENTRA_WINDOWS_PREVIEW_SHA256}`}>Vérifier le fichier</a>
+            </div>
+          </div>
+        </section>
         <section className="mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-10 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-20">
           <div data-reveal="left">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
