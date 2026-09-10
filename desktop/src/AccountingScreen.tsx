@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Archive, BookOpen, CheckCircle2, ChevronDown, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import {
@@ -110,6 +110,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
   const [filter, setFilter] = useState<PeriodFilter>({});
   const [periodId, setPeriodId] = useState('');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const filtersId = useId();
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [journal, setJournal] = useState<JournalReport | null>(null);
   const [ledger, setLedger] = useState<LedgerReport | null>(null);
@@ -135,6 +137,12 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const credit = entryLines.reduce((sum, line) => sum + line.creditCents, 0);
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
+  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods';
+  const periodLabel = selectedPeriod?.name || (
+    filter.dateFrom && filter.dateTo ? `${formatDate(filter.dateFrom)} – ${formatDate(filter.dateTo)}`
+      : filter.dateFrom ? `Depuis le ${formatDate(filter.dateFrom)}`
+        : filter.dateTo ? `Jusqu’au ${formatDate(filter.dateTo)}` : 'Toutes les dates'
+  );
   const focusedEntryAvailable = Boolean(
     activeEntryFocus &&
       journal?.entries.some(
@@ -413,17 +421,22 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   }
 
   return <div className="stack-layout accounting-screen">
-    <section className={`accounting-toolbar panel ${tab==='accounts'||tab==='periods'?'accounting-toolbar--global':''}`}>
+    <section className={`accounting-toolbar panel ${hasPeriodFilter ? '' : 'accounting-toolbar--global'}`}>
       <SectionTabs items={tabs} value={tab} onChange={setTab} label="Section comptable" />
-      <div className="accounting-filters">
-        {tab!=='accounts'&&tab!=='periods'&&<>
-          <Field label="Exercice ou période"><select value={periodId} disabled={busy} aria-label="Exercice ou période comptable" onChange={(event) => choosePeriod(event.target.value)}><option value="">Période libre</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.status === 'closed' ? 'clôturé' : 'ouvert'}</option>)}</select></Field>
-          <Field label="Du"><input type="date" value={filter.dateFrom ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateFrom: event.target.value || undefined })} aria-label="Date de début de la période" /></Field>
-          <Field label="Au"><input type="date" value={filter.dateTo ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateTo: event.target.value || undefined })} aria-label="Date de fin de la période" /></Field>
+      <div className="accounting-period-bar">
+        {hasPeriodFilter && <>
+          <button type="button" className="accounting-period-toggle" aria-expanded={filtersExpanded} aria-controls={filtersId} onClick={() => setFiltersExpanded((expanded) => !expanded)}>
+            <SlidersHorizontal size={17} aria-hidden="true" /><span><span>Période</span><strong>{periodLabel}</strong></span><ChevronDown size={16} aria-hidden="true" />
+          </button>
           <span className={`report-state ${reportState === 'Clôturé' ? 'is-closed' : ''}`} role="status" aria-live="polite">{busy ? 'Actualisation…' : reportState}</span>
         </>}
         <Button variant="secondary" size="small" disabled={busy} onClick={() => void reloadAll('Les états ont été actualisés.')}><RefreshCw size={15} /> Actualiser</Button>
       </div>
+      {hasPeriodFilter && <div id={filtersId} className="accounting-filters" data-expanded={filtersExpanded} onFocusCapture={() => setFiltersExpanded(true)}>
+          <Field label="Exercice ou période"><select value={periodId} disabled={busy} aria-label="Exercice ou période comptable" onChange={(event) => choosePeriod(event.target.value)}><option value="">Période libre</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.status === 'closed' ? 'clôturé' : 'ouvert'}</option>)}</select></Field>
+          <Field label="Du"><input type="date" value={filter.dateFrom ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateFrom: event.target.value || undefined })} aria-label="Date de début de la période" /></Field>
+          <Field label="Au"><input type="date" value={filter.dateTo ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateTo: event.target.value || undefined })} aria-label="Date de fin de la période" /></Field>
+      </div>}
     </section>
     {['balance', 'income', 'closing'].includes(tab) ? <section className="panel accounting-export-bar"><div><strong>Bilan et compte de résultat</strong><p>Présentation suisse, détails par rubrique et comparaison avec l’exercice précédent.</p></div><Button disabled={busy || !balance || !income} onClick={() => void exportAccounts()}><FileCheck2 size={17} /> Exporter le bilan PDF</Button></section> : null}
     {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}

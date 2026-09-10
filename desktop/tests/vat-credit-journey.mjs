@@ -1,3 +1,4 @@
+import { expandAccountingPeriodFilters } from './accounting-navigation.mjs';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -17,6 +18,7 @@ try {
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Comptabilité');
     await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Comptabilité', { exact: true }) }).click();
+    await expandAccountingPeriodFilters(page);
     await page.getByLabel('Date de début de la période', { exact: true }).fill('2026-01-01');
     await page.getByLabel('Date de fin de la période', { exact: true }).fill('2026-03-31');
     if (width <= 800) await page.getByRole('combobox', { name: 'Section comptable', exact: true }).selectOption('vat');

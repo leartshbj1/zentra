@@ -1,3 +1,4 @@
+import { expandAccountingPeriodFilters } from './accounting-navigation.mjs';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -40,6 +41,7 @@ try {
     await capture(`390-${label}`);
   }
   await go('Comptabilité');
+  await expandAccountingPeriodFilters(page);
   await page.getByLabel('Date de début de la période', { exact: true }).fill('2026-01-01');
   await page.getByLabel('Date de fin de la période', { exact: true }).fill('2026-03-31');
   for (const width of [320, 390, 768, 1024, 1440]) {

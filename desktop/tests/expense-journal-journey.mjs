@@ -1,3 +1,4 @@
+import { expandAccountingPeriodFilters } from './accounting-navigation.mjs';
 import {createRequire} from 'node:module';
 import {mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -17,6 +18,7 @@ try {
     await page.locator('.navigation-palette').waitFor({state:'detached'});
     const tab=async(value,name)=>{if(width<=800)await page.getByRole('combobox',{name:'Section comptable',exact:true}).selectOption(value);else await page.getByRole('tab',{name,exact:true}).click();};
     const capture=async(name)=>{assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${width} ${name} overflow`);await page.screenshot({path:`.qa/expense-journal/${width}-${name}.png`});};
+    await expandAccountingPeriodFilters(page);
     await page.getByLabel('Date de début de la période',{exact:true}).fill('2026-04-01');
     await page.getByLabel('Date de fin de la période',{exact:true}).fill('2026-06-30');
     await tab('vat','TVA');
@@ -57,6 +59,7 @@ try {
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-attempts')),'3');
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('qa-expense-commits')),'1');
     await restored.scrollIntoViewIfNeeded();await capture('restored');
+    await expandAccountingPeriodFilters(page);
     await page.getByLabel('Date de début de la période',{exact:true}).fill('2026-04-01');
     await page.getByLabel('Date de fin de la période',{exact:true}).fill('2026-06-30');
     await tab('vat','TVA');await page.getByText('Prêt pour export contrôlé',{exact:true}).waitFor();
