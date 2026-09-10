@@ -33,7 +33,7 @@ describe('macOS ad-hoc early-access build contract', () => {
   });
 
   it('runs on GitHub macOS and keeps automatic GitHub release publishing disabled', () => {
-    const workflow = readFileSync(workflowUrl, 'utf8');
+    const workflow = readFileSync(workflowUrl, 'utf8').replace(/\r\n/g, '\n');
     const script = readFileSync(buildScriptUrl, 'utf8');
 
     expect(workflow).toMatch(/runs-on: macos-(?:15|26)/);
