@@ -70,7 +70,7 @@ try {
     await dialog.getByRole('button', { name: /Reprendre les choix du/ }).click();
     await dialog.getByRole('button', { name: 'Choix enregistrés', exact: true }).waitFor();
     assert.equal(await dialog.getByRole('radio', { checked: true }).count(), 4);
-    assert.equal(await dialog.getByRole('button', { name: /Appliquer/ }).count(), 0);
+    assert.equal(await dialog.getByRole('button', { name: 'Appliquer mes choix', exact: true }).isEnabled(), true);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.ok(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'No dialog horizontal overflow');
     await page.screenshot({ path: fileURLToPath(new URL(`${viewport.width}-saved.png`, output)) });

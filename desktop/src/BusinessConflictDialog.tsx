@@ -13,7 +13,7 @@ type Choices = Record<string, BusinessConflictChoice>;
 type TextSelection = { transaction: string; change: BusinessConflictChange; image: 'base' | 'local' | 'shared'; field: string };
 const imageLabels = { base: 'Avant la modification', local: 'Modification sur cet appareil', shared: 'Version reçue' };
 
-export default function BusinessConflictDialog({ transactionId, onClose }: { transactionId: string; onClose: () => void }) {
+export default function BusinessConflictDialog({ transactionId, onClose, onApply }: { transactionId: string; onClose: () => void; onApply?: (resolutionId: string) => void }) {
   const [report, setReport] = useState<Report>();
   const [choices, setChoices] = useState<Choices>({});
   const [cursor, setCursor] = useState<string>();
@@ -137,7 +137,7 @@ export default function BusinessConflictDialog({ transactionId, onClose }: { tra
       <nav className="conflict-pager" aria-label="Pages des opérations"><Button size="small" variant="ghost" disabled={busy || !history.length} onClick={() => void run(() => page(history.at(-1), true))}><ArrowLeft size={16} /> Opérations précédentes</Button><Button size="small" variant="ghost" disabled={busy || !report.next_after_sequence} onClick={() => void run(() => page(report.next_after_sequence!))}>Opérations suivantes <ArrowRight size={16} /></Button></nav>
       {validated && 'documents' in report && report.documents && <output className="conflict-valid"><Check size={18} /> Proposition vérifiée avec {report.documents.final_count} documents, dont {report.documents.files_to_replace} à remplacer.</output>}
       {!validated && report.state === 'resolution_needs_review' && <output>Il reste {report.conflict_count} opérations à rapprocher. Consultez aussi les pages suivantes.</output>}
-      <footer className="conflict-footer"><p>{savedId ? 'Vos choix et les documents de la proposition sont enregistrés sur cet appareil.' : `${Object.keys(choices).length} choix préparés.`} Leur application au dossier n’est pas encore disponible dans cette version.</p><div><Button variant="secondary" disabled={busy || !report.can_choose || !Object.keys(choices).length} onClick={() => void run(async () => accept(await desktopApi.previewBusinessResolution(transactionId, request())))}>Vérifier mes choix</Button><Button disabled={busy || !report.can_choose || !validated || Boolean(savedId)} onClick={() => void run(save)}>{savedId ? 'Choix enregistrés' : 'Enregistrer mes choix'}</Button></div></footer>
+      <footer className="conflict-footer"><p>{savedId ? 'Vos choix et les documents sont enregistrés. Leur application actualisera le dossier ; les opérations d’origine resteront conservées dans l’historique.' : `${Object.keys(choices).length} choix préparés. Vérifiez-les puis enregistrez la proposition avant de l’appliquer.`}</p><div><Button variant="secondary" disabled={busy || !report.can_choose || !Object.keys(choices).length} onClick={() => void run(async () => accept(await desktopApi.previewBusinessResolution(transactionId, request())))}>Vérifier mes choix</Button><Button disabled={busy || !report.can_choose || !validated || Boolean(savedId)} onClick={() => void run(save)}>{savedId ? 'Choix enregistrés' : 'Enregistrer mes choix'}</Button>{savedId && onApply && <Button disabled={busy || !report.can_choose || !validated} onClick={() => onApply(savedId)}>Appliquer mes choix</Button>}</div></footer>
     </>}
   </Modal>;
 }

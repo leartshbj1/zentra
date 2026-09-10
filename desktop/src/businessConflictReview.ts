@@ -103,7 +103,8 @@ export function conflictFields(change: BusinessConflictChange) {
   })).sort((a, b) => Number(b.changed) - Number(a.changed) || a.key.localeCompare(b.key, 'fr'));
 }
 
-// A verified preview is intentionally distinct from an installation result.
+// A preview never authorizes installation. The separate explicit application
+// command rechecks the saved proposal and obtains the interface write barrier.
 export type BusinessResolutionPreview = Omit<BusinessConflictReview, 'state'> & {
   state: 'resolution_preview' | 'resolution_needs_review';
   native_guards_validated: boolean;

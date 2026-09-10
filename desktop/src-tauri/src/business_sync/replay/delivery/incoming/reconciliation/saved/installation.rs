@@ -302,7 +302,6 @@ pub(in crate::business_sync::replay::delivery::incoming::reconciliation) fn inst
     ))
 }
 
-#[allow(dead_code)] // Connected to the interface after refusal recovery and UI reload are complete.
 pub(in crate::business_sync::replay::delivery::incoming::reconciliation) fn install(
     store: &LocalStore,
     id: &str,

@@ -16,6 +16,7 @@ import type { BusinessHistoryState, BusinessHistoryReception } from './businessH
 import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import type { NativeTimerRecoveryState, TimerAssignment, TimerRecoveryState } from './timerRecovery';
+import type { BusinessResolutionAction, BusinessResolutionResult, BusinessResolutionTarget } from './businessResolutionSession';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
@@ -4765,6 +4766,13 @@ export const desktopApi = {
   syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
   syncBusinessBootstrap: () => invoke<BusinessBootstrapStatus>('sync_business_bootstrap'),
   getBusinessCycleState: () => invoke<BusinessCycleState>('get_business_cycle_state'),
+  resolveBusinessConflict: (selection: BusinessHistorySelection, target: BusinessResolutionTarget, action: BusinessResolutionAction,
+    permission: { requestId: string; onRequest: (request: { request_id: string; selection: BusinessHistorySelection }) => void }) => {
+    const installationPermission = new Channel<{ request_id: string; selection: BusinessHistorySelection }>();
+    installationPermission.onmessage = permission.onRequest;
+    return invoke<BusinessResolutionResult>('resolve_business_conflict', { selection, transactionId: target.transaction_id,
+      resolutionId: target.resolution_id, action, requestId: permission.requestId, installationPermission });
+  },
   inspectBusinessConflicts: (transactionId: string, page?: { afterSequence?: string; reviewId: string }) =>
     invoke<BusinessConflictReview>('inspect_business_conflicts', { transactionId, afterSequence: page?.afterSequence ?? null, reviewId: page?.reviewId ?? null }),
   inspectBusinessConflictChanges: (transactionId: string, request: BusinessConflictChangesRequest) =>

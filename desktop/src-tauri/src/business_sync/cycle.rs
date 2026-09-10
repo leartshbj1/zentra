@@ -21,6 +21,7 @@ use std::{
 };
 use tauri::State;
 pub(crate) mod installation;
+pub(crate) mod resolution;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -157,6 +158,25 @@ where
 {
     // Each transport validates the account and this selected history around
     // every network operation. Revision-specific checks remain in the decoders.
+    {
+        let _guard = store.lock()?;
+        transport.check(&store)?;
+        incoming::Transport::ensure_current(transport.as_ref(), &store)?;
+        let pending = resolution::pending(
+            &store,
+            &store.connect()?,
+            &transport.selection,
+            outgoing::Transport::role(transport.as_ref()),
+        )?;
+        if !pending.is_null() {
+            return Ok(status(
+                &transport.selection,
+                "conflict",
+                json!({"state":"resolution_pending","resolution":pending}),
+                false,
+            ));
+        }
+    }
     let received = incoming::receive_pass(&store, transport.as_ref(), 8).await?;
     let selection = &transport.selection;
     match received["state"].as_str() {
@@ -244,6 +264,7 @@ pub async fn get_business_cycle_state(state: State<'_, LocalStore>) -> Result<Va
         return Ok(json!({"state":"waiting_for_connection"}));
     };
     session.ensure_current_for(store).map_err(command_error)?;
+    let _guard = store.lock().map_err(command_error)?;
     let c = store.connect().map_err(command_error)?;
     let installed: bool = c
         .query_row(
@@ -258,9 +279,11 @@ pub async fn get_business_cycle_state(state: State<'_, LocalStore>) -> Result<Va
     }
     let selection = incoming::selection(store, &session.organization_id).map_err(command_error)?;
     let pending = super::status(&c).map_err(command_error)?;
+    let resolution =
+        resolution::pending(store, &c, &selection, &session.role).map_err(command_error)?;
     session.ensure_current_for(store).map_err(command_error)?;
     Ok(
-        json!({"state":"ready","selection":selection,"pending_transactions":pending["pending_transactions"],"replication_active":false}),
+        json!({"state":"ready","selection":selection,"pending_transactions":pending["pending_transactions"],"resolution":resolution,"replication_active":false}),
     )
 }
 

@@ -28,6 +28,7 @@ impl durable::Transport for Server {
     }
     async fn post(&self, body: Vec<u8>) -> AppResult<(StatusCode, Vec<u8>)> {
         self.calls.lock().unwrap().push("retirement_post".into());
+        if std::mem::take(&mut *self.fail_once.lock().unwrap()) { return Err(invalid("Retirement response lost")); }
         let request: RetirementRequest = serde_json::from_slice(&body).unwrap();
         assert_eq!(request.generation, self.header.binding.generation);
         assert_eq!(request.capture_generation, self.header.binding.capture);

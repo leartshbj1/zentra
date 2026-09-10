@@ -359,6 +359,7 @@ pub fn run() {
             business_sync::snapshot::transport::publication::get_business_history_state,
             business_sync::outgoing::transport::sync_business_transactions,
             business_sync::cycle::get_business_cycle_state,
+            business_sync::cycle::resolution::resolve_business_conflict,
             business_sync::cycle::sync_business_cycle,
             business_sync::cycle::pause_business_cycle,
             business_sync::cycle::installation::respond_business_installation,

@@ -51,7 +51,6 @@ impl Transport for ProjectSyncSession {
         .await
     }
 }
-#[allow(dead_code)] // Consumed by the coordinated application flow in preparation.
 pub(crate) enum Outcome {
     Cancelled(Value),
     Retired(Box<retirement::Frozen>),
@@ -84,7 +83,7 @@ fn completed<T: Transport>(
         || !c.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding b JOIN business_sync_baseline h ON h.id=b.id WHERE b.id=1 AND b.capture_enabled=1 AND b.organization_id=?1 AND b.installation_id=?2 AND h.organization_id=b.organization_id AND h.server_generation=?3)",params![parsed.organization_id,parsed.installation_id,parsed.generation],|r|r.get::<_,bool>(0))?
     { return Err(invalid("Cette annulation ne correspond pas au compte et au dossier de cet appareil.")); }
     Ok(Some(
-        json!({"state":"resolution_cancelled","resolution_id":id,"cancelled":true,"already_cancelled":true,"workspace_changed":false,"requires_new_comparison":true}),
+        json!({"state":"resolution_cancelled","resolution_id":id,"transaction_id":parsed.received_transaction_id,"cancelled":true,"already_cancelled":true,"workspace_changed":false,"requires_new_comparison":true}),
     ))
 }
 
@@ -93,8 +92,6 @@ enum Start {
     Frozen(Box<retirement::Frozen>),
 }
 
-/// Internal until the UI coordinates the frozen workspace and refresh lifecycle.
-#[allow(dead_code)]
 pub(crate) async fn run<T: Transport + Send + Sync + 'static>(
     store: LocalStore,
     transport: Arc<Guarded<T>>,

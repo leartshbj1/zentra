@@ -1,3 +1,5 @@
+import type { BusinessPendingResolution } from './businessResolutionSession';
+
 export type BusinessHistorySelection = {
   organization_id: string;
   installation_id: string;
@@ -7,7 +9,7 @@ export type BusinessHistorySelection = {
 };
 export type BusinessCycleState =
   | { state: 'waiting_for_connection' | 'history_required' }
-  | { state: 'ready'; selection: BusinessHistorySelection; pending_transactions: number };
+  | { state: 'ready'; selection: BusinessHistorySelection; pending_transactions: number; resolution?: BusinessPendingResolution | null };
 export type BusinessCycleStatus = {
   state: 'receiving' | 'awaiting_installation' | 'installed' | 'sending'
     | 'awaiting_receipt' | 'idle' | 'conflict' | 'invalid' | 'retry'

@@ -2,6 +2,7 @@ use super::conflict_review::drawing;
 use super::*;
 mod legacy;
 mod recovery;
+mod cancellation;
 use crate::business_sync::{
     replay::delivery::incoming::reconciliation::{
         application,
@@ -23,6 +24,9 @@ async fn prepared(choice: Choice) -> Fixture {
     prepared_with_dependency(choice, false).await
 }
 async fn prepared_with_dependency(choice: Choice, dependency: bool) -> Fixture {
+    prepared_with_mode(choice, dependency, true).await
+}
+async fn prepared_with_mode(choice: Choice, dependency: bool, retire: bool) -> Fixture {
     let mut project_id = String::new();
     let (root, local, context) = replay::tests::setup_with(|s| {
         drawing(s, &s.connect().unwrap(), "drawing.txt", b"original");
@@ -114,16 +118,18 @@ async fn prepared_with_dependency(choice: Choice, dependency: bool) -> Fixture {
     )
     .await
     .unwrap();
-    let frozen = application::retire_saved(
+    let permission_transport = t.clone();
+    let result = application::retire_saved(
         local.clone(),
         t.clone(),
         transaction,
         id,
         "d".repeat(64),
-        Arc::new(|| Ok(())),
+        Arc::new(move || { *permission_transport.transport.fail_once.lock().unwrap() = !retire; Ok(()) }),
     )
-    .await
-    .unwrap();
+    .await;
+    assert_eq!(result.is_ok(), retire);
+    let frozen = durable::load(&local.connect().unwrap(), &local).unwrap().unwrap();
     Fixture {
         _root: root,
         _other: other_root,

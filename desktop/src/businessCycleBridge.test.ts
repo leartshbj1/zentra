@@ -35,4 +35,13 @@ describe('native business installation permission channel', () => {
     await desktopApi.pauseBusinessCycle('cycle-id');
     expect(invokeMock).toHaveBeenCalledExactlyOnceWith('pause_business_cycle', { requestId: 'cycle-id' });
   });
+  it('binds an explicit resolution to its selected profile, exact proposal and scoped permission channel', async () => {
+    const onRequest = vi.fn();
+    await desktopApi.resolveBusinessConflict(selection, { transaction_id: 'transaction', resolution_id: 'proposal' }, 'cancel', { requestId: 'resolve-id', onRequest });
+    expect(invokeMock.mock.calls[0][0]).toBe('resolve_business_conflict');
+    expect(invokeMock.mock.calls[0][1]).toMatchObject({ selection, transactionId: 'transaction', resolutionId: 'proposal', action: 'cancel', requestId: 'resolve-id' });
+    channel().onmessage({ request_id: 'permission', selection });
+    expect(onRequest).toHaveBeenCalledExactlyOnceWith({ request_id: 'permission', selection });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
 });

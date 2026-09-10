@@ -150,7 +150,7 @@ pub(crate) fn prepare(c: &Connection, intent: &Intent) -> AppResult<()> {
     Ok(())
 }
 
-pub(in crate::business_sync::retirement) fn authorize<T: Transport>(
+pub(crate) fn authorize<T: Transport>(
     store: &LocalStore,
     transport: &Guarded<T>,
     frozen: &Frozen,
