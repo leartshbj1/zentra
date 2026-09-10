@@ -2148,6 +2148,7 @@
     "shared_numbering_binding": "Liaison de sécurité de la numérotation de cette installation.",
     "project_sync_binding": "Curseur de transport des fichiers propre à cette installation.",
     "project_document_sync": "File de transport des fichiers propre à cette installation.",
-    "active_timers": "Minuteur en cours sur cet appareil ; les heures enregistrées sont partagées."
+    "active_timers": "Minuteur en cours sur cet appareil ; les heures enregistrées sont partagées.",
+    "timer_recoveries": "Pointages arrêtés à réaffecter sur cet appareil ; les heures sont partagées après affectation."
   }
 }

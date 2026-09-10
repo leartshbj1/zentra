@@ -1,0 +1,27 @@
+.timer-recovery { padding: 24px; min-width: 0; }
+.timer-recovery > header { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.timer-recovery > header > div { flex: 1; min-width: min(220px, 100%); }
+.timer-recovery > header > svg { flex-shrink: 0; color: var(--green-900); }
+.timer-recovery h2 { margin: 0; font-size: 20px; }
+.timer-recovery p { margin: 8px 0 16px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.timer-recovery > header p, .timer-recovery__hint { color: var(--muted); }
+.timer-recovery__notice { margin-top: 20px; padding: 20px; background: #f5f5f7; border-radius: 16px; }
+.timer-recovery__confirmation { border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.timer-recovery__confirmation output { display: block; font-size: 14px; line-height: 1.6; }
+.timer-recovery__item { min-width: 0; border-top: 1px solid var(--line-soft); padding-top: 24px; margin-top: 24px; }
+.timer-recovery__identity { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+.timer-recovery__identity > div { flex: 1; min-width: min(200px, 100%); display: grid; gap: 8px; }
+.timer-recovery__identity strong { font-size: 16px; overflow-wrap: anywhere; }
+.timer-recovery__identity span { color: var(--muted); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.timer-recovery__note { white-space: pre-wrap; }
+.timer-recovery dl { display: flex; gap: 16px 32px; flex-wrap: wrap; font-size: 14px; line-height: 1.5; }
+.timer-recovery dt { color: var(--muted); }
+.timer-recovery dd { margin: 6px 0 0; overflow-wrap: anywhere; }
+.timer-recovery__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }
+.timer-recovery .form-actions { padding-top: 12px; }
+@media screen and (max-width: 1100px) { .timer-recovery__fields { grid-template-columns: minmax(0, 1fr); } }
+@media screen and (max-width: 480px) {
+  .timer-recovery { padding: 20px; }
+  .timer-recovery__notice { padding: 16px; }
+  .timer-recovery .form-actions > .button { width: 100%; }
+}

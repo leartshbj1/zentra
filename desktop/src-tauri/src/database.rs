@@ -1822,6 +1822,9 @@ impl LocalStore {
         if current < 64 {
             transaction.execute_batch(crate::business_sync::retirement::cancellation::MIGRATION_SQL)?;
         }
+        if current < 65 {
+            transaction.execute_batch(crate::business_sync::timer_recovery::MIGRATION_SQL)?;
+        }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM

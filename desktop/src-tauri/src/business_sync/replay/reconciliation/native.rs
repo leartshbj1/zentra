@@ -156,6 +156,11 @@ fn mapped(r: &rusqlite::Row<'_>) -> rusqlite::Result<RowChange> {
 pub(super) fn restore_local(copy: &Copy, expected: &str) -> AppResult<()> {
     let mut c = copy.store.connect()?;
     let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    // This isolated Copy restores existing evidence, not a newly stopped timer.
+    // The working-profile guard stays enabled. Restore the copy's guard before
+    // checking its exact original private fingerprint and committing anything.
+    let timer_guard: String = tx.query_row("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='timer_recoveries_insert_guard' AND tbl_name='timer_recoveries'", [], |r| r.get(0))?;
+    tx.execute_batch("DROP TRIGGER timer_recoveries_insert_guard")?;
     for table in policy()?.local_tables.keys() {
         let columns = columns(&tx, table)?
             .iter()
@@ -172,6 +177,7 @@ pub(super) fn restore_local(copy: &Copy, expected: &str) -> AppResult<()> {
         )?;
         tx.execute_batch(&format!("DROP TABLE {stash}"))?;
     }
+    tx.execute_batch(&timer_guard)?;
     if local_fingerprint(&tx)? != expected {
         return Err(invalid(
             "La réconciliation modifierait des informations propres à cet appareil.",
@@ -201,7 +207,10 @@ pub(super) fn build(
     Ok(copy)
 }
 
-pub(in crate::business_sync::replay) fn copy_source(store: &LocalStore, source: &Connection) -> AppResult<Copy> {
+pub(in crate::business_sync::replay) fn copy_source(
+    store: &LocalStore,
+    source: &Connection,
+) -> AppResult<Copy> {
     let directory =
         crate::business_sync::workspace::Workspace::new(store, "reconciliation-native")?;
     let mut candidate = store.clone();

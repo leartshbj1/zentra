@@ -64,12 +64,29 @@ fn table_hash_columns(
 }
 
 pub(super) fn verify_migration(original: &Connection, migrated: &Connection) -> AppResult<()> {
-    if replay::state_fingerprint(original)? != replay::state_fingerprint(migrated)?
-        || replay::local_fingerprint(original)? != replay::local_fingerprint(migrated)?
-    {
+    if replay::state_fingerprint(original)? != replay::state_fingerprint(migrated)? {
         return Err(invalid(
             "La mise à jour de la copie modifierait les données sauvegardées.",
         ));
+    }
+    for table in policy()?.local_tables.keys() {
+        let names = columns(original, table)?;
+        if names.is_empty() {
+            let count: i64 = migrated.query_row(
+                &format!("SELECT COUNT(*) FROM {}", identifier(table)?),
+                [],
+                |r| r.get(0),
+            )?;
+            if table != "timer_recoveries" || count != 0 {
+                return Err(invalid("La copie contient une donnée privée non prévue."));
+            }
+        } else if table_hash_columns(original, table, &names, "", &[])?
+            != table_hash_columns(migrated, table, &names, "", &[])?
+        {
+            return Err(invalid(
+                "La mise à jour de la copie modifierait une donnée privée.",
+            ));
+        }
     }
     for table in [
         "business_sync_binding",
@@ -92,11 +109,13 @@ pub(super) fn verify_migration(original: &Connection, migrated: &Connection) -> 
             ));
         }
     }
-    let invalid: bool = migrated.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_resolution_cancellations) OR EXISTS(SELECT 1 FROM business_sync_resolution_intent WHERE cancellation_requested<>0)", [], |r| r.get(0))?;
-    if invalid {
-        return Err(super::invalid(
-            "La copie contient une annulation non prévue.",
-        ));
+    if columns(original, "business_sync_resolution_cancellations")?.is_empty() {
+        let unexpected: bool = migrated.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_resolution_cancellations) OR EXISTS(SELECT 1 FROM business_sync_resolution_intent WHERE cancellation_requested<>0)", [], |r| r.get(0))?;
+        if unexpected {
+            return Err(invalid("La copie contient une annulation non prévue."));
+        }
+    } else {
+        same(original, migrated, "business_sync_resolution_cancellations")?;
     }
     Ok(())
 }
@@ -321,7 +340,11 @@ fn integrity(c: &Connection) -> AppResult<()> {
         r.get(0)
     })?;
     if bad != 0 {
-        return Err(invalid("Une donnée propre à cet appareil dépend d’un élément écarté. Elle a été conservée ; résolvez cette dépendance avant l’installation."));
+        return Err(invalid("Une donnée propre à cet appareil dépend d’un élément écarté. Conservez le pointage en attente avant de reprendre l’installation."));
+    }
+    let closed_task: bool = c.query_row("SELECT EXISTS(SELECT 1 FROM active_timers timer WHERE timer.task_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM project_tasks task WHERE task.id=timer.task_id AND task.project_id=timer.project_id AND task.status IN ('todo','in_progress')))", [], |r| r.get(0))?;
+    if closed_task {
+        return Err(invalid("La tâche du chronomètre est fermée dans la version retenue. Conservez le pointage en attente avant de reprendre l’installation."));
     }
     crate::audit::verify_audit_chain(c)?;
     let result: String = c.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;

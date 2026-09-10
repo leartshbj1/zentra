@@ -12,6 +12,7 @@ pub(crate) mod replay;
 pub(crate) mod workspace;
 pub(crate) mod cycle;
 pub(crate) mod retirement;
+pub(crate) mod timer_recovery;
 
 #[cfg(test)]
 mod schema_contract;

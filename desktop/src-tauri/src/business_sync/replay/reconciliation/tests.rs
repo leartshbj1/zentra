@@ -470,6 +470,38 @@ fn pending_project_keeps_its_device_timer_and_remote_task_closure_is_rejected() 
 }
 
 #[test]
+fn later_reconciliation_preserves_pending_and_assigned_timer_recoveries() {
+    use crate::business_sync::timer_recovery as timers;
+    for assigned in [false, true] {
+        let mut project = String::new();
+        let (_root, store, mut context) = super::super::tests::setup_with(|s| {
+            project = s.create_record("projects",json!({"name":"Projet du pointage"})).unwrap()["id"].as_str().unwrap().into();
+        });
+        let (_other, remote) = super::super::tests::copy_receiver(&store);
+        store.connect().unwrap().execute("INSERT INTO active_timers(id,project_id,started_at,note) VALUES(1,?1,?2,'Pointage conservé')",params![project,(chrono::Utc::now()-chrono::Duration::minutes(25)).to_rfc3339()]).unwrap();
+        let state = timers::state(&store).unwrap();
+        let id = Uuid::new_v4().to_string();
+        timers::park(&store,&id,state["active"]["sha256"].as_str().unwrap()).unwrap();
+        if assigned {
+            timers::assign(&store,&id,timers::Assignment {project_id:project,task_id:None,employee_id:None}).unwrap();
+        }
+        let private = super::super::local_fingerprint(&store.connect().unwrap()).unwrap();
+        client(&store.connect().unwrap(), "local", "Client hors ligne", 1);
+        client(&remote.connect().unwrap(), "remote", "Client reçu", 1);
+        let sent = pending(&remote);
+        context.target_state_sha256 = state_fingerprint(&remote.connect().unwrap()).unwrap();
+        let prepared = prepare(&store,&context,&capture(&store),None,changes(&sent).into_iter().map(Ok),||Ok(())).unwrap();
+        let c = merged_store(&prepared).connect().unwrap();
+        assert_eq!(super::super::local_fingerprint(&c).unwrap(),private);
+        assert_eq!(super::super::local_fingerprint(&store.connect().unwrap()).unwrap(),private);
+        assert_eq!(c.query_row("SELECT COUNT(*) FROM clients WHERE id IN ('local','remote')",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+        assert_eq!(c.query_row("SELECT COUNT(*) FROM timer_recoveries WHERE entry_id IS NOT NULL",[],|r|r.get::<_,i64>(0)).unwrap(),i64::from(assigned));
+        assert!(c.execute("DELETE FROM timer_recoveries",[]).is_err());
+        assert!(c.execute("INSERT INTO timer_recoveries(id,timer_sha256,snapshot_json,snapshot_sha256) VALUES('forged',?1,'{}',?2)",params!["f".repeat(64),"e".repeat(64)]).is_err());
+    }
+}
+
+#[test]
 fn damaged_or_missing_canonical_alias_cache_cannot_replace_the_working_state() {
     let (_root, store, mut context) = super::super::tests::setup_with(|_| {});
     let (_remote_root, remote) = super::super::tests::copy_receiver(&store);

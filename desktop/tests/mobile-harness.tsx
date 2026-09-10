@@ -1,4 +1,5 @@
 import { installExpenseJournalFixture } from './expense-journal-fixture';
+import { installTimerRecoveryFixture } from './timer-recovery-fixture';
 import { installProjectSyncFixture } from './project-sync-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
 import { installDesignFixture } from './design-fixture';
@@ -79,6 +80,7 @@ desktopApi.getBalanceSheet = async () => ({ asOf: scope.dateTo, exerciseFrom: sc
 desktopApi.getIncomeStatement = async () => ({ scope, currency, rows: [], sections: {}, previousSections: {}, revenueCents: 0, expenseCents: 0, profitCents: 0, previousRevenueCents: 0, previousExpenseCents: 0, previousProfitCents: 0 });
 desktopApi.getSecureUpdatePolicy = async () => ({ enabled: false, reason: 'Recette locale' }) as never;
 desktopApi.getProjectSyncStatus = async () => ({pending:0, syncing:false, connected:false, documents:[]});
+desktopApi.getTimerRecoveryState = async () => ({ resolutionPending: false, active: null, pending: [] });
 desktopApi.syncProjectDocuments = desktopApi.getProjectSyncStatus;
 desktopApi.getNogaCatalog = async () => ({ version: 'Recette', source: 'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025', sections: [{ code: 'M', label: 'Activités immobilières', divisions: [{ code: '68', label: 'Activités immobilières' }] }] });
 desktopApi.saveProject = async (input, existingId) => {
@@ -176,6 +178,7 @@ if (new URLSearchParams(location.search).has('wizard')) {
   };
 }
 const cycleAccount = new URLSearchParams(location.search).has('businessCycle') ? installBusinessCycleFixture(() => data) : undefined;
+if (new URLSearchParams(location.search).has('timerRecovery')) installTimerRecoveryFixture(() => data);
 if (cycleAccount && new URLSearchParams(location.search).has('businessConflicts')) installBusinessConflictFixture();
 function Harness() {
   useMobileLayout();
@@ -183,7 +186,7 @@ function Harness() {
   const [cloudAccount, setCloudAccount] = useState(cycleAccount);
   if (cycleAccount) Object.assign(window, { __qaSetCycleAccount: setCloudAccount });
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
-  if (['readOnlyAudit', 'wizard'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
+  if (['readOnlyAudit', 'wizard', 'timerRecovery'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
   return <><WorkspaceApp cloudAccount={cloudAccount} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}

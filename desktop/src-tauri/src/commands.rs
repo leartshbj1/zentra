@@ -1687,6 +1687,26 @@ pub fn get_active_timer(state: State<'_, LocalStore>) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub fn get_timer_recovery_state(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    crate::business_sync::timer_recovery::state(&state).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn preserve_active_timer(state: State<'_, LocalStore>, request_id: String, expected_timer_sha256: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    crate::business_sync::timer_recovery::park(&state, &request_id, &expected_timer_sha256).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn assign_preserved_timer(state: State<'_, LocalStore>, id: String, assignment: crate::business_sync::timer_recovery::Assignment) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    crate::business_sync::timer_recovery::assign(&state, &id, assignment).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn create_backup(
     state: State<'_, LocalStore>,
     app: AppHandle,

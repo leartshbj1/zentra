@@ -17,7 +17,7 @@ impl Snapshot {
                 _copy: None,
             });
         }
-        if version != 63 || crate::schema::SCHEMA_VERSION != 64 {
+        if !matches!(version, 63 | 64) || crate::schema::SCHEMA_VERSION != 65 {
             return Err(invalid(
                 "La version de cette proposition ne peut pas être reprise par cette application.",
             ));
@@ -25,7 +25,10 @@ impl Snapshot {
         let copy = merge::native::copy_source(store, &original)?;
         let mut connection = copy.store.connect()?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        tx.execute_batch(crate::business_sync::retirement::cancellation::MIGRATION_SQL)?;
+        if version < 64 {
+            tx.execute_batch(crate::business_sync::retirement::cancellation::MIGRATION_SQL)?;
+        }
+        tx.execute_batch(crate::business_sync::timer_recovery::MIGRATION_SQL)?;
         private::verify_migration(&original, &tx)?;
         tx.commit()?;
         drop(connection);

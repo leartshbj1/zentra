@@ -15,6 +15,7 @@ import type { NumberingStatus } from './numberingScheduler';
 import type { BusinessHistoryState, BusinessHistoryReception } from './businessHistoryState';
 import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
+import type { NativeTimerRecoveryState, TimerAssignment, TimerRecoveryState } from './timerRecovery';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
@@ -5933,6 +5934,28 @@ export const desktopApi = {
   async stopTimer() {
     await invoke('stop_timer');
     return loadWorkspace();
+  },
+  async getTimerRecoveryState(): Promise<TimerRecoveryState> {
+    const raw = await invoke<NativeTimerRecoveryState>('get_timer_recovery_state');
+    return {
+      resolutionPending: raw.resolution_pending === true,
+      active: raw.active ? { sha256: raw.active.sha256, projectId: raw.active.timer.project_id, startedAt: raw.active.timer.started_at } : null,
+      pending: raw.pending.map((item) => {
+        const s = item.snapshot;
+        return { id: item.id, projectName: s.project_name, taskTitle: s.task_title, employeeName: s.employee_name,
+          originalProjectId: s.timer.project_id, originalTaskId: s.timer.task_id, originalEmployeeId: s.timer.employee_id,
+          startedAt: s.timer.started_at, endedAt: s.ended_at, minutes: s.minutes, breakMinutes: s.break_minutes,
+          billable: s.timer.billable === 1, billingRateCents: s.timer.billing_rate_cents, costRateCents: s.timer.cost_rate_cents, note: s.timer.note ?? '' };
+      }),
+    };
+  },
+  async preserveActiveTimer(requestId: string, expectedTimerSha256: string) {
+    await invoke('preserve_active_timer', { requestId, expectedTimerSha256 });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async assignPreservedTimer(id: string, assignment: TimerAssignment) {
+    await invoke('assign_preserved_timer', { id, assignment: { project_id: assignment.projectId, task_id: assignment.taskId, employee_id: assignment.employeeId } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createInvoiceFromTimeEntries(input: {
     requestId: string;

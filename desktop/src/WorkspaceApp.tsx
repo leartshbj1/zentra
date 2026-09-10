@@ -1,4 +1,5 @@
 import { CompanyLogo } from './CompanyLogo';
+import { TimerRecoveryPanel } from './TimerRecoveryPanel';
 import { useProjectSyncBackground } from './projectSync';
 import { useBusinessBootstrapBackground } from './businessBootstrap';
 import { useNumberingBackground } from './numbering';
@@ -1990,6 +1991,7 @@ export function WorkspaceApp({
           {view === 'time' ? (
             <TimeScreen
               workspace={workspace}
+              act={act}
               mutationsDisabled={busy || readOnly}
               query={search}
               onCreate={() => setModal({ type: 'time' })}
@@ -3938,6 +3940,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
 
 function TimeScreen({
   workspace,
+  act,
   mutationsDisabled,
   query,
   onCreate,
@@ -3947,6 +3950,7 @@ function TimeScreen({
   onArchive,
 }: {
   workspace: Workspace;
+  act: (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
   mutationsDisabled: boolean;
   query: string;
   onCreate: () => void;
@@ -4053,6 +4057,7 @@ function TimeScreen({
           </Button>
         </div>
       </section>
+      <TimerRecoveryPanel workspace={workspace} disabled={mutationsDisabled} act={act} />
       <div className="summary-strip">
         <div>
           <span>Temps affiché</span>

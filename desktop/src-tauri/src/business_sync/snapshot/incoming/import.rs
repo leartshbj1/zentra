@@ -19,7 +19,7 @@ pub(in crate::business_sync::snapshot) fn require_fresh(connection: &Connection)
     // setup too: saved company information is already the user's work.
     let configured: bool =
         connection.query_row("SELECT EXISTS(SELECT 1 FROM settings)", [], |r| r.get(0))?;
-    let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding) OR EXISTS(SELECT 1 FROM business_sync_baseline) OR EXISTS(SELECT 1 FROM business_sync_changes) OR EXISTS(SELECT 1 FROM business_sync_publication_intent) OR EXISTS(SELECT 1 FROM business_sync_cursor) OR EXISTS(SELECT 1 FROM business_sync_resolution_intent) OR EXISTS(SELECT 1 FROM business_sync_resolutions)",[],|r|r.get(0))?;
+    let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_binding) OR EXISTS(SELECT 1 FROM business_sync_baseline) OR EXISTS(SELECT 1 FROM business_sync_changes) OR EXISTS(SELECT 1 FROM business_sync_publication_intent) OR EXISTS(SELECT 1 FROM business_sync_cursor) OR EXISTS(SELECT 1 FROM business_sync_resolution_intent) OR EXISTS(SELECT 1 FROM business_sync_resolutions) OR EXISTS(SELECT 1 FROM business_sync_resolution_cancellations) OR EXISTS(SELECT 1 FROM timer_recoveries)",[],|r|r.get(0))?;
     if configured || linked {
         return Err(invalid("Ce profil contient déjà un dossier de travail. Utilisez un profil neuf pour rejoindre cette entreprise ; vos données actuelles sont conservées."));
     }

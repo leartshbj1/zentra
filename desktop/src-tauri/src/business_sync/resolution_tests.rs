@@ -287,7 +287,7 @@ fn migration_62_preserves_original_business_rows_and_shared_contract() {
     let c = f.store.connect().unwrap();
     let before = evidence(&c);
     let contract = snapshot::contract_hash().unwrap();
-    c.execute_batch("DROP TABLE business_sync_resolution_cancellations; DROP TRIGGER zentra_resolution_write_guard; DROP TABLE business_sync_resolution_intent; DROP TABLE business_sync_resolutions; PRAGMA user_version=62;").unwrap();
+    c.execute_batch("DROP TABLE timer_recoveries; DROP TRIGGER active_timers_resolution_insert_guard; DROP TRIGGER active_timers_resolution_update_guard; DROP TABLE business_sync_resolution_cancellations; DROP TRIGGER zentra_resolution_write_guard; DROP TABLE business_sync_resolution_intent; DROP TABLE business_sync_resolutions; PRAGMA user_version=62;").unwrap();
     drop(c);
     let restarted = LocalStore::initialize(f.store.data_dir.clone()).unwrap();
     let c = restarted.connect().unwrap();
