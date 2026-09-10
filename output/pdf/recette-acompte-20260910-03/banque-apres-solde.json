@@ -1,0 +1,207 @@
+{
+  "accounts": [
+    {
+      "account_id": "CH9300762011623852957",
+      "currency": "CHF",
+      "link_source": "settings_iban",
+      "linked": true,
+      "movement_count": 2
+    }
+  ],
+  "imports": [
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:38.520441600+00:00",
+      "entry_count": 1,
+      "file_sha256": "cc2cdacf9d3eeca592037691c6ed3ed65bda4d5ca61b39b85d96159a9afe77b1",
+      "file_size": 1516,
+      "id": "f4a885cb-1909-4823-9d19-7a71e6a171cb",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-solde.xml",
+      "warnings_json": []
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:37.937490800+00:00",
+      "entry_count": 1,
+      "file_sha256": "6e4270deba58cd0845770371bef5f9b0ff4f3d70b271116177d23037a1087801",
+      "file_size": 1525,
+      "id": "5d9328c6-e6be-4ed7-a900-3f97a0b80ab3",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-acompte.xml",
+      "warnings_json": []
+    }
+  ],
+  "movements": [
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-solde",
+      "amount_cents": 75670,
+      "booked_import_id": "f4a885cb-1909-4823-9d19-7a71e6a171cb",
+      "booking_date": "2026-03-25",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:38.520441600+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [
+          {
+            "reference": "RF721996CEAC2B5B2572A84AD",
+            "type": "SCOR"
+          }
+        ],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-solde",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "id": "16dfac91-cd7a-4df9-9017-42ff9276d7c8",
+      "import_id": "f4a885cb-1909-4823-9d19-7a71e6a171cb",
+      "reconciliation": {
+        "amount_cents": 75670,
+        "confirmed_at": "2026-09-10T05:05:38.591921800+00:00",
+        "created_at": "2026-09-10T05:05:38.591921800+00:00",
+        "id": "45df10be-6702-48c4-ac17-51811510e9d5",
+        "invoice_id": "6b6b8320-274d-4fc2-a0d2-acac523e402a",
+        "movement_id": "16dfac91-cd7a-4df9-9017-42ff9276d7c8",
+        "payment_id": "16dfac91-cd7a-4df9-9017-42ff9276d7c8"
+      },
+      "reference": "RF721996CEAC2B5B2572A84AD",
+      "reference_level": "D",
+      "reference_type": "SCOR",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:01d67fc04b33d0214539075a7f42eb1af293c9b7522c297ea66de4c6f6b42413",
+      "suggestion": {
+        "candidates": [],
+        "confirmable": false,
+        "invoice_id": null,
+        "invoice_number": null,
+        "kind": "none",
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-solde",
+      "unstructured": null,
+      "value_date": "2026-03-25"
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-acompte",
+      "amount_cents": 32430,
+      "booked_import_id": "5d9328c6-e6be-4ed7-a900-3f97a0b80ab3",
+      "booking_date": "2026-01-15",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:37.937490800+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [
+          {
+            "reference": "RF104A8338A11BCF20DF0A9E1",
+            "type": "SCOR"
+          }
+        ],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-acompte",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "id": "a3f796c8-c9d8-4a59-8ec1-05467e7d961a",
+      "import_id": "5d9328c6-e6be-4ed7-a900-3f97a0b80ab3",
+      "reconciliation": {
+        "amount_cents": 32430,
+        "confirmed_at": "2026-09-10T05:05:37.999686100+00:00",
+        "created_at": "2026-09-10T05:05:37.999686100+00:00",
+        "id": "60e5fa12-aab0-4285-9f74-f7509507f66e",
+        "invoice_id": "8aba27fc-be46-4761-ac30-df3b48efb025",
+        "movement_id": "a3f796c8-c9d8-4a59-8ec1-05467e7d961a",
+        "payment_id": "a3f796c8-c9d8-4a59-8ec1-05467e7d961a"
+      },
+      "reference": "RF104A8338A11BCF20DF0A9E1",
+      "reference_level": "D",
+      "reference_type": "SCOR",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:b8a587da1c40079cf52238a3e0f1cbc2b8105b6c9e73f64c76713283b4a6e825",
+      "suggestion": {
+        "candidates": [],
+        "confirmable": false,
+        "invoice_id": null,
+        "invoice_number": null,
+        "kind": "none",
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-acompte",
+      "unstructured": null,
+      "value_date": "2026-01-15"
+    }
+  ],
+  "reconciliations": [
+    {
+      "amount_cents": 75670,
+      "confirmed_at": "2026-09-10T05:05:38.591921800+00:00",
+      "created_at": "2026-09-10T05:05:38.591921800+00:00",
+      "id": "45df10be-6702-48c4-ac17-51811510e9d5",
+      "invoice_id": "6b6b8320-274d-4fc2-a0d2-acac523e402a",
+      "movement_id": "16dfac91-cd7a-4df9-9017-42ff9276d7c8",
+      "payment_id": "16dfac91-cd7a-4df9-9017-42ff9276d7c8"
+    },
+    {
+      "amount_cents": 32430,
+      "confirmed_at": "2026-09-10T05:05:37.999686100+00:00",
+      "created_at": "2026-09-10T05:05:37.999686100+00:00",
+      "id": "60e5fa12-aab0-4285-9f74-f7509507f66e",
+      "invoice_id": "8aba27fc-be46-4761-ac30-df3b48efb025",
+      "movement_id": "a3f796c8-c9d8-4a59-8ec1-05467e7d961a",
+      "payment_id": "a3f796c8-c9d8-4a59-8ec1-05467e7d961a"
+    }
+  ],
+  "summary": {
+    "booked_credit_count": 2,
+    "booked_debit_count": 0,
+    "import_count": 2,
+    "movement_count": 2,
+    "pending_count": 0,
+    "unreconciled_count": 0,
+    "unreconciled_supplier_count": 0
+  },
+  "supplier_reconciliations": []
+}

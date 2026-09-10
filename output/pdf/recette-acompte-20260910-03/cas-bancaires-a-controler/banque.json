@@ -1,0 +1,379 @@
+{
+  "accounts": [
+    {
+      "account_id": "CH9300762011623852957",
+      "currency": "CHF",
+      "link_source": "settings_iban",
+      "linked": true,
+      "movement_count": 4
+    }
+  ],
+  "imports": [
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:46.121079100+00:00",
+      "entry_count": 1,
+      "file_sha256": "9a6df273dea74d5efb15316a1a7f308d29a3a8925bb4ac005d0dccd906d92641",
+      "file_size": 1533,
+      "id": "d50cf305-cf44-4056-9fdb-d2e876564d41",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-excedent.xml",
+      "warnings_json": []
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:45.709481600+00:00",
+      "entry_count": 1,
+      "file_sha256": "d4e25ee5658e918d3b0c4f5ff75c858ee4e194c96ddc1b24d31081813268ace0",
+      "file_size": 1543,
+      "id": "c7260911-d95b-4739-8ed3-cead4288f329",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-complement.xml",
+      "warnings_json": []
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:45.417000200+00:00",
+      "entry_count": 1,
+      "file_sha256": "c574d38a2d57e3399ca30b067bf766d66ef3f07d0aac5bf4c3bb47c32a71f9e0",
+      "file_size": 1525,
+      "id": "52b69218-56e1-4f30-a9f3-9e2557781b19",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-partiel.xml",
+      "warnings_json": []
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:44.840736300+00:00",
+      "entry_count": 1,
+      "file_sha256": "f73bf37bcbbc0ec8031f470567f0e8c3025e114dd384c98bf9855111a724c6f5",
+      "file_size": 1488,
+      "id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-sans-reference.xml",
+      "warnings_json": []
+    }
+  ],
+  "movements": [
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-excedent",
+      "amount_cents": 12000,
+      "booked_import_id": "d50cf305-cf44-4056-9fdb-d2e876564d41",
+      "booking_date": "2026-04-13",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:46.121079100+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [
+          {
+            "reference": "RF88A2B1E1B49B2A9526A43CF",
+            "type": "SCOR"
+          }
+        ],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-excedent",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Seul un débit bancaire sans extourne peut régler une dépense."
+      },
+      "id": "7b7b5ec5-d21e-48d5-a275-406bafafb0b2",
+      "import_id": "d50cf305-cf44-4056-9fdb-d2e876564d41",
+      "reconciliation": null,
+      "reference": "RF88A2B1E1B49B2A9526A43CF",
+      "reference_level": "D",
+      "reference_type": "SCOR",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "can_create": true,
+        "candidates": [],
+        "reason": "Choisissez le remboursement reçu correspondant à ce crédit, après vérification de la référence et du fournisseur."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:6f6e8c294fe33f924fb2d962fd84220ddbc509ed806c20abaf12be4c67935a7e",
+      "suggestion": {
+        "candidates": [
+          {
+            "amount_relation": "overpayment",
+            "bank_date": "2026-04-13",
+            "confirmable": false,
+            "date_relation": "valid",
+            "date_safe": true,
+            "invoice_id": "f487915b-c48b-4fea-98e4-faad80c35428",
+            "invoice_number": "F-2026-0003",
+            "issue_date": "2026-04-01",
+            "reason": "Référence QR structurée identique.",
+            "remaining_cents": 10000
+          }
+        ],
+        "confirmable": false,
+        "invoice_id": "f487915b-c48b-4fea-98e4-faad80c35428",
+        "invoice_number": "F-2026-0003",
+        "kind": "review",
+        "reason": "Le montant dépasse le solde de la facture : revue obligatoire."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-excedent",
+      "unstructured": null,
+      "value_date": "2026-04-13"
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-complement",
+      "amount_cents": 6000,
+      "booked_import_id": "c7260911-d95b-4739-8ed3-cead4288f329",
+      "booking_date": "2026-04-12",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:45.709481600+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [
+          {
+            "reference": "RF64DB90CE0D4FA8B371E6D2C",
+            "type": "SCOR"
+          }
+        ],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-complement",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "id": "fbe53f78-bb36-4485-abda-548b3ab7859c",
+      "import_id": "c7260911-d95b-4739-8ed3-cead4288f329",
+      "reconciliation": {
+        "amount_cents": 6000,
+        "confirmed_at": "2026-09-10T05:05:45.771927100+00:00",
+        "created_at": "2026-09-10T05:05:45.771927100+00:00",
+        "id": "da597ed5-69c1-42e1-861b-77373e28af0c",
+        "invoice_id": "32c87256-013d-403f-a47c-e5229223215c",
+        "movement_id": "fbe53f78-bb36-4485-abda-548b3ab7859c",
+        "payment_id": "fbe53f78-bb36-4485-abda-548b3ab7859c"
+      },
+      "reference": "RF64DB90CE0D4FA8B371E6D2C",
+      "reference_level": "D",
+      "reference_type": "SCOR",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:fbacbe01122240bd3ae5db72a86da3d72b6ac10e89d93644efb42dd66da6ee11",
+      "suggestion": {
+        "candidates": [],
+        "confirmable": false,
+        "invoice_id": null,
+        "invoice_number": null,
+        "kind": "none",
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-complement",
+      "unstructured": null,
+      "value_date": "2026-04-12"
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-partiel",
+      "amount_cents": 4000,
+      "booked_import_id": "52b69218-56e1-4f30-a9f3-9e2557781b19",
+      "booking_date": "2026-04-11",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:45.417000200+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [
+          {
+            "reference": "RF64DB90CE0D4FA8B371E6D2C",
+            "type": "SCOR"
+          }
+        ],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-partiel",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "id": "d1665bdd-4e46-4120-9423-1ffab59ef8ee",
+      "import_id": "52b69218-56e1-4f30-a9f3-9e2557781b19",
+      "reconciliation": {
+        "amount_cents": 4000,
+        "confirmed_at": "2026-09-10T05:05:45.479385800+00:00",
+        "created_at": "2026-09-10T05:05:45.479385800+00:00",
+        "id": "7ee2a76d-edf6-4e93-afab-0672e8d4a069",
+        "invoice_id": "32c87256-013d-403f-a47c-e5229223215c",
+        "movement_id": "d1665bdd-4e46-4120-9423-1ffab59ef8ee",
+        "payment_id": "d1665bdd-4e46-4120-9423-1ffab59ef8ee"
+      },
+      "reference": "RF64DB90CE0D4FA8B371E6D2C",
+      "reference_level": "D",
+      "reference_type": "SCOR",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:0b18c98951c3e7c2c070313b2c0360ec6f838423d8a6efb0ff48cf2d8fbe0cc4",
+      "suggestion": {
+        "candidates": [],
+        "confirmable": false,
+        "invoice_id": null,
+        "invoice_number": null,
+        "kind": "none",
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-partiel",
+      "unstructured": null,
+      "value_date": "2026-04-11"
+    },
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-sans-reference",
+      "amount_cents": 10000,
+      "booked_import_id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+      "booking_date": "2026-04-10",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:44.840736300+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-sans-reference",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "id": "bdcb8dd4-6a4d-4d2a-b7fe-c2bd11a03299",
+      "import_id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+      "reconciliation": {
+        "amount_cents": 10000,
+        "confirmed_at": "2026-09-10T05:05:45.216389800+00:00",
+        "created_at": "2026-09-10T05:05:45.216389800+00:00",
+        "id": "e902fe52-f490-480f-b83f-ea4bc5e2d9b2",
+        "invoice_id": "03ec84bf-1f20-4dd6-9981-f7f8e56283a3",
+        "movement_id": "bdcb8dd4-6a4d-4d2a-b7fe-c2bd11a03299",
+        "payment_id": "bdcb8dd4-6a4d-4d2a-b7fe-c2bd11a03299"
+      },
+      "reference": null,
+      "reference_level": "D",
+      "reference_type": "NON",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "candidates": [],
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:7108f86d3b1e68a46e9d19812e226a8564bbafa55dfdaccbebe05ff27f56d015",
+      "suggestion": {
+        "candidates": [],
+        "confirmable": false,
+        "invoice_id": null,
+        "invoice_number": null,
+        "kind": "none",
+        "reason": "Ce mouvement est déjà rapproché."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-sans-reference",
+      "unstructured": "RECETTE FICTIVE - paiement sans reference",
+      "value_date": "2026-04-10"
+    }
+  ],
+  "reconciliations": [
+    {
+      "amount_cents": 6000,
+      "confirmed_at": "2026-09-10T05:05:45.771927100+00:00",
+      "created_at": "2026-09-10T05:05:45.771927100+00:00",
+      "id": "da597ed5-69c1-42e1-861b-77373e28af0c",
+      "invoice_id": "32c87256-013d-403f-a47c-e5229223215c",
+      "movement_id": "fbe53f78-bb36-4485-abda-548b3ab7859c",
+      "payment_id": "fbe53f78-bb36-4485-abda-548b3ab7859c"
+    },
+    {
+      "amount_cents": 4000,
+      "confirmed_at": "2026-09-10T05:05:45.479385800+00:00",
+      "created_at": "2026-09-10T05:05:45.479385800+00:00",
+      "id": "7ee2a76d-edf6-4e93-afab-0672e8d4a069",
+      "invoice_id": "32c87256-013d-403f-a47c-e5229223215c",
+      "movement_id": "d1665bdd-4e46-4120-9423-1ffab59ef8ee",
+      "payment_id": "d1665bdd-4e46-4120-9423-1ffab59ef8ee"
+    },
+    {
+      "amount_cents": 10000,
+      "confirmed_at": "2026-09-10T05:05:45.216389800+00:00",
+      "created_at": "2026-09-10T05:05:45.216389800+00:00",
+      "id": "e902fe52-f490-480f-b83f-ea4bc5e2d9b2",
+      "invoice_id": "03ec84bf-1f20-4dd6-9981-f7f8e56283a3",
+      "movement_id": "bdcb8dd4-6a4d-4d2a-b7fe-c2bd11a03299",
+      "payment_id": "bdcb8dd4-6a4d-4d2a-b7fe-c2bd11a03299"
+    }
+  ],
+  "summary": {
+    "booked_credit_count": 4,
+    "booked_debit_count": 0,
+    "import_count": 4,
+    "movement_count": 4,
+    "pending_count": 0,
+    "unreconciled_count": 1,
+    "unreconciled_supplier_count": 0
+  },
+  "supplier_reconciliations": []
+}

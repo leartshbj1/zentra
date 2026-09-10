@@ -33,6 +33,8 @@ mod error;
 mod fiduciary_closing;
 #[cfg(test)]
 mod fiduciary_acceptance;
+#[cfg(test)]
+mod fiduciary_deposit_acceptance;
 mod financial_pdf;
 mod input_vat_accounting;
 mod expense_journal;

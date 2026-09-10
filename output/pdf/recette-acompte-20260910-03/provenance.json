@@ -1,0 +1,14 @@
+{
+  "advance_recognition_requires_professional_review": true,
+  "application_version": "1.46.1",
+  "case": "deposit_case",
+  "execution": "LocalStore commands, isolated temporary profiles",
+  "expected_sha256": "830366f176b5aa1e4d864931e6b3c366b07b4d65c08d2614a7baa6f9874fe41e",
+  "harness_sha256": "6b2817fe31367a576250de103fa0d440cf01c1fa688d83c8a065e54feb06b777",
+  "professional_approval": false,
+  "schema_version": 65,
+  "source_hash_newlines": "LF",
+  "source_revision": "8fa5994-working-tree",
+  "submission_to_afc": false,
+  "synthetic": true
+}

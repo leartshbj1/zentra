@@ -1,0 +1,31 @@
+{
+  "automatic_reconciliation": {
+    "enabled": true,
+    "failures": [],
+    "paid_count": 0,
+    "partial_count": 0,
+    "review_count": 0
+  },
+  "duplicate": true,
+  "ignored_count": 0,
+  "import": {
+    "account_currency": "CHF",
+    "account_id": "CH9300762011623852957",
+    "created_at": "2026-09-10T05:05:37.937490800+00:00",
+    "entry_count": 1,
+    "file_sha256": "6e4270deba58cd0845770371bef5f9b0ff4f3d70b271116177d23037a1087801",
+    "file_size": 1525,
+    "id": "5d9328c6-e6be-4ed7-a900-3f97a0b80ab3",
+    "ignored_count": 0,
+    "imported_count": 1,
+    "message_type": "camt.053",
+    "namespace_version": "001.08",
+    "source_name": "camt-acompte.xml",
+    "warnings_json": "[]"
+  },
+  "imported_count": 0,
+  "skipped_duplicate_count": 1,
+  "warnings": [
+    "Ce fichier exact a déjà été importé. Aucun paiement n’a été créé."
+  ]
+}

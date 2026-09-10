@@ -1,0 +1,110 @@
+{
+  "bank_amount_cents": 12000,
+  "bank_movement": {
+    "account_currency": "CHF",
+    "account_id": "CH9300762011623852957",
+    "account_servicer_ref": "D-camt-excedent",
+    "amount_cents": 12000,
+    "booked_import_id": "d50cf305-cf44-4056-9fdb-d2e876564d41",
+    "booking_date": "2026-04-13",
+    "counterparty_iban": null,
+    "counterparty_name": null,
+    "created_at": "2026-09-10T05:05:46.121079100+00:00",
+    "credit_debit": "CRDT",
+    "currency": "CHF",
+    "details_json": {
+      "structured_references": [
+        {
+          "reference": "RF88A2B1E1B49B2A9526A43CF",
+          "type": "SCOR"
+        }
+      ],
+      "tx_detail_count": 1
+    },
+    "end_to_end_id": "E2E-camt-excedent",
+    "enriched_at": null,
+    "entry_sequence": 1,
+    "expense_history": [],
+    "expense_reconciliation": null,
+    "expense_suggestion": {
+      "candidates": [],
+      "reason": "Seul un débit bancaire sans extourne peut régler une dépense."
+    },
+    "id": "7b7b5ec5-d21e-48d5-a275-406bafafb0b2",
+    "import_id": "d50cf305-cf44-4056-9fdb-d2e876564d41",
+    "reconciliation": null,
+    "reference": "RF88A2B1E1B49B2A9526A43CF",
+    "reference_level": "D",
+    "reference_type": "SCOR",
+    "refund_history": [],
+    "refund_match": null,
+    "refund_suggestion": {
+      "can_create": true,
+      "candidates": [],
+      "reason": "Choisissez le remboursement reçu correspondant à ce crédit, après vérification de la référence et du fournisseur."
+    },
+    "reversal": false,
+    "status": "BOOK",
+    "strong_key": "sha256:6f6e8c294fe33f924fb2d962fd84220ddbc509ed806c20abaf12be4c67935a7e",
+    "suggestion": {
+      "candidates": [
+        {
+          "amount_relation": "overpayment",
+          "bank_date": "2026-04-13",
+          "confirmable": false,
+          "date_relation": "valid",
+          "date_safe": true,
+          "invoice_id": "f487915b-c48b-4fea-98e4-faad80c35428",
+          "invoice_number": "F-2026-0003",
+          "issue_date": "2026-04-01",
+          "reason": "Référence QR structurée identique.",
+          "remaining_cents": 10000
+        }
+      ],
+      "confirmable": false,
+      "invoice_id": "f487915b-c48b-4fea-98e4-faad80c35428",
+      "invoice_number": "F-2026-0003",
+      "kind": "review",
+      "reason": "Le montant dépasse le solde de la facture : revue obligatoire."
+    },
+    "supplier_reconciliation": null,
+    "transaction_id": "TX-camt-excedent",
+    "unstructured": null,
+    "value_date": "2026-04-13"
+  },
+  "excess_cents": 2000,
+  "invoice": {
+    "client_id": "41fbfec0-dba6-4524-9291-ea3a4376f8b3",
+    "created_at": "2026-09-10T05:05:45.973716100+00:00",
+    "credited_cents": 0,
+    "currency": "CHF",
+    "deposit_basis_json": null,
+    "deposit_percentage_bp": null,
+    "discount_cents": 0,
+    "due_date": "2026-05-01",
+    "id": "f487915b-c48b-4fea-98e4-faad80c35428",
+    "issue_date": "2026-04-01",
+    "notes": null,
+    "number": "F-2026-0003",
+    "original_invoice_id": null,
+    "paid_cents": 0,
+    "project_id": null,
+    "quote_id": null,
+    "service_date_from": "2026-04-01",
+    "service_date_to": "2026-04-01",
+    "snapshot_json": "{\"captured_at\":\"2026-09-10T05:05:46.065089600+00:00\",\"customer\":{\"address_line1\":\"Rue de test\",\"address_line2\":\"7\",\"archived_at\":null,\"canton\":null,\"city\":\"Lausanne\",\"company\":null,\"contact_person\":null,\"country\":\"CH\",\"created_at\":\"2026-09-10T05:05:44.564470600+00:00\",\"email\":null,\"id\":\"41fbfec0-dba6-4524-9291-ea3a4376f8b3\",\"name\":\"Client fictif - ne pas contacter\",\"notes\":null,\"phone\":null,\"postal_code\":\"1000\",\"updated_at\":\"2026-09-10T05:05:44.564470600+00:00\"},\"document\":{\"client_id\":\"41fbfec0-dba6-4524-9291-ea3a4376f8b3\",\"created_at\":\"2026-09-10T05:05:45.973716100+00:00\",\"currency\":\"CHF\",\"deposit_basis_json\":null,\"deposit_percentage_bp\":null,\"discount_cents\":0,\"due_date\":\"2026-05-01\",\"id\":\"f487915b-c48b-4fea-98e4-faad80c35428\",\"issue_date\":\"2026-04-01\",\"notes\":null,\"number\":\"F-2026-0003\",\"original_invoice_id\":null,\"paid_cents\":0,\"project_id\":null,\"quote_id\":null,\"service_date_from\":\"2026-04-01\",\"service_date_to\":\"2026-04-01\",\"snapshot_json\":null,\"status\":\"brouillon\",\"subtotal_cents\":10000,\"terms\":null,\"title\":\"Facture fictive C - contrôle du trop-perçu\",\"total_cents\":10000,\"type\":\"standard\",\"updated_at\":\"2026-09-10T05:05:46.008420400+00:00\",\"vat_cents\":0},\"issuer\":{\"activity_description\":\"Travaux de construction spécialisés\",\"address_line1\":\"Adresse de test\",\"address_line2\":null,\"bank_name\":null,\"building_number\":\"17B\",\"canton\":\"VD\",\"city\":\"Ville test\",\"company_name\":\"Recette acompte fictive Sàrl\",\"country\":\"CH\",\"currency\":\"CHF\",\"email\":\"test@example.invalid\",\"extra_settings_json\":\"{\\\"organization\\\":{\\\"address\\\":{\\\"buildingNumber\\\":\\\"17B\\\"}},\\\"payroll\\\":{\\\"enabled\\\":false},\\\"setupDeferred\\\":{\\\"backup\\\":false,\\\"billing\\\":false,\\\"work\\\":false},\\\"work\\\":{\\\"breakMinutes\\\":5,\\\"roundingMinutes\\\":15}}\",\"iban\":\"CH9300762011623852957\",\"legal_form\":\"Sàrl\",\"logo_path\":null,\"noga_detailed_code\":\"432100\",\"noga_division\":\"43\",\"noga_section\":\"F\",\"owner_name\":\"Responsable test\",\"phone\":null,\"postal_code\":\"1000\",\"uid_number\":\"CHE-123.456.789\",\"vat_number\":\"CHE-123.456.789 TVA\",\"vat_registered\":true},\"items\":[{\"catalog_item_id\":null,\"created_at\":\"2026-09-10T05:05:46.007872+00:00\",\"description\":\"Scénario bancaire fictif sans TVA\",\"discount_bp\":0,\"id\":\"1736b0fa-6d1a-4ed4-ab33-3fc416e76100\",\"invoice_id\":\"f487915b-c48b-4fea-98e4-faad80c35428\",\"line_net_cents\":10000,\"line_total_cents\":10000,\"line_vat_cents\":0,\"position\":0,\"quantity\":1.0,\"unit\":\"forfait\",\"unit_price_cents\":10000,\"updated_at\":\"2026-09-10T05:05:46.007872+00:00\",\"vat_bp\":0}],\"qr_bill\":{\"byte_count\":242,\"character_count\":241,\"created_at\":\"2026-09-10T05:05:46.064663200+00:00\",\"frozen_at\":\"2026-09-10T05:05:46.064769400+00:00\",\"input_json\":\"{\\\"iban\\\":\\\"CH9300762011623852957\\\",\\\"creditor\\\":{\\\"name\\\":\\\"Recette acompte fictive Sàrl\\\",\\\"street\\\":\\\"Adresse de test\\\",\\\"building_number\\\":\\\"17B\\\",\\\"postal_code\\\":\\\"1000\\\",\\\"city\\\":\\\"Ville test\\\",\\\"country\\\":\\\"CH\\\"},\\\"amount_cents\\\":10000,\\\"currency\\\":\\\"CHF\\\",\\\"debtor\\\":{\\\"name\\\":\\\"Client fictif - ne pas contacter\\\",\\\"street\\\":\\\"Rue de test\\\",\\\"building_number\\\":\\\"7\\\",\\\"postal_code\\\":\\\"1000\\\",\\\"city\\\":\\\"Lausanne\\\",\\\"country\\\":\\\"CH\\\"},\\\"reference_type\\\":\\\"SCOR\\\",\\\"reference\\\":\\\"RF88A2B1E1B49B2A9526A43CF\\\",\\\"unstructured_message\\\":\\\"Facture F-2026-0003\\\",\\\"bill_information\\\":\\\"\\\",\\\"alternative_procedures\\\":[]}\",\"invoice_id\":\"f487915b-c48b-4fea-98e4-faad80c35428\",\"is_qr_iban\":0,\"payload\":\"SPC\\n0200\\n1\\nCH9300762011623852957\\nS\\nRecette acompte fictive Sàrl\\nAdresse de test\\n17B\\n1000\\nVille test\\nCH\\n\\n\\n\\n\\n\\n\\n\\n100.00\\nCHF\\nS\\nClient fictif - ne pas contacter\\nRue de test\\n7\\n1000\\nLausanne\\nCH\\nSCOR\\nRF88A2B1E1B49B2A9526A43CF\\nFacture F-2026-0003\\nEPD\",\"reference_type\":\"SCOR\",\"updated_at\":\"2026-09-10T05:05:46.064769400+00:00\"},\"schema\":\"helvichantier.document_snapshot.v1\"}",
+    "status": "emise",
+    "subtotal_cents": 10000,
+    "terms": null,
+    "title": "Facture fictive C - contrôle du trop-perçu",
+    "total_cents": 10000,
+    "type": "standard",
+    "updated_at": "2026-09-10T05:05:46.065445200+00:00",
+    "vat_cents": 0
+  },
+  "invoice_due_cents": 10000,
+  "manual_matching_error": "Champ invalide : Ce rapprochement ne peut pas être confirmé : vérifiez le statut, le compte, la devise et le solde.",
+  "money_preserved": true,
+  "remaining_requirement": "Affectation de 100 CHF à la facture et conservation/règlement explicite des 20 CHF reçus en trop",
+  "split_payment_and_customer_credit_completed": false
+}

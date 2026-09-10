@@ -1,0 +1,31 @@
+{
+  "automatic_reconciliation": {
+    "enabled": true,
+    "failures": [],
+    "paid_count": 0,
+    "partial_count": 0,
+    "review_count": 1
+  },
+  "duplicate": true,
+  "ignored_count": 0,
+  "import": {
+    "account_currency": "CHF",
+    "account_id": "CH9300762011623852957",
+    "created_at": "2026-09-10T05:05:46.121079100+00:00",
+    "entry_count": 1,
+    "file_sha256": "9a6df273dea74d5efb15316a1a7f308d29a3a8925bb4ac005d0dccd906d92641",
+    "file_size": 1533,
+    "id": "d50cf305-cf44-4056-9fdb-d2e876564d41",
+    "ignored_count": 0,
+    "imported_count": 1,
+    "message_type": "camt.053",
+    "namespace_version": "001.08",
+    "source_name": "camt-excedent.xml",
+    "warnings_json": "[]"
+  },
+  "imported_count": 0,
+  "skipped_duplicate_count": 1,
+  "warnings": [
+    "Ce fichier exact a déjà été importé. Aucun paiement n’a été créé."
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "account": {
+    "account_type": "asset",
+    "active": true,
+    "code": "1020",
+    "created_at": "2026-09-10T05:05:36.951209400+00:00",
+    "id": "2ce1934e-3609-43ca-976f-cbb0b4bfa017",
+    "name": "Banque",
+    "normal_balance": "debit",
+    "report_section": "current_assets",
+    "updated_at": "2026-09-10T05:05:36.951209400+00:00"
+  },
+  "closing_credit_balance_cents": 0,
+  "closing_debit_balance_cents": 108100,
+  "closing_net_debit_cents": 108100,
+  "credit_cents": 0,
+  "currency": {
+    "base_currency": "CHF",
+    "currencies": [
+      "CHF"
+    ],
+    "exchange_rates_applied": false,
+    "single_currency": true
+  },
+  "debit_cents": 108100,
+  "lines": [
+    {
+      "account_id": "2ce1934e-3609-43ca-976f-cbb0b4bfa017",
+      "client_id": "5ed636bd-321c-4f69-8773-5e90945638c2",
+      "created_at": "2026-09-10T05:05:37.997340900+00:00",
+      "credit_cents": 0,
+      "currency": "CHF",
+      "debit_cents": 32430,
+      "description": "Paiement client",
+      "employee_id": null,
+      "entry_date": "2026-01-15",
+      "entry_number": "J-2026-000002",
+      "id": "d2de61fe-7f3e-497b-b62a-3cda333c92ed",
+      "journal_entry_id": "b61fd73b-68fb-42fc-af2c-8c4ac31c80ef",
+      "memo": "Encaissement",
+      "project_id": "1d48ebf7-94de-4b47-b85f-a81b52576973",
+      "running_credit_balance_cents": 0,
+      "running_debit_balance_cents": 32430,
+      "running_net_debit_cents": 32430
+    },
+    {
+      "account_id": "2ce1934e-3609-43ca-976f-cbb0b4bfa017",
+      "client_id": "5ed636bd-321c-4f69-8773-5e90945638c2",
+      "created_at": "2026-09-10T05:05:38.589480700+00:00",
+      "credit_cents": 0,
+      "currency": "CHF",
+      "debit_cents": 75670,
+      "description": "Paiement client",
+      "employee_id": null,
+      "entry_date": "2026-03-25",
+      "entry_number": "J-2026-000004",
+      "id": "3346ebf9-e5e7-408a-9a34-409dba86a686",
+      "journal_entry_id": "7eb8c392-80ec-4413-9944-503ed7b9680b",
+      "memo": "Encaissement",
+      "project_id": "1d48ebf7-94de-4b47-b85f-a81b52576973",
+      "running_credit_balance_cents": 0,
+      "running_debit_balance_cents": 108100,
+      "running_net_debit_cents": 108100
+    }
+  ],
+  "movement_net_debit_cents": 108100,
+  "net_debit_cents": 108100,
+  "opening_credit_balance_cents": 0,
+  "opening_credit_cents": 0,
+  "opening_debit_balance_cents": 0,
+  "opening_debit_cents": 0,
+  "opening_net_debit_cents": 0
+}

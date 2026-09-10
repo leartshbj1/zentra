@@ -1,0 +1,31 @@
+{
+  "automatic_reconciliation": {
+    "enabled": true,
+    "failures": [],
+    "paid_count": 0,
+    "partial_count": 0,
+    "review_count": 0
+  },
+  "duplicate": true,
+  "ignored_count": 0,
+  "import": {
+    "account_currency": "CHF",
+    "account_id": "CH9300762011623852957",
+    "created_at": "2026-09-10T05:05:45.417000200+00:00",
+    "entry_count": 1,
+    "file_sha256": "c574d38a2d57e3399ca30b067bf766d66ef3f07d0aac5bf4c3bb47c32a71f9e0",
+    "file_size": 1525,
+    "id": "52b69218-56e1-4f30-a9f3-9e2557781b19",
+    "ignored_count": 0,
+    "imported_count": 1,
+    "message_type": "camt.053",
+    "namespace_version": "001.08",
+    "source_name": "camt-partiel.xml",
+    "warnings_json": "[]"
+  },
+  "imported_count": 0,
+  "skipped_duplicate_count": 1,
+  "warnings": [
+    "Ce fichier exact a déjà été importé. Aucun paiement n’a été créé."
+  ]
+}

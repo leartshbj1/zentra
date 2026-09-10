@@ -1,0 +1,9 @@
+{
+  "errors": [
+    "Champ invalide : Cet enregistrement financier est immuable. Utilisez un avoir ou une écriture d'extourne.",
+    "Champ invalide : Cet enregistrement financier est immuable. Utilisez un avoir ou une écriture d'extourne.",
+    "Champ invalide : Entité non autorisée : journal_entries",
+    "Champ invalide : Entité non autorisée : journal_entries"
+  ],
+  "unchanged": true
+}

@@ -1,0 +1,29 @@
+{
+  "automatic_reconciliation": {
+    "enabled": true,
+    "failures": [],
+    "paid_count": 1,
+    "partial_count": 0,
+    "review_count": 0
+  },
+  "duplicate": false,
+  "ignored_count": 0,
+  "import": {
+    "account_currency": "CHF",
+    "account_id": "CH9300762011623852957",
+    "created_at": "2026-09-10T05:05:38.520441600+00:00",
+    "entry_count": 1,
+    "file_sha256": "cc2cdacf9d3eeca592037691c6ed3ed65bda4d5ca61b39b85d96159a9afe77b1",
+    "file_size": 1516,
+    "id": "f4a885cb-1909-4823-9d19-7a71e6a171cb",
+    "ignored_count": 0,
+    "imported_count": 1,
+    "message_type": "camt.053",
+    "namespace_version": "001.08",
+    "source_name": "camt-solde.xml",
+    "warnings_json": "[]"
+  },
+  "imported_count": 1,
+  "skipped_duplicate_count": 0,
+  "warnings": []
+}

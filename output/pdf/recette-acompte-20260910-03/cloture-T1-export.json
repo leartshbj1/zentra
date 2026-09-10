@@ -1,0 +1,23 @@
+{
+  "created_at": "2026-09-10T05:05:39.308285400+00:00",
+  "disclaimer": "Ce dossier facilite la revue et la conservation locale des données comptables. Il ne constitue ni une certification, ni une garantie de conformité légale, fiscale ou professionnelle. L'entreprise reste responsable de la clôture, de l'annexe, des décisions d'approbation, de la conservation durable et de la validation par les personnes compétentes.",
+  "export_id": "05805187-5f48-4ab1-afb3-68660c2bf9f9",
+  "file_count": 19,
+  "file_name": "zentra-dossier-fiduciaire-2026-01-01-2026-03-31-final-20260910T050539Z-05805187-5f48-4ab1-afb3-68660c2bf9f9.zip",
+  "manifest_sha256": "cdbf9c2a26b9250ff32b4dea68a0e961e5385499d862f9737e333739da065699",
+  "package_status": "FINAL",
+  "path": "C:\\Users\\alb\\AppData\\Local\\Temp\\.tmpmqlVcB\\main\\exports\\zentra-dossier-fiduciaire-2026-01-01-2026-03-31-final-20260910T050539Z-05805187-5f48-4ab1-afb3-68660c2bf9f9.zip",
+  "period": {
+    "closed_at": "2026-09-10T05:05:39.235748800+00:00",
+    "created_at": "2026-09-10T05:05:39.058537400+00:00",
+    "date_from": "2026-01-01",
+    "date_to": "2026-03-31",
+    "id": "c0d8a382-e8b8-4e84-88f1-bb05ea6895b5",
+    "name": "Recette premier trimestre 2026",
+    "status": "closed",
+    "updated_at": "2026-09-10T05:05:39.235748800+00:00"
+  },
+  "review_id": "f97d6551-13c4-43be-a0ea-b2bfeda4213f",
+  "schema": "elyko.fiduciary-package-export.v1",
+  "source_sha256": "544e5af3355c7ce879e068ebb59418e9adaa939c4c0b3062b38a66dab4b1a944"
+}

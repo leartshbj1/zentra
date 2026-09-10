@@ -1,0 +1,31 @@
+{
+  "reviewed_on": "2026-09-10",
+  "renderer": "Poppler pdftoppm",
+  "resolution_dpi": 115,
+  "pages_rendered_and_visually_reviewed": 4,
+  "text_clipping_observed": false,
+  "overlap_observed": false,
+  "pdfs": [
+    {
+      "name": "devis-fictif.pdf",
+      "pages": 1,
+      "sha256": "812a24a41da7d17fca32d8a6c716238be0e8a73e18c7f2641d9ff4b8f3fa4456"
+    },
+    {
+      "name": "facture-acompte-fictive.pdf",
+      "pages": 1,
+      "sha256": "17b3bd75430d915dcdc51dbcf4bca484f81ef318d9cfb6fe3b7252e37c8925d9"
+    },
+    {
+      "name": "facture-solde-fictive.pdf",
+      "pages": 1,
+      "sha256": "d2b26672bfe8f1af54c7b191392b2b19b910f06a8bc9d8c5f13eb24c88200501"
+    },
+    {
+      "name": "avoir-apres-cloture-fictif.pdf",
+      "pages": 1,
+      "sha256": "b5f6256ddb26394a2c73a42ef51400e6de6dc7a5fbf56936e551d980f9ef013d"
+    }
+  ],
+  "scope": "Four final native PDFs; no physical QR scan or bank acceptance asserted"
+}

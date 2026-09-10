@@ -1,0 +1,29 @@
+{
+  "automatic_reconciliation": {
+    "enabled": true,
+    "failures": [],
+    "paid_count": 0,
+    "partial_count": 0,
+    "review_count": 1
+  },
+  "duplicate": false,
+  "ignored_count": 0,
+  "import": {
+    "account_currency": "CHF",
+    "account_id": "CH9300762011623852957",
+    "created_at": "2026-09-10T05:05:44.840736300+00:00",
+    "entry_count": 1,
+    "file_sha256": "f73bf37bcbbc0ec8031f470567f0e8c3025e114dd384c98bf9855111a724c6f5",
+    "file_size": 1488,
+    "id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+    "ignored_count": 0,
+    "imported_count": 1,
+    "message_type": "camt.053",
+    "namespace_version": "001.08",
+    "source_name": "camt-sans-reference.xml",
+    "warnings_json": "[]"
+  },
+  "imported_count": 1,
+  "skipped_duplicate_count": 0,
+  "warnings": []
+}

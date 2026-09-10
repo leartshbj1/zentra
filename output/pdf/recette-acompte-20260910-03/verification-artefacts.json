@@ -1,0 +1,73 @@
+{
+  "artifact_checks_passed": true,
+  "expected_amounts": {
+    "quote_gross": 108100,
+    "deposit_gross": 32430,
+    "balance_gross": 75670,
+    "total_vat": 8100
+  },
+  "journal_T1": {
+    "entries": 4,
+    "lines": 10
+  },
+  "journal_T2": {
+    "entries": 1,
+    "lines": 3
+  },
+  "pdfs": [
+    {
+      "name": "devis-fictif.pdf",
+      "pages": 1,
+      "sha256": "812a24a41da7d17fca32d8a6c716238be0e8a73e18c7f2641d9ff4b8f3fa4456"
+    },
+    {
+      "name": "facture-acompte-fictive.pdf",
+      "pages": 1,
+      "sha256": "17b3bd75430d915dcdc51dbcf4bca484f81ef318d9cfb6fe3b7252e37c8925d9"
+    },
+    {
+      "name": "facture-solde-fictive.pdf",
+      "pages": 1,
+      "sha256": "d2b26672bfe8f1af54c7b191392b2b19b910f06a8bc9d8c5f13eb24c88200501"
+    },
+    {
+      "name": "avoir-apres-cloture-fictif.pdf",
+      "pages": 1,
+      "sha256": "b5f6256ddb26394a2c73a42ef51400e6de6dc7a5fbf56936e551d980f9ef013d"
+    }
+  ],
+  "camt_inputs": [
+    {
+      "file": "camt-acompte.xml",
+      "sha256": "6e4270deba58cd0845770371bef5f9b0ff4f3d70b271116177d23037a1087801"
+    },
+    {
+      "file": "camt-solde.xml",
+      "sha256": "cc2cdacf9d3eeca592037691c6ed3ed65bda4d5ca61b39b85d96159a9afe77b1"
+    },
+    {
+      "file": "cas-bancaires-a-controler/camt-sans-reference.xml",
+      "sha256": "f73bf37bcbbc0ec8031f470567f0e8c3025e114dd384c98bf9855111a724c6f5"
+    },
+    {
+      "file": "cas-bancaires-a-controler/camt-partiel.xml",
+      "sha256": "c574d38a2d57e3399ca30b067bf766d66ef3f07d0aac5bf4c3bb47c32a71f9e0"
+    },
+    {
+      "file": "cas-bancaires-a-controler/camt-complement.xml",
+      "sha256": "d4e25ee5658e918d3b0c4f5ff75c858ee4e194c96ddc1b24d31081813268ace0"
+    },
+    {
+      "file": "cas-bancaires-a-controler/camt-excedent.xml",
+      "sha256": "9a6df273dea74d5efb15316a1a7f308d29a3a8925bb4ac005d0dccd906d92641"
+    }
+  ],
+  "camt_schema_validated": false,
+  "remaining_requirements": {
+    "overpayment_allocation_and_customer_credit": true,
+    "advance_revenue_recognition_review": true,
+    "observed_january_revenue_cents": 30000,
+    "professional_approval": true,
+    "physical_device_and_UI_acceptance": true
+  }
+}

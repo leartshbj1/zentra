@@ -1,0 +1,47 @@
+{
+  "currency": {
+    "base_currency": "CHF",
+    "currencies": [
+      "CHF"
+    ],
+    "exchange_rates_applied": false,
+    "single_currency": true
+  },
+  "expense_cents": 0,
+  "previous_expense_cents": 0,
+  "previous_profit_cents": 0,
+  "previous_revenue_cents": 0,
+  "previous_sections": {
+    "net_revenue": 0
+  },
+  "profit_cents": 30000,
+  "revenue_cents": 30000,
+  "rows": [
+    {
+      "account_type": "revenue",
+      "amount_cents": 30000,
+      "code": "3000",
+      "credit_cents": 30000,
+      "debit_cents": 0,
+      "id": "c848b46b-35ac-457d-823c-51f0cb9db578",
+      "name": "Produits",
+      "normal_balance": "credit",
+      "previous_amount_cents": 0,
+      "previous_credit_cents": 0,
+      "previous_debit_cents": 0,
+      "report_section": "net_revenue"
+    }
+  ],
+  "scope": {
+    "comparison_label": "Exercice 2025",
+    "comparison_source": "same_dates_previous_year",
+    "date_from": "2026-01-01",
+    "date_to": "2026-01-31",
+    "previous_date_from": "2025-01-01",
+    "previous_date_to": "2025-01-31",
+    "previous_has_activity": false
+  },
+  "sections": {
+    "net_revenue": 30000
+  }
+}

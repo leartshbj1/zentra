@@ -1,0 +1,120 @@
+{
+  "accounts": [
+    {
+      "account_id": "CH9300762011623852957",
+      "currency": "CHF",
+      "link_source": "settings_iban",
+      "linked": true,
+      "movement_count": 1
+    }
+  ],
+  "imports": [
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "created_at": "2026-09-10T05:05:44.840736300+00:00",
+      "entry_count": 1,
+      "file_sha256": "f73bf37bcbbc0ec8031f470567f0e8c3025e114dd384c98bf9855111a724c6f5",
+      "file_size": 1488,
+      "id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+      "ignored_count": 0,
+      "imported_count": 1,
+      "message_type": "camt.053",
+      "namespace_version": "001.08",
+      "source_name": "camt-sans-reference.xml",
+      "warnings_json": []
+    }
+  ],
+  "movements": [
+    {
+      "account_currency": "CHF",
+      "account_id": "CH9300762011623852957",
+      "account_servicer_ref": "D-camt-sans-reference",
+      "amount_cents": 10000,
+      "booked_import_id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+      "booking_date": "2026-04-10",
+      "counterparty_iban": null,
+      "counterparty_name": null,
+      "created_at": "2026-09-10T05:05:44.840736300+00:00",
+      "credit_debit": "CRDT",
+      "currency": "CHF",
+      "details_json": {
+        "structured_references": [],
+        "tx_detail_count": 1
+      },
+      "end_to_end_id": "E2E-camt-sans-reference",
+      "enriched_at": null,
+      "entry_sequence": 1,
+      "expense_history": [],
+      "expense_reconciliation": null,
+      "expense_suggestion": {
+        "candidates": [],
+        "reason": "Seul un débit bancaire sans extourne peut régler une dépense."
+      },
+      "id": "bdcb8dd4-6a4d-4d2a-b7fe-c2bd11a03299",
+      "import_id": "8d369834-fa21-4abf-9bb9-96642a0fa509",
+      "reconciliation": null,
+      "reference": null,
+      "reference_level": "D",
+      "reference_type": "NON",
+      "refund_history": [],
+      "refund_match": null,
+      "refund_suggestion": {
+        "can_create": true,
+        "candidates": [],
+        "reason": "Choisissez le remboursement reçu correspondant à ce crédit, après vérification de la référence et du fournisseur."
+      },
+      "reversal": false,
+      "status": "BOOK",
+      "strong_key": "sha256:7108f86d3b1e68a46e9d19812e226a8564bbafa55dfdaccbebe05ff27f56d015",
+      "suggestion": {
+        "candidates": [
+          {
+            "amount_relation": "exact",
+            "bank_date": "2026-04-10",
+            "confirmable": true,
+            "date_relation": "valid",
+            "date_safe": true,
+            "invoice_id": "32c87256-013d-403f-a47c-e5229223215c",
+            "invoice_number": "F-2026-0002",
+            "issue_date": "2026-04-01",
+            "reason": "Facture ouverte compatible en devise et en solde; sélection manuelle requise.",
+            "remaining_cents": 10000
+          },
+          {
+            "amount_relation": "exact",
+            "bank_date": "2026-04-10",
+            "confirmable": true,
+            "date_relation": "valid",
+            "date_safe": true,
+            "invoice_id": "03ec84bf-1f20-4dd6-9981-f7f8e56283a3",
+            "invoice_number": "F-2026-0001",
+            "issue_date": "2026-04-01",
+            "reason": "Facture ouverte compatible en devise et en solde; sélection manuelle requise.",
+            "remaining_cents": 10000
+          }
+        ],
+        "confirmable": true,
+        "invoice_id": null,
+        "invoice_number": null,
+        "kind": "manual",
+        "reason": "Choisissez explicitement une facture ouverte compatible."
+      },
+      "supplier_reconciliation": null,
+      "transaction_id": "TX-camt-sans-reference",
+      "unstructured": "RECETTE FICTIVE - paiement sans reference",
+      "value_date": "2026-04-10"
+    }
+  ],
+  "reconciliations": [],
+  "summary": {
+    "booked_credit_count": 1,
+    "booked_debit_count": 0,
+    "import_count": 1,
+    "movement_count": 1,
+    "pending_count": 0,
+    "unreconciled_count": 1,
+    "unreconciled_supplier_count": 0
+  },
+  "supplier_reconciliations": []
+}

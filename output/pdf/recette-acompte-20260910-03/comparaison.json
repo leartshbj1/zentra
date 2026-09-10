@@ -1,0 +1,15 @@
+{
+  "actual": {
+    "balance_gross": 75670,
+    "deposit_gross": 32430,
+    "quote_gross": 108100,
+    "total_vat": 8100
+  },
+  "equal": true,
+  "expected": {
+    "balance_gross": 75670,
+    "deposit_gross": 32430,
+    "quote_gross": 108100,
+    "total_vat": 8100
+  }
+}

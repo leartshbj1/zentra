@@ -1,0 +1,15 @@
+{
+  "period": {
+    "closed_at": "2026-09-10T05:05:39.235748800+00:00",
+    "created_at": "2026-09-10T05:05:39.058537400+00:00",
+    "date_from": "2026-01-01",
+    "date_to": "2026-03-31",
+    "id": "c0d8a382-e8b8-4e84-88f1-bb05ea6895b5",
+    "name": "Recette premier trimestre 2026",
+    "status": "closed",
+    "updated_at": "2026-09-10T05:05:39.235748800+00:00"
+  },
+  "review_id": "f97d6551-13c4-43be-a0ea-b2bfeda4213f",
+  "schema": "elyko.fiduciary-period-finalization.v1",
+  "source_sha256": "544e5af3355c7ce879e068ebb59418e9adaa939c4c0b3062b38a66dab4b1a944"
+}
