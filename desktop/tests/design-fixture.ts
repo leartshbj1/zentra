@@ -21,6 +21,20 @@ export function installDesignFixture(workspace: Workspace) {
       return { account, lines: [], currency: (await desktopApi.getJournal(filter)).currency, openingDebitCents: 0, openingCreditCents: 0, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, openingNetDebitCents: 0, debitCents: 0, creditCents: 0, movementNetDebitCents: 0, netDebitCents: 0, closingDebitBalanceCents: 0, closingCreditBalanceCents: 0, closingNetDebitCents: 0 };
     };
   }
+  if (new URLSearchParams(location.search).has('designTrial')) {
+    const readTrial = desktopApi.getTrialBalance;
+    desktopApi.getTrialBalance = async (filter) => ({
+      ...await readTrial(filter),
+      rows: [
+        { id: 'trial-bank', code: '1020', name: 'Banque · Compte courant de l’entreprise', accountType: 'asset', normalBalance: 'debit', active: true, reportSection: 'current_assets', openingDebitCents: 123456789, openingCreditCents: 0, openingDebitBalanceCents: 123456789, openingCreditBalanceCents: 0, openingNetDebitCents: 123456789, debitCents: 1234567, creditCents: 0, debitBalanceCents: 124691356, creditBalanceCents: 0, closingNetDebitCents: 124691356 },
+        { id: 'trial-capital', code: '2800', name: 'Capital et apports du titulaire', accountType: 'equity', normalBalance: 'credit', active: true, reportSection: 'equity', openingDebitCents: 0, openingCreditCents: 123456789, openingDebitBalanceCents: 0, openingCreditBalanceCents: 123456789, openingNetDebitCents: -123456789, debitCents: 0, creditCents: 1234567, debitBalanceCents: 0, creditBalanceCents: 124691356, closingNetDebitCents: -124691356 },
+      ],
+      openingDebitBalanceCents: 123456789, openingCreditBalanceCents: 123456789,
+      debitCents: 1234567, creditCents: 1234567,
+      closingDebitBalanceCents: 124691356, closingCreditBalanceCents: 124691356,
+      balanced: true,
+    });
+  }
   const labels = ['Rénovation de l’espace de vie', 'Aménagement des bureaux', 'Entretien annuel'];
   for (const [index, quote] of workspace.quotes.entries()) {
     quote.title = labels[index];

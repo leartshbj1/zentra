@@ -15,7 +15,8 @@ export function useMobileLayout() {
       const headings = Array.from(table.tHead?.rows[0]?.cells ?? []).map((cell) => cell.textContent?.trim() || cell.getAttribute('aria-label') || '');
       if (!headings.length) return;
       table.dataset.mobileCards = 'true';
-      for (const body of Array.from(table.tBodies)) for (const row of Array.from(body.rows)) {
+      const sections = [...Array.from(table.tBodies), ...(table.tFoot ? [table.tFoot] : [])];
+      for (const section of sections) for (const row of Array.from(section.rows)) {
         const cells = Array.from(row.cells);
         if (cells.some((cell) => cell.colSpan > 1)) continue;
         cells.forEach((cell, index) => { cell.dataset.label = headings[index] || ''; });

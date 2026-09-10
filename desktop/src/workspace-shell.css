@@ -517,6 +517,7 @@
 
 /* Long labels must fit their controls, including wrapped navigation groups. */
 @media screen {
+  :where(.stack-layout, .panel, .table-panel), .stack-layout > * { min-width: 0; }
   .button { justify-content: center; text-align: center; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; max-width: 100%; }
   .button > svg { flex-shrink: 0; }
   .button > span { min-width: 0; }
@@ -554,6 +555,7 @@
   .bank-screen .bank-filter-strip button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: normal; border-radius: 12px; color: #62626a; font-weight: 500; }
   .bank-screen .bank-filter-strip button.is-active { background: #fff; color: #285c3d; box-shadow: 0 2px 6px #1d1d1f08; }
   .settings-cloud-status { font-size: 14px; line-height: 1.5; }
+  .app-updater::after { display: none; }
   .page-header h1, .section-heading h2, .empty-state h3 { text-wrap: balance; }
   .module-toggle > span, .check-card > span { min-width: 0; overflow-wrap: anywhere; }
   .module-toggle small, .check-card small { font-size: 13px; line-height: 1.5; }
