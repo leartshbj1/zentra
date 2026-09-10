@@ -70,12 +70,12 @@ describe('aide de paie compréhensible', () => {
     ).not.toContain('SQLITE');
     expect(
       payrollHelp('Le compte des salaires à payer est inactif').target,
-    ).toBe('contributions');
+    ).toBe('accounts');
     expect(
       payrollHelp('Le compte des salaires à payer est inactif').action,
-    ).toBe('');
+    ).toBe('Corriger les comptes du salaire');
     expect(payrollHelp('Le compte de cotisation AVS est inactif').target).toBe(
-      'contributions',
+      'advanced-contributions',
     );
   });
 });

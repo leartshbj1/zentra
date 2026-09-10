@@ -81,6 +81,7 @@ export function DetailedPayslipForm({
       setStep(1);
       setShowContributions(true);
     } else if (target === 'review') setStep(2);
+    else if (target === 'period') setStep(0);
     else setSetup(target);
   }
   const [showContributions, setShowContributions] = useState(false);
@@ -976,7 +977,7 @@ export function DetailedPayslipForm({
           ) : null}
           {accountingError || ratesError ? (
             <div>
-              <PayrollProblem messages={[accountingError, ratesError]} />
+              <PayrollProblem messages={[accountingError, ratesError]} onFix={fixPayroll} disabled={busy || calculating} />
               <Button
                 type="button"
                 variant="secondary"

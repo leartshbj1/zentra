@@ -27,7 +27,15 @@ export function installPayrollFixture(workspace: Workspace) {
   ];
   desktopApi.listAccounts = async () => accounts;
   const settings = desktopApi.getAccountingSettings;
-  desktopApi.getAccountingSettings = async () => ({ ...await settings(), enabled: true });
+  let correctedAccountSettings: Awaited<ReturnType<typeof desktopApi.getAccountingSettings>> | null = null;
+  desktopApi.getAccountingSettings = async () => ({ ...(correctedAccountSettings ?? await settings()), enabled: true });
+  if (new URLSearchParams(location.search).has('payrollPensionSetup')) {
+    desktopApi.configureAccounting = async (input) => {
+      counter('accounting-settings', input);
+      correctedAccountSettings = structuredClone(input);
+      return { settings: correctedAccountSettings } as Awaited<ReturnType<typeof desktopApi.configureAccounting>>;
+    };
+  }
   function definition(code: string, category: PayrollContributionDefinition['category'], side: 'employee' | 'employer', rateBp: number): PayrollContributionDefinition {
     return { id: code, code, label: code.replaceAll('_', ' '), category, side, calculationKind: 'rate', rateBp, fixedAmountCents: null, annualCeilingCents: ['ac', 'aap', 'aanp'].includes(category) ? 14820000 : null, basisKind: ['aap', 'aanp', 'family_allowance'].includes(category) ? 'ahv_salary' : 'gross', lppComponent: null, lppEmployeeId: null, source: 'Contrat et taux de recette, aucune donnée réelle', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', active: true, liabilityAccountId: 'social-qa', expenseAccountId: side === 'employer' ? 'expense-qa' : '' };
   }
@@ -36,6 +44,13 @@ export function installPayrollFixture(workspace: Workspace) {
     for (const definition of definitions) definition.basisKind = 'ahv_salary';
   }
   for (const side of ['employee', 'employer'] as const) definitions.push({ ...definition(`LPP_${side.toUpperCase()}`, 'lpp', side, 0), calculationKind: 'fixed', rateBp: null, fixedAmountCents: 25000, basisKind: 'coordinated', lppComponent: 'combined', lppEmployeeId: 'elodie', source: regulation });
+  if (new URLSearchParams(location.search).has('payrollPensionSetup')) {
+    workspace.employees[0].lppAssessmentYear = null;
+    workspace.employees[0].lppAnnualSalaryCents = null;
+    workspace.settings.payroll.pensionFund = '';
+    workspace.settings.payroll.lppPlanEvidence = undefined;
+    for (let index = definitions.length - 1; index >= 0; index--) if (definitions[index].category === 'lpp') definitions.splice(index, 1);
+  }
   const snapshots = new Map<string, PayslipContributionSnapshot[]>();
   const counter = (name: string, input: unknown) => {
     const key = `qa-payroll-${name}`; const rows = JSON.parse(sessionStorage.getItem(key) || '[]'); rows.push(input); sessionStorage.setItem(key, JSON.stringify(rows)); return rows.length;

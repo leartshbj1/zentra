@@ -3,6 +3,9 @@ import { desktopApi } from './bridge';
 import { Button, Field, submitForm } from './ui';
 import { createId, centsFromInput, errorMessage } from './utils';
 import { PayrollProblem } from './PayrollProblem';
+import type { PayrollHelpTarget } from './payrollHelp';
+import { revealPayrollField } from './payrollNavigation';
+import { pensionPlanComplete } from './payrollPension';
 import {
   CONTRACT_PRESETS,
   contractContribution,
@@ -23,6 +26,8 @@ export function PayrollContractSetup({
   busy,
   act,
   onSaved,
+  destination,
+  onFix,
 }: {
   workspace: Workspace;
   employeeId: string;
@@ -35,8 +40,18 @@ export function PayrollContractSetup({
     onError?: (reason: unknown) => void,
   ) => Promise<boolean>;
   onSaved: () => void;
+  destination?: { target: PayrollHelpTarget; revision: number };
+  onFix?: (target: PayrollHelpTarget) => void;
 }) {
-  const [category, setCategory] = useState<ContractPreset>('aap');
+  const [category, setCategory] = useState<ContractPreset>(
+    destination?.target === 'pension-contributions' ? 'lpp' : 'aap',
+  );
+  const container = useRef<HTMLElement>(null);
+  const [seenDestination, setSeenDestination] = useState(destination);
+  useEffect(() => {
+    if (destination?.target === 'pension-contributions' && category === 'lpp')
+      revealPayrollField(container.current, '[data-pension-guide]');
+  }, [category, destination]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [definitions, setDefinitions] = useState<
     PayrollContributionDefinition[]
@@ -48,10 +63,26 @@ export function PayrollContractSetup({
   const [editing, setEditing] = useState<PayrollContributionDefinition | null>(
     null,
   );
+  if (destination !== seenDestination) {
+    setSeenDestination(destination);
+    if (destination?.target === 'pension-contributions' && category !== 'lpp') {
+      setCategory('lpp');
+      setEditing(null);
+      setId(createId());
+    }
+  }
   const lock = useRef(false);
   const year = Number(period.slice(0, 4));
   const pension = category === 'lpp';
   const preset = CONTRACT_PRESETS[category];
+  const employee = workspace.employees.find((e) => e.id === employeeId);
+  const planReady = Boolean(
+    workspace.settings &&
+    pensionPlanComplete(workspace.settings.payroll, period),
+  );
+  const annualReady =
+    employee?.lppAssessmentYear === year &&
+    employee.lppAnnualSalaryCents != null;
   useEffect(() => {
     let alive = true;
     void Promise.all([
@@ -119,7 +150,7 @@ export function PayrollContractSetup({
     (category !== 'aanp' || d.side === 'employee') &&
     (!['aap', 'family_allowance'].includes(category) || d.side === 'employer');
   return (
-    <section className="payroll-contracts">
+    <section className="payroll-contracts" ref={container}>
       <div>
         <h3>Cotisations et assurances</h3>
         <p>
@@ -128,7 +159,16 @@ export function PayrollContractSetup({
       </div>
       {error && (
         <>
-          <PayrollProblem messages={[error]} reveal />
+          <PayrollProblem
+            messages={[error]}
+            reveal
+            disabled={busy || loading}
+            onFix={(target) => {
+              if (['contributions', 'review', 'salary'].includes(target))
+                revealPayrollField(container.current, 'form');
+              else onFix?.(target);
+            }}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -204,6 +244,77 @@ export function PayrollContractSetup({
         </select>
       </Field>
       <p>{preset.explanation}</p>
+      {pension && (
+        <section
+          className="payroll-pension-guide"
+          data-pension-guide
+          aria-label="Préparer la caisse de pension"
+        >
+          <h3>
+            La pension de {employee?.name ?? 'votre collaborateur'}, en trois
+            points
+          </h3>
+          <ol>
+            <li>
+              <div>
+                <strong>Le salaire annuel</strong>
+                <p>
+                  {annualReady
+                    ? `Salaire annoncé pour ${year} : CHF ${((employee!.lppAnnualSalaryCents ?? 0) / 100).toLocaleString('fr-CH')}.`
+                    : 'Recopiez le salaire brut annuel annoncé à la caisse pour cette personne.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                disabled={busy || loading}
+                onClick={() => onFix?.('pension-person')}
+              >
+                {annualReady
+                  ? 'Vérifier le salaire annuel'
+                  : 'Renseigner le salaire annuel'}
+              </Button>
+            </li>
+            <li>
+              <div>
+                <strong>Le contrat de la caisse</strong>
+                <p>
+                  {planReady
+                    ? `${workspace.settings!.payroll.pensionFund} · contrat renseigné.`
+                    : 'Le nom de la caisse, le règlement et ses dates doivent être complétés pour ce mois.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                disabled={busy || loading}
+                onClick={() => onFix?.('pension-plan')}
+              >
+                {planReady
+                  ? 'Vérifier le contrat de pension'
+                  : 'Compléter le contrat de pension'}
+              </Button>
+            </li>
+            <li>
+              <div>
+                <strong>Les montants mensuels</strong>
+                <p>
+                  Recopiez la part du salarié et celle de l’entreprise, une
+                  ligne à la fois. Le certificat précise ce qui couvre l’épargne
+                  et les risques.
+                </p>
+              </div>
+            </li>
+          </ol>
+          <small>
+            Vous n’avez pas le certificat ? Demandez à la caisse les montants
+            mensuels des deux parts. Ne remplacez pas un montant inconnu par
+            zéro.
+          </small>
+        </section>
+      )}
       {existing.length > 0 && (
         <div className="payroll-callout">
           <strong>Déjà enregistré pour cette période</strong>
@@ -229,10 +340,15 @@ export function PayrollContractSetup({
                   Modifier {d.label}
                 </Button>
               ) : (
-                <small>
-                  Cette couverture particulière se modifie dans Paramètres →
-                  Paie → Cotisations.
-                </small>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="small"
+                  disabled={busy || loading}
+                  onClick={() => onFix?.('advanced-contributions')}
+                >
+                  Ouvrir les réglages de cette couverture
+                </Button>
               )}
             </div>
           ))}
@@ -287,6 +403,24 @@ export function PayrollContractSetup({
               const desired = editing
                 ? { ...input, code: editing.code, label: editing.label }
                 : input;
+              if (pension && !planReady)
+                throw new Error(
+                  'Contrat de pension incomplet : complétez le règlement avant les montants.',
+                );
+              if (pension) {
+                const plan = workspace.settings!.payroll.lppPlanEvidence!;
+                if (input.source.trim() !== plan.regulationReference.trim())
+                  throw new Error(
+                    'La source de chaque définition LPP doit correspondre exactement à la référence du règlement conservée dans les paramètres.',
+                  );
+                if (
+                  input.effectiveFrom < plan.effectiveFrom ||
+                  input.effectiveTo > plan.effectiveTo
+                )
+                  throw new Error(
+                    'La période d’effet de chaque définition LPP doit rester entièrement comprise dans celle du règlement enregistré.',
+                  );
+              }
               await run(async () => {
                 if (editing) {
                   const fresh = (
@@ -392,7 +526,12 @@ export function PayrollContractSetup({
                 name="from"
                 min="2026-01-01"
                 max="2026-12-31"
-                defaultValue={editing?.effectiveFrom}
+                defaultValue={
+                  editing?.effectiveFrom ??
+                  (pension && planReady
+                    ? workspace.settings?.payroll.lppPlanEvidence?.effectiveFrom
+                    : undefined)
+                }
                 required
               />
             </Field>
@@ -402,7 +541,12 @@ export function PayrollContractSetup({
                 name="to"
                 min="2026-01-01"
                 max="2026-12-31"
-                defaultValue={editing?.effectiveTo}
+                defaultValue={
+                  editing?.effectiveTo ??
+                  (pension && planReady
+                    ? workspace.settings?.payroll.lppPlanEvidence?.effectiveTo
+                    : undefined)
+                }
                 required
               />
             </Field>

@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { PayrollProblem } from './PayrollProblem';
+import type { PayrollHelpTarget } from './payrollHelp';
+import { revealPayrollField } from './payrollNavigation';
 import {
   Archive,
   CheckCircle2,
@@ -18,7 +21,6 @@ import { centsFromInput, errorMessage } from './utils';
 import {
   Button,
   EmptyState,
-  ErrorPanel,
   Field,
   SectionHeading,
   StatusBadge,
@@ -46,21 +48,25 @@ const lppComponentLabels: Record<LppComponent, string> = {
   combined: 'Risque et épargne combinés',
 };
 
-export function PayrollContributionsPanel() {
+export function PayrollContributionsPanel({
+  onChanged,
+  onBusyChange,
+  onFix,
+}: { onChanged?: () => void; onBusyChange?: (busy: boolean) => void; onFix?: (target: PayrollHelpTarget) => void } = {}) {
+  const container = useRef<HTMLElement>(null);
   const [definitions, setDefinitions] = useState<
     PayrollContributionDefinition[]
   >([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [lppRegulationReference, setLppRegulationReference] = useState('');
-  const [draft, setDraft] = useState<
-    Partial<PayrollContributionDefinition> | null
-  >(null);
+  const [draft, setDraft] =
+    useState<Partial<PayrollContributionDefinition> | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     const [nextDefinitions, nextAccounts, workspace] = await Promise.all([
       desktopApi.listPayrollContributionDefinitions(),
       desktopApi.listAccounts(),
@@ -71,7 +77,7 @@ export function PayrollContributionsPanel() {
     setEmployees(workspace.employees);
     const plan = workspace.settings?.payroll.lppPlanEvidence;
     setLppRegulationReference(plan?.regulationReference ?? '');
-  }
+  }, []);
 
   async function run(action: () => Promise<void>, success?: string) {
     setBusy(true);
@@ -79,13 +85,13 @@ export function PayrollContributionsPanel() {
     setNotice('');
     try {
       await action();
-      if (success) setNotice(success);
+      if (success) {
+        setNotice(success);
+        onChanged?.();
+      }
     } catch (reason) {
       setError(
-        errorMessage(
-          reason,
-          'La cotisation n’a pas pu être enregistrée.',
-        ),
+        errorMessage(reason, 'La cotisation n’a pas pu être enregistrée.'),
       );
     } finally {
       setBusy(false);
@@ -93,22 +99,38 @@ export function PayrollContributionsPanel() {
   }
 
   useEffect(() => {
-    void run(load);
-  }, []);
+    let active = true;
+    void Promise.resolve()
+      .then(load)
+      .catch((reason) => {
+        if (active)
+          setError(
+            errorMessage(
+              reason,
+              'Les cotisations sont momentanément indisponibles.',
+            ),
+          );
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [load]);
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   return (
-    <section className="panel settings-card settings-card--wide payroll-definitions">
+    <section className="panel settings-card settings-card--wide payroll-definitions" ref={container}>
       <SectionHeading
         eyebrow="Moteur de paie"
         title="Définitions de cotisations"
         description="Chaque base, montant, plafond, part, source et période d’effet est conservé explicitement."
         action={
           <div className="heading-actions">
-            <Button
-              variant="ghost"
-              size="small"
-              onClick={() => void run(load)}
-            >
+            <Button variant="ghost" size="small" onClick={() => void run(load)}>
               <RefreshCw size={14} /> Actualiser
             </Button>
             <Button size="small" onClick={() => setDraft({})}>
@@ -117,7 +139,11 @@ export function PayrollContributionsPanel() {
           </div>
         }
       />
-      {error ? <ErrorPanel message={error} /> : null}
+      {error ? <PayrollProblem messages={[error]} reveal disabled={busy} onFix={(target) => {
+        if (onFix && ['person', 'pension-person', 'pension-plan', 'insurance', 'history', 'situation', 'accounts'].includes(target)) onFix(target);
+        else if (draft) revealPayrollField(container.current, 'form');
+        else void run(load);
+      }} /> : null}
       {notice ? (
         <div className="notice notice--success">
           <span>
@@ -161,9 +187,7 @@ export function PayrollContributionsPanel() {
                     </strong>
                     <small>
                       {categoryLabels[definition.category]} · part{' '}
-                      {definition.side === 'employee'
-                        ? 'employé'
-                        : 'employeur'}
+                      {definition.side === 'employee' ? 'employé' : 'employeur'}
                     </small>
                   </div>
                   <StatusBadge
@@ -274,13 +298,17 @@ export function contributionDraftPayload(
   },
 ): Omit<PayrollContributionDefinition, 'id'> & { id?: string } {
   const lpp = options.category === 'lpp';
+  const text = (name: string) => {
+    const value = form.get(name);
+    return typeof value === 'string' ? value : '';
+  };
   const calculationKind = lpp ? 'fixed' : options.calculationKind;
   const payload = {
     id: options.id,
-    code: String(form.get('code')).trim().toUpperCase(),
-    label: String(form.get('label')).trim(),
+    code: text('code').trim().toUpperCase(),
+    label: text('label').trim(),
     category: options.category,
-    side: String(form.get('side')) as PayrollContributionDefinition['side'],
+    side: text('side') as PayrollContributionDefinition['side'],
     calculationKind,
     rateBp:
       calculationKind === 'rate'
@@ -294,19 +322,15 @@ export function contributionDraftPayload(
       !lpp && form.get('annualCeiling')
         ? centsFromInput(form.get('annualCeiling'))
         : null,
-    basisKind: String(
-      form.get('basisKind'),
-    ) as PayrollContributionDefinition['basisKind'],
-    lppComponent: lpp
-      ? (String(form.get('lppComponent')) as LppComponent)
-      : null,
-    lppEmployeeId: lpp ? String(form.get('lppEmployeeId')) : null,
-    source: String(form.get('source')).trim(),
-    effectiveFrom: String(form.get('effectiveFrom')),
-    effectiveTo: String(form.get('effectiveTo')),
-    active: String(form.get('active')) === 'yes',
-    liabilityAccountId: String(form.get('liabilityAccountId')),
-    expenseAccountId: String(form.get('expenseAccountId')),
+    basisKind: text('basisKind') as PayrollContributionDefinition['basisKind'],
+    lppComponent: lpp ? (text('lppComponent') as LppComponent) : null,
+    lppEmployeeId: lpp ? text('lppEmployeeId') : null,
+    source: text('source').trim(),
+    effectiveFrom: text('effectiveFrom'),
+    effectiveTo: text('effectiveTo'),
+    active: text('active') === 'yes',
+    liabilityAccountId: text('liabilityAccountId'),
+    expenseAccountId: text('expenseAccountId'),
   };
   return payload as Omit<PayrollContributionDefinition, 'id'> & {
     id?: string;
@@ -351,9 +375,7 @@ function ContributionForm({
           calculationKind: kind,
         });
         if (isLpp && (input.fixedAmountCents ?? 0) <= 0)
-          throw new Error(
-            'Le montant fixe LPP doit être strictement positif.',
-          );
+          throw new Error('Le montant fixe LPP doit être strictement positif.');
         onSubmit(input);
       })}
     >
@@ -388,8 +410,9 @@ function ContributionForm({
             name="category"
             value={category}
             onChange={(event) => {
-              const next = event.target
-                .value as PayrollContributionDefinition['category'] | '';
+              const next = event.target.value as
+                | PayrollContributionDefinition['category']
+                | '';
               setCategory(next);
               if (next === 'lpp') setKind('fixed');
             }}
@@ -522,7 +545,11 @@ function ContributionForm({
               : undefined
           }
         >
-          <select name="basisKind" defaultValue={draft.basisKind ?? ''} required>
+          <select
+            name="basisKind"
+            defaultValue={draft.basisKind ?? ''}
+            required
+          >
             <option value="">Choisir</option>
             {!isLpp ? (
               <>
@@ -545,9 +572,7 @@ function ContributionForm({
               min="0.01"
               step="0.01"
               defaultValue={
-                draft.annualCeilingCents
-                  ? draft.annualCeilingCents / 100
-                  : ''
+                draft.annualCeilingCents ? draft.annualCeilingCents / 100 : ''
               }
             />
           </Field>
@@ -609,7 +634,8 @@ function ContributionForm({
             <option value="">Non lié</option>
             {accounts
               .filter(
-                (account) => account.active && account.accountType === 'liability',
+                (account) =>
+                  account.active && account.accountType === 'liability',
               )
               .map((account) => (
                 <option key={account.id} value={account.id}>
@@ -622,14 +648,12 @@ function ContributionForm({
           label="Compte de charge employeur"
           hint="Seuls les comptes actifs de charges sont proposés; laissez vide pour une part employé."
         >
-          <select
-            name="expenseAccountId"
-            defaultValue={draft.expenseAccountId}
-          >
+          <select name="expenseAccountId" defaultValue={draft.expenseAccountId}>
             <option value="">Non lié</option>
             {accounts
               .filter(
-                (account) => account.active && account.accountType === 'expense',
+                (account) =>
+                  account.active && account.accountType === 'expense',
               )
               .map((account) => (
                 <option key={account.id} value={account.id}>

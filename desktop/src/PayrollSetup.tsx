@@ -3,14 +3,21 @@ import { desktopApi } from './bridge';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { PayrollProblem } from './PayrollProblem';
 import { PayrollContractSetup } from './PayrollContractSetup';
+import { PayrollContributionsPanel } from './PayrollContributionsPanel';
+import {
+  payrollDestination,
+  revealPayrollField,
+  type PayrollSetupSection,
+} from './payrollNavigation';
+import { pensionPlanComplete, PENSION_GUIDE_SOURCE } from './payrollPension';
 import { SWISS_FAMILY_ALLOWANCES_2026 } from './swissFamilyAllowances2026';
 import { Button, Field, submitForm } from './ui';
 import { centsFromInput, errorMessage } from './utils';
-import type { Workspace } from './types';
+import type { Account, AccountingSettings, Workspace } from './types';
 import type { PayrollHelpTarget } from './payrollHelp';
 import './payroll-simple.css';
 
-type Section = 'person' | 'history' | 'insurance' | 'contributions';
+type Section = PayrollSetupSection;
 type Runner = (
   action: () => Promise<Workspace>,
   message: string,
@@ -51,16 +58,80 @@ export function PayrollSetup({
   onSaved: () => void;
 }) {
   const [section, setSection] = useState<Section>(
-    sections.some(([id]) => id === initial) ? (initial as Section) : 'person',
+    payrollDestination(initial).section,
   );
+  const [destination, setDestination] = useState({
+    target: initial,
+    revision: 0,
+  });
+  const container = useRef<HTMLDivElement>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounting, setAccounting] = useState<AccountingSettings | null>(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(
+    initial === 'accounts',
+  );
+  const [advancedOpened, setAdvancedOpened] = useState(
+    initial === 'advanced-contributions',
+  );
+  const [advancedBusy, setAdvancedBusy] = useState(false);
+  const disabled = busy || advancedBusy;
+  function navigate(target: PayrollHelpTarget) {
+    if (disabled) return;
+    if (['review', 'salary', 'period'].includes(target)) {
+      onClose();
+      return;
+    }
+    setSection(payrollDestination(target).section);
+    setLoadingAccounts(target === 'accounts');
+    if (target === 'advanced-contributions') setAdvancedOpened(true);
+    setDestination((old) => ({ target, revision: old.revision + 1 }));
+  }
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  useEffect(() => {
+    if (notice) revealPayrollField(container.current, '[data-setup-notice]');
+  }, [notice]);
   const lock = useRef(false);
   const heading = useRef<HTMLDivElement>(null);
   useEffect(() => {
     heading.current?.focus();
     heading.current?.scrollIntoView({ block: 'start' });
   }, []);
+  useEffect(() => {
+    revealPayrollField(
+      container.current,
+      payrollDestination(destination.target).selector,
+    );
+  }, [destination, loadingAccounts]);
+  useEffect(() => {
+    if (section !== 'accounts') return;
+    let active = true;
+    void Promise.all([
+      desktopApi.listAccounts(),
+      desktopApi.getAccountingSettings(),
+    ])
+      .then(([items, settings]) => {
+        if (active) {
+          setAccounts(items);
+          setAccounting(settings);
+        }
+      })
+      .catch((reason) => {
+        if (active)
+          setError(
+            errorMessage(
+              reason,
+              'Les comptes sont momentanément indisponibles.',
+            ),
+          );
+      })
+      .finally(() => {
+        if (active) setLoadingAccounts(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [section]);
   // Capture the edited context once; re-read before mutation and reject changed records.
   const [original] = useState(() => structuredClone(workspace));
   const employee = original.employees.find((item) => item.id === employeeId);
@@ -88,8 +159,9 @@ export function PayrollSetup({
       : '',
   );
   const [canton, setCanton] = useState(settings.payroll.payrollCanton);
+  const [exception, setException] = useState(employee?.lppExceptionCode ?? '');
   async function save(form: FormData) {
-    if (busy || lock.current) return;
+    if (disabled || loadingAccounts || lock.current) return;
     lock.current = true;
     setError('');
     setNotice('');
@@ -125,6 +197,18 @@ export function PayrollSetup({
           );
           data.lppAssessmentYear = year;
         }
+        data.referenceAgeDate = text('referenceAgeDate') || null;
+        data.avsAllowanceWaived = text('avsAllowanceWaived')
+          ? text('avsAllowanceWaived') === 'yes'
+          : null;
+        data.lppExceptionCode = exception || null;
+        data.lppExceptionEvidenceReference = exception
+          ? text('lppExceptionEvidenceReference')
+          : null;
+        if (exception && !data.lppExceptionEvidenceReference)
+          throw new Error(
+            'Une exception LPP exige son motif et la référence de sa preuve.',
+          );
       } else if (section === 'history' && employee) {
         if (!history)
           throw new Error(
@@ -159,6 +243,36 @@ export function PayrollSetup({
       const ok = await act(
         async () => {
           const fresh = await desktopApi.loadWorkspace();
+          if (section === 'accounts') {
+            const [choices, current] = await Promise.all([
+              desktopApi.listAccounts(),
+              desktopApi.getAccountingSettings(),
+            ]);
+            if (
+              !accounting ||
+              JSON.stringify(current) !== JSON.stringify(accounting)
+            )
+              throw new Error(
+                'Les comptes du salaire ont changé. Rouvrez les comptes pour retrouver les dernières informations.',
+              );
+            const next = { ...current };
+            for (const [name, kind] of [
+              ['wagesExpenseAccountId', 'expense'],
+              ['wagesPayableAccountId', 'liability'],
+            ] as const) {
+              const selected = choices.find(
+                (a) =>
+                  a.id === text(name) && a.active && a.accountType === kind,
+              );
+              if (!selected)
+                throw new Error(
+                  'Choisissez des comptes de salaire actifs et du bon type.',
+                );
+              next[name] = selected.id;
+            }
+            await desktopApi.configureAccounting(next);
+            return desktopApi.loadWorkspace();
+          }
           if (section === 'insurance') {
             if (
               !fresh.settings ||
@@ -168,13 +282,17 @@ export function PayrollSetup({
               throw new Error(
                 'Les assurances ont changé pendant votre saisie. Revenez à la fiche puis rouvrez les assurances pour retrouver les dernières informations.',
               );
-            const payroll = {
-              ...fresh.settings.payroll,
-              payrollCanton: canton,
-            };
+            const payroll = { ...fresh.settings.payroll };
+            payroll.payrollCanton = canton;
             for (const [field] of funds) payroll[field] = text(field);
             // Naming a fund never enables a module or marks a professional review complete.
-            if (text('contractNumber') || text('regulationReference')) {
+            if (
+              text('contractNumber') ||
+              text('regulationReference') ||
+              text('lppFrom') ||
+              text('lppTo') ||
+              form.get('lppParity')
+            ) {
               payroll.lppPlanEvidence = {
                 contractNumber: text('contractNumber'),
                 regulationReference: text('regulationReference'),
@@ -182,6 +300,10 @@ export function PayrollSetup({
                 effectiveTo: text('lppTo'),
                 employerAggregateShareConfirmed: form.get('lppParity') === 'on',
               };
+              if (!pensionPlanComplete(payroll))
+                throw new Error(
+                  'Contrat de pension incomplet : renseignez la caisse, le numéro, une référence de règlement précise (8 caractères minimum), les dates et la confirmation de la part employeur.',
+                );
             }
             if (
               JSON.stringify(payroll) !== JSON.stringify(fresh.settings.payroll)
@@ -223,9 +345,14 @@ export function PayrollSetup({
     }
   }
   return (
-    <div className="payroll-setup">
+    <div className="payroll-setup" ref={container}>
       <header ref={heading} tabIndex={-1}>
-        <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={disabled}
+          onClick={onClose}
+        >
           ← Revenir au salaire
         </Button>
         <small>Votre salaire en cours reste conservé.</small>
@@ -236,9 +363,9 @@ export function PayrollSetup({
             key={id}
             type="button"
             aria-current={section === id ? 'step' : undefined}
-            disabled={busy}
+            disabled={disabled}
             onClick={() => {
-              setSection(id);
+              navigate(id);
               setError('');
             }}
           >
@@ -246,10 +373,32 @@ export function PayrollSetup({
           </button>
         ))}
       </nav>
-      {error && <PayrollProblem messages={[error]} reveal />}
-      {notice && <output>{notice}</output>}
+      {error && (
+        <PayrollProblem
+          messages={[error]}
+          reveal
+          disabled={disabled}
+          onFix={navigate}
+        />
+      )}
+      {notice && (
+        <output className="payroll-callout" data-setup-notice>
+          <strong>C’est enregistré</strong>
+          <span>{notice}</span>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={disabled}
+            onClick={onClose}
+          >
+            Revenir à ma fiche de salaire
+          </Button>
+        </output>
+      )}
       <form
-        hidden={section === 'contributions'}
+        hidden={
+          section === 'contributions' || section === 'advanced-contributions'
+        }
         onSubmit={(event) => submitForm(save)(event)}
       >
         <fieldset
@@ -342,17 +491,81 @@ export function PayrollSetup({
                   />
                 </Field>
               </div>
-              <p className="payroll-callout">
-                Une situation particulière (retraite, contrat court, dispense de
-                caisse de pension) se complète dans la fiche collaborateur.
-                Aucun choix d’exception n’est fait automatiquement.
-              </p>
+              <details className="payroll-simple-guide" data-payroll-situation>
+                <summary>Retraite ou exception de caisse de pension</summary>
+                <p>
+                  À compléter uniquement si cela concerne cette personne,
+                  d’après les documents de sa caisse.
+                </p>
+                <Field
+                  label="Date de référence pour la retraite"
+                  hint="Demandez la date applicable à la caisse AVS si vous ne la connaissez pas."
+                >
+                  <input
+                    name="referenceAgeDate"
+                    type="date"
+                    defaultValue={employee.referenceAgeDate}
+                  />
+                </Field>
+                <Field label="Franchise AVS après l’âge de référence">
+                  <select
+                    name="avsAllowanceWaived"
+                    defaultValue={
+                      employee.avsAllowanceWaived == null
+                        ? ''
+                        : employee.avsAllowanceWaived
+                          ? 'yes'
+                          : 'no'
+                    }
+                  >
+                    <option value="">À confirmer / pas concerné</option>
+                    <option value="no">Le salarié conserve la franchise</option>
+                    <option value="yes">
+                      Le salarié renonce à la franchise
+                    </option>
+                  </select>
+                </Field>
+                <Field label="Exception de pension confirmée">
+                  <select
+                    name="lppExceptionCode"
+                    value={exception}
+                    onChange={(event) =>
+                      setException(event.target.value as typeof exception)
+                    }
+                  >
+                    <option value="">Aucune exception</option>
+                    <option value="short_fixed_contract">
+                      Contrat à durée déterminée de trois mois au maximum
+                    </option>
+                    <option value="other_legal">
+                      Autre exception légale confirmée
+                    </option>
+                  </select>
+                </Field>
+                {exception && (
+                  <Field
+                    label="Document qui confirme l’exception"
+                    required
+                    hint="Référence du contrat signé ou de la décision écrite de la caisse."
+                  >
+                    <input
+                      name="lppExceptionEvidenceReference"
+                      required
+                      maxLength={500}
+                      defaultValue={
+                        employee.lppExceptionEvidenceReference ?? ''
+                      }
+                    />
+                  </Field>
+                )}
+              </details>
             </>
           )}
         </fieldset>
         <fieldset
           disabled={busy || section !== 'history'}
           hidden={section !== 'history'}
+          data-payroll-history
         >
           <h3>Avant la première fiche dans Zentra</h3>
           <p>
@@ -536,12 +749,23 @@ export function PayrollSetup({
               disabled={busy}
             />
           ))}
-          <details className="payroll-simple-guide">
+          <details className="payroll-simple-guide" data-pension-plan>
             <summary>Contrat de la caisse de pension</summary>
             <p>
               Ces informations figurent dans le règlement de prévoyance. Elles
               sont nécessaires avant de valider des cotisations LPP.
             </p>
+            <ol>
+              <li>Indiquez le nom de la caisse ci-dessus.</li>
+              <li>
+                Recopiez le numéro, la référence et la validité du contrat
+                ci-dessous.
+              </li>
+              <li>
+                Dans les cotisations, indiquez les montants mensuels de chaque
+                personne.
+              </li>
+            </ol>
             <Field label="Numéro du contrat LPP">
               <input
                 name="contractNumber"
@@ -551,6 +775,8 @@ export function PayrollSetup({
             <Field label="Référence du règlement">
               <input
                 name="regulationReference"
+                minLength={8}
+                maxLength={500}
                 defaultValue={
                   settings.payroll.lppPlanEvidence?.regulationReference
                 }
@@ -589,6 +815,19 @@ export function PayrollSetup({
                 des cotisations de l’ensemble du personnel assuré.
               </span>
             </label>
+            <details>
+              <summary>Je ne trouve pas ces informations</summary>
+              <p>
+                Demandez à votre caisse le contrat d’affiliation, le règlement
+                en vigueur et le certificat de prévoyance de votre
+                collaborateur. Demandez les montants mensuels à prélever et la
+                part à payer par l’entreprise. Vous pouvez revenir au salaire et
+                conserver une fiche à compléter.
+              </p>
+              <a href={PENSION_GUIDE_SOURCE} target="_blank" rel="noreferrer">
+                Comprendre les cotisations de pension — OFAS
+              </a>
+            </details>
           </details>
           <small>
             Choisir un nom ne souscrit aucune assurance et ne fixe aucun taux.
@@ -596,18 +835,73 @@ export function PayrollSetup({
             des fiches.
           </small>
         </fieldset>
+        <fieldset
+          disabled={disabled || loadingAccounts || section !== 'accounts'}
+          hidden={section !== 'accounts'}
+        >
+          <h3>Les comptes du salaire</h3>
+          <p>
+            Choisissez les comptes actifs du plan comptable de l’entreprise. Le
+            montant à verser au salarié reste le même.
+          </p>
+          {loadingAccounts && <p>Chargement des comptes…</p>}
+          {(['wagesExpenseAccountId', 'wagesPayableAccountId'] as const).map(
+            (name) => {
+              const kind =
+                name === 'wagesExpenseAccountId' ? 'expense' : 'liability';
+              const available = accounts.filter(
+                (a) => a.active && a.accountType === kind,
+              );
+              return (
+                <Field
+                  key={`${name}-${accounting?.[name]}`}
+                  label={
+                    kind === 'expense'
+                      ? 'Charges de personnel'
+                      : 'Salaires à payer'
+                  }
+                  required
+                >
+                  <select
+                    name={name}
+                    defaultValue={accounting?.[name] ?? ''}
+                    required
+                  >
+                    <option value="">Choisir un compte actif</option>
+                    {accounting?.[name] &&
+                      !available.some((a) => a.id === accounting[name]) && (
+                        <option value={accounting[name]} disabled>
+                          Compte actuel indisponible — choisissez un autre
+                          compte
+                        </option>
+                      )}
+                    {available.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.code} · {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              );
+            },
+          )}
+        </fieldset>
         <div className="payroll-setup-actions">
           <Button
             type="button"
             variant="ghost"
             onClick={onClose}
-            disabled={busy}
+            disabled={disabled}
           >
             Revenir sans enregistrer
           </Button>
           <Button
             type="submit"
-            disabled={busy || (section !== 'insurance' && !employee)}
+            disabled={
+              disabled ||
+              loadingAccounts ||
+              (!['insurance', 'accounts'].includes(section) && !employee)
+            }
           >
             {busy ? 'Enregistrement…' : 'Enregistrer et revenir au salaire'}
           </Button>
@@ -620,6 +914,8 @@ export function PayrollSetup({
           period={period}
           busy={busy}
           act={act}
+          destination={destination}
+          onFix={navigate}
           onSaved={() => {
             onSaved();
             setNotice(
@@ -627,6 +923,15 @@ export function PayrollSetup({
             );
           }}
         />
+      </div>
+      <div hidden={section !== 'advanced-contributions'}>
+        {advancedOpened && (
+          <PayrollContributionsPanel
+            onChanged={onSaved}
+            onBusyChange={setAdvancedBusy}
+            onFix={navigate}
+          />
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,13 @@ export type PayrollHelpTarget =
   | 'history'
   | 'insurance'
   | 'contributions'
+  | 'pension-person'
+  | 'pension-plan'
+  | 'pension-contributions'
+  | 'situation'
+  | 'accounts'
+  | 'advanced-contributions'
+  | 'period'
   | 'salary'
   | 'review';
 export type PayrollHelp = {
@@ -13,6 +20,96 @@ export type PayrollHelp = {
   action: string;
 };
 const rules: [RegExp, PayrollHelp][] = [
+  [
+    /(?:LPP|pension).*(?:uniquement 2026|couvre uniquement)|(?:période LPP|période de paie|payment_date|date de paiement|format AAAA-MM)/i,
+    {
+      title: 'Vérifiez le mois et la date de paiement',
+      explanation:
+        'Revenez au choix du mois. Le contrôle suisse intégré couvre 2026 ; une autre année nécessite un référentiel adapté.',
+      target: 'period',
+      action: 'Choisir le mois du salaire',
+    },
+  ],
+  [
+    /(?:année d[’']évaluation|évaluation salariale LPP|salaire annuel.*(?:LPP|pension)|lpp_assessment_year|lpp_annual_salary)/i,
+    {
+      title: 'Complétez le salaire annuel pour la pension',
+      explanation:
+        'Dans le contrat du collaborateur, recopiez le salaire brut annuel annoncé à la caisse pour l’année de cette fiche. Ce n’est ni le salaire net, ni le salaire déjà réduit par la caisse.',
+      target: 'pension-person',
+      action: 'Renseigner le salaire annuel',
+    },
+  ],
+  [
+    /exception.*(?:LPP|contrat court)|(?:LPP|contrat déterminé).*exception|lpp_exception|âge de référence|reference_age|franchise AVS/i,
+    {
+      title: 'Confirmez la situation du collaborateur',
+      explanation:
+        'Complétez uniquement la situation confirmée par la caisse : retraite ou exception de pension, avec la référence du document. Une exception ne doit pas servir à contourner une information manquante.',
+      target: 'situation',
+      action: 'Compléter la situation particulière',
+    },
+  ],
+  [
+    /(?:plan LPP exige|règlement LPP exige|fenêtre du règlement LPP|fin du règlement LPP|contrat de pension incomplet|période du contrat de pension|lpp_plan|part employeur agrégée|règlement de pension.*référence)/i,
+    {
+      title: 'Complétez le contrat de la caisse de pension',
+      explanation:
+        'Prenez le contrat ou le règlement de prévoyance de l’entreprise. Indiquez son numéro, sa référence et ses dates de validité, puis confirmez la participation de l’employeur. Si un élément manque, demandez-le à votre caisse.',
+      target: 'pension-plan',
+      action: 'Ouvrir le contrat de pension',
+    },
+  ],
+  [
+    /caisse de pension.*manque|pension_fund/i,
+    {
+      title: 'Indiquez votre caisse de pension',
+      explanation:
+        'Recopiez le nom sur votre contrat d’affiliation. Choisir le nom de la caisse ne suffit pas : son contrat et les montants du collaborateur se complètent ensuite.',
+      target: 'pension-plan',
+      action: 'Compléter la caisse de pension',
+    },
+  ],
+  [
+    /(?:durée indéterminée ou déterminée|contrat.*durée déterminée.*date|fin du contrat|employment_contract|emploi.*début|rapports de travail)/i,
+    {
+      title: 'Vérifiez les dates du contrat de travail',
+      explanation:
+        'Indiquez s’il s’agit d’un CDI ou d’un CDD, le premier jour de travail et la fin prévue pour un CDD. Le mois du salaire doit correspondre à une période travaillée.',
+      target: 'person',
+      action: 'Ouvrir le contrat du collaborateur',
+    },
+  ],
+  [
+    /impôt.*source|source_tax/i,
+    {
+      title: 'Vérifiez l’impôt à la source',
+      explanation:
+        'Ouvrez les cotisations détaillées et complétez la retenue avec le barème officiel du canton et la situation du salarié.',
+      target: 'advanced-contributions',
+      action: 'Ouvrir les retenues détaillées',
+    },
+  ],
+  [
+    /(?:compte.*salair|wages_.*account)/i,
+    {
+      title: 'Choisissez les comptes du salaire',
+      explanation:
+        'Remplacez le compte indisponible par un compte actif : charges de personnel pour le salaire, dettes pour les salaires à payer. Revenez ensuite vérifier la fiche.',
+      target: 'accounts',
+      action: 'Corriger les comptes du salaire',
+    },
+  ],
+  [
+    /compte.*cotisation|(?:account|liability|expense)_.*(?:id|inactif)|définitions historiques|cotisation.*inactiv/i,
+    {
+      title: 'Vérifiez les réglages de la cotisation',
+      explanation:
+        'Ouvrez la cotisation concernée pour corriger son compte comptable ou son état. Les fiches déjà comptabilisées restent conservées.',
+      target: 'advanced-contributions',
+      action: 'Ouvrir les cotisations détaillées',
+    },
+  ],
   [
     /deux décimales/i,
     {
@@ -94,7 +191,7 @@ const rules: [RegExp, PayrollHelp][] = [
     },
   ],
   [
-    /minime importance|petits salaires|small_salary|ouverture|opening_|cumul.*antérieur/i,
+    /minime importance|petits salaires|small_salary|\bouverture\b|opening_|cumul.*antérieur/i,
     {
       title: 'Complétez les salaires déjà versés cette année',
       explanation:
@@ -139,8 +236,8 @@ const rules: [RegExp, PayrollHelp][] = [
       title: 'Vérifiez la caisse de pension',
       explanation:
         'Recopiez les cotisations du collaborateur et de l’employeur depuis le certificat de prévoyance. Elles dépendent du plan de votre entreprise.',
-      target: 'contributions',
-      action: 'Régler la caisse de pension',
+      target: 'pension-contributions',
+      action: 'Régler les montants de pension',
     },
   ],
   [
