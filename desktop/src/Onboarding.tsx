@@ -1,3 +1,4 @@
+import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { CompanyLogo } from './CompanyLogo';
 import { CloudBackupPanel } from './CloudBackupPanel';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
@@ -582,11 +583,11 @@ function PayrollStep({ settings, setSettings, addRate, updateRate, removeRate, i
         <>
           <div className="warning-card"><ShieldCheck size={21} /><div><strong>Validation professionnelle requise</strong><p>Avant d’utiliser une fiche comme document final, faites contrôler les caisses, assurances et taux par votre fiduciaire.</p></div></div>
           <div className="form-grid setup-form">
-            <Field label="Caisse AVS" required error={issues['payroll.avsFund']}><input data-field="payroll.avsFund" aria-invalid={Boolean(issues['payroll.avsFund'])} value={payroll.avsFund} onChange={(e) => patch({ avsFund: e.target.value })} /></Field>
-            <Field label="Assureur accidents LAA / UVG" required error={issues['payroll.accidentInsurer']}><input data-field="payroll.accidentInsurer" aria-invalid={Boolean(issues['payroll.accidentInsurer'])} value={payroll.accidentInsurer} onChange={(e) => patch({ accidentInsurer: e.target.value })} /></Field>
-            <Field label="Institution LPP / BVG"><input value={payroll.pensionFund} onChange={(e) => patch({ pensionFund: e.target.value })} /></Field>
-            <Field label="Assurance IJM / KTG"><input value={payroll.dailyAllowanceInsurer} onChange={(e) => patch({ dailyAllowanceInsurer: e.target.value })} /></Field>
-            <Field label="Caisse allocations familiales"><input value={payroll.familyAllowanceFund} onChange={(e) => patch({ familyAllowanceFund: e.target.value })} /></Field>
+            <PayrollOrganisationField kind="avs" required error={issues['payroll.avsFund']} dataField="payroll.avsFund" value={payroll.avsFund} canton={payroll.payrollCanton} onChange={(avsFund) => patch({ avsFund })} />
+            <PayrollOrganisationField kind="accident" required error={issues['payroll.accidentInsurer']} dataField="payroll.accidentInsurer" value={payroll.accidentInsurer} onChange={(accidentInsurer) => patch({ accidentInsurer })} />
+            <PayrollOrganisationField kind="pension" value={payroll.pensionFund} onChange={(pensionFund) => patch({ pensionFund })} />
+            <PayrollOrganisationField kind="daily" value={payroll.dailyAllowanceInsurer} onChange={(dailyAllowanceInsurer) => patch({ dailyAllowanceInsurer })} />
+            <PayrollOrganisationField kind="family" value={payroll.familyAllowanceFund} canton={payroll.payrollCanton} onChange={(familyAllowanceFund) => patch({ familyAllowanceFund })} />
             <Field label="Canton de paie" required error={issues['payroll.payrollCanton']}><input data-field="payroll.payrollCanton" aria-invalid={Boolean(issues['payroll.payrollCanton'])} value={payroll.payrollCanton} onChange={(e) => patch({ payrollCanton: e.target.value })} /></Field>
           </div>
           <label className="check-card"><input type="checkbox" checked={Boolean(lppPlan)} onChange={(e) => patch(e.target.checked ? { lppPlanEvidence: { contractNumber: '', regulationReference: '', effectiveFrom: '', effectiveTo: '', employerAggregateShareConfirmed: false } } : { lppPlanEvidence: undefined })} /><span><strong>Configurer maintenant le règlement LPP</strong><small>Facultatif tant qu’aucun plan n’est utilisé. Activez avec le contrat et le règlement réels de la caisse.</small></span></label>

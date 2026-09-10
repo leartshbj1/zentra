@@ -1,0 +1,4560 @@
+{
+  "checkedOn": "2026-09-10",
+  "entries": [
+    {
+      "id": "avs-19",
+      "number": "19",
+      "canton": "AG",
+      "name": "SVA Aargau",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-16",
+      "number": "16",
+      "canton": "AI",
+      "name": "Ausgleichskasse Appenzell Innerrhoden",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-15",
+      "number": "15",
+      "canton": "AR",
+      "name": "Sozialversicherungen Appenzell Ausserrhoden",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-2",
+      "number": "2",
+      "canton": "BE",
+      "name": "Caisse de compensation du canton de Berne",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-13",
+      "number": "13",
+      "canton": "BL",
+      "name": "SVA Basel-Landschaft",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-12",
+      "number": "12",
+      "canton": "BS",
+      "name": "Ausgleichskasse Basel-Stadt",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-10",
+      "number": "10",
+      "canton": "FR",
+      "name": "Caisse de compensation du canton de Fribourg",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-25",
+      "number": "25",
+      "canton": "GE",
+      "name": "Office cantonal des assurances sociales",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-8",
+      "number": "8",
+      "canton": "GL",
+      "name": "sozialversicherungen glarus",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-18",
+      "number": "18",
+      "canton": "GR",
+      "name": "Sozialversicherungsanstalt des Kantons Graubünden",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-150",
+      "number": "150",
+      "canton": "JU",
+      "name": "Etablissement cantonal des assurances sociales",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-3",
+      "number": "3",
+      "canton": "LU",
+      "name": "WAS Ausgleichskasse Luzern",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-24",
+      "number": "24",
+      "canton": "NE",
+      "name": "Caisse cantonale neuchâteloise de compensation",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-7",
+      "number": "7",
+      "canton": "NW",
+      "name": "Ausgleichskasse Nidwalden",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-6",
+      "number": "6",
+      "canton": "OW",
+      "name": "Ausgleichskasse IV-Stelle Obwalden",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-17",
+      "number": "17",
+      "canton": "SG",
+      "name": "SVA St.Gallen",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-14",
+      "number": "14",
+      "canton": "SH",
+      "name": "SVA Schaffhausen",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-11",
+      "number": "11",
+      "canton": "SO",
+      "name": "Ausgleichskasse des Kantons Solothurn",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-5",
+      "number": "5",
+      "canton": "SZ",
+      "name": "SVA Schwyz",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-20",
+      "number": "20",
+      "canton": "TG",
+      "name": "Sozialversicherungszentrum Thurgau",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-21",
+      "number": "21",
+      "canton": "TI",
+      "name": "Istituto delle assicurazioni sociali",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-4",
+      "number": "4",
+      "canton": "UR",
+      "name": "Sozialversicherungsstelle Uri",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-22",
+      "number": "22",
+      "canton": "VD",
+      "name": "Caisse cantonale vaudoise de compensation",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-23",
+      "number": "23",
+      "canton": "VS",
+      "name": "Caisse de compensation du canton du Valais",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-9",
+      "number": "9",
+      "canton": "ZG",
+      "name": "Ausgleichskasse Zug",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-1",
+      "number": "1",
+      "canton": "ZH",
+      "name": "SVA Zürich",
+      "kind": "avs",
+      "group": "Caisses cantonales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-cantonales-de-compensation"
+    },
+    {
+      "id": "avs-48",
+      "number": "48",
+      "name": "Aargauische Industrie- und Handelskammer",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-103",
+      "number": "103",
+      "name": "AGRAPI",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-116",
+      "number": "116",
+      "name": "Agrivit",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-74",
+      "number": "74",
+      "name": "Albicolac",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-105",
+      "number": "105",
+      "name": "Arts et métiers Suisses",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-81",
+      "number": "81",
+      "name": "Assurance",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-89",
+      "number": "89",
+      "name": "Banques suisses",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-34",
+      "number": "34",
+      "name": "Bouchers",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-110",
+      "number": "110",
+      "name": "Caisse AVS de la Fédération patronale vaudoise",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-37",
+      "number": "37",
+      "name": "Centrales Suisse d'Electricité",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-109",
+      "number": "109",
+      "name": "Chambre vaudoise du commerce et de l'industrie (CVCI)",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-59",
+      "number": "59",
+      "name": "CICICAM CINALFA",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-115",
+      "number": "115",
+      "name": "Cliniques privées",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-113",
+      "number": "113",
+      "name": "Coiffure & Esthétique",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-107",
+      "number": "107",
+      "name": "Commerçants bernois",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-71",
+      "number": "71",
+      "name": "Commerce Suisse",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-31",
+      "number": "31",
+      "name": "Coop",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-78",
+      "number": "78",
+      "name": "Economie laitière",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-40",
+      "number": "40",
+      "name": "Employeurs Bâle",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-95",
+      "number": "95",
+      "name": "Exfour",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106.5",
+      "number": "106.5",
+      "name": "FER CIAB",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106.1",
+      "number": "106.1",
+      "name": "FER CIAM",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106.4",
+      "number": "106.4",
+      "name": "FER CIAN",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106",
+      "number": "106",
+      "name": "FER CIAV",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106.2",
+      "number": "106.2",
+      "name": "FER CIFA",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106.3",
+      "number": "106.3",
+      "name": "FER CIGA",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-106.7",
+      "number": "106.7",
+      "name": "FER Valais",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-98",
+      "number": "98",
+      "name": "Forte",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-46",
+      "number": "46",
+      "name": "GastroSocial",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-46.3",
+      "number": "46.3",
+      "name": "GastroSocial - Tessin",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-112",
+      "number": "112",
+      "name": "Gewerbe St. Gallen",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-55",
+      "number": "55",
+      "name": "Gewerbe Thurgau-Schaffhausen",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-44",
+      "number": "44",
+      "name": "Hotela",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-51.10",
+      "number": "51.10",
+      "name": "Industrie Horlogère - Agence 51.10 La Chaux-de-Fonds",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-51.3",
+      "number": "51.3",
+      "name": "Industrie Horlogère - Agence 51.3 Genève",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-51.4",
+      "number": "51.4",
+      "name": "Industrie Horlogère - Agence 51.4 Bienne",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-51.5",
+      "number": "51.5",
+      "name": "Industrie Horlogère - Agence 51.5",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-51.7",
+      "number": "51.7",
+      "name": "Industrie Horlogère - Agence 51.7",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-51",
+      "number": "51",
+      "name": "Industrie Horlogère - Siège",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-28",
+      "number": "28",
+      "name": "medisuisse",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-111",
+      "number": "111",
+      "name": "MEROBA",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-111.3",
+      "number": "111.3",
+      "name": "MEROBA - Agence de Genève",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-111.1",
+      "number": "111.1",
+      "name": "MEROBA - Agence de Lausanne",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-111.2",
+      "number": "111.2",
+      "name": "MEROBA - Agence de Sion",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-70",
+      "number": "70",
+      "name": "Migros",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-33",
+      "number": "33",
+      "name": "MOBIL",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-61",
+      "number": "61",
+      "name": "NODE AVS",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-32",
+      "number": "32",
+      "name": "Ostschweizerische Ausgleichskasse für Handel und Industrie",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-38",
+      "number": "38",
+      "name": "PANVICA",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-63",
+      "number": "63",
+      "name": "Patrons Bernois",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-99",
+      "number": "99",
+      "name": "PROMEA",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-35",
+      "number": "35",
+      "name": "scienceINDUSTRIES",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-30",
+      "number": "30",
+      "name": "Simulac",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-66",
+      "number": "66",
+      "name": "Société des Entrepreneurs",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-66.2",
+      "number": "66.2",
+      "name": "Société des Entrepreneurs - Agence Genève",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-66.3",
+      "number": "66.3",
+      "name": "Société des Entrepreneurs - Agence Tessin",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-66.1",
+      "number": "66.1",
+      "name": "Société des Entrepreneurs - Agence Vaud",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-79",
+      "number": "79",
+      "name": "Spida",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-60",
+      "number": "60",
+      "name": "Swissmem",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-117",
+      "number": "117",
+      "name": "swisstempcomp",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-69",
+      "number": "69",
+      "name": "Transport",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-87",
+      "number": "87",
+      "name": "Wirtschaft Graubünden Glarus",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-114",
+      "number": "114",
+      "name": "Wirtschaftskammer Baselland",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "avs-65",
+      "number": "65",
+      "name": "Zürcher Arbeitgeber",
+      "kind": "avs",
+      "group": "Caisses professionnelles",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisses-de-compensation-professionnelles"
+    },
+    {
+      "id": "accident-10001",
+      "number": "10001",
+      "name": "Solida Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10003",
+      "number": "10003",
+      "name": "visavis Assurance Société Coopérative",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10005",
+      "number": "10005",
+      "name": "Allianz Suisse Société d’Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10007",
+      "number": "10007",
+      "name": "AXA Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10008",
+      "number": "10008",
+      "name": "Zurich Compagnie d'Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10010",
+      "number": "10010",
+      "name": "Baloise Assurance SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10015",
+      "number": "10015",
+      "name": "Helsana Accidents SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10027",
+      "number": "10027",
+      "name": "Generali Assurances Générales SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10030",
+      "number": "10030",
+      "name": "Schweizerische Mobiliar Versicherungsgesellschaft AG",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10033",
+      "number": "10033",
+      "name": "Visana Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10040",
+      "number": "10040",
+      "name": "VAUDOISE GÉNÉRALE, Compagnie d'Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10044",
+      "number": "10044",
+      "name": "SWICA Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10048",
+      "number": "10048",
+      "name": "Société d'assurance dommages FRV SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10051",
+      "number": "10051",
+      "name": "Groupe Mutuel Assurances GMA SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10054",
+      "number": "10054",
+      "name": "Sympany Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10055",
+      "number": "10055",
+      "name": "HOTELA ASSURANCES SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10057",
+      "number": "10057",
+      "name": "Helvetia Compagnie Suisse d’Assurances SA",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10058",
+      "number": "10058",
+      "name": "Elips Life AG",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-10059",
+      "number": "10059",
+      "name": "Agrisano Versicherungen AG",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-20455",
+      "number": "20455",
+      "name": "ÖKK Kranken- und Unfallversicherungen AG",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-30003",
+      "number": "30003",
+      "name": "Unfallversicherung Stadt Zürich",
+      "kind": "accident",
+      "group": "Assureurs LAA · OFSP juillet 2026",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "accident-suva",
+      "number": "Suva",
+      "name": "Suva / CNA",
+      "kind": "accident",
+      "group": "Assurance accidents",
+      "source": "https://www.bag.admin.ch/fr/lassurance-accidents-assureurs-et-surveillance"
+    },
+    {
+      "id": "pension-CHE-109.537.519",
+      "number": "CHE-109.537.519",
+      "name": "Helvetia Sammelstiftung",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-112.717.631",
+      "number": "CHE-112.717.631",
+      "name": "Helvetia BVG Invest Sammelstiftung",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.537.488",
+      "number": "CHE-109.537.488",
+      "name": "Helvetia Prisma Sammelstiftung",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.633.927",
+      "number": "CHE-109.633.927",
+      "name": "Servisa Sammelstiftung",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.634.772",
+      "number": "CHE-109.634.772",
+      "name": "Servisa Supra Sammelstiftung",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-196.578.832",
+      "number": "CHE-196.578.832",
+      "name": "Allianz Pension Invest - Teilautonome Sammelstiftung für berufliche Vorsorge",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.393.143",
+      "number": "CHE-109.393.143",
+      "name": "Sammelstiftung Berufliche Zusatzvorsorge der Allianz Suisse Lebensversicherungs-Gesellschaft, Wallisellen",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.393.137",
+      "number": "CHE-109.393.137",
+      "name": "Sammelstiftung BVG der Allianz Suisse Lebensversicherungs-Gesellschaft, Wallisellen",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.691.681",
+      "number": "CHE-109.691.681",
+      "name": "AXA Stiftung Berufliche Vorsorge, Winterthur",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.405.059",
+      "number": "CHE-109.405.059",
+      "name": "AXA BVG-Stiftung Westschweiz, Winterthur",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.743.148",
+      "number": "CHE-109.743.148",
+      "name": "AXA Vorsorgestiftung, Winterthur",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.743.131",
+      "number": "CHE-109.743.131",
+      "name": "AXA Stiftung Zusatzvorsorge, Winterthur",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.792.075",
+      "number": "CHE-109.792.075",
+      "name": "Columna Sammelstiftung Group Invest, Winterthur",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.743.071",
+      "number": "CHE-109.743.071",
+      "name": "Columna Sammelstiftung Client Invest, Winterthur",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.717.323",
+      "number": "CHE-109.717.323",
+      "name": "BVG-Sammelstiftung Swiss Life",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.733.003",
+      "number": "CHE-109.733.003",
+      "name": "Sammelstiftung Zusatzvorsorge Swiss Life",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-115.536.534",
+      "number": "CHE-115.536.534",
+      "name": "Swiss Life Sammelstiftung 2. Säule",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-109.744.490",
+      "number": "CHE-109.744.490",
+      "name": "Sammelstiftung berufliche Vorsorge Swiss Life",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "pension-CHE-477.769.132",
+      "number": "CHE-477.769.132",
+      "name": "Swiss Life Sammelstiftung Invest",
+      "kind": "pension",
+      "group": "Caisses de pension publiées par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "family-001.201",
+      "number": "001.201",
+      "name": "Familienausgleichskasse SVA Zürich",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-002.201",
+      "number": "002.201",
+      "name": "Familienausgleichskasse des Kantons Bern (FKB)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-003.201",
+      "number": "003.201",
+      "name": "Familienausgleichskasse Kanton Luzern",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "LU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-004.201",
+      "number": "004.201",
+      "name": "Familienausgleichskasse Uri",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "UR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-005.201",
+      "number": "005.201",
+      "name": "Familienausgleichskasse Schwyz",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SZ"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-006.201",
+      "number": "006.201",
+      "name": "Familienausgleichskasse Obwalden",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "OW"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-007.201",
+      "number": "007.201",
+      "name": "Familienausgleichskasse Nidwalden",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NW"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-008.201",
+      "number": "008.201",
+      "name": "sozialversicherungen glarus, Familienausgleichskasse",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-009.201",
+      "number": "009.201",
+      "name": "Familienausgleichskasse Zug",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-010.201",
+      "number": "010.201",
+      "name": "Caisse de compensation du canton de Fribourg pour allocations familiales",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-011.201",
+      "number": "011.201",
+      "name": "Familienausgleichskasse Kanton Solothurn",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SO"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-012.201",
+      "number": "012.201",
+      "name": "Familienausgleichskasse Basel-Stadt",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-013.201",
+      "number": "013.201",
+      "name": "Kantonale Familienausgleichskasse Kanton-Basellandschaft",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-014.201",
+      "number": "014.201",
+      "name": "Kantonale Familienausgleichskasse Schaffhausen",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-015.201",
+      "number": "015.201",
+      "name": "Familienausgleichskasse Kanton Appenzell Ausserrhoden",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-016.201",
+      "number": "016.201",
+      "name": "Familienausgleichskasse Kanton Appenzell Innerrhoden",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-017.201",
+      "number": "017.201",
+      "name": "Familienausgleichskasse des Kantons St.Gallen, SVA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-018.201",
+      "number": "018.201",
+      "name": "Familienausgleichskasse des Kantons Graubünden",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-019.201",
+      "number": "019.201",
+      "name": "SVA Aargau / Familienzulagen",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-020.201",
+      "number": "020.201",
+      "name": "Familienausgleichskasse des Kantons Thurgau",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-021.201",
+      "number": "021.201",
+      "name": "Cassa cantonale di compensazione per gli assegni familiari del Cantone Ticino",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-022.201",
+      "number": "022.201",
+      "name": "Caisse cantonale vaudoise d'allocations familiales",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-023.203",
+      "number": "023.203",
+      "name": "Caisse cantonale valaisanne d'allocations familiales agriculture et non actifs",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-023.204",
+      "number": "023.204",
+      "name": "Caisse cantonale d'allocations familiales Civaf",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-024.201",
+      "number": "024.201",
+      "name": "Caisse cantonale neuchâteloise de compensation pour allocations familiales",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-025.201",
+      "number": "025.201",
+      "name": "Service cantonal d'allocations familiales de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-025.202",
+      "number": "025.202",
+      "name": "Caisse d'allocations familiales des Administrations et Institutions cantonales de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-025.203",
+      "number": "025.203",
+      "name": "Caisse d'allocations familiales pour personnes sans activité lucrative de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-026.201",
+      "number": "026.201",
+      "name": "Caisse d'allocations familiales de la Caisse fédérale de compensation CAF-CFC",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse der Eidgenössischen Ausgleichskasse FAK-EAK",
+        "Cassa di compensazione per assegni familiari della Cassa federale di compensazione CAF- CFC",
+        "Cassa di compensazione per assegni familiari della Cassa federale di compensazione CAF-CFC"
+      ]
+    },
+    {
+      "id": "family-028.201",
+      "number": "028.201",
+      "name": "Schweizerische Familienausgleichskasse für Ärzte-Zahnärzte-Tierärzte Kanton Aargau",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.203",
+      "number": "028.203",
+      "name": "Familienausgleichskasse der Ärzte, Zahnärzte, Tierärzte und Chiropraktoren des Kantons Bern",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.204",
+      "number": "028.204",
+      "name": "Familienausgleichskasse der Medizinalpersonen beider Basel",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.205",
+      "number": "028.205",
+      "name": "Familienausgleichskasse der Medizinalpersonen beider Basel (Basel-Stadt)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.209",
+      "number": "028.209",
+      "name": "Familienausgleichskasse der Ärzte, Zahnärzte und Tierärzte des Kantons St. Gallen",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.214",
+      "number": "028.214",
+      "name": "Cassa di compensazione per assegni familiari per i medici, dentisti, veterinari e chiropratici del Canton Ticino",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.215",
+      "number": "028.215",
+      "name": "Familienausgleichskasse der Ärztegesellschaft des Kantons Zürich",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.216",
+      "number": "028.216",
+      "name": "Familienausgleichskasse der Zahnärzte-Gesellschaft des Kantons Zürich und der Gesellschaft Zürcher Tierärzte",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-028.217",
+      "number": "028.217",
+      "name": "Caisse d’allocations familiales medisuisse",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AR",
+        "GL",
+        "JU",
+        "LU",
+        "SH",
+        "SO",
+        "SZ",
+        "TG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse medisuisse"
+      ]
+    },
+    {
+      "id": "family-030.201",
+      "number": "030.201",
+      "name": "Familienausgleichskasse Simulac",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Simulac (Fusion von IMOREK und Schulesta zur Simulac noch nicht bestätigt)"
+      ]
+    },
+    {
+      "id": "family-031.201",
+      "number": "031.201",
+      "name": "Caisse de compensation pour allocations familiales COOP",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Coop",
+        "Cassa di compensazione per gli assegni familiari Coop",
+        "Familienausgleichskasse COOP"
+      ]
+    },
+    {
+      "id": "family-032.201",
+      "number": "032.201",
+      "name": "Caisse de compensation pour allocations familiales du Commerce et d'Industrie de l'Est de la Suisse",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Ostschweizerische Familienausgleichskasse für Handel und Industrie",
+        "Cassa di compensazione per gli assegni familiari Handel und Industrie Ostschweiz"
+      ]
+    },
+    {
+      "id": "family-033.201",
+      "number": "033.201",
+      "name": "Familienausgleichskasse MOBIL",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "GL",
+        "NW",
+        "OW",
+        "SH",
+        "TG",
+        "UR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-034.201",
+      "number": "034.201",
+      "name": "Familienausgleichskasse Metzger Kanton Aargau",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "SG",
+        "SO",
+        "SZ",
+        "TG",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Schweizerische Familienausgleichskasse Metzger Kanton Appenzell A. Rh",
+        "Schweizerische Familienausgleichskasse Metzger",
+        "Schweizerische Familienausgleichskasse Metzger Kanton Basel-Landschaft",
+        "Schweizerische Familienausgleichskasse Metzger Kanton Basel-Stadt",
+        "Familienausgleichskasse des Regionalen Fleisch-Fachverbandes St.Gallen",
+        "Schweizerische Familienausgleichskasse Metzger, Kanton Solothurn",
+        "Familienausgleichskasse Metzger, Kanton Schwyz",
+        "Schweizerische Familienausgleichskasse Metzger, Kanton Thurgau",
+        "Schweizerische Familienausgleichskasse Metzger, Kanton Zürich"
+      ]
+    },
+    {
+      "id": "family-035.201",
+      "number": "035.201",
+      "name": "Familienausgleichskasse scienceindustries",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Cassa di compensazione per gli assegni familiari Scienceindustries"
+      ]
+    },
+    {
+      "id": "family-037.201",
+      "number": "037.201",
+      "name": "Caisse d'allocations familiales de Centrales Suisses d'Electricité",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienzulagen-Ausgleichskasse Schweizerischer Elektrizitätswerke",
+        "Caisse de compensation pour allocations familiales des centrales suisses d'électricité",
+        "Cassa di compensazione per gli assegni familiari Schweizerischer Elektrizitätswerke",
+        "Familenzulagen-Ausgleichskasse Schweizerischer Elektrizitätswerke"
+      ]
+    },
+    {
+      "id": "family-038.201",
+      "number": "038.201",
+      "name": "Caisse de compensation pour allocations familiales PANVICA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse PANVICA",
+        "Cassa di compensazione per gli assegni familiari Panvica"
+      ]
+    },
+    {
+      "id": "family-038.203",
+      "number": "038.203",
+      "name": "Interkantonale Cafetier Familienausgleichskasse c/o Panvica",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BE",
+        "BL",
+        "BS",
+        "GR",
+        "SH",
+        "SO",
+        "SZ",
+        "UR",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-038.204",
+      "number": "038.204",
+      "name": "Familienausgleichskasse Panvica Kanton AG",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-038.205",
+      "number": "038.205",
+      "name": "Bäcker-Confiseure Familienausgleichskasse Bern-Solothurn",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE",
+        "SO"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Bäcker-Familienausgleichskasse Bern-Solothurn"
+      ]
+    },
+    {
+      "id": "family-038.206",
+      "number": "038.206",
+      "name": "Familienausgleichskasse PANVICA beider Basel",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BL",
+        "BS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-038.208",
+      "number": "038.208",
+      "name": "Familienausgleichskasse Panvica Kanton LU",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "LU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-038.211",
+      "number": "038.211",
+      "name": "Ostschweizer Familienausgleichskasse PANVICA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AR",
+        "SG",
+        "TG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-038.214",
+      "number": "038.214",
+      "name": "BOULANGERS (Association vaudoise des Maîtres)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-040.201",
+      "number": "040.201",
+      "name": "Caisse de compensation pour allocations familiales Employeurs Bâle",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Arbeitgeber Basel",
+        "Caisse de compensation pour allocations familiales employeurs Bâle",
+        "Cassa di compensazione per assegni familiari Arbeitgeber Basel"
+      ]
+    },
+    {
+      "id": "family-044.201",
+      "number": "044.201",
+      "name": "Caisse de compensation pour allocations familiales de la société suisse des hôteliers",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "HOTELA Allocations familiales",
+        "HOTELA Familienzulagen"
+      ]
+    },
+    {
+      "id": "family-046.202",
+      "number": "046.202",
+      "name": "Familienausgleichskasse GastroAppenzellerland AR c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.203",
+      "number": "046.203",
+      "name": "Familienausgleichskasse GastroBern c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.204",
+      "number": "046.204",
+      "name": "Familienausgleichskasse GastroBaselland c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.205",
+      "number": "046.205",
+      "name": "Familienausgleichskasse Wirteverband Basel-Stadt c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.206",
+      "number": "046.206",
+      "name": "Familienausgleichskasse GastroGlarnerland c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.207",
+      "number": "046.207",
+      "name": "Familienausgleichskasse GastroGraubünden c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.208",
+      "number": "046.208",
+      "name": "Caisse d'allocations familiales de GastroJura c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "JU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.209",
+      "number": "046.209",
+      "name": "Familienausgleichskasse GastroLuzern c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "LU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.210",
+      "number": "046.210",
+      "name": "Caisse d'allocations familiales de GastroNeuchâtel c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.211",
+      "number": "046.211",
+      "name": "Familienausgleichskasse GastroUnterwalden c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NW"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.212",
+      "number": "046.212",
+      "name": "Familienausgleichskasse GastroSt.Gallen",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.213",
+      "number": "046.213",
+      "name": "Familienausgleichskasse GastroSchaffhausen c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.214",
+      "number": "046.214",
+      "name": "Familienausgleichskasse GastroSolothurn c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SO"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.215",
+      "number": "046.215",
+      "name": "Familienausgleichskasse GastroSchwyz c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SZ"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.216",
+      "number": "046.216",
+      "name": "Cassa di compensazione per gli assegni familiari GastroTicino",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.217",
+      "number": "046.217",
+      "name": "Caisse d'allocations familiales de GastroVaud c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.218",
+      "number": "046.218",
+      "name": "Caisse d'allocations familiales de GastroValais c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.220",
+      "number": "046.220",
+      "name": "Familienausgleichskasse Gastro Kanton Zürich",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-046.221",
+      "number": "046.221",
+      "name": "Caisse d'allocations familiales de GastroGenève c/o GastroSocial",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-048.201",
+      "number": "048.201",
+      "name": "Caisse d'allocations familiales de la Chambre de commerce et d'industrie d'Argovie",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Aarg. Industrie- und Handelskammer",
+        "Cassa di compensazione per gli assegni familiari della Camera argoviese dell'Industria e del Commercio"
+      ]
+    },
+    {
+      "id": "family-051.201",
+      "number": "051.201",
+      "name": "Caisse pour allocations familiales de l'industrie horlogère",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TI",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-055.201",
+      "number": "055.201",
+      "name": "Caisse de compensation pour allocations familiales des Arts et métiers Thurgovie- Schaffhouse",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Gewerbe Thurgau-Schaffhausen",
+        "Cassa di compensazione per gli assegni familiari Gewerbe Thurgau-Schaffhausen"
+      ]
+    },
+    {
+      "id": "family-059.201",
+      "number": "059.201",
+      "name": "Caisse interprofessionnelle neuchâteloise de compensation pour allocations familiales CINALFA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "JU",
+        "LU",
+        "NE",
+        "SG",
+        "SO",
+        "TI",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Caisse interprofessionnelle neuchâteloise de compensation pour allocations familiales",
+        "Caisse interprofessionnelle neuchâteloise d'allocations familiales CINALFA",
+        "Cassa di compensazione per gli assegni familiari neuchâteloise Cinalfa"
+      ]
+    },
+    {
+      "id": "family-060.201",
+      "number": "060.201",
+      "name": "Caisse d'allocations familiales Swissmem",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse SWISSMEM",
+        "Caisse de compensation pour allocations familiales Swissmem",
+        "Cassa di compensazione per gli assegni familiari Swissmem"
+      ]
+    },
+    {
+      "id": "family-061.201",
+      "number": "061.201",
+      "name": "Caisse d’allocations familiales NODE AF",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR",
+        "GE",
+        "LU",
+        "TI",
+        "VD",
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse NODE",
+        "Cassa di compensazione per gli assegni familiari NODE AF"
+      ]
+    },
+    {
+      "id": "family-063.201",
+      "number": "063.201",
+      "name": "Caisse de compensation pour allocations familiales Patrons Bernois",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Berner Arbeitgeber",
+        "Caisse d'allocations familiales Patrons Bernois",
+        "Cassa di compensazione per gli assegni familiari Berner Arbeitgeber"
+      ]
+    },
+    {
+      "id": "family-065.201",
+      "number": "065.201",
+      "name": "Caisse de compensation pour allocations familiales des patrons zurichois",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Zürcher Arbeitgeber FZA",
+        "Cassa di compensazione per gli assegni familiari Zürcher Arbeitbeger"
+      ]
+    },
+    {
+      "id": "family-066.201",
+      "number": "066.201",
+      "name": "Caisse d'allocations familiales de l'USPI Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE",
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-066.202",
+      "number": "066.202",
+      "name": "Caisse d'allocations familiales de l'industrie et de la construction du canton de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE",
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-066.203",
+      "number": "066.203",
+      "name": "Caisse d'allocations familiales de la Fédération vaudoise des entrepreneurs CAFEV",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE",
+        "BS",
+        "FR",
+        "GE",
+        "JU",
+        "LU",
+        "NE",
+        "VD",
+        "VS",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-066.204",
+      "number": "066.204",
+      "name": "Familienausgleichskasse Schweizerischer Baumeisterverband",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "OW",
+        "SZ"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-070.201",
+      "number": "070.201",
+      "name": "Caisse d'allocations familiales Migros",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Migros",
+        "Cassa di compensazione per gli assegni familiari Migros"
+      ]
+    },
+    {
+      "id": "family-071.201",
+      "number": "071.201",
+      "name": "Caisse d'allocations familiales Commerce Suisse",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Handel Schweiz",
+        "Cassa di compensazione per gli assegni familiari Handel Schweiz",
+        "Caisse d'allocations familiales du Commerce Suisse"
+      ]
+    },
+    {
+      "id": "family-074.201",
+      "number": "074.201",
+      "name": "Caisse d'allocations familiales ICOLAC",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse ICOLAC",
+        "Cassa di compensazione per gli assegni familiari ICOLAC"
+      ]
+    },
+    {
+      "id": "family-078.201",
+      "number": "078.201",
+      "name": "Gesamtschweizerische Familienausgleichskasse Milchwirtschaft",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-079.201",
+      "number": "079.201",
+      "name": "Caisse de compensation pour allocations familiales SPIDA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Spida Familienausgleichskasse"
+      ]
+    },
+    {
+      "id": "family-079.202",
+      "number": "079.202",
+      "name": "Caisse d'allocations familiales SPIDA p/Bureau des Métiers",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-081.201",
+      "number": "081.201",
+      "name": "Caisse d'allocations familiales «Assurance»",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse «Versicherung»",
+        "Caisse de compensation pour allocations familiales Assurance",
+        "Cassa di compensazione per gli assegni familiari Versicherung"
+      ]
+    },
+    {
+      "id": "family-089.201",
+      "number": "089.201",
+      "name": "Caisse d'allocations familiales banques",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Banken"
+      ]
+    },
+    {
+      "id": "family-095.201",
+      "number": "095.201",
+      "name": "Caisse de compensation familiale EXFOUR",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse EXFOUR",
+        "Caisse de compensation pour allocations familiales EXFOUR",
+        "Cassa di compensazione per gli assegni familiari EXFOUR"
+      ]
+    },
+    {
+      "id": "family-098.201",
+      "number": "098.201",
+      "name": "Familienausgleichskasse für das Gärtner- und Floristengewerbe",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE",
+        "SG",
+        "SH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-098.202",
+      "number": "098.202",
+      "name": "Familienausgleichskasse für das Aargauische Gärtner- und Floristengewerbe",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-098.203",
+      "number": "098.203",
+      "name": "Caisse de compensation pour allocations familiales Forte",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "JU",
+        "NE",
+        "OW",
+        "SG",
+        "SH",
+        "SZ",
+        "TG",
+        "TI",
+        "VD",
+        "VS",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse Forte",
+        "Cassa di compensazione familiari Forte",
+        "Caisse de compensation familiales Forte"
+      ]
+    },
+    {
+      "id": "family-098.204",
+      "number": "098.204",
+      "name": "Familienausgleichskasse für das Schreinergewerbe",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE",
+        "SG",
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-099.201",
+      "number": "099.201",
+      "name": "Caisse d'allocations familiales PROMEA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse PROMEA",
+        "Caisse de compensation pour allocations familiales PROMEA",
+        "Familienausgleichskasse Promea",
+        "Cassa di compensazione per gli assegni familiari PROMEA"
+      ]
+    },
+    {
+      "id": "family-099.203",
+      "number": "099.203",
+      "name": "Caisse d'allocations familiales \"PROMEA\" p/ Bureau des Métiers",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-103.201",
+      "number": "103.201",
+      "name": "Caisse d'allocations familiales «fazu»",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse «fazu»",
+        "Cassa per gli assegni familiari «fazu»"
+      ]
+    },
+    {
+      "id": "family-105.201",
+      "number": "105.201",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Basel- Stadt",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Basel-Stadt"
+      ]
+    },
+    {
+      "id": "family-105.202",
+      "number": "105.202",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Freiburg",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.203",
+      "number": "105.203",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Baselland",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.204",
+      "number": "105.204",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektionen Glarus",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GL"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.205",
+      "number": "105.205",
+      "name": "Caisse de compensation pour allocations familiales des arts et métiers suisses canton JU",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "JU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.206",
+      "number": "105.206",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Kanton Luzern",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "LU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.207",
+      "number": "105.207",
+      "name": "Caisse de compensation pour allocations familiales des arts et métiers suisses canton NE",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.208",
+      "number": "105.208",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion St. Gallen Gewerbe",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.209",
+      "number": "105.209",
+      "name": "Familienausgleichskasse des Schweizerischen Gewerbes Kanton SH",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.210",
+      "number": "105.210",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Thurgau",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.211",
+      "number": "105.211",
+      "name": "Cassa di compensazione per gli assegni familiari Schweiz. Gewerbes Kanton TI",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.212",
+      "number": "105.212",
+      "name": "Caisse de compensation pour allocations familiales des arts et métiers suisses canton VD",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.213",
+      "number": "105.213",
+      "name": "Familienausgleichskasse des Schweizerischen Gewerbes Kanton ZG",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.214",
+      "number": "105.214",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Zürich",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.215",
+      "number": "105.215",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion Aargau",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.216",
+      "number": "105.216",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.217",
+      "number": "105.217",
+      "name": "Familienausgleichskasse des Schweizerischen Gewerbes Kanton VS",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-105.218",
+      "number": "105.218",
+      "name": "Interkantonale Familienausgleichskasse des Schweizerischen Gewerbes, Sektion St. Gallen Detailhandel",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.201",
+      "number": "106.201",
+      "name": "Caisse interprofessionnelle d’allocations familiales de la Fédération des Entreprises Romandes (FER CIAF), siège",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Caisse interprofessionnelle d’allocations familiales de la Fédération des Entreprises Romandes (FER CIAF)",
+        "Cassa di compensazione per gli assegni familiari della Federazione delle imprese romande FER CIAF"
+      ]
+    },
+    {
+      "id": "family-106.202",
+      "number": "106.202",
+      "name": "Caisse d’allocations familiales interprofessionnelle de la Fédération des Entreprises Romandes Genève (CAFI)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.203",
+      "number": "106.203",
+      "name": "Caisse d’allocations familiales de la Corporation Genevoise des Banquiers Privés",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.204",
+      "number": "106.204",
+      "name": "Caisse d’allocations familiales de l’Association des Cliniques Privées de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.205",
+      "number": "106.205",
+      "name": "Caisse d'allocations familiales de CoiffureSuisse, section de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.206",
+      "number": "106.206",
+      "name": "Caisse d'allocations familiales des Médecins-Dentistes du canton de Genève (AMDG)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.207",
+      "number": "106.207",
+      "name": "Caisse d’allocations familiales de la Société des Hôteliers de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.208",
+      "number": "106.208",
+      "name": "Caisse d’allocations familiales de l’Association Industrielle Genevoise des Sciences de la Vie",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.209",
+      "number": "106.209",
+      "name": "Caisse d’allocations familiales des ingénieurs-architectes du canton de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.210",
+      "number": "106.210",
+      "name": "Caisse d'allocations familiales de l'Association PharmaGenève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.212",
+      "number": "106.212",
+      "name": "Caisse d’allocations familiales de l’Association Genevoise des Ecoles Privées",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.213",
+      "number": "106.213",
+      "name": "Caisse d’allocations familiales de l’Association des Médecins de Genève (AMG)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.214",
+      "number": "106.214",
+      "name": "Caisse de compensation pour allocations familiales de la FER CIFA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.215",
+      "number": "106.215",
+      "name": "Caisse d’allocations familiales de la Société de médecine du canton de Fribourg",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.216",
+      "number": "106.216",
+      "name": "Caisse d’allocations familiales TEXTILES",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.217",
+      "number": "106.217",
+      "name": "Caisse d’allocations familiales de la Société de pharmacie du canton de Fribourg",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.218",
+      "number": "106.218",
+      "name": "Caisse d’allocations familiales de la Chambre des notaires Fribourgeois",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.220",
+      "number": "106.220",
+      "name": "Caisse régionale interprofessionnelle de compensation pour allocations familiales C.R.I.C.A.F., Bulle",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.221",
+      "number": "106.221",
+      "name": "CAF - Caisse interprofessionnelle d’allocations familiales - Section métallurgie et branches annexes",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.222",
+      "number": "106.222",
+      "name": "CALFACO - Caisse interprofessionnelle d’allocations familiales des commerçants",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.223",
+      "number": "106.223",
+      "name": "CAFAMACO - Caisse interprofessionnelle d’allocations familiales des Maîtres coiffeurs",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.224",
+      "number": "106.224",
+      "name": "Caisse de compensation pour allocations familiales FER CCAF",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE",
+        "JU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "FER CCAF - Caisse de compensation pour allocations familiales de la Fédération des Entreprises Romandes de l'Arc jurassien"
+      ]
+    },
+    {
+      "id": "family-106.225",
+      "number": "106.225",
+      "name": "Caisse d'allocations familiales de l'Ordre des avocats fribourgeois CAFAF",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.226",
+      "number": "106.226",
+      "name": "Caisse d'allocations familiales de l'Association des Maîtres Bouchers et Charcutiers du canton de Fribourg",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.227",
+      "number": "106.227",
+      "name": "Caisse d'allocations familiales de l'Association des Artisans Boulangers-Pâtissiers- Confiseurs du canton de Fribourg",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.229",
+      "number": "106.229",
+      "name": "Caisse interprofessionnelle d'allocations familiales de la Fédération des Entreprises Romandes pour le canton du VALAIS (CAFER)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.230",
+      "number": "106.230",
+      "name": "Regionale Ausgleichskasse für Familienzulagen Murten",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.231",
+      "number": "106.231",
+      "name": "Caisse d'allocations familiales de l'Association cantonale Neuchâteloise des artisans boulangers-pâtissiers",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-106.232",
+      "number": "106.232",
+      "name": "Caisse d'allocations familiales de l'Union Industrielle Genevoise",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-107.201",
+      "number": "107.201",
+      "name": "Familienausgleichskasse des bernischen Geschäftsinhaberverbandes",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GR",
+        "LU",
+        "NW",
+        "SG",
+        "SO",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-109.201",
+      "number": "109.201",
+      "name": "Caisse d'allocations familiales de la Chambre vaudoise du commerce et de l'industrie - Association des industries vaudoises CVCI-AIV",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse der CVCI",
+        "Caisse d'allocations familiales CVCI-AIV",
+        "Caisse d'allocation familiale de la Chambre vaudoise du commerce et de l'industrie- Association des industrie vaudoises",
+        "Caisse d'allocations familiales de Chambre vaudoise du Commerce et de l'Industrie",
+        "Caisse d'allocations familiales de la CVCI",
+        "Caisse de compensation AHV/AI/APG CVCI",
+        "Caisse d'allocations familiales de la CVCI - AIV",
+        "Caisse de compensation AVS/AI/APG CVCI",
+        "CVCI Caisse de compensation",
+        "Cassa di compensazione per gli assegni familiari della camera di commercio e dell'industria del canton Vaud CVCI",
+        "CVCI-Chambre vaudoise du commerce et de l'industrie-AIV"
+      ]
+    },
+    {
+      "id": "family-110.201",
+      "number": "110.201",
+      "name": "Caisse Interprofessionnelle Régionale d'Allocations Familiales, CIRAF",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Caisse interprofessionnelle régionale d'allocations familiales CIRAF",
+        "Cassa di compensazione per gli assegni familiari CIRAF"
+      ]
+    },
+    {
+      "id": "family-111.201",
+      "number": "111.201",
+      "name": "Caisse d'allocations familiales \"Meroba\" p/ Bureau des Métiers",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-112.201",
+      "number": "112.201",
+      "name": "Caisse de compensation pour allocations familiales des Arts et Métiers St-Gall",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "NE",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Gewerbliche Familienausgleichkasse St. Gallen",
+        "Cassa di compensazione per gli assegni familiari Gewerbe St. Gallen"
+      ]
+    },
+    {
+      "id": "family-112.202",
+      "number": "112.202",
+      "name": "Caisse de compensation pour allocations familiales des Employeurs du Commerce de détail de St-Gall",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "NE",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "VS",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse St. Galler Arbeitgeber des Detailhandels",
+        "Cassa di compensazione per gli assegni familiari St. Galler Arbeitgeber des Detailhandels"
+      ]
+    },
+    {
+      "id": "family-113.201",
+      "number": "113.201",
+      "name": "Caisse suisse d'allocations familiales Coiffure & Esthétique",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "FR",
+        "GL",
+        "GR",
+        "JU",
+        "LU",
+        "NW",
+        "OW",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "UR",
+        "VD",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Schweizerische Familienausgleichskasse Coiffure & Esthétique",
+        "Cassa svizzera di assegni familiari Coiffure & Esthétique"
+      ]
+    },
+    {
+      "id": "family-115.201",
+      "number": "115.201",
+      "name": "Caisse d'allocations familiales des cliniques privées de la Suisse",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "LU",
+        "NE",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "ZG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse der Privatkliniken der Schweiz",
+        "Cassa di compensazione per gli assegni familiari delle cliniche private"
+      ]
+    },
+    {
+      "id": "family-117.201",
+      "number": "117.201",
+      "name": "Caisse de compensation pour allocations familiales swisstempfamily",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "AI",
+        "AR",
+        "BE",
+        "BL",
+        "BS",
+        "FR",
+        "GE",
+        "GL",
+        "GR",
+        "JU",
+        "NE",
+        "SG",
+        "SH",
+        "SO",
+        "SZ",
+        "TG",
+        "TI",
+        "VD",
+        "VS",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation",
+      "aliases": [
+        "Familienausgleichskasse swisstempfamily",
+        "Cassa di compensazione per gli assegni familiari swisstempfamily"
+      ]
+    },
+    {
+      "id": "family-150.201",
+      "number": "150.201",
+      "name": "Caisse d'allocations familiales du canton du Jura",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "JU"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-601.205",
+      "number": "601.205",
+      "name": "CACI - Caisse valaisanne d'allocations familiales du commerce indépendant",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-601.206",
+      "number": "601.206",
+      "name": "CAFIA - Caisse de compensation valaisanne pour allocations familiales des bureaux d'ingénieurs et architectes",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-602.201",
+      "number": "602.201",
+      "name": "Caisse intercorporative vaudoise d'allocations familiales",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE",
+        "VD",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-602.202",
+      "number": "602.202",
+      "name": "Caisse d'allocations familiales des banques vaudoises",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-602.203",
+      "number": "602.203",
+      "name": "Caisse d'allocations familiales des ingénieurs et des architectes vaudois CAFIAV",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-602.207",
+      "number": "602.207",
+      "name": "Caisse d'allocations familiales des garagistes vaudois",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-602.212",
+      "number": "602.212",
+      "name": "Caisse d'allocations familiales de la société vaudoise de médecine",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-602.214",
+      "number": "602.214",
+      "name": "Caisse d'allocations familiales de l'union suisse des professionnels de l'immobilier Vaud",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-603.202",
+      "number": "603.202",
+      "name": "Cassa di compensazione per gli assegni familiari della camera di commercio, dell'industria e dell'artigianato del Cantone Ticino CCIA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-606.201",
+      "number": "606.201",
+      "name": "Familienausgleichskasse Basler KMU",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BL",
+        "BS",
+        "NE",
+        "SG",
+        "SH",
+        "SO",
+        "TG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-606.202",
+      "number": "606.202",
+      "name": "Familienausgleichskasse für das Basler Gewerbe (Fageba)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BL",
+        "BS",
+        "SO"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-608.201",
+      "number": "608.201",
+      "name": "Familienausgleichskasse GEFAK",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "BL",
+        "BS",
+        "SG",
+        "SO",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-609.201",
+      "number": "609.201",
+      "name": "Caisse d'allocations familiales ASSBA",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-609.202",
+      "number": "609.202",
+      "name": "Caisse d'allocations familiales de l'industrie et du commerce des boissons \"CABO\"",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-609.203",
+      "number": "609.203",
+      "name": "Caisse d'allocations familiales de l'industrie valaisanne \"PRO FAMILIA\"",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-610.201",
+      "number": "610.201",
+      "name": "Caisse fribourgeoise interprofessionnelle de compensation pour allocations familiales CAFAL",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-611.201",
+      "number": "611.201",
+      "name": "Caisse d'allocations familales Chrétienne-sociale",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-613.201",
+      "number": "613.201",
+      "name": "CAFAL (Détaillants en alimentation et commerce)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-614.201",
+      "number": "614.201",
+      "name": "Caisse d'allocations familiales de la communauté interprofessionnelle sociale vaudoise",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE",
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-615.201",
+      "number": "615.201",
+      "name": "Caisse Broyarde interprofessionnelle de compensation pour allocations familiales",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-616.201",
+      "number": "616.201",
+      "name": "Caisse d'allocations familiales de la l'Association des Banques du canton de Fribourg",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-617.201",
+      "number": "617.201",
+      "name": "Caisse de compensation professionnelle pour les allocations familiales des banques, des sociétés financières et des entreprises de conseils du canton de Genève",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-618.201",
+      "number": "618.201",
+      "name": "Familienausgleichskasse der Vereinigung Aargauische Spitäler, Kliniken und Pflegeinstitutionen",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-622.201",
+      "number": "622.201",
+      "name": "Caisse valaisanne d'allocations familiales de l'industrie du bâtiment \"CAFIB\"",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-623.201",
+      "number": "623.201",
+      "name": "Familienausgleichskasse soloth. Gewerbe, GEFASO",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SO"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-626.201",
+      "number": "626.201",
+      "name": "FAK für das Staatspersonal, Kanton St.Gallen",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AR",
+        "SG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-628.201",
+      "number": "628.201",
+      "name": "Familienausgleichskasse Krankenhäuser, c/o Turicum Treuhand- und Steuerberatungsgesellschaft AG, Herr Jürg Badertscher",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-630.201",
+      "number": "630.201",
+      "name": "Stiftung Leica FAK",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "AG",
+        "SG",
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-632.201",
+      "number": "632.201",
+      "name": "Familienausgleichskasse Textil, c/o Zähner Treuhand AG",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TG"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-633.201",
+      "number": "633.201",
+      "name": "Cassa di compensazione per gli assegni familiari dell'associazione bancaria ticinese ABT",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "TI"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-634.201",
+      "number": "634.201",
+      "name": "CALOBA Caisse de compensation professionnelle pour allocations familiales des banques neuchâteloises",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "NE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-635.201",
+      "number": "635.201",
+      "name": "Familienausgleichskasse IVS",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "SH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-636.201",
+      "number": "636.201",
+      "name": "Groupement interprofessionnel pour le paiement d'allocations familiales \"INTER\"",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-637.201",
+      "number": "637.201",
+      "name": "Familienausgleichskasse der bernischen Anwälte und Notare, c/o Ausgleichskasse Berner Arbeitgeber",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-639.201",
+      "number": "639.201",
+      "name": "Familienausgleichskasse der Gewerkschaften im Kanton Bern",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "BE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-642.201",
+      "number": "642.201",
+      "name": "CAF-EMS caisse d'allocations familiales des établissements médico-sociaux",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-647.201",
+      "number": "647.201",
+      "name": "Familienausgleichskasse ZIA/SIA c/o Dr.W.Meili + Partner AG",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-649.201",
+      "number": "649.201",
+      "name": "Familienausgleichskasse des Apothekerverbandes des Kantons Zürich, c/o Ausgleichskasse der Schweiz. Gewerbes",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-650.201",
+      "number": "650.201",
+      "name": "Caisse d'allocations familiales des Falaises",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "GE"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-650.203",
+      "number": "650.203",
+      "name": "Caisse d'allocations familiales de l'Artisanat du Bâtiment CAFAB p/Bureau des Métiers",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VS"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-650.204",
+      "number": "650.204",
+      "name": "MEROBA (Ferblantiers-appareilleurs)",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "VD"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-651.201",
+      "number": "651.201",
+      "name": "Caisse d'allocations familiales GASTROFRIBOURG",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "FR"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "family-653.201",
+      "number": "653.201",
+      "name": "Familienausgleichskasse des Zürcher Autogewerbe-Verbandes",
+      "kind": "family",
+      "group": "Allocations familiales · OFAS 2026",
+      "cantons": [
+        "ZH"
+      ],
+      "source": "https://www.bsv.admin.ch/fr/allocations-familiales-organisation"
+    },
+    {
+      "id": "daily-S14",
+      "number": "S14",
+      "name": "AXA Versicherungen AG",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S059",
+      "number": "S059",
+      "name": "Agrisano",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S22",
+      "number": "S22",
+      "name": "Allianz Suisse",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S6",
+      "number": "S6",
+      "name": "Baloise Versicherungen AG",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S26",
+      "number": "S26",
+      "name": "visavis Versicherung",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S10058",
+      "number": "S10058",
+      "name": "elipsLife",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-046.000",
+      "number": "046.000",
+      "name": "Gastrosocial",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S21",
+      "number": "S21",
+      "name": "GENERALI Versicherungen",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S998",
+      "number": "S998",
+      "name": "grape insurance AG",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S270",
+      "number": "S270",
+      "name": "Groupe Mutuel",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S264",
+      "number": "S264",
+      "name": "Helsana Versicherungen AG",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S23",
+      "number": "S23",
+      "name": "Helvetia Versicherungen",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S329",
+      "number": "S329",
+      "name": "Hotela Assurances SA",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-K329",
+      "number": "K329",
+      "name": "Hotela Caisse Maladie",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S208",
+      "number": "S208",
+      "name": "ÖKK Kranken- und Unfallversicherungen AG (ab Deklarationsjahr 2023)",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S1",
+      "number": "S1",
+      "name": "Schweizerische Mobiliar Versicherungsgesellschaft AG",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S225",
+      "number": "S225",
+      "name": "Sodalis",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S122",
+      "number": "S122",
+      "name": "Swica Versicherungen",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S205",
+      "number": "S205",
+      "name": "Sympany",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S116",
+      "number": "S116",
+      "name": "Vaudoise Assurances / Vaudoise Versicherungen",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S94",
+      "number": "S94",
+      "name": "Visana Versicherungen AG",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "daily-S12",
+      "number": "S12",
+      "name": "Zurich Versicherung",
+      "kind": "daily",
+      "group": "Assureurs IJM publies par Swissdec",
+      "source": "https://www.swissdec.ch/fr/data-receiver"
+    },
+    {
+      "id": "avs-26.1",
+      "number": "26.1",
+      "name": "Caisse fédérale de compensation CFC",
+      "kind": "avs",
+      "group": "Caisses fédérales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisse-f%C3%A9d%C3%A9rale-de-compensation-CFC"
+    },
+    {
+      "id": "avs-27",
+      "number": "27",
+      "name": "Caisse suisse de compensation CSC",
+      "kind": "avs",
+      "group": "Caisses fédérales",
+      "source": "https://www.ahv-iv.ch/fr/Contacts/Caisse-suisse-de-compensation-CSC"
+    }
+  ],
+  "familyRegister": {
+    "edition": "2026-01-01",
+    "sha256": "539df6c88e429dfe785b7a9fe46443c9d623987e58b5f9b84956456d043bb5d5",
+    "rowsReviewed": 2556,
+    "activeFunds": 202,
+    "source": "https://www.bsv.admin.ch/dam/fr/sd-web/OrD7uoqkgs1z/FamZG_FAK-Nummer_CH_2026.pdf"
+  }
+}

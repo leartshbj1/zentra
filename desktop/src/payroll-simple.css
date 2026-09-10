@@ -1,0 +1,258 @@
+.payroll-organisation,
+.payroll-directory {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.payroll-organisation input {
+  width: 100%;
+  min-width: 0;
+}
+.payroll-text-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-self: start;
+  border: 0;
+  padding: 8px 0;
+  min-height: 44px;
+  background: none;
+  color: #245b68;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.payroll-directory {
+  padding: 16px;
+  border: 1px solid #dce3e5;
+  border-radius: 14px;
+  background: #f6f8f8;
+}
+.payroll-directory ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.payroll-directory li + li {
+  border-top: 1px solid #dce3e5;
+}
+.payroll-directory li button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9375rem;
+}
+.payroll-directory li button:hover,
+.payroll-directory li button:focus-visible {
+  background: #e7efee;
+}
+.payroll-directory li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.payroll-directory li small {
+  display: block;
+  padding-top: 4px;
+}
+.payroll-directory a {
+  color: #245b68;
+  font-size: 0.875rem;
+  text-underline-offset: 3px;
+}
+.payroll-problems {
+  display: grid;
+  gap: 12px;
+}
+.payroll-problem {
+  padding: 18px;
+  border: 1px solid #eadfcb;
+  border-radius: 16px;
+  background: #fffbf3;
+  min-width: 0;
+  line-height: 1.55;
+}
+.payroll-problem > strong {
+  display: block;
+  font-size: 1rem;
+}
+.payroll-problem p {
+  margin: 8px 0 12px;
+}
+.payroll-problem details {
+  margin-top: 12px;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.payroll-problem summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.payroll-setup {
+  --payroll-accent: #245b68;
+  display: grid;
+  gap: 20px;
+}
+.payroll-setup h3 {
+  margin: 4px 0 8px;
+  font-size: 1.25rem;
+  letter-spacing: -0.025em;
+}
+.payroll-setup > header {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  outline: none;
+}
+.payroll-setup p {
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.payroll-setup small {
+  line-height: 1.6;
+  color: var(--text-muted, #626970);
+}
+.payroll-setup-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.payroll-setup-nav button {
+  padding: 10px 14px;
+  min-height: 44px;
+  background: #f1f4f4;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  cursor: pointer;
+  color: #46565a;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.payroll-setup-nav button[aria-current] {
+  color: #174b55;
+  background: #e5f0ee;
+  border-color: #bdcecc;
+}
+.payroll-setup fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+.payroll-setup .form-grid {
+  align-items: start;
+}
+.payroll-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid #e2e7e7;
+}
+.payroll-setup .payroll-callout,
+.payroll-wizard .payroll-callout {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #f3f6f6;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.payroll-callout p {
+  margin: 0;
+}
+.payroll-callout button {
+  justify-self: start;
+}
+.payroll-contracts {
+  display: grid;
+  gap: 18px;
+}
+.payroll-contracts .payroll-contract-summary {
+  padding: 16px;
+  border: 1px solid #dfe6e6;
+  border-radius: 14px;
+  background: #f6f8f8;
+}
+.payroll-contract-summary dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  font-size: 0.9375rem;
+}
+.payroll-contract-summary dd {
+  text-align: right;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.payroll-contracts .check-card {
+  width: 100%;
+}
+.payroll-simple-guide {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  background: #f6f8f8;
+  border-radius: 16px;
+  margin: 12px 0 20px;
+}
+.payroll-simple-guide ol {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.8;
+}
+.payroll-simple-guide summary {
+  cursor: pointer;
+  font-weight: 550;
+}
+.payroll-wizard .payroll-net-breakdown {
+  font-size: 0.9375rem;
+}
+.payroll-wizard .payroll-steps li {
+  font-size: 0.875rem;
+}
+.payroll-setup button,
+.payroll-wizard .payroll-problem button {
+  white-space: normal;
+  height: auto;
+  min-height: 44px;
+}
+.payroll-setup [hidden] {
+  display: none !important;
+}
+.payroll-dialog .payroll-setup input,
+.payroll-dialog .payroll-setup select {
+  font-size: 1rem;
+}
+@media (max-width: 600px) {
+  .payroll-setup .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .payroll-setup-nav button {
+    flex: 1 1 40%;
+  }
+  .payroll-setup-actions > button {
+    flex: 1 1 100%;
+  }
+  .payroll-problem,
+  .payroll-directory {
+    padding: 14px;
+  }
+}

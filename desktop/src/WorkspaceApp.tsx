@@ -1,3 +1,4 @@
+import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
 import { useCloudBackupBackground } from './cloudBackup';
@@ -5522,15 +5523,8 @@ function SettingsScreen({
                 </small>
               </span>
             </label>
-            <Field label="Caisse AVS">
-              <input name="avsFund" defaultValue={settings.payroll.avsFund} />
-            </Field>
-            <Field label="Assureur accidents">
-              <input
-                name="accidentInsurer"
-                defaultValue={settings.payroll.accidentInsurer}
-              />
-            </Field>
+            <PayrollOrganisationField kind="avs" name="avsFund" defaultValue={settings.payroll.avsFund} canton={settings.payroll.payrollCanton} />
+            <PayrollOrganisationField kind="accident" name="accidentInsurer" defaultValue={settings.payroll.accidentInsurer} />
             <label className="check-card">
               <input
                 name="aanpEmployerCoverageEnabled"
@@ -5641,12 +5635,7 @@ function SettingsScreen({
                 </div>
               </section>
             ) : null}
-            <Field label="Caisse de pension">
-              <input
-                name="pensionFund"
-                defaultValue={settings.payroll.pensionFund}
-              />
-            </Field>
+            <PayrollOrganisationField kind="pension" name="pensionFund" defaultValue={settings.payroll.pensionFund} />
             <label className="check-card field--wide">
               <input
                 name="lppPlanEnabled"
@@ -5725,18 +5714,8 @@ function SettingsScreen({
                 </label>
               </>
             ) : null}
-            <Field label="Assureur indemnités journalières">
-              <input
-                name="dailyAllowanceInsurer"
-                defaultValue={settings.payroll.dailyAllowanceInsurer}
-              />
-            </Field>
-            <Field label="Caisse d’allocations familiales">
-              <input
-                name="familyAllowanceFund"
-                defaultValue={settings.payroll.familyAllowanceFund}
-              />
-            </Field>
+            <PayrollOrganisationField kind="daily" name="dailyAllowanceInsurer" defaultValue={settings.payroll.dailyAllowanceInsurer} />
+            <PayrollOrganisationField kind="family" name="familyAllowanceFund" defaultValue={settings.payroll.familyAllowanceFund} canton={settings.payroll.payrollCanton} />
             <Field label="Canton de paie">
               <input
                 name="payrollCanton"

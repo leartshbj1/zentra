@@ -12,6 +12,13 @@ export function installPayrollFixture(workspace: Workspace) {
     return { id, name, employeeNumber: id, role: 'Responsable de projet', email: `${id}@example.invalid`, phone: '', address: '', addressLine1: '', addressLine2: '', postalCode: '1000', city: 'Lausanne', canton: 'VD', country: 'CH', birthDate: '1990-01-01', avsNumber: '', employmentStart: '2026-01-01', employmentEnd: '', employmentContractKind: 'indefinite', lppAssessmentYear: 2026, lppAnnualSalaryCents: 6000000, lppExceptionCode: null, lppExceptionEvidenceReference: '', referenceAgeDate: '', avsAllowanceWaived: null, smallSalaryAssessmentYear: 2026, smallSalarySector: 'ordinary', smallSalaryEmployeeRequestedContributions: false, smallSalaryDecisionDate: '2026-01-01', smallSalaryOpeningGrossCents: 0, smallSalaryOpeningContributedBasisCents: 0, smallSalaryEvidenceReference: 'Décision annuelle de recette 2026', employmentRate: 100, contractualWeeklyMinutes: 2400, acOpeningYear: 2026, acOpeningBasisCents: 0, laaOpeningYear: 2026, laaOpeningBasisCents: 0, salaryMode: 'monthly', grossSalaryCents: 500000, hourlyCostCents: 0, iban: '', active: true, notes: '' };
   }
   workspace.employees = [employee('elodie', 'Élodie Dubois'), employee('jean', 'Jean Martin')];
+  if (new URLSearchParams(location.search).has('payrollSetup')) {
+    workspace.employees[0].birthDate = '';
+    workspace.employees[0].contractualWeeklyMinutes = null;
+    workspace.employees[0].acOpeningYear = null;
+    workspace.employees[0].acOpeningBasisCents = null;
+    workspace.settings.payroll.fiduciaryValidated = false;
+  }
   workspace.payslips = Array.from({ length: 32 }, (_, index): Payslip => ({ id: `old-${index}`, employeeId: index % 2 ? 'jean' : 'elodie', period: `2025-${String(index % 12 + 1).padStart(2, '0')}`, status: 'incomplete', lines: [{ id: `old-line-${index}`, label: 'Salaire de recette', kind: 'earning', amountCents: 500000 }], paymentDate: '', notes: '', createdAt: `2025-${String(index % 12 + 1).padStart(2, '0')}-01T10:00:00Z` }));
   const accounts: Account[] = [
     { id: 'bank-qa', code: '1020', name: 'Banque', accountType: 'asset', normalBalance: 'debit', reportSection: 'current_assets', active: true },
@@ -25,6 +32,9 @@ export function installPayrollFixture(workspace: Workspace) {
     return { id: code, code, label: code.replaceAll('_', ' '), category, side, calculationKind: 'rate', rateBp, fixedAmountCents: null, annualCeilingCents: ['ac', 'aap', 'aanp'].includes(category) ? 14820000 : null, basisKind: ['aap', 'aanp', 'family_allowance'].includes(category) ? 'ahv_salary' : 'gross', lppComponent: null, lppEmployeeId: null, source: 'Contrat et taux de recette, aucune donnée réelle', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', active: true, liabilityAccountId: 'social-qa', expenseAccountId: side === 'employer' ? 'expense-qa' : '' };
   }
   const definitions = [definition('AVS_EMPLOYEE', 'avs_ai_apg', 'employee', 435), definition('AVS_EMPLOYER', 'avs_ai_apg', 'employer', 435), definition('AI_EMPLOYEE', 'avs_ai_apg', 'employee', 70), definition('AI_EMPLOYER', 'avs_ai_apg', 'employer', 70), definition('APG_EMPLOYEE', 'avs_ai_apg', 'employee', 25), definition('APG_EMPLOYER', 'avs_ai_apg', 'employer', 25), definition('AC_EMPLOYEE', 'ac', 'employee', 110), definition('AC_EMPLOYER', 'ac', 'employer', 110), definition('AAP_TEST', 'aap', 'employer', 100), definition('AANP_TEST', 'aanp', 'employee', 100), definition('CAF_TEST', 'family_allowance', 'employer', 200)];
+  if (new URLSearchParams(location.search).has('payrollAhvBasis')) {
+    for (const definition of definitions) definition.basisKind = 'ahv_salary';
+  }
   for (const side of ['employee', 'employer'] as const) definitions.push({ ...definition(`LPP_${side.toUpperCase()}`, 'lpp', side, 0), calculationKind: 'fixed', rateBp: null, fixedAmountCents: 25000, basisKind: 'coordinated', lppComponent: 'combined', lppEmployeeId: 'elodie', source: regulation });
   const snapshots = new Map<string, PayslipContributionSnapshot[]>();
   const counter = (name: string, input: unknown) => {
@@ -53,11 +63,42 @@ export function installPayrollFixture(workspace: Workspace) {
     return structuredClone(definitions);
   };
   desktopApi.getPayslipContributions = async (id) => structuredClone(snapshots.get(id) || []);
+  const federalDefinitions = structuredClone(definitions.filter((item) => ['avs_ai_apg', 'ac'].includes(item.category)));
+  if (new URLSearchParams(location.search).has('payrollNoFederal')) {
+    for (let index = definitions.length - 1; index >= 0; index--) if (['avs_ai_apg', 'ac'].includes(definitions[index].category)) definitions.splice(index, 1);
+  }
+  desktopApi.getPayrollRegulatoryProfiles = async () => [{ id: 'CH-2026', label: 'Référentiel de recette 2026', source: 'Référentiel synthétique de recette', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', definitions: federalDefinitions, notIncluded: ['lpp', 'ijm', 'aap', 'aanp'] }];
+  desktopApi.upsertPayrollContributionDefinition = async (input) => {
+    counter('definition', input);
+    await hold('definition');
+    if (sessionStorage.getItem('qa-payroll-fail-definition') === '1') throw new Error('rate_bp: invalid payroll contribution definition');
+    const id = input.id || definitions.find((item) => item.code === input.code)?.id || crypto.randomUUID();
+    const index = definitions.findIndex((item) => item.id === id);
+    if (index < 0) definitions.push({ ...input, id }); else definitions[index] = { ...input, id };
+  };
+  desktopApi.updateEntity = async (entity, id, data) => {
+    if (entity !== 'employees') throw new Error('Recette limitée aux salariés.');
+    counter('employee-update', { id, data });
+    await hold('employee-update');
+    if (sessionStorage.getItem('qa-payroll-refuse-employee-update') === '1') throw new Error('birth_date: invalid employee payroll data');
+    const item = workspace.employees.find((item) => item.id === id)!;
+    const mapped = { ...data };
+    if ('employmentStartDate' in mapped) { mapped.employmentStart = mapped.employmentStartDate; delete mapped.employmentStartDate; }
+    if ('employmentEndDate' in mapped) { mapped.employmentEnd = mapped.employmentEndDate; delete mapped.employmentEndDate; }
+    Object.assign(item, mapped);
+    return afterWrite('employee-update');
+  };
+  desktopApi.saveSettings = async (input) => {
+    counter('settings', input); await hold('settings');
+    if (sessionStorage.getItem('qa-payroll-refuse-settings') === '1') throw new Error('payroll.accident_insurer: storage unavailable');
+    workspace.settings = structuredClone(input); return afterWrite('settings');
+  };
   desktopApi.calculatePayrollContributions = async (input) => {
     const attempt = counter('calculate', input);
     const result: PayrollCalculation = { period: input.period, grossCents: input.grossCents, employeeDeductionsCents: 0, employerCostsCents: 0, smallSalaryAssessment: null, items: input.items.map((selection) => {
       const definition = definitions.find((item) => item.id === selection.definitionId)!;
-      const basisCents = definition.basisKind === 'gross' ? input.grossCents : selection.basisCents || 0;
+      const assessable = input.grossCents;
+      const basisCents = definition.basisKind === 'gross' ? (['avs_ai_apg', 'ac', 'aap', 'aanp', 'family_allowance'].includes(definition.category) ? assessable : input.grossCents) : selection.basisCents || 0;
       return { ...definition, basisCents, originalBasisCents: basisCents, yearToDateBasisCents: 0, amountCents: definition.fixedAmountCents ?? Math.round(basisCents * (definition.rateBp || 0) / 10000), statutoryAnnualCeilingCents: definition.annualCeilingCents, acProrationDays: null, acEmploymentFrom: '', acEmploymentTo: '', avsAllowanceAppliedCents: null, avsAllowanceWaived: null };
     }) };
     result.employeeDeductionsCents = result.items.filter((item) => item.side === 'employee').reduce((sum, item) => sum + item.amountCents, 0);

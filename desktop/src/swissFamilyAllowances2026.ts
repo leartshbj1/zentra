@@ -19,11 +19,11 @@ export const SWISS_FAMILY_ALLOWANCES_2026: readonly SwissFamilyAllowanceReferenc
   { canton: 'BL', name: 'Bâle-Campagne', child: 'CHF 215', education: 'CHF 268', note: '' },
   { canton: 'BS', name: 'Bâle-Ville', child: 'CHF 275', education: 'CHF 325', note: '' },
   { canton: 'FR', name: 'Fribourg', child: 'CHF 265 / 285', education: 'CHF 325 / 345', note: 'Montant supérieur dès le 3e enfant.' },
-  { canton: 'GE', name: 'Genève', child: 'CHF 311 / 411', education: 'CHF 415 / 515', note: 'Montant supérieur dès le 3e enfant.' },
+  { canton: 'GE', name: 'Genève', child: 'CHF 311 / 411', education: 'CHF 415 / 515', note: 'Montant supérieur dès le 3e enfant. De 16 à 20 ans, un enfant incapable d’exercer une activité lucrative reçoit le montant de formation.' },
   { canton: 'GL', name: 'Glaris', child: 'CHF 215', education: 'CHF 268', note: '' },
   { canton: 'GR', name: 'Grisons', child: 'CHF 240', education: 'CHF 290', note: '' },
   { canton: 'JU', name: 'Jura', child: 'CHF 275', education: 'CHF 325', note: '' },
-  { canton: 'LU', name: 'Lucerne', child: 'CHF 215 / 260', education: 'CHF 268', note: 'Enfant jusqu’à 12 ans / dès 12 ans.' },
+  { canton: 'LU', name: 'Lucerne', child: 'CHF 215 / 260', education: 'CHF 268', note: 'Premier montant jusqu’à 12 ans; second pour les enfants de plus de 12 ans.' },
   { canton: 'NE', name: 'Neuchâtel', child: 'CHF 240 / 270', education: 'CHF 320 / 350', note: 'Montant supérieur dès le 3e enfant.' },
   { canton: 'NW', name: 'Nidwald', child: 'CHF 258', education: 'CHF 311', note: '' },
   { canton: 'OW', name: 'Obwald', child: 'CHF 220', education: 'CHF 270', note: '' },
@@ -34,10 +34,10 @@ export const SWISS_FAMILY_ALLOWANCES_2026: readonly SwissFamilyAllowanceReferenc
   { canton: 'TG', name: 'Thurgovie', child: 'CHF 215', education: 'CHF 280', note: '' },
   { canton: 'TI', name: 'Tessin', child: 'CHF 215', education: 'CHF 268', note: '' },
   { canton: 'UR', name: 'Uri', child: 'CHF 240', education: 'CHF 290', note: '' },
-  { canton: 'VD', name: 'Vaud', child: 'CHF 322 / 365', education: 'CHF 425 / 468', note: 'Montant supérieur dès le 3e enfant; règles cantonales particulières.' },
-  { canton: 'VS', name: 'Valais', child: 'CHF 327 / 435', education: 'CHF 477 / 585', note: 'Montant supérieur dès le 3e enfant; règles cantonales particulières.' },
-  { canton: 'ZG', name: 'Zoug', child: 'CHF 330', education: 'CHF 330 / 385', note: 'Formation jusqu’à 18 ans / dès 18 ans.' },
-  { canton: 'ZH', name: 'Zurich', child: 'CHF 215 / 268', education: 'CHF 268', note: 'Enfant jusqu’à 12 ans / dès 12 ans.' },
+  { canton: 'VD', name: 'Vaud', child: 'CHF 322 / 365', education: 'CHF 425 / 468', note: 'Montant supérieur dès le 3e enfant. Contrôler les droits acquis, la formation après scolarité obligatoire avant 16 ans et l’incapacité de travailler entre 16 et 20 ans.' },
+  { canton: 'VS', name: 'Valais', child: 'CHF 327 / 435', education: 'CHF 477 / 585', note: 'Montant supérieur dès le 3e enfant. Contrôler la formation après scolarité obligatoire avant 16 ans.' },
+  { canton: 'ZG', name: 'Zoug', child: 'CHF 330', education: 'CHF 330 / 385', note: 'Formation : second montant à partir de 18 ans.' },
+  { canton: 'ZH', name: 'Zurich', child: 'CHF 215 / 268', education: 'CHF 268', note: 'Premier montant jusqu’à 12 ans; second pour les enfants de plus de 12 ans.' },
 ];
 
 export const SWISS_FAMILY_ALLOWANCES_2026_SOURCE = 'https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/OrwD3z_mIEOztplxBzs7qQ/Document/Kantone_2026_f-1.pdf';
@@ -46,4 +46,3 @@ export function familyAllowanceReferenceForCanton(canton: string) {
   const normalized = canton.trim().toUpperCase();
   return SWISS_FAMILY_ALLOWANCES_2026.find((item) => item.canton === normalized);
 }
-
