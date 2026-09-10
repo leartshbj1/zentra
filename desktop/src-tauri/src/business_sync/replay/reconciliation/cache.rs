@@ -55,6 +55,12 @@ pub(super) fn write(model: &model::Model, store: &LocalStore, context: &Context)
             "Un cache ne peut pas confirmer une fusion en conflit.",
         ));
     }
+    write_rows(&model.connection, store, context)
+}
+
+// Saved conflict proposals retain this exact model independently of the
+// temporary native candidate. The caller has verified its sealed artifacts.
+pub(in crate::business_sync::replay) fn write_rows(model: &Connection, store: &LocalStore, context: &Context) -> AppResult<()> {
     let destination = path(
         store,
         &context.generation,
@@ -72,7 +78,7 @@ pub(super) fn write(model: &model::Model, store: &LocalStore, context: &Context)
     let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     tx.execute_batch("CREATE TABLE canonical_rows(table_name TEXT NOT NULL,row_key_json TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(table_name,row_key_json),UNIQUE(table_name,canonical_rowid));
         CREATE TABLE row_aliases(capture_generation TEXT NOT NULL,sequence INTEGER NOT NULL,original_sha256 TEXT NOT NULL,canonical_rowid INTEGER NOT NULL,PRIMARY KEY(capture_generation,sequence));")?;
-    let mut q=model.connection.prepare("SELECT table_name,row_key_json,canonical_rowid,row_json FROM canonical_rows ORDER BY table_name,row_key_json")?;
+    let mut q=model.prepare("SELECT table_name,row_key_json,canonical_rowid,row_json FROM canonical_rows ORDER BY table_name,row_key_json")?;
     let mut rows = q.query([])?;
     while let Some(r) = rows.next()? {
         tx.execute(
@@ -85,7 +91,7 @@ pub(super) fn write(model: &model::Model, store: &LocalStore, context: &Context)
             ],
         )?;
     }
-    let mut q=model.connection.prepare("SELECT capture_generation,sequence,original_sha256,canonical_rowid FROM row_aliases ORDER BY capture_generation,sequence")?;
+    let mut q=model.prepare("SELECT capture_generation,sequence,original_sha256,canonical_rowid FROM row_aliases ORDER BY capture_generation,sequence")?;
     let mut rows = q.query([])?;
     while let Some(r) = rows.next()? {
         tx.execute(

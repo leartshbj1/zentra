@@ -72,15 +72,15 @@ function parse(raw: unknown): Retirement {
   };
 }
 
-async function read(session: DeviceSessionContext, id: string) {
+async function read(session: DeviceSessionContext, id: string, cancelled = false) {
   return database()
     .prepare(
-      'SELECT * FROM business_sync_retirements WHERE resolution_id=? AND organization_id=? AND installation_id=?',
+      `SELECT * FROM ${cancelled ? 'business_sync_retirement_cancellations' : 'business_sync_retirements'} WHERE resolution_id=? AND organization_id=? AND installation_id=?`,
     )
     .bind(id, session.organizationId, session.installationId)
     .first<Stored>();
 }
-async function report(row: Stored) {
+async function verifiedBinding(row: Stored) {
   if ((await sha256Hex(row.binding_json)) !== row.binding_sha256)
     fail('La preuve du rapprochement est altérée.', 503);
   const binding = parse(JSON.parse(row.binding_json));
@@ -93,6 +93,10 @@ async function report(row: Stored) {
     binding.base_revision !== row.base_revision
   )
     fail('La preuve ne correspond plus au rapprochement.', 503);
+  return binding;
+}
+async function report(row: Stored) {
+  const binding = await verifiedBinding(row);
   return {
     format: 'zentra-conflict-retirement' as const,
     version: 1,
@@ -142,6 +146,7 @@ export async function retireBusinessTransactions(
     JOIN business_sync_transfers t ON t.transfer_id=c.transfer_id AND t.organization_id=c.organization_id AND t.generation=c.generation AND t.revision=c.revision
     WHERE s.organization_id=?2 AND s.generation=?4 AND s.state='ready' AND s.head_revision=?8 AND t.state='committed' AND c.receipt_sha256=?13
     AND NOT EXISTS(SELECT 1 FROM business_sync_audit_branches b WHERE b.organization_id=?2 AND b.generation=?4 AND b.installation_id=?3 AND b.capture_generation=?5 AND CAST(b.last_sequence AS INTEGER)>=CAST(?6 AS INTEGER))
+    AND NOT EXISTS(SELECT 1 FROM business_sync_retirement_cancellations x WHERE x.resolution_id=?1)
     AND NOT EXISTS(SELECT 1 FROM business_sync_transfers p WHERE p.organization_id=?2 AND p.generation=?4 AND p.installation_id=?3 AND p.kind='transaction' AND json_extract(p.manifest_json,'$.capture_generation')=?5
       AND CAST(json_extract(p.manifest_json,'$.first_sequence') AS INTEGER)<=CAST(?7 AS INTEGER) AND CAST(json_extract(p.manifest_json,'$.last_sequence') AS INTEGER)>=CAST(?6 AS INTEGER)
       AND (CAST(json_extract(p.manifest_json,'$.first_sequence') AS INTEGER)<CAST(?6 AS INTEGER) OR CAST(json_extract(p.manifest_json,'$.last_sequence') AS INTEGER)>CAST(?7 AS INTEGER)))
@@ -168,6 +173,62 @@ export async function retireBusinessTransactions(
       'Le dossier ou un envoi a avancé. Récupérez les confirmations et actualisez la comparaison.',
     );
   return report(saved);
+}
+
+async function cancellationReport(row: Stored) {
+  const binding = await verifiedBinding(row);
+  return {
+    format: 'zentra-conflict-retirement-cancellation' as const,
+    version: 1,
+    organization_id: row.organization_id,
+    installation_id: row.installation_id,
+    ...binding,
+    binding_sha256: row.binding_sha256,
+    registered_at: row.created_at,
+    cancelled: true,
+    retired: false,
+    business_revision_changed: false,
+    transaction_acknowledged: false,
+  };
+}
+
+export async function businessRetirementCancellation(session: DeviceSessionContext, id: unknown) {
+  const key = businessSyncTransferId(id);
+  const retired = await read(session, key);
+  if (retired) return report(retired);
+  const cancelled = await read(session, key, true);
+  if (!cancelled) fail('Aucune confirmation de résolution ou d’annulation pour cet appareil.', 404);
+  return cancellationReport(cancelled);
+}
+
+export async function cancelBusinessRetirement(session: DeviceSessionContext, raw: unknown) {
+  if (!['owner', 'admin', 'member', 'accountant'].includes(session.role))
+    fail('Votre accès ne permet pas d’annuler cette résolution.', 403);
+  const value = parse(raw), binding = JSON.stringify(value), hash = await sha256Hex(binding);
+  const exact = (row: Stored) => {
+    if (row.binding_json !== binding || row.binding_sha256 !== hash)
+      fail('Cette résolution appartient à d’autres choix. Reprenez la décision enregistrée.');
+    return row;
+  };
+  const retired = await read(session, value.resolution_id);
+  if (retired) return report(exact(retired));
+  const cancelled = await read(session, value.resolution_id, true);
+  if (cancelled) return cancellationReport(exact(cancelled));
+  // Both competing INSERTs check the other table inside the SQLite write.
+  // A stale head is deliberately allowed here: this cancels the exact request,
+  // never a committed retirement, transaction, capture or business revision.
+  await database().prepare(`INSERT OR IGNORE INTO business_sync_retirement_cancellations
+    (resolution_id,organization_id,installation_id,generation,capture_generation,first_sequence,last_sequence,base_revision,binding_json,binding_sha256,created_by,created_at)
+    SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12
+    WHERE NOT EXISTS(SELECT 1 FROM business_sync_retirements r WHERE r.resolution_id=?1)`)
+    .bind(value.resolution_id, session.organizationId, session.installationId, value.generation,
+      value.capture_generation, value.first_sequence, value.last_sequence, value.base_revision,
+      binding, hash, session.userId, new Date().toISOString()).run();
+  const accepted = await read(session, value.resolution_id);
+  if (accepted) return report(exact(accepted));
+  const saved = await read(session, value.resolution_id, true);
+  if (!saved) fail('La confirmation d’annulation est indisponible. Conservez la résolution et réessayez.');
+  return cancellationReport(exact(saved));
 }
 
 export async function requireUnretiredTransaction(

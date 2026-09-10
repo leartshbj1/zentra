@@ -9,6 +9,8 @@ use std::{collections::BTreeMap, time::Duration};
 const MAX_TOTAL: u64 = 4 * 1024 * 1024 * 1024;
 const MAX_METADATA: u64 = 64 * 1024 * 1024;
 
+pub(super) mod installation;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Point {
     Flushed,

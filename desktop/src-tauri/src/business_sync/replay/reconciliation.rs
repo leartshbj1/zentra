@@ -2,9 +2,9 @@
 //! Installing it and acknowledging journal entries require separate validation.
 use super::*;
 use std::path::Path;
-mod cache;
+pub(super) mod cache;
 mod model;
-mod native;
+pub(super) mod native;
 pub(crate) mod resolution;
 pub(super) mod replacements;
 pub(super) use model::Acknowledgement;

@@ -334,6 +334,23 @@ export const businessSyncRetirements = sqliteTable('business_sync_retirements', 
   createdAt: text('created_at').notNull(),
 }, table => [index('business_sync_retirement_branch').on(table.organizationId, table.generation, table.installationId, table.captureGeneration)]);
 
+// Durable negative proof: a late retirement POST with this resolution identity
+// must never succeed after the device has been allowed to resume local writes.
+export const businessSyncRetirementCancellations = sqliteTable('business_sync_retirement_cancellations', {
+  resolutionId: text('resolution_id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
+  installationId: text('installation_id').notNull(),
+  generation: text('generation').notNull(),
+  captureGeneration: text('capture_generation').notNull(),
+  firstSequence: text('first_sequence').notNull(),
+  lastSequence: text('last_sequence').notNull(),
+  baseRevision: integer('base_revision').notNull(),
+  bindingJson: text('binding_json').notNull(),
+  bindingSha256: text('binding_sha256').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 // Images remain in the original bounded R2 chunks. Only conflict/order/file
 // metadata lives here; a pair of 1 MiB images must not exceed a D1 row limit.
 export const businessSyncTransactionChanges = sqliteTable('business_sync_transaction_changes', {

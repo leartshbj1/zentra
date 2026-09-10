@@ -1,12 +1,11 @@
-//! Application stages shared by the future installer and recovery command.
-//! Kept out of Tauri's command surface until replacement installation and the
-//! interface reload can complete the operation that freezes shared writes.
+//! Durable choice application with a private-state-preserving installer.
+//! Kept out of Tauri's command surface until refusal recovery and the interface
+//! reload complete the operation that freezes shared writes.
 use super::*;
 use crate::business_sync::{cycle::Guarded, retirement::durable};
 use crate::error::AppError;
 use std::sync::Arc;
 
-#[allow(dead_code)] // Called by the installer once its atomic replacement path is connected.
 pub(crate) async fn retire_saved<T>(
     store: LocalStore,
     session: Arc<Guarded<T>>,
@@ -83,4 +82,85 @@ where
         .map_err(|_| invalid("La préparation de la résolution a été interrompue."))??;
     }
     durable::run(store, session, resolution_id).await
+}
+
+#[allow(dead_code)] // Expose only with refusal recovery and the workspace reload handshake.
+pub(crate) async fn apply_saved<T>(
+    store: LocalStore,
+    session: Arc<Guarded<T>>,
+    transaction_id: String,
+    resolution_id: String,
+    account_binding: String,
+    permission: Arc<dyn Fn() -> AppResult<()> + Send + Sync>,
+) -> AppResult<Value>
+where
+    T: Transport + durable::Transport + Send + Sync + 'static,
+{
+    if !matches!(
+        durable::Transport::role(&session.transport),
+        "owner" | "admin" | "member" | "accountant"
+    ) {
+        return Err(invalid(
+            "Votre rôle ne permet pas d’appliquer cette résolution.",
+        ));
+    }
+    let (s, t, id) = (store.clone(), session.clone(), resolution_id.clone());
+    let completed = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = s.lock()?;
+        Transport::ensure_current(t.as_ref(), &s)?;
+        super::super::selection(&s, durable::Transport::organization(&t.transport))?;
+        saved::installation::installed(&s, &s.connect()?, &id)
+    })
+    .await
+    .map_err(|_| invalid("La vérification de l’installation a été interrompue."))??;
+    if let Some(mut result) = completed {
+        if result["transaction_id"] != transaction_id {
+            return Err(invalid(
+                "La résolution terminée appartient à une autre transaction.",
+            ));
+        }
+        result["workspace_changed"] = json!(true); // Also reload after a lost result.
+        result["selection"] = serde_json::to_value(super::super::selection(
+            &store,
+            durable::Transport::organization(&session.transport),
+        )?)?;
+        return Ok(result);
+    }
+    retire_saved(
+        store.clone(),
+        session.clone(),
+        transaction_id,
+        resolution_id.clone(),
+        account_binding,
+        permission.clone(),
+    )
+    .await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut result = saved::installation::install(
+            &store,
+            &resolution_id,
+            || Transport::ensure_current(session.as_ref(), &store),
+            |point| {
+                if point == saved::installation::Point::Prepared {
+                    permission()?;
+                }
+                Ok(())
+            },
+        )?;
+        // The selected capture changed at commit. Do not run Guarded::check
+        // against its old value afterwards; return the new selection to reload.
+        durable::Transport::ensure_current(&session.transport, &store)?;
+        result["workspace_changed"] = json!(true);
+        result["selection"] = serde_json::to_value(super::super::selection(
+            &store,
+            durable::Transport::organization(&session.transport),
+        )?)?;
+        Ok::<_, AppError>(result)
+    })
+    .await
+    .map_err(|_| {
+        invalid(
+            "L’installation a été interrompue. Rechargez le dossier avant de reprendre la saisie.",
+        )
+    })?
 }

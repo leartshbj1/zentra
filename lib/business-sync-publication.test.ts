@@ -94,7 +94,8 @@ import * as fingerprintHttp from '../app/api/sync/transactions/fingerprint/route
 import * as deliveryHttp from '../app/api/sync/transactions/delivery/route';
 import * as commitHttp from '../app/api/sync/transactions/commit/route';
 import * as retirementHttp from '../app/api/sync/transactions/retirement/route';
-import { businessRetirement, retireBusinessTransactions } from './business-sync-retirement';
+import { businessRetirement, retireBusinessTransactions, businessRetirementCancellation, cancelBusinessRetirement } from './business-sync-retirement';
+import * as retirementCancelHttp from '../app/api/sync/transactions/retirement/cancel/route';
 import { committedBusinessTransactionFile } from './business-sync-committed-files';
 import {
   commitBusinessTransaction,
@@ -829,12 +830,13 @@ async function retirementFixture(sequence = '2', parts = [[transactionInsert(seq
   next.manifest.capture_generation = first.manifest.capture_generation;
   await deliveryReady(next);
   await prepareBusinessTransactionDelivery(next.actor, next.manifest.transaction_id);
+  const headReceipt = await mocks.db().prepare('SELECT receipt_sha256 FROM business_sync_transaction_commits WHERE transfer_id=?').bind(first.manifest.transaction_id).first();
   const body = {
     resolution_id: crypto.randomUUID(), generation: next.manifest.generation,
     capture_generation: next.manifest.capture_generation,
     first_sequence: next.manifest.first_sequence, last_sequence: next.manifest.last_sequence,
     base_revision: 2,
-    receipt_sha256: db.prepare('SELECT receipt_sha256 FROM business_sync_transaction_commits WHERE transfer_id=?').get(first.manifest.transaction_id)!.receipt_sha256 as string,
+    receipt_sha256: headReceipt.receipt_sha256 as string,
     review_id: 'a'.repeat(64), decision_sha256: 'b'.repeat(64),
   };
   return { first, next, body };
@@ -913,6 +915,135 @@ it('retirement rejects a partial transaction, a stale receipt, another organizat
   await expect(businessRetirement(second, f.body.resolution_id)).rejects.toMatchObject({ status: 404 });
   expect(await businessRetirement(f.next.actor, f.body.resolution_id)).toEqual(result);
 });
+
+it('retirement cancellation preserves originals and fences every delayed POST with the same identity', async () => {
+  const f = await retirementFixture();
+  const original = db.prepare('SELECT * FROM business_sync_transfers WHERE transfer_id=?').get(f.next.manifest.transaction_id);
+  const parts = db.prepare('SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?').all(f.next.manifest.transaction_id);
+  await expect(businessRetirementCancellation(f.next.actor, f.body.resolution_id)).rejects.toMatchObject({ status: 404 });
+  const result = await cancelBusinessRetirement(f.next.actor, f.body);
+  expect(result).toMatchObject({ format: 'zentra-conflict-retirement-cancellation', cancelled: true, retired: false, business_revision_changed: false, transaction_acknowledged: false, ...f.body });
+  expect(result.binding_sha256).toBe(await sha256Hex(JSON.stringify(f.body)));
+  expect(count('business_sync_retirements')).toBe(0);
+  await expect(retireBusinessTransactions(f.next.actor, f.body)).rejects.toMatchObject({ status: 409 });
+  await expect(retireBusinessTransactions(f.next.actor, { ...f.body, decision_sha256: 'c'.repeat(64) })).rejects.toMatchObject({ status: 409 });
+  expect(db.prepare('SELECT * FROM business_sync_transfers WHERE transfer_id=?').get(f.next.manifest.transaction_id)).toEqual(original);
+  expect(db.prepare('SELECT * FROM business_sync_transaction_parts WHERE transaction_id=?').all(f.next.manifest.transaction_id)).toEqual(parts);
+  // Cancelling this resolution never retires its original pending transaction.
+  expect((await commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).revision).toBe(3);
+  expect(await cancelBusinessRetirement(f.next.actor, f.body)).toEqual(result);
+  expect(await businessRetirementCancellation(f.next.actor, f.body.resolution_id)).toEqual(result);
+  expect(count('business_sync_retirement_cancellations')).toBe(1);
+});
+
+it('retirement cancellation wins inside a delayed retirement write', async () => {
+  const f = await retirementFixture();
+  beforeRun = async sql => {
+    if (!sql.startsWith('INSERT OR IGNORE INTO business_sync_retirements')) return;
+    beforeRun = undefined;
+    expect(await cancelBusinessRetirement(f.next.actor, f.body)).toMatchObject({ cancelled: true, retired: false });
+  };
+  await expect(retireBusinessTransactions(f.next.actor, f.body)).rejects.toMatchObject({ status: 409 });
+  expect(count('business_sync_retirements')).toBe(0);
+  expect(count('business_sync_retirement_cancellations')).toBe(1);
+});
+
+it('retirement cancellation returns the real accepted retirement if retirement wins first', async () => {
+  const f = await retirementFixture();
+  let proof: unknown;
+  beforeRun = async sql => {
+    if (!sql.startsWith('INSERT OR IGNORE INTO business_sync_retirement_cancellations')) return;
+    beforeRun = undefined;
+    proof = await retireBusinessTransactions(f.next.actor, f.body);
+  };
+  expect(await cancelBusinessRetirement(f.next.actor, f.body)).toEqual(proof);
+  expect(proof).toMatchObject({ retired: true });
+  expect(count('business_sync_retirement_cancellations')).toBe(0);
+  expect(await cancelBusinessRetirement(f.next.actor, f.body)).toEqual(proof);
+  expect(await businessRetirementCancellation(f.next.actor, f.body.resolution_id)).toEqual(proof);
+  await expect(commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).rejects.toMatchObject({ status: 409 });
+});
+
+it('retirement cancellation resolves a stale-head refusal and repeats the durable response after loss', async () => {
+  const f = await retirementFixture();
+  await commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id);
+  await expect(retireBusinessTransactions(f.next.actor, f.body)).rejects.toMatchObject({ status: 409 });
+  let proof: unknown;
+  beforeRun = async sql => {
+    if (!sql.startsWith('INSERT OR IGNORE INTO business_sync_retirement_cancellations')) return;
+    beforeRun = undefined;
+    proof = await cancelBusinessRetirement(f.next.actor, f.body);
+    throw new Error('simulated lost cancellation response');
+  };
+  await expect(cancelBusinessRetirement(f.next.actor, f.body)).rejects.toThrow('lost cancellation response');
+  expect(await businessRetirementCancellation(f.next.actor, f.body.resolution_id)).toEqual(proof);
+  expect(await cancelBusinessRetirement(f.next.actor, f.body)).toEqual(proof);
+  expect(count('business_sync_retirement_cancellations')).toBe(1);
+  expect(count('business_sync_transaction_commits')).toBe(2);
+});
+
+it('retirement cancellation remains bound to the exact choice, organization and device', async () => {
+  const f = await retirementFixture('9007199254740993');
+  const proof = await cancelBusinessRetirement(f.next.actor, f.body);
+  expect(proof.first_sequence).toBe('9007199254740993');
+  for (const foreign of [{ ...f.next.actor, organizationId: 'org_other' }, { ...f.next.actor, installationId: crypto.randomUUID() }]) {
+    await expect(businessRetirementCancellation(foreign, f.body.resolution_id)).rejects.toMatchObject({ status: 404 });
+    await expect(cancelBusinessRetirement(foreign, f.body)).rejects.toMatchObject({ status: 409 });
+  }
+  await expect(cancelBusinessRetirement({ ...f.next.actor, role: 'read_only' }, f.body)).rejects.toMatchObject({ status: 403 });
+  await expect(cancelBusinessRetirement(f.next.actor, { ...f.body, review_id: 'c'.repeat(64) })).rejects.toMatchObject({ status: 409 });
+  await expect(cancelBusinessRetirement(f.next.actor, { ...f.body, cancelled: true })).rejects.toMatchObject({ status: 400 });
+  await expect(cancelBusinessRetirement(f.next.actor, { ...f.body, first_sequence: 2 })).rejects.toMatchObject({ status: 400 });
+  expect(await businessRetirementCancellation(f.next.actor, f.body.resolution_id)).toEqual(proof);
+  db.prepare("UPDATE business_sync_retirement_cancellations SET binding_sha256=? WHERE resolution_id=?").run('f'.repeat(64), f.body.resolution_id);
+  await expect(businessRetirementCancellation(f.next.actor, f.body.resolution_id)).rejects.toMatchObject({ status: 503 });
+});
+
+it('retirement cancellation routes authenticate, bound bodies and disable response caching', async () => {
+  const f = await retirementFixture();
+  const url = 'https://test.invalid/api/sync/transactions/retirement/cancel';
+  mocks.session.mockResolvedValue(f.next.actor);
+  mocks.session.mockRejectedValueOnce(new AccountPublicError('Connexion requise.', 401));
+  expect((await retirementCancelHttp.GET(new Request(url + '?resolution_id=' + f.body.resolution_id))).status).toBe(401);
+  const oversized = await retirementCancelHttp.POST(new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ padding: 'x'.repeat(4096) }) }));
+  expect(oversized.status).toBe(413);
+  expect(count('business_sync_retirement_cancellations')).toBe(0);
+  const post = await retirementCancelHttp.POST(new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(f.body) }));
+  expect(post.status).toBe(200);
+  expect(post.headers.get('cache-control')).toContain('no-store');
+  const result = await post.json();
+  const get = await retirementCancelHttp.GET(new Request(url + '?resolution_id=' + f.body.resolution_id));
+  expect(get.headers.get('cache-control')).toContain('no-store');
+  expect(await get.json()).toEqual(result);
+  expect(mocks.rate).toHaveBeenCalledWith(expect.any(Request), 'business-sync-retirement-cancellation', `${f.next.actor.organizationId}:${f.next.actor.installationId}`, 60);
+});
+
+it('retirement cancellation and acceptance choose one durable outcome on real D1', async () => {
+  const { runtime, d1 } = await realD1Fixture();
+  try {
+    const f = await retirementFixture();
+    const outcomes = await Promise.allSettled([
+      retireBusinessTransactions(f.next.actor, f.body),
+      cancelBusinessRetirement(f.next.actor, f.body),
+    ]);
+    const proof = await businessRetirementCancellation(f.next.actor, f.body.resolution_id);
+    expect(await cancelBusinessRetirement(f.next.actor, f.body)).toEqual(proof);
+    const accepted = await d1.prepare('SELECT COUNT(*) n FROM business_sync_retirements').first<{ n: number }>();
+    const cancelled = await d1.prepare('SELECT COUNT(*) n FROM business_sync_retirement_cancellations').first<{ n: number }>();
+    expect(accepted!.n + cancelled!.n).toBe(1);
+    expect(outcomes[1].status).toBe('fulfilled');
+    if (proof.retired) {
+      expect(outcomes[0]).toMatchObject({ status: 'fulfilled', value: proof });
+      expect(accepted!.n).toBe(1);
+      await expect(commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).rejects.toMatchObject({ status: 409 });
+    } else {
+      expect(outcomes[0].status).toBe('rejected');
+      expect(cancelled!.n).toBe(1);
+      await expect(retireBusinessTransactions(f.next.actor, f.body)).rejects.toMatchObject({ status: 409 });
+      expect((await commitBusinessTransaction(f.next.actor, f.next.manifest.transaction_id)).revision).toBe(3);
+    }
+  } finally { await runtime.dispose(); }
+}, 60_000);
 
 it('retirement routes require authentication, bound body size and private responses', async () => {
   mocks.session.mockRejectedValueOnce(new AccountPublicError('Connexion requise.', 401));

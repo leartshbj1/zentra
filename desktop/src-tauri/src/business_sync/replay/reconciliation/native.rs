@@ -3,7 +3,7 @@
 use super::*;
 use std::{fs, time::Duration};
 
-pub(super) struct Copy {
+pub(in crate::business_sync::replay) struct Copy {
     pub store: LocalStore,
     _directory: crate::business_sync::workspace::Workspace,
 }
@@ -200,7 +200,7 @@ pub(super) fn build(
     Ok(copy)
 }
 
-pub(super) fn copy_source(store: &LocalStore, source: &Connection) -> AppResult<Copy> {
+pub(in crate::business_sync::replay) fn copy_source(store: &LocalStore, source: &Connection) -> AppResult<Copy> {
     let directory =
         crate::business_sync::workspace::Workspace::new(store, "reconciliation-native")?;
     let mut candidate = store.clone();
