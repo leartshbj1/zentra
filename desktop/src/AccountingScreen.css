@@ -1,5 +1,15 @@
 @media screen {
   .accounting-screen { min-width: 0; }
+  .accounting-screen .journal-entry-list { gap: 18px; margin-top: 24px; }
+  .accounting-screen .journal-entry-list > article { min-width: 0; border-color: #e7e7ec; border-radius: 16px; }
+  .accounting-screen .journal-entry-list > article > header { grid-template-columns: minmax(120px, .65fr) minmax(0, 2fr) auto; gap: 12px 20px; padding: 20px; background: #f7f8fa; }
+  .accounting-screen .journal-entry-list header > * { min-width: 0; overflow-wrap: anywhere; }
+  .accounting-screen .journal-entry-list header > div { grid-column: 1; grid-row: 1; }
+  .accounting-screen .journal-entry-list header > p { grid-column: 2; grid-row: 1; margin: 0; font-size: 14px; line-height: 1.6; }
+  .accounting-screen .journal-entry-list header > :is(.button, .locked-label) { grid-column: 3; grid-row: 1; }
+  .accounting-screen .journal-entry-list header > small { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid #e7e7ec; }
+  .accounting-screen .journal-entry-list header strong { font-size: 14px; line-height: 1.5; }
+  .accounting-screen .journal-entry-list header :is(span, small) { font-size: 13px; line-height: 1.5; }
   .accounting-screen :is(.accounting-entry-form, .account-inline-form) { min-width: 0; padding: 20px; background: #f5f5f7; border: 1px solid #ebebef; border-radius: 16px; }
   .accounting-screen .account-inline-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: end; }
   .accounting-screen .journal-lines { overflow: visible; border: 0; background: transparent; margin-top: 24px; }
@@ -52,6 +62,9 @@
 }
 @media screen and (max-width: 860px) {
   .accounting-screen .accounting-toolbar { padding: 20px; }
+  .accounting-screen .journal-entry-list > article > header { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .accounting-screen .journal-entry-list header > :is(div, p, small, .button, .locked-label) { grid-column: 1; grid-row: auto; }
+  .accounting-screen .journal-entry-list header > .button { justify-self: start; }
 }
 @media screen and (max-width: 480px) {
   .accounting-screen :is(.accounting-entry-form, .account-inline-form) { padding: 12px; }

@@ -6,7 +6,7 @@ export function useNavigationSelection(ref: RefObject<HTMLElement | null>, selec
     const navigation = ref.current;
     if (!navigation || hidden) return;
     const measure = () => {
-      const active = navigation.querySelector<HTMLElement>('[aria-current]');
+      const active = navigation.querySelector<HTMLElement>('[aria-current], [aria-selected="true"]');
       if (!active) {
         delete navigation.dataset.selectionReady;
         return;
