@@ -1138,7 +1138,9 @@
   .accounting-screen--overview .finance-navigation { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:12px; }
   .accounting-screen--overview .accounting-toolbar { padding:15px; }
   .accounting-screen--overview .section-navigation__picker { min-height:43px; }
-  .accounting-screen--overview .section-navigation__current { padding:8px 10px; gap:6px; font-size:.8125rem; }
+  .accounting-screen--overview .section-navigation__current { display:flex; padding:8px 10px; gap:6px; font-size:.8125rem; }
+  .accounting-screen--overview .section-navigation__current > span:not(.section-navigation__icon) { flex:1; min-width:0; overflow-wrap:normal; word-break:normal; }
+  .accounting-screen--overview .section-navigation__current > svg { flex:0 0 16px; }
   .accounting-screen--overview .section-navigation__current .section-navigation__icon { display:none; }
   .accounting-screen--overview .finance-overview__intro { gap:12px; }
 }

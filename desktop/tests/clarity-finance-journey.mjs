@@ -27,9 +27,9 @@ try{for(const width of [1440,390,320]){
  const choose=async(label,value,title)=>{const select=page.getByRole('combobox',{name:label,exact:true});if(await select.isVisible())await select.selectOption(value);else await page.getByRole('tab',{name:title,exact:true}).click();};
  await choose('Section TVA','profile','Méthode & autorisation');
  await page.getByRole('button',{name:/Taux d’activité AFC TDFN/}).click();
- assert.equal(await page.getByLabel('Méthode',{exact:true}).inputValue(),'simple_tax_rate');
- await page.getByLabel('ActivityID AFC · 5 chiffres',{exact:true}).fill('12345');
- await page.getByLabel('Taux TDFN/TaF confirmé (%)',{exact:true}).fill('3.7');
+ assert.equal(await page.getByLabel(/^Méthode/).inputValue(),'simple_tax_rate');
+ await page.getByLabel(/^ActivityID AFC/).fill('12345');
+ await page.getByLabel(/^Taux TDFN\/TaF confirmé/).fill('3.7');
  await page.locator('input[name=authorization]').check();
  await page.getByRole('button',{name:'Vérifier cette configuration',exact:true}).click();
  await page.getByRole('dialog',{name:'Vérifiez votre configuration TVA',exact:true}).waitFor();
