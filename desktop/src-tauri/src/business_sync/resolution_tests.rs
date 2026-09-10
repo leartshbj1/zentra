@@ -4,13 +4,13 @@ use super::*;
 use crate::database::LocalStore;
 use rusqlite::params;
 
-struct Fixture {
+pub(super) struct Fixture {
     _directory: tempfile::TempDir,
-    store: LocalStore,
-    intent: Value,
+    pub(super) store: LocalStore,
+    pub(super) intent: Value,
     received_receipt: String,
 }
-fn setup() -> Fixture {
+pub(super) fn setup() -> Fixture {
     let directory = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
     store
@@ -58,12 +58,12 @@ fn insert(c: &Connection, intent: &Value, replace: bool) -> rusqlite::Result<usi
     let raw = intent.to_string();
     c.execute(&format!("INSERT {}INTO business_sync_resolution_intent(id,resolution_id,proposal_sha256,intent_json,intent_sha256,state) VALUES(1,?1,?2,?3,zentra_sha256(?3),'prepared')", if replace {"OR REPLACE "} else {""}), params![intent["resolution_id"].as_str(),intent["proposal_sha256"].as_str(),raw])
 }
-fn freeze(f: &Fixture) {
+pub(super) fn freeze(f: &Fixture) {
     let c = f.store.connect().unwrap();
     c.pragma_update(None, "synchronous", "FULL").unwrap();
     insert(&c, &f.intent, false).unwrap();
 }
-fn retirement(f: &Fixture) -> Value {
+pub(super) fn retirement(f: &Fixture) -> Value {
     let intent = retirement::Intent::read(f.intent.to_string().as_bytes()).unwrap();
     let request = intent.request();
     let mut proof = serde_json::to_value(&request).unwrap();

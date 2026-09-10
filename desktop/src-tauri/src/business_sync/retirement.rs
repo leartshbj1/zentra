@@ -7,6 +7,8 @@ use sha2::{Digest, Sha256};
 const SAFE_REVISION: i64 = 9_007_199_254_740_991;
 const MAX_PROOF_BYTES: usize = 16 * 1024;
 
+pub(crate) mod durable;
+
 // Field order is part of the server's JSON binding hash. Keep it identical to
 // parse() in lib/business-sync-retirement.ts, independently of response order.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -23,7 +25,7 @@ pub(crate) struct Request {
     pub decision_sha256: String,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Intent {
     pub format: String,

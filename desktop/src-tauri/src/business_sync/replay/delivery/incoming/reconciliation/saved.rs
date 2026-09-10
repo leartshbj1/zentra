@@ -314,12 +314,7 @@ pub(super) fn list_saved(store: &LocalStore, header: &Header, review_id: &str) -
     Ok(json!({"state":"saved_resolutions","review_id":review_id,"proposals":proposals}))
 }
 
-pub(super) fn read_saved(
-    store: &LocalStore,
-    header: &Header,
-    id: &str,
-    review_id: &str,
-) -> AppResult<Value> {
+fn load_proposal(store: &LocalStore, id: &str) -> AppResult<(PathBuf, Proposal, String)> {
     if !uuid(id) {
         return Err(invalid("La proposition demandée est invalide."));
     }
@@ -335,9 +330,14 @@ pub(super) fn read_saved(
         ));
     }
     let proposal: Proposal = serde_json::from_slice(&raw)?;
-    if !matches!(proposal.version, 1 | 2)
-        || proposal.resolution_id != id
-        || proposal.binding != header.binding
+    if !matches!(proposal.version, 1 | 2) || proposal.resolution_id != id {
+        return Err(invalid("La version ou la référence de la proposition est invalide."));
+    }
+    Ok((folder, proposal, digest(&raw)))
+}
+
+fn verify_comparison(proposal: &Proposal, header: &Header, review_id: &str) -> AppResult<()> {
+    if proposal.binding != header.binding
         || proposal.transaction_id != header.entry.transaction_id
         || proposal.receipt_sha256 != header.entry.receipt_sha256
         || proposal.request.review_id != review_id
@@ -350,9 +350,71 @@ pub(super) fn read_saved(
             "La proposition appartient à une autre comparaison. Actualisez les choix.",
         ));
     }
-    verify_artifacts(&folder, &proposal, &digest(&raw))?;
+    Ok(())
+}
+
+pub(super) fn read_saved(
+    store: &LocalStore,
+    header: &Header,
+    id: &str,
+    review_id: &str,
+) -> AppResult<Value> {
+    let (folder, proposal, seal) = load_proposal(store, id)?;
+    verify_comparison(&proposal, header, review_id)?;
+    verify_artifacts(&folder, &proposal, &seal)?;
     files::verify_prior(store, &proposal.prior_files)?;
     Ok(report(proposal))
+}
+
+/// Freeze exactly the freshly verified comparison, not a later mutable choice.
+/// The snapshot is checked again under SQLite's writer gate, after slow file
+/// hashing, so another process cannot slip a business edit into the cutoff.
+pub(super) fn freeze(
+    store: &LocalStore,
+    header: &Header,
+    id: &str,
+    review_id: &str,
+    revision: &Revision,
+    ensure_current: impl Fn() -> AppResult<()>,
+) -> AppResult<crate::business_sync::retirement::Intent> {
+    use crate::business_sync::retirement::durable;
+    let (folder, proposal, seal) = load_proposal(store, id)?;
+    verify_comparison(&proposal, header, review_id)?;
+    if proposal.version != 2 {
+        return Err(invalid("Enregistrez une nouvelle proposition avant de l’appliquer."));
+    }
+    verify_artifacts(&folder, &proposal, &seal)?;
+    let intent = application_intent(&folder, &proposal, &seal)?;
+    let _guard = store.lock()?;
+    let mut c = store.connect()?;
+    c.pragma_update(None, "synchronous", "FULL")?;
+    let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    ensure_current()?;
+    if Binding::from_connection(&tx, store, &header.binding.organization)? != header.binding {
+        return Err(invalid("L’historique a changé pendant la préparation de la résolution."));
+    }
+    revision.prepared.verify_live(&tx, store, &revision.context)?;
+    files::verify_prior(store, &proposal.prior_files)?;
+    durable::prepare(&tx, &intent)?;
+    ensure_current()?;
+    tx.commit()?;
+    Ok(intent)
+}
+
+/// Reauthorization after reconnect must not recalculate the frozen review id.
+/// Check the original exact proposal and artifacts against its durable intent.
+pub(super) fn verify_frozen(store: &LocalStore, intent: &crate::business_sync::retirement::Intent) -> AppResult<()> {
+    let (folder, proposal, seal) = load_proposal(store, &intent.resolution_id)?;
+    if proposal.version != 2 || seal != intent.proposal_sha256
+        || proposal.preview["state"] != "resolution_preview"
+        || proposal.preview["can_install"] != false
+        || proposal.preview["documents_verified"] != true
+        || application_intent(&folder, &proposal, &seal)? != *intent
+    {
+        return Err(invalid("La proposition protégée ne correspond plus aux choix enregistrés."));
+    }
+    verify_artifacts(&folder, &proposal, &seal)?;
+    files::verify_prior(store, &proposal.prior_files)
 }
 
 // Caller holds the working-store gate and the authenticated cycle lease.

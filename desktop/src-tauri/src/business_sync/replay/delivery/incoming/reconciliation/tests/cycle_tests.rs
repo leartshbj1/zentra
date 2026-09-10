@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 mod business_commands;
 mod conflict_review;
+mod retirement_application;
 
 struct Server {
     header: Header,

@@ -3,6 +3,7 @@
 use super::*;
 use crate::business_sync::{outgoing, replay::reconciliation as merge};
 mod atomic;
+pub(crate) mod application;
 mod files;
 mod install;
 mod saved;

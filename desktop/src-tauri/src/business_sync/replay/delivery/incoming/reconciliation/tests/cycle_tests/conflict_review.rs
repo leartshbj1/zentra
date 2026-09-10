@@ -82,7 +82,7 @@ fn saved_proposal_crash_worker() {
     panic!("Crash boundary not reached");
 }
 
-fn drawing(store: &LocalStore, c: &rusqlite::Connection, name: &str, bytes: &[u8]) {
+pub(super) fn drawing(store: &LocalStore, c: &rusqlite::Connection, name: &str, bytes: &[u8]) {
     fs::write(store.attachments_dir.join(name), bytes).unwrap();
     c.execute("INSERT INTO attachments(id,original_name,stored_name,size_bytes,sha256,created_at,updated_at) VALUES('drawing-review',?1,?1,?2,?3,'2026-09-09','2026-09-09')", params![name, bytes.len() as i64, digest(bytes)]).unwrap();
 }
