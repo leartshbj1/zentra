@@ -1,4 +1,27 @@
 @media screen {
+  .accounting-screen { min-width: 0; }
+  .accounting-screen :is(.accounting-entry-form, .account-inline-form) { min-width: 0; padding: 20px; background: #f5f5f7; border: 1px solid #ebebef; border-radius: 16px; }
+  .accounting-screen .account-inline-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: end; }
+  .accounting-screen .journal-lines { overflow: visible; border: 0; background: transparent; margin-top: 24px; }
+  .accounting-screen .journal-lines > header { flex-wrap: wrap; gap: 12px; padding: 0 0 18px; background: transparent; font-size: 15px; }
+  .accounting-screen .journal-line { min-width: 0; margin: 0 0 20px; padding: 18px; border: 1px solid #e3e3e8; border-radius: 16px; background: #fff; }
+  .accounting-screen .journal-line legend { padding: 0 8px; color: #506858; font-size: 14px; font-weight: 600; }
+  .journal-line__main { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 16px; }
+  .journal-line__account { grid-column: span 2; min-width: 0; }
+  .journal-line__main > .field--wide { grid-column: 1 / -1; }
+  .accounting-screen .journal-line .field { min-width: 0; margin: 0; }
+  .accounting-screen .journal-line :is(input, select) { min-width: 0; width: 100%; min-height: 44px; padding: 10px 12px; font-size: 16px; }
+  .journal-line input[type=number] { text-align: right; font-variant-numeric: tabular-nums; }
+  .journal-line__links { margin-top: 20px; border-top: 1px solid #ebebef; }
+  .journal-line__links summary { padding-block: 14px; color: #506858; font-size: 14px; line-height: 1.5; cursor: pointer; overflow-wrap: anywhere; }
+  .journal-line__links > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding-bottom: 8px; }
+  .journal-line__actions { display: flex; justify-content: flex-end; }
+  .accounting-screen .entry-balance { flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 16px; font-size: 14px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .accounting-screen .entry-balance strong { margin: 0; }
+  .accounting-screen :is(.account-list, .period-list) article { min-width: 0; flex-wrap: wrap; gap: 12px; padding: 16px; }
+  .accounting-screen :is(.account-list, .period-list) article > div { min-width: min(220px, 100%); overflow-wrap: anywhere; }
+  .accounting-screen :is(.account-list, .period-list) :is(strong, span) { font-size: 14px; line-height: 1.5; }
+  .accounting-screen :is(.account-list, .period-list) small { font-size: 13px; line-height: 1.5; }
   .accounting-screen .accounting-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 22px; padding: 24px; }
   .accounting-screen .accounting-toolbar > .section-navigation { width: 100%; min-width: 0; }
   .accounting-screen .accounting-filters { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(190px, 1.4fr) repeat(2, minmax(140px, 1fr)) auto auto; gap: 14px; padding-top: 20px; border-top: 1px solid #ebebef; align-items: end; }
@@ -10,6 +33,8 @@
   .accounting-screen .accounting-toolbar--global .accounting-filters { display: flex; justify-content: flex-end; padding: 0; border: 0; }
 }
 @media screen and (max-width: 1100px) {
+  .journal-line__main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .journal-line__links > div { grid-template-columns: minmax(0, 1fr); }
   .accounting-screen .accounting-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .accounting-screen .accounting-filters > .field:first-child { grid-column: 1 / -1; }
 }
@@ -17,6 +42,12 @@
   .accounting-screen .accounting-toolbar { padding: 20px; }
 }
 @media screen and (max-width: 480px) {
+  .accounting-screen :is(.accounting-entry-form, .account-inline-form) { padding: 12px; }
+  .accounting-screen .account-inline-form { grid-template-columns: minmax(0, 1fr); }
+  .accounting-screen .journal-line { padding: 12px; }
+  .accounting-screen .journal-lines > header > .button { width: 100%; }
+  .accounting-screen .journal-line__actions > .button { width: 100%; }
+  .journal-line__main { gap: 14px 10px; }
   .accounting-screen .accounting-filters { grid-template-columns: minmax(0, 1fr); }
   .accounting-screen .accounting-filters > .field:first-child { grid-column: 1; }
 }
