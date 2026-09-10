@@ -522,6 +522,16 @@
   .button > span { min-width: 0; }
   .button--icon { min-width: 44px; min-height: 44px; flex-shrink: 0; }
   :where(.page-content, .modal) :is(h1, h2, h3, p, .field__label) { overflow-wrap: anywhere; }
+  .field, .modal__header > div { min-width: 0; }
+  .field__label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; }
+  .field__label em { flex-shrink: 0; }
+  .form-actions { flex-wrap: wrap; align-items: center; }
+  .modal__header > .button--icon { align-self: flex-start; }
+  :is(.report-callout, .warning-card, .error-panel) { align-items: flex-start; gap: 12px; }
+  :is(.report-callout, .warning-card, .error-panel) > svg { flex-shrink: 0; }
+  :is(.report-callout, .warning-card, .error-panel) > div { min-width: 0; }
+  :is(.report-callout, .warning-card, .error-panel) strong { font-size: 14px; line-height: 1.5; }
+  :is(.report-callout, .warning-card, .error-panel) p { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
   .section-heading { flex-wrap: wrap; gap: 16px; align-items: center; }
   .section-heading > div:first-child { min-width: 0; max-width: 100%; }
   .section-heading__action { flex-shrink: 0; max-width: 100%; }
