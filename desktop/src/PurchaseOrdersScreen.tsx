@@ -843,9 +843,9 @@ export function PurchaseOrdersScreen({
 
       <section className="panel purchase-workflow__panel">
         <SectionHeading
-          eyebrow="Cycle fournisseur local"
+          eyebrow="Vos achats"
           title="Achats & fournisseurs"
-          description="Commandes, réceptions, factures et paiements réunis au même endroit."
+          description="Enregistrez vos factures reçues, suivez ce qui reste à payer et retrouvez vos fournisseurs."
           action={primaryAction}
         />
         <div className="purchase-workflow__toolbar">

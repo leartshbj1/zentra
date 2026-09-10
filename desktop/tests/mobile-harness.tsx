@@ -2,6 +2,7 @@ import { installExpenseJournalFixture } from './expense-journal-fixture';
 import { installProjectSyncFixture } from './project-sync-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
 import { installDesignFixture } from './design-fixture';
+import { installClarityFixture } from './clarity-fixture';
 import { installCustomerCreditFixture } from './customer-credit-fixture';
 import { installCustomerCreditSettlementFixture } from './customer-credit-settlement-fixture';
 import { installCustomerCreditContinuityFixture } from './customer-credit-continuity-fixture';
@@ -41,6 +42,7 @@ import '../src/mobile.css';
 import '../src/experience.css';
 import '../src/workspace-shell.css';
 import '../src/guided-tour.css';
+import '../src/clarity.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
 let data = {
@@ -151,6 +153,7 @@ if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFix
 if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
+if (new URLSearchParams(location.search).has('clarity')) installClarityFixture(data);
 if (new URLSearchParams(location.search).has('projectSync')) installProjectSyncFixture(()=>data);
 if (new URLSearchParams(location.search).has('customerCredits')) installCustomerCreditFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlements')) installCustomerCreditSettlementFixture(()=>data);

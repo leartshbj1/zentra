@@ -14,6 +14,7 @@ import {
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import { VatOverview } from './VatOverview';
+import { vatSetupPresets } from './financeClarity';
 import { VatPurchaseReview } from './VatPurchaseReview';
 import { VatReceivedPayments } from './VatReceivedPayments';
 import { VatPreClosingReview } from './VatPreClosingReview';
@@ -31,7 +32,7 @@ import type {
   VatSubmissionType,
   Workspace,
 } from './types';
-import { Button, EmptyState, ErrorPanel, Field, SectionHeading, submitForm } from './ui';
+import { Button, EmptyState, ErrorPanel, Field, Modal, SectionHeading, submitForm } from './ui';
 import { createId, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import {
   suggestedVatBusinessReference,
@@ -54,11 +55,13 @@ export function VatCenter({
   workspace,
   onAccountingChanged,
   onOpenJournal,
+  readOnly=false,
 }: {
   filter: PeriodFilter;
   workspace: Workspace;
   onAccountingChanged?: () => Promise<void>;
   onOpenJournal?: (entryId:string) => void;
+  readOnly?: boolean;
 }) {
   const [tab, setTab] = useState<VatTab>('return');
   const [profiles, setProfiles] = useState<VatProfile[]>([]);
@@ -79,6 +82,8 @@ export function VatCenter({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [profileReview,setProfileReview]=useState<FormData|null>(null);
+  const profileSaving=useRef(false);
   const request = useRef(0);
   const hasDates = Boolean(filter.dateFrom && filter.dateTo);
   const invalidPeriod = Boolean(
@@ -155,6 +160,8 @@ export function VatCenter({
   }, [filter.dateFrom, filter.dateTo, submissionType]);
 
   async function saveProfile(form: FormData) {
+    if(readOnly||profileSaving.current)return;
+    profileSaving.current=true;
     setBusy(true);
     setError('');
     setNotice('');
@@ -173,6 +180,7 @@ export function VatCenter({
         notes: String(form.get('notes') || ''),
         closePreviousOpenProfile: form.get('closePrevious') === 'on',
       });
+      setProfileReview(null);
       setTab('return');
       await onAccountingChanged?.();
       await load();
@@ -180,6 +188,8 @@ export function VatCenter({
     } catch (reason) {
       setError(errorMessage(reason, 'Le profil TVA a été refusé.'));
       setBusy(false);
+    } finally {
+      profileSaving.current=false;
     }
   }
 
@@ -301,7 +311,8 @@ export function VatCenter({
 
     {tab === 'profile' ? <section id="vat-panel-profile" role="tabpanel" className="panel vat-profile-panel">
       <SectionHeading eyebrow="Configuration TVA" title="Méthode déclarée par votre entreprise" description="Créez une version à la date d’effet convenue avec l’AFC. Un changement entre facturation et encaissements nécessite une reprise des factures encore ouvertes; cette reprise n’est pas encore automatisée." />
-      <form key={`vat-profile:${periodKey}`} className="vat-profile-form" onSubmit={submitForm(saveProfile)}>
+      <div className="vat-setup-presets"><h3>Partez du mode indiqué dans votre dossier AFC</h3><p>Un choix prépare les champs ci-dessous. Vérifiez les dates et les autorisations avant l’enregistrement.</p><div>{vatSetupPresets.map(p=><button type="button" key={p.id} disabled={busy||readOnly} onClick={()=>{setProfileMethod(p.method);setProfileBasis(p.basis);setProfilePeriodicity(p.periodicity);setProfileGrossOrNet(p.grossOrNet);}}><strong>{p.name}</strong><span>{p.description}</span></button>)}</div></div>
+      <form key={`vat-profile:${periodKey}`} className="vat-profile-form" onSubmit={submitForm(form=>{if(!readOnly&&!busy){setError('');setProfileReview(form);}})}>
         <div className="form-grid">
           <Field label="Début d’effet" required><input name="effectiveFrom" type="date" defaultValue={filter.dateFrom || `${new Date().getFullYear()}-01-01`} required /></Field>
           <Field label="Fin d’effet"><input name="effectiveTo" type="date" /></Field>
@@ -315,10 +326,12 @@ export function VatCenter({
         </div>
         <label className="check-card"><input name="authorization" type="checkbox" required={profileRequiresConfirmation} /><span><strong>J’ai vérifié cette méthode et, lorsque requis, son autorisation AFC</strong><small>{profileRequiresConfirmation ? 'Cette confirmation est obligatoire pour ce choix.' : 'Zentra enregistre votre confirmation; il ne remplace pas la décision de l’AFC.'}</small></span></label>
         {profiles.some((profile) => !profile.effectiveTo) ? <label className="check-card"><input name="closePrevious" type="checkbox" /><span><strong>Fermer le profil actuellement ouvert la veille</strong><small>La nouvelle version commence sans chevauchement; les anciens exports restent intacts.</small></span></label> : null}
-        <div className="form-actions"><Button type="submit" disabled={busy}>Enregistrer cette version</Button></div>
+        <div className="form-actions"><Button type="submit" disabled={busy||readOnly}>Vérifier cette configuration</Button></div>
       </form>
       {profiles.length ? <div className="vat-profile-list">{profiles.map((profile) => <article key={profile.id}><div><strong>{profile.reportingMethod === 'effective' ? 'Méthode effective' : 'TDFN / TaF'}</strong><span>{formatDate(profile.effectiveFrom)} → {profile.effectiveTo ? formatDate(profile.effectiveTo) : 'profil ouvert'}</span><small>{profile.formOfReporting === 'agreed' ? 'Contre-prestations convenues' : 'Contre-prestations reçues'} · {vatPeriodicityLabels[profile.periodicity]} · présentation {profile.grossOrNet === 'gross' ? 'brute' : 'nette'}{profile.tdfnActivityId ? ` · activité ${profile.tdfnActivityId}` : ''}{profile.tdfnRateBp !== null ? ` · ${(profile.tdfnRateBp / 100).toLocaleString('fr-CH')} %` : ''}</small></div><span className="vat-profile-status">Version figée</span></article>)}</div> : <EmptyState title="Aucun profil TVA" text="Renseignez la méthode réellement appliquée avant de produire un décompte." />}
     </section> : null}
+
+    {profileReview?<Modal title="Vérifiez votre configuration TVA" description="Ces choix déterminent la préparation de vos prochains décomptes." onClose={()=>setProfileReview(null)} dismissible={!busy} className="finance-configuration"><dl className="finance-configuration__review"><div><dt>Méthode</dt><dd>{profileMethod==='effective'?'Effective : TVA des ventes moins achats déductibles':'TDFN / TaF : taux d’activité AFC'}</dd></div><div><dt>Moment de prise en compte</dt><dd>{profileBasis==='agreed'?'À la facturation':'Au paiement'}</dd></div><div><dt>Période et fréquence</dt><dd>Du {formatDate(String(profileReview.get('effectiveFrom')))}{profileReview.get('effectiveTo')?` au ${formatDate(String(profileReview.get('effectiveTo')))}`:' · sans date de fin'} · {vatPeriodicityLabels[profilePeriodicity]}</dd></div>{profileMethod==='simple_tax_rate'?<div><dt>Taux d’activité confirmé</dt><dd>{String(profileReview.get('tdfnRate'))} % · activité {String(profileReview.get('activityId'))}</dd></div>:null}<div><dt>Profil précédent</dt><dd>{profileReview.get('closePrevious')==='on'?'Fermer la veille du début de cette version':'Conserver ses dates'}</dd></div></dl><p>Les contrôles de dates, de méthode et de continuité comptable restent appliqués lors de l’enregistrement.</p>{error?<ErrorPanel message={error}/>:null}<div className="form-actions"><Button variant="secondary" disabled={busy} onClick={()=>setProfileReview(null)}>Modifier mes choix</Button><Button disabled={busy||readOnly} onClick={()=>void saveProfile(profileReview)}>{busy?'Enregistrement…':'Enregistrer cette version'}</Button></div></Modal>:null}
 
     {tab === 'return' ? <section id="vat-panel-return" role="tabpanel" className="panel vat-return-panel">
       <SectionHeading eyebrow={hasPeriod ? `${formatDate(filter.dateFrom)} → ${formatDate(filter.dateTo)}` : 'Période requise'} title="Décompte à contrôler" description="Un initial et un rectificatif sont complets. Une concordance annuelle ne contient que les différences à déclarer." action={<select value={submissionType} disabled={busy} onChange={(event) => setSubmissionType(event.target.value as VatSubmissionType)} aria-label="Type de décompte"><option value="initial">Décompte initial</option><option value="correction">Rectificatif</option><option value="annual_reconciliation">Concordance annuelle</option></select>} />

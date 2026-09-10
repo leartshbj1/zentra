@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Archive, BookOpen, CheckCircle2, ChevronDown, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
+import { FinanceOverview } from './FinanceOverview';
+import { accountingExplanations, financePeriod } from './financeClarity';
 import {
   accountingEntryFocusFilter,
   type AccountingEntryFocus,
@@ -22,7 +24,7 @@ import {
   type ManualJournalAttempt,
 } from './accountingManualJournal';
 
-type Tab = 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods';
+type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods';
 type JournalDraftLine = { id: string; accountId: string; debitCents: number; creditCents: number; memo: string; projectId: string; clientId: string; employeeId: string };
 type ActiveEntryFocus = {
   target: AccountingEntryFocus;
@@ -93,7 +95,7 @@ const reportSections: Array<[Account['reportSection'], string]> = [
 
 const newJournalLine = (): JournalDraftLine => ({ id: createId(), accountId: '', debitCents: 0, creditCents: 0, memo: '', projectId: '', clientId: '', employeeId: '' });
 
-export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void }) {
+export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled, readOnly=false }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void; readOnly?:boolean }) {
   const payrollMappingsRequired = Boolean(workspace.settings?.payroll.enabled)
     || (workspace.payslips ?? []).some((payslip) => ['posted', 'paid'].includes(payslip.status));
   const mappingFields = payrollMappingsRequired
@@ -103,7 +105,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const mappingDescription = payrollMappingsRequired
     ? 'Les douze liaisons sont obligatoires, dont deux comptes de passif distincts pour séparer la TVA à régulariser de la TVA due lors des encaissements. Les périodes ouvertes sont rattrapées dans l’ordre; les exercices clôturés restent intacts.'
     : 'Huit liaisons hors paie sont obligatoires, dont deux comptes de passif distincts pour le mode TVA sur les encaissements. Les quatre comptes salaires et cotisations deviendront requis uniquement si la paie est activée; les exercices clôturés restent intacts.';
-  const [tab, setTab] = useState<Tab>('journal');
+  const [tab, setTab] = useState<Tab>('overview');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [settings, setSettings] = useState<AccountingSettings>(emptyAccountingSettings);
   const [continuity, setContinuity] = useState<AccountingContinuity>(emptyContinuity);
@@ -410,8 +412,13 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   function patchLine(id: string, patch: Partial<JournalDraftLine>) { setEntryLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line)); }
 
   const tabs: Array<[Tab, string, React.ReactNode]> = [
+    ['overview', 'Vue d’ensemble', <Landmark size={16}/>],
     ['journal', 'Journal', <BookOpen size={16} />], ['ledger', 'Grand livre', <ListChecks size={16} />], ['trial', 'Balance', <Scale size={16} />], ['balance', 'Bilan', <Landmark size={16} />], ['income', 'Résultat', <CheckCircle2 size={16} />], ['vat', 'TVA', <ReceiptText size={16} />], ['closing', 'Dossier de clôture', <FileCheck2 size={16} />], ['accounts', 'Plan & liaisons', <ShieldCheck size={16} />], ['periods', 'Exercices', <LockKeyhole size={16} />],
   ];
+  const everyday:Tab[]=['overview','income','vat','closing'];
+  const primaryTabs=tabs.filter(([id])=>everyday.includes(id));
+  const advancedTab=tabs.find(([id])=>id===tab&&!everyday.includes(id));
+  if(advancedTab)primaryTabs.push(advancedTab);
 
   async function exportAccounts() {
     await run(async () => {
@@ -420,10 +427,11 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     });
   }
 
-  return <div className="stack-layout accounting-screen">
+  return <div className={`stack-layout accounting-screen ${tab==='overview'?'accounting-screen--overview':''}`}>
+    {hasPeriodFilter&&tab!=='overview'?<div className="finance-period-shortcuts" role="group" aria-label="Choisir une période rapidement">{([['month','Ce mois'],['quarter','Ce trimestre'],['year','Cette année'],['all','Toutes les dates']] as const).map(([key,label])=><button type="button" key={key} disabled={busy} onClick={()=>changeFreeFilter(financePeriod(key,todayIso()))}>{label}</button>)}</div>:null}
     <section className={`accounting-toolbar panel ${hasPeriodFilter ? '' : 'accounting-toolbar--global'}`}>
-      <SectionTabs items={tabs} value={tab} onChange={setTab} label="Section comptable" />
-      <div className="accounting-period-bar">
+      <div className="finance-navigation"><SectionTabs items={primaryTabs} value={tab} onChange={setTab} label="Section comptable" />{tab==='overview'?<label className="finance-navigation__more"><span>Période</span><select aria-label="Période de la vue d’ensemble" disabled={busy} value={(['month','quarter','year','all'] as const).find(key=>{const dates=financePeriod(key,todayIso());return dates.dateFrom===filter.dateFrom&&dates.dateTo===filter.dateTo;})||'custom'} onChange={event=>{if(event.target.value!=='custom')changeFreeFilter(financePeriod(event.target.value as 'month'|'quarter'|'year'|'all',todayIso()));}}><option value="month">Ce mois</option><option value="quarter">Ce trimestre</option><option value="year">Cette année</option><option value="all">Toutes les dates</option><option value="custom" disabled>Période personnalisée</option></select></label>:<label className="finance-navigation__more"><span>Comptabilité détaillée</span><select aria-label="Autres outils comptables" value={everyday.includes(tab)?'':tab} onChange={event=>{if(event.target.value)setTab(event.target.value as Tab);}}><option value="">Choisir un outil…</option>{tabs.filter(([id])=>!everyday.includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}</div>
+      <div className="accounting-period-bar" hidden={tab==='overview'}>
         {hasPeriodFilter && <>
           <button type="button" className="accounting-period-toggle" aria-expanded={filtersExpanded} aria-controls={filtersId} onClick={() => setFiltersExpanded((expanded) => !expanded)}>
             <SlidersHorizontal size={17} aria-hidden="true" /><span><span>Période</span><strong>{periodLabel}</strong></span><ChevronDown size={16} aria-hidden="true" />
@@ -432,7 +440,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
         </>}
         <Button variant="secondary" size="small" disabled={busy} onClick={() => void reloadAll('Les états ont été actualisés.')}><RefreshCw size={15} /> Actualiser</Button>
       </div>
-      {hasPeriodFilter && <div id={filtersId} className="accounting-filters" data-expanded={filtersExpanded} onFocusCapture={() => setFiltersExpanded(true)}>
+      {hasPeriodFilter && tab!=='overview' && <div id={filtersId} className="accounting-filters" data-expanded={filtersExpanded} onFocusCapture={() => setFiltersExpanded(true)}>
           <Field label="Exercice ou période"><select value={periodId} disabled={busy} aria-label="Exercice ou période comptable" onChange={(event) => choosePeriod(event.target.value)}><option value="">Période libre</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.status === 'closed' ? 'clôturé' : 'ouvert'}</option>)}</select></Field>
           <Field label="Du"><input type="date" value={filter.dateFrom ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateFrom: event.target.value || undefined })} aria-label="Date de début de la période" /></Field>
           <Field label="Au"><input type="date" value={filter.dateTo ?? ''} disabled={busy} onChange={(event) => changeFreeFilter({ dateTo: event.target.value || undefined })} aria-label="Date de fin de la période" /></Field>
@@ -441,6 +449,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     {['balance', 'income', 'closing'].includes(tab) ? <section className="panel accounting-export-bar"><div><strong>Bilan et compte de résultat</strong><p>Présentation suisse, détails par rubrique et comparaison avec l’exercice précédent.</p></div><Button disabled={busy || !balance || !income} onClick={() => void exportAccounts()}><FileCheck2 size={17} /> Exporter le bilan PDF</Button></section> : null}
     {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
 
+    {tab === 'overview' ? <FinanceOverview workspace={workspace} income={income} continuity={continuity} busy={busy} periodLabel={periodLabel} readOnly={readOnly} onSection={setTab} onWorkspaceChange={onWorkspaceChange} onInstallStarter={installStarter}/> : null}
+    {accountingExplanations[tab]?<aside className="finance-reading-note"><BookOpen size={19}/><div><h2>{accountingExplanations[tab].title}</h2><p>{accountingExplanations[tab].text}</p></div></aside>:null}
     {reversalRefreshRequired ? <div className="report-callout is-warning" role="status"><RefreshCw size={20}/><div><strong>Correction enregistrée · actualisation nécessaire</strong><p>Rechargez les états avant une nouvelle écriture.</p></div><Button disabled={busy} onClick={()=>void run(async()=>{const accountId=await loadBase();await refreshReports(filter,accountId);setReversalRefreshRequired(false);},'Les états sont actualisés.')}>Actualiser les états</Button></div> : null}
     {tab === 'journal' && activeEntryFocus && focusedEntryAvailable ? <div className={`report-callout accounting-entry-focus ${activeEntryFocus.outsidePaymentDate ? 'is-warning' : ''}`} role="status"><BookOpen size={20} /><div><strong>Écriture {activeEntryFocus.target.entryNumber} liée à l’encaissement</strong><p>{activeEntryFocus.target.accountingState === 'reversed' ? 'L’écriture originale est mise en évidence et le journal reste en période libre afin de rendre toute la chaîne d’extournes visible. L’effet comptable net de cet encaissement est actuellement annulé.' : activeEntryFocus.target.accountingState === 'restored' ? `L’effet comptable net est rétabli après ${activeEntryFocus.target.reversalDepth ?? 'plusieurs'} extournes. Le journal reste en période libre afin de rendre toute la chaîne visible.` : activeEntryFocus.target.accountingState === 'unknown' ? 'Le lien existe, mais l’état ou la profondeur de sa chaîne d’extournes n’a pas pu être établi de façon fiable. Le journal reste en période libre pour permettre le contrôle.' : activeEntryFocus.outsidePaymentDate ? 'Le lien exact a été retrouvé en période libre, hors du jour indiqué par le paiement. Contrôlez la date depuis « Plan & liaisons ».' : `Le journal est limité au ${formatDate(activeEntryFocus.target.entryDate)} et l’écriture correspondante est mise en évidence ci-dessous.`}</p></div></div> : null}
 
@@ -452,7 +462,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
 
     {tab === 'balance' ? <FinancialStatement title="Bilan" state={reportState} rows={balance?.rows ?? []} summary={[['Actifs', balance?.assetsCents, balance?.previousAssetsCents], ['Dettes', balance?.liabilitiesCents, balance?.previousLiabilitiesCents], ['Fonds propres', balance?.equityCents, balance?.previousEquityCents], ['Résultats antérieurs non affectés', balance?.unallocatedPriorResultsCents, balance?.previousUnallocatedPriorResultsCents], ['Résultat de l’exercice', balance?.currentResultCents, balance?.previousCurrentResultCents]]} comparisonLabel={balance?.scope.comparisonLabel} previousHasActivity={balance?.scope.previousHasActivity} currency={balance?.currency.baseCurrency} balanced={balance?.balanced} /> : null}
     {tab === 'income' ? <FinancialStatement title="Compte de résultat" state={reportState} rows={income?.rows ?? []} summary={[['Produits', income?.revenueCents, income?.previousRevenueCents], ['Charges', income?.expenseCents, income?.previousExpenseCents], ['Résultat', income?.profitCents, income?.previousProfitCents]]} comparisonLabel={income?.scope.comparisonLabel} previousHasActivity={income?.scope.previousHasActivity} currency={income?.currency.baseCurrency} /> : null}
-    {tab === 'vat' ? <VatCenter filter={filter} workspace={workspace} onAccountingChanged={reloadAll} onOpenJournal={(id)=>void openLinkedJournal(id)} /> : null}
+    {tab === 'vat' ? <VatCenter filter={filter} workspace={workspace} readOnly={readOnly} onAccountingChanged={reloadAll} onOpenJournal={(id)=>void openLinkedJournal(id)} /> : null}
     {tab === 'closing' ? <ClosingFolder filter={filter} period={selectedPeriod} loading={busy} trial={busy ? null : trial} balance={busy ? null : balance} income={busy ? null : income} onAccountingChanged={() => reloadAll('Les états et le statut de l’exercice ont été actualisés.', true)} /> : null}
 
     {tab === 'accounts' ? <div className="stack-layout">

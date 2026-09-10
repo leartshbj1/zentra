@@ -128,6 +128,7 @@ import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { NavigationPalette } from './NavigationPalette';
 import { SettingsBrowser, SettingsCategory, revealSettingsTarget } from './SettingsCategory';
 import { DocumentListToolbar } from './DocumentListToolbar';
+import { ScreenHelp } from './ScreenHelp';
 import {
   buildGettingStartedJourney,
   type GettingStartedAction,
@@ -406,11 +407,11 @@ const viewTitles: Record<View, [string, string]> = {
     'Achats & fournisseurs',
     'Échéances, dépenses payées et annuaire local',
   ],
-  bank: ['Banque', 'Import CAMT local et rapprochements confirmés'],
+  bank: ['Banque', 'Retrouvez les paiements reçus et les dépenses à vérifier'],
   reports: ['Rapports', 'Rentabilité calculée à partir de vos saisies'],
   accounting: [
     'Comptabilité',
-    'Partie double, journaux et états financiers locaux',
+    'Comprendre votre résultat, préparer la TVA et la fin d’année',
   ],
   settings: ['Paramètres', 'Entreprise, confidentialité et portabilité'],
 };
@@ -1400,7 +1401,7 @@ export function WorkspaceApp({
   );
 
   return (
-    <div className="desktop-app" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
+    <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       {navigationDrawerOpen ? <div className="navigation-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
       <aside
         id="primary-navigation"
@@ -1585,6 +1586,7 @@ export function WorkspaceApp({
             <p>{view === 'dashboard' ? new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' }) : title[1]}</p>
           </div>
           <div className="page-header__actions">
+            <ScreenHelp key={view} view={view} title={view==='quotes'?'Devis':view==='invoices'?'Factures':title[0]}/>
             {view === 'dashboard' ? (
               <>
               <Button
@@ -2079,6 +2081,7 @@ export function WorkspaceApp({
             >
               <AccountingScreen
                 workspace={workspace}
+                readOnly={readOnly}
                 onWorkspaceChange={setWorkspace}
                 focusEntry={accountingEntryFocus}
                 onFocusHandled={clearAccountingEntryFocus}
@@ -2308,7 +2311,7 @@ function Dashboard({
     <div className="dashboard-grid">
       <div className="metric-grid dashboard-summary" role="group" aria-label="Résumé de votre activité">
         <MetricCard
-          label="Facturé TTC"
+          label="Factures émises · TTC"
           value={formatSalesTotals(financialTotals, 'invoicedCents')}
           note={
             issued.length
@@ -2319,7 +2322,7 @@ function Dashboard({
           tone="green"
         />
         <MetricCard
-          label="Encaissé"
+          label="Paiements reçus"
           value={formatSalesTotals(financialTotals, 'paidCents')}
           note={
             workspace.payments.length
@@ -2330,12 +2333,12 @@ function Dashboard({
           tone="amber"
         />
         <MetricCard
-          label="Solde ouvert"
+          label="Reste à recevoir"
           value={
             formatSalesTotals(financialTotals, 'openCents')
           }
           note={
-            issued.length ? 'Sur les factures émises' : 'Pas encore calculable'
+            issued.length ? 'Montant encore dû par les clients' : 'Pas encore calculable'
           }
           icon={<TrendingUp />}
           tone="blue"
@@ -2352,6 +2355,7 @@ function Dashboard({
           tone="violet"
         />
       </div>
+      <details className="dashboard-finance-guide"><summary>Comment lire ces chiffres ?</summary><p>Les factures émises indiquent les ventes avec les taxes. Les paiements reçus sont ceux enregistrés dans Zentra. Le reste à recevoir correspond aux montants encore dus. Chaque devise est présentée séparément.</p><p>Pour connaître le bénéfice après les charges, consultez <button type="button" onClick={()=>onNavigate('accounting')}>votre comptabilité</button>. Ces chiffres ne sont pas le solde de votre compte bancaire.</p></details>
       {!gettingStarted.complete ? (
         <GettingStartedChecklist
           compact

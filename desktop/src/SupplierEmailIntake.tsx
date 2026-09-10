@@ -201,9 +201,8 @@ export function SupplierEmailIntake({
       <div className="supplier-email-intake__copy">
         <strong>Facture reçue par e-mail ?</strong>
         <p>
-          Exportez le message en <code>.eml</code>. Zentra repère localement
-          l’expéditeur, la référence, les dates et le total avec des règles
-          déterministes, sans IA et sans connexion à votre boîte mail.
+          Importez le message au format <code>.eml</code> pour préparer le fournisseur,
+          la référence et les montants. Vous vérifiez les informations avant de créer la facture.
         </p>
       </div>
       <Button

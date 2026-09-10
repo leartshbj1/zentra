@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+const {chromium}=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({headless:true,channel:'msedge'});
+const out=new URL('../../.qa/clarity-finance/',import.meta.url);await mkdir(out,{recursive:true});
+try{for(const width of [1440,390,320]){
+ const page=await browser.newPage({viewport:{width,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&clarity=1&readOnlyAudit=1`);
+ await page.getByRole('button',{name:'Découvrir plus tard',exact:true}).click();
+ await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Comptabilité');
+ await page.locator('.navigation-palette__results button').filter({has:page.getByText('Comptabilité',{exact:true})}).click();
+ // Read-only is changed through the same parent state used by the harness.
+ await page.evaluate(()=>window.__qaSetReadOnly(false));
+ await page.getByRole('button',{name:'Configurer simplement',exact:true}).click();
+ await page.getByRole('radio').nth(2).check();await page.getByRole('button',{name:'Vérifier mes choix',exact:true}).click();
+ await page.evaluate(()=>window.__clarityQA.failSave=true);
+ await page.getByRole('button',{name:'Appliquer ces réglages',exact:true}).click();await page.getByText('Échec de recette : vos choix sont conservés.',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__clarityQA.settingsWrites.length),0);
+ await page.evaluate(()=>window.__clarityQA.failSave=false);await page.getByRole('button',{name:'Appliquer ces réglages',exact:true}).dblclick();
+ await page.getByRole('heading',{name:'Votre configuration est enregistrée',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__clarityQA.settingsWrites.length),1);
+ assert.equal(await page.evaluate(()=>window.__clarityQA.settingsWrites[0].billing.paymentTermsDays),60);
+ await page.getByRole('button',{name:'Terminer',exact:true}).click();
+ await page.getByRole('button',{name:'Préparer ma TVA',exact:false}).click();
+ const choose=async(label,value,title)=>{const select=page.getByRole('combobox',{name:label,exact:true});if(await select.isVisible())await select.selectOption(value);else await page.getByRole('tab',{name:title,exact:true}).click();};
+ await choose('Section TVA','profile','Méthode & autorisation');
+ await page.getByRole('button',{name:/Taux d’activité AFC TDFN/}).click();
+ assert.equal(await page.getByLabel('Méthode',{exact:true}).inputValue(),'simple_tax_rate');
+ await page.getByLabel('ActivityID AFC · 5 chiffres',{exact:true}).fill('12345');
+ await page.getByLabel('Taux TDFN/TaF confirmé (%)',{exact:true}).fill('3.7');
+ await page.locator('input[name=authorization]').check();
+ await page.getByRole('button',{name:'Vérifier cette configuration',exact:true}).click();
+ await page.getByRole('dialog',{name:'Vérifiez votre configuration TVA',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__clarityQA.vatWrites.length),0);
+ await page.screenshot({path:fileURLToPath(new URL(`${width}-vat-review.png`,out))});
+ await page.evaluate(()=>window.__clarityQA.failVat=true);await page.getByRole('button',{name:'Enregistrer cette version',exact:true}).click();
+ await page.getByRole('dialog').getByText('La configuration TVA de recette a été refusée.',{exact:true}).waitFor();
+ await page.evaluate(()=>window.__clarityQA.failVat=false);await page.getByRole('button',{name:'Enregistrer cette version',exact:true}).dblclick();
+ await page.getByRole('dialog',{name:'Vérifiez votre configuration TVA',exact:true}).waitFor({state:'hidden'});
+ assert.equal(await page.evaluate(()=>window.__clarityQA.vatWrites.length),1);
+ assert.equal(await page.evaluate(()=>window.__clarityQA.vatWrites[0].tdfnRateBp),370);
+ await choose('Section TVA','profile','Méthode & autorisation');await page.evaluate(()=>window.__qaSetReadOnly(true));
+ assert.equal(await page.getByRole('button',{name:'Vérifier cette configuration',exact:true}).isDisabled(),true);
+ await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationName),'none');
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({width,settingsRetry:true,vatReview:true,vatRetry:true,doubleSubmitGuard:true,readOnly:true,reducedMotion:true}));await page.close();
+}}finally{await browser.close();}
