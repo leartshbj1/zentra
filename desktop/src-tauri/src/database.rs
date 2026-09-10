@@ -1819,6 +1819,9 @@ impl LocalStore {
             transaction.execute_batch(include_str!("business_sync_resolution.sql"))?;
             transaction.pragma_update(None,"user_version",63)?;
         }
+        if current < 64 {
+            transaction.execute_batch(crate::business_sync::retirement::cancellation::MIGRATION_SQL)?;
+        }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM

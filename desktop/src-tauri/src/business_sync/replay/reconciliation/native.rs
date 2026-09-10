@@ -36,6 +36,7 @@ pub(in crate::business_sync::replay) fn internal_fingerprint(c: &Connection) -> 
         "business_sync_installed_revisions",
         "business_sync_resolution_intent",
         "business_sync_resolutions",
+        "business_sync_resolution_cancellations",
     ] {
         frame(&mut hash, table.as_bytes());
         let mut query = c.prepare(&format!(

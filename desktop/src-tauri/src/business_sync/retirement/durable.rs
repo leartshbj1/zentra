@@ -33,6 +33,7 @@ pub(crate) struct Frozen {
     pub raw_intent: String,
     pub stage: Stage,
     pub retirement: Option<String>,
+    pub cancellation_requested: bool,
 }
 
 pub(crate) trait Transport {
@@ -83,12 +84,15 @@ pub(crate) fn load(c: &Connection, store: &LocalStore) -> AppResult<Option<Froze
         String,
         Option<String>,
         Option<String>,
+        bool,
     );
     let row: Option<Row> = c.query_row(
-        "SELECT resolution_id,proposal_sha256,intent_json,intent_sha256,state,retirement_json,retirement_sha256 FROM business_sync_resolution_intent WHERE id=1",
-        [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)),
+        "SELECT resolution_id,proposal_sha256,intent_json,intent_sha256,state,retirement_json,retirement_sha256,cancellation_requested FROM business_sync_resolution_intent WHERE id=1",
+        [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?)),
     ).optional()?;
-    let Some((id, proposal, raw, seal, state, retirement, retirement_seal)) = row else {
+    let Some((id, proposal, raw, seal, state, retirement, retirement_seal, cancellation_requested)) =
+        row
+    else {
         return Ok(None);
     };
     let intent = Intent::read(raw.as_bytes())?;
@@ -102,6 +106,8 @@ pub(crate) fn load(c: &Connection, store: &LocalStore) -> AppResult<Option<Froze
         || seal != digest(raw.as_bytes())
         || intent.installation_id != store.installation_id
         || !current
+        || (cancellation_requested && state == "prepared")
+        || c.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_resolution_cancellations WHERE resolution_id=?1)", [&id], |r|r.get::<_,bool>(0))?
     {
         return Err(invalid(
             "Cette résolution appartient à un autre état ou appareil. Le dossier reste protégé.",
@@ -125,6 +131,7 @@ pub(crate) fn load(c: &Connection, store: &LocalStore) -> AppResult<Option<Froze
         raw_intent: raw,
         stage,
         retirement,
+        cancellation_requested,
     }))
 }
 
@@ -143,7 +150,7 @@ pub(crate) fn prepare(c: &Connection, intent: &Intent) -> AppResult<()> {
     Ok(())
 }
 
-fn authorize<T: Transport>(
+pub(in crate::business_sync::retirement) fn authorize<T: Transport>(
     store: &LocalStore,
     transport: &Guarded<T>,
     frozen: &Frozen,
@@ -181,7 +188,7 @@ fn current<T: Transport>(
     Ok(frozen)
 }
 
-fn status_error(status: StatusCode) -> AppError {
+pub(in crate::business_sync::retirement) fn status_error(status: StatusCode) -> AppError {
     // Never include server text: a proxy page or account error may contain data
     // unrelated to this operation. In every case retain the dispatch fence.
     invalid(match status {
@@ -191,7 +198,7 @@ fn status_error(status: StatusCode) -> AppError {
     })
 }
 
-async fn blocking<T: Send + 'static>(
+pub(in crate::business_sync::retirement) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {
     tauri::async_runtime::spawn_blocking(work)
@@ -219,6 +226,9 @@ pub(crate) async fn run<T: Transport + Send + Sync + 'static>(
     if frozen.stage == Stage::Retired {
         return Ok(frozen);
     }
+    if frozen.cancellation_requested {
+        return Err(invalid("L’annulation est déjà demandée. Reprenez sa confirmation avant une nouvelle résolution."));
+    }
     let expected = frozen.intent;
     if frozen.stage == Stage::Retiring {
         let (status, raw) = transport.transport.get(&id).await?;
@@ -238,7 +248,7 @@ pub(crate) async fn run<T: Transport + Send + Sync + 'static>(
         c.pragma_update(None, "synchronous", "FULL")?;
         let tx = c.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let live = load(&tx, &s)?.ok_or_else(|| invalid("La résolution préparée est absente."))?;
-        if live.intent != e || live.stage == Stage::Retired {
+        if live.intent != e || live.stage == Stage::Retired || live.cancellation_requested {
             return Err(invalid("L’étape de résolution a changé avant l’envoi."));
         }
         authorize(&s, &t, &live)?;
@@ -264,7 +274,7 @@ pub(crate) async fn run<T: Transport + Send + Sync + 'static>(
     finish(store, transport, expected, raw).await
 }
 
-async fn finish<T: Transport + Send + Sync + 'static>(
+pub(in crate::business_sync::retirement) async fn finish<T: Transport + Send + Sync + 'static>(
     store: LocalStore,
     transport: Arc<Guarded<T>>,
     expected: Intent,

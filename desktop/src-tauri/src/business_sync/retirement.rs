@@ -8,6 +8,7 @@ const SAFE_REVISION: i64 = 9_007_199_254_740_991;
 const MAX_PROOF_BYTES: usize = 16 * 1024;
 
 pub(crate) mod durable;
+pub(crate) mod cancellation;
 
 // Field order is part of the server's JSON binding hash. Keep it identical to
 // parse() in lib/business-sync-retirement.ts, independently of response order.
@@ -161,6 +162,11 @@ pub(super) fn register(connection: &Connection) -> AppResult<()> {
         let intent = ctx.get::<String>(0)?;
         let receipt = ctx.get::<String>(1)?;
         Ok(Intent::read(intent.as_bytes()).and_then(|i| Receipt::read(receipt.as_bytes(), &i)).is_ok())
+    })?;
+    connection.create_scalar_function("zentra_resolution_cancellation_valid", 2, flags, |ctx| {
+        let intent = ctx.get::<String>(0)?;
+        let receipt = ctx.get::<String>(1)?;
+        Ok(Intent::read(intent.as_bytes()).and_then(|i| cancellation::Receipt::read(receipt.as_bytes(), &i)).is_ok())
     })?;
     Ok(())
 }

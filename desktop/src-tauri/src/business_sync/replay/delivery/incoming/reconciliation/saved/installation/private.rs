@@ -39,10 +39,19 @@ fn table_hash(
     filter: &str,
     args: &[&dyn rusqlite::ToSql],
 ) -> AppResult<String> {
+    table_hash_columns(c, table, &columns(c, table)?, filter, args)
+}
+fn table_hash_columns(
+    c: &Connection,
+    table: &str,
+    columns: &[String],
+    filter: &str,
+    args: &[&dyn rusqlite::ToSql],
+) -> AppResult<String> {
     let mut hash = Sha256::new();
     let sql = format!(
         "SELECT CAST(r.rowid AS TEXT),{} FROM {} r {filter} ORDER BY r.rowid",
-        json_image("r", &columns(c, table)?)?,
+        json_image("r", columns)?,
         identifier(table)?
     );
     let mut q = c.prepare(&sql)?;
@@ -52,6 +61,44 @@ fn table_hash(
         replay::frame(&mut hash, r.get::<_, String>(1)?.as_bytes());
     }
     Ok(format!("{:x}", hash.finalize()))
+}
+
+pub(super) fn verify_migration(original: &Connection, migrated: &Connection) -> AppResult<()> {
+    if replay::state_fingerprint(original)? != replay::state_fingerprint(migrated)?
+        || replay::local_fingerprint(original)? != replay::local_fingerprint(migrated)?
+    {
+        return Err(invalid(
+            "La mise à jour de la copie modifierait les données sauvegardées.",
+        ));
+    }
+    for table in [
+        "business_sync_binding",
+        "business_sync_changes",
+        "business_sync_receipts",
+        "business_sync_baseline",
+        "business_sync_publication_intent",
+        "business_sync_installed_revisions",
+        "business_sync_resolution_intent",
+        "business_sync_resolutions",
+        "business_sync_cursor",
+        "sqlite_sequence",
+    ] {
+        let names = columns(original, table)?;
+        if table_hash_columns(original, table, &names, "", &[])?
+            != table_hash_columns(migrated, table, &names, "", &[])?
+        {
+            return Err(invalid(
+                "La mise à jour de la copie modifierait une preuve originale.",
+            ));
+        }
+    }
+    let invalid: bool = migrated.query_row("SELECT EXISTS(SELECT 1 FROM business_sync_resolution_cancellations) OR EXISTS(SELECT 1 FROM business_sync_resolution_intent WHERE cancellation_requested<>0)", [], |r| r.get(0))?;
+    if invalid {
+        return Err(super::invalid(
+            "La copie contient une annulation non prévue.",
+        ));
+    }
+    Ok(())
 }
 fn same(a: &Connection, b: &Connection, table: &str) -> AppResult<()> {
     if table_hash(a, table, "", &[])? != table_hash(b, table, "", &[])? {
@@ -118,6 +165,7 @@ pub(super) fn verify_originals(
         "business_sync_publication_intent",
         "business_sync_installed_revisions",
         "business_sync_resolutions",
+        "business_sync_resolution_cancellations",
     ] {
         same(source, original, table)?;
         if !matches!(table, "business_sync_binding" | "business_sync_changes") {
@@ -311,7 +359,11 @@ pub(super) fn verify_final(
             return Err(invalid("Un compteur privé a changé pendant la résolution."));
         }
     }
-    for table in ["business_sync_baseline", "business_sync_publication_intent"] {
+    for table in [
+        "business_sync_baseline",
+        "business_sync_publication_intent",
+        "business_sync_resolution_cancellations",
+    ] {
         same(source, candidate, table)?;
     }
     if table_hash(source, "business_sync_changes", "", &[])?

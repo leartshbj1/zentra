@@ -1,0 +1,21 @@
+{
+  "format": "zentra-conflict-retirement-cancellation",
+  "version": 1,
+  "organization_id": "org_first",
+  "installation_id": "1d9788ce-c193-4f97-8db1-e52fb5833671",
+  "resolution_id": "237c4b39-ec78-44a3-842e-a5aff4dd0958",
+  "generation": "9999245a-ba77-4a2a-82ab-7834368880db",
+  "capture_generation": "c0c31216-e31a-4f74-b1f3-410295628d12",
+  "first_sequence": "2",
+  "last_sequence": "2",
+  "base_revision": 2,
+  "receipt_sha256": "b7e7ea311764ff75795d0db18c956bfe660feedb2cf63e88ee0b473850b2c27e",
+  "review_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "decision_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "binding_sha256": "12f7ac0a6891510de50a346a2424ca0f3e67507d99c9d76346a9826b44a349cd",
+  "registered_at": "2026-09-10T02:02:51.377Z",
+  "cancelled": true,
+  "retired": false,
+  "business_revision_changed": false,
+  "transaction_acknowledged": false
+}

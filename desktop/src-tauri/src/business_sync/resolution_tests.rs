@@ -287,14 +287,14 @@ fn migration_62_preserves_original_business_rows_and_shared_contract() {
     let c = f.store.connect().unwrap();
     let before = evidence(&c);
     let contract = snapshot::contract_hash().unwrap();
-    c.execute_batch("DROP TRIGGER zentra_resolution_write_guard; DROP TABLE business_sync_resolution_intent; DROP TABLE business_sync_resolutions; PRAGMA user_version=62;").unwrap();
+    c.execute_batch("DROP TABLE business_sync_resolution_cancellations; DROP TRIGGER zentra_resolution_write_guard; DROP TABLE business_sync_resolution_intent; DROP TABLE business_sync_resolutions; PRAGMA user_version=62;").unwrap();
     drop(c);
     let restarted = LocalStore::initialize(f.store.data_dir.clone()).unwrap();
     let c = restarted.connect().unwrap();
     assert_eq!(
         c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        63
+        crate::schema::SCHEMA_VERSION
     );
     assert_eq!(evidence(&c), before);
     assert_eq!(snapshot::contract_hash().unwrap(), contract);

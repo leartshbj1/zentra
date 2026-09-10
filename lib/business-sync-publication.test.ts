@@ -1018,6 +1018,20 @@ it('retirement cancellation routes authenticate, bound bodies and disable respon
   expect(mocks.rate).toHaveBeenCalledWith(expect.any(Request), 'business-sync-retirement-cancellation', `${f.next.actor.organizationId}:${f.next.actor.installationId}`, 60);
 });
 
+it.skipIf(!process.env.ZENTRA_CANCELLATION_PROOF_EXPORT)('exports an exact real D1 cancellation proof for the native parser', async () => {
+  const { runtime } = await realD1Fixture();
+  try {
+    const f = await retirementFixture();
+    const proof = await cancelBusinessRetirement(f.next.actor, f.body);
+    expect(proof).toMatchObject({ cancelled: true, retired: false, transaction_acknowledged: false, business_revision_changed: false });
+    expect(await businessRetirementCancellation(f.next.actor, f.body.resolution_id)).toEqual(proof);
+    await expect(retireBusinessTransactions(f.next.actor, f.body)).rejects.toMatchObject({ status: 409 });
+    const root = process.env.ZENTRA_CANCELLATION_PROOF_EXPORT!;
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'cancellation.json'), JSON.stringify(proof, null, 2), { flag: 'wx' });
+  } finally { await runtime.dispose(); }
+}, 60_000);
+
 it('retirement cancellation and acceptance choose one durable outcome on real D1', async () => {
   const { runtime, d1 } = await realD1Fixture();
   try {

@@ -1,6 +1,7 @@
 use super::conflict_review::drawing;
 use super::*;
 mod recovery;
+mod legacy;
 use crate::business_sync::{
     replay::delivery::incoming::reconciliation::{
         application,

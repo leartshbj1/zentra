@@ -9,6 +9,7 @@ use crate::business_sync::{
 use rusqlite::{params, Connection, OpenFlags, TransactionBehavior};
 
 mod private;
+mod snapshots;
 pub(in crate::business_sync::replay::delivery::incoming::reconciliation) use super::super::install::Point;
 
 fn readonly(path: &Path) -> AppResult<Connection> {
@@ -327,10 +328,17 @@ pub(in crate::business_sync::replay::delivery::incoming::reconciliation) fn inst
         (frozen, c, cutoff)
     };
     let ready = Ready::read(store, &frozen)?;
-    let original = readonly(&artifact(&ready.folder, "candidate.sqlite")?)?;
-    let replacement = readonly(&artifact(&ready.folder, "replacement.sqlite")?)?;
-    private::verify_originals(&source, &original, &replacement, &ready, &frozen.intent)?;
-    let copy = merge::native::copy_source(store, &replacement)?;
+    let original = snapshots::Snapshot::read(store, &artifact(&ready.folder, "candidate.sqlite")?)?;
+    let replacement =
+        snapshots::Snapshot::read(store, &artifact(&ready.folder, "replacement.sqlite")?)?;
+    private::verify_originals(
+        &source,
+        &original.connection,
+        &replacement.connection,
+        &ready,
+        &frozen.intent,
+    )?;
+    let copy = merge::native::copy_source(store, &replacement.connection)?;
     private::refresh(&copy, &source, &frozen, &ready)?;
     let acknowledged = finalize(&copy.store, &ready, &frozen)?;
     let files = ready.stage(store)?;
