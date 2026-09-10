@@ -70,7 +70,7 @@ def main():
     # The launcher creates this path on a disposable runner; reject broad paths.
     assert any(part.startswith('zentra-installer-') for part in profile.parts)
     assert profile.name == 'profile'
-    expected_schema = {'1.45.0': 58, '1.46.0': 59, '1.46.1': 59}[version]
+    expected_schema = {'1.45.0': 58, '1.46.0': 59, '1.46.1': 59, '1.48.0': 59, '1.49.0': 59}[version]
     database = profile / 'helvichantier.sqlite3'
     identity = profile / 'installation-identity.dpapi'
     uri = database.as_uri() + ('?mode=rw' if mode == 'seed' else '?mode=ro')
@@ -81,7 +81,7 @@ def main():
         assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
         assert identity.is_file() and identity.stat().st_size > 0
         if mode == 'seed':
-            assert version == '1.45.0'
+            assert version in {'1.45.0', '1.48.0'}
             seed(connection, profile)
             baseline = {'tables': rows(connection), 'identitySha256': digest(identity), 'attachmentSha256': digest(profile / 'attachments/qa-plan.txt')}
             (profile / 'upgrade-baseline.json').write_text(json.dumps(baseline, indent=2) + '\n')

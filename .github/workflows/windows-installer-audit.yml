@@ -4,9 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Version of the current exact installer in the Zentra release bucket
+        description: Version of the current exact published installer
         required: true
         type: string
+      current_source:
+        description: Location of the hash-pinned current installer
+        type: choice
+        required: true
+        default: release_bucket
+        options:
+          - release_bucket
+          - github_release
       previous_tag:
         description: Published release to upgrade
         required: true
@@ -43,6 +51,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       ZENTRA_RELEASE_TAG: ${{ inputs.release_tag }}
+      ZENTRA_CURRENT_SOURCE: ${{ inputs.current_source }}
       ZENTRA_PREVIOUS_TAG: ${{ inputs.previous_tag }}
       ZENTRA_CURRENT_SHA256: ${{ inputs.current_sha256 }}
       ZENTRA_CURRENT_EXE_SHA256: ${{ inputs.current_exe_sha256 }}

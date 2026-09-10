@@ -15,6 +15,9 @@ foreach ($name in @('ZENTRA_CURRENT_SHA256', 'ZENTRA_CURRENT_EXE_SHA256', 'ZENTR
 }
 if ($env:ZENTRA_NATIVE_SOURCE -notmatch '^[a-f0-9]{40}$') { throw 'Invalid native source.' }
 if ($env:ZENTRA_AUDIT_MODE -notin @('fresh', 'upgrade')) { throw 'Invalid audit mode.' }
+$currentSource = [Environment]::GetEnvironmentVariable('ZENTRA_CURRENT_SOURCE')
+if ([string]::IsNullOrWhiteSpace($currentSource)) { $currentSource = 'release_bucket' }
+if ($currentSource -notin @('release_bucket', 'github_release')) { throw 'Invalid installer source.' }
 $version = $env:ZENTRA_RELEASE_TAG.Substring(1)
 $previous = $env:ZENTRA_PREVIOUS_TAG.Substring(1)
 if ([version]$version -le [version]$previous) { throw 'The current installer must be newer.' }
@@ -37,7 +40,7 @@ $verifier = Join-Path $env:GITHUB_WORKSPACE 'scripts/verify-windows-release-prof
 function Get-Installer([string]$Tag, [string]$Hash) {
     $name = "Zentra_$($Tag.Substring(1))_x64-setup.exe"
     $path = Join-Path $downloads $name
-    if ($Tag -eq $env:ZENTRA_RELEASE_TAG) {
+    if ($Tag -eq $env:ZENTRA_RELEASE_TAG -and $currentSource -eq 'release_bucket') {
         # A read-only Actions token cannot retrieve a draft release. Use only
         # the immutable, hash-pinned artifact in the existing release bucket;
         # the public updater manifest is not promoted by this workflow.
@@ -121,6 +124,7 @@ $proof = [ordered]@{
     source = $env:ZENTRA_NATIVE_SOURCE
     workflow = $env:GITHUB_RUN_ID
     installerSha256 = $env:ZENTRA_CURRENT_SHA256.ToLowerInvariant()
+    currentInstallerSource = $currentSource
     installedExeSha256 = $installedHash.ToLowerInvariant()
     installerExecuted = $true
     packagedApplicationStarted = $true
