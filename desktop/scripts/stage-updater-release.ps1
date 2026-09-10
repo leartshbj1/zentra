@@ -15,6 +15,8 @@ param(
     [string] $OutputRoot,
     [string] $DownloadBaseUrl = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
     [string] $Notes = 'Version stable Zentra.',
+    [ValidateSet('latest.json', 'latest-windows.json')]
+    [string] $ManifestName = 'latest-windows.json',
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string] $PreviousVersion,
@@ -158,7 +160,7 @@ $baseUri = [Uri]$DownloadBaseUrl.TrimEnd('/')
 if (-not $baseUri.IsAbsoluteUri -or $baseUri.Scheme -ne 'https' -or [string]::IsNullOrWhiteSpace($baseUri.Host) -or -not [string]::IsNullOrEmpty($baseUri.UserInfo) -or -not [string]::IsNullOrEmpty($baseUri.Fragment)) {
     throw 'DownloadBaseUrl doit être une URL HTTPS absolue sans identifiants ni fragment.'
 }
-$expectedEndpoint = "$($baseUri.AbsoluteUri.TrimEnd('/'))/latest.json"
+$expectedEndpoint = "$($baseUri.AbsoluteUri.TrimEnd('/'))/$ManifestName"
 if ($endpoint.Trim() -ne $expectedEndpoint) {
     throw "Endpoint incohérent : le build doit embarquer $expectedEndpoint."
 }
@@ -229,7 +231,7 @@ try {
             }
         }
     }
-    $manifestPath = Join-Path $partialDirectory 'latest.json'
+    $manifestPath = Join-Path $partialDirectory $ManifestName
     [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
 
     $verifiedManifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
@@ -237,7 +239,7 @@ try {
     $verifiedHashLine = (Get-Content -Raw -LiteralPath $checksumPath).Trim()
     $verifiedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $stagedInstaller).Hash.ToUpperInvariant()
     if ($verifiedManifest.version -ne $Version -or $platform.url -ne $downloadUrl -or $platform.signature -ne $signatureText) {
-        throw "latest.json est incohérent avec la version, l’URL ou la signature du lot."
+        throw "$ManifestName est incohérent avec la version, l’URL ou la signature du lot."
     }
     if ($verifiedHashLine -ne "$verifiedHash  $expectedInstallerName") {
         throw "Le fichier SHA-256 est incohérent avec l’installateur du lot."
@@ -252,4 +254,4 @@ try {
 }
 
 Write-Output "Lot updater validé et finalisé atomiquement : $releaseDirectory"
-Write-Output "Publication non effectuée. Déployer ensemble l’EXE, le .sig, le SHA-256 et latest.json."
+Write-Output "Publication non effectuée. Déployer ensemble l’EXE, le .sig, le SHA-256 et $ManifestName."
