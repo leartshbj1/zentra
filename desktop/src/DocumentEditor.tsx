@@ -196,6 +196,7 @@ export function DocumentEditor({
           : 'facture';
 
   const steps = ['Client', 'Prestations', 'Conditions', 'Vérification'];
+  const stepDescriptions = ['Destinataire et projet', 'Lignes et montants', 'Dates et message', 'Relecture du document'];
   const stepTitles = ['Pour qui préparez-vous ce document ?', 'Qu’allez-vous réaliser ?', 'Les derniers détails.', 'Tout est prêt ?'];
   const stepHints = ['Choisissez votre client et retrouvez tous ses documents dans le même projet.', 'Ajoutez vos prestations ou retrouvez-les dans votre catalogue.', 'Précisez les dates et le message qui accompagnera votre document.', 'Relisez votre document. Vous pourrez encore le modifier avant de l’émettre.'];
 
@@ -409,6 +410,7 @@ export function DocumentEditor({
       <CreditDocumentDetails collapse={hasCustomerCredit}>
       <form
         ref={formRef}
+        className={!isLocked ? 'document-assistant' : undefined}
         noValidate={!isLocked}
         onChange={() => { if (localError) setLocalError(''); }}
         onSubmit={submitForm(async (form) => {
@@ -502,8 +504,10 @@ export function DocumentEditor({
         })}
       >
         {!isLocked && <nav className="document-stepper" aria-label="Étapes de création">
-          <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-current={step === index ? 'step' : undefined} disabled={busy} onClick={() => goToStep(index)}><span className="document-stepper__number">{index < step ? <Check size={14} /> : index + 1}</span><span>{label}</span></button></li>)}</ol>
+          <div className="document-stepper__intro"><span>Votre document</span><strong>{documentTitle.trim() || (entity === 'quotes' ? 'Nouveau devis' : invoiceType === 'credit_note' ? 'Nouvel avoir' : 'Nouvelle facture')}</strong></div>
+          <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-label={`${index + 1}. ${label}`} aria-current={step === index ? 'step' : undefined} disabled={busy} onClick={() => goToStep(index)}><span className="document-stepper__number" aria-hidden="true">{index < step ? <Check size={14} /> : index + 1}</span><span className="document-stepper__label"><strong>{label}</strong><small>{stepDescriptions[index]}</small></span></button></li>)}</ol>
           <div className="document-stepper__track"><span style={{ transform: `scaleX(${(step + 1) / 4})` }} /></div>
+          <p className="document-stepper__note">Vous pourrez modifier le brouillon avant de l’émettre.</p>
         </nav>}
         {localError ? <ErrorPanel key={saveAttempt} title="Encore un détail" message={localError} /> : null}
         <fieldset disabled={busy || isLocked} className="document-form">
@@ -693,11 +697,11 @@ export function DocumentEditor({
               <div>
                 <strong>{invoiceType === 'deposit' ? 'Base de calcul de l’acompte' : 'Lignes du document'}</strong>
                 <small className={currency !== 'CHF' ? 'document-currency-hint' : undefined}>
-                  {currency === 'CHF' ? 'Le catalogue accélère la saisie; chaque valeur reste modifiable dans ce brouillon.' : `Saisissez les prix en ${currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.`}
+                  {currency === 'CHF' ? (catalogItems.length ? 'Retrouvez une prestation du catalogue ou ajoutez une ligne libre.' : 'Décrivez vos prestations, leur quantité et leur prix.') : `Saisissez les prix en ${currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.`}
                 </small>
               </div>
               <div className="line-editor__actions">
-                <div className="catalog-line-picker">
+                {catalogItems.length > 0 && <div className="catalog-line-picker">
                   <Package size={15} />
                   <input
                     type="search"
@@ -744,7 +748,7 @@ export function DocumentEditor({
                       Recherchez pour parcourir les {catalogItems.length} références.
                     </small>
                   ) : null}
-                </div>
+                </div>}
                 <Button
                   type="button"
                   variant="secondary"

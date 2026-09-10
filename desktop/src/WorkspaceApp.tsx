@@ -2663,16 +2663,16 @@ function ProjectsScreen({
       />
     );
   return (
-    <div className="stack-layout">
+    <div className="stack-layout project-collection">
       <section
         className="project-view-switch panel"
         aria-label="Vue des projets"
       >
         <div>
-          <span>Projets</span>
+          <span>{workspace.projects.length} dossier{workspace.projects.length > 1 ? 's' : ''}</span>
           <strong>
             {mode === 'overview'
-              ? 'Rentabilité et durée'
+              ? 'Vos projets, au même endroit'
               : 'Prochaines actions et échéances'}
           </strong>
         </div>
@@ -2746,7 +2746,7 @@ function ProjectsScreen({
               <article className="project-card" key={project.id}>
                 <header>
                   <div className="project-card__icon">
-                    <ProjectIcon size={20} />
+                    <FolderOpen size={24} />
                   </div>
                   <div>
                     <h3><button type="button" className="project-name-link" onClick={() => onFolderChange(project.id)}>{project.name}</button></h3>

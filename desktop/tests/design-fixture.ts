@@ -11,6 +11,16 @@ export function installDesignFixture(workspace: Workspace) {
   workspace.clients[0].address = 'Chemin des Vignes 12\n1009 Pully';
   workspace.clients[0].email = 'camille@example.invalid';
   workspace.projects[0].name = 'Rénovation · Résidence Bellevue';
+  if (new URLSearchParams(location.search).has('designCatalog')) {
+    workspace.catalogItems = [{ id: 'design-service', sku: 'PREP-01', name: 'Préparation des surfaces', description: 'Protection du mobilier et préparation des murs', kind: 'service', unit: 'h', purchaseCostCents: 0, salesPriceCents: 9500, vatBp: 810, trackStock: false, stockQuantityMilli: 0, reorderLevelMilli: 0, archivedAt: null, createdAt: '', updatedAt: '' }];
+  }
+  if (new URLSearchParams(location.search).has('designLedger')) {
+    desktopApi.getLedger = async (accountId, filter) => {
+      const account = (await desktopApi.listAccounts()).find(item => item.id === accountId);
+      if (!account) throw new Error('Compte de démonstration introuvable.');
+      return { account, lines: [], currency: (await desktopApi.getJournal(filter)).currency, openingDebitCents: 0, openingCreditCents: 0, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, openingNetDebitCents: 0, debitCents: 0, creditCents: 0, movementNetDebitCents: 0, netDebitCents: 0, closingDebitBalanceCents: 0, closingCreditBalanceCents: 0, closingNetDebitCents: 0 };
+    };
+  }
   const labels = ['Rénovation de l’espace de vie', 'Aménagement des bureaux', 'Entretien annuel'];
   for (const [index, quote] of workspace.quotes.entries()) {
     quote.title = labels[index];

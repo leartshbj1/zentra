@@ -11,9 +11,8 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     page.on('pageerror', (error) => report.push({ width, error: error.message }));
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?finance=1&bank=1', { waitUntil: 'domcontentloaded' });
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (await tour.isVisible()) await tour.click();
+    await page.goto(`${process.env.ZENTRA_QA_BASE_URL || 'http://127.0.0.1:5175'}/tests/mobile-harness.html?finance=1&bank=1`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Banque');
     await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Banque', { exact: true }) }).click();
