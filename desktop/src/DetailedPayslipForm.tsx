@@ -1240,7 +1240,7 @@ export function DetailedPayslipForm({
                         >
                           <Archive size={15} />
                         </Button>
-                        
+
                         {accountingEnabled && line.kind !== 'earning' ? (
                           <div className="pay-line-accounting">
                             {line.kind === 'deduction' ||
