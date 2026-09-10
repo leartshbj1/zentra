@@ -133,8 +133,8 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Découvrez la nouvelle interface.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Des menus plus lisibles, des transitions douces et un tutoriel pour vous accompagner. Cette préversion s’installe manuellement ; la version stable et les téléchargements Mac et mobiles restent disponibles ci-dessous.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos finances, en clair.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Une interface épurée, des chiffres expliqués et une aide dans chaque écran. Configurez vos délais et préparez vos réglages TVA avec un récapitulatif avant validation. Cette préversion Windows s’installe manuellement ; les téléchargements Mac et mobiles restent disponibles ci-dessous.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
               <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
