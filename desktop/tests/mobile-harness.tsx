@@ -150,7 +150,7 @@ if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfill
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);
-if (new URLSearchParams(location.search).has('updater')) installUpdaterFixture();
+if (['updater', 'updaterBadge'].some(key => new URLSearchParams(location.search).has(key))) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
 if (new URLSearchParams(location.search).has('clarity')) installClarityFixture(data);

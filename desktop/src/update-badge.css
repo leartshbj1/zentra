@@ -1,0 +1,28 @@
+.update-launcher {
+  position: relative;
+  overflow: visible;
+}
+.topbar .topbar__tools .update-launcher {
+  display: inline-flex;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+.update-launcher .update-launcher__badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 50%;
+  background: #c93632;
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--surface, #fff);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}

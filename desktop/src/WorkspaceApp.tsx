@@ -94,7 +94,9 @@ import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesD
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
 import type { AgendaEventDraft } from './AgendaScreen';
 import { agendaNavigationTarget, type AgendaItem } from './agenda';
-import { APP_UPDATER_TARGET_ID, AppUpdater } from './AppUpdater';
+import { AppUpdater } from './AppUpdater';
+import { useUpdateAvailability } from './useUpdateAvailability';
+import './update-badge.css';
 import { CloudAccountPanel } from './CloudAccountPanel';
 import { CloudAccountAccess } from './CloudAccountAccess';
 import { BusinessProfileFields } from './BusinessProfileEditor';
@@ -451,7 +453,8 @@ export function WorkspaceApp({
     window.addEventListener('keydown', openNavigation);
     return () => window.removeEventListener('keydown', openNavigation);
   }, []);
-  const [availableUpdate, setAvailableUpdate] = useState<string | null>(null);
+  const availableUpdate = useUpdateAvailability()?.version ?? null;
+  const [dismissedUpdate, setDismissedUpdate] = useState<string | null>(null);
   const [compactNavigation, setCompactNavigation] = useState(() =>
     typeof window !== 'undefined'
       && typeof window.matchMedia === 'function'
@@ -530,17 +533,7 @@ export function WorkspaceApp({
     ? 'Votre rôle « Lecture seule » bloque les modifications sur ce poste. La consultation et les exports restent disponibles.'
     : 'La licence doit être active pour modifier les données. Lecture, sauvegarde et export restent disponibles.';
 
-  useEffect(() => {
-    let active = true;
-    const timer = window.setTimeout(() => {
-      void desktopApi.getSecureUpdatePolicy().then(async (policy) => {
-        if (!policy.enabled || !active) return;
-        const update = await desktopApi.checkSecureUpdate();
-        if (active && update) setAvailableUpdate(update.version);
-      }).catch(() => { /* An offline device remains usable; manual checking reports errors. */ });
-    }, 12_000);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, []);
+
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -560,13 +553,9 @@ export function WorkspaceApp({
     () => setAccountingEntryFocus(null),
     [],
   );
-  const openUpdater = useCallback(() => {
-    setAccountingEntryFocus(null);
-    setView('settings');
-    setSearch('');
-    setMenuOpen(false);
-    setSettingsFocusTarget(APP_UPDATER_TARGET_ID);
-  }, []);
+  const [updaterOpen, setUpdaterOpen] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
+  const openUpdater = useCallback(() => { setUpdaterOpen(true); }, []);
   const settings = workspace.settings!;
   const terminology = projectTerminology(settings.business.nogaSection);
   const recurrenceScheduleSignal = workspace.recurrenceSchedules
@@ -1403,6 +1392,9 @@ export function WorkspaceApp({
 
   return (
     <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
+      {updaterOpen ? <Modal title="Mise à jour de Zentra" wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
+        <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
+      </Modal> : null}
       {navigationDrawerOpen ? <div className="navigation-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
       <aside
         id="primary-navigation"
@@ -1520,11 +1512,12 @@ export function WorkspaceApp({
               variant="ghost"
               size="small"
               className="update-launcher"
-              aria-label="Ouvrir les mises à jour de Zentra"
-              title="Vérifier les mises à jour"
+              aria-label={availableUpdate ? 'Ouvrir les mises à jour de Zentra — 1 mise à jour disponible' : 'Ouvrir les mises à jour de Zentra'}
+              title={availableUpdate ? `Zentra ${availableUpdate} est disponible` : 'Vérifier les mises à jour'}
               onClick={openUpdater}
             >
               <RefreshCw size={18} />
+              {availableUpdate && <span className="update-launcher__badge" aria-hidden="true">1</span>}
             </Button>
             <Button
               type="button"
@@ -1541,7 +1534,7 @@ export function WorkspaceApp({
           </div>
         </header>
 
-        {availableUpdate ? <div className="notice" role="status"><span><Download size={18} /> Zentra {availableUpdate} est disponible.</span><Button size="small" onClick={openUpdater}>Voir la mise à jour</Button><Button variant="ghost" size="icon" aria-label="Masquer la notification de mise à jour" onClick={() => setAvailableUpdate(null)}><X size={16} /></Button></div> : null}
+        {availableUpdate && dismissedUpdate !== availableUpdate ? <div className="notice" role="status"><span><Download size={18} /> Zentra {availableUpdate} est disponible.</span><Button size="small" onClick={openUpdater}>Voir la mise à jour</Button><Button variant="ghost" size="icon" aria-label="Masquer la notification de mise à jour" onClick={() => setDismissedUpdate(availableUpdate)}><X size={16} /></Button></div> : null}
 
         {readOnly && readOnlySource === 'cloud' ? (
           <div className="notice notice--warning" role="status">

@@ -55,7 +55,8 @@ describe('contrat de publication des mises à jour', () => {
     expect(workflow).not.toContain(
       'ELYKO_UPDATER_ENDPOINT: https://elyko.alb-leart1.chatgpt.site',
     );
-    expect(localBuild).toContain(workflowEndpoint);
+    // Windows releases can advance without advertising an unbuilt macOS version.
+    expect(localBuild).toContain(workflowEndpoint.replace('latest.json', 'latest-windows.json'));
     expect(staging).toContain(
       'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
     );
